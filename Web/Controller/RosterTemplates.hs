@@ -5,7 +5,7 @@ module Web.Controller.RosterTemplates where
 import Application.Bepis.Controller
 import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
                                       ensureManagerRole, ensureProfileCompleted,
-                                      ensureVenueWritable)
+                                      ensureVenueWritable, fetchVenueConfig)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
@@ -14,8 +14,9 @@ import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.RosterTemplateScale (parseRosterTemplateScale,
                                                rosterTemplateScaleValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..))
@@ -23,11 +24,17 @@ import Control.Monad (guard)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
+import Network.HTTP.Types.Status (status409)
+import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
+import Web.RosterWeeks.DateRange (RosterWindowScope (..),
+                                  RosterWindowState (..), fetchRosterWindow,
+                                  rosterWindowIsPublished,
+                                  rosterWindowScopeForAnchor)
+import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Responses (respondWithRosterTemplateApplicationUpdate)
-import Web.RosterWeeks.Service (fetchCurrentRosterWeekOffset)
 import Web.RosterWeeks.TemplateApplication
 import Web.RosterWeeks.TemplateDesigner
 import Web.View.RosterTemplates.ApplicationConfirmation
@@ -39,11 +46,41 @@ import Web.View.RosterTemplates.New
 import Web.View.RosterTemplates.Reference
 import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
+rosterTemplateWindowScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterGroup -> IO RosterWindowScope
+rosterTemplateWindowScope rosterGroup = do
+    venueConfig <- fetchVenueConfig
+    pure (rosterWindowScopeForAnchor venueConfig rosterGroup.id (param @Day "anchorDate"))
+
+fetchRosterTemplateReferenceWeekForScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterTemplateActor -> RosterGroup -> RosterWindowScope -> IO (Maybe RosterTemplateReferenceWeek)
+fetchRosterTemplateReferenceWeekForScope actor rosterGroup scope =
+    fetchRosterTemplateReferenceWeek actor rosterGroup scope.rosterWindowStart
+
+currentRosterWindowStart :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Day
+currentRosterWindowStart = do
+    venueConfig <- fetchVenueConfig
+    today <- currentOperationalDayForVenue venueConfig
+    pure (startOfWeekFor venueConfig.rosterWeekStartsOn today)
+
+abortStaleTemplateCalendarRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+abortStaleTemplateCalendarRequest =
+    when isHtmxRequest $
+        forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
+            venueConfig <- fetchVenueConfig
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) do
+                respondAndExit
+                    ( Wai.responseLBS
+                        status409
+                        [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                        "The roster calendar changed. Review the refreshed window and try again."
+                    )
+                error "unreachable"
+
 instance Controller RosterTemplatesController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
+        abortStaleTemplateCalendarRequest
 
     action currentAction@NewRosterTemplateAction { rosterGroupId } = runBepis currentAction BepisPageAction do
         ensureManagerRole
@@ -74,8 +111,8 @@ instance Controller RosterTemplatesController where
                         renderDraftOccupied actor rosterGroup name scale "blank" Nothing Nothing Nothing
                     Left templateError -> renderCreationFailure rosterGroup templateError
             (Just name, Just scale, Just "reference") -> do
-                currentWeekOffset <- fetchCurrentRosterWeekOffset
-                redirectToPathSeeOther (referenceSelectionPath rosterGroup currentWeekOffset name scale)
+                windowStart <- currentRosterWindowStart
+                redirectToPathSeeOther (referenceSelectionPath rosterGroup windowStart name scale)
             _ -> do
                 maybeTemplateLibrary <- fetchRosterTemplateLibrary actor rosterGroup
                 accessDeniedUnless (isJust maybeTemplateLibrary)
@@ -83,15 +120,17 @@ instance Controller RosterTemplatesController where
                 let creationError = Just "Choose Day or Week, enter a name, and select a starting point."
                 render NewView { .. }
 
-    action currentAction@ShowRosterTemplateReferenceAction { rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction do
+    action currentAction@ShowRosterTemplateReferenceAction { rosterGroupId } = runBepis currentAction BepisPageAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         actor <- currentRosterTemplateActor
-        currentWeekOffset <- fetchCurrentRosterWeekOffset
+        currentWindowStart <- currentRosterWindowStart
+        let windowStart = scope.rosterWindowStart
         case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseRosterTemplateScale) of
             (Just templateName, Just templateScale) -> do
-                maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+                maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForScope actor rosterGroup scope
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
                 render ReferenceView { .. }
@@ -99,65 +138,67 @@ instance Controller RosterTemplatesController where
                 setErrorMessage "Choose the template scale and name before selecting a reference."
                 redirectTo NewRosterTemplateAction { .. }
 
-    action currentAction@ConfirmRosterTemplateReferenceAction { rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction do
+    action currentAction@ConfirmRosterTemplateReferenceAction { rosterGroupId } = runBepis currentAction BepisPageAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         actor <- currentRosterTemplateActor
         case referenceRequestFromParams of
             Nothing -> redirectTo NewRosterTemplateAction { .. }
-            Just (templateName, templateScale, selectedDayOffset) -> do
-                maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+            Just (templateName, templateScale, selectedOperationalDate) -> do
+                maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForScope actor rosterGroup scope
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
-                case selectedReference templateScale selectedDayOffset referenceWeek of
+                case selectedReference templateScale selectedOperationalDate referenceWeek of
                     Just reference -> do
                         maybeSourceRevision <- fetchRosterTemplateReferenceRevision rosterGroup reference
                         case maybeSourceRevision of
                             Nothing -> do
                                 setErrorMessage "The selected roster reference changed. Select it again."
-                                redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                                redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
                             Just sourceRevision -> do
                                 maybeDraft <- fetchPrivateRosterTemplateDraft actor
                                 let confirmedDraftRevision = rosterTemplateDraftRevision <$> maybeDraft
                                 confirmationToken <- UUID.toText <$> UUIDv4.nextRandom
                                 setSession rosterTemplateReferenceConfirmationSessionKey
-                                    (referenceConfirmationSessionValue confirmationToken rosterGroup.id weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision)
+                                    (referenceConfirmationSessionValue confirmationToken (rosterTemplateActorUserId actor) rosterGroup.id scope.rosterWindowStart templateName templateScale selectedOperationalDate sourceRevision confirmedDraftRevision)
                                 render ConfirmReferenceView { .. }
                     Nothing -> do
                         setErrorMessage "Select an existing roster day or complete week."
-                        redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                        redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
 
-    action currentAction@CreateRosterTemplateFromReferenceAction { rosterGroupId, weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateRosterTemplateFromReferenceAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         actor <- currentRosterTemplateActor
         case referenceRequestFromParams of
             Nothing -> redirectTo NewRosterTemplateAction { .. }
-            Just (templateName, templateScale, selectedDayOffset) -> do
-                maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+            Just (templateName, templateScale, selectedOperationalDate) -> do
+                maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForScope actor rosterGroup scope
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
-                case selectedReference templateScale selectedDayOffset referenceWeek of
+                case selectedReference templateScale selectedOperationalDate referenceWeek of
                     Nothing -> do
                         setErrorMessage "Select an existing roster day or complete week."
-                        redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                        redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
                     Just reference -> do
                         maybeSourceRevision <- fetchRosterTemplateReferenceRevision rosterGroup reference
                         case maybeSourceRevision of
                             Nothing -> do
                                 setErrorMessage "The selected roster reference changed. Select it again."
-                                redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                                redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
                             Just sourceRevision -> do
                                 maybeDraft <- fetchPrivateRosterTemplateDraft actor
                                 let confirmedDraftRevision = rosterTemplateDraftRevision <$> maybeDraft
                                 let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
-                                confirmationMatches <- maybe (pure False) (referenceConfirmationMatches rosterGroup.id weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision) maybeConfirmationToken
+                                confirmationMatches <- maybe (pure False) (referenceConfirmationMatches (rosterTemplateActorUserId actor) rosterGroup.id scope.rosterWindowStart templateName templateScale selectedOperationalDate sourceRevision confirmedDraftRevision) maybeConfirmationToken
                                 unless confirmationMatches do
                                     setErrorMessage "Confirm the selected roster reference before creating its template draft."
-                                    redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
-                                startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset maybeConfirmationToken sourceRevision confirmedDraftRevision reference
+                                    redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
+                                startFromReference actor rosterGroup templateName templateScale scope.rosterWindowStart selectedOperationalDate maybeConfirmationToken sourceRevision confirmedDraftRevision reference
 
     action currentAction@DiscardAndRestartRosterTemplateDraftAction { rosterGroupId, rosterTemplateDesignId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -184,7 +225,14 @@ instance Controller RosterTemplatesController where
         let draft = fromMaybe (error "authorized template draft missing") maybeDraft
         rosterGroup <- fetchScopedRosterGroup (Id draft.draftDesign.rosterGroupId)
         designerStaff <- fetchDesignerStaff rosterGroup
-        designerShiftTypes <- fetchActiveVenueShiftTypes (Id rosterGroup.venueId)
+        venueConfig <- fetchVenueConfig
+        let designerWeekStartsOn = venueConfig.rosterWeekStartsOn
+        designerShiftTypes <- query @ShiftType
+            |> filterWhere (#venueId, rosterGroup.venueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> orderByAsc #sortOrder
+            |> fetch
         render DesignerView { .. }
 
     action currentAction@UpdateRosterTemplateDayAction { rosterTemplateDesignId, dayIndex } = runBepis currentAction BepisMutationAction do
@@ -266,154 +314,169 @@ instance Controller RosterTemplatesController where
                 setErrorMessage (templateErrorMessage templateError)
                 redirectTo RosterWeeksAction
 
-    action currentAction@PreviewRosterTemplateDropAction { rosterGroupId, weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@PreviewRosterTemplateDropAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
+        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         case (RosterAction.parsePreviewRosterTemplateApplicationActionParams, RosterIntent.parsePreviewRosterTemplateApplicationIntentParams) of
             (Right fields, Right _) -> do
                 let sourceKey = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetDropzoneKey = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
                 case Id <$> UUID.fromText sourceKey of
-                    Nothing -> do
-                        rosterGroup <- fetchScopedRosterGroup rosterGroupId
-                        invalidTemplateApplication rosterGroup weekOffset "Choose a compatible roster template."
+                    Nothing -> invalidTemplateApplication scope "Choose a compatible roster template."
                     Just rosterTemplateId -> do
                         actor <- authorizedDesignerActor
-                        rosterGroup <- fetchScopedRosterGroup rosterGroupId
-                        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey
+                        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey
                         case maybeRequest of
-                            Nothing -> invalidTemplateApplication rosterGroup weekOffset "Choose a compatible day or week target."
+                            Nothing -> invalidTemplateApplication scope "Choose a compatible day or week target."
                             Just applicationRequest -> do
                                 preview <- previewRosterTemplateApplication actor applicationRequest
                                 case preview of
-                                    Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
+                                    Left applicationError -> invalidTemplateApplication scope (templateApplicationErrorMessage applicationError)
                                     Right applicationPreview -> respondHtml (renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey applicationPreview)
-            _ -> do
-                rosterGroup <- fetchScopedRosterGroup rosterGroupId
-                invalidTemplateApplication rosterGroup weekOffset "Choose a compatible template target."
+            _ -> invalidTemplateApplication scope "Choose a compatible template target."
 
-    action currentAction@ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId, rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction do
+    action currentAction@ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisPageAction do
         actor <- authorizedDesignerActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         let targetDropzoneKey = param @Text "targetDropzoneKey"
-        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey
+        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey
         case maybeRequest of
-            Nothing -> invalidTemplateApplication rosterGroup weekOffset "Choose a compatible day or week target."
+            Nothing -> invalidTemplateApplication scope "Choose a compatible day or week target."
             Just applicationRequest -> do
                 preview <- previewRosterTemplateApplication actor applicationRequest
                 case preview of
-                    Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
+                    Left applicationError -> invalidTemplateApplication scope (templateApplicationErrorMessage applicationError)
                     Right applicationPreview -> respondHtml (renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey applicationPreview)
 
-    action currentAction@ApplyRosterTemplateAction { rosterTemplateId, rosterGroupId, weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@ApplyRosterTemplateAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisMutationAction do
         actor <- authorizedDesignerActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         case RosterAction.parseApplyRosterTemplateApplicationActionParams of
-            Left _ -> invalidTemplateApplication rosterGroup weekOffset "Review the template confirmation and try again."
+            Left _ -> invalidTemplateApplication scope "Review the template confirmation and try again."
             Right fields -> do
                 accessDeniedUnless (surfaceFieldValue @RosterSurface.TemplateId fields == unpackId rosterTemplateId)
                 let targetDropzoneKey = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
                 let expectedTemplateVersion = surfaceFieldValue @RosterSurface.ExpectedTemplateVersion fields
                 let expectedTargetRevision = surfaceFieldValue @RosterSurface.ExpectedTargetRevision fields
-                maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey
+                let expectedCalendarRevision = surfaceFieldValue @RosterSurface.RosterCalendarRevision fields
+                maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey
                 case maybeRequest of
-                    Nothing -> invalidTemplateApplication rosterGroup weekOffset "Choose a compatible day or week target."
+                    Nothing -> invalidTemplateApplication scope "Choose a compatible day or week target."
                     Just applicationRequest -> do
-                        applied <- applyRosterTemplateApplicationMutation actor applicationRequest expectedTemplateVersion expectedTargetRevision
+                        applied <- applyRosterTemplateApplicationMutation actor applicationRequest expectedTemplateVersion expectedTargetRevision expectedCalendarRevision
                         case applied of
-                            Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
+                            Left applicationError -> invalidTemplateApplication scope (templateApplicationErrorMessage applicationError)
                             Right mutationResult -> if isHtmxRequest
-                                then respondWithRosterTemplateApplicationUpdate rosterGroup.id weekOffset mutationResult.liveMutationTouchedResources
+                                then respondWithRosterTemplateApplicationUpdate scope mutationResult.liveMutationTouchedResources
                                 else do
                                     setSuccessMessage "Template applied."
-                                    redirectToPath (appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroup.id)])
+                                    redirectToPath (rosterTemplateWindowUrl scope)
 
-    action currentAction@ShowRosterTemplateLibraryFragmentAction { rosterGroupId, weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterTemplateLibraryFragmentAction { rosterGroupId } = runBepis currentAction BepisFragmentAction do
         actor <- authorizedDesignerActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         maybeLibrary <- fetchRosterTemplateLibrary actor rosterGroup
         accessDeniedUnless (isJust maybeLibrary)
-        maybeRosterWeek <- query @RosterWeek
-            |> filterWhere (#venueId, rosterGroup.venueId)
-            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-            |> filterWhere (#weekOffset, weekOffset)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetchOneOrNothing
-        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) weekOffset rosterGroup maybeRosterWeek (fromMaybe (error "authorized template library missing") maybeLibrary))
+        window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+        let windowState = RosterWindowState
+                { windowRosterGroupId = unpackId rosterGroup.id
+                , windowIsPublished = rosterWindowIsPublished window
+                }
+        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (error "authorized template library missing") maybeLibrary))
 
-    action currentAction@ConfirmDeleteRosterTemplateAction { rosterTemplateId, rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction do
+    action currentAction@ConfirmDeleteRosterTemplateAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisPageAction do
         actor <- authorizedDesignerActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
         maybeSaved <- fetchSavedRosterTemplate actor rosterTemplateId
         case maybeSaved of
             Just saved | saved.savedTemplate.rosterGroupId == unpackId rosterGroup.id ->
-                respondHtml (renderRosterTemplateDeleteConfirmation saved.savedTemplate rosterGroupId weekOffset)
-            _ -> invalidTemplateApplication rosterGroup weekOffset "The template no longer exists."
+                respondHtml (renderRosterTemplateDeleteConfirmation saved.savedTemplate rosterGroupId scope.rosterWindowStart)
+            _ -> invalidTemplateApplication scope "The template no longer exists."
 
     action currentAction@DeleteRosterTemplateAction { rosterTemplateId } = runBepis currentAction BepisMutationAction do
         actor <- authorizedDesignerActor
         deleted <- TemplateMutations.softDeleteRosterTemplateMutation actor rosterTemplateId "Deleted from template designer"
         either (setErrorMessage . templateErrorMessage) (const (setSuccessMessage "Template deleted.")) deleted
-        redirectTo RosterWeeksAction
+        case (paramOrNothing @Text "anchorDate", paramOrNothing @(Id RosterGroup) "rosterGroupId") of
+            (Just rawAnchorDate, Just rosterGroupId) -> do
+                anchorDate <- parseIsoDayRouteParam rawAnchorDate
+                redirectToPath (rosterWindowUrl anchorDate rosterGroupId)
+            _ -> redirectTo RosterWeeksAction
 
 resolveTemplateApplicationRequest ::
     (?modelContext :: ModelContext) =>
     Id RosterTemplate ->
     RosterGroup ->
-    Int ->
+    RosterWindowScope ->
     Text ->
     IO (Maybe RosterTemplateApplicationRequest)
-resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey = do
-    maybeTargetWeek <- query @RosterWeek
-        |> filterWhere (#venueId, rosterGroup.venueId)
-        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-        |> filterWhere (#weekOffset, weekOffset)
-        |> filterWhere (#archivedAt, Nothing)
-        |> fetchOneOrNothing
-    case maybeTargetWeek of
-        Nothing -> pure Nothing
-        Just targetWeek -> case parseTemplateTargetKey targetDropzoneKey of
-            Just (TemplateWeekTarget targetWeekId)
-                | targetWeekId == targetWeek.id -> pure (Just (applicationRequest targetWeek Nothing))
-            Just (TemplateDayTarget rosterDayId) -> do
-                maybeDay <- query @RosterDay
-                    |> filterWhere (#id, rosterDayId)
-                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
-                    |> fetchOneOrNothing
-                pure (applicationRequest targetWeek . Just . (.dayOffset) <$> maybeDay)
-            _ -> pure Nothing
-  where
-    applicationRequest targetWeek targetDayOffset = RosterTemplateApplicationRequest
-        { applicationTemplateId = rosterTemplateId
-        , applicationTargetWeekId = targetWeek.id
-        , applicationTargetDayOffset = targetDayOffset
-        , applicationOccurrenceSelections = ShiftCopyOccurrenceSelections Nothing Nothing Nothing Nothing
-        }
+resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey = do
+    let windowStart = scope.rosterWindowStart
+    let windowEnd = scope.rosterWindowEnd
+    let applicationRequest targetOperationalDate = RosterTemplateApplicationRequest
+            { applicationTemplateId = rosterTemplateId
+            , applicationTargetRosterGroupId = rosterGroup.id
+            , applicationTargetWindowStart = windowStart
+            , applicationTargetWindowEnd = windowEnd
+            , applicationTargetOperationalDate = targetOperationalDate
+            , applicationOccurrenceSelections = ShiftCopyOccurrenceSelections Nothing Nothing Nothing Nothing
+            }
+    case parseTemplateTargetKey targetDropzoneKey of
+        Just (TemplateWeekTarget targetWindowStart)
+            | targetWindowStart == windowStart -> do
+                dayCount <- query @RosterDay
+                    |> filterWhere (#venueId, rosterGroup.venueId)
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+                    |> filterWhereLessThan (#operationalDate, windowEnd)
+                    |> fetchCount
+                pure (applicationRequest Nothing <$ guard (dayCount == 7))
+        Just (TemplateDayTarget rosterDayId) -> do
+            maybeDay <- query @RosterDay
+                |> filterWhere (#id, rosterDayId)
+                |> filterWhere (#venueId, rosterGroup.venueId)
+                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+                |> filterWhereLessThan (#operationalDate, windowEnd)
+                |> fetchOneOrNothing
+            pure (applicationRequest . Just . (.operationalDate) <$> maybeDay)
+        _ -> pure Nothing
 
 data TemplateApplicationTarget
-    = TemplateWeekTarget !(Id RosterWeek)
+    = TemplateWeekTarget !Day
     | TemplateDayTarget !(Id RosterDay)
 
 parseTemplateTargetKey :: Text -> Maybe TemplateApplicationTarget
 parseTemplateTargetKey value
-    | Just rawId <- Text.stripPrefix "week:" value
-    , Just targetId <- Id <$> UUID.fromText rawId = Just (TemplateWeekTarget targetId)
+    | Just rawDate <- Text.stripPrefix "window:" value
+    , Just targetDate <- readMaybe (cs rawDate) = Just (TemplateWeekTarget targetDate)
     | Just rawId <- Text.stripPrefix "day:" value
     , Just targetId <- Id <$> UUID.fromText rawId = Just (TemplateDayTarget targetId)
     | otherwise = Nothing
 
-invalidTemplateApplication :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterGroup -> Int -> Text -> IO ()
-invalidTemplateApplication rosterGroup weekOffset message = do
+invalidTemplateApplication :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ()
+invalidTemplateApplication scope message = do
     setErrorMessage message
-    redirectToPath (appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroup.id)])
+    redirectToPath (rosterTemplateWindowUrl scope)
+
+rosterTemplateWindowUrl :: RosterWindowScope -> Text
+rosterTemplateWindowUrl scope =
+    rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId
 
 templateApplicationErrorMessage :: RosterTemplateApplicationError -> Text
 templateApplicationErrorMessage RosterTemplateApplicationForbidden = "You cannot apply roster templates."
 templateApplicationErrorMessage RosterTemplateApplicationNotFound = "The template or target roster no longer exists."
 templateApplicationErrorMessage RosterTemplateApplicationScopeMismatch = "The template does not belong to this roster group."
-templateApplicationErrorMessage RosterTemplateApplicationTargetLive = "Templates cannot be applied to a live roster. Move it back to draft first."
+templateApplicationErrorMessage RosterTemplateApplicationTargetLive = "Templates cannot be applied to a Published roster. Return it to Draft first."
 templateApplicationErrorMessage RosterTemplateApplicationInvalidTargetDay = "Choose a valid day in the viewed week."
 templateApplicationErrorMessage RosterTemplateApplicationScaleMismatch = "Choose a target compatible with this template."
 templateApplicationErrorMessage (RosterTemplateApplicationVersionConflict _) = "The template changed before it could be applied. Review it and try again."
 templateApplicationErrorMessage RosterTemplateApplicationTargetConflict = "The roster changed before the template could be applied. Review it and try again."
+templateApplicationErrorMessage RosterTemplateApplicationCalendarConflict = "The roster calendar changed. Review the refreshed window and try again."
 templateApplicationErrorMessage (RosterTemplateApplicationInvalidShiftTypes _) = "The template uses Shift types that are no longer available."
 templateApplicationErrorMessage (RosterTemplateApplicationBoundaryError _ _ _) = "A template time cannot be applied on the target date."
 templateApplicationErrorMessage (RosterTemplateApplicationInvalidStructure message) = message
@@ -527,24 +590,24 @@ fetchScopedRosterGroup rosterGroupId = do
     accessDeniedUnless (isJust maybeRosterGroup)
     pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
 
-referenceRequestFromParams :: (?context :: ControllerContext, ?request :: Request) => Maybe (Text, RosterTemplateScaleEnum, Maybe Int)
+referenceRequestFromParams :: (?context :: ControllerContext, ?request :: Request) => Maybe (Text, RosterTemplateScaleEnum, Maybe Day)
 referenceRequestFromParams = do
     templateName <- paramOrNothing @Text "name"
     templateScale <- paramOrNothing @Text "scale" >>= parseRosterTemplateScale
-    let selectedDayOffset = paramOrNothing @Text "dayOffset" >>= readMaybe . cs
-    pure (templateName, templateScale, selectedDayOffset)
+    let selectedOperationalDate = paramOrNothing @Day "operationalDate"
+    pure (templateName, templateScale, selectedOperationalDate)
 
-selectedReference :: RosterTemplateScaleEnum -> Maybe Int -> RosterTemplateReferenceWeek -> Maybe RosterTemplateReference
-selectedReference Day (Just dayOffset) referenceWeek = do
-    sourceWeek <- referenceWeek.referenceRosterWeek
-    guard (any ((== dayOffset) . (.dayOffset)) referenceWeek.referenceRosterDays)
-    pure (RosterTemplateDayReference sourceWeek.id dayOffset)
+selectedReference :: RosterTemplateScaleEnum -> Maybe Day -> RosterTemplateReferenceWeek -> Maybe RosterTemplateReference
+selectedReference Day (Just selectedDate) referenceWeek = do
+    selectedDay <- find ((== selectedDate) . (.operationalDate)) referenceWeek.referenceRosterDays
+    pure (RosterTemplateDayReference selectedDay.operationalDate)
 selectedReference Day Nothing _ = Nothing
 selectedReference Week (Just _) _ = Nothing
 selectedReference Week Nothing referenceWeek = do
-    sourceWeek <- referenceWeek.referenceRosterWeek
-    guard (map (.dayOffset) referenceWeek.referenceRosterDays == [0 .. 6])
-    pure (RosterTemplateWeekReference sourceWeek.id)
+    let windowStart = referenceWeek.referenceWeekStart
+    let windowEnd = addDays 7 windowStart
+    guard (map (.operationalDate) referenceWeek.referenceRosterDays == map (`addDays` windowStart) [0 .. 6])
+    pure (RosterTemplateWeekReference windowStart windowEnd)
 
 renderDraftOccupied ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
@@ -553,11 +616,11 @@ renderDraftOccupied ::
     Text ->
     RosterTemplateScaleEnum ->
     Text ->
-    Maybe Int ->
-    Maybe Int ->
+    Maybe Day ->
+    Maybe Day ->
     Maybe Text ->
     IO ()
-renderDraftOccupied actor rosterGroup pendingName pendingScale pendingStartingPoint pendingWeekOffset pendingDayOffset pendingConfirmationToken = do
+renderDraftOccupied actor rosterGroup pendingName pendingScale pendingStartingPoint pendingAnchorDate pendingOperationalDate pendingConfirmationToken = do
     maybeDraft <- fetchPrivateRosterTemplateDraft actor
     accessDeniedUnless (isJust maybeDraft)
     let existingDraft = fromMaybe (error "occupied template draft missing") maybeDraft
@@ -572,15 +635,18 @@ restartFromReference ::
     RosterTemplateScaleEnum ->
     IO ()
 restartFromReference actor existingDesignId rosterGroup templateName templateScale = do
-    let maybeWeekOffset = paramOrNothing @Text "weekOffset" >>= readMaybe . cs
-    let selectedDayOffset = paramOrNothing @Text "dayOffset" >>= readMaybe . cs
+    let maybeRawAnchorDate = paramOrNothing @Text "anchorDate"
+    let selectedOperationalDate = paramOrNothing @Day "operationalDate"
     let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
-    case (maybeWeekOffset, maybeConfirmationToken) of
-        (Just weekOffset, Just confirmationToken) -> do
-            maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
-            let maybeReference = maybeReferenceWeek >>= selectedReference templateScale selectedDayOffset
+    case (maybeRawAnchorDate, maybeConfirmationToken) of
+        (Just rawAnchorDate, Just confirmationToken) -> do
+            anchorDate <- parseIsoDayRouteParam rawAnchorDate
+            venueConfig <- fetchVenueConfig
+            let scope = rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate
+            maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForScope actor rosterGroup scope
+            let maybeReference = maybeReferenceWeek >>= selectedReference templateScale selectedOperationalDate
             case maybeReference of
-                Nothing -> redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                Nothing -> redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
                 Just reference -> do
                     maybeSourceRevision <- fetchRosterTemplateReferenceRevision rosterGroup reference
                     maybeDraft <- fetchPrivateRosterTemplateDraft actor
@@ -588,17 +654,17 @@ restartFromReference actor existingDesignId rosterGroup templateName templateSca
                         (Just sourceRevision, Just currentDraft)
                             | currentDraft.draftDesign.id == existingDesignId -> do
                                 let confirmedDraftRevision = Just (rosterTemplateDraftRevision currentDraft)
-                                confirmationMatches <- referenceConfirmationMatches rosterGroup.id weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision confirmationToken
+                                confirmationMatches <- referenceConfirmationMatches (rosterTemplateActorUserId actor) rosterGroup.id scope.rosterWindowStart templateName templateScale selectedOperationalDate sourceRevision confirmedDraftRevision confirmationToken
                                 unless confirmationMatches do
                                     setErrorMessage "Confirm the selected roster reference before discarding the current draft."
-                                    redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                                    redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
                                 replaced <- replaceRosterTemplateDraftFromReference actor existingDesignId rosterGroup templateName reference sourceRevision (rosterTemplateDraftRevision currentDraft)
                                 case replaced of
                                     Right draft -> do
                                         deleteSession rosterTemplateReferenceConfirmationSessionKey
                                         redirectToSeeOther ShowRosterTemplateDesignerAction { rosterTemplateDesignId = draft.draftDesign.id }
                                     Left templateError -> renderCreationFailure rosterGroup templateError
-                        _ -> redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                        _ -> redirectToPath (referenceSelectionPath rosterGroup scope.rosterWindowStart templateName templateScale)
         _ -> redirectTo NewRosterTemplateAction { rosterGroupId = rosterGroup.id }
 
 startFromReference ::
@@ -607,14 +673,14 @@ startFromReference ::
     RosterGroup ->
     Text ->
     RosterTemplateScaleEnum ->
-    Int ->
-    Maybe Int ->
+    Day ->
+    Maybe Day ->
     Maybe Text ->
     Text ->
     Maybe Text ->
     RosterTemplateReference ->
     IO ()
-startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset maybeConfirmationToken sourceRevision confirmedDraftRevision reference = do
+startFromReference actor rosterGroup templateName templateScale windowStart selectedOperationalDate maybeConfirmationToken sourceRevision confirmedDraftRevision reference = do
     started <- startConfirmedRosterTemplateDraftFromReference actor rosterGroup templateName reference sourceRevision
     case started of
         Right draft -> do
@@ -622,7 +688,7 @@ startFromReference actor rosterGroup templateName templateScale weekOffset selec
             redirectToSeeOther ShowRosterTemplateDesignerAction
                 { rosterTemplateDesignId = draft.draftDesign.id }
         Left RosterTemplateDraftSlotOccupied ->
-            renderDraftOccupied actor rosterGroup templateName templateScale "reference" (Just weekOffset) selectedDayOffset (if isJust confirmedDraftRevision then maybeConfirmationToken else Nothing)
+            renderDraftOccupied actor rosterGroup templateName templateScale "reference" (Just windowStart) selectedOperationalDate (if isJust confirmedDraftRevision then maybeConfirmationToken else Nothing)
         Left templateError -> do
             deleteSession rosterTemplateReferenceConfirmationSessionKey
             renderCreationFailure rosterGroup templateError
@@ -630,39 +696,41 @@ startFromReference actor rosterGroup templateName templateScale weekOffset selec
 rosterTemplateReferenceConfirmationSessionKey :: ByteString
 rosterTemplateReferenceConfirmationSessionKey = "rosterTemplateReferenceConfirmation"
 
-referenceConfirmationSessionValue :: Text -> Id RosterGroup -> Int -> Text -> RosterTemplateScaleEnum -> Maybe Int -> Text -> Maybe Text -> Text
-referenceConfirmationSessionValue token rosterGroupId weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision =
+referenceConfirmationSessionValue :: Text -> Id User -> Id RosterGroup -> Day -> Text -> RosterTemplateScaleEnum -> Maybe Day -> Text -> Maybe Text -> Text
+referenceConfirmationSessionValue token actorUserId rosterGroupId windowStart templateName templateScale selectedOperationalDate sourceRevision confirmedDraftRevision =
     Text.intercalate "|"
         [ token
+        , tshow actorUserId
         , tshow rosterGroupId
-        , tshow weekOffset
+        , tshow windowStart
         , templateName
         , rosterTemplateScaleValue templateScale
-        , maybe "" tshow selectedDayOffset
+        , maybe "" tshow selectedOperationalDate
         , sourceRevision
         , fromMaybe "" confirmedDraftRevision
         ]
 
 referenceConfirmationMatches ::
     (?context :: ControllerContext, ?request :: Request) =>
+    Id User ->
     Id RosterGroup ->
-    Int ->
+    Day ->
     Text ->
     RosterTemplateScaleEnum ->
-    Maybe Int ->
+    Maybe Day ->
     Text ->
     Maybe Text ->
     Text ->
     IO Bool
-referenceConfirmationMatches rosterGroupId weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision token = do
+referenceConfirmationMatches actorUserId rosterGroupId windowStart templateName templateScale selectedOperationalDate sourceRevision confirmedDraftRevision token = do
     stored <- getSession @Text rosterTemplateReferenceConfirmationSessionKey
-    pure (stored == Just (referenceConfirmationSessionValue token rosterGroupId weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision))
+    pure (stored == Just (referenceConfirmationSessionValue token actorUserId rosterGroupId windowStart templateName templateScale selectedOperationalDate sourceRevision confirmedDraftRevision))
 
-referenceSelectionPath :: RosterGroup -> Int -> Text -> RosterTemplateScaleEnum -> Text
-referenceSelectionPath rosterGroup weekOffset templateName templateScale =
+referenceSelectionPath :: (?context :: ControllerContext) => RosterGroup -> Day -> Text -> RosterTemplateScaleEnum -> Text
+referenceSelectionPath rosterGroup windowStart templateName templateScale =
     appendQueryParams
-        (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id, weekOffset })
-        [("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
+        (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id })
+        [("anchorDate", tshow windowStart), ("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
 
 
 renderCreationFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterGroup -> RosterTemplateError -> IO ()

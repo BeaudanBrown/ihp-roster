@@ -6,7 +6,8 @@ import Application.Helper.Controller (AuditSourceChannel (WebAuditSource),
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
                                                                      staffProfileResource)
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterGroupStaffResource,
+                                                                    rosterSlotsContentResource,
                                                                     rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.SurfaceResource
@@ -158,7 +159,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Create Your Venue"
                 response `responseBodyShouldContain` "owner-onboarding@example.com"
-                response `responseBodyShouldContain` "Roster week starts on"
+                response `responseBodyShouldContain` "Roster window start day"
                 response `responseBodyShouldContain` "Account Details"
                 response `responseBodyShouldContain` "Confirm your staff details"
                 response `responseBodyShouldContain` "id=\"email\""
@@ -281,17 +282,18 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 let rosterGroupId = Id (unpackId venue.id) :: Id RosterGroup
-                let activeRosterScopes = [(unpackId venue.id, unpackId rosterGroupId, 3)]
-                let activeTimesheetScopes = [(unpackId venue.id, 3)]
+                let activeRosterScopes = [(unpackId venue.id, unpackId rosterGroupId, testAnchorForOffset 3, addDays 7 (testAnchorForOffset 3), 1)]
+                let activeTimesheetScopes = [(unpackId venue.id, testAnchorForOffset 3, addDays 7 (testAnchorForOffset 3), 1)]
                 Set.fromList (acceptedVenueInvitationTouchedResourcesForScopes adoptionInvitation activeRosterScopes activeTimesheetScopes [rosterGroupId])
                     `shouldBe`
                         Set.fromList
                             [ adminInvitesResource (unpackId venue.id)
                             , staffProfileResource (unpackId staff.id)
                             , staffPreferencesResource (unpackId staff.id)
-                            , rosterWeekResource (unpackId rosterGroupId) 3
-                            , rosterSlotsContentResource (unpackId rosterGroupId) 3
-                            , timesheetWeekResource (unpackId venue.id) 3
+                            , rosterGroupStaffResource (unpackId rosterGroupId)
+                            , rosterWeekResource (unpackId rosterGroupId) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
+                            , rosterSlotsContentResource (unpackId rosterGroupId) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
+                            , timesheetWeekResource (unpackId venue.id) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
                             ]
 
         it "creates a verified user and venue membership from a pending invitation" $ withContext do

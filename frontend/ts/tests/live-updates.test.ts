@@ -8,7 +8,6 @@ import {
     buildSurfaceSubscription,
     buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
-    liveUpdateInvalidationIsOwnEcho,
     liveUpdateInvalidationShouldResync,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
@@ -21,14 +20,16 @@ const scope: SurfaceScope = {
     surface: "timesheets",
     scope: {
         venueId: "00000000-0000-0000-0000-000000000001",
-        weekOffset: 0,
+        windowStartDate: "2025-01-06",
+        windowEndDate: "2025-01-13",
+        rosterCalendarRevision: 1,
     },
 };
 
 const fragment: FrontendSurfaceMountedFragmentConfig = {
-    fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 1 } },
-    targetId: "timesheet-day-1",
-    url: "/ShowTimesheetDay?dayOffset=1",
+    fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { operationalDate: "2025-01-07" } },
+    targetId: "timesheet-day-2025-01-07",
+    url: "/ShowTimesheetDaySectionFragment?operationalDate=2025-01-07",
     protection: {
         kind: "focused-field",
         activeSelector: "input:focus",
@@ -38,7 +39,7 @@ const fragment: FrontendSurfaceMountedFragmentConfig = {
     },
 };
 
-test("modular invalidation owner routes passive and actor keys through mounted descriptors", () => {
+test("modular invalidation owner tolerates duplicate listener and actor refreshes", () => {
     const requested: FrontendSurfaceMountedFragmentConfig[] = [];
     let resyncCount = 0;
     const subscription: SurfaceSubscription = {
@@ -46,7 +47,7 @@ test("modular invalidation owner routes passive and actor keys through mounted d
         scopeKey: "timesheets:v:0",
         path: "/live-updates",
         resyncFragments: [fragment],
-        decorateRequestsWithin: ["#timesheet-day-1"],
+        renderedDependencyWatermark: 7,
         ownerEls: [],
         resync: () => { resyncCount += 1; },
     };
@@ -64,7 +65,6 @@ test("modular invalidation owner routes passive and actor keys through mounted d
     };
     const runtime = createLiveUpdateInvalidationRuntime({
         activeSubscriptions,
-        activeClientId: () => "actor-client",
         refresher,
         diagnostics,
     });
@@ -75,7 +75,6 @@ test("modular invalidation owner routes passive and actor keys through mounted d
         scopeKey: subscription.scopeKey,
         version: 1,
         fragments: [fragment.fragmentKey],
-        sourceClientId: "viewer-client",
     });
     runtime.handleMessage({
         type: "invalidate",
@@ -83,17 +82,16 @@ test("modular invalidation owner routes passive and actor keys through mounted d
         scopeKey: subscription.scopeKey,
         version: 2,
         fragments: [fragment.fragmentKey],
-        sourceClientId: "actor-client",
     });
     runtime.handleActorEvent(new CustomEvent("actor-refresh", {
         detail: { scope, scopeKey: subscription.scopeKey, fragments: [fragment.fragmentKey] },
     }));
 
-    assertDeepEqual(requested, [fragment, fragment]);
+    assertDeepEqual(requested, [fragment, fragment, fragment]);
     assertEqual(resyncCount, 0);
 });
 
-test("Admin Xero reconnect and version gaps refetch the canonical reference-sync fragment", () => {
+test("Admin Xero reconnect refetches while unrelated global version gaps do not", () => {
     const xeroScope: SurfaceScope = {
         surface: "admin-xero",
         scope: { venueId: "00000000-0000-0000-0000-000000000001" },
@@ -116,13 +114,12 @@ test("Admin Xero reconnect and version gaps refetch the canonical reference-sync
         scopeKey: "admin-xero:00000000-0000-0000-0000-000000000001",
         path: "/live-updates",
         resyncFragments: [xeroFragment],
-        decorateRequestsWithin: [],
+        renderedDependencyWatermark: 7,
         ownerEls: [],
         resync: (current) => current.resyncFragments.forEach(refresher.request),
     };
     const runtime = createLiveUpdateInvalidationRuntime({
         activeSubscriptions: new Map([[subscription.scopeKey, subscription]]),
-        activeClientId: () => "viewer-client",
         refresher,
         diagnostics: {
             beginPerfSpan: () => null,
@@ -144,7 +141,6 @@ test("Admin Xero reconnect and version gaps refetch the canonical reference-sync
         scopeKey: subscription.scopeKey,
         version: 3,
         fragments: [xeroFragment.fragmentKey],
-        sourceClientId: null,
     });
 
     assertDeepEqual(requested, [xeroFragment, xeroFragment]);
@@ -156,7 +152,7 @@ test("connection cleanup resets versions when the mounted subscription set becom
         scopeKey: "timesheets:v:0",
         path: "/live-updates",
         resyncFragments: [fragment],
-        decorateRequestsWithin: [],
+        renderedDependencyWatermark: 7,
         ownerEls: [],
         resync: () => undefined,
     };
@@ -168,7 +164,6 @@ test("connection cleanup resets versions when the mounted subscription set becom
         clear: (scopeKey) => { cleared.push(scopeKey); },
     };
     const targetWindow = {
-        crypto: { randomUUID: () => "client-id" },
         setTimeout,
         clearTimeout,
     } as unknown as Window & typeof globalThis;
@@ -192,22 +187,21 @@ test("connection cleanup resets versions when the mounted subscription set becom
 });
 
 test("live update command builder preserves backend-owned surface subscription contract", () => {
-    const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment.fragmentKey]);
+    const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment.fragmentKey], 7);
     assertDeepEqual(subscription, {
         scope,
         scopeKey: "timesheets:v:0",
         fragments: [fragment.fragmentKey],
+        renderedDependencyWatermark: 7,
     });
-    assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, "client-1", null), {
+    assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, null), {
         type: "subscribe",
         subscription,
-        clientId: "client-1",
         lastSeenVersion: null,
     });
-    assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, "client-1", 4), {
+    assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, 4), {
         type: "subscribe",
         subscription,
-        clientId: "client-1",
         lastSeenVersion: 4,
     });
     assertDeepEqual(buildLiveUpdateUnsubscribeCommand(subscription), {
@@ -258,23 +252,16 @@ test("HTMX actor event adaptation strips only its verified dispatch element", ()
 test("live update fragment merge key includes structural fragment key and target", () => {
     assertEqual(
         liveUpdateFragmentMergeKey(fragment),
-        '["timesheets","timesheet-day-section",{"dayOffset":1}]:timesheet-day-1'
+        '["timesheets","timesheet-day-section",{"operationalDate":"2025-01-07"}]:timesheet-day-2025-01-07'
     );
     assertEqual(liveUpdateFragmentMergeKey({ ...fragment, targetId: "" }), null);
 });
 
 test("live update invalidations request resync on version gaps and empty payloads", () => {
-    assertEqual(liveUpdateInvalidationShouldResync(2, 4, 1), "gap");
+    assertEqual(liveUpdateInvalidationShouldResync(2, 4, 1), null);
     assertEqual(liveUpdateInvalidationShouldResync(2, 3, 0), "empty");
     assertEqual(liveUpdateInvalidationShouldResync(null, 10, 1), null);
     assertEqual(liveUpdateInvalidationShouldResync(3, 3, 1), null);
-});
-
-test("live update invalidations suppress same-client websocket echoes only", () => {
-    assertEqual(liveUpdateInvalidationIsOwnEcho("client-1", "client-1"), true);
-    assertEqual(liveUpdateInvalidationIsOwnEcho("client-2", "client-1"), false);
-    assertEqual(liveUpdateInvalidationIsOwnEcho(null, "client-1"), false);
-    assertEqual(liveUpdateInvalidationIsOwnEcho("client-1", null), false);
 });
 
 test("semantic invalidation keys resolve only through descriptors on local mounts", () => {
@@ -286,7 +273,7 @@ test("semantic invalidation keys resolve only through descriptors on local mount
     };
     const reorderedIncomingKey = {
         kind: "timesheet-day-section",
-        params: { dayOffset: 1 },
+        params: { operationalDate: "2025-01-07" },
         surface: "timesheets",
     } as const;
     const unknownKey = { surface: "roster", kind: "roster-content", params: {} } as const;

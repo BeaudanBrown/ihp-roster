@@ -29,10 +29,35 @@ instance View StepUpView where
                     |]
             }
 
+renderStepUpDialog :: Maybe Text -> Html
+renderStepUpDialog redirectTo =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Passkey Verification"
+        , dialogOverlayBody = [hsx|
+            <p class="app-muted">Confirm your identity to continue. The protected action has not run; retry it after verification.</p>
+            {renderStepUpOverlayControl redirectTo}
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Cancel"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            ]
+        , dialogOverlayDialogClass = ""
+        }
+
 renderStepUpControl :: Maybe Text -> Html
-renderStepUpControl redirectTo =
+renderStepUpControl = renderStepUpControlWithKind PasskeyStepUpControl
+
+renderStepUpOverlayControl :: Maybe Text -> Html
+renderStepUpOverlayControl = renderStepUpControlWithKind PasskeyStepUpOverlayControl
+
+renderStepUpControlWithKind :: PasskeyLoginControlKind -> Maybe Text -> Html
+renderStepUpControlWithKind controlKind redirectTo =
     let loginControl = PasskeyLoginControl
-            { passkeyLoginControlKind = PasskeyStepUpControl
+            { passkeyLoginControlKind = controlKind
             , passkeyLoginBeginUrl = pathTo BeginPasskeyStepUpAuthenticationAction
             , passkeyLoginFinishUrl = pathTo FinishPasskeyStepUpAuthenticationAction
             , passkeyLoginSuccessRedirect = Just (fromMaybe (pathTo RosterWeeksAction) redirectTo)

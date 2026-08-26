@@ -7,7 +7,6 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Rost
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception.Safe (SomeException, try)
@@ -35,7 +34,6 @@ import Web.FrontController ()
 import Web.LeaveRequests.Blackouts (currentVenueCalendarDay)
 import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
                                     leaveReviewTouchedResources)
-import Web.LeaveRequests.ReadModel (affectedRosterWeekInvalidationTargetsForScopes)
 import Web.Routes
 import Web.Types
 
@@ -523,55 +521,6 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseStatusShouldBe` status302
                 workerResponse `responseBodyShouldNotContain` "Unavailable-staff warnings"
 
-        it "selects leave roster invalidation targets from active roster week scopes in the current venue" $ withContext do
-            withCleanDb do
-                let staleTimestamp = UTCTime (fromGregorian 2024 12 1) (secondsToDiffTime 0)
-                venueA <- createVenueWithConfig "Venue A"
-                venueB <- createVenueWithConfig "Venue B"
-                rosterGroupA <- ensureVenueDefaultRosterGroup venueA
-                rosterGroupB <- ensureVenueDefaultRosterGroup venueB
-                manager <- createUserRecord "leave-manager@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA manager Manager
-                staffA <- createStaffRecord venueA Nothing "Ava" "Leave"
-                rosterWeekA <- createRosterWeekRecord venueA 0 False >>= updateRecord . set #updatedAt staleTimestamp
-                rosterWeekA1 <- createRosterWeekRecord venueA 1 False >>= updateRecord . set #updatedAt staleTimestamp
-                rosterWeekB <- createRosterWeekRecord venueB 0 False >>= updateRecord . set #updatedAt staleTimestamp
-                leaveRequest <- createLeaveRequestRecord venueA staffA (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) LeaveRequestStatusEnumPending
-                venueConfigA <- query @VenueConfig |> filterWhere (#venueId, unpackId venueA.id) |> fetchOne
-                let activeTargets =
-                        affectedRosterWeekInvalidationTargetsForScopes
-                            venueA.id
-                            venueConfigA
-                            leaveRequest
-                            [ (unpackId venueA.id, unpackId rosterGroupA.id, 0)
-                            , (unpackId venueA.id, unpackId rosterGroupA.id, 1)
-                            , (unpackId venueB.id, unpackId rosterGroupB.id, 0)
-                            ]
-                activeTargets `shouldBe` [(rosterGroupA.id, 0), (rosterGroupA.id, 1)]
-
-                versionA0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
-                versionA1Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
-                versionB0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
-
-                response <- withUserAndCurrentVenue manager venueA.id do
-                    callAction ApproveLeaveRequestAction { leaveRequestId = leaveRequest.id }
-
-                response `responseStatusShouldBe` status302
-
-                versionA0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
-                versionA1After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
-                versionB0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
-                refreshedWeekA <- fetch rosterWeekA.id
-                refreshedWeekA1 <- fetch rosterWeekA1.id
-                refreshedWeekB <- fetch rosterWeekB.id
-
-                versionA0After `shouldBe` versionA0Before
-                versionA1After `shouldBe` versionA1Before
-                versionB0After `shouldBe` versionB0Before
-                refreshedWeekA.updatedAt `shouldBe` staleTimestamp
-                refreshedWeekA1.updatedAt `shouldBe` staleTimestamp
-                refreshedWeekB.updatedAt `shouldBe` staleTimestamp
-
         it "records touched resources for approved leave mutations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Touched Leave Venue"
@@ -933,14 +882,14 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterWeekRecord venue 0 False
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) LeaveRequestStatusEnumApproved
 
-                versionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                versionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction DenyLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status302
 
-                versionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                versionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 versionAfter `shouldBe` versionBefore
 
         it "plans manager leave-page actor keys from the same rendered-section resource as passive viewers" $ withContext do

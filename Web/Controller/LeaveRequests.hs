@@ -45,7 +45,7 @@ import Web.LeaveRequests.SelfService
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      staffCandidateMountedFragments,
                                      staffSurfaceScope)
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
@@ -197,12 +197,15 @@ instance Controller LeaveRequestsController where
         blackout |> ifValid \case
             Left invalidBlackout ->
                 respondWithBlackoutValidationFailure invalidBlackout "Check the blackout period and try again."
-            Right validBlackout ->
-                BlackoutMutations.createUnavailabilityBlackout validBlackout >>= \case
+            Right validBlackout -> do
+                mutation <- withDurableLiveMutationOutcome blackoutPublication $
+                    fmap (fmap (\created -> liveMutationResult created [unavailabilityBlackoutsResource created.venueId])) $
+                        BlackoutMutations.createUnavailabilityBlackoutInCurrentTransaction validBlackout
+                case mutation of
                     Left overlapError ->
                         respondWithBlackoutValidationFailure (attachFailure #startDate overlapError validBlackout) overlapError
-                    Right createdBlackout ->
-                        respondWithBlackoutMutation "blackout.create" createdBlackout "Unavailability blackout created"
+                    Right created ->
+                        respondWithBlackoutMutation created "Unavailability blackout created"
 
     action currentAction@UpdateUnavailabilityBlackoutAction { unavailabilityBlackoutId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
@@ -225,12 +228,15 @@ instance Controller LeaveRequestsController where
         blackout |> ifValid \case
             Left invalidBlackout ->
                 respondWithBlackoutValidationFailure invalidBlackout "Check the blackout period and try again."
-            Right validBlackout ->
-                BlackoutMutations.updateUnavailabilityBlackout validBlackout >>= \case
+            Right validBlackout -> do
+                mutation <- withDurableLiveMutationOutcome blackoutUpdatePublication $
+                    fmap (fmap (\updated -> liveMutationResult updated [unavailabilityBlackoutsResource updated.venueId])) $
+                        BlackoutMutations.updateUnavailabilityBlackoutInCurrentTransaction validBlackout
+                case mutation of
                     Left mutationError ->
                         respondWithBlackoutValidationFailure (attachFailure #startDate mutationError validBlackout) mutationError
-                    Right updatedBlackout ->
-                        respondWithBlackoutMutation "blackout.update" updatedBlackout "Unavailability blackout updated"
+                    Right updated ->
+                        respondWithBlackoutMutation updated "Unavailability blackout updated"
 
     action currentAction@DeleteUnavailabilityBlackoutAction { unavailabilityBlackoutId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
@@ -238,10 +244,15 @@ instance Controller LeaveRequestsController where
         ensureVenueWritable
         blackout <- fetch unavailabilityBlackoutId
         ensureRecordInCurrentVenue blackout.venueId
-        deleted <- BlackoutMutations.deleteUnavailabilityBlackout blackout
-        if deleted
-            then respondWithBlackoutMutation "blackout.delete" blackout "Unavailability blackout removed"
-            else do
+        deleted <- withDurableLiveMutationOutcome blackoutDeletePublication do
+            wasDeleted <- BlackoutMutations.deleteUnavailabilityBlackoutInCurrentTransaction blackout
+            pure $
+                if wasDeleted
+                    then Just (liveMutationResult blackout [unavailabilityBlackoutsResource blackout.venueId])
+                    else Nothing
+        case deleted of
+            Just result -> respondWithBlackoutMutation result "Unavailability blackout removed"
+            Nothing -> do
                 setErrorMessage "This blackout period no longer exists."
                 redirectTo LeaveRequestsAction
 
@@ -321,15 +332,22 @@ respondWithBlackoutValidationFailure submittedBlackout errorMessage =
             setErrorMessage errorMessage
             redirectTo LeaveRequestsAction
 
-respondWithBlackoutMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> UnavailabilityBlackout -> Text -> IO ()
-respondWithBlackoutMutation mutationName blackout successMessage = do
-    mutationResult <- invalidateTouchedResources mutationName $
-        liveMutationResult blackout [unavailabilityBlackoutsResource blackout.venueId]
+respondWithBlackoutMutation :: (?context :: ControllerContext, ?request :: Request) => LiveMutationResult UnavailabilityBlackout -> Text -> IO ()
+respondWithBlackoutMutation mutationResult successMessage = do
     if isHtmxRequest
         then respondWithLeaveRequestsContent mutationResult.liveMutationTouchedResources successMessage
         else do
             setSuccessMessage successMessage
             redirectTo LeaveRequestsAction
+
+blackoutPublication :: Either Text (LiveMutationResult UnavailabilityBlackout) -> Maybe (Text, Set.Set SurfaceResourceValue)
+blackoutPublication = either (const Nothing) (\result -> Just ("blackout.create", result.liveMutationTouchedResources))
+
+blackoutUpdatePublication :: Either Text (LiveMutationResult UnavailabilityBlackout) -> Maybe (Text, Set.Set SurfaceResourceValue)
+blackoutUpdatePublication = either (const Nothing) (\result -> Just ("blackout.update", result.liveMutationTouchedResources))
+
+blackoutDeletePublication :: Maybe (LiveMutationResult UnavailabilityBlackout) -> Maybe (Text, Set.Set SurfaceResourceValue)
+blackoutDeletePublication = fmap (\result -> ("blackout.delete", result.liveMutationTouchedResources))
 
 respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()
 respondWithLeaveRequestsContent touchedResources successMessage = do

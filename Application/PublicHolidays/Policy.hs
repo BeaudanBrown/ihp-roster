@@ -4,6 +4,7 @@ module Application.PublicHolidays.Policy
     , targetPublicHolidayYears
     ) where
 
+import Application.WageSourcePolicy (dataVicMaximumAge)
 import Data.Time.Calendar (Day, toGregorian)
 import Data.Time.Clock (NominalDiffTime)
 import IHP.Prelude
@@ -12,7 +13,7 @@ publicHolidayJurisdiction :: Text
 publicHolidayJurisdiction = "VIC"
 
 publicHolidayFreshnessWarningAge :: NominalDiffTime
-publicHolidayFreshnessWarningAge = 45 * 24 * 60 * 60
+publicHolidayFreshnessWarningAge = dataVicMaximumAge
 
 targetPublicHolidayYears :: Day -> [Integer]
 targetPublicHolidayYears today =

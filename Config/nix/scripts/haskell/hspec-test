@@ -26,6 +26,12 @@ metrics_now() {
     fi
 }
 
+sql_log_hint() {
+    if [ "$TEST_LANE" != "pure" ] && [ "${HSPEC_SQL_LOG:-0}" != "1" ]; then
+        echo "Hint: rerun the focused failure with HSPEC_SQL_LOG=1 to include detailed SQL queries." >&2
+    fi
+}
+
 record_phase() {
     local phase="$1"
     local shard="$2"
@@ -143,10 +149,6 @@ if [ "$TEST_SHARDS" -eq 1 ]; then
         record_phase "shard_database_create" 1 "$database_started_at" "$database_finished_at"
     fi
 
-    if [ -z "$HSPEC_PHASE_METRICS_FILE" ]; then
-        exec build/Test/Main "$@"
-    fi
-
     execution_started_at="$(metrics_now)"
     if build/Test/Main "$@"; then
         status=0
@@ -157,6 +159,9 @@ if [ "$TEST_SHARDS" -eq 1 ]; then
     record_phase "hspec_execution" 1 "$execution_started_at" "$execution_finished_at"
     script_finished_at="$(metrics_now)"
     record_phase "command_total" 0 "$script_started_at" "$script_finished_at"
+    if [ "$status" -ne 0 ]; then
+        sql_log_hint
+    fi
     exit "$status"
 fi
 
@@ -254,6 +259,7 @@ if [ "$failed" -ne 0 ]; then
             tail -n 120 "$STATE_DIR/shard-$shard_index.log" >&2 || true
         fi
     done
+    sql_log_hint
     script_finished_at="$(metrics_now)"
     record_phase "command_total" 0 "$script_started_at" "$script_finished_at"
     exit 1

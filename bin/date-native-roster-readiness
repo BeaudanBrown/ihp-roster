@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  DATE_NATIVE_ROSTER_READINESS_APPROVAL=read-only-issue-373 \
+  DATE_NATIVE_ROSTER_READINESS_OPERATOR='operator name' \
+  DATE_NATIVE_ROSTER_READINESS_EXPECTED_DATABASE='database_name' \
+  bash ./bin/in-env ./bin/date-native-roster-readiness preflight /secure/empty-output-directory
+
+  bash ./bin/in-env ./bin/date-native-roster-readiness reconcile /secure/empty-output-directory
+
+Captures bounded, read-only date-native Roster migration evidence for GitHub
+#373. Run preflight against a restored production copy after applying the
+additive migrations and before deploying the candidate application. Run
+reconcile against production after deployment and during observation.
+
+The output directory must be empty and outside the Git checkout. Connection
+settings use standard non-URL libpq environment variables (`PGHOST`,
+`PGPORT`, `PGDATABASE`, `PGUSER`, and protected `PGPASSFILE` where required).
+Database URLs are rejected because command-line URL arguments can expose
+credentials. Every PostgreSQL session is forced read-only with bounded
+timeouts. Output contains aggregate counts and at
+most 25 UUIDs per failed check; it contains no names, emails, comments, provider
+payloads, tokens, or shift timestamps.
+EOF
+}
+
+fail() {
+    echo "date-native-roster-readiness: $*" >&2
+    exit 1
+}
+
+if [[ "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+[[ "$#" -eq 2 ]] || { usage >&2; exit 1; }
+phase="$1"
+[[ "$phase" == "preflight" || "$phase" == "reconcile" ]] \
+    || fail "phase must be preflight or reconcile"
+[[ "${DATE_NATIVE_ROSTER_READINESS_APPROVAL:-}" == "read-only-issue-373" ]] \
+    || fail "DATE_NATIVE_ROSTER_READINESS_APPROVAL must equal read-only-issue-373"
+[[ -n "${DATE_NATIVE_ROSTER_READINESS_OPERATOR:-}" ]] \
+    || fail "DATE_NATIVE_ROSTER_READINESS_OPERATOR is required"
+[[ "$DATE_NATIVE_ROSTER_READINESS_OPERATOR" != *$'\n'* && ${#DATE_NATIVE_ROSTER_READINESS_OPERATOR} -le 200 ]] \
+    || fail "DATE_NATIVE_ROSTER_READINESS_OPERATOR must be one line of at most 200 characters"
+[[ "${DATE_NATIVE_ROSTER_READINESS_EXPECTED_DATABASE:-}" =~ ^[A-Za-z0-9_.-]+$ ]] \
+    || fail "DATE_NATIVE_ROSTER_READINESS_EXPECTED_DATABASE is required and contains unsupported characters"
+
+for command_name in psql jq sha256sum realpath git; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
+done
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(realpath -m "$script_dir/..")"
+if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
+    repo_root="$(realpath -m "$(git -C "$repo_root" rev-parse --show-toplevel)")"
+fi
+cd "$repo_root"
+
+output_dir="$(realpath -m "$2")"
+case "$output_dir/" in
+    "$repo_root/"*) fail "output directory must be outside the Git checkout" ;;
+esac
+mkdir -p "$output_dir"
+[[ -d "$output_dir" ]] || fail "could not create output directory"
+if find "$output_dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    fail "output directory must be empty: $output_dir"
+fi
+chmod 700 "$output_dir"
+umask 077
+
+[[ -z "${DATE_NATIVE_ROSTER_READINESS_DATABASE_URL:-}" ]] \
+    || fail "DATE_NATIVE_ROSTER_READINESS_DATABASE_URL is forbidden; use protected libpq environment settings"
+[[ -z "${DATABASE_URL:-}" ]] \
+    || fail "DATABASE_URL is forbidden; use protected libpq environment settings"
+[[ -z "${PGPASSWORD:-}" ]] \
+    || fail "PGPASSWORD is forbidden; use a protected PGPASSFILE"
+[[ -z "${PGSERVICE:-}" && -z "${PGSERVICEFILE:-}" ]] \
+    || fail "PGSERVICE and PGSERVICEFILE are forbidden; use explicit protected libpq environment settings"
+[[ -n "${PGHOST:-}" ]] || fail "PGHOST is required"
+[[ -n "${PGUSER:-}" ]] || fail "PGUSER is required"
+if [[ -n "${PGPASSFILE:-}" ]]; then
+    [[ -f "$PGPASSFILE" ]] || fail "PGPASSFILE does not exist"
+    passfile_mode="$(stat -c '%a' "$PGPASSFILE")"
+    [[ "$passfile_mode" == "600" ]] || fail "PGPASSFILE must have mode 600"
+fi
+export PGDATABASE="$DATE_NATIVE_ROSTER_READINESS_EXPECTED_DATABASE"
+export PGAPPNAME="bepis-date-native-roster-readiness-373-$phase"
+export PGOPTIONS="${PGOPTIONS:+$PGOPTIONS }-c default_transaction_read_only=on -c statement_timeout=60000 -c lock_timeout=5000"
+psql_base=(psql -X -q -v ON_ERROR_STOP=1)
+
+actual_database="$("${psql_base[@]}" -Atc 'SELECT current_database()')"
+[[ "$actual_database" == "$DATE_NATIVE_ROSTER_READINESS_EXPECTED_DATABASE" ]] \
+    || fail "connected database '$actual_database' does not match expected database"
+case "$actual_database" in
+    postgres|template0|template1) fail "refusing system database target: $actual_database" ;;
+esac
+transaction_read_only="$("${psql_base[@]}" -Atc "SELECT current_setting('transaction_read_only')")"
+[[ "$transaction_read_only" == "on" ]] || fail "database session is not read-only"
+
+missing_tables="$("${psql_base[@]}" -Atc "
+    SELECT string_agg(table_name, ', ' ORDER BY table_name)
+    FROM (VALUES
+        ('venue_config'), ('roster_groups'), ('roster_weeks'), ('roster_days'),
+        ('roster_lanes'), ('roster_slots'), ('roster_template_designs'),
+        ('roster_template_days'), ('timesheet_entries'),
+        ('timesheet_pay_calculations'), ('timesheet_pay_earnings_components'),
+        ('roster_notification_runs'), ('app_jobs')
+    ) required(table_name)
+    WHERE to_regclass('public.' || table_name) IS NULL
+")"
+[[ -z "$missing_tables" ]] || fail "required date-native tables are missing: $missing_tables"
+
+capture_dir="$(mktemp -d "$output_dir/.capture.XXXXXX")"
+cleanup() { rm -rf "$capture_dir"; }
+trap cleanup EXIT INT TERM
+
+"${psql_base[@]}" -At \
+    -f scripts/operations/date-native-roster-readiness-373.sql \
+    > "$capture_dir/audit.json"
+jq -e '
+    .schema == "date-native-roster-readiness-v1"
+    and .capture.transactionReadOnly == "on"
+    and (.checks | length == 12)
+    and all(.checks[]; (.sampleEntityIds | length) <= 25)
+    and .totalViolationCount >= 0
+' "$capture_dir/audit.json" >/dev/null \
+    || fail "audit output failed its bounded schema contract"
+
+violation_count="$(jq -r '.totalViolationCount' "$capture_dir/audit.json")"
+commit="$(git rev-parse HEAD)"
+cat > "$capture_dir/capture-metadata.txt" <<EOF
+issue=373
+approval=read-only-issue-373
+phase=${phase}
+operator=${DATE_NATIVE_ROSTER_READINESS_OPERATOR}
+captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+database=${actual_database}
+source_commit=${commit}
+violation_count=${violation_count}
+EOF
+(
+    cd "$capture_dir"
+    sha256sum audit.json capture-metadata.txt > manifest.sha256
+    sha256sum --check manifest.sha256 >/dev/null
+)
+find "$capture_dir" -mindepth 1 -maxdepth 1 -exec mv -t "$output_dir" -- {} +
+rmdir "$capture_dir"
+trap - EXIT INT TERM
+
+cat <<EOF
+date-native-roster-readiness: ${phase} capture complete
+  database:   $actual_database
+  output:     $output_dir
+  violations: $violation_count
+
+No database rows or schema objects were modified.
+EOF
+
+if [[ "$violation_count" != "0" ]]; then
+    echo "date-native-roster-readiness: blocked; review bounded check samples before proceeding" >&2
+    exit 2
+fi

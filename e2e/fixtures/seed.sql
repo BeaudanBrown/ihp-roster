@@ -39,20 +39,19 @@ WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0
 
 DELETE FROM roster_slots
 WHERE roster_day_id IN (
-    SELECT rd.id
-    FROM roster_days rd
-    JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-    WHERE rw.venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
-);
-
-DELETE FROM roster_days
-WHERE roster_week_id IN (
     SELECT id
-    FROM roster_weeks
+    FROM roster_days
     WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
 );
 
-DELETE FROM roster_weeks
+DELETE FROM roster_lanes
+WHERE roster_day_id IN (
+    SELECT id
+    FROM roster_days
+    WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
+);
+
+DELETE FROM roster_days
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
 DELETE FROM shift_types
@@ -66,14 +65,13 @@ ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     status = EXCLUDED.status;
 
-INSERT INTO venue_config (id, venue_id, timezone, roster_week_starts_on, week_offset_epoch, late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days)
+INSERT INTO venue_config (id, venue_id, timezone, roster_week_starts_on, late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000011',
         'a1000000-0000-0000-0000-000000000001',
         'Australia/Melbourne',
         1,
-        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
     ),
@@ -82,7 +80,6 @@ VALUES
         'a1000000-0000-0000-0000-000000000002',
         'Australia/Melbourne',
         1,
-        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
     )
@@ -90,7 +87,6 @@ ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     timezone = EXCLUDED.timezone,
     roster_week_starts_on = EXCLUDED.roster_week_starts_on,
-    week_offset_epoch = EXCLUDED.week_offset_epoch,
     late_to_early_min_start_gap_minutes = EXCLUDED.late_to_early_min_start_gap_minutes,
     staff_timesheet_edit_window_days = EXCLUDED.staff_timesheet_edit_window_days;
 
@@ -1138,41 +1134,32 @@ ON CONFLICT (id) DO UPDATE SET
     sort_order = EXCLUDED.sort_order,
     is_active = EXCLUDED.is_active;
 
-INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
+INSERT INTO roster_days (id, venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
 VALUES
-    ('a1000000-0000-0000-0000-000000000051', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 0, FALSE),
-    ('a1000000-0000-0000-0000-000000000053', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 1, FALSE),
-    ('a1000000-0000-0000-0000-000000000052', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', 0, FALSE)
+    ('a1000000-0000-0000-0000-000000000061', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1), 'draft', FALSE, 4),
+    ('a1000000-0000-0000-0000-000000000063', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 7, 'draft', FALSE, 4),
+    ('a1000000-0000-0000-0000-000000000062', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1), 'draft', FALSE, 4)
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     roster_group_id = EXCLUDED.roster_group_id,
-    week_offset = EXCLUDED.week_offset,
-    is_live = EXCLUDED.is_live;
-
-INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
-VALUES
-    ('a1000000-0000-0000-0000-000000000061', 'a1000000-0000-0000-0000-000000000051', 0, FALSE, 4),
-    ('a1000000-0000-0000-0000-000000000063', 'a1000000-0000-0000-0000-000000000053', 0, FALSE, 4),
-    ('a1000000-0000-0000-0000-000000000062', 'a1000000-0000-0000-0000-000000000052', 0, FALSE, 4)
-ON CONFLICT (id) DO UPDATE SET
-    roster_week_id = EXCLUDED.roster_week_id,
-    day_offset = EXCLUDED.day_offset,
+    operational_date = EXCLUDED.operational_date,
+    publication_state = EXCLUDED.publication_state,
     is_closed = EXCLUDED.is_closed,
     row_count = EXCLUDED.row_count;
 
-INSERT INTO roster_week_slot_definitions (id, roster_week_id, name, sort_order)
+INSERT INTO roster_lanes (id, roster_day_id, name, sort_order)
 VALUES
-    ('a1000000-0000-0000-0000-000000000081', 'a1000000-0000-0000-0000-000000000051', 'Early', 0),
-    ('a1000000-0000-0000-0000-000000000082', 'a1000000-0000-0000-0000-000000000052', 'Late', 0),
-    ('a1000000-0000-0000-0000-000000000083', 'a1000000-0000-0000-0000-000000000053', 'Early', 0)
+    ('a1000000-0000-0000-0000-000000000081', 'a1000000-0000-0000-0000-000000000061', 'Early', 0),
+    ('a1000000-0000-0000-0000-000000000082', 'a1000000-0000-0000-0000-000000000062', 'Late', 0),
+    ('a1000000-0000-0000-0000-000000000083', 'a1000000-0000-0000-0000-000000000063', 'Early', 0)
 ON CONFLICT (id) DO UPDATE SET
-    roster_week_id = EXCLUDED.roster_week_id,
+    roster_day_id = EXCLUDED.roster_day_id,
     name = EXCLUDED.name,
     sort_order = EXCLUDED.sort_order,
     deleted_at = NULL,
     updated_at = NOW();
 
-INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id)
+INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_lane_id, row_index, starts_at, ends_at, timezone, shift_type_id)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000071',
@@ -1226,7 +1213,7 @@ ON CONFLICT (id) DO UPDATE SET
     roster_day_id = EXCLUDED.roster_day_id,
     staff_id = EXCLUDED.staff_id,
     assignment_state = EXCLUDED.assignment_state,
-    roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
+    roster_lane_id = EXCLUDED.roster_lane_id,
     row_index = EXCLUDED.row_index,
     starts_at = EXCLUDED.starts_at,
     ends_at = EXCLUDED.ends_at,
@@ -1278,6 +1265,7 @@ INSERT INTO timesheet_entries (
     starts_at,
     ends_at,
     timezone,
+    operational_date,
     staff_pay_version_id,
     shift_type_pay_version_id,
     is_approved,
@@ -1293,6 +1281,7 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '08:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
+        (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date,
         NULL,
         NULL,
         FALSE,
@@ -1307,6 +1296,7 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1) + TIME '10:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1) + TIME '14:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
+        (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1)::date,
         NULL,
         NULL,
         FALSE,
@@ -1321,6 +1311,7 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4) + TIME '19:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5) + TIME '01:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
+        (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date,
         NULL,
         NULL,
         FALSE,
@@ -1335,6 +1326,7 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '09:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '11:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
+        (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date,
         NULL,
         NULL,
         FALSE,
@@ -1349,6 +1341,7 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 2) + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 2) + TIME '15:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
+        (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 2)::date,
         NULL,
         NULL,
         FALSE,
@@ -1363,6 +1356,7 @@ VALUES
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '09:00') AT TIME ZONE 'Australia/Melbourne',
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '17:00') AT TIME ZONE 'Australia/Melbourne',
         'Australia/Melbourne',
+        (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date,
         NULL,
         NULL,
         FALSE,
@@ -1376,6 +1370,7 @@ ON CONFLICT (id) DO UPDATE SET
     starts_at = EXCLUDED.starts_at,
     ends_at = EXCLUDED.ends_at,
     timezone = EXCLUDED.timezone,
+    operational_date = EXCLUDED.operational_date,
     staff_pay_version_id = EXCLUDED.staff_pay_version_id,
     shift_type_pay_version_id = EXCLUDED.shift_type_pay_version_id,
     is_approved = EXCLUDED.is_approved,
@@ -1386,15 +1381,16 @@ ON CONFLICT (id) DO UPDATE SET
 -- exact paid-time/component facts before the approval state is applied.
 INSERT INTO timesheet_pay_calculations (
     id, timesheet_entry_id, calculation_version, calculation_source,
-    rate_book_version, venue_timezone, holiday_jurisdiction,
+    rate_book_version, operational_date, roster_window_start, roster_week_starts_on,
+    venue_timezone, holiday_jurisdiction,
     staff_pay_version_id, shift_type_pay_version_id, approved_at,
     approved_by_user_id
 )
 VALUES
-    ('a2000000-0000-0000-0000-000000000091', 'a1000000-0000-0000-0000-000000000091', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:00:00+00', 'a0000000-0000-0000-0000-000000000001'),
-    ('a2000000-0000-0000-0000-000000000092', 'a1000000-0000-0000-0000-000000000092', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000312', '2025-01-12 01:05:00+00', 'a0000000-0000-0000-0000-000000000001'),
-    ('a2000000-0000-0000-0000-000000000093', 'a1000000-0000-0000-0000-000000000093', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:10:00+00', 'a0000000-0000-0000-0000-000000000001'),
-    ('a2000000-0000-0000-0000-000000000094', 'a1000000-0000-0000-0000-000000000094', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000301', 'a1000000-0000-0000-0000-000000000313', '2025-01-12 01:15:00+00', 'a0000000-0000-0000-0000-000000000003');
+    ('a2000000-0000-0000-0000-000000000091', 'a1000000-0000-0000-0000-000000000091', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:00:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000092', 'a1000000-0000-0000-0000-000000000092', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1)::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000312', '2025-01-12 01:05:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000093', 'a1000000-0000-0000-0000-000000000093', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:10:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000094', 'a1000000-0000-0000-0000-000000000094', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000301', 'a1000000-0000-0000-0000-000000000313', '2025-01-12 01:15:00+00', 'a0000000-0000-0000-0000-000000000003');
 
 INSERT INTO timesheet_pay_time_segments (
     id, timesheet_pay_calculation_id, ordinal, paid_time_kind,
@@ -1409,16 +1405,16 @@ VALUES
 
 INSERT INTO timesheet_pay_earnings_components (
     id, timesheet_pay_calculation_id, ordinal, quantity, unit_type,
-    rate_per_unit, exact_amount, source_condition, calculation_source,
+    rate_per_unit, exact_amount, component_date, xero_mapping_legacy_fallback, source_condition, calculation_source,
     source_rate_identity
 )
 VALUES
-    ('a2200000-0000-0000-0000-000000000091', 'a2000000-0000-0000-0000-000000000091', 0, 8, 'hours', 30, 240, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
-    ('a2200000-0000-0000-0000-000000000092', 'a2000000-0000-0000-0000-000000000092', 0, 4, 'hours', 30, 120, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
-    ('a2200000-0000-0000-0000-000000000093', 'a2000000-0000-0000-0000-000000000093', 0, 5, 'hours', 30, 150, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
-    ('a2200000-0000-0000-0000-000000000193', 'a2000000-0000-0000-0000-000000000093', 1, 1, 'hours', 45, 45, 'saturday', 'hospitality_award', 'e2e:saturday'),
-    ('a2200000-0000-0000-0000-000000000293', 'a2000000-0000-0000-0000-000000000093', 2, 5, 'commenced_hours', 3, 15, 'evening_after_7pm_addition', 'hospitality_award', 'e2e:evening'),
-    ('a2200000-0000-0000-0000-000000000094', 'a2000000-0000-0000-0000-000000000094', 0, 2, 'hours', 30, 60, 'ordinary', 'hospitality_award', 'e2e:ordinary');
+    ('a2200000-0000-0000-0000-000000000091', 'a2000000-0000-0000-0000-000000000091', 0, 8, 'hours', 30, 240, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000092', 'a2000000-0000-0000-0000-000000000092', 0, 4, 'hours', 30, 120, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1)::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000093', 'a2000000-0000-0000-0000-000000000093', 0, 5, 'hours', 30, 150, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000193', 'a2000000-0000-0000-0000-000000000093', 1, 1, 'hours', 45, 45, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5)::date, TRUE, 'saturday', 'hospitality_award', 'e2e:saturday'),
+    ('a2200000-0000-0000-0000-000000000293', 'a2000000-0000-0000-0000-000000000093', 2, 5, 'commenced_hours', 3, 15, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date, TRUE, 'evening_after_7pm_addition', 'hospitality_award', 'e2e:evening'),
+    ('a2200000-0000-0000-0000-000000000094', 'a2000000-0000-0000-0000-000000000094', 0, 2, 'hours', 30, 60, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary');
 
 UPDATE timesheet_pay_calculations
 SET sealed_at = '2025-01-12 01:20:00+00'

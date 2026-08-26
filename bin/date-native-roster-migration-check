@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "--help" ]]; then
+    cat <<'EOF'
+Usage:
+  bash ./bin/in-env ./bin/date-native-roster-migration-check
+
+Regenerates schema-derived types, typechecks the application, executes the
+customer-data-safe date-native Roster/Timesheet/payroll migration fixtures,
+and verifies the final runtime authority boundary. It uses only the isolated
+local test database managed by the repository checks; it is not a production
+migration runner.
+EOF
+    exit 0
+fi
+[[ "$#" -eq 0 ]] || { echo "date-native-roster-migration-check: no arguments expected" >&2; exit 1; }
+
+bash ./bin/date-native-roster-authority-check
+regen-types
+typecheck
+for match_pattern in \
+    "date-native roster foundation migration" \
+    "date-native Timesheet migration" \
+    "Operational payroll sealing migration" \
+    "gives roster template days explicit calendar-weekday identity" \
+    "date-native Roster compatibility retirement" \
+    "date-native roster compatibility retirement migration"
+do
+    hspec-test --match "$match_pattern"
+done
+
+echo "date-native-roster-migration-check: ok"

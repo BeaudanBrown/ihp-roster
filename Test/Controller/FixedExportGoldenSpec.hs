@@ -11,8 +11,8 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.IO as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -70,7 +70,7 @@ tests = aroundAll withDatabaseTestContext do
                 lookup hContentDisposition (responseHeaders downloadResponse)
                     `shouldBe` Just "attachment; filename=\"staff_hrs_starting-2025-01-07.csv\""
 
-        it "places final-day overnight staff hours in the matching weekday columns while retaining factual earnings dates" $ withContext do
+        it "keeps final-day overnight staff hours in the Operational-day position while retaining factual earnings dates" $ withContext do
             withCleanDb do
                 let weekStart = fromGregorian 2025 1 6
                     weekEnd = addDays 6 weekStart
@@ -101,6 +101,33 @@ tests = aroundAll withDatabaseTestContext do
                 secondEarnings.fileContents `shouldBe` firstEarnings.fileContents
                 entryRows `shouldSatisfy` any (Text.isInfixOf ",2025-01-12,")
                 entryRows `shouldSatisfy` any (Text.isInfixOf ",2025-01-13,")
+
+        it "includes early-morning work in its selected Operational window" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                _ <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.barShift.id)
+                    , setTestStartTime (TimeOfDay 22 0 0)
+                    , setTestEndTime (TimeOfDay 2 0 0)
+                    ]
+                earlyEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.barShift.id)
+                    , setTestStartTime (TimeOfDay 6 0 0)
+                    , setTestEndTime (TimeOfDay 8 0 0)
+                    ]
+                afterMidnightEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.barShift.id)
+                    , set #calendarDayOffset 1
+                    , setTestStartTime (TimeOfDay 2 0 0)
+                    , setTestEndTime (TimeOfDay 5 0 0)
+                    ]
+
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
+                let csvRows = csvRowsByKey (fromMaybe "" exportJob.fileContents)
+                    workerHours = lookupCsvRow csvRows "Worker, Ava LVL 2"
+
+                drop (length workerHours - 3) workerHours `shouldBe` ["1.000000", "2.000000", "6.000000"]
+                map (.operationalDate) [earlyEntry, afterMidnightEntry] `shouldBe` replicate 2 goldenWeekEnd
 
         it "aggregates exact staff time before one quarter-hour tie-up transform" $ withContext do
             withCleanDb do
@@ -177,6 +204,21 @@ tests = aroundAll withDatabaseTestContext do
                 lookupCsvRow csvRows "Worker, Ava LVL 1" `shouldBe` ["2.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000"]
                 lookupCsvRow csvRows "Worker, Ava LVL 2" `shouldBe` ["2.500000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "5.000000", "0.000000", "4.500000", "0.000000", "0.000000", "0.000000"]
                 lookupCsvRow csvRows "Cook, Kai LVL 1" `shouldBe` ["0.000000", "0.000000", "0.000000", "4.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000", "0.000000"]
+
+        it "keeps explicit Operational-date export windows stable after the venue roster start day changes" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                beforeChange <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                _ <- venueConfig |> set #rosterWeekStartsOn 5 |> updateRecord
+
+                afterChange <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
+
+                afterChange.id `shouldNotBe` beforeChange.id
+                afterChange.rangeStart `shouldBe` beforeChange.rangeStart
+                afterChange.rangeEnd `shouldBe` beforeChange.rangeEnd
+                afterChange.fileName `shouldBe` beforeChange.fileName
+                afterChange.fileContents `shouldBe` beforeChange.fileContents
 
         it "keeps relational-version-pinned payroll CSV output stable after later pay-config changes" $ withContext do
             withCleanDb do
@@ -288,14 +330,14 @@ normalizePayrollEarningsCsv csvText =
             | Text.isPrefixOf "staff_first_name," row = row
             | otherwise =
                 let fields = Text.splitOn "," row
-                 in if length fields /= 25
+                 in if length fields /= 26
                         then row
                         else Text.intercalate "," (normalizeField <$> zip [0 :: Int ..] fields)
 
         normalizeField (index, value)
-            | index == 11 = "<description>"
-            | index == 12 = "<staff_id>"
-            | index == 13 = "<timesheet_entry_ids>"
+            | index == 12 = "<description>"
+            | index == 13 = "<staff_id>"
+            | index == 14 = "<timesheet_entry_ids>"
             | index == payConfigVersionManifestColumn = "<pay_config_version_manifest>"
             | index == rateBookVersionColumn = "<rate_book_version>"
             | index == sourceRateIdentityColumn = "<source_rate_identity>"
@@ -304,11 +346,11 @@ normalizePayrollEarningsCsv csvText =
             | otherwise = value
 
 payConfigVersionManifestColumn, rateBookVersionColumn, sourceRateIdentityColumn, approvedByUserIdsColumn, activePayCalculationIdsColumn :: Int
-payConfigVersionManifestColumn = 14
-rateBookVersionColumn = 17
-sourceRateIdentityColumn = 19
-approvedByUserIdsColumn = 23
-activePayCalculationIdsColumn = 24
+payConfigVersionManifestColumn = 15
+rateBookVersionColumn = 18
+sourceRateIdentityColumn = 20
+approvedByUserIdsColumn = 24
+activePayCalculationIdsColumn = 25
 
 normalizeRateBookVersions :: Text -> Text
 normalizeRateBookVersions input =
@@ -336,7 +378,7 @@ seedPayrollMatrixFixture = do
     let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
     venue <- createVenueWithConfig "Payroll Matrix Venue"
     venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-    _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch weekStart |> updateRecord
+    _ <- venueConfig |> set #rosterWeekStartsOn 2 |> updateRecord
     admin <- createUserRecord "payroll-matrix-admin@example.com" "staff" True
     _ <- createVenueMembershipRecord venue admin VenueAdmin
     dayNames <- seedWeekDayNames venue

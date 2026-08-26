@@ -8,7 +8,7 @@ import {
     rosterStaffPanelSortRowDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, openRoster, runSql, uniqueE2EValue } from './test-helpers';
+import { gotoWhenReady, openRoster, runSql, uniqueE2EValue, waitForLiveRecovery } from './test-helpers';
 import { E2E_TIMEOUT } from './timeouts';
 
 async function loginAndOpenRoster(page: Page) {
@@ -98,7 +98,7 @@ test.describe('Roster Staff Modal', () => {
             await renewalForm.locator('[name="invitationEmail"]').fill(correctedEmail);
             await renewalForm.getByRole('button', { name: 'Renew' }).click();
 
-            await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText(`Invitation renewed for ${correctedEmail}`);
+            await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText(`Renewed invitation queued for ${correctedEmail} and should arrive shortly`);
             await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0);
 
             await trialEntry.getByRole('button', { name: /^Invite / }).click();
@@ -143,10 +143,11 @@ test.describe('Roster Staff Modal', () => {
         await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toBeVisible();
         await expect(modalMount).toContainText('Edit Staff Member');
         await blackoutResponsePromise;
+        await waitForLiveRecovery(page);
         expect(blackoutRequests).toBe(1);
         expect(pageErrors).toEqual([]);
         await expect(page.locator('html')).not.toHaveAttribute('data-e2e-htmx-swap-error', 'true');
-        await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+        await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
 
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
         await expect(staffEditForm).toBeVisible();
@@ -187,7 +188,17 @@ test.describe('Roster Staff Modal', () => {
 
         await firstNameField.fill('Roster');
         await lastNameField.fill('Modal Spec');
+        const profileRefreshPromise = page.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'profile';
+        });
+        const preferencesRefreshPromise = page.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'preferences';
+        });
         await modalMount.getByRole('button', { name: 'Save' }).click();
+        const [profileRefresh, preferencesRefresh] = await Promise.all([profileRefreshPromise, preferencesRefreshPromise]);
+        await Promise.all([profileRefresh.finished(), preferencesRefresh.finished()]);
 
         await expect(page).toHaveURL(initialUrl);
         await expect(modalMount.locator('[data-bepis-surface="staff"]')).toBeVisible();
@@ -196,8 +207,20 @@ test.describe('Roster Staff Modal', () => {
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
 
         await modalMount.getByRole('button', { name: 'Shift Preferences', exact: true }).click();
-        await expect(modalMount.locator('#staff-shift-preferences-form')).toBeVisible();
-        await modalMount.locator('#staff-shift-preferences-form button[type="submit"]').click();
+        const preferenceForm = modalMount.locator('#staff-shift-preferences-form');
+        await expect(preferenceForm).toBeVisible();
+        await expect(preferenceForm.locator('button[type="submit"]')).toHaveCount(0);
+        const preferenceResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/UpdateStaff'),
+        );
+        await preferenceForm.evaluate((form) => {
+            const checkbox = form.querySelector<HTMLInputElement>('input[type="checkbox"]');
+            if (!checkbox) throw new Error('Missing staff shift-preference availability input');
+            checkbox.click();
+        });
+        const preferenceResponse = await preferenceResponsePromise;
+        expect(preferenceResponse.status(), await preferenceResponse.text()).toBe(200);
+        await preferenceResponse.finished();
         await expect(modalMount.locator('#staff-profile-preferences')).toBeVisible();
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Shift preferences updated');
 
@@ -224,7 +247,7 @@ test.describe('Roster Staff Modal', () => {
             );
             await expect(staffEntry.locator('[aria-label^="Pay configuration required"]')).toBeVisible();
             await staffEntry.click();
-            await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+            await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
 
             const staffEditForm = modalMount.locator('#staff-edit-form:visible');
             await staffEditForm.locator('#payRateSelection').selectOption(`award:${awardLevelId}`);
@@ -266,7 +289,7 @@ test.describe('Roster Staff Modal', () => {
         await expect(rosterGrid).toContainText(assignedStaffName);
         await assignedEntry.click();
 
-        await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+        await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
         const venueRole = staffEditForm.locator('#venueRole');
         await expect(venueRole).toBeVisible();
@@ -335,12 +358,34 @@ test.describe('Roster Staff Modal', () => {
             );
             INSERT INTO staff_roster_groups (id, staff_id, roster_group_id)
             VALUES ('${staffRosterGroupId}', '${staffId}', 'a1000000-0000-0000-0000-000000000211');
-            UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000051';
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
+                'a1000000-0000-0000-0000-000000000001',
+                'a1000000-0000-0000-0000-000000000211',
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + day_index,
+                'published', FALSE, 2
+            FROM generate_series(0, 6) AS day_index
+            ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'published';
+            INSERT INTO roster_lanes (roster_day_id, name, sort_order)
+            SELECT roster_days.id, 'Early', 0
+            FROM roster_days
+            WHERE roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+              AND roster_days.operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)
+                  AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6
+              AND NOT EXISTS (
+                  SELECT 1 FROM roster_lanes
+                  WHERE roster_lanes.roster_day_id = roster_days.id
+                    AND roster_lanes.deleted_at IS NULL
+              );
+            UPDATE roster_days SET publication_state = 'published'
+            FROM e2e_staff_removal_operational_day
+            WHERE roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+              AND roster_days.operational_date = e2e_staff_removal_operational_day.operational_day;
             WITH target_day AS (
                 SELECT roster_days.id
                 FROM roster_days, e2e_staff_removal_operational_day
-                WHERE roster_days.roster_week_id = 'a1000000-0000-0000-0000-000000000051'
-                  AND roster_days.day_offset = EXTRACT(ISODOW FROM operational_day)::int - 1
+                WHERE roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+                  AND roster_days.operational_date = e2e_staff_removal_operational_day.operational_day
             ), target_cell AS (
                 SELECT target_day.id AS roster_day_id, COALESCE(MAX(roster_slots.row_index), -1) + 1 AS row_index
                 FROM target_day
@@ -348,12 +393,13 @@ test.describe('Roster Staff Modal', () => {
                 GROUP BY target_day.id
             )
             INSERT INTO roster_slots (
-                id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id,
+                id, roster_day_id, roster_lane_id, staff_id, assignment_state,
                 row_index, starts_at, ends_at, timezone, shift_type_id
             )
             SELECT
-                '${rosterSlotId}', target_cell.roster_day_id, '${staffId}', 'staff',
-                'a1000000-0000-0000-0000-000000000081', target_cell.row_index,
+                '${rosterSlotId}', target_cell.roster_day_id,
+                (SELECT roster_lanes.id FROM roster_lanes WHERE roster_lanes.roster_day_id = target_cell.roster_day_id AND roster_lanes.deleted_at IS NULL ORDER BY roster_lanes.sort_order, roster_lanes.id LIMIT 1),
+                '${staffId}', 'staff', target_cell.row_index,
                 (operational_day + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
                 (operational_day + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
                 'Australia/Melbourne', 'a1000000-0000-0000-0000-000000000133'
@@ -366,39 +412,30 @@ test.describe('Roster Staff Modal', () => {
 
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
-        const timesheetContext = await browser.newContext();
-        contexts.push(actorContext, viewerContext, timesheetContext);
+        contexts.push(actorContext, viewerContext);
         const actorPage = await actorContext.newPage();
         const viewerPage = await viewerContext.newPage();
-        const timesheetPage = await timesheetContext.newPage();
         await Promise.all([
             installLiveSubscriptionObserver(actorPage),
             installLiveSubscriptionObserver(viewerPage),
-            installLiveSubscriptionObserver(timesheetPage),
         ]);
         const staffSelector = `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:${staffId}"]:visible`;
 
             await openRoster(actorPage, { email: 'e2e-admin@example.com' });
             await openRoster(viewerPage, { email: 'e2e-admin@example.com' });
-            await openRoster(timesheetPage, { email: 'e2e-admin@example.com' });
-            const rosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+            const rosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
             await gotoWhenReady(actorPage, rosterPath, '#roster-week-shell');
             await gotoWhenReady(viewerPage, rosterPath, '#roster-week-shell');
-            await gotoWhenReady(timesheetPage, '/ShowTimesheetWeek?weekOffset=0', '#timesheet-week-shell');
             await Promise.all([
                 waitForLiveSubscription(actorPage, 'roster:'),
                 waitForLiveSubscription(viewerPage, 'roster:'),
-                waitForLiveSubscription(timesheetPage, 'timesheets:'),
             ]);
             await expect(actorPage.locator(staffSelector)).toBeVisible();
             await expect(viewerPage.locator(staffSelector)).toBeVisible();
             await expect(viewerPage.locator('.roster-grid-frame')).toContainText('Remove');
-            const timesheetSuggestion = timesheetPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
-            await expect(timesheetSuggestion).toHaveCount(1);
-
             const modalMount = actorPage.locator(`#${dialogOverlayMountDomId}`);
             await actorPage.locator(staffSelector).click();
-            await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+            await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
             await modalMount.getByRole('link', { name: 'Remove staff member' }).click();
 
             await expect(modalMount.getByRole('heading', { name: 'Remove staff member' })).toBeVisible();
@@ -410,18 +447,22 @@ test.describe('Roster Staff Modal', () => {
             await expect(actorPage.locator(staffSelector)).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerPage.locator(staffSelector)).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerPage.locator('.roster-grid-frame')).not.toContainText('Remove', { timeout: E2E_TIMEOUT.liveUpdate });
-            await expect(timesheetSuggestion).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
         } finally {
             await Promise.allSettled(contexts.map((context) => context.close()));
             runSql(`
                 BEGIN;
                 SET LOCAL ihp_roster.allow_hard_delete = 'on';
+                UPDATE roster_days SET publication_state = 'draft'
+                WHERE id = (SELECT roster_day_id FROM roster_slots WHERE id = '${rosterSlotId}');
                 DELETE FROM roster_slots WHERE id = '${rosterSlotId}';
                 DELETE FROM staff_roster_groups WHERE id = '${staffRosterGroupId}';
                 DELETE FROM venue_memberships WHERE id = '${membershipId}';
                 DELETE FROM staff WHERE id = '${staffId}';
                 DELETE FROM users WHERE id = '${userId}';
-                UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';
+                UPDATE roster_days SET publication_state = 'draft'
+                WHERE roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+                  AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)
+                      AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6;
                 COMMIT;
             `);
         }

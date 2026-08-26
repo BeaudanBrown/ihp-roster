@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-node scripts/production-inventory.mjs --check
+production-manifest-check
 
 source_path="$({ nix eval --impure --raw --expr '
     let

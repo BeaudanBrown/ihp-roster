@@ -2,7 +2,6 @@ module Application.Helper.View.Staff
     ( isTrialStaff
     , linkedActiveStaffForRosterPanel
     , rosterableStaffForRosterPanel
-    , nonBlankText
     , normalizedStaffDisplayBaseName
     , renderStaffLastInitial
     , staffDisplayBaseName
@@ -48,8 +47,3 @@ renderStaffLastInitial staff =
     case Text.find (not . Char.isSpace) (Text.strip staff.lastName) of
         Just char -> " " <> Text.singleton (Char.toUpper char) <> "."
         Nothing   -> ""
-
-nonBlankText :: Text -> Maybe Text
-nonBlankText text =
-    let stripped = Text.strip text
-     in if Text.null stripped then Nothing else Just stripped

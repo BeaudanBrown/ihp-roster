@@ -31,12 +31,14 @@ declare -A matched_filters=()
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
+    ihp_roster_release_verification_cache
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
 
-mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
+ihp_roster_prepare_verification_cache "surface-compile-fail" "$GHC_OPTS" "v1"
+mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 
 design_matrix="$repo_root/Config/nix/frontend-operation-evidence-matrix.tsv"
 script_source="$repo_root/Config/nix/scripts/frontend/surface-compile-fail-check"
@@ -147,8 +149,8 @@ run_compile_failure_checks() {
     # negative fixtures. -fkeep-going still asks GHC to diagnose every target.
     # shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
     if ghc $GHC_OPTS -fno-code -fkeep-going "${fixtures[@]}" \
-        -odir "$tmp_dir/obj" \
-        -hidir "$tmp_dir/hi" \
+        -odir "$IHP_ROSTER_GHC_CACHE_DIR/obj" \
+        -hidir "$IHP_ROSTER_GHC_CACHE_DIR/hi" \
         >"$combined_log" 2>&1; then
         echo "surface-compile-fail-check: expected fixtures to fail, but the batch compiled" >&2
         exit 1
@@ -222,7 +224,7 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongScopeField.hs" \
     "FrontendSurface declaration Fixture.FixtureScope does not declare field marker Fixture.PanelId" \
-    "Declared fields: [Fixture.VenueId :: required WireUUID, Fixture.WeekOffset :: required WireInt]"
+    "Declared fields: [Fixture.VenueId :: required WireUUID, Fixture.AnchorDate :: required WireDay]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongLiveScopeMarker.hs" \
@@ -290,20 +292,20 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteResource.hs" \
     "FrontendSurface field list is incomplete" \
-    "Missing next field: Timesheets.DayOffset :: required WireInt" \
-    "Expected remaining fields: [Timesheets.DayOffset :: required WireInt]"
+    "Missing next field: Timesheets.WindowEndDate :: required WireDay" \
+    "Expected remaining fields: [Timesheets.WindowEndDate :: required WireDay]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceExtraResourceField.hs" \
     "FrontendSurface field list has an extra field" \
-    "Received field: Timesheets.DayOffset :: required (no declared wire)" \
+    "Received field: Timesheets.OperationalDate :: required (no declared wire)" \
     "Expected remaining fields: []"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongResourceFieldOrder.hs" \
     "FrontendSurface field order mismatch" \
-    "Expected next field: Timesheets.WeekOffset :: required WireInt" \
-    "Received field: Timesheets.DayOffset :: required WireInt"
+    "Expected next field: Timesheets.VenueId :: required WireUUID" \
+    "Received field: Timesheets.OperationalDate :: required WireUUID"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongFieldPresence.hs" \
@@ -351,7 +353,7 @@ expect_compile_failure \
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongField.hs" \
-    "FrontendSurface field bundle does not declare marker Roster.NotificationRosterWeekId"
+    "FrontendSurface field bundle does not declare marker Roster.TemplateId"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionRawRebinding.hs" \
@@ -365,7 +367,7 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionExtraField.hs" \
     "FrontendSurface field list has an extra field" \
-    "Received field: Roster.WeekOffset :: required (no declared wire)"
+    "Received field: Roster.AnchorDate :: required (no declared wire)"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongFieldOrder.hs" \
@@ -376,13 +378,13 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongFieldPresence.hs" \
     "FrontendSurface field presence mismatch" \
-    "Expected next field: Roster.WeekOffset :: required WireInt" \
-    "Received field: Roster.WeekOffset :: optional WireInt"
+    "Expected next field: Roster.AnchorDate :: required WireDay" \
+    "Received field: Roster.AnchorDate :: optional WireDay"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongWireType.hs" \
     "FrontendSurface field wire mismatch" \
-    "Declared field: Roster.WeekOffset :: required WireInt" \
+    "Declared field: Roster.AnchorDate :: required WireDay" \
     "Received Haskell value: Text"
 
 expect_compile_failure \
@@ -393,7 +395,7 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionWireType.hs" \
     "FrontendSurface field wire mismatch" \
-    "Declared field: Timesheets.WeekOffset :: required WireInt" \
+    "Declared field: Timesheets.AnchorDate :: required WireDay" \
     "Received Haskell value: Text"
 
 expect_compile_failure \
@@ -496,6 +498,16 @@ expect_compile_failure \
     "Test/CompileFail/FrontendAppShellWrongActionOperation.hs" \
     "Couldn't match type ‘AppShell.ApplyXeroTimesheetPreparationStaffDecisionOverlay’" \
     "with ‘AppShell.SelectXeroTimesheetPreparationPeriodOverlay’"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfacePayRateDomainInterchange.hs" \
+    "BEPIS-FC-005" \
+    "ShiftTypePayRateSelection" \
+    "StaffPayRateSelection"
+
+expect_compile_failure \
+    "Test/CompileFail/XeroEmployeeIdRawConstruction.hs" \
+    "Illegal term-level use of the type constructor ‘XeroEmployeeId’"
 
 for filter in "${filters[@]}"; do
     if [[ -z "${matched_filters[$filter]:-}" ]]; then

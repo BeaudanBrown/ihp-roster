@@ -34,8 +34,8 @@ import IHP.Prelude
 
 xeroStaffMappingStatusFlags :: XeroStaffMappingStatusEnum -> (Bool, Bool)
 xeroStaffMappingStatusFlags XeroStaffMappingStatusEnumVerified = (True, False)
-xeroStaffMappingStatusFlags NotApplicable = (False, True)
-xeroStaffMappingStatusFlags XeroStaffMappingStatusEnumStale = (False, False)
+xeroStaffMappingStatusFlags NotApplicable                      = (False, True)
+xeroStaffMappingStatusFlags XeroStaffMappingStatusEnumStale    = (False, False)
 
 xeroStaffMappingIsVerified :: XeroStaffMappingStatusEnum -> Bool
 xeroStaffMappingIsVerified = fst . xeroStaffMappingStatusFlags

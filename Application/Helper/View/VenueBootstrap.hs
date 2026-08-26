@@ -19,7 +19,7 @@ renderVenueBootstrapFields venue venueRosterWeekStartsOn = [hsx|
         {renderVenueFieldError venue "name"}
     </div>
     <div class="col-12">
-        <label class="form-label" for="venue-roster-week-starts-on">Roster week starts on</label>
+        <label class="form-label" for="venue-roster-week-starts-on">Roster window start day</label>
         <select id="venue-roster-week-starts-on" class="form-select" name="rosterWeekStartsOn">
             {forEach [1 :: Int, 2, 3, 4, 5, 6, 0] (renderWeekdayOption venueRosterWeekStartsOn)}
         </select>

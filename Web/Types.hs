@@ -44,6 +44,7 @@ data PasswordResetsController
 
 data PasskeysController
     = PasskeyStepUpAction
+    | ShowPasskeyStepUpDialogAction
     | PasskeySetupAction
     | DismissMandatoryPasskeySetupAction
     | ShowPasskeySetupDialogAction
@@ -68,12 +69,12 @@ data ProfilesController
 
 data TimesheetsController
     = TimesheetsAction
-    | ShowTimesheetWeekAction { weekOffset :: !Int }
-    | ShowtimesheetToolbarLiveFragmentAction { weekOffset :: !Int }
-    | ShowtimesheetDayColumnsLiveFragmentAction { weekOffset :: !Int }
-    | ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset :: !Int }
-    | ShowTimesheetDaySectionFragmentAction { weekOffset :: !Int, dayOffset :: !Int }
-    | ToggleTimesheetShowApprovedAction
+    | ShowTimesheetWindowAction { anchorDate :: !Text }
+    | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Text }
+    | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Text }
+    | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Text }
+    | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Text, operationalDate :: !Text }
+    | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction
     | ToggleTimesheetWageEstimatesAction
     | NewTimesheetEntryAction
@@ -186,8 +187,8 @@ data AdminController
     | ProfileLiveInvalidateBillingAction
     | ProfileLiveInvalidateAdminInvitesAction
     | ProfileLiveInvalidateXeroAction
-    | ProfileLiveInvalidateTimesheetWeekAction { weekOffset :: !Int }
-    | ProfileLiveInvalidateRosterWeekAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ProfileLiveInvalidateTimesheetWindowAction { anchorDate :: !Text }
+    | ProfileLiveInvalidateRosterWindowAction { rosterGroupId :: !(Id RosterGroup), anchorDate :: !Text }
     | ProfileLiveInvalidateLeaveRequestsAction
     deriving (Eq, Show, Data)
 
@@ -242,9 +243,9 @@ newtype LiveUpdatesWSApp
 data RosterTemplatesController
     = NewRosterTemplateAction { rosterGroupId :: !(Id RosterGroup) }
     | CreateRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup) }
-    | ShowRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
-    | ConfirmRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
-    | CreateRosterTemplateFromReferenceAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ShowRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
+    | ConfirmRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
+    | CreateRosterTemplateFromReferenceAction { rosterGroupId :: !(Id RosterGroup) }
     | DiscardAndRestartRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup), rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
     | ShowRosterTemplateDesignerAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
     | UpdateRosterTemplateDayAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), dayIndex :: !Int }
@@ -258,52 +259,51 @@ data RosterTemplatesController
     | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
     | EditRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
     | DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
-    | PreviewRosterTemplateDropAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
-    | ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
-    | ApplyRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
-    | ConfirmDeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
-    | ShowRosterTemplateLibraryFragmentAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | PreviewRosterTemplateDropAction { rosterGroupId :: !(Id RosterGroup) }
+    | ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
+    | ApplyRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
+    | ConfirmDeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
+    | ShowRosterTemplateLibraryFragmentAction { rosterGroupId :: !(Id RosterGroup) }
     deriving (Eq, Show, Data)
 
 data RosterWeeksController
     = RosterWeeksAction
-    | ShowRosterWeekAction { weekOffset :: !Int }
-    | ShowRosterDayTimelineAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
-    | ShowRosterDayTimelineContentFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
-    | ShowRosterWeekOverviewFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekContentFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekGridToolbarFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekGridFrameFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekDayColumnsFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekDayRailFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekWageRailFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekSlotsGridFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekStaffPanelFragmentAction { weekOffset :: !Int }
-    | ShowRosterWeekDaySectionFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
-    | ShowRosterWeekRowFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
-    | UpdateRosterAssignmentFiltersAction { weekOffset :: !Int }
-    | CreateRosterWeekAction { weekOffset :: !Int }
-    | CopyRosterWeekAction { sourceWeekOffset :: !Int, targetWeekOffset :: !Int }
-    | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
-    | ShowRosterNotificationConfirmationAction { rosterWeekId :: !(Id RosterWeek) }
-    | CreateRosterNotificationRunAction { rosterWeekId :: !(Id RosterWeek) }
-    | CreateRosterWeekSlotDefinitionAction { rosterWeekId :: !(Id RosterWeek) }
-    | DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition) }
-    | SortRosterWeekAction { rosterWeekId :: !(Id RosterWeek) }
+    | ShowRosterWindowAction { anchorDate :: !Text }
+    | ShowRosterDayTimelineContentFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
+    | ShowRosterWeekOverviewFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekContentFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekGridToolbarFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekGridFrameFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekDayColumnsFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekDayRailFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekWageRailFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekSlotsGridFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekStaffPanelFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekDaySectionFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
+    | ShowRosterWeekRowFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
+    | UpdateRosterAssignmentFiltersAction
+    | CreateRosterWeekAction
+    | CopyRosterWeekAction
+    | ToggleRosterWeekLiveStatusAction
+    | ShowRosterNotificationConfirmationAction
+    | CreateRosterNotificationRunAction
+    | CreateRosterWeekSlotDefinitionAction
+    | RemoveRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterLane) }
+    | SortRosterWeekAction
     | ToggleRosterDayClosedAction { rosterDayId :: !(Id RosterDay) }
     | AddRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }
-    | UpdateRosterLayoutPreferenceAction { weekOffset :: !Int }
-    | MoveRosterShiftToSlotAction { weekOffset :: !Int }
-    | MoveRosterTimelineShiftAction { weekOffset :: !Int }
-    | DuplicateRosterShiftToDayAction { weekOffset :: !Int }
-    | DropRosterStaffAction { weekOffset :: !Int }
-    | UpdateRosterWarningPreferenceAction { weekOffset :: !Int }
-    | UpdateRosterWageEstimatePreferenceAction { weekOffset :: !Int }
-    | UpdateRosterOwnLiveShiftHighlightPreferenceAction { weekOffset :: !Int }
-    | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }
+    | UpdateRosterLayoutPreferenceAction
+    | MoveRosterShiftToSlotAction
+    | MoveRosterTimelineShiftAction
+    | DuplicateRosterShiftToDayAction
+    | DropRosterStaffAction
+    | UpdateRosterWarningPreferenceAction
+    | UpdateRosterWageEstimatePreferenceAction
+    | UpdateRosterOwnLiveShiftHighlightPreferenceAction
+    | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }
-    | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }
+    | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     | DeleteRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     deriving (Eq, Show, Data)

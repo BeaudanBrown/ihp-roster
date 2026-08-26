@@ -224,6 +224,7 @@ wireName = \case
     WireUuidIR -> "uuid"
     WireDayIR -> "day"
     WireClosedIR name _ _ -> "closed<" <> name <> ">"
+    WireDomainIR _ name -> "domain<" <> name <> ">"
     WireUnknownIR -> "unknown"
     WireListIR wire -> "list<" <> wireName wire <> ">"
     WireMapIR key value -> "map<" <> wireName key <> "," <> wireName value <> ">"

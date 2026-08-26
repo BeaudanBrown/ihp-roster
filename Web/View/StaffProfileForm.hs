@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffPayAssignmentRequiresRemediation)
+import Application.PayRateSelection (StaffPayRateSelection (..))
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.View.Prelude
@@ -26,7 +27,7 @@ data StaffManagementFieldData = StaffManagementFieldData
     , managementImportedPayItems       :: [XeroImportedPayItem]
     , managementSelectedRosterGroupIds :: [Id RosterGroup]
     , managementVenueMembership        :: Maybe VenueMembership
-    , managementWeekOffset             :: Maybe Int
+    , managementAnchorDate             :: Maybe Day
     , managementRosterGroupId          :: Maybe (Id RosterGroup)
     }
 
@@ -41,7 +42,7 @@ data StaffProfileDetailsSurfaceValues = StaffProfileDetailsSurfaceValues
     , profileDetailsSection               :: !StaffProfileSectionValue
     , profileDetailsVenueRole             :: !(Maybe VenueRoleEnum)
     , profileDetailsEmploymentBasis       :: !(Maybe StaffEmploymentBasisEnum)
-    , profileDetailsPayRateSelection      :: !(Maybe Text)
+    , profileDetailsPayRateSelection      :: !(Maybe StaffPayRateSelection)
     , profileDetailsRosterGroupIds        :: !(Maybe [UUID.UUID])
     }
 
@@ -74,14 +75,14 @@ staffShiftPreferencesSurfaceValues section selectedShiftPreferences =
         , shiftPreferenceKeys = Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences)
         }
 
-staffPayRateSelectionValue :: Staff -> Text
+staffPayRateSelectionValue :: Staff -> StaffPayRateSelection
 staffPayRateSelectionValue staff =
     case staff.payAssignmentMode of
-        XeroRate -> maybe "" ("xero:" <>) (inputValue <$> staff.importedXeroPayItemId)
-        AwardRate -> maybe "" ("award:" <>) (inputValue <$> staff.defaultAwardLevelId)
-        RosterOnly -> ""
-        LegacyUnresolved -> "legacy-unresolved"
-        StaffDefault -> "legacy-unresolved"
+        XeroRate -> maybe StaffPayRateRosterOnly StaffPayRateXero staff.importedXeroPayItemId
+        AwardRate -> maybe StaffPayRateRosterOnly StaffPayRateAward staff.defaultAwardLevelId
+        RosterOnly -> StaffPayRateRosterOnly
+        LegacyUnresolved -> StaffPayRateLegacyUnresolved
+        StaffDefault -> StaffPayRateLegacyUnresolved
 
 renderPersonalProfileFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Staff -> Maybe Text -> Html
 renderPersonalProfileFields fields = renderPersonalProfileFieldsWithEmailId fields "email"
@@ -333,8 +334,8 @@ hasStaffErrorFor :: Staff -> Text -> Bool
 hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
 
 renderStaffManagementFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> StaffManagementFieldData -> Html
-renderStaffManagementFields fields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
-    {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
+renderStaffManagementFields fields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementAnchorDate = maybeAnchorDate, managementRosterGroupId = maybeRosterGroupId } = [hsx|
+    {maybe mempty renderAnchorDateHiddenInput maybeAnchorDate}
     {renderRosterGroupHiddenInput maybeRosterGroupId}
     {forEach retainedRosterGroupIds (renderStaffRosterGroupAssignmentHiddenInput fields)}
     {when currentUserIsAdmin (renderStaffRoleField fields maybeMembership)}
@@ -368,8 +369,8 @@ renderStaffRosterGroupAssignmentHiddenInput fields rosterGroupId =
         (surfaceToggleListItemField @Surface.RosterGroupIdsField fields (unpackId rosterGroupId))
         True
 
-renderWeekOffsetHiddenInput :: Int -> Html
-renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]
+renderAnchorDateHiddenInput :: Day -> Html
+renderAnchorDateHiddenInput anchorDate = [hsx|<input type="hidden" name="anchorDate" value={tshow anchorDate} />|]
 
 renderStaffRoleField :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Maybe VenueMembership -> Html
 renderStaffRoleField _ Nothing = [hsx|

@@ -33,6 +33,19 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Types
 
+startOrResumeCheckout :: (?modelContext :: ModelContext) => StripeClient -> StripeConfig -> Venue -> User -> (Id BillingCheckoutAttempt -> Text) -> (Id BillingCheckoutAttempt -> Text) -> IO CheckoutStartResult
+startOrResumeCheckout stripeClient stripeConfig venue owner =
+    startOrResumeCheckoutForPrincipalWithTransaction
+        (\_ _ action -> withTransaction action)
+        (const (pure ()))
+        stripeClient
+        stripeConfig
+        venue
+        BillingCheckoutPrincipal
+            { billingCheckoutActor = owner
+            , billingCheckoutPayer = owner
+            }
+
 withCapturedLogger :: (FrameworkConfig -> IO value) -> IO (value, Text)
 withCapturedLogger action = do
     capturedRef <- IORef.newIORef []
@@ -81,9 +94,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface=\"billing\""
                 response `responseBodyShouldContain` "billing-status-fragment"
                 response `responseBodyShouldContain` "billing:"
-                response `responseBodyShouldContain` "AUD 100/month"
-                response `responseBodyShouldContain` "No subscription"
-                response `responseBodyShouldContain` "Start Subscription"
+                response `responseBodyShouldContain` "$100/month"
+                response `responseBodyShouldContain` "Subscription Inactive :-("
+                response `responseBodyShouldContain` "Subscribe"
+                response `responseBodyShouldContain` "hx-post=\"/CreateBillingCheckoutSession\""
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` "If you like Bepis, please support its development by subscribing."
+                response `responseBodyShouldNotContain` "Manage this venue's Bepis subscription through Stripe-hosted payment pages."
+                response `responseBodyShouldNotContain` "You will verify with your passkey before Stripe opens."
                 response `responseBodyShouldNotContain` "Manual Controls"
                 response `responseBodyShouldNotContain` "Recent Stripe events"
                 response `responseBodyShouldNotContain` "data-billing-founder-diagnostics"
@@ -204,7 +222,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Billing"
-                response `responseBodyShouldContain` "AUD 100/month"
+                response `responseBodyShouldContain` "$100/month"
 
         it "serves the billing status fragment through the typed surface rule" $ withContext do
             withCleanDb do
@@ -217,7 +235,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"billing-status-fragment\""
-                response `responseBodyShouldContain` "Start Subscription"
+                response `responseBodyShouldContain` "Subscribe"
                 response `responseBodyShouldNotContain` "id=\"app\""
 
         it "rejects non-owner venue members" $ withContext do
@@ -286,7 +304,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "bounded support event failure"
                 response `responseBodyShouldContain` "Last synchronized"
                 response `responseBodyShouldContain` "Synchronize with Stripe"
-                response `responseBodyShouldNotContain` "Start Subscription"
+                response `responseBodyShouldNotContain` "Subscribe"
                 response `responseBodyShouldNotContain` "Manage Billing"
                 response `responseBodyShouldNotContain` "Manual Controls"
                 response `responseBodyShouldNotContain` "Manual read-only"
@@ -333,16 +351,20 @@ tests = aroundAll withDatabaseTestContext do
                 ownerResponse `responseBodyShouldNotContain` "Synchronize with Stripe"
                 ownerResponse `responseBodyShouldNotContain` "subscription_metadata_mismatch"
 
-        it "renders state-specific owner guidance and actions" $ withContext do
+        it "renders one privacy-safe inactive subscription signal for every non-active state" $ withContext do
             forM_
-                [ (Nothing, False, "No subscription", "Start Subscription", "Start a subscription for this venue")
-                , (Just "active", False, "Active", "Manage Billing", "renews automatically")
-                , (Just "active", True, "Cancellation scheduled", "Manage Cancellation", "will not renew")
-                , (Just "past_due", False, "Payment needs attention", "Resolve Payment", "update your payment method")
-                , (Just "canceled", False, "Canceled", "Restart Subscription", "subscription has ended")
-                , (Just "incomplete_expired", False, "Setup expired", "Restart Subscription", "payment setup expired")
+                [ (Nothing, False, "Subscription Inactive :-(", "inactive", "Subscribe")
+                , (Just "active", False, "Subscription Active :-)", "active", "Manage Billing")
+                , (Just "active", True, "Cancellation scheduled", "cancellation-scheduled", "Manage Cancellation")
+                , (Just "past_due", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "unpaid", True, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "incomplete", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "trialing", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "paused", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "canceled", False, "Subscription Inactive :-(", "inactive", "Subscribe")
+                , (Just "incomplete_expired", False, "Subscription Inactive :-(", "inactive", "Subscribe")
                 ]
-                \(maybeStatus, cancelAtPeriodEnd, stateLabel, actionLabel, guidance) -> withCleanDb do
+                \(maybeStatus, cancelAtPeriodEnd, stateLabel, stateValue, actionLabel) -> withCleanDb do
                     venue <- createVenueWithConfig ("Billing State " <> stateLabel <> " Venue")
                     owner <- createUserRecord ("billing-state-" <> Text.replace " " "-" (Text.toLower stateLabel) <> "@example.com") "staff" True
                     _ <- createVenueMembershipRecord venue owner VenueOwner
@@ -370,12 +392,28 @@ tests = aroundAll withDatabaseTestContext do
 
                     response `responseStatusShouldBe` status200
                     response `responseBodyShouldContain` stateLabel
+                    response `responseBodyShouldContain` ("data-billing-subscription-status=\"" <> stateValue <> "\"")
+                    when (stateValue == "inactive") do
+                        response `responseBodyShouldContain` "alert alert-warning mb-0 w-100 text-center"
+                        response `responseBodyShouldContain` "Subscription Inactive :-("
                     response `responseBodyShouldContain` actionLabel
-                    response `responseBodyShouldContain` guidance
-                    response `responseBodyShouldContain` "Current period"
+                    response `responseBodyShouldNotContain` "<span class=\"badge text-bg-success\">Active</span>"
+                    response `responseBodyShouldContain` "$100/month"
+                    response `responseBodyShouldNotContain` "Current period"
+                    response `responseBodyShouldNotContain` "You will verify with your passkey before Stripe opens."
+                    if maybeStatus == Just "active"
+                        then response `responseBodyShouldContain` "Thank you for supporting the development of Bepis."
+                        else response `responseBodyShouldContain` "If you like Bepis, please support its development by subscribing."
                     response `responseBodyShouldContain` "data-bepis-navigation-loading=\"true\""
                     response `responseBodyShouldContain` "data-bepis-navigation-loading-config="
                     response `responseBodyShouldContain` "Opening Stripe"
+                    if maybeStatus == Just "active" && cancelAtPeriodEnd
+                        then do
+                            response `responseBodyShouldContain` "This subscription remains active until"
+                            response `responseBodyShouldContain` "and will not renew."
+                        else response `responseBodyShouldNotContain` "This subscription remains active until"
+                    when (maybeStatus /= Just "active") do
+                        response `responseBodyShouldNotContain` "Cancellation scheduled"
                     forM_ maybeStatus \status -> do
                         response `responseBodyShouldNotContain` ("sub_" <> status)
                         response `responseBodyShouldNotContain` ("cus_owner_hidden_" <> status)
@@ -405,6 +443,10 @@ tests = aroundAll withDatabaseTestContext do
                 visibleResponse <- withStripeConfigForTest (Right visibleConfig) do
                     withUserAndCurrentVenue owner venue.id do
                         callAction BillingAction
+                activeSubscription <- createVenueSubscriptionWithStatus venue "active"
+                activeResponse <- withStripeConfigForTest (Right visibleConfig) do
+                    withUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
                 supportResponse <- withStripeConfigForTest (Right visibleConfig) do
                     withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                         callAction BillingAction
@@ -413,6 +455,16 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenResponse `responseBodyShouldNotContain` "href=\"/Billing\""
                 visibleResponse `responseStatusShouldBe` status200
                 visibleResponse `responseBodyShouldContain` "href=\"/Billing\""
+                visibleResponse `responseBodyShouldContain` "app-header-nav-item app-header-nav-item-warning"
+                visibleResponse `responseBodyShouldContain` "app-mobile-nav-link app-mobile-nav-link-warning"
+                visibleResponse `responseBodyShouldContain` "aria-label=\"Billing — subscription inactive\""
+                visibleResponse `responseBodyShouldNotContain` "data-billing-subscription-alert=\"true\""
+                activeResponse `responseStatusShouldBe` status200
+                activeResponse `responseBodyShouldContain` "href=\"/Billing\""
+                activeResponse `responseBodyShouldNotContain` "app-header-nav-item-warning"
+                activeResponse `responseBodyShouldNotContain` "app-mobile-nav-link-warning"
+                activeResponse `responseBodyShouldNotContain` "subscription inactive\""
+                activeSubscription.status `shouldBe` "active"
                 supportResponse `responseStatusShouldBe` status200
                 supportResponse `responseBodyShouldNotContain` "href=\"/Billing\""
                 visibleBody <- (cs <$> responseBody visibleResponse) :: IO Text
@@ -440,7 +492,7 @@ tests = aroundAll withDatabaseTestContext do
                             pure (billingResponse, checkoutResponse)
 
                 billingResponse `responseStatusShouldBe` status200
-                billingResponse `responseBodyShouldContain` "Start Subscription"
+                billingResponse `responseBodyShouldContain` "Subscribe"
                 billingResponse `responseBodyShouldNotContain` "data-billing-founder-diagnostics"
                 lookup "Location" (responseHeaders checkoutResponse) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
                 customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -499,9 +551,17 @@ tests = aroundAll withDatabaseTestContext do
                     callAction CreateBillingCheckoutSessionAction
                 portalResponse <- withUserAndCurrentVenue owner venue.id do
                     callAction CreateBillingPortalSessionAction
+                htmxCheckoutResponse <- withUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction CreateBillingCheckoutSessionAction
+                htmxPortalResponse <- withUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction CreateBillingPortalSessionAction
 
                 lookup "Location" (responseHeaders checkoutResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
                 lookup "Location" (responseHeaders portalResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                lookup "Location" (responseHeaders htmxCheckoutResponse) `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
+                lookup "Location" (responseHeaders htmxPortalResponse) `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
                 query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
 
         it "lets an owner without a passkey start Checkout when privileged strong authentication is disabled" $ withContext do
@@ -1141,6 +1201,23 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "data-live-update-url="
                 response `responseBodyShouldContain` (cs ("&quot;url&quot;:&quot;/ShowbillingStatusLiveFragment?checkout=success&amp;attempt_id=" <> inputValue attempt.id <> "&quot;"))
                 response `responseBodyShouldNotContain` "&quot;mountState&quot;"
+
+        it "transitions an expired reconciled Checkout from pending to customer-safe failure" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Expired Modal Venue"
+                owner <- createUserRecord "billing-expired-modal-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                attempt <- createOpenBillingCheckoutAttempt venue owner "cs_expired_123"
+                _ <- attempt |> set #status ("expired" :: Text) |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestQuery (cs ("checkout=success&attempt_id=" <> inputValue attempt.id <> "&session_id=cs_expired_123")) do
+                        callAction ShowbillingStatusLiveFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Subscription needs attention"
+                response `responseBodyShouldNotContain` "cs_expired_123"
+                response `responseBodyShouldNotContain` "expired"
 
         it "does not render Checkout progress for uncorrelated direct query parameters" $ withContext do
             withCleanDb do

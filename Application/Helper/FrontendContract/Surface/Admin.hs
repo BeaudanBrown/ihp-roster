@@ -23,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminPageContentFragment
     , AdminXeroPageContentFragment
     , AdminVenueSettingsFragment
+    , AdminRosterWindowStartDaySetting
     , AdminInvitesFragment
     , AdminExportsFragment
     , AdminShiftTypesFragment
@@ -67,6 +68,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , TimePickerStart
     , TimePickerEnd
     , RosterWeekStartsOn
+    , RosterCalendarRevision
     , UnavailableStaffWarningThreshold
     , Email
     , RangeStart
@@ -86,6 +88,7 @@ module Application.Helper.FrontendContract.Surface.Admin
 import Application.Helper.Export.Types (ExportJobType)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum)
+import Application.PayRateSelection (ShiftTypePayRateSelection)
 
 data AdminPageScope
 data AdminXeroPageScope
@@ -110,6 +113,7 @@ data AdminXero
 data AdminPageContentFragment
 data AdminXeroPageContentFragment
 data AdminVenueSettingsFragment
+data AdminRosterWindowStartDaySetting
 data AdminInvitesFragment
 data AdminExportsFragment
 data AdminShiftTypesFragment
@@ -148,6 +152,7 @@ data MinutePrecisionShiftTimesEnabled
 data TimePickerStart
 data TimePickerEnd
 data RosterWeekStartsOn
+data RosterCalendarRevision
 data UnavailableStaffWarningThreshold
 data Email
 data RangeStart
@@ -213,6 +218,7 @@ type AdminVenueSettingsSurface =
     Surface AdminVenueConfig
         '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminVenueSettingsFragment '[] '[ 'MountTarget AdminVenueSettingsFragment '[], 'Eager, 'Live, 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
+         , DomToken AdminRosterWindowStartDaySetting
          , Action UpdateRosterEndTimesEnabled
             '[ Field RosterEndTimesEnabled 'WireBool ]
             '[ 'HtmxMethod 'HtmxPost
@@ -256,11 +262,14 @@ type AdminVenueSettingsSurface =
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting inputs submit on change"
              ]
          , Action UpdateRosterWeekStartsOn
-            '[ Field RosterWeekStartsOn 'WireInt ]
+            '[ Field RosterWeekStartsOn 'WireInt
+             , Field RosterCalendarRevision 'WireInt
+             ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
-             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxTarget ('HtmxId AdminRosterWindowStartDaySetting)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'HtmxTrigger 'HtmxChange
              ]
          ]
 
@@ -311,7 +320,7 @@ type AdminShiftTypesSurface =
          , Action CreateShiftType
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
@@ -322,7 +331,7 @@ type AdminShiftTypesSurface =
          , Action UpdateShiftType
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
@@ -351,7 +360,7 @@ type AdminShiftTypesSurface =
          , Action AutosaveShiftTypeName
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
@@ -363,7 +372,7 @@ type AdminShiftTypesSurface =
          , Action AutosaveShiftTypeSelection
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]

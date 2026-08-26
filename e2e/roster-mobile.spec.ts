@@ -2,7 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 import {
     rosterColumnEditorDomAttr,
     rosterColumnEditStartDomAttr,
+    toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     ensureRosterLayout,
     expectContainerToManageHorizontalOverflow,
@@ -25,24 +27,29 @@ async function ensureAtLeastTwoRosterColumns(page: Page) {
         return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
     });
 
-    if (slotCount > 1) return;
+    if (slotCount <= 1) {
+        await frame.locator(`[${rosterColumnEditStartDomAttr}="true"]`).click();
+        await expect(page.getByRole('button', { name: 'Add roster column' })).toBeVisible();
 
-    await frame.locator(`[${rosterColumnEditStartDomAttr}="true"]`).click();
-    await expect(page.getByRole('button', { name: 'Add roster column' })).toBeVisible();
-
-    const createResponsePromise = page.waitForResponse((response) => {
-        return response.request().method() === 'POST' && response.url().includes('/CreateRosterWeekSlotDefinition');
-    });
-    await page.getByRole('button', { name: 'Add roster column' }).click();
-    const createResponse = await createResponsePromise;
-    expect(createResponse.status(), await createResponse.text()).toBe(200);
+        const createResponsePromise = page.waitForResponse((response) => {
+            return response.request().method() === 'POST' && response.url().includes('/CreateRosterWeekSlotDefinition');
+        });
+        await page.getByRole('button', { name: 'Add roster column' }).click();
+        const createResponse = await createResponsePromise;
+        expect(createResponse.status(), await createResponse.text()).toBe(200);
+    }
 
     await expect.poll(async () => {
-        return slotScroller.evaluate((element) => {
-            if (!(element instanceof HTMLElement)) return 1;
-            return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
-        });
-    }).toBeGreaterThan(1);
+        return slotScroller.evaluate(async (element, settleMs) => {
+            if (!(element instanceof HTMLElement)) return false;
+            await new Promise((resolve) => window.setTimeout(resolve, settleMs));
+            const currentSlotCount = Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
+            return element.isConnected
+                && currentSlotCount > 1
+                && element.clientWidth > 0
+                && element.scrollWidth > element.clientWidth;
+        }, E2E_TIMEOUT.rosterGeometrySettle);
+    }).toBe(true);
 }
 
 test.describe('Roster mobile baseline', () => {
@@ -53,12 +60,30 @@ test.describe('Roster mobile baseline', () => {
         await expect(page.locator('.roster-grid')).toBeVisible();
     });
 
-    test('fits the live roster email confirmation within the viewport', async ({ page }) => {
-        const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
-        runSql(`UPDATE roster_weeks SET is_live = TRUE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+    test('fits the Published roster email confirmation within the viewport', async ({ page }) => {
+        runSql(`
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
+                'a1000000-0000-0000-0000-000000000001',
+                'a1000000-0000-0000-0000-000000000211',
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 357 + day_index,
+                'draft',
+                FALSE,
+                2
+            FROM generate_series(0, 6) AS day_index
+            ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'draft';
+        `);
+        await openRoster(page, { weekOffset: 51, useCurrentSession: true });
+        const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
+        const publishToggle = publishToggleRoot.getByRole('switch');
+        const publishResponsePromise = page.waitForResponse((response) => response.url().includes('/ToggleRosterWeekLiveStatus'));
+        await publishToggleRoot.click();
+        const publishResponse = await publishResponsePromise;
+        expect(publishResponse.status()).toBe(200);
+        await expect(publishToggle).toBeChecked();
+        await page.reload();
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
         try {
-            await page.reload();
-            await expect(page.locator('#roster-week-shell')).toBeVisible();
             await openRosterSettings(page);
             const emailRoster = page.locator('#roster-email-button');
             await expect(emailRoster).toBeVisible();
@@ -72,7 +97,8 @@ test.describe('Roster mobile baseline', () => {
             expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
             expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
         } finally {
-            runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+            await page.keyboard.press('Escape');
+            if (await publishToggle.isChecked()) await publishToggleRoot.click();
         }
     });
 
@@ -504,12 +530,30 @@ test.describe('Roster mobile baseline', () => {
         });
 
         const before = await readMetrics();
+        const waitForStableMetrics = async (matches: (metrics: Awaited<ReturnType<typeof readMetrics>>) => boolean) => {
+            let stableSince: number | null = null;
+            let settledMetrics = await readMetrics();
+            await expect.poll(async () => {
+                settledMetrics = await readMetrics();
+                if (!matches(settledMetrics)) {
+                    stableSince = null;
+                    return false;
+                }
+                stableSince ??= Date.now();
+                return Date.now() - stableSince >= E2E_TIMEOUT.stableGeometryWindow;
+            }, { timeout: E2E_TIMEOUT.navigation, intervals: [E2E_TIMEOUT.pollInterval] }).toBe(true);
+            return settledMetrics;
+        };
+
         await closeButton.click();
         await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"]')).toContainText('CLOSED');
-        const closed = await readMetrics();
+        const closed = await waitForStableMetrics((metrics) => metrics.headerHeight === before.headerHeight);
         await firstColumn.locator('[data-roster-day-closed-toggle="true"]').click();
         await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"] .bi-unlock')).toBeVisible();
-        const reopened = await readMetrics();
+        const reopened = await waitForStableMetrics((metrics) =>
+            Math.abs(metrics.slotLeft - before.slotLeft) <= 1
+            && Math.abs(metrics.toggleWidth - before.toggleWidth) <= 1
+        );
 
         expect(closed.headerHeight).toBe(before.headerHeight);
         expect(Math.abs(closed.slotLeft - before.slotLeft)).toBeLessThanOrEqual(60);

@@ -3,10 +3,14 @@ module Test.FwcMapdSyncSpec where
 import Application.FwcMapd.Client (MapdPageMeta (..), MapdResultsPage (..),
                                    assembleCanonicalClassificationValues,
                                    assemblePagedResults)
+import Application.FwcMapd.Job (fwcMapdRefreshJobKind,
+                                performFwcMapdRefreshJobWith)
 import qualified Application.FwcMapd.Payload as MapdPayload
 import Application.FwcMapd.Sync
 import qualified Application.FwcMapd.Sync as FwcMapd
 import Application.Helper.FwcMapd
+import Application.WageSourceAlert.Job (wageSourceHealthCheckJobKind)
+import Application.WageSourcePolicy (fwcMaximumAge)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -15,6 +19,7 @@ import Data.Either (isLeft)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (addUTCTime)
 import Generated.Enums (AwardPenaltyKindEnum (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -277,6 +282,17 @@ databaseTests :: Spec
 databaseTests = do
     aroundAll withDatabaseTestContext do
         describe "FWC MAPD admin data" do
+            it "durably publishes the support award-rate resource without a local browser hub" $ withContext do
+                withCleanDb do
+                    appJob <- newRecord @AppJob |> set #jobKind fwcMapdRefreshJobKind |> createRecord
+                    let summary = MapdPayload.MapdSyncSummary [] 0 0 0 0 0
+                    performFwcMapdRefreshJobWith (pure (Right summary)) appJob
+                    [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "support.award_rates.refresh" :: Text) |> fetch
+                    query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
+                    [freshnessCheck] <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
+                    freshnessCheck.relatedId `shouldBe` Just (unpackId appJob.id)
+                    freshnessCheck.runAt `shouldSatisfy` (> addUTCTime fwcMaximumAge appJob.createdAt)
+
             it "projects every fixture classification and expected rate category without asserting current dollar amounts" $ withContext do
                 withCleanDb do
                     fixture <- loadFwcMapdFixture

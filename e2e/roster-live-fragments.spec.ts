@@ -73,14 +73,22 @@ async function openRosterWeekOffset(page: Page, weekOffset: number) {
             const scopeKey = JSON.parse(rawConfig).scopeKey;
             if (typeof scopeKey !== 'string') return null;
             const parts = scopeKey.split(':');
-            return Number(parts[parts.length - 1]);
+            const calendarRevision = Number(parts[parts.length - 1]);
+            const windowStart = parts[parts.length - 3];
+            const windowEnd = parts[parts.length - 2];
+            const anchorDate = new URL(page.url()).searchParams.get('anchorDate');
+            return anchorDate !== null
+                && windowStart <= anchorDate
+                && anchorDate < windowEnd
+                && Number.isInteger(calendarRevision)
+                && calendarRevision > 0;
         })
-        .toBe(weekOffset);
+        .toBe(true);
 }
 
 async function expectAutoCreatedDraftWeek(page: Page) {
     await expect(page.locator('#roster-content')).toBeVisible();
-    await expect(page.locator('[data-roster-row]')).toHaveCount(28);
+    await expect(page.locator('[data-roster-row]')).toHaveCount(14);
     await expect(page.locator(`[${toggleInputDomAttr}][role="switch"]`).first()).not.toBeChecked();
     await expect(page.getByRole('button', { name: 'Create Draft Roster' })).toHaveCount(0);
 }
@@ -145,17 +153,6 @@ async function expectShiftGroupStaffKey(page: Page, groupKey: string, staffKey: 
     await expect.poll(() => shiftGroupStaffKey(page, groupKey), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(staffKey);
 }
 
-async function copyPreviousWeek(page: Page) {
-    const copyButton = page.getByRole('button', { name: 'Copy Previous Week' });
-    if (!(await copyButton.isVisible().catch(() => false))) {
-        await openRosterSettings(page);
-        await expect(copyButton).toBeVisible();
-    }
-    page.once('dialog', (dialog) => dialog.accept());
-    await copyButton.click();
-    await expect(page.locator('#roster-week-shell')).toBeVisible();
-}
-
 test.describe('Roster live fragments', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
     test.beforeEach(resetCanonicalRosterAssignedShiftFixture);
@@ -208,7 +205,7 @@ test.describe('Roster live fragments', () => {
         const liveToggle = actorPage
             .locator('[data-week-toolbar="roster"]')
             .locator(`[${toggleRootDomAttr}]`)
-            .filter({ hasText: 'Live' });
+            .filter({ hasText: 'Published' });
         const publishResponse = actorPage.waitForResponse((response) =>
             response.request().method() === 'POST' && new URL(response.url()).pathname.includes('ToggleRosterWeekLiveStatus'),
         );
@@ -329,57 +326,10 @@ test.describe('Roster live fragments', () => {
         await expectAutoCreatedDraftWeek(page);
     });
 
-    test('updates another manager live after copying the previous week into an auto-created draft week', async ({ browser }) => {
-        runSql(`
-            UPDATE roster_slots
-            SET deleted_at = NOW(),
-                deleted_by_user_id = 'a0000000-0000-0000-0000-000000000003',
-                delete_reason = 'E2E copy-previous reset',
-                updated_at = NOW()
-            WHERE roster_day_id IN (
-                SELECT roster_days.id
-                FROM roster_days
-                JOIN roster_weeks ON roster_weeks.id = roster_days.roster_week_id
-                WHERE roster_weeks.venue_id = 'a1000000-0000-0000-0000-000000000001'
-                  AND roster_weeks.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
-                  AND roster_weeks.week_offset = 2
-            ) AND deleted_at IS NULL;
-            UPDATE roster_week_slot_definitions
-            SET deleted_at = NULL, updated_at = NOW()
-            WHERE id = 'a1000000-0000-0000-0000-000000000083';
-            UPDATE roster_slots
-            SET assignment_state = 'staff',
-                staff_id = 'a1000000-0000-0000-0000-000000000031',
-                deleted_at = NULL,
-                deleted_by_user_id = NULL,
-                delete_reason = NULL,
-                updated_at = NOW()
-            WHERE id IN (
-                'a1000000-0000-0000-0000-000000000073',
-                'a1000000-0000-0000-0000-000000000074'
-            );
-        `);
-        const actorContext = await browser.newContext();
-        const viewerContext = await browser.newContext();
-        const actorPage = await actorContext.newPage();
-        const viewerPage = await viewerContext.newPage();
-
-        await openRosterWeekOffset(actorPage, 2);
-        await openRosterWeekOffset(viewerPage, 2);
-
-        await expectAutoCreatedDraftWeek(actorPage);
-        await expectAutoCreatedDraftWeek(viewerPage);
-        await expectAssignedShiftCount(viewerPage, 0);
-
-        await copyPreviousWeek(actorPage);
-
-        await expectAssignedShiftCount(actorPage, 2);
-        await viewerPage.reload();
-        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
-        await expectAssignedShiftCount(viewerPage, 2);
-
-        await actorContext.close();
-        await viewerContext.close();
+    test('does not expose legacy copy on a native-only auto-created draft window', async ({ page }) => {
+        await openRosterWeekOffset(page, 2);
+        await expectAutoCreatedDraftWeek(page);
+        await expect(page.getByRole('button', { name: 'Copy Previous Week' })).toHaveCount(0);
     });
 
     test('does not defer same-row live updates when a viewer has a shift launcher focused', async ({ browser }) => {

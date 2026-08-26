@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
-  "issue": 350,
-  "authority": "Stable production app-library and inventory regression ceilings; measured memory is opt-in and builder-specific",
+  "issue": 374,
+  "authority": "Stable production app-library and inventory regression ceilings measured after the date-native roster compatibility retirement, shared email, durable live-listener cutovers, and nominal frontend wire domains; measured memory is opt-in and builder-specific",
+  "measurement_profile": "Config/nix/baselines/production-build/epic-364-post-staging-rebase.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 472,
+    "module_count_max": 525,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -14,8 +15,8 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Resource.hi",
-        "bytes_max": 83886080,
-        "reason": "GHC 9.10 serializes generated canonical Roster resource declarations consumed by runtime authority"
+        "bytes_max": 100663296,
+        "reason": "GHC 9.10 serializes generated canonical dated Roster resource declarations consumed by runtime authority; #395 measured 89,457,295 bytes after the staging/date-native reconciliation"
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Live.hi",
@@ -34,13 +35,13 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.hi",
-        "bytes_max": 37748736,
-        "reason": "GHC 9.10 retains typed Roster template-application evidence required by runtime rendering"
+        "bytes_max": 38797312,
+        "reason": "GHC 9.10 retains typed dated Roster template-application and roster-group staff dependency evidence required by runtime rendering; epic #383 measured 37,756,523 bytes after the durable/date-native staging reconciliation"
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Resource.hi",
-        "bytes_max": 25165824,
-        "reason": "GHC 9.10 retains the typed Roster resource bridge required by runtime parsing"
+        "bytes_max": 33554432,
+        "reason": "GHC 9.10 retains the typed dated Roster resource bridge required by runtime parsing; #395 measured 29,698,512 bytes after the staging/date-native reconciliation"
       },
       {
         "path": "Web/RosterWeeks/FrontendSurface.hi",
@@ -49,8 +50,8 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Chrome.hi",
-        "bytes_max": 22020096,
-        "reason": "GHC 9.10 retains typed Roster chrome surface evidence required by runtime rendering"
+        "bytes_max": 25165824,
+        "reason": "GHC 9.10 retains typed dated Roster chrome surface evidence required by runtime rendering; #395 measured 22,102,748 bytes after the staging/date-native reconciliation"
       },
       {
         "path": "Web/RosterWeeks/Dom.hi",
@@ -69,7 +70,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 472, "bytes_max": 629145600 },
+      ".hi": { "count": 525, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -78,9 +79,9 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 473,
-    "dependency_packages_max": 41,
-    "executable_rows_max": 9,
+    "module_rows_max": 526,
+    "dependency_packages_max": 42,
+    "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
     "dependency_inventory": "../../production-package-dependency-inventory.tsv",
     "executable_inventory": "../../production-executable-inventory.tsv"

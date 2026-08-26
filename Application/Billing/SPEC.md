@@ -122,9 +122,14 @@ snapshots do not notify.
 Lifecycle mail is permanently deduplicated by mode, venue, Subscription,
 category, billing-period boundary, and recipient—not provider event ID.
 Invoice/Subscription signals for one renewal share the same canonical boundary.
-Recipient eligibility is rechecked when queued and delivered: owners require an
-active unarchived membership; founder recipients require an active super-admin
-account. Notifications never change venue writability.
+The processed `billing_events` row retains the bounded category/period snapshot;
+one versioned shared `email_delivery` envelope per recipient references that row
+rather than copying provider or rendered content. Operational final-attempt mail
+references its source `AppJob`. Recipient eligibility is rechecked when queued and
+delivered: owners require an active unarchived membership; founder recipients
+require an active super-admin account. Notifications never change venue
+writability. Legacy `billing_notification` transport jobs are retired at cutover
+without deleting terminal history.
 
 ## Customer And Support Experience
 
@@ -140,6 +145,13 @@ The same venue-scoped live surface has separate audiences:
 Owner navigation visibility controls discovery only; an authorized direct route
 remains available for canary use. Provider status codes and correlated-return
 identifiers are not exposed as customer diagnostics.
+
+Billing state transitions use the same atomic durable resource publication as
+webhooks, Checkout phases, reconciliation, and support controls. The modal has
+no HTTP polling or refresh fallback: initial render/subscription races,
+listener disconnect/reconnect, worker separation, duplicate provider delivery,
+and multiple app listeners recover through durable watermarks and ordered
+listener replay.
 
 ## Manual Read-Only Policy
 

@@ -19,7 +19,7 @@ async function login(page: Page) {
     await page.fill('#email', 'e2e-test@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
     await expect(page.locator('#roster-week-shell')).toBeVisible();
 }
 
@@ -27,7 +27,7 @@ test.describe('HTMX submit regressions', () => {
     test.afterEach(() => resetTimesheetDisplayPreferences('e2e-test@example.com'));
     test('roster quick-view unavailability submit resets the form through live refetch', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await gotoWhenReady(page, `/ShowRosterWeek?weekOffset=0&rosterGroupId=${defaultE2ERosterGroupId}`, '#self-service-leave-form');
+        await gotoWhenReady(page, `/RosterWeeks?rosterGroupId=${defaultE2ERosterGroupId}`, '#self-service-leave-form');
         await expect(page.locator('#self-service-leave-form')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(page.locator('#roster-layout [data-bepis-surface="self-service-leave"]')).toBeVisible();
 
@@ -212,14 +212,14 @@ test.describe('HTMX submit regressions', () => {
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('10:15 AM');
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('2:15 PM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('10:15 AM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('2:15 PM');
         await expect(
-            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
+            page.locator('[data-timesheet-operational-date]').first().locator(`.timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
         ).toHaveCount(1);
     });
 
-    test('timesheet submit preserves the disabled Show approved preference', async ({ page }) => {
+    test('timesheet submit preserves the enabled Hide approved preference', async ({ page }) => {
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         const startTime = '10:30';
         const endTime = '14:30';
@@ -228,9 +228,9 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const showApproved = page.locator('label', { hasText: 'Show approved' });
-        if (await showApproved.locator('input[type="checkbox"]').isChecked()) {
-            await showApproved.click();
+        const hideApproved = page.getByRole('checkbox', { name: 'Hide approved' });
+        if (!(await hideApproved.isChecked())) {
+            await hideApproved.locator('..').click();
         }
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
 
@@ -247,11 +247,11 @@ test.describe('HTMX submit regressions', () => {
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('10:30 AM');
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('2:30 PM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('10:30 AM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('2:30 PM');
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
         await expect(
-            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
+            page.locator('[data-timesheet-operational-date]').first().locator(`.timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
         ).toHaveCount(1);
         resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
@@ -260,19 +260,20 @@ test.describe('HTMX submit regressions', () => {
         const deletedEntryId = 'b1000000-0000-0000-0000-000000000091';
         runSql(`
             INSERT INTO timesheet_entries (
-                id, venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, is_approved,
+                id, venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date, is_approved,
                 approved_at, approved_by_user_id, deleted_at, deleted_by_user_id, delete_reason
             )
             SELECT
                 '${deletedEntryId}', venue_id, staff_id, shift_type_id,
                 ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '17:00') AT TIME ZONE 'Australia/Melbourne',
                 ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '18:00') AT TIME ZONE 'Australia/Melbourne',
-                timezone, FALSE, NULL, NULL, NULL, NULL, NULL
+                timezone, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, FALSE, NULL, NULL, NULL, NULL, NULL
             FROM timesheet_entries
             WHERE id = 'a1000000-0000-0000-0000-000000000091'
             ON CONFLICT (id) DO UPDATE SET
                 starts_at = EXCLUDED.starts_at,
                 ends_at = EXCLUDED.ends_at,
+                operational_date = EXCLUDED.operational_date,
                 is_approved = FALSE,
                 approved_at = NULL,
                 approved_by_user_id = NULL,
@@ -286,9 +287,9 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const showApproved = page.locator('label', { hasText: 'Show approved' });
-        if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
-            await showApproved.click();
+        const hideApproved = page.getByRole('checkbox', { name: 'Hide approved' });
+        if (await hideApproved.isChecked()) {
+            await hideApproved.locator('..').click();
         }
 
         const targetEntry = page.locator(`.timesheet-entry-card:has(a[href*="${deletedEntryId}"])`);

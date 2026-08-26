@@ -11,7 +11,7 @@ module Web.RosterWeeks.DirectReadModel
     , buildSlotConflictsDirect
     , buildSlotConflictsForSlotsDirect
     , fetchRosterBaseFactsDirect
-    , fetchRosterBaseFactsForWeekDirect
+    , fetchRosterNotificationWindowDays
     , fetchRosterStaffPanelEntriesDirect
     ) where
 
@@ -28,19 +28,29 @@ import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (sqlQuery)
 import Web.Controller.Prelude
+import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
-import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
+
+fetchRosterNotificationWindowDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO [RosterDay]
+fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =
+    query @RosterDay
+        |> filterWhere (#venueId, unpackId venueId)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+        |> filterWhereLessThan (#operationalDate, windowEnd)
+        |> orderByAsc #operationalDate
+        |> fetch
 
 -- Database-near base facts for roster read-model rendering. These reads are
 -- request-local and do not use a cross-request HTML/read-model cache.
 data RosterBaseFacts = RosterBaseFacts
-    { baseRosterWeek             :: !RosterWeek
+    { baseRosterWeek             :: !(Maybe RosterWindowState)
     , baseRosterDays             :: ![RosterDay]
     , baseAllSlots               :: ![RosterSlot]
     , baseVisibleSlots           :: ![RosterSlot]
-    , baseOrderedSlotDefinitions :: ![RosterWeekSlotDefinition]
+    , baseOrderedSlotDefinitions :: ![RosterWindowLane]
     , baseShiftTypes             :: ![ShiftType]
     , baseEligibleStaff          :: ![Staff]
     , basePanelStaff             :: ![Staff]
@@ -48,56 +58,51 @@ data RosterBaseFacts = RosterBaseFacts
     , baseStaffMembers           :: ![Staff]
     }
 
-fetchRosterBaseFactsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterBaseFacts)
-fetchRosterBaseFactsDirect rosterGroupId weekOffset =
+fetchRosterBaseFactsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO (Maybe RosterBaseFacts)
+fetchRosterBaseFactsDirect scope =
     profileActionSpan "roster.direct.base_facts" do
+        let rosterGroupId = scope.rosterWindowRosterGroupId
+        venueConfig <- query @VenueConfig
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOne
         rosterGroupInVenue <- profileActionSpan "roster.direct.validate_group_scope" do
             query @RosterGroup
                 |> filterWhere (#id, rosterGroupId)
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> fetchExists
-        if not rosterGroupInVenue
+        if not (rosterWindowScopeMatchesConfig venueConfig scope) || not rosterGroupInVenue
             then pure Nothing
-            else do
-                _ <- profileActionSpan "roster.direct.ensure_week_exists" (ensureRosterWeekExists rosterGroupId weekOffset)
-                rosterWeekOrNothing <- profileActionSpan "roster.direct.fetch_week" do
-                    query @RosterWeek
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-                        |> filterWhere (#weekOffset, weekOffset)
-                        |> fetchOneOrNothing
-                case rosterWeekOrNothing of
-                    Nothing -> pure Nothing
-                    Just rosterWeek -> Just <$> fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek
+            else Just <$> fetchRosterBaseFactsForScopeDirect scope
 
-fetchRosterBaseFactsForWeekDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterWeek -> IO RosterBaseFacts
-fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek =
-    profileActionSpan "roster.direct.base_facts_for_week" do
-        rosterDays <- profileActionSpan "roster.direct.fetch_days" do
-            query @RosterDay
-                |> filterWhere (#rosterWeekId, coerce (get #id rosterWeek))
-                |> orderBy #dayOffset
-                |> fetch
-
-        allSlots <- profileActionSpan "roster.direct.fetch_slots" do
+fetchRosterBaseFactsForScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO RosterBaseFacts
+fetchRosterBaseFactsForScopeDirect scope =
+    profileActionSpan "roster.direct.base_facts_for_date_range" do
+        let rosterGroupId = scope.rosterWindowRosterGroupId
+        let windowStartDate = scope.rosterWindowStart
+        let windowEndDate = scope.rosterWindowEnd
+        window <- profileActionSpan "roster.direct.fetch_dated_window" (fetchRosterWindow scope.rosterWindowVenueId rosterGroupId windowStartDate)
+        let rosterDays =
+                map
+                    (projectedRosterDay scope.rosterWindowVenueId rosterGroupId)
+                    window.rosterWindowProjectedDays
+        let windowState = RosterWindowState
+                { windowRosterGroupId = unpackId rosterGroupId
+                , windowIsPublished = rosterWindowIsPublished window
+                }
+        allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" do
             orderedSlotIds :: [PG.Only UUID.UUID] <- sqlQuery
                 "SELECT roster_slots.id \
                 \FROM roster_slots \
                 \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-                \WHERE roster_days.roster_week_id = ? \
+                \WHERE roster_days.venue_id = ? \
+                \AND roster_days.roster_group_id = ? \
+                \AND roster_days.operational_date >= ? \
+                \AND roster_days.operational_date < ? \
                 \AND roster_slots.deleted_at IS NULL \
-                \ORDER BY roster_days.day_offset, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at"
-                (PG.Only (unpackId rosterWeek.id))
+                \ORDER BY roster_days.operational_date, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at"
+                (unpackId currentVenueId, unpackId rosterGroupId, windowStartDate, windowEndDate)
             fetchRosterSlotsInIdOrder orderedSlotIds
-
-        orderedSlotDefinitions <- profileActionSpan "roster.direct.fetch_slot_definitions" do
-            query @RosterWeekSlotDefinition
-                |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-                |> filterWhere (#deletedAt, Nothing)
-                |> orderByAsc #sortOrder
-                |> orderByAsc #createdAt
-                |> fetch
-
+        let orderedSlotDefinitions = window.rosterWindowLanes
         let visibleSlots = filterVisibleRosterSlots rosterDays allSlots
         eligibleStaffMembers <- profileActionSpan "roster.direct.fetch_eligible_staff" (fetchEligibleRosterGroupStaffDirect rosterGroupId)
         panelStaffMembers <- profileActionSpan "roster.direct.fetch_panel_staff" (fetchRosterGroupStaffForPanelDirect rosterGroupId)
@@ -105,7 +110,7 @@ fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek =
         shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
         let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
         pure RosterBaseFacts
-            { baseRosterWeek = rosterWeek
+            { baseRosterWeek = Just windowState
             , baseRosterDays = rosterDays
             , baseAllSlots = allSlots
             , baseVisibleSlots = visibleSlots
@@ -136,31 +141,17 @@ fetchEligibleRosterGroupStaffDirect rosterGroupId = do
         (unpackId rosterGroupId, unpackId currentVenueId)
     fetchStaffInIdOrder orderedStaffIds
 
-fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> Id RosterGroup -> RosterWeek -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek = do
-    panelStaffMembers <-
-        case panelScope of
-            RosterStaffPanelCurrentGroup -> fetchRosterGroupStaffForPanelDirect rosterGroupId
-            RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
-    visibleSlots <- fetchVisibleRosterWeekSlotsDirect rosterWeek
-    fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers visibleSlots
-
-fetchVisibleRosterWeekSlotsDirect :: (?modelContext :: ModelContext) => RosterWeek -> IO [RosterSlot]
-fetchVisibleRosterWeekSlotsDirect rosterWeek = do
-    rosterDays <-
-        query @RosterDay
-            |> filterWhere (#rosterWeekId, coerce (get #id rosterWeek))
-            |> fetch
-    slotIds :: [PG.Only UUID.UUID] <-
-        sqlQuery
-            "SELECT roster_slots.id \
-            \FROM roster_slots \
-            \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-            \WHERE roster_days.roster_week_id = ? \
-            \AND roster_slots.deleted_at IS NULL"
-            (PG.Only (unpackId rosterWeek.id))
-    slots <- fetchRosterSlotsInIdOrder slotIds
-    pure (filterVisibleRosterSlots rosterDays slots)
+fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> RosterWindowScope -> IO [RosterStaffPanelEntry]
+fetchRosterStaffPanelEntriesDirect panelScope scope = do
+    baseFactsOrNothing <- fetchRosterBaseFactsDirect scope
+    case baseFactsOrNothing of
+        Nothing -> pure []
+        Just baseFacts -> do
+            panelStaffMembers <-
+                case panelScope of
+                    RosterStaffPanelCurrentGroup -> pure baseFacts.basePanelStaff
+                    RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
+            fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers baseFacts.baseVisibleSlots
 
 fetchRosterSlotsInIdOrder :: (?modelContext :: ModelContext) => [PG.Only UUID.UUID] -> IO [RosterSlot]
 fetchRosterSlotsInIdOrder [] = pure []
@@ -220,14 +211,14 @@ buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots 
     buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate visibleSlots visibleSlots
 
 buildRosterStaffOptionStatesForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factSlots targetSlots staffMembers
+buildRosterStaffOptionStatesForSlotsDirect assignmentFilters _weekStartDate factSlots targetSlots staffMembers
     | null targetSlots || null staffMembers = pure Map.empty
     | otherwise =
         Map.fromList . map optionStateEntry <$> (sqlQuery
             "WITH params AS ( \
-            \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
+            \    SELECT ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
             \), fact_slots AS ( \
-            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.assignment_state, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index \
+            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.assignment_state, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date))::int AS weekday_index \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
@@ -260,8 +251,7 @@ buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factS
             \LEFT JOIN shift_counts ON shift_counts.staff_id = staff_scope.id \
             \LEFT JOIN day_counts ON day_counts.roster_day_id = target_slots.roster_day_id AND day_counts.staff_id = staff_scope.id \
             \ORDER BY target_slots.id, staff_scope.id"
-            ( weekStartDate
-            , unpackId currentVenueId
+            ( unpackId currentVenueId
             , assignmentFilters.hideStaffAtIdealShifts
             , assignmentFilters.hideStaffUnavailable
             , assignmentFilters.hideStaffOnApprovedLeave
@@ -293,15 +283,15 @@ buildSlotConflictsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDa
     buildSlotConflictsForSlotsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots visibleSlots
 
 buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate factSlots targetSlots
+buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes _weekStartDate factSlots targetSlots
     | null assignedSlotIds || null targetSlotIds = pure []
     | otherwise = do
         rows <- (sqlQuery
             "WITH params AS ( \
-            \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::int AS late_gap_seconds \
+            \    SELECT ?::uuid AS venue_id, ?::int AS late_gap_seconds \
             \), assigned_slots AS ( \
-            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.staff_id, roster_slots.starts_at, roster_slots.timezone, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, \
-            \           EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index, \
+            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.staff_id, roster_slots.starts_at, roster_slots.timezone, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date) AS roster_date, \
+            \           EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date))::int AS weekday_index, \
             \           EXTRACT(EPOCH FROM roster_slots.starts_at) AS start_second_of_week \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
@@ -363,8 +353,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \    WHERE week_counts.week_count > staff.ideal_shifts_per_week \
             \) \
             \SELECT id, conflict_type FROM facts WHERE id = ANY(?) ORDER BY id, priority"
-            ( weekStartDate
-            , unpackId currentVenueId
+            ( unpackId currentVenueId
             , lateToEarlyMinStartGapMinutes * 60
             , assignedSlotIds
             , targetSlotIds

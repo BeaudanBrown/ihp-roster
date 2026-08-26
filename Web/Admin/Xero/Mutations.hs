@@ -33,31 +33,31 @@ import qualified Application.Xero.Timesheets.Prepare as XeroPrepare
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation)
 
 startXeroConnectionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConfig -> UTCTime -> Text -> IO (LiveMutationResult XeroOauthState)
-startXeroConnectionMutation xeroConfig now stateToken = do
-    oauthState <-
-        newRecord @XeroOauthState
-            |> set #venueId (unpackId currentVenueId)
-            |> set #userId (unpackId currentUser.id)
-            |> set #stateToken stateToken
-            |> set #requestedScopes requiredXeroScopesText
-            |> set #redirectUri xeroConfig.redirectUri
-            |> set #expiresAt (addUTCTime (15 * 60) now)
-            |> createRecord
-    void $
-        recordCurrentUserAuditEvent
-            XeroConnectionStartedAudit
-            "xero_oauth_states"
-            (unpackId oauthState.id)
-            ( Aeson.object
-                [ "scopes" Aeson..= requiredXeroScopes
-                , "redirectUri" Aeson..= xeroConfig.redirectUri
-                ]
-            )
-    invalidateTouchedResources "xero.connection.start" $
-        liveMutationResult oauthState (xeroConnectionTouchedResources currentVenueId)
+startXeroConnectionMutation xeroConfig now stateToken =
+    withDurableLiveMutation "xero.connection.start" do
+        oauthState <-
+            newRecord @XeroOauthState
+                |> set #venueId (unpackId currentVenueId)
+                |> set #userId (unpackId currentUser.id)
+                |> set #stateToken stateToken
+                |> set #requestedScopes requiredXeroScopesText
+                |> set #redirectUri xeroConfig.redirectUri
+                |> set #expiresAt (addUTCTime (15 * 60) now)
+                |> createRecord
+        void $
+            recordCurrentUserAuditEvent
+                XeroConnectionStartedAudit
+                "xero_oauth_states"
+                (unpackId oauthState.id)
+                ( Aeson.object
+                    [ "scopes" Aeson..= requiredXeroScopes
+                    , "redirectUri" Aeson..= xeroConfig.redirectUri
+                    ]
+                )
+        pure (liveMutationResult oauthState (xeroConnectionTouchedResources currentVenueId))
 
 consumeXeroOAuthStateMutation :: (?modelContext :: ModelContext) => XeroOauthState -> UTCTime -> IO XeroOauthState
 consumeXeroOAuthStateMutation oauthState now =
@@ -66,11 +66,11 @@ consumeXeroOAuthStateMutation oauthState now =
         |> updateRecord
 
 completeLocalXeroDisconnectMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> Maybe Text -> Text -> UTCTime -> IO (LiveMutationResult XeroConnection)
-completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDisconnectStatus now = do
-    let retainedRemoteConnectionId = case maybeRemoteConnectionId of
-            Just remoteConnectionId -> Just remoteConnectionId
-            Nothing                 -> connection.xeroConnectionRemoteId
-    updated <- withTransaction do
+completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDisconnectStatus now =
+    withDurableLiveMutation "xero.connection.disconnect" do
+        let retainedRemoteConnectionId = case maybeRemoteConnectionId of
+                Just remoteConnectionId -> Just remoteConnectionId
+                Nothing                 -> connection.xeroConnectionRemoteId
         updated <-
             connection
                 |> set #connectionStatus "disconnected"
@@ -107,9 +107,7 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
                     , "remoteDisconnect" Aeson..= remoteDisconnectStatus
                     ]
                 )
-        pure updated
-    invalidateTouchedResources "xero.connection.disconnect" $
-        liveMutationResult updated (xeroConnectionTouchedResources (Id updated.venueId))
+        pure (liveMutationResult updated (xeroConnectionTouchedResources (Id updated.venueId)))
 
 assignXeroRemoteConnectionIdMutation :: (?modelContext :: ModelContext) => XeroConnection -> Text -> IO XeroConnection
 assignXeroRemoteConnectionIdMutation connection remoteConnectionId =
@@ -118,21 +116,21 @@ assignXeroRemoteConnectionIdMutation connection remoteConnectionId =
         |> updateRecord
 
 markXeroConnectionErrorMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
-markXeroConnectionErrorMutation connection message = do
-    updated <-
-        connection
-            |> set #connectionStatus "error"
-            |> set #lastError (Just message)
-            |> updateRecord
-    invalidateTouchedResources "xero.connection.error" $
-        liveMutationResult updated (xeroConnectionTouchedResources (Id updated.venueId))
+markXeroConnectionErrorMutation connection message =
+    withDurableLiveMutation "xero.connection.error" do
+        updated <-
+            connection
+                |> set #connectionStatus "error"
+                |> set #lastError (Just message)
+                |> updateRecord
+        pure (liveMutationResult updated (xeroConnectionTouchedResources (Id updated.venueId)))
 
 completeXeroConnectionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> Id User -> XeroConfig -> XeroOauthState -> XeroTokenResponse -> XeroTenant -> IO (LiveMutationResult XeroConnection)
-completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenResponse tenant = do
-    encryptedRefreshToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.refreshToken
-    encryptedAccessToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.accessToken
-    let accessTokenExpiresAt = addUTCTime (fromIntegral tokenResponse.expiresIn) now
-    connection <- withTransaction do
+completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenResponse tenant =
+    withDurableLiveMutation "xero.connection.complete" do
+        encryptedRefreshToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.refreshToken
+        encryptedAccessToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.accessToken
+        let accessTokenExpiresAt = addUTCTime (fromIntegral tokenResponse.expiresIn) now
         existingSameTenant <-
             query @XeroConnection
                 |> filterWhere (#venueId, unpackId currentVenueId)
@@ -189,31 +187,29 @@ completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenRespon
                     , "stateId" Aeson..= unpackId updatedState.id
                     ]
                 )
-        pure connection
-    invalidateTouchedResources "xero.connection.complete" $
-        liveMutationResult connection (xeroConnectionTouchedResources currentVenueId <> xeroReferenceSyncTouchedResources currentVenueId)
+        pure (liveMutationResult connection (xeroConnectionTouchedResources currentVenueId <> xeroReferenceSyncTouchedResources currentVenueId))
 
 failXeroConnectionAttemptMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Maybe XeroOauthState -> IO (LiveMutationResult ())
-failXeroConnectionAttemptMutation message maybeState = do
-    void $
-        recordCurrentUserAuditEvent
-            XeroConnectionFailedAudit
-            "xero_connections"
-            (maybe (unpackId currentVenueId) (unpackId . (.id)) maybeState)
-            ( Aeson.object
-                [ "failure" Aeson..= message
-                , "stateId" Aeson..= fmap (unpackId . (.id)) maybeState
-                ]
-            )
-    invalidateTouchedResources "xero.connection.fail" $
-        liveMutationResult () (xeroConnectionTouchedResources currentVenueId)
+failXeroConnectionAttemptMutation message maybeState =
+    withDurableLiveMutation "xero.connection.fail" do
+        void $
+            recordCurrentUserAuditEvent
+                XeroConnectionFailedAudit
+                "xero_connections"
+                (maybe (unpackId currentVenueId) (unpackId . (.id)) maybeState)
+                ( Aeson.object
+                    [ "failure" Aeson..= message
+                    , "stateId" Aeson..= fmap (unpackId . (.id)) maybeState
+                    ]
+                )
+        pure (liveMutationResult () (xeroConnectionTouchedResources currentVenueId))
 
 importXeroEarningsRatesMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> [Text] -> IO (LiveMutationResult [XeroImportedPayItem])
-importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds = do
-    imported <- withTransaction do
+importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds =
+    withDurableLiveMutation "xero.pay_items.import" do
         forM_ fetchedRates (upsertXeroEarningsRate connection now)
-        ImportedPayItems.importXeroEarningsRates connection now fetchedRates selectedRateIds
-    invalidateTouchedResources "xero.pay_items.import" (liveMutationResult imported (xeroPayItemsTouchedResources currentVenueId))
+        imported <- ImportedPayItems.importXeroEarningsRates connection now fetchedRates selectedRateIds
+        pure (liveMutationResult imported (xeroPayItemsTouchedResources currentVenueId))
 
 syncXeroReferenceDataMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> IO (LiveMutationResult (Either Text XeroReferenceDataSyncResult))
 syncXeroReferenceDataMutation connection = do
@@ -222,11 +218,12 @@ syncXeroReferenceDataMutation connection = do
     -- typed resource here for actor-local response planning without rebroadcast.
     pure (liveMutationResult result (xeroReferenceSyncTouchedResources currentVenueId))
 
--- Xero timesheet service modules own their internal writes; this wrapper owns passive invalidation.
+-- Guided preparation is requester-local dialog state, not a passive live
+-- surface. Its committed provider/reservation phases retain their own service
+-- transactions; no durable event is emitted for an empty resource set.
 recordXeroTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> a -> IO (LiveMutationResult a)
-recordXeroTimesheetsMutation label value =
-    invalidateTouchedResources label $
-        liveMutationResult value xeroTimesheetsTouchedResources
+recordXeroTimesheetsMutation _label value =
+    pure (liveMutationResult value xeroTimesheetsTouchedResources)
 
 runXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 runXeroTimesheetPreparationMutation =

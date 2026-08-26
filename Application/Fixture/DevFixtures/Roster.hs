@@ -7,7 +7,6 @@ module Application.Fixture.DevFixtures.Roster
 import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
 import Application.Fixture.DevFixtures.Staff (SeededStaff (..))
-import Application.Fixture.Seed.Calendar (weekOffsetForDay)
 import Application.Fixture.Seed.Scenario
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
@@ -15,13 +14,12 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Helper.TimeRules (rosterShiftStartDate)
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
-import Data.Time.Calendar (Day, addDays, dayOfWeek)
+import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
@@ -79,26 +77,26 @@ seedRosterProjection scenario fixtureWeekStart venue rosterFixture staffFixture 
         staffFixture.backOnlyStaff staffFixture.crossGroupStaff staffFixture.trialStaffs
     let allFrontCandidates = staffFixture.managerStaffs <> [staffFixture.xeroStaff] <> staffFixture.frontOnlyStaff <> staffFixture.crossGroupStaff <> staffFixture.trialStaffs
     let allBackCandidates = staffFixture.managerStaffs <> staffFixture.backOnlyStaff <> staffFixture.crossGroupStaff
-    seedRosterWindow scenario fixtureWeekStart venue frontGroup backGroup frontSlots backSlots allFrontCandidates allBackCandidates shiftTypes
+    venueConfig <- query @VenueConfig
+        |> filterWhere (#venueId, unpackId venue.id)
+        |> fetchOne
+    seedRosterWindow scenario fixtureWeekStart venue venueConfig frontGroup backGroup frontSlots backSlots allFrontCandidates allBackCandidates shiftTypes
     seedPayAssignmentMatrix
         frontGroup
-        (weekOffsetForDay fixtureWeekStart)
+        fixtureWeekStart
         [staffFixture.awardStaff, staffFixture.xeroStaff, staffFixture.rosterOnlyStaff]
         (take 4 shiftTypes)
 
-seedPayAssignmentMatrix :: (?modelContext :: ModelContext) => RosterGroup -> Int -> [Staff] -> [ShiftType] -> IO ()
-seedPayAssignmentMatrix rosterGroup weekOffset staffModes shiftModes = do
+seedPayAssignmentMatrix :: (?modelContext :: ModelContext) => RosterGroup -> Day -> [Staff] -> [ShiftType] -> IO ()
+seedPayAssignmentMatrix rosterGroup windowStart staffModes shiftModes = do
     when (length staffModes /= 3 || length shiftModes /= 4) $
         fail "Dev pay matrix requires three staff modes and four shift modes"
-    rosterWeek <-
-        query @RosterWeek
-            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-            |> filterWhere (#weekOffset, weekOffset)
-            |> fetchOne
     rosterDays <-
         query @RosterDay
-            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-            |> orderByAsc #dayOffset
+            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+            |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+            |> filterWhereLessThan (#operationalDate, addDays 7 windowStart)
+            |> orderByAsc #operationalDate
             |> fetch
     when (length rosterDays < length shiftModes) $
         fail "Dev pay matrix requires four roster days"
@@ -117,13 +115,11 @@ seedPayAssignmentMatrix rosterGroup weekOffset staffModes shiftModes = do
                 |> set #shiftTypeId (Just (unpackId shiftType.id))
                 |> updateRecord
                 |> void
-            ensureSeedMatrixDayPreference staff rosterDay.dayOffset
+            ensureSeedMatrixDayPreference staff rosterDay.operationalDate
 
-ensureSeedMatrixDayPreference :: (?modelContext :: ModelContext) => Staff -> Int -> IO ()
-ensureSeedMatrixDayPreference staff dayOffset = do
-    let weekdayIndex = case (dayOffset + 1) `mod` 7 of
-            0     -> 0
-            index -> index
+ensureSeedMatrixDayPreference :: (?modelContext :: ModelContext) => Staff -> Day -> IO ()
+ensureSeedMatrixDayPreference staff operationalDate = do
+    let weekdayIndex = weekdayIndexForFixtureDate operationalDate
     existing <-
         query @StaffShiftPreference
             |> filterWhere (#staffId, unpackId staff.id)
@@ -260,32 +256,35 @@ seedRosterGroup ::
     Int ->
     Int ->
     Day ->
+    VenueConfig ->
     RosterGroup ->
     [RosterDay] ->
     [SlotName] ->
     [Staff] ->
     [ShiftType] ->
     IO ()
-seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays slotNames staffPool shiftTypes = do
+seedRosterGroup seedValue fillPercent fixtureWeekStart venueConfig rosterGroup rosterDays slotNames staffPool shiftTypes = do
     forM_ (zip [0 :: Int ..] rosterDays) \(dayIndex, rosterDay) -> do
         let rowCount = 2
         _ <- rosterDay
             |> set #rowCount rowCount
             |> updateRecord
+        rosterLanes <- mapM (ensureRosterLaneForSlotName rosterDay) slotNames
         let seedRows _ [] = pure ()
             seedRows usedStaffIds (rowIndex:remainingRowIndexes) = do
                 let (assignments, nextUsedStaffIds) =
                         buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool shiftTypes usedStaffIds
-                createRosterRow rosterDay slotNames rowIndex assignments
+                createRosterRow venueConfig rosterDay rosterLanes rowIndex assignments
                 seedRows nextUsedStaffIds remainingRowIndexes
         seedRows [] [0 .. rowCount - 1]
-    ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays
+    ensureAssignedShiftPreferenceCoverage rosterGroup rosterDays
 
 seedRosterWindow ::
     (?modelContext :: ModelContext) =>
     SeedScenario ->
     Day ->
     Venue ->
+    VenueConfig ->
     RosterGroup ->
     RosterGroup ->
     [SlotName] ->
@@ -294,16 +293,16 @@ seedRosterWindow ::
     [Staff] ->
     [ShiftType] ->
     IO ()
-seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots backSlots frontCandidates backCandidates shiftTypes =
+seedRosterWindow scenario currentWeekStart venue venueConfig frontGroup backGroup frontSlots backSlots frontCandidates backCandidates shiftTypes =
     forM_ devSeedWeekStarts \(weekIndex, weekStart) -> do
-        let weekOffset = weekOffsetFor weekStart
-        frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup weekOffset (weekIndex == 0)
-        backWeek <- createRosterWeekRecordForRosterGroup venue backGroup weekOffset False
-        frontDays <- createRosterDayRecords frontWeek [0 .. 6]
-        backDays <- createRosterDayRecords backWeek [0 .. 6]
+        frontWeek <- createRosterWeekRecordForWindow venue frontGroup weekStart (weekIndex == 0)
+        backWeek <- createRosterWeekRecordForWindow venue backGroup weekStart False
+        let operationalDates = map (`addDays` weekStart) [0 .. 6]
+        frontDays <- createRosterDayRecords frontWeek weekStart operationalDates
+        backDays <- createRosterDayRecords backWeek weekStart operationalDates
         let weekSeed = scenario.scenarioSeed + (weekIndex * 1009)
-        seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart frontGroup frontDays frontSlots frontCandidates shiftTypes
-        seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart backGroup backDays backSlots backCandidates shiftTypes
+        seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart venueConfig frontGroup frontDays frontSlots frontCandidates shiftTypes
+        seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart venueConfig backGroup backDays backSlots backCandidates shiftTypes
     where
         devSeedWeekStarts =
             [ (-1, addDays (-7) currentWeekStart)
@@ -407,13 +406,12 @@ data StaffPreferenceTarget = StaffPreferenceTarget
 
 ensureAssignedShiftPreferenceCoverage ::
     (?modelContext :: ModelContext) =>
-    Day ->
     RosterGroup ->
     [RosterDay] ->
     IO ()
-ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays = do
+ensureAssignedShiftPreferenceCoverage rosterGroup rosterDays = do
     let rosterDayIds = map (unpackId . get #id) rosterDays
-    let dayOffsetsById = Map.fromList (map (\rosterDay -> (unpackId (get #id rosterDay), rosterDay.dayOffset)) rosterDays)
+    let dayDatesById = Map.fromList (map (\rosterDay -> (unpackId (get #id rosterDay), rosterDay.operationalDate)) rosterDays)
 
     fetchedAssignedSlots <-
         query @RosterSlot
@@ -422,7 +420,7 @@ ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays = 
     let assignedSlots =
             sortOn
                 (\slot ->
-                    ( Map.findWithDefault maxBound slot.rosterDayId dayOffsetsById
+                    ( Map.findWithDefault (fromGregorian 9999 12 31) slot.rosterDayId dayDatesById
                     , slot.rowIndex
                     , slot.slotSortOrder
                     )
@@ -438,7 +436,7 @@ ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays = 
                 |> fetch
 
         let existingTargets = map staffShiftPreferenceToTarget existingPreferences
-        let missingTargets = mapMaybe (missingPreferenceTarget fixtureWeekStart dayOffsetsById rosterGroup existingTargets) assignedSlotsWithStaff
+        let missingTargets = mapMaybe (missingPreferenceTarget dayDatesById rosterGroup existingTargets) assignedSlotsWithStaff
         let requiredPreferredCount = minimumPreferredSlotCount (length assignedSlotsWithStaff)
         let existingPreferredCount = length assignedSlotsWithStaff - length missingTargets
         let missingPreferredCount = max 0 (requiredPreferredCount - existingPreferredCount)
@@ -476,21 +474,20 @@ preferenceTargetStaff venueId target =
         |> set #id (Id target.targetStaffId)
 
 missingPreferenceTarget ::
-    Day ->
-    Map.Map UUID Int ->
+    Map.Map UUID Day ->
     RosterGroup ->
     [StaffPreferenceTarget] ->
     RosterSlot ->
     Maybe StaffPreferenceTarget
-missingPreferenceTarget fixtureWeekStart dayOffsetsById rosterGroup existingTargets rosterSlot = do
+missingPreferenceTarget dayDatesById rosterGroup existingTargets rosterSlot = do
     staffId <- rosterSlot.staffId
-    dayOffset <- Map.lookup rosterSlot.rosterDayId dayOffsetsById
+    operationalDate <- Map.lookup rosterSlot.rosterDayId dayDatesById
     let target =
             StaffPreferenceTarget
                 { targetStaffId = staffId
                 , targetSelection =
                     ShiftPreferenceSelection
-                        { weekdayIndex = weekdayIndexForFixtureDay fixtureWeekStart dayOffset
+                        { weekdayIndex = weekdayIndexForFixtureDate operationalDate
                         , startHour = 5
                         , endHour = 23
                         }
@@ -515,9 +512,9 @@ minimumPreferredSlotCount :: Int -> Int
 minimumPreferredSlotCount assignedSlotCount =
     ceiling ((fromIntegral assignedSlotCount :: Double) * 0.8)
 
-weekdayIndexForFixtureDay :: Day -> Int -> Int
-weekdayIndexForFixtureDay fixtureWeekStart dayOffset =
-    case fromEnum (dayOfWeek (addDays (toInteger dayOffset) fixtureWeekStart)) of
+weekdayIndexForFixtureDate :: Day -> Int
+weekdayIndexForFixtureDate operationalDate =
+    case fromEnum (dayOfWeek operationalDate) of
         7     -> 0
         index -> index
 
@@ -529,53 +526,51 @@ rotateList offset values =
         clampedOffset = offset `mod` length values
 
 
-createRosterDayRecords :: (?modelContext :: ModelContext) => RosterWeek -> [Int] -> IO [RosterDay]
-createRosterDayRecords _ [] = pure []
-createRosterDayRecords rosterWeek dayOffsets = do
-    rosterDayIds <- map Id <$> freshUUIDs (length dayOffsets)
+createRosterDayRecords :: (?modelContext :: ModelContext) => FixtureRosterWindow -> Day -> [Day] -> IO [RosterDay]
+createRosterDayRecords _ _ [] = pure []
+createRosterDayRecords rosterWeek windowStart operationalDates = do
+    rosterDayIds <- map Id <$> freshUUIDs (length operationalDates)
     now <- getCurrentTime
-    createMany (zipWith (rosterDayRecord now rosterWeek) rosterDayIds dayOffsets)
+    createMany (zipWith (rosterDayRecord now rosterWeek windowStart) rosterDayIds operationalDates)
 
-rosterDayRecord :: UTCTime -> RosterWeek -> Id RosterDay -> Int -> RosterDay
-rosterDayRecord now rosterWeek rosterDayId dayOffset =
+rosterDayRecord :: UTCTime -> FixtureRosterWindow -> Day -> Id RosterDay -> Day -> RosterDay
+rosterDayRecord now rosterWindow _windowStart rosterDayId operationalDate =
     newRecord @RosterDay
         |> set #id rosterDayId
-        |> set #rosterWeekId (unpackId (get #id rosterWeek))
-        |> set #dayOffset dayOffset
+        |> set #venueId rosterWindow.fixtureVenueId
+        |> set #rosterGroupId rosterWindow.fixtureRosterGroupId
+        |> set #operationalDate operationalDate
+        |> set #publicationState (if rosterWindow.fixtureWindowIsPublished then Published else Draft)
         |> set #isClosed False
         |> set #createdAt now
         |> set #updatedAt now
 
 createRosterRow ::
     (?modelContext :: ModelContext) =>
+    VenueConfig ->
     RosterDay ->
-    [SlotName] ->
+    [RosterLane] ->
     Int ->
     [(Text, DevRosterSlotSeed)] ->
     IO ()
-createRosterRow rosterDay slotNames rowIndex assignments = do
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
-    venueConfig <- query @VenueConfig
-        |> filterWhere (#venueId, rosterWeek.venueId)
-        |> fetchOne
-    let rosterDate = addDays (toInteger rosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
-    slotDefinitions <- forM slotNames (ensureRosterWeekSlotDefinitionForSlotName rosterDay)
-    let assignedSlotDefinitions =
-            [ (slotDefinition, slotSeed)
-            | slotDefinition <- slotDefinitions
-            , Just slotSeed <- [lookup (get #name slotDefinition) assignments]
+createRosterRow venueConfig rosterDay rosterLanes rowIndex assignments = do
+    let rosterDate = rosterDay.operationalDate
+    let assignedRosterLanes =
+            [ (rosterLane, slotSeed)
+            | rosterLane <- rosterLanes
+            , Just slotSeed <- [lookup (get #name rosterLane) assignments]
             ]
-    rosterSlotIds <- map Id <$> freshUUIDs (length assignedSlotDefinitions)
+    rosterSlotIds <- map Id <$> freshUUIDs (length assignedRosterLanes)
     now <- getCurrentTime
-    void (createMany (zipWith (rosterSlotRecord now rosterDate venueConfig.timezone rosterDay rowIndex) rosterSlotIds assignedSlotDefinitions))
+    void (createMany (zipWith (rosterSlotRecord now rosterDate venueConfig.timezone rosterDay rowIndex) rosterSlotIds assignedRosterLanes))
     where
-        rosterSlotRecord now rosterDate timezone rosterDay rowIndex rosterSlotId (slotDefinition, slotSeed) =
+        rosterSlotRecord now rosterDate timezone rosterDay rowIndex rosterSlotId (rosterLane, slotSeed) =
             let baseSlot =
                     newRecord @RosterSlot
                         |> set #id rosterSlotId
                         |> set #rosterDayId (unpackId (get #id rosterDay))
-                        |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
-                        |> set #slotSortOrder slotDefinition.sortOrder
+                        |> set #rosterLaneId (unpackId (get #id rosterLane))
+                        |> set #slotSortOrder rosterLane.sortOrder
                         |> applyRosterShiftAssignment (maybe OpenAssignment (StaffAssignment . (.id)) slotSeed.slotStaff)
                         |> set #shiftTypeId slotSeed.slotShiftTypeId
                         |> set #rowIndex rowIndex
@@ -621,6 +616,3 @@ slotStartTimeFor slotIndex dayIndex =
 slotEndTimeFor :: TimeOfDay -> TimeOfDay
 slotEndTimeFor startTime =
     minutesToTimeOfDay (timeOfDayToMinutes startTime + 330)
-
-weekOffsetFor :: Day -> Int
-weekOffsetFor = weekOffsetForDay

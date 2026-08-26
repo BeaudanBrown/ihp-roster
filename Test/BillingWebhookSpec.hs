@@ -2,10 +2,9 @@ module Test.BillingWebhookSpec where
 
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Async.Registry (dispatchAppJob)
-import Application.Billing.Notifications (billingNotificationJobKind,
-                                          performBillingNotificationJob)
 import Application.Billing.Stripe
 import Application.Billing.Webhook
+import Application.EmailDelivery
 import Config (config)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
@@ -16,6 +15,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
+import Data.Either (isLeft)
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -25,7 +25,7 @@ import Generated.Types
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.ControllerPrelude
 import IHP.ControllerSupport (runActionWithNewContext)
-import IHP.FrameworkConfig (withFrameworkConfig)
+import IHP.FrameworkConfig (FrameworkConfig, withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusRunning, JobStatusSucceeded, JobStatusTimedOut))
 import IHP.Server (initMiddlewareStack)
 import IHP.Test.Mocking
@@ -38,6 +38,24 @@ import Test.Support
 import Web.Controller.StripeWebhooks ()
 import Web.FrontController ()
 import Web.Types
+
+billingNotificationJobKind :: Text
+billingNotificationJobKind = emailDeliveryJobKind
+
+performBillingNotificationJob ::
+    (?context :: FrameworkConfig, ?modelContext :: ModelContext) =>
+    AppJob ->
+    IO ()
+performBillingNotificationJob =
+    performEmailDeliveryJobWith
+        EmailDeliveryRuntime
+            { deliveryIsDisabled = pure False
+            , deliverMail = \_ -> pure ()
+            }
+
+handleStripeWebhookPayload :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
+handleStripeWebhookPayload expectedMode rawBody =
+    withTransaction (handleStripeWebhookPayloadInCurrentTransaction expectedMode rawBody)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -352,6 +370,7 @@ tests = aroundAll withDatabaseTestContext do
                 event.status `shouldBe` "ignored"
                 event.providerObjectType `shouldBe` Just "customer"
                 event.providerObjectId `shouldBe` Just "cus_ignored_123"
+                event.notificationSnapshot `shouldBe` Aeson.Array mempty
 
         it "enqueues owner and super-admin notifications for payment problems" $ withContext do
             withCleanDb do
@@ -378,6 +397,44 @@ tests = aroundAll withDatabaseTestContext do
                 length jobs `shouldBe` 2
                 map (.venueId) jobs `shouldBe` [Just (unpackId venue.id), Just (unpackId venue.id)]
                 map (.relatedTable) jobs `shouldBe` [Just "billing_events", Just "billing_events"]
+                map (.payload) jobs `shouldSatisfy` all (not . Text.isInfixOf "stripeSubscriptionId" . cs . Aeson.encode)
+                billingEvent <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_invoice_failed_123" :: Text) |> fetchOne
+                cs (Aeson.encode billingEvent.notificationSnapshot) `shouldSatisfy` Text.isInfixOf "payment_trouble"
+                cs (Aeson.encode billingEvent.notificationSnapshot) `shouldSatisfy` not . Text.isInfixOf "sub_failed_123"
+
+        it "routes billing mail through shared retry and disabled-delivery outcomes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Shared Delivery Venue"
+                owner <- createUserRecord "billing-shared-delivery-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createBillingCustomer venue "cus_shared_delivery_123"
+                Right _ <- handleStripeWebhookPayload StripeTestMode (invoicePaymentFailedEvent "evt_shared_delivery" "cus_shared_delivery_123" "sub_shared_delivery_123")
+                job <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchOne
+
+                failedDelivery <- withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    try
+                        ( performEmailDeliveryJobWith
+                            EmailDeliveryRuntime
+                                { deliveryIsDisabled = pure False
+                                , deliverMail = \_ -> ioError (userError "simulated smtp failure")
+                                }
+                            job
+                        ) :: IO (Either SomeException ())
+                failedDelivery `shouldSatisfy` isLeft
+                afterFailure <- fetch job.id
+                afterFailure.status `shouldNotBe` JobStatusSucceeded
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWith
+                        EmailDeliveryRuntime
+                            { deliveryIsDisabled = pure True
+                            , deliverMail = \_ -> expectationFailure "disabled billing delivery must not call transport"
+                            }
+                        job
+                completed <- fetch job.id
+                cs (Aeson.encode completed.result) `shouldSatisfy` Text.isInfixOf "delivery_disabled"
 
         it "deduplicates same-period trouble after every terminal notification job state" $ withContext do
             forM_ [JobStatusSucceeded, JobStatusFailed, JobStatusTimedOut] \terminalStatus ->
@@ -480,7 +537,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 completedJobs <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetch
                 map (.status) completedJobs `shouldBe` [JobStatusSucceeded, JobStatusSucceeded, JobStatusSucceeded]
-                map (.result) completedJobs `shouldSatisfy` all (Text.isInfixOf "skipped_ineligible_recipient" . cs . Aeson.encode)
+                map (.result) completedJobs `shouldSatisfy` all (Text.isInfixOf "recipient_ineligible" . cs . Aeson.encode)
 
         it "does not notify from an initial active snapshot already marked for cancellation" $ withContext do
             withCleanDb do
@@ -573,7 +630,7 @@ tests = aroundAll withDatabaseTestContext do
                     forM_ jobs performBillingNotificationJob
                 completedSupportJob <- query @AppJob |> filterWhere (#jobKind, billingNotificationJobKind) |> fetchOne
                 completedSupportJob.status `shouldBe` JobStatusSucceeded
-                cs (Aeson.encode completedSupportJob.result) `shouldSatisfy` Text.isInfixOf "skipped_ineligible_recipient"
+                cs (Aeson.encode completedSupportJob.result) `shouldSatisfy` Text.isInfixOf "recipient_ineligible"
 
         it "accepts a valid signed webhook while new Checkout is disabled" $ withContext do
             withCleanDb do
@@ -693,6 +750,9 @@ tests = aroundAll withDatabaseTestContext do
                 subscription.stripeSubscriptionId `shouldBe` "sub_controller_subscription_123"
                 subscription.stripePriceId `shouldBe` "price_monthly_123"
                 subscription.status `shouldBe` "active"
+                [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "billing.webhook" :: Text) |> fetch
+                [durableResource] <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetch
+                durableResource.resourceKey `shouldSatisfy` Text.isPrefixOf "billing:"
 
         it "rejects invalid webhook signatures before parsing" $ withContext do
             withCleanDb do

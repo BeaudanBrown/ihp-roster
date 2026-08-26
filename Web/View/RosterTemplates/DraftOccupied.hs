@@ -10,8 +10,8 @@ data DraftOccupiedView = DraftOccupiedView
     , pendingName              :: !Text
     , pendingScale             :: !RosterTemplateScaleEnum
     , pendingStartingPoint     :: !Text
-    , pendingWeekOffset        :: !(Maybe Int)
-    , pendingDayOffset         :: !(Maybe Int)
+    , pendingAnchorDate        :: !(Maybe Day)
+    , pendingOperationalDate   :: !(Maybe Day)
     , pendingConfirmationToken :: !(Maybe Text)
     }
 
@@ -36,8 +36,8 @@ instance View DraftOccupiedView where
                                     <input type="hidden" name="scale" value={rosterTemplateScaleValue pendingScale} />
                                     <input type="hidden" name="startingPoint" value={pendingStartingPoint} />
                                     <input type="hidden" name="expectedDraftRevision" value={rosterTemplateDraftRevision existingDraft} />
-                                    {forEach pendingWeekOffset renderWeekOffset}
-                                    {forEach pendingDayOffset renderDayOffset}
+                                    {forEach pendingAnchorDate renderAnchorDate}
+                                    {forEach pendingOperationalDate renderOperationalDate}
                                     {forEach pendingConfirmationToken renderConfirmationToken}
                                     <button class="btn btn-danger" type="submit">Discard and start new</button>
                                 </form>
@@ -50,11 +50,11 @@ instance View DraftOccupiedView where
             }
 
 
-renderWeekOffset :: Int -> Html
-renderWeekOffset value = [hsx|<input type="hidden" name="weekOffset" value={tshow value} />|]
+renderAnchorDate :: Day -> Html
+renderAnchorDate value = [hsx|<input type="hidden" name="anchorDate" value={tshow value} />|]
 
 renderConfirmationToken :: Text -> Html
 renderConfirmationToken value = [hsx|<input type="hidden" name="confirmationToken" value={value} />|]
 
-renderDayOffset :: Int -> Html
-renderDayOffset value = [hsx|<input type="hidden" name="dayOffset" value={tshow value} />|]
+renderOperationalDate :: Day -> Html
+renderOperationalDate value = [hsx|<input type="hidden" name="operationalDate" value={tshow value} />|]

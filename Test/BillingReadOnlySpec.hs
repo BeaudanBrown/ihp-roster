@@ -33,7 +33,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 fmap cs (lookup "Location" (responseHeaders response))
-                    `shouldSatisfy` maybe False (Text.isPrefixOf "http://localhost/ShowRosterWeek?weekOffset=")
+                    `shouldSatisfy` maybe False (Text.isPrefixOf "http://localhost/ShowRosterWindow?anchorDate=")
 
         it "keeps owner billing recovery available" $ withContext do
             withCleanDb do
@@ -48,7 +48,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Billing"
-                response `responseBodyShouldContain` "Start Subscription"
+                response `responseBodyShouldContain` "Subscribe"
 
         it "blocks representative roster writes" $ withContext do
             withCleanDb do
@@ -59,7 +59,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (CreateRosterWeekAction 0)
+                    callActionWithParams CreateRosterWeekAction (rosterMutationParams 0)
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"

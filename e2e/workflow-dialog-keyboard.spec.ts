@@ -34,8 +34,11 @@ test.describe('Workflow dialog keyboard controls', () => {
 
         await page.keyboard.press('Space');
         await expect(hadBreak).toBeChecked();
+        const breakDurationTrigger = form.locator(`[${timePickerTriggerDomAttr}]`).nth(2);
+        await expect(breakDurationTrigger).toBeVisible();
+        await expect(breakDurationTrigger).toBeEnabled();
         await page.keyboard.press('Tab');
-        await expect(form.locator(`[${timePickerTriggerDomAttr}]`).nth(2)).toBeFocused();
+        await expect(breakDurationTrigger).toBeFocused();
 
         const staffComment = form.locator('#staffComment');
         if (await staffComment.count() > 0) {

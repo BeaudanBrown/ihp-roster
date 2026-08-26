@@ -1,25 +1,24 @@
 module Web.Mail.Users.PasskeySetupLink where
 
-import Generated.Types
 import IHP.MailPrelude
 import Web.Mail.Shared
 
 data PasskeySetupLinkMail = PasskeySetupLinkMail
-    { user           :: User
-    , setupUrl       :: Text
-    , fromAddress    :: Text
-    , replyToAddress :: Text
-    , supportEmail   :: Text
-    , purposeLabel   :: Text
+    { recipientAddress :: Text
+    , setupUrl         :: Text
+    , fromAddress      :: Text
+    , replyToAddress   :: Text
+    , supportEmail     :: Text
+    , purposeLabel     :: Text
     }
 
 instance BuildMail PasskeySetupLinkMail where
     subject = "Set up a new passkey"
 
-    to PasskeySetupLinkMail { user } =
+    to PasskeySetupLinkMail { recipientAddress } =
         Address
             { addressName = Nothing
-            , addressEmail = user.email
+            , addressEmail = recipientAddress
             }
 
     from = bepisFrom ?mail.fromAddress

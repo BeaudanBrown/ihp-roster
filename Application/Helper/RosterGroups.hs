@@ -8,7 +8,6 @@ import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
                                       hasRole)
 import Application.Helper.Staff (sortStaffForDisplay)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
-                                          defaultWeekOffsetEpochForStartDay,
                                           sortDayNamesForVenueWeek)
 import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime)
@@ -121,9 +120,6 @@ fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
                     |> filterWhere (#archivedAt, Nothing)
                     |> fetchOneOrNothing
             pure (fromMaybe defaultRosterGroup rosterGroupOrNothing)
-
-fetchCurrentVenueRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Id RosterGroup]
-fetchCurrentVenueRosterGroupIds = map (.id) <$> fetchCurrentVenueRosterGroups
 
 -- | Roster groups the effective viewer may open on the roster page.
 -- Managers and unimpersonated support retain venue-wide access. Ordinary staff
@@ -281,7 +277,6 @@ ensureVenueConfigRecord venue =
                     |> set #venueId (unpackId venue.id)
                     |> set #timezone "Australia/Melbourne"
                     |> set #rosterWeekStartsOn defaultRosterWeekStartsOn
-                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay defaultRosterWeekStartsOn)
                     |> set #rosterLayoutMode DayColumns
                     |> set #defaultStaffPayAssignmentMode RosterOnly
                     |> set #defaultStaffAwardLevelId Nothing

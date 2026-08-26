@@ -9,11 +9,10 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMount
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate
-import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
-                                        ensureVenueDefaultRosterGroup)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
+import Application.Helper.TimeRules (currentOperationalDayForVenue)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     applyRosterSlotBoundaries,
@@ -21,10 +20,11 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     authoritativeBreakStartLocalTime,
                                     authoritativeBreakStartOccurrence,
                                     authoritativeElapsedSeconds,
+                                    authoritativeStartLocalTime,
                                     resolveShiftBoundaries,
                                     storedInstantOccurrence,
-                                    timesheetEntryElapsedSeconds,
-                                    timesheetEntryWorkedOn)
+                                    timesheetEntryBoundaries,
+                                    timesheetEntryElapsedSeconds)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
@@ -33,7 +33,6 @@ import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -52,7 +51,7 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Timesheets.FrontendSurface
 import Web.Timesheets.Mutations (materializeTimesheetSuggestionMutation,
-                                 timesheetEntryTouchedResources)
+                                 timesheetEntryTouchedResourcesForScopes)
 import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
                                   fetchTimesheetSuggestionForRosterSlot)
@@ -61,9 +60,6 @@ import Web.Timesheets.Suggestion (TimesheetSuggestion (..),
 import Web.Types
 import qualified Web.View.Timesheets.Index as TimesheetsView
 
-initializedTimesheetPreferencesAt :: UTCTime
-initializedTimesheetPreferencesAt = UTCTime (fromGregorian 2025 1 1) 0
-
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "TimesheetsController" do
@@ -71,8 +67,8 @@ tests = aroundAll withDatabaseTestContext do
             let entryId = Id "00000000-0000-0000-0000-000000000000"
             actionResponsesShouldHaveStatus status302
                 [ ("index", callAction TimesheetsAction)
-                , ("week", callAction ShowTimesheetWeekAction { weekOffset = 0 })
-                , ("day fragment", callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 })
+                , ("week", callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0))))
+                , ("day fragment", callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) })
                 , ("new entry", callAction NewTimesheetEntryAction)
                 , ("create entry", callAction CreateTimesheetEntryAction)
                 , ("approve", callAction ApproveTimesheetEntryAction { timesheetEntryId = entryId })
@@ -98,14 +94,14 @@ tests = aroundAll withDatabaseTestContext do
 
                 (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
-                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
+                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
                         let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
-                        response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                        response <- callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         pure (response, impl.surfaceImplMountConfig, impl.surfaceImplMountConfig.mountFragments)
 
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
-                mountConfig.mountScopeKey `shouldBe` "timesheets:" <> tshow (unpackId venue.id) <> ":0"
+                mountConfig.mountScopeKey `shouldBe` "timesheets:" <> tshow (unpackId venue.id) <> ":2025-01-06:2025-01-13:1"
                 expectedRefs `shouldNotBe` []
 
                 response `responseStatusShouldBe` status200
@@ -113,49 +109,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldNotContain` "data-live-update-surface="
                 response `responseBodyShouldContain` "timesheets:"
-                response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
+                response `responseBodyShouldContain` "data-timesheet-operational-date=\"2025-01-06\""
                 response `responseBodyShouldContain` "hx-sync=\"closest #timesheet-week-shell:replace\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-timesheet-week\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-show-approved\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-hide-approved\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-show-suggestions\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-wage-estimates\""
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
                 response `responseBodyShouldNotContain` "Pay preview"
                 response `responseBodyShouldNotContain` "timesheet-wage-preview"
-                response `responseBodyShouldContain` "class=\"timesheet-wage-summary\""
-                response `responseBodyShouldContain` "class=\"timesheet-day-wage-summary\""
-                initializedPreferences <- query @UserPreference
-                    |> filterWhere (#userId, unpackId user.id)
-                    |> fetchOne
-                initializedPreferences.hideApproved `shouldBe` False
-                initializedPreferences.showTimesheetSuggestions `shouldBe` True
-                initializedPreferences.showTimesheetWageEstimates `shouldBe` True
-                initializedPreferences.timesheetPreferencesInitializedAt `shouldSatisfy` isJust
-
-        it "initializes one preference row under concurrent first Timesheets requests" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Concurrent Timesheet Preference Venue"
-                user <- createUserRecord "timesheet-concurrent-preferences@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Worker
-                _ <- createStaffRecord venue (Just user) "Connie" "Concurrent"
-
-                results <- runConcurrentTimesheetActions 8 do
-                    withUserAndCurrentVenue user venue.id do
-                        callAction ShowTimesheetWeekAction { weekOffset = 0 }
-
-                forEach results \case
-                    Left exception -> expectationFailure ("Concurrent Timesheets request threw: " <> (cs (tshow exception) :: String))
-                    Right response -> response `responseStatusShouldBe` status200
-                preferences :: [UserPreference] <- query @UserPreference
-                    |> filterWhere (#userId, unpackId user.id)
-                    |> fetch
-                case preferences of
-                    [initializedPreferences] -> do
-                        initializedPreferences.hideApproved `shouldBe` False
-                        initializedPreferences.showTimesheetSuggestions `shouldBe` True
-                        initializedPreferences.showTimesheetWageEstimates `shouldBe` True
-                        initializedPreferences.timesheetPreferencesInitializedAt `shouldSatisfy` isJust
-                    _ -> expectationFailure "Expected exactly one initialized Timesheets preference row"
 
         it "resets This week navigation canonically" $ withContext do
             withCleanDb do
@@ -164,21 +125,19 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Current" "Week"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                today <- utctDay <$> getCurrentTime
-                let expectedOffset = venueWeekOffsetForDay venueConfig today
-
+                operationalToday <- currentOperationalDayForVenue venueConfig
                 response <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams TimesheetsAction [("weekOffset", "0")]
+                    callActionWithParams TimesheetsAction [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status302
                 let location = cs <$> lookup "Location" (responseHeaders response)
-                location `shouldSatisfy` maybe False (Text.isInfixOf ("weekOffset=" <> tshow expectedOffset))
+                location `shouldSatisfy` maybe False (Text.isInfixOf ("anchorDate=" <> tshow operationalToday))
                 unauthorizedFilterResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 4 }
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 4)))
                         [("staffFilterId", idToParam staff.id)]
                 unauthorizedFilterResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders unauthorizedFilterResponse)
-                    `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=4"
+                    `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2025-02-03"
 
         it "ignores additional query fields instead of treating them as Timesheets state" $ withContext do
             withCleanDb do
@@ -188,53 +147,49 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just user) "Query" "Authority"
 
                 pageResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("unrecognizedDisplayState", "true")]
                 pageResponse `responseStatusShouldBe` status200
                 lookup "Location" (responseHeaders pageResponse) `shouldBe` Nothing
                 pageResponse `responseBodyShouldContain` "id=\"timesheet-week-shell\""
 
                 fragmentResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
+                    callActionWithParams ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) }
                         [("unrecognizedDisplayState", "true")]
                 fragmentResponse `responseStatusShouldBe` status200
                 lookup "Location" (responseHeaders fragmentResponse) `shouldBe` Nothing
-                fragmentResponse `responseBodyShouldContain` "id=\"timesheet-day-section-0\""
+                fragmentResponse `responseBodyShouldContain` "id=\"timesheet-day-section-2025-01-06\""
 
-        it "persists display preferences globally and returns authoritative clean-url fragments" $ withContext do
+        it "keeps preference redirects and refreshes on explicit windows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Preference Venue"
                 user <- createUserRecord "timesheet-preferences@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
-                _ <- createStaffRecord venue (Just user) "Perry" "Preferences"
+                staff <- createStaffRecord venue (Just user) "Perry" "Preferences"
+                _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 21)
+                selectedWindowResponse <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-20")
+                selectedWindowResponse `responseStatusShouldBe` status200
+                selectedWindowResponse `responseBodyShouldContain` "data-timesheet-operational-date=\"2025-01-21\""
 
-                showApprovedResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ToggleTimesheetShowApprovedAction
-                        [("weekOffset", "2"), ("showApproved", "false")]
+                hideResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ToggleTimesheetHideApprovedAction
+                        [("anchorDate", "2025-01-20"), ("rosterCalendarRevision", "1"), ("hideApproved", "false")]
 
-                showApprovedResponse `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders showApprovedResponse)
-                    `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=2"
+                hideResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders hideResponse)
+                    `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2025-01-20"
 
                 suggestionResponse <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams ToggleTimesheetShowSuggestionsAction
-                            [("weekOffset", "2"), ("showTimesheetSuggestions", "false")]
+                            [("anchorDate", "2025-01-20"), ("rosterCalendarRevision", "1"), ("showTimesheetSuggestions", "false")]
 
                 suggestionResponse `responseStatusShouldBe` status200
                 lookup "HX-Push-Url" (responseHeaders suggestionResponse)
                     `shouldBe` Nothing
                 suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-week-toolbar\""
                 suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-day-columns\""
-
-                wageResponse <- withUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams ToggleTimesheetWageEstimatesAction
-                            [("weekOffset", "2"), ("showTimesheetWageEstimates", "true")]
-                wageResponse `responseStatusShouldBe` status200
-                wageResponse `responseBodyShouldNotContain` "id=\"timesheet-week-toolbar\""
-                wageResponse `responseBodyShouldNotContain` "id=\"timesheet-day-columns\""
-
                 let preferenceRefreshHeader = cs <$> lookup "HX-Trigger" (responseHeaders suggestionResponse)
                 preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-toolbar\"")
@@ -243,194 +198,19 @@ tests = aroundAll withDatabaseTestContext do
                 preferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId user.id)
                     |> fetchOne
-                preferences.hideApproved `shouldBe` True
+                preferences.hideApproved `shouldBe` False
                 preferences.showTimesheetSuggestions `shouldBe` False
-                preferences.showTimesheetWageEstimates `shouldBe` True
 
                 reloaded <- withUserAndCurrentVenue user venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 2 }
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 2)))
                 reloaded `responseStatusShouldBe` status200
-                reloaded `responseBodyShouldContain` "name=\"showApproved\" value=\"false\""
+                reloaded `responseBodyShouldContain` "name=\"hideApproved\" value=\"false\""
                 reloaded `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
-                reloaded `responseBodyShouldContain` "name=\"showTimesheetWageEstimates\" value=\"true\""
-                reloaded `responseBodyShouldContain` "class=\"timesheet-wage-summary\""
-                reloaded `responseBodyShouldContain` "class=\"timesheet-day-wage-summary\""
-
-        it "shows filtered wage totals to workers and venue admins but not ordinary managers" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Wage Visibility Venue"
-                admin <- createUserRecord "timesheet-wage-admin@example.com" "staff" True
-                manager <- createUserRecord "timesheet-wage-manager@example.com" "staff" True
-                supervisor <- createUserRecord "timesheet-wage-supervisor@example.com" "staff" True
-                workerAUser <- createUserRecord "timesheet-wage-worker-a@example.com" "staff" True
-                workerBUser <- createUserRecord "timesheet-wage-worker-b@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin VenueAdmin
-                _ <- createVenueMembershipRecord venue manager Manager
-                _ <- createVenueMembershipRecord venue supervisor Supervisor
-                _ <- createVenueMembershipRecord venue workerAUser Worker
-                _ <- createVenueMembershipRecord venue workerBUser Worker
-                workerA <- createStaffRecord venue (Just workerAUser) "Ada" "Wages"
-                workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Wages"
-                importedPayItem <- createImportedXeroPayItemRecord venue admin "Timesheet wage fixture" "timesheet-wage-fixture" 10
-                workerA <- workerA
-                    |> set #payAssignmentMode XeroRate
-                    |> set #defaultAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                workerB <- workerB
-                    |> set #payAssignmentMode XeroRate
-                    |> set #defaultAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
-                _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
-                shiftType <- query @ShiftType |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- shiftType
-                    |> set #payAssignmentMode XeroRate
-                    |> set #overrideAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                forM_ [admin, manager, supervisor, workerAUser] \viewer ->
-                    newRecord @UserPreference
-                        |> set #userId (unpackId viewer.id)
-                        |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
-                        |> set #showTimesheetWageEstimates True
-                        |> createRecord
-
-                allStaffResponse <- withUserAndCurrentVenue admin venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                filteredResponse <- withUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("staffFilterId", idToParam workerA.id)]
-                workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                supervisorResponse <- withUserAndCurrentVenue supervisor venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                deniedManagerToggle <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ToggleTimesheetWageEstimatesAction
-                        [("weekOffset", "0"), ("showTimesheetWageEstimates", "true")]
-                deniedSupervisorToggle <- withUserAndCurrentVenue supervisor venue.id do
-                    callActionWithParams ToggleTimesheetWageEstimatesAction
-                        [("weekOffset", "0"), ("showTimesheetWageEstimates", "true")]
-
-                allStaffResponse `responseBodyShouldContain` "Estimated gross wage:"
-                allStaffResponse `responseBodyShouldContain` "$160.00"
-                filteredResponse `responseBodyShouldContain` "$80.00"
-                filteredResponse `responseBodyShouldContain` "Ada Wages"
-                workerResponse `responseBodyShouldContain` "$80.00"
-                managerResponse `responseBodyShouldNotContain` "timesheet-wage-summary"
-                managerResponse `responseBodyShouldNotContain` "timesheet-day-wage-summary"
-                managerResponse `responseBodyShouldNotContain` "toggle-timesheet-wage-estimates"
-                supervisorResponse `responseBodyShouldNotContain` "timesheet-wage-summary"
-                supervisorResponse `responseBodyShouldNotContain` "timesheet-day-wage-summary"
-                supervisorResponse `responseBodyShouldNotContain` "toggle-timesheet-wage-estimates"
-                deniedManagerToggle `responseStatusShouldBe` status403
-                deniedSupervisorToggle `responseStatusShouldBe` status403
-
-        it "keeps partial wage totals when one visible entry is unavailable" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Partial Wage Venue"
-                admin <- createUserRecord "timesheet-partial-wage-admin@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin VenueAdmin
-                validStaff <- createStaffRecord venue Nothing "Valid" "Wage"
-                invalidStaff <- createStaffRecord venue Nothing "Unavailable" "Wage"
-                importedPayItem <- createImportedXeroPayItemRecord venue admin "Partial wage fixture" "partial-wage-fixture" 10
-                validStaff <- validStaff
-                    |> set #payAssignmentMode XeroRate
-                    |> set #defaultAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                invalidStaff <- invalidStaff
-                    |> set #payAssignmentMode LegacyUnresolved
-                    |> set #defaultAwardLevelId Nothing
-                    |> set #importedXeroPayItemId Nothing
-                    |> updateRecord
-                _ <- createTimesheetEntryRecord venue validStaff (fromGregorian 2025 1 7)
-                validShiftType <- query @ShiftType |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- validShiftType
-                    |> set #payAssignmentMode XeroRate
-                    |> set #overrideAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                invalidEntry <- createTimesheetEntryRecord venue invalidStaff (fromGregorian 2025 1 7)
-                payLevel <- createPayLevelRecord venue "Partial unavailable"
-                invalidShiftType <- createShiftTypeRecord venue payLevel "Unresolved"
-                    >>= updateRecord . set #payAssignmentMode StaffDefault . set #overrideAwardLevelId Nothing
-                _ <- invalidEntry |> set #shiftTypeId (unpackId invalidShiftType.id) |> updateRecord
-                _ <- newRecord @UserPreference
-                    |> set #userId (unpackId admin.id)
-                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
-                    |> set #showTimesheetWageEstimates True
-                    |> createRecord
-
-                response <- withUserAndCurrentVenue admin venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-
-                response `responseBodyShouldContain` "$80.00"
-                response `responseBodyShouldContain` "(1 unavailable)"
-
-        it "recalculates combined daily and weekly totals from visible approved, draft, and suggested shifts" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Wage Composition Venue"
-                admin <- createUserRecord "timesheet-wage-composition-admin@example.com" "staff" True
-                workerUser <- createUserRecord "timesheet-wage-composition-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin VenueAdmin
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Casey" "Combined"
-                importedPayItem <- createImportedXeroPayItemRecord venue admin "Combined wage fixture" "combined-wage-fixture" 10
-                worker <- worker
-                    |> set #payAssignmentMode XeroRate
-                    |> set #defaultAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                _ <- createTimesheetEntryRecord venue worker (fromGregorian 2025 1 7)
-                shiftType <- query @ShiftType |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                shiftType <- shiftType
-                    |> set #payAssignmentMode XeroRate
-                    |> set #overrideAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                _ <- createApprovedTimesheetEntryRecord venue worker admin (fromGregorian 2025 1 7)
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                _ <- rosterSlot
-                    |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
-                    |> setTestDurationMinutes (Just 480)
-                    |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    |> updateRecord
-                preferences <- newRecord @UserPreference
-                    |> set #userId (unpackId workerUser.id)
-                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
-                    |> set #hideApproved False
-                    |> set #showTimesheetSuggestions True
-                    |> set #showTimesheetWageEstimates True
-                    |> createRecord
-
-                allResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                _ <- preferences |> set #hideApproved True |> updateRecord
-                withoutApprovedResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                refreshedPreferences <- query @UserPreference |> filterWhere (#userId, unpackId workerUser.id) |> fetchOne
-                _ <- refreshedPreferences |> set #showTimesheetSuggestions False |> updateRecord
-                draftOnlyResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-
-                allResponse `responseBodyShouldContain` "$235.00"
-                allResponse `responseBodyShouldContain` "class=\"timesheet-wage-summary\""
-                allResponse `responseBodyShouldContain` "class=\"timesheet-day-wage-summary\""
-                withoutApprovedResponse `responseBodyShouldContain` "$155.00"
-                draftOnlyResponse `responseBodyShouldContain` "$80.00"
-                draftOnlyResponse `responseBodyShouldNotContain` "timesheet-suggestion-card"
 
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
             withCurrentControllerContext do
                 let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
-                let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = 2 }
+                let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWindowStart = testAnchorForOffset (2 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (2 )), timesheetCalendarRevision = 1}
                 let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                 let impl = timesheetsSurfaceImpl scope mountState
                 let mountConfig = impl.surfaceImplMountConfig
@@ -440,7 +220,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 impl.surfaceImplName `shouldBe` "timesheets"
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
-                mountConfig.mountScopeKey `shouldBe` "timesheets:00000000-0000-0000-0000-000000000123:2"
+                mountConfig.mountScopeKey `shouldBe` "timesheets:00000000-0000-0000-0000-000000000123:2025-01-20:2025-01-27:1"
                 mountConfig.mountState `shouldBe` Aeson.object
                     [ "staffFilterId" Aeson..= (Nothing :: Maybe Text)
                     , "rosterGroupFilterId" Aeson..= (Nothing :: Maybe Text)
@@ -450,27 +230,69 @@ tests = aroundAll withDatabaseTestContext do
                                , TimesheetsLive.timesheetDayColumnsLiveFragment
                                , TimesheetsLive.timesheetSidePanelContentLiveFragment
                                ]
-                        <> map TimesheetsLive.timesheetDaySectionLiveFragment [0 .. 6]
-                fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"] <> map (\dayOffset -> "timesheet-day-section-" <> tshow dayOffset) [0 .. 6]
-                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=2")
+                        <> map TimesheetsLive.timesheetDaySectionLiveFragment [testAnchorForOffset 2 .. addDays 6 (testAnchorForOffset 2)]
+                fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"] <> map (\operationalDate -> "timesheet-day-section-" <> tshow operationalDate) [testAnchorForOffset 2 .. addDays 6 (testAnchorForOffset 2)]
+                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "anchorDate=2025-01-20")
 
-        it "records touched resources for timesheet entry mutations" $ withContext do
+        it "touches every overlapping explicit active window for timesheet mutations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Touched Timesheet Venue"
                 staff <- createStaffRecord venue Nothing "Tim" "Touched"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                entry <-
+                    entry
+                        |> set #operationalDate (fromGregorian 2025 1 12)
+                        |> setTestWorkedOn (fromGregorian 2025 1 13)
+                        |> setTestStartTime (TimeOfDay 2 0 0)
+                        |> setTestEndTime (TimeOfDay 5 0 0)
+                        |> updateRecord
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let weekOffset = venueWeekOffsetForDay venueConfig (testWorkedOn entry)
+                let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn entry.operationalDate
 
-                Set.fromList (timesheetEntryTouchedResources venueConfig [entry])
+                let overlappingWindowStart = addDays 4 windowStart
+                Set.fromList
+                    ( timesheetEntryTouchedResourcesForScopes
+                        venueConfig
+                        [(unpackId venue.id, overlappingWindowStart, addDays 7 overlappingWindowStart, 99)]
+                        [entry]
+                    )
                     `shouldBe` Set.fromList
-                        [ timesheetWeekResource (unpackId venue.id) weekOffset
-                        , timesheetDayResource (unpackId venue.id) weekOffset 1
-
+                        [ timesheetWeekResource (unpackId venue.id) windowStart (addDays 7 windowStart)
+                        , timesheetWeekResource (unpackId venue.id) overlappingWindowStart (addDays 7 overlappingWindowStart)
+                        , timesheetDayResource (unpackId venue.id) entry.operationalDate
                         ]
 
+        it "rejects a timesheet mutation from a stale roster calendar revision" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale Timesheet Calendar Venue"
+                user <- createUserRecord "stale-timesheet-calendar@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                staff <- createStaffRecord venue (Just user) "Stale" "Calendar"
+                payLevel <- createPayLevelRecord venue "Stale calendar level"
+                _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterWeekStartsOn 2)
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction
+                            [ ("anchorDate", "2025-01-06")
+                            , ("rosterCalendarRevision", "1")
+                            , ("staffId", idToParam staff.id)
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            , ("workedOn", "2025-01-07")
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            ]
+
+                response `responseStatusShouldBe` status409
+                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
+                response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
         it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do
-            response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
+            response <- callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) }
 
             liveFragmentResponseShouldBeDenied status302 response
 
@@ -483,19 +305,19 @@ tests = aroundAll withDatabaseTestContext do
 
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
-                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
+                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
                         let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                         let daySectionRef =
                                 timesheetsCandidateMountedFragments scope mountState
-                                    |> find (\fragment -> fragment.mountedFragmentKey == TimesheetsLive.timesheetDaySectionLiveFragment 0)
+                                    |> find (\fragment -> fragment.mountedFragmentKey == TimesheetsLive.timesheetDaySectionLiveFragment (testAnchorForOffset 0))
                                     |> fromMaybe (error "Expected day section fragment ref")
-                        callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                        response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
+                        callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        response <- callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) }
                         pure (response, daySectionRef)
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
 
-        it "renders the complete scoped shell for HTMX week navigation" $ withContext do
+        it "renders the typed outerHTML Timesheets shell for HTMX window navigation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet HTMX Fragment Venue"
                 manager <- createUserRecord "timesheet-htmx-fragment-manager@example.com" "staff" True
@@ -504,16 +326,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams ShowTimesheetWeekAction { weekOffset = 1 }
-                            [ ("weekOffset", "1")
+                        callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 1)))
+                            [ ("anchorDate", "2025-01-13"), ("rosterCalendarRevision", "1")
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"timesheet-week-shell\" hx-history-elt=\"true\""
+                response `responseBodyShouldContain` "id=\"timesheet-week-shell\""
                 response `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
                 response `responseBodyShouldContain` "id=\"timesheet-day-columns\""
                 response `responseBodyShouldContain` "data-bepis-surface=\"timesheets\""
-                response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
 
         it "renders declared Timesheets toolbar, day-columns, and side-panel fragment targets" $ withContext do
@@ -524,11 +345,11 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 toolbarResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowtimesheetToolbarLiveFragmentAction { weekOffset = 0 }
+                    callAction ShowtimesheetToolbarLiveFragmentAction { anchorDate = tshow (testAnchorForOffset 0)  }
                 columnsResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowtimesheetDayColumnsLiveFragmentAction { weekOffset = 0 }
+                    callAction ShowtimesheetDayColumnsLiveFragmentAction { anchorDate = tshow (testAnchorForOffset 0)  }
                 sidePanelResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset = 0 }
+                    callAction ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = tshow (testAnchorForOffset 0)  }
 
                 toolbarResponse `responseStatusShouldBe` status200
                 toolbarResponse `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
@@ -536,7 +357,7 @@ tests = aroundAll withDatabaseTestContext do
                 columnsResponse `responseStatusShouldBe` status200
                 columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-columns\""
                 columnsResponse `responseBodyShouldNotContain` "data-live-update-surface="
-                columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-section-0\""
+                columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-section-2025-01-06\""
                 sidePanelResponse `responseStatusShouldBe` status200
                 sidePanelResponse `responseBodyShouldContain` "id=\"timesheet-side-panel-content\""
                 sidePanelResponse `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-panel=\"true\""
@@ -554,7 +375,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams CreateTimesheetEntryAction
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -569,6 +390,75 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#staffId, unpackId staff.id)
                         |> fetchOne
                 testHadBreak entry `shouldBe` False
+
+        it "keeps an after-midnight ad-hoc entry on its explicitly selected Operational day" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "After Midnight Operational Day Venue"
+                workerUser <- createUserRecord "timesheet-after-midnight@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser Manager
+                worker <- createStaffRecord venue (Just workerUser) "Nora" "Night"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                let operationalDate = fromGregorian 2025 1 12
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
+                        , ("staffId", idToParam worker.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-12")
+                        , ("startTime", "02:00")
+                        , ("endTime", "05:00")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.operationalDate `shouldBe` operationalDate
+                boundaries <- either (\reason -> expectationFailure (cs (tshow reason)) >> error "unreachable") pure (timesheetEntryBoundaries entry)
+                (authoritativeStartLocalTime boundaries).localDay `shouldBe` fromGregorian 2025 1 13
+
+                sourceWindow <- withUserAndCurrentVenue workerUser venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-06")
+                followingWindow <- withUserAndCurrentVenue workerUser venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-13")
+                let entryPath = cs (pathTo (EditTimesheetEntryAction entry.id))
+                sourceWindow `responseBodyShouldContain` entryPath
+                followingWindow `responseBodyShouldNotContain` entryPath
+
+        it "preserves a migrated after-midnight ad-hoc instant when saving comments" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Historical After Midnight Timesheet Venue"
+                manager <- createUserRecord "timesheet-historical-after-midnight@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue (Just manager) "Harper" "Historical"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2026 8 4)
+                entry <-
+                    entry
+                        |> setTestWorkedOn (fromGregorian 2026 8 4)
+                        |> setTestStartTime (TimeOfDay 2 0 0)
+                        |> setTestEndTime (TimeOfDay 5 0 0)
+                        |> updateRecord
+                let originalStartsAt = entry.startsAt
+                let originalEndsAt = entry.endsAt
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateTimesheetEntryAction entry.id)
+                        [ ("anchorDate", "2026-08-04"), ("rosterCalendarRevision", "1")
+                        , ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", cs (tshow entry.shiftTypeId))
+                        , ("workedOn", "2026-08-04")
+                        , ("startTime", "02:00")
+                        , ("endTime", "05:00")
+                        , ("hadBreak", "false")
+                        , ("managerNote", "Historical note")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                updatedEntry <- fetch entry.id
+                updatedEntry.startsAt `shouldBe` originalStartsAt
+                updatedEntry.endsAt `shouldBe` originalEndsAt
+                updatedEntry.managerNote `shouldBe` Just "Historical note"
 
         it "uses effective worker ownership and actual founder attribution for timesheets" $ withContext do
             withCleanDb do
@@ -585,7 +475,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- makeStaffTimesheetProducing payLevel otherStaff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 let entryParams staffId =
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staffId)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -627,7 +517,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryAction
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam worker.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -655,7 +545,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryAction
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam worker.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -683,10 +573,10 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 let baseParams =
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
-                        , ("workedOn", "2026-04-05")
+                        , ("workedOn", "2026-04-04")
                         , ("startTime", "02:30")
                         , ("endTime", "04:00")
                         , ("hadBreak", "false")
@@ -720,10 +610,10 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 let baseParams =
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
-                        , ("workedOn", "2026-04-05")
+                        , ("workedOn", "2026-04-04")
                         , ("startTime", "02:30")
                         , ("endTime", "02:30")
                         , ("hadBreak", "false")
@@ -758,10 +648,10 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 let baseParams =
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
-                        , ("workedOn", "2026-04-05")
+                        , ("workedOn", "2026-04-04")
                         , ("startTime", "01:30")
                         , ("endTime", "03:30")
                         , ("hadBreak", "true")
@@ -802,10 +692,10 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("staffId", idToParam staff.id)
                             , ("shiftTypeId", idToParam shiftType.id)
-                            , ("workedOn", "2026-10-04")
+                            , ("workedOn", "2026-10-03")
                             , ("startTime", "02:30")
                             , ("endTime", "04:00")
                             , ("hadBreak", "false")
@@ -828,7 +718,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue workerUser venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("staffId", idToParam worker.id)
                             , ("shiftTypeId", idToParam shiftType.id)
                             , ("workedOn", "2025-01-07")
@@ -860,7 +750,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateTimesheetEntryAction entry.id)
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("staffId", idToParam staff.id)
                             , ("shiftTypeId", cs (tshow entry.shiftTypeId))
                             , ("workedOn", "2025-01-07")
@@ -877,58 +767,6 @@ tests = aroundAll withDatabaseTestContext do
                 testBreakEndTime persistedEntry `shouldBe` Just (TimeOfDay 12 30 0)
                 testBreakMinutes persistedEntry `shouldBe` 30
 
-        it "sorts manager timesheet staff options alphabetically" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Sorted Timesheet Staff Venue"
-                manager <- createUserRecord "sorted-timesheet-manager@example.com" "staff" True
-                alphaUser <- createUserRecord "sorted-timesheet-alpha@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                _ <- createVenueMembershipRecord venue alphaUser Worker
-                zulu <- createStaffRecord venue (Just manager) "zulu" "Crew"
-                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel zulu
-                _ <- makeStaffTimesheetProducing payLevel alpha
-                _ <- createShiftTypeRecord venue payLevel "Ordinary"
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams NewTimesheetEntryAction
-                            [ ("weekOffset", "0")
-                            , ("workedOn", "2025-01-07")
-                            ]
-
-                response `responseStatusShouldBe` status200
-                responseBodyText <- responseBody response
-                let body = cs responseBodyText :: Text
-                body `shouldSatisfy` (\html -> containsTextInOrder html [inputValue alpha.id, "Alpha Crew", inputValue zulu.id, "zulu Crew"])
-
-        it "uses Admin shift type order for the dropdown and new-entry default" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Ordered Timesheet Shift Types Venue"
-                user <- createUserRecord "ordered-timesheet-shifts@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Worker
-                staff <- createStaffRecord venue (Just user) "Tess" "Ordered"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel staff
-                laterShiftType <- createShiftTypeRecord venue payLevel "Later shift"
-                defaultShiftType <- createShiftTypeRecord venue payLevel "Default shift"
-                _ <- updateRecord (laterShiftType |> set #sortOrder 1)
-                _ <- updateRecord (defaultShiftType |> set #sortOrder 0)
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams NewTimesheetEntryAction
-                            [ ("weekOffset", "0")
-                            , ("workedOn", "2025-01-07")
-                            ]
-
-                response `responseStatusShouldBe` status200
-                responseBodyText <- responseBody response
-                let body = cs responseBodyText :: Text
-                body `shouldSatisfy` (\html -> containsTextInOrder html [inputValue defaultShiftType.id, "Default shift", inputValue laterShiftType.id, "Later shift"])
-                body `shouldSatisfy` Text.isInfixOf ("<option value=\"" <> inputValue defaultShiftType.id <> "\" selected=\"selected\">")
-
         it "renders HTMX timesheet forms with javascript submission disabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
@@ -942,7 +780,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams NewTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("workedOn", "2025-01-07")
                             ]
 
@@ -972,7 +810,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams NewTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("workedOn", "2025-01-07")
                             ]
 
@@ -999,11 +837,11 @@ tests = aroundAll withDatabaseTestContext do
                 formResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams NewTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("workedOn", "2025-01-07")
                             ]
                 weekResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWeekAction 0) []
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0))) []
 
                 formResponse `responseStatusShouldBe` status200
                 formResponse `responseBodyShouldContain` "Linked Worker"
@@ -1035,7 +873,7 @@ tests = aroundAll withDatabaseTestContext do
                 formResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams NewTimesheetEntryAction
-                            [("weekOffset", "0"), ("workedOn", "2025-01-07")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("workedOn", "2025-01-07")]
 
                 formResponse `responseStatusShouldBe` status200
                 formResponse `responseBodyShouldNotContain` "Rory RosterOnly"
@@ -1043,7 +881,7 @@ tests = aroundAll withDatabaseTestContext do
                 formResponse `responseBodyShouldContain` "Timesheet shift"
 
                 let createParams staffId shiftTypeId =
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staffId)
                         , ("shiftTypeId", idToParam shiftTypeId)
                         , ("workedOn", "2025-01-07")
@@ -1103,7 +941,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 tamperedMaterialization <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = eligibleSlot.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam payableStaff.id)
                         , ("shiftTypeId", idToParam rosterOnlyShift.id)
                         , ("workedOn", "2025-01-07")
@@ -1120,7 +958,8 @@ tests = aroundAll withDatabaseTestContext do
                             |> set #shiftTypeId (unpackId rosterOnlyShift.id)
                 lockedRevalidation <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        materializeTimesheetSuggestionMutation 0 eligibleSuggestion tamperedEntry
+                        let scope = TimesheetWeekScopeValue (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
+                        materializeTimesheetSuggestionMutation scope eligibleSuggestion tamperedEntry
                 lockedRevalidation `shouldBe` Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
@@ -1142,7 +981,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryAction
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam trialStaff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -1165,7 +1004,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("staffId", "not-a-uuid")
                             , ("shiftTypeId", idToParam shiftType.id)
                             , ("workedOn", "2025-01-07")
@@ -1188,7 +1027,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (EditTimesheetEntryAction entry.id)
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             ]
 
                 response `responseStatusShouldBe` status200
@@ -1210,7 +1049,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams (EditTimesheetEntryAction entry.id)
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status200
@@ -1236,9 +1075,9 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 1 }
+                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 1 ) (testAnchorForOffset 0)) }
                 workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 1 }
+                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 1 ) (testAnchorForOffset 0)) }
 
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldContain` "Ava Hours"
@@ -1270,9 +1109,9 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 workerResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Rita Rostered"
@@ -1296,7 +1135,7 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseBodyShouldNotContain` ">Approve</button>"
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
-        it "shows future live-roster suggestions immediately" $ withContext do
+        it "shows future Published-roster suggestions immediately" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Future Suggestion Venue"
                 workerUser <- createUserRecord "timesheet-future-suggestion-worker@example.com" "staff" True
@@ -1317,8 +1156,8 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 3 }
-                        [("weekOffset", "3")]
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 3)))
+                        [("anchorDate", "2025-01-27"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1345,19 +1184,20 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
+                now <- getCurrentTime
                 _ <- newRecord @UserPreference
                     |> set #userId (unpackId manager.id)
-                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                     |> set #showTimesheetSuggestions False
+                    |> set #timesheetPreferencesInitializedAt (Just now)
                     |> createRecord
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Show suggestions"
                 response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
                 response `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
-                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1\""
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-13\""
 
         it "quick-creates one unapproved snapshot from an authorized roster suggestion" $ withContext do
             withCleanDb do
@@ -1382,7 +1222,7 @@ tests = aroundAll withDatabaseTestContext do
                 malformedResponse <- withUserAndCurrentVenue workerUser venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("hadBreak", "not-a-boolean")
                             ]
 
@@ -1392,7 +1232,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -1441,7 +1281,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("approveSuggestion", "true")
                         ]
 
@@ -1477,7 +1317,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("approveSuggestion", "true")
                         ]
 
@@ -1516,10 +1356,10 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 let surfaceParams =
-                        [ ("weekOffset", "64")
+                        [ ("anchorDate", "2026-03-30"), ("rosterCalendarRevision", "1")
                         ]
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 64 } surfaceParams
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
 
                 suggestionResponse `responseStatusShouldBe` status200
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1564,11 +1404,11 @@ tests = aroundAll withDatabaseTestContext do
                         |> applyRosterSlotBoundaries boundaries
                     )
                 let surfaceParams =
-                        [ ("weekOffset", "64")
+                        [ ("anchorDate", "2026-03-30"), ("rosterCalendarRevision", "1")
                         ]
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 64 } surfaceParams
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
 
                 suggestionResponse `responseStatusShouldBe` status200
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1627,7 +1467,7 @@ tests = aroundAll withDatabaseTestContext do
                 authoritativeElapsedSeconds springSuggestion.suggestionBoundaries `shouldBe` 360 * 60
                 authoritativeBreakStartLocalTime springSuggestion.suggestionBoundaries `shouldBe` Nothing
 
-        it "projects a Sunday after-midnight roster shift into the following timesheet week" $ withContext do
+        it "keeps a Sunday after-midnight roster suggestion in its source Operational week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Operational Week Venue"
                 workerUser <- createUserRecord "timesheet-operational-week-worker@example.com" "staff" True
@@ -1643,14 +1483,14 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- updateRecord
                     ( rosterSlot
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> setTestRosterSlotBoundaries (fromGregorian 2026 4 5) (TimeOfDay 2 0 0) (TimeOfDay 4 0 0)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2026 4 6) (TimeOfDay 2 0 0) (TimeOfDay 4 0 0)
                     )
                 let surfaceParams =
-                        [ ("weekOffset", "65")
+                        [ ("anchorDate", "2026-03-30"), ("rosterCalendarRevision", "1")
                         ]
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 65 } surfaceParams
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
 
                 suggestionResponse `responseStatusShouldBe` status200
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1660,7 +1500,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                testWorkedOn entry `shouldBe` fromGregorian 2026 4 6
+                entry.operationalDate `shouldBe` rosterDay.operationalDate
+                entry.operationalDate `shouldBe` fromGregorian 2026 4 5
                 testStartTime entry `shouldBe` TimeOfDay 2 0 0
                 testEndTime entry `shouldBe` TimeOfDay 4 0 0
 
@@ -1698,20 +1539,20 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0")]
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 workerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
                 workerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
 
                 deniedResponse <- withUserAndCurrentVenue workerAUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
-                        [("weekOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 deniedResponse `responseStatusShouldBe` status302
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("staffFilterId", idToParam workerA.id)]
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("staffFilterId", idToParam workerA.id)]
                 managerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
                 managerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
 
@@ -1719,7 +1560,7 @@ tests = aroundAll withDatabaseTestContext do
                 -- Timesheets authority over an otherwise eligible source.
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
-                        [("weekOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 createdResponse `responseStatusShouldBe` status302
                 createdEntry <- query @TimesheetEntry |> fetchOne
                 createdEntry.staffId `shouldBe` unpackId workerB.id
@@ -1749,7 +1590,8 @@ tests = aroundAll withDatabaseTestContext do
                         suggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
                         _ <- updateRecord (rosterSlot |> setTestEndTime (Just (TimeOfDay 18 0 0)) |> setTestDurationMinutes (Just 540))
                         let entry = newTimesheetEntryFromSuggestion (unpackId venue.id) suggestion
-                        materializeTimesheetSuggestionMutation 0 suggestion entry
+                        let scope = TimesheetWeekScopeValue (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
+                        materializeTimesheetSuggestionMutation scope suggestion entry
 
                 materializationResult `shouldBe` Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
@@ -1777,7 +1619,7 @@ tests = aroundAll withDatabaseTestContext do
                 results <- runConcurrentTimesheetActions 8 do
                     withUserAndCurrentVenue workerUser venue.id do
                         callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                            [("weekOffset", "0")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 lefts results `shouldSatisfy` null
                 mapM_ (`responseStatusShouldBe` status302) (rights results)
@@ -1811,7 +1653,7 @@ tests = aroundAll withDatabaseTestContext do
                 formResponse <- withUserAndCurrentVenue workerUser venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams NewTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                            [("weekOffset", "0")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 formResponse `responseStatusShouldBe` status200
                 formResponse `responseBodyShouldContain` "This form starts from the current roster shift"
@@ -1823,7 +1665,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 createResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam worker.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -1862,7 +1704,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue workerUser venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams NewTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("workedOn", "2025-01-07")
                             ]
 
@@ -1874,7 +1716,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 createResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryAction
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam worker.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -1886,8 +1728,8 @@ tests = aroundAll withDatabaseTestContext do
                 adHocEntry.sourceRosterSlotId `shouldBe` Nothing
 
                 refreshedResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0")]
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 refreshedResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
 
         it "restores a suggestion after its linked entry is soft-deleted and preserves both snapshots" $ withContext do
@@ -1914,6 +1756,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId worker.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
+                        |> set #operationalDate rosterDay.operationalDate
                         |> setTestWorkedOn (fromGregorian 2025 1 7)
                         |> setTestStartTime (TimeOfDay 9 0 0)
                         |> setTestEndTime (TimeOfDay 17 0 0)
@@ -1928,13 +1771,13 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0")]
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
 
                 createResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [("weekOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 createResponse `responseStatusShouldBe` status302
                 linkedEntries :: [TimesheetEntry] <-
@@ -1975,7 +1818,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 creationResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
-                        [("weekOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 creationResponse `responseStatusShouldBe` status302
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
                 entry <- query @TimesheetEntry |> fetchOne
@@ -1983,14 +1826,14 @@ tests = aroundAll withDatabaseTestContext do
                 workerEditResponse <- withUserAndCurrentVenue rosteredUser venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams EditTimesheetEntryAction { timesheetEntryId = entry.id }
-                            [("weekOffset", "0")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 workerEditResponse `responseStatusShouldBe` status200
                 workerEditResponse `responseBodyShouldContain` "<input type=\"hidden\" name=\"staffId\""
                 workerEditResponse `responseBodyShouldNotContain` "<select name=\"staffId\""
 
                 deniedWorkerUpdate <- withUserAndCurrentVenue rosteredUser venue.id do
                     callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam otherStaff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -2002,7 +1845,7 @@ tests = aroundAll withDatabaseTestContext do
                 editResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams EditTimesheetEntryAction { timesheetEntryId = entry.id }
-                            [("weekOffset", "0")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 editResponse `responseStatusShouldBe` status200
                 editResponse `responseBodyShouldNotContain` "<strong>Roster-derived entry.</strong>"
                 editResponse `responseBodyShouldNotContain` "This entry is a snapshot of a roster shift."
@@ -2014,7 +1857,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 updateResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam otherStaff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-07")
@@ -2032,7 +1875,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 deniedDateUpdate <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam otherStaff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-08")
@@ -2058,11 +1901,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- newRecord @UserPreference
                     |> set #userId (unpackId workerUser.id)
-                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                     |> set #hideApproved False
                     |> createRecord
                 response <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 1 }
+                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 1 ) (testAnchorForOffset 0)) }
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Ava Approved"
@@ -2079,12 +1921,12 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just workerUser) "Willa" "Worker"
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Show approved"
+                response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldContain` "Show suggestions"
                 response `responseBodyShouldContain` "timesheet-side-panel"
                 response `responseBodyShouldContain` "<h2 class=\"h5\">Settings</h2>"
@@ -2092,7 +1934,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "timesheet-staff-panel-entry"
                 response `responseBodyShouldNotContain` ">Show all staff</span>"
 
-        it "defaults managers to all authorized staff with all entry types shown" $ withContext do
+        it "defaults managers to all authorized staff with all display categories visible" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Filter Venue"
                 manager <- createUserRecord "timesheet-filter-manager@example.com" "staff" True
@@ -2105,18 +1947,17 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Show approved"
+                response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldNotContain` "Show all staff"
                 response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
-                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-show-approved-toggle\""
+                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-hide-approved-toggle\""
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
-                response `responseBodyShouldContain` "aria-pressed=\"true\""
-                response `responseBodyShouldContain` "aria-pressed=\"true\""
+                response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
 
@@ -2138,8 +1979,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createApprovedTimesheetEntryRecord venue workerA manager (fromGregorian 2025 1 8)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("staffFilterId", idToParam workerA.id)]
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("staffFilterId", idToParam workerA.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "timesheet-side-panel"
@@ -2170,8 +2011,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffFilterId", idToParam staff.id)
                         ]
 
@@ -2198,8 +2039,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffFilterId", idToParam workerA.id)
                         ]
 
@@ -2207,148 +2048,12 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "name=\"staffFilterId\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Filter"
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Bea Filter"
-                response `responseBodyShouldContain` cs ("href=\"/Timesheets?weekOffset=0&amp;staffFilterId=" <> tshow workerA.id <> "\"")
-                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=-1&amp;staffFilterId=" <> tshow workerA.id)
-                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=1&amp;staffFilterId=" <> tshow workerA.id)
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate="
+                response `responseBodyShouldContain` cs ("&amp;staffFilterId=" <> tshow workerA.id <> "\"")
+                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWindow?anchorDate=2024-12-30&amp;staffFilterId=" <> tshow workerA.id)
+                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWindow?anchorDate=2025-01-13&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
                 response `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entryA.id))
-
-        it "filters entries, suggestions, staff counts, wages, and navigation by active roster group" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Roster Group Filter Venue"
-                admin <- createUserRecord "timesheet-roster-group-admin@example.com" "staff" True
-                workerAUser <- createUserRecord "timesheet-roster-group-a@example.com" "staff" True
-                workerBUser <- createUserRecord "timesheet-roster-group-b@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin VenueAdmin
-                _ <- createVenueMembershipRecord venue workerAUser Worker
-                _ <- createVenueMembershipRecord venue workerBUser Worker
-                workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Front"
-                workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Back"
-                importedPayItem <- createImportedXeroPayItemRecord venue admin "Roster group wage fixture" "roster-group-wage-fixture" 10
-                workerA <- workerA
-                    |> set #payAssignmentMode XeroRate
-                    |> set #defaultAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                workerB <- workerB
-                    |> set #payAssignmentMode XeroRate
-                    |> set #defaultAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                payLevel <- createPayLevelRecord venue "Roster group level"
-                shiftType <- createShiftTypeRecord venue payLevel "Roster group shift"
-                shiftType <- shiftType
-                    |> set #payAssignmentMode XeroRate
-                    |> set #overrideAwardLevelId Nothing
-                    |> set #importedXeroPayItemId (Just importedPayItem.id)
-                    |> updateRecord
-                frontGroup <- ensureVenueDefaultRosterGroup venue >>= updateRecord . set #name "Front of House"
-                backGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 20 True
-                inactiveGroup <- createVenueRosterGroupWithDefaults venue "Inactive Area" 30 False
-                    >>= updateRecord . set #isActive False
-                frontLane <- createSlotNameRecordForRosterGroup venue frontGroup "Front lane"
-                backLane <- createSlotNameRecordForRosterGroup venue backGroup "Back lane"
-                frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup 0 True
-                backWeek <- createRosterWeekRecordForRosterGroup venue backGroup 0 True
-                frontDay <- createRosterDayRecord frontWeek 1
-                backDay <- createRosterDayRecord backWeek 1
-                frontSource <- createRosterSlotRecord frontDay frontLane (Just workerA) 0
-                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
-                backSource <- createRosterSlotRecord backDay backLane (Just workerB) 0
-                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
-                frontSuggestion <- createRosterSlotRecord frontDay frontLane (Just workerA) 1
-                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 18 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
-                backSuggestion <- createRosterSlotRecord backDay backLane (Just workerB) 1
-                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 18 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
-                _ <- newRecord @TimesheetEntry
-                    |> set #venueId (unpackId venue.id)
-                    |> set #staffId (unpackId workerA.id)
-                    |> set #shiftTypeId (unpackId shiftType.id)
-                    |> setTestWorkedOn (fromGregorian 2025 1 7)
-                    |> setTestStartTime (TimeOfDay 9 0 0)
-                    |> setTestEndTime (TimeOfDay 17 0 0)
-                    |> set #sourceRosterSlotId (Just (unpackId frontSource.id))
-                    |> set #staffComment (Just "Front linked entry")
-                    |> createRecord
-                _ <- newRecord @TimesheetEntry
-                    |> set #venueId (unpackId venue.id)
-                    |> set #staffId (unpackId workerB.id)
-                    |> set #shiftTypeId (unpackId shiftType.id)
-                    |> setTestWorkedOn (fromGregorian 2025 1 7)
-                    |> setTestStartTime (TimeOfDay 9 0 0)
-                    |> setTestEndTime (TimeOfDay 17 0 0)
-                    |> set #sourceRosterSlotId (Just (unpackId backSource.id))
-                    |> set #staffComment (Just "Back linked entry")
-                    |> createRecord
-                _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
-                    >>= updateRecord . set #staffComment (Just "Ad hoc entry")
-                _ <- newRecord @UserPreference
-                    |> set #userId (unpackId admin.id)
-                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
-                    |> set #showTimesheetSuggestions True
-                    |> set #showTimesheetWageEstimates True
-                    |> createRecord
-
-                response <- withUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [ ("staffFilterId", idToParam workerA.id)
-                        , ("rosterGroupFilterId", idToParam frontGroup.id)
-                        ]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"timesheet-roster-group-filter\""
-                response `responseBodyShouldContain` "All roster groups"
-                response `responseBodyShouldContain` "Front of House"
-                response `responseBodyShouldContain` "Back of House"
-                response `responseBodyShouldNotContain` "Inactive Area"
-                response `responseBodyShouldContain` "Front linked entry"
-                response `responseBodyShouldNotContain` "Back linked entry"
-                response `responseBodyShouldNotContain` "Ad hoc entry"
-                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow frontSuggestion.id <> "\"")
-                response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow backSuggestion.id <> "\"")
-                response `responseBodyShouldContain` "timesheet-staff-count-total\">1</span>"
-                response `responseBodyShouldContain` "$155.00"
-                response `responseBodyShouldContain` cs ("staffFilterId=" <> tshow workerA.id)
-                response `responseBodyShouldContain` cs ("rosterGroupFilterId=" <> tshow frontGroup.id)
-                response `responseBodyShouldContain` "name=\"rosterGroupFilterId\""
-                inactiveGroup.isActive `shouldBe` False
-
-        it "canonicalizes roster group filters to active current-venue manager scope" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Roster Group Authority Venue"
-                otherVenue <- createVenueWithConfig "Other Timesheet Roster Group Venue"
-                manager <- createUserRecord "timesheet-roster-group-authority-manager@example.com" "staff" True
-                worker <- createUserRecord "timesheet-roster-group-authority-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                _ <- createVenueMembershipRecord venue worker Worker
-                _ <- createStaffRecord venue (Just worker) "Willa" "Worker"
-                activeGroup <- ensureVenueDefaultRosterGroup venue
-                inactiveGroup <- createVenueRosterGroupWithDefaults venue "Archived choice" 20 False
-                    >>= updateRecord . set #isActive False
-                otherGroup <- ensureVenueDefaultRosterGroup otherVenue
-
-                forEach [activeGroup.id, inactiveGroup.id, otherGroup.id] \invalidGroupId -> do
-                    response <- withUserAndCurrentVenue manager venue.id do
-                        callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                            [("rosterGroupFilterId", idToParam invalidGroupId)]
-                    response `responseStatusShouldBe` status302
-                    lookup "Location" (responseHeaders response)
-                        `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=0"
-
-                managerPage <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                managerPage `responseStatusShouldBe` status200
-                managerPage `responseBodyShouldNotContain` "timesheet-roster-group-filter"
-
-                workerResponse <- withUserAndCurrentVenue worker venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("rosterGroupFilterId", idToParam activeGroup.id)]
-                workerResponse `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders workerResponse)
-                    `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=0"
-                workerPage <- withUserAndCurrentVenue worker venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                workerPage `responseBodyShouldNotContain` "timesheet-roster-group-filter"
 
         it "renders a shape bar for valid after-midnight timesheet entries" $ withContext do
             withCleanDb do
@@ -2368,7 +2073,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> updateRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 2 }
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 2)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "12:15"
@@ -2384,8 +2089,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 2 }
-                        [ ("weekOffset", "2")
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 2)))
+                        [ ("anchorDate", "2025-01-20"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status200
@@ -2394,14 +2099,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"navigation\""
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"settings\""
                 response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
-                response `responseBodyShouldContain` "href=\"/Timesheets?weekOffset=0\""
-                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1\""
-                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=3\""
-                response `responseBodyShouldContain` "action=\"/ShowTimesheetWeek\""
-                response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWeek\""
-                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"2\""
-                response `responseBodyShouldNotContain` "<form method=\"get\" action=\"/ShowTimesheetWeek?weekOffset="
-                response `responseBodyShouldNotContain` "action=\"/ShowTimesheetWeek\" hx-get=\"/ShowTimesheetWeek?weekOffset="
+                response `responseBodyShouldContain` "href=\"/Timesheets\""
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-13\""
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-27\""
+                response `responseBodyShouldContain` "action=\"/ShowTimesheetWindow\""
+                response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWindow\""
+                response `responseBodyShouldContain` "name=\"anchorDate\" value=\"2025-01-20\""
+                response `responseBodyShouldNotContain` "<form method=\"get\" action=\"/ShowTimesheetWindow?anchorDate="
+                response `responseBodyShouldNotContain` "action=\"/ShowTimesheetWindow\" hx-get=\"/ShowTimesheetWindow?anchorDate="
 
         it "keeps comment-only edits from resetting approved timesheets" $ withContext do
             withCleanDb do
@@ -2416,7 +2121,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 workerResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams (UpdateTimesheetEntryAction entry.id)
-                        [ ("staffId", idToParam staff.id)
+                        [ ("anchorDate", cs (tshow today))
+                        , ("rosterCalendarRevision", "1")
+                        , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", cs (tshow entry.shiftTypeId))
                         , ("workedOn", cs (tshow today))
                         , ("startTime", "09:00")
@@ -2449,7 +2156,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (UpdateTimesheetEntryAction entry.id)
-                        [ ("staffId", idToParam staff.id)
+                        [ ("anchorDate", cs (tshow today))
+                        , ("rosterCalendarRevision", "1")
+                        , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", cs (tshow entry.shiftTypeId))
                         , ("workedOn", cs (tshow today))
                         , ("startTime", "09:00")
@@ -2469,7 +2178,7 @@ tests = aroundAll withDatabaseTestContext do
                 resetAuditExists <- query @AuditEvent |> filterWhere (#eventType, "timesheet_approval_reset") |> fetchExists
                 resetAuditExists `shouldBe` False
 
-        it "keeps approved entries hidden after an HTMX timesheet create with Show approved disabled" $ withContext do
+        it "keeps approved entries hidden after an HTMX timesheet create with hide approved" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Create Hidden Approved Venue"
                 manager <- createUserRecord "timesheet-create-hide-approved-manager@example.com" "staff" True
@@ -2488,7 +2197,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateTimesheetEntryAction
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("staffId", idToParam pendingStaff.id)
                             , ("shiftTypeId", idToParam shiftType.id)
                             , ("workedOn", "2025-01-07")
@@ -2497,14 +2206,14 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-2025-01-07\""
                 response `responseBodyShouldContain` "Timesheet entry created"
                 let hiddenCreateTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
-                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
-                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
+                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"operationalDate\":\"2025-01-07\"")
+                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2025-01-07")
 
-        it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
+        it "keeps HTMX mutation refreshes on the explicit window" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-htmx-create@example.com" "staff" True
@@ -2513,8 +2222,7 @@ tests = aroundAll withDatabaseTestContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
-
-                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -2522,7 +2230,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("X-Live-Update-Client-Id", "timesheet-create-client")
                         ] do
                             callActionWithParams CreateTimesheetEntryAction
-                                [ ("weekOffset", "0")
+                                [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                                 , ("staffId", idToParam staff.id)
                                 , ("shiftTypeId", idToParam shiftType.id)
                                 , ("workedOn", "2025-01-07")
@@ -2531,16 +2239,16 @@ tests = aroundAll withDatabaseTestContext do
                                 ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-2025-01-07\""
                 response `responseBodyShouldContain` "Timesheet entry created"
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
-                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
-                createTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"operationalDate\":\"2025-01-07\"")
+                createTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2025-01-07")
 
-                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 versionAfter `shouldBe` versionBefore
 
         it "editing a timesheet date refreshes both old and new day sections" $ withContext do
@@ -2553,7 +2261,7 @@ tests = aroundAll withDatabaseTestContext do
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
-                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders
@@ -2561,7 +2269,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("X-Live-Update-Client-Id", "timesheet-date-move-client")
                         ] do
                             callActionWithParams (UpdateTimesheetEntryAction entry.id)
-                                [ ("weekOffset", "0")
+                                [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                                 , ("staffId", idToParam staff.id)
                                 , ("shiftTypeId", idToParam shiftType.id)
                                 , ("workedOn", "2025-01-08")
@@ -2570,20 +2278,20 @@ tests = aroundAll withDatabaseTestContext do
                                 ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
-                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-2\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-2025-01-07\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-2025-01-08\""
                 response `responseBodyShouldContain` "Timesheet entry updated"
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let moveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
-                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
-                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":2")
-                moveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
-                moveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2")
+                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"operationalDate\":\"2025-01-07\"")
+                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"operationalDate\":\"2025-01-08\"")
+                moveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2025-01-07")
+                moveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2025-01-08")
 
                 updatedEntry <- fetch entry.id
                 testWorkedOn updatedEntry `shouldBe` fromGregorian 2025 1 8
-                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 versionAfter `shouldBe` versionBefore
 
         it "manager review actions bump the timesheet week scope version" $ withContext do
@@ -2596,22 +2304,22 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
-                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "timesheet-approve-client")] do
                         callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-2025-01-07\""
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let approveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
-                approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
-                approveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
-                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"operationalDate\":\"2025-01-07\"")
+                approveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2025-01-07")
+                versionAfter <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 versionAfter `shouldBe` versionBefore
 
         it "writes an audit event when approving a timesheet entry" $ withContext do
@@ -2626,7 +2334,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -2664,7 +2372,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 unapproveResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UnapproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
                 unapproveResponse `responseStatusShouldBe` status302
                 unapprovedEntry <- fetch entry.id
@@ -2673,7 +2381,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 reapproveResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
                 reapproveResponse `responseStatusShouldBe` status302
                 reapprovedEntry <- fetch entry.id
@@ -2697,7 +2405,7 @@ tests = aroundAll withDatabaseTestContext do
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue manager.id))]
                     callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [("weekOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status302
                 updatedEntry <- fetch entry.id
@@ -2726,7 +2434,7 @@ tests = aroundAll withDatabaseTestContext do
                 results <- runConcurrentTimesheetActions 8 do
                     withUserAndCurrentVenue manager venue.id do
                         callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                            [ ("weekOffset", "0")
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             ]
 
                 lefts results `shouldSatisfy` null
@@ -2750,7 +2458,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -2768,11 +2476,10 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Una" "Shift"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 8)
-                recordPayrollAuditProvenance venue manager entry
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UnapproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -2789,7 +2496,6 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.eventType `shouldBe` "timesheet_unapproved"
                 auditEvent.targetId `shouldBe` unpackId entry.id
-                assertPayrollAuditProvenanceRetained entry
 
         it "writes an audit event when editing resets a prior approval" $ withContext do
             withCleanDb do
@@ -2800,11 +2506,12 @@ tests = aroundAll withDatabaseTestContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 9)
-                recordPayrollAuditProvenance venue manager entry
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (UpdateTimesheetEntryAction entry.id)
-                        [ ("staffId", idToParam staff.id)
+                        [ ("anchorDate", "2025-01-06")
+                        , ("rosterCalendarRevision", "1")
+                        , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-09")
                         , ("startTime", "09:15")
@@ -2825,7 +2532,6 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.eventType `shouldBe` "timesheet_approval_reset"
                 auditEvent.targetId `shouldBe` unpackId entry.id
-                assertPayrollAuditProvenanceRetained entry
 
         it "records a version row before deleting an unapproved timesheet entry" $ withContext do
             withCleanDb do
@@ -2837,7 +2543,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (DeleteTimesheetEntryAction entry.id)
-                        [("weekOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status302
 
@@ -2856,11 +2562,10 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Ada" "Shift"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 11)
-                recordPayrollAuditProvenance venue manager entry
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (DeleteTimesheetEntryAction entry.id)
-                        [("weekOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status302
 
@@ -2870,79 +2575,6 @@ tests = aroundAll withDatabaseTestContext do
 
                 versionCount <- query @TimesheetEntryVersion |> fetchCount
                 versionCount `shouldBe` 1
-                assertPayrollAuditProvenanceRetained entry
-
-recordPayrollAuditProvenance ::
-    (?modelContext :: ModelContext) =>
-    Venue ->
-    User ->
-    TimesheetEntry ->
-    IO ()
-recordPayrollAuditProvenance venue actor entry = do
-    now <- getCurrentTime
-    let staffPayVersionId = fromMaybe (error "approved fixture missing staff pay version") entry.staffPayVersionId
-        shiftTypePayVersionId = fromMaybe (error "approved fixture missing shift type pay version") entry.shiftTypePayVersionId
-        approvedAt = fromMaybe (error "approved fixture missing approval timestamp") entry.approvedAt
-    exportJob <-
-        newRecord @ExportJob
-            |> set #venueId (unpackId venue.id)
-            |> set #requestedByUserId (unpackId actor.id)
-            |> set #exportType ("approved_timesheets_csv" :: Text)
-            |> set #status ("ready" :: Text)
-            |> set #expiresAt (addUTCTime 3600 now)
-            |> createRecord
-    _ <-
-        newRecord @ExportJobEntry
-            |> set #exportJobId (unpackId exportJob.id)
-            |> set #timesheetEntryId (unpackId entry.id)
-            |> set #staffPayVersionId staffPayVersionId
-            |> set #shiftTypePayVersionId shiftTypePayVersionId
-            |> set #entryUpdatedAtAtExport entry.updatedAt
-            |> set #entryApprovedAtAtExport approvedAt
-            |> createRecord
-    connection <- createXeroConnectionRecord venue actor "timesheet-audit-provenance"
-    submissionRun <-
-        newRecord @XeroSubmissionRun
-            |> set #venueId (unpackId venue.id)
-            |> set #xeroConnectionId (unpackId connection.id)
-            |> set #submittedByUserId (unpackId actor.id)
-            |> set #payPeriodStart (timesheetEntryWorkedOn entry)
-            |> set #payPeriodEnd (timesheetEntryWorkedOn entry)
-            |> set #status XeroSubmissionRunStatusEnumSubmitted
-            |> createRecord
-    submission <-
-        newRecord @XeroTimesheetSubmission
-            |> set #xeroSubmissionRunId (unpackId submissionRun.id)
-            |> set #venueId (unpackId venue.id)
-            |> set #xeroConnectionId (unpackId connection.id)
-            |> set #staffId entry.staffId
-            |> set #xeroEmployeeId ("audit-employee" :: Text)
-            |> set #payPeriodStart (timesheetEntryWorkedOn entry)
-            |> set #payPeriodEnd (timesheetEntryWorkedOn entry)
-            |> set #status XeroTimesheetSubmissionStatusEnumSubmitted
-            |> set #idempotencyKey ("audit-provenance" :: Text)
-            |> createRecord
-    _ <-
-        newRecord @XeroTimesheetSubmissionEntry
-            |> set #xeroTimesheetSubmissionId (unpackId submission.id)
-            |> set #timesheetEntryId (unpackId entry.id)
-            |> set #staffPayVersionId staffPayVersionId
-            |> set #shiftTypePayVersionId shiftTypePayVersionId
-            |> set #entryUpdatedAtAtPreview entry.updatedAt
-            |> set #entryApprovedAtAtPreview approvedAt
-            |> createRecord
-    pure ()
-
-assertPayrollAuditProvenanceRetained :: (?modelContext :: ModelContext) => TimesheetEntry -> IO ()
-assertPayrollAuditProvenanceRetained entry = do
-    query @ExportJobEntry
-        |> filterWhere (#timesheetEntryId, unpackId entry.id)
-        |> fetchCount
-        >>= (`shouldBe` 1)
-    query @XeroTimesheetSubmissionEntry
-        |> filterWhere (#timesheetEntryId, unpackId entry.id)
-        |> fetchCount
-        >>= (`shouldBe` 1)
 
 makeStaffTimesheetProducing :: (?modelContext :: ModelContext) => AwardLevel -> Staff -> IO Staff
 makeStaffTimesheetProducing payLevel staff =

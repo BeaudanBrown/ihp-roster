@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.AppShell (CreateRosterShiftOverlay,
                                                      DeleteRosterSlotOverlay,
                                                      UpdateRosterShiftOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
@@ -40,7 +41,7 @@ import Web.View.Prelude
 data RosterShiftDialogMode
     = NewRosterShiftDialog
         { dialogRosterDayId                :: !(Id RosterDay)
-        , dialogRosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition)
+        , dialogRosterWeekSlotDefinitionId :: !(Id RosterLane)
         , dialogRowIndex                   :: !Int
         }
     | EditRosterShiftDialog
@@ -77,6 +78,8 @@ data RosterShiftDialogData = RosterShiftDialogData
     , rosterShiftDialogTimePickerStep    :: !Int
     , rosterShiftDialogValues            :: !RosterShiftDialogValues
     , rosterShiftDialogAssignmentOnly    :: !Bool
+    , rosterShiftDialogAnchorDate        :: !Day
+    , rosterShiftDialogCalendarRevision  :: !Int
     }
 
 
@@ -112,24 +115,24 @@ rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
 
 
 renderRosterShiftDialog :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle, rosterShiftDialogAssignmentOnly } =
+renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle, rosterShiftDialogAssignmentOnly, rosterShiftDialogAnchorDate, rosterShiftDialogCalendarRevision } =
     renderKeyboardDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = rosterShiftDialogTitle
         , dialogOverlayBody = renderRosterShiftForm dialogData
-        , dialogOverlayStartButtons = deleteButton rosterShiftDialogAssignmentOnly rosterShiftDialogMode
+        , dialogOverlayStartButtons = deleteButton rosterShiftDialogAssignmentOnly rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision rosterShiftDialogMode
         , dialogOverlayButtons = defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)
         , dialogOverlayDialogClass = ""
         }
 
 
-deleteButton :: Bool -> RosterShiftDialogMode -> [OverlayButton]
-deleteButton _ NewRosterShiftDialog {} = []
-deleteButton True EditRosterShiftDialog {} = []
-deleteButton False (EditRosterShiftDialog rosterSlotId) =
+deleteButton :: Bool -> Day -> Int -> RosterShiftDialogMode -> [OverlayButton]
+deleteButton _ _ _ NewRosterShiftDialog {} = []
+deleteButton True _ _ EditRosterShiftDialog {} = []
+deleteButton False anchorDate calendarRevision (EditRosterShiftDialog rosterSlotId) =
     [ OverlayButton
         { overlayButtonLabel = "Delete shift"
         , overlayButtonClass = "btn btn-outline-danger"
-        , overlayButtonAction = GeneratedDialogFormAction (appShellActionByMarker @DeleteRosterSlotOverlay) (rosterAppShellActionRoute (pathTo (DeleteRosterSlotAction rosterSlotId))) [] (Just "Delete this shift?")
+        , overlayButtonAction = GeneratedDialogFormAction (appShellActionByMarker @DeleteRosterSlotOverlay) (rosterAppShellActionRoute (pathTo (DeleteRosterSlotAction rosterSlotId)) anchorDate calendarRevision) [] (Just "Delete this shift?")
         }
     ]
 
@@ -137,11 +140,14 @@ rosterShiftSubmitAppShellAction :: RosterShiftDialogMode -> AppShellActionIR
 rosterShiftSubmitAppShellAction NewRosterShiftDialog {} = appShellActionByMarker @CreateRosterShiftOverlay
 rosterShiftSubmitAppShellAction EditRosterShiftDialog {} = appShellActionByMarker @UpdateRosterShiftOverlay
 
-rosterAppShellActionRoute :: Text -> AppShellActionRoute
-rosterAppShellActionRoute actionUrl =
+rosterAppShellActionRoute :: Text -> Day -> Int -> AppShellActionRoute
+rosterAppShellActionRoute actionUrl anchorDate calendarRevision =
     AppShellActionRoute
         { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
+        , appShellActionRouteFields =
+            [ AppShellFieldValue ("anchorDate", tshow anchorDate)
+            , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)
+            ]
         , appShellActionRouteCustomHtmx = []
         , appShellActionRouteStandardUrl = Nothing
         , appShellActionRouteExtraAttrs = []
@@ -149,10 +155,10 @@ rosterAppShellActionRoute actionUrl =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues, rosterShiftDialogAssignmentOnly } =
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues, rosterShiftDialogAssignmentOnly, rosterShiftDialogAnchorDate, rosterShiftDialogCalendarRevision } =
     renderAppShellActionForm
         (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
-        (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
+        (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)) rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision)
             { appShellActionRouteExtraAttrs =
                 [ ("id", rosterShiftFormId rosterShiftDialogMode)
                 , ("data-roster-live-open-fill", if rosterShiftDialogAssignmentOnly then "true" else "false")

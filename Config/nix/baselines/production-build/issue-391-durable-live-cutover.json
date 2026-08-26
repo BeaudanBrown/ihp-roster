@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "issue": 391,
+  "objective": "Reconcile deterministic production output ceilings after the durable live-invalidation listener and atomic producer cutover",
+  "observed_by": "bash ./bin/in-env verify-full",
+  "observed_revision": "247c99a07280e68712df9a68099560eca45527ff",
+  "observed_dirty": false,
+  "app_library": {
+    "self_size_bytes": 743242720,
+    "module_count": 495,
+    "artifacts": {
+      ".hi": { "count": 495 },
+      ".a": { "count": 1 },
+      ".conf": { "count": 1 },
+      "[no extension]": { "count": 1 },
+      ".dyn_hi": { "count": 0 },
+      ".so": { "count": 0 }
+    }
+  },
+  "production_inventory": {
+    "module_rows": 496,
+    "dependency_packages": 42,
+    "executable_rows": 10,
+    "inventory_check": "passed"
+  },
+  "reconciliation": {
+    "module_count_delta": 1,
+    "hi_count_delta": 1,
+    "module_rows_delta": 1,
+    "reason": "The cumulative #383 durable listener/producer cutover made one already classified production module part of the realized app-library closure after the prior stable ceiling. No development, test, fixture, or profiling module was promoted; production-inventory, package-smoke, source-boundary, Weeder, and executable checks passed before the old ceiling rejected the realized counts."
+  },
+  "verification": "verify-full passed from the clean implementation revision; the unavailable optional SSH builder fell back to a successful local build",
+  "budget_authority": "Config/nix/baselines/production-build/final-regression-budget.json"
+}

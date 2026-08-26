@@ -781,6 +781,34 @@ in
       };
     };
 
+    liveInvalidations.outboxPruning = {
+      enable = mkEnableOption "durable live-invalidation outbox pruning";
+
+      retentionDays = mkOption {
+        type = types.ints.positive;
+        default = 7;
+        description = "Retention in whole days for durable live-invalidation event history. Values below seven days are rejected.";
+      };
+
+      batchSize = mkOption {
+        type = types.ints.positive;
+        default = 1000;
+        description = "Maximum event headers deleted in one pruning transaction. Values above 1000 are rejected.";
+      };
+
+      onCalendar = mkOption {
+        type = types.str;
+        default = "daily";
+        description = "systemd OnCalendar expression for live-invalidation outbox pruning.";
+      };
+
+      randomizedDelaySec = mkOption {
+        type = types.str;
+        default = "30m";
+        description = "Randomized delay applied to the live-invalidation outbox pruning timer.";
+      };
+    };
+
     rsa.reminders = {
       enable = mkOption {
         type = types.bool;
@@ -860,6 +888,18 @@ in
         {
           assertion = !cfg.createServiceUser || hasServiceUser;
           message = "services.ihpRoster.createServiceUser requires serviceUser.";
+        }
+        {
+          assertion = !cfg.liveInvalidations.outboxPruning.enable || hasServiceUser;
+          message = "services.ihpRoster.liveInvalidations.outboxPruning requires serviceUser so the maintenance unit never runs as root.";
+        }
+        {
+          assertion = cfg.liveInvalidations.outboxPruning.retentionDays >= 7;
+          message = "services.ihpRoster.liveInvalidations.outboxPruning.retentionDays cannot be shorter than seven days.";
+        }
+        {
+          assertion = cfg.liveInvalidations.outboxPruning.batchSize <= 1000;
+          message = "services.ihpRoster.liveInvalidations.outboxPruning.batchSize cannot exceed 1000 events per transaction.";
         }
         {
           assertion =
@@ -1186,6 +1226,53 @@ in
           OnCalendar = cfg.xero.keepalive.onCalendar;
           Persistent = true;
           RandomizedDelaySec = cfg.xero.keepalive.randomizedDelaySec;
+        };
+      };
+      systemd.services.live-invalidation-outbox-prune = mkIf cfg.liveInvalidations.outboxPruning.enable {
+        description = "Prune expired durable live-invalidation outbox events";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/LiveInvalidationOutboxPrune";
+          Restart = "on-failure";
+          RestartSec = "5m";
+          NoNewPrivileges = true;
+          PrivateDevices = true;
+          PrivateTmp = true;
+          ProtectClock = true;
+          ProtectHome = true;
+          ProtectHostname = true;
+          ProtectKernelLogs = true;
+          ProtectKernelModules = true;
+          ProtectKernelTunables = true;
+          ProtectSystem = "strict";
+          RestrictNamespaces = true;
+          RestrictRealtime = true;
+          LockPersonality = true;
+          MemoryDenyWriteExecute = true;
+          CapabilityBoundingSet = "";
+          SystemCallArchitectures = "native";
+          RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+        }
+        // serviceUserConfig;
+        environment = {
+          DATABASE_URL =
+            if cfg.databaseUrl != null then
+              cfg.databaseUrl
+            else
+              "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          LIVE_INVALIDATION_OUTBOX_RETENTION_DAYS = toString cfg.liveInvalidations.outboxPruning.retentionDays;
+          LIVE_INVALIDATION_OUTBOX_BATCH_SIZE = toString cfg.liveInvalidations.outboxPruning.batchSize;
+        };
+      };
+      systemd.timers.live-invalidation-outbox-prune = mkIf cfg.liveInvalidations.outboxPruning.enable {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = cfg.liveInvalidations.outboxPruning.onCalendar;
+          Persistent = true;
+          RandomizedDelaySec = cfg.liveInvalidations.outboxPruning.randomizedDelaySec;
+          Unit = "live-invalidation-outbox-prune.service";
         };
       };
       systemd.services.rsa-reminder-sweep = mkIf cfg.rsa.reminders.enable {

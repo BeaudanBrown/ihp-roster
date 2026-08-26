@@ -19,6 +19,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
@@ -26,7 +27,9 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderDialogOverlay, renderToastOob,
                                 successToast)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (selectableStaffAssignmentMode)
+import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateDefault))
 import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
                                   validateStaffAwardRateAvailability)
 import qualified Data.Set as Set
@@ -37,8 +40,11 @@ import qualified Data.UUID as UUID
 import Text.Blaze.Html (Html)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
-                                     parseSubmittedPayRateSelectionValue)
+                                     parseSubmittedStaffPayRateSelectionText,
+                                     parseSubmittedStaffPayRateSelectionValue)
 import Web.Controller.Prelude
+import Web.RosterWeeks.DateRange (RosterWindowScope (..),
+                                  rosterWindowScopeForAnchor)
 import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob,
                                   respondWithRosterResourceInvalidation)
@@ -59,7 +65,7 @@ instance Controller StaffController where
         ensureManagerRole
 
     action currentAction@NewStaffAction = runBepis currentAction BepisFormAction do
-        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        anchorDate <- staffAnchorDateFromParamOrCurrent
         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
         staff <- buildNewTrialStaff
         rosterGroups <- fetchCurrentVenueRosterGroups
@@ -69,12 +75,12 @@ instance Controller StaffController where
         defaultRosterGroup <- fetchCurrentVenueDefaultRosterGroup
         let selectedRosterGroupIds = [defaultRosterGroup.id]
         if isHtmxRequest
-            then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
+            then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds anchorDate maybeRosterGroupId)
             else render NewView { .. }
 
     action currentAction@CreateStaffAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        anchorDate <- staffAnchorDateFromParamOrCurrent
         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
@@ -96,7 +102,7 @@ instance Controller StaffController where
                     then "Choose an active award rate with a current rate for this employment basis."
                     else "The venue default staff rate is unavailable. Ask a venue admin to update Venue Settings.")
             |> ifValid \case
-                Left invalidStaff -> renderNewStaffResponse invalidStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId
+                Left invalidStaff -> renderNewStaffResponse invalidStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems anchorDate maybeRosterGroupId
                 Right validStaff -> do
                     case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                         (Just selectedRosterGroupIds@(selectedRosterGroupId : _), Just _, Just _) -> do
@@ -104,15 +110,16 @@ instance Controller StaffController where
                             if isHtmxRequest
                                 then do
                                     let rosterGroupId = fromMaybe selectedRosterGroupId maybeRosterGroupId
-                                    respondWithRosterContentOob rosterGroupId weekOffset
+                                    venueConfig <- fetchVenueConfig
+                                    respondWithRosterContentOob (rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate)
                                 else do
                                     setSuccessMessage "Trial staff placeholder created"
                                     redirectToPath $
                                         maybe
-                                            (pathTo ShowRosterWeekAction { weekOffset })
-                                            (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+                                            (pathTo RosterWeeksAction)
+                                            (\rosterGroupId -> appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow rosterGroupId)])
                                             maybeRosterGroupId
-                        _ -> renderNewStaffResponse validStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId
+                        _ -> renderNewStaffResponse validStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems anchorDate maybeRosterGroupId
 
     action currentAction@EditStaffAction { staffId } = runBepis currentAction BepisFormAction do
         staff <- fetch staffId
@@ -121,7 +128,7 @@ instance Controller StaffController where
         maybeVenueMembership <- fetchStaffVenueMembership staff
         staffRemovalAllowed <- canRenderStaffRemoval staff
         staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
-        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        anchorDate <- staffAnchorDateFromParamOrCurrent
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
         venueConfig <- fetchVenueConfig
@@ -135,7 +142,7 @@ instance Controller StaffController where
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
@@ -143,7 +150,7 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         maybeVenueMembership <- fetchStaffVenueMembership staff
-        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        anchorDate <- staffAnchorDateFromParamOrCurrent
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
         venueConfig <- fetchVenueConfig
@@ -157,7 +164,7 @@ instance Controller StaffController where
         staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
+        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
 
     action currentAction@UpdateStaffAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -169,7 +176,7 @@ instance Controller StaffController where
         maybeVenueMembership <- fetchStaffVenueMembership staff
         staffRemovalAllowed <- canRenderStaffRemoval staff
         staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
-        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        anchorDate <- staffAnchorDateFromParamOrCurrent
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection =
                 case submissionResult of
@@ -200,7 +207,7 @@ instance Controller StaffController where
                 _ -> fetchStaffShiftPreferenceSelections staff
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
+                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
                     else do
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
@@ -209,15 +216,17 @@ instance Controller StaffController where
                 if isHtmxRequest
                     then do
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
+                        let rosterWindowScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate
+                        let windowStart = rosterWindowScope.rosterWindowStart
+                        let windowEnd = rosterWindowScope.rosterWindowEnd
                         let actorTouchedResources =
                                 mutationResult.liveMutationTouchedResources
                                     <> Set.fromList
-                                        [ rosterWeekResource (unpackId rosterGroup.id) weekOffset
-                                        , rosterSlotsContentResource (unpackId rosterGroup.id) weekOffset
+                                        [ rosterWeekResource (unpackId rosterGroup.id) windowStart windowEnd
+                                        , rosterSlotsContentResource (unpackId rosterGroup.id) windowStart windowEnd
                                         ]
                         respondWithRosterResourceInvalidation
-                            rosterGroup.id
-                            weekOffset
+                            rosterWindowScope
                             actorTouchedResources
                             rosterGridInnerAndStaffPanelFragments
                             (renderToastOob ToastBottomCenter (successToast successMessage))
@@ -225,8 +234,8 @@ instance Controller StaffController where
                         setSuccessMessage successMessage
                         redirectToPath $
                             maybe
-                                (pathTo ShowRosterWeekAction { weekOffset })
-                                (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+                                (pathTo RosterWeeksAction)
+                                (\rosterGroupId -> appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow rosterGroupId)])
                                 maybeRosterGroupId
         case submissionResult of
             Left errors -> do
@@ -250,7 +259,7 @@ instance Controller StaffController where
                 | otherwise -> do
                     maybeSelectedRosterGroupIds <- validateSubmittedRosterGroupIds staff submitted.submittedRosterGroupIds
                     maybeSubmittedVenueRole <- if canManageStaffPay then validateSubmittedStaffVenueRole staff maybeVenueMembership submitted.submittedVenueRole else pure (Just Nothing)
-                    maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelectionValue (fromMaybe "" submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
+                    maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedStaffPayRateSelectionValue (fromMaybe StaffPayRateDefault submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
                     let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
                     staff
@@ -276,9 +285,9 @@ instance Controller StaffController where
                 setErrorMessage message
                 redirectTo EditStaffAction { staffId = staff.id }
             Nothing -> do
-                let weekOffset = paramOrDefault @Int 0 "weekOffset"
+                anchorDate <- staffAnchorDateFromParamOrCurrent
                 let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
-                respondHtml (renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId)
+                respondHtml (renderStaffRemovalConfirmation staff anchorDate maybeRosterGroupId)
 
     action currentAction@RemoveStaffAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -292,18 +301,21 @@ instance Controller StaffController where
             Right mutationResult ->
                 if isHtmxRequest
                     then do
-                        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+                        anchorDate <- staffAnchorDateFromParamOrCurrent
                         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
+                        venueConfig <- fetchVenueConfig
+                        let rosterWindowScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate
+                        let windowStart = rosterWindowScope.rosterWindowStart
+                        let windowEnd = rosterWindowScope.rosterWindowEnd
                         let actorTouchedResources =
                                 mutationResult.liveMutationTouchedResources
                                     <> Set.fromList
-                                        [ rosterWeekResource (unpackId rosterGroup.id) weekOffset
-                                        , rosterSlotsContentResource (unpackId rosterGroup.id) weekOffset
+                                        [ rosterWeekResource (unpackId rosterGroup.id) windowStart windowEnd
+                                        , rosterSlotsContentResource (unpackId rosterGroup.id) windowStart windowEnd
                                         ]
                         respondWithRosterResourceInvalidation
-                            rosterGroup.id
-                            weekOffset
+                            rosterWindowScope
                             actorTouchedResources
                             rosterGridInnerAndStaffPanelFragments
                             [hsx|
@@ -321,10 +333,10 @@ instance Controller StaffController where
         if isAdoptableTrialStaff staff
             then do
                 pendingInvitations <- fetchPendingTrialStaffInvitations staff
-                let weekOffset = paramOrDefault @Int 0 "weekOffset"
+                anchorDate <- staffAnchorDateFromParamOrCurrent
                 let maybeRosterGroupId = paramOrNothing "rosterGroupId"
                 now <- getCurrentTime
-                respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations Nothing Nothing weekOffset maybeRosterGroupId)
+                respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations Nothing Nothing anchorDate maybeRosterGroupId)
             else respondWithTrialStaffInvitationFailure ineligibleTrialStaffInvitationMessage
 
     action currentAction@CreateTrialStaffInvitationAction { staffId } = runBepis currentAction BepisMutationAction do
@@ -337,7 +349,7 @@ instance Controller StaffController where
                 Left message -> renderTrialStaffInvitationError staff message (Just submittedTrialStaffInvitationEmail)
                 Right email ->
                     createTrialStaffInvitationMutation staff email >>= \case
-                        Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation sent to " <> email)
+                        Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation queued for " <> email <> " and should arrive shortly")
                         Left message -> renderTrialStaffInvitationError staff message (Just email)
 
     action currentAction@RenewTrialStaffInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
@@ -354,15 +366,23 @@ instance Controller StaffController where
                     Left message -> renderTrialStaffInvitationError staff message (Just correctedEmail)
                     Right email ->
                         renewTrialStaffInvitationMutation staff invitation email >>= \case
-                            Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation renewed for " <> email)
+                            Right _ -> respondWithTrialStaffInvitationSuccess ("Renewed invitation queued for " <> email <> " and should arrive shortly")
                             Left message -> renderTrialStaffInvitationError staff message (Just email)
+
+staffAnchorDateFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Day
+staffAnchorDateFromParamOrCurrent = do
+    venueConfig <- fetchVenueConfig
+    requestedDay <- case paramOrNothing @Text "anchorDate" of
+        Just rawAnchorDate -> parseIsoDayRouteParam rawAnchorDate
+        Nothing            -> currentOperationalDayForVenue venueConfig
+    pure (startOfWeekFor venueConfig.rosterWeekStartsOn requestedDay)
 
 staffRequiresPayConfigurationRemediation :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO Bool
 staffRequiresPayConfigurationRemediation staff =
     Set.member (unpackId staff.id) <$> fetchStaffPayConfigurationRequiredIds [staff]
 
-renderStaffRemovalConfirmation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId =
+renderStaffRemovalConfirmation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Day -> Maybe (Id RosterGroup) -> Html
+renderStaffRemovalConfirmation staff anchorDate maybeRosterGroupId =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Remove staff member"
         , dialogOverlayBody = [hsx|
@@ -395,7 +415,7 @@ renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId =
         }
   where
     returnFields =
-        [("weekOffset", tshow weekOffset)]
+        [("anchorDate", tshow anchorDate)]
             <> maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId
 
 canRenderStaffRemoval :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> IO Bool
@@ -427,10 +447,10 @@ buildNewTrialStaff = do
             |> set #isActive True
             |> applyVenueDefaultStaffPayAssignment venueConfig
 
-renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()
-renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId =
+renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Day -> Maybe (Id RosterGroup) -> IO ()
+renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems anchorDate maybeRosterGroupId =
     if isHtmxRequest
-        then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
+        then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds anchorDate maybeRosterGroupId)
         else render NewView { .. }
 
 ineligibleTrialStaffInvitationMessage :: Text
@@ -471,10 +491,10 @@ renderTrialStaffInvitationError staff message submittedEmail
     | not (isAdoptableTrialStaff staff) = respondWithTrialStaffInvitationFailure ineligibleTrialStaffInvitationMessage
     | otherwise = do
         pendingInvitations <- fetchPendingTrialStaffInvitations staff
-        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        anchorDate <- staffAnchorDateFromParamOrCurrent
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         now <- getCurrentTime
-        respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations (Just message) submittedEmail weekOffset maybeRosterGroupId)
+        respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations (Just message) submittedEmail anchorDate maybeRosterGroupId)
 
 renderTrialStaffInvitationErrorForInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueInvitation -> Text -> IO ()
 renderTrialStaffInvitationErrorForInvitation invitation message =
@@ -663,7 +683,7 @@ requireSubmittedPayRateSelection paramName =
         Nothing -> do
             setErrorMessage "Choose a default pay rate or No Timesheets (roster only)."
             pure Nothing
-        Just value -> parseSubmittedPayRateSelectionValue value
+        Just value -> parseSubmittedStaffPayRateSelectionText value
 
 
 fetchStaffLinkedUserEmail :: (?modelContext :: ModelContext) => Staff -> IO (Maybe Text)

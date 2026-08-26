@@ -10,6 +10,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
+import IHP.ViewSupport (liveReloadWebsocketUrl)
 import Test.Hspec
 import Test.Support
 
@@ -23,6 +24,7 @@ import Web.Controller.Static ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
+import Web.View.Layout (developmentLiveReloadWebsocketUrlForHost)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -39,12 +41,12 @@ tests = aroundAll withDatabaseTestContext do
             response `responseBodyShouldNotContain` "/FinishPasskeyAuthentication"
             response `responseBodyShouldContain` "Billing and support information"
 
-        it "routes public dev livereload through the HTTPS tunnel without changing localhost" $ withContext do
-            publicResponse <- withRequestHeaders [("Host", "dev.bepis.lol")] (callAction WelcomeAction)
-            publicResponse `responseBodyShouldContain` "data-ws=\"wss://dev.bepis.lol/__ihp-livereload\""
-
-            localResponse <- withRequestHeaders [("Host", "localhost:8000")] (callAction WelcomeAction)
-            localResponse `responseBodyShouldContain` "data-ws=\"ws://localhost:8001\""
+        it "routes public dev livereload through the HTTPS tunnel without changing localhost" \_ -> do
+            let localLiveReloadUrl = "ws://localhost:8013"
+            developmentLiveReloadWebsocketUrlForHost localLiveReloadUrl (Just "dev.bepis.lol")
+                `shouldBe` "wss://dev.bepis.lol/__ihp-livereload"
+            developmentLiveReloadWebsocketUrlForHost localLiveReloadUrl (Just "localhost:8000")
+                `shouldBe` localLiveReloadUrl
 
         it "renders generated PWA install roles with server-owned result copy and native accessibility state" $ withContext do
             response <- callAction InstallAppAction

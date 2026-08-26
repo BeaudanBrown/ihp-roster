@@ -131,16 +131,29 @@ tests = do
 
     aroundAll withDatabaseTestContext do
       describe "Xero draft-timesheet readiness" do
-        it "warns on missing staff mapping and blocks proposed managed pay item readiness without duplicate bucket noise" $ withContext do
+        it "accepts a verified mapping added after approval for late binding" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ requirements \requirement ->
+                    newRecord @XeroEarningsRateMapping
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #xeroConnectionId (unpackId fixture.connection.id)
+                        |> set #localBucketKey requirement.requirementKey
+                        |> set #localBucketLabel requirement.displayName
+                        |> set #xeroEarningsRateId (Just ("late-" <> requirement.requirementKey))
+                        |> set #xeroEarningsRateName (Just requirement.displayName)
+                        |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
+                        |> createRecord
+                        >>= const (pure ())
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "staff_mapping_not_verified"
                 map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldSatisfy` elem "staff_mapping_not_verified"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "wage_publication_failed"
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
-                readinessBlockerCodes readiness `shouldSatisfy` elem "managed_pay_item_not_ready"
+                readiness.xeroTimesheetReady `shouldBe` True
 
         it "uses a fresh successful snapshot even when a later maintenance attempt failed" $ withContext do
             withCleanDb do
@@ -203,8 +216,14 @@ tests = do
             withCleanDb do
                 let periodStart = fromGregorian 2026 7 15
                     periodEnd = fromGregorian 2026 7 21
-                fixture <- createReadinessFixture "weekly" periodStart periodEnd
+                fixture <- createReadyMappedFixture "weekly" periodStart periodEnd
                 entries <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetch
+                sealedComponents <- query @TimesheetPayEarningsComponent
+                    |> filterWhereIn (#timesheetPayCalculationId, mapMaybe (fmap unpackId . (.activePayCalculationId)) entries)
+                    |> fetch
+                sealedRateBoundary <- case nub (mapMaybe (.resolvedRateBoundaryDate) sealedComponents) of
+                    [value] -> pure value
+                    _ -> expectationFailure "expected one sealed rate boundary" >> error "unreachable"
                 pinnedStaffVersions <- forM entries \entry ->
                     maybe (expectationFailure "expected approved entry staff pay version" >> error "unreachable") (fetch . (Id :: UUID -> Id StaffPayVersion)) entry.staffPayVersionId
                 pinnedShiftVersions <- forM entries \entry ->
@@ -260,13 +279,13 @@ tests = do
                     Right values  -> pure values
 
                 map (.localBucketKey) buckets `shouldSatisfy` (not . null)
-                map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf ":effective:2025-07-07:")
+                map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf (":effective:" <> tshow sealedRateBoundary <> ":"))
 
         it "keeps a sealed penalty bucket usable after its projection source refreshes" $ withContext do
             withCleanDb do
                 let periodStart = fromGregorian 2026 5 2
                     periodEnd = fromGregorian 2026 5 8
-                fixture <- createReadinessFixture "weekly" periodStart periodEnd
+                fixture <- createReadyMappedFixture "weekly" periodStart periodEnd
                 penaltyRates <-
                     query @AwardLevelPenaltyRate
                         |> filterWhere (#employmentBasis, Permanent)
@@ -292,7 +311,7 @@ tests = do
 
                 map (.localBucketKey) buckets `shouldSatisfy` any (Text.isInfixOf ":penalty:saturday_penalty:")
 
-        it "blocks missing earnings mapping when no managed requirement covers the bucket" $ withContext do
+        it "keeps late-bindable components blocked when requirements are ignored" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -301,8 +320,8 @@ tests = do
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "wage_publication_failed"
                 readinessBlockerCodes readiness `shouldSatisfy` elem "earnings_mapping_not_verified"
-                readinessBlockerCodes readiness `shouldNotSatisfy` elem "managed_pay_item_not_ready"
 
         it "ignores deleted approved history when active approved entries remain" $ withContext do
             withCleanDb do
@@ -704,113 +723,89 @@ data ReadinessFixture = ReadinessFixture
     }
 
 createReadinessFixture :: (?modelContext :: ModelContext) => Text -> Day -> Day -> IO ReadinessFixture
-createReadinessFixture calendarType periodStart periodEnd = do
+createReadinessFixture = createReadinessFixtureWithMappings False
+
+createReadyMappedFixture :: (?modelContext :: ModelContext) => Text -> Day -> Day -> IO ReadinessFixture
+createReadyMappedFixture = createReadinessFixtureWithMappings True
+
+createReadinessFixtureWithMappings :: (?modelContext :: ModelContext) => Bool -> Text -> Day -> Day -> IO ReadinessFixture
+createReadinessFixtureWithMappings readyMapped calendarType periodStart periodEnd = do
     venue <- createVenueWithConfig "Xero Readiness Venue"
     owner <- createUserRecord "owner@example.com" "admin" True
     _ <- createVenueMembershipRecord venue owner VenueOwner
     awardLevel <- createPayLevelRecordWithRates venue "Level 2" 25 2 3 1 1.25 1.5
     staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
     staff <- staff |> set #employmentBasis Permanent |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just awardLevel.id) |> updateRecord
-    _ <- createApprovedTimesheetEntryRecord venue staff owner periodStart
+    _ <- createShiftTypeRecord venue awardLevel "Readiness Shift"
     connection <- createReadinessXeroConnection venue owner
     _ <- createSucceededXeroSyncRun venue connection
     _ <- createReadinessPayrollCalendar venue connection calendarType periodStart
     buckets <- currentVenueBuckets venue periodStart
-    forM_ buckets \bucket -> do
-        _ <-
-            newRecord @XeroPayItemRequirementRecord
-                |> set #venueId (unpackId venue.id)
-                |> set #xeroConnectionId (unpackId connection.id)
-                |> set #requirementKey bucket.localBucketKey
-                |> set #displayName bucket.localBucketLabel
-                |> set #rateType ("RATEPERUNIT" :: Text)
-                |> set #ratePerUnit (Just 25)
-                |> set #sourceDescription ("test readiness requirement" :: Text)
-                |> set #requirementStatus XeroPayItemRequirementStatusEnumProposed
-                |> createRecord
-        pure ()
-    pure ReadinessFixture
-        { venue
-        , owner
-        , staff
-        , connection
-        , request =
-            XeroTimesheetReadinessRequest
-                { readinessVenueId = venue.id
-                , readinessPayrollCalendarId = Just "calendar-ready"
-                , readinessPayrollCalendarName = Just "Ready Calendar"
-                , readinessSelectedPeriodKey = Just ("calendar-ready:" <> tshow periodStart <> ":" <> tshow periodEnd)
-                , readinessPeriodStart = periodStart
-                , readinessPeriodEnd = periodEnd
-                , readinessPaymentDate = Nothing
-                , readinessXeroPayRunId = Nothing
-                , readinessXeroPayRunStatus = Nothing
-                , readinessRemoteTimesheets = []
-                , readinessSkippedStaffIds = []
-                }
-        }
-
-createReadyMappedFixture :: (?modelContext :: ModelContext) => Text -> Day -> Day -> IO ReadinessFixture
-createReadyMappedFixture calendarType periodStart periodEnd = do
-    fixture <- createReadinessFixture calendarType periodStart periodEnd
-    _ <-
-        newRecord @XeroStaffMapping
-            |> set #venueId (unpackId fixture.venue.id)
-            |> set #staffId (unpackId fixture.staff.id)
-            |> set #xeroConnectionId (unpackId fixture.connection.id)
+    requirements <- forM buckets \bucket ->
+        newRecord @XeroPayItemRequirementRecord
+            |> set #venueId (unpackId venue.id)
+            |> set #xeroConnectionId (unpackId connection.id)
+            |> set #requirementKey bucket.localBucketKey
+            |> set #displayName bucket.localBucketLabel
+            |> set #rateType ("RATEPERUNIT" :: Text)
+            |> set #ratePerUnit (Just 25)
+            |> set #sourceDescription ("test readiness requirement" :: Text)
+            |> set #requirementStatus XeroPayItemRequirementStatusEnumProposed
+            |> createRecord
+    let fixture = ReadinessFixture
+            { venue
+            , owner
+            , staff
+            , connection
+            , request =
+                XeroTimesheetReadinessRequest
+                    { readinessVenueId = venue.id
+                    , readinessPayrollCalendarId = Just "calendar-ready"
+                    , readinessPayrollCalendarName = Just "Ready Calendar"
+                    , readinessSelectedPeriodKey = Just ("calendar-ready:" <> tshow periodStart <> ":" <> tshow periodEnd)
+                    , readinessPeriodStart = periodStart
+                    , readinessPeriodEnd = periodEnd
+                    , readinessPaymentDate = Nothing
+                    , readinessXeroPayRunId = Nothing
+                    , readinessXeroPayRunStatus = Nothing
+                    , readinessRemoteTimesheets = []
+                    , readinessSkippedStaffIds = []
+                    }
+            }
+    when readyMapped do
+        _ <- newRecord @XeroStaffMapping
+            |> set #venueId (unpackId venue.id)
+            |> set #staffId (unpackId staff.id)
+            |> set #xeroConnectionId (unpackId connection.id)
             |> set #xeroEmployeeId (Just "employee-ready")
             |> set #xeroEmployeeName (Just "Ada Lovelace")
             |> set #mappingStatus XeroStaffMappingStatusEnumVerified
             |> createRecord
-    _ <- createReadinessXeroEmployee fixture "employee-ready" (Just "calendar-ready")
-    buckets <- currentFixtureBuckets fixture periodStart
-    existingRequirements <-
-        query @XeroPayItemRequirementRecord
-            |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
-            |> fetch
-    forM_ buckets \bucket -> do
-        _ <-
-            newRecord @XeroEarningsRateMapping
-                |> set #venueId (unpackId fixture.venue.id)
-                |> set #xeroConnectionId (unpackId fixture.connection.id)
+        _ <- createReadinessXeroEmployee fixture "employee-ready" (Just "calendar-ready")
+        forM_ (zip buckets requirements) \(bucket, requirement) -> do
+            _ <- newRecord @XeroEarningsRateMapping
+                |> set #venueId (unpackId venue.id)
+                |> set #xeroConnectionId (unpackId connection.id)
                 |> set #localBucketKey bucket.localBucketKey
                 |> set #localBucketLabel bucket.localBucketLabel
                 |> set #xeroEarningsRateId (Just ("earnings-" <> bucket.localBucketKey))
                 |> set #xeroEarningsRateName (Just bucket.localBucketLabel)
                 |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
                 |> createRecord
-        case find (\record -> record.requirementKey == bucket.localBucketKey) existingRequirements of
-            Just requirement ->
-                requirement
-                    |> set #requirementStatus Matched
-                    |> set #xeroEarningsRateId (Just ("earnings-" <> bucket.localBucketKey))
-                    |> updateRecord
-                    >>= const (pure ())
-            Nothing ->
-                newRecord @XeroPayItemRequirementRecord
-                    |> set #venueId (unpackId fixture.venue.id)
-                    |> set #xeroConnectionId (unpackId fixture.connection.id)
-                    |> set #requirementKey bucket.localBucketKey
-                    |> set #displayName bucket.localBucketLabel
-                    |> set #rateType ("RATEPERUNIT" :: Text)
-                    |> set #ratePerUnit (Just 25)
-                    |> set #sourceDescription ("test readiness requirement" :: Text)
-                    |> set #requirementStatus Matched
-                    |> set #xeroEarningsRateId (Just ("earnings-" <> bucket.localBucketKey))
-                    |> createRecord
-                    >>= const (pure ())
-        pure ()
-    _ <-
-        newRecord @XeroPayItemAccountCodeSelection
-            |> set #venueId (unpackId fixture.venue.id)
-            |> set #xeroConnectionId (unpackId fixture.connection.id)
+            _ <- requirement
+                |> set #requirementStatus Matched
+                |> set #xeroEarningsRateId (Just ("earnings-" <> bucket.localBucketKey))
+                |> updateRecord
+            pure ()
+        _ <- newRecord @XeroPayItemAccountCodeSelection
+            |> set #venueId (unpackId venue.id)
+            |> set #xeroConnectionId (unpackId connection.id)
             |> set #accountCode (Just "477")
             |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumVerified
             |> createRecord
+        pure ()
+    _ <- createApprovedTimesheetEntryRecord venue staff owner periodStart
     pure fixture
-
-currentFixtureBuckets :: (?modelContext :: ModelContext) => ReadinessFixture -> Day -> IO [XeroLocalEarningsBucket]
-currentFixtureBuckets fixture = currentVenueBuckets fixture.venue
 
 currentVenueBuckets :: (?modelContext :: ModelContext) => Venue -> Day -> IO [XeroLocalEarningsBucket]
 currentVenueBuckets venue effectiveDay = do

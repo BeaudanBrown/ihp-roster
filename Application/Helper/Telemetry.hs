@@ -42,7 +42,7 @@ telemetryMiddleware app request respond = do
         else app request respond
 
 -- | Annotates the current WAI root span with the low-cardinality IHP action
--- constructor name, e.g. ShowRosterWeekAction. This avoids path ids and query
+-- constructor name, e.g. ShowRosterWindowAction. This avoids path ids and query
 -- strings while still making traces navigable.
 annotateTelemetryAction :: forall action. (Data action, ?theAction :: action, ?request :: Wai.Request) => IO ()
 annotateTelemetryAction = whenTelemetryEnabled do

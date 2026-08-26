@@ -5,6 +5,8 @@ import Control.Exception (bracket)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Maybe (fromJust)
+import qualified Data.Text as Text
+import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -31,17 +33,17 @@ tests = aroundAll withDatabaseTestContext do
                     BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
 
                     coldPage <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekAction 0)
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                     warmPage <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekAction 0)
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                     contentFragment <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekContentFragmentAction 0)
+                        callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                     rowFragment <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekRowFragmentAction 0 brRosterDay.id 0)
+                        callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id 0)
                     dayFragment <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekDaySectionFragmentAction 0 brRosterDay.id)
+                        callAction (ShowRosterWeekDaySectionFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id)
                     staffPanel <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekStaffPanelFragmentAction 0)
+                        callAction (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
 
                     coldPage `responseStatusShouldBe` status200
                     warmPage `responseStatusShouldBe` status200
@@ -50,7 +52,7 @@ tests = aroundAll withDatabaseTestContext do
                     dayFragment `responseStatusShouldBe` status200
                     staffPanel `responseStatusShouldBe` status200
 
-                    serverTiming coldPage `shouldContainBS` "roster_direct_fetch_slots;dur="
+                    serverTiming coldPage `shouldContainBS` "roster_direct_fetch_dated_slots;dur="
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_staff_option_states;dur="
@@ -68,6 +70,61 @@ tests = aroundAll withDatabaseTestContext do
                     bodyText <- cs . LByteString.unpack <$> responseBody contentFragment
                     bodyText `shouldContain` "data-roster-row"
 
+        it "keeps reads and lane mutations on the anchor-date window" $ withContext do
+            withCleanDb do
+                BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
+                venueConfig <- query @VenueConfig
+                    |> filterWhere (#venueId, unpackId brVenue.id)
+                    |> fetchOne
+                fullPage <- withUserAndCurrentVenue brManager brVenue.id do
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                contentFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                    callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
+                rowFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                    callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id 0)
+                dayFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                    callAction (ShowRosterWeekDaySectionFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id)
+                timelineFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                    callAction (ShowRosterDayTimelineContentFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id)
+                staffPanel <- withUserAndCurrentVenue brManager brVenue.id do
+                    callAction (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
+
+                forM_ [fullPage, contentFragment, rowFragment, dayFragment, timelineFragment, staffPanel] \response ->
+                    response `responseStatusShouldBe` status200
+                fullPage `responseBodyShouldContain` "Mon 06/01"
+                fullPage `responseBodyShouldContain` "Sun 12/01"
+                fullPage `responseBodyShouldContain` "&quot;windowStartDate&quot;:&quot;2025-01-06&quot;"
+                fullPage `responseBodyShouldContain` "&quot;windowEndDate&quot;:&quot;2025-01-13&quot;"
+                contentFragment `responseBodyShouldContain` "Mon 06/01"
+                contentFragment `responseBodyShouldContain` "Sun 12/01"
+                timelineFragment `responseBodyShouldContain` "data-roster-day-timeline=\"true\""
+
+                mutationResponse <- withPasskeyVerifiedUserAndCurrentVenue brManager brVenue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            CreateRosterWeekSlotDefinitionAction
+                            [ ("anchorDate", cs (show (testAnchorForOffset 0)))
+                            , ("rosterGroupId", cs (show brRosterDay.rosterGroupId))
+                            , ("rosterCalendarRevision", cs (show venueConfig.rosterCalendarRevision))
+                            , ("name", "Explicit window lane")
+                            ]
+                mutationResponse `responseStatusShouldBe` status200
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders mutationResponse)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"windowStartDate\":\"2025-01-06\"")
+                triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "2024-12-31")
+                mutatedDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId brVenue.id)
+                    |> filterWhere (#rosterGroupId, brRosterDay.rosterGroupId)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                map (.operationalDate) mutatedDays `shouldBe` map (\dayIndex -> addDays dayIndex (testAnchorForOffset 0)) [0 .. 6]
+                explicitLanes <- query @RosterLane
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) mutatedDays)
+                    |> filterWhere (#name, "Explicit window lane")
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                length explicitLanes `shouldBe` 7
+
         it "keeps slot mutation actor refresh separate from passive direct refetch" $ withContext do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do
                 withCleanDb do
@@ -76,14 +133,14 @@ tests = aroundAll withDatabaseTestContext do
 
                     mutationResponse <- withUserAndCurrentVenue brManager brVenue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams
+                            callRosterSlotActionWithParams
                                 (UpdateRosterSlotAction brMutableSlot.id)
                                 [ ("staffId", idToParam brAlternateStaff.id)
                                 , ("startTime", "08:00")
                                 , ("shiftTypeId", idToParam shiftType.id)
                                 ]
                     passiveRefetch <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekRowFragmentAction 0 brRosterDay.id 0)
+                        callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id 0)
 
                     mutationResponse `responseStatusShouldBe` status200
                     passiveRefetch `responseStatusShouldBe` status200
@@ -123,10 +180,10 @@ createBaselineRoster = do
     rosterDays <- forM [0 :: Int .. 6] \dayOffset -> do
         day <- createRosterDayRecord rosterWeek dayOffset
         day |> set #rowCount 2 |> updateRecord
-    createdSlots <- forM rosterDays \day -> do
+    createdSlots <- forM (zip [0 :: Int ..] rosterDays) \(dayIndex, day) -> do
         forM [0 :: Int, 1] \rowIndex -> do
-            earlySlot <- createRosterSlotRecord day earlySlotName (Just (staffMembers !! ((day.dayOffset + rowIndex) `mod` length staffMembers))) rowIndex
-            lateSlot <- createRosterSlotRecord day lateSlotName (Just (staffMembers !! ((day.dayOffset + rowIndex + 2) `mod` length staffMembers))) rowIndex
+            earlySlot <- createRosterSlotRecord day earlySlotName (Just (staffMembers !! ((dayIndex + rowIndex) `mod` length staffMembers))) rowIndex
+            lateSlot <- createRosterSlotRecord day lateSlotName (Just (staffMembers !! ((dayIndex + rowIndex + 2) `mod` length staffMembers))) rowIndex
             mapM_ (\slot -> slot |> setTestStartTime (Just (TimeOfDay (8 + rowIndex) 0 0)) |> setTestEndTime (Just (TimeOfDay (12 + rowIndex) 0 0)) |> set #shiftTypeId (Just (unpackId shiftType.id)) |> updateRecord) [earlySlot, lateSlot]
             pure (earlySlot, lateSlot)
     let firstDay = fromJust (head rosterDays)
@@ -149,6 +206,9 @@ shouldNotContainBS haystack needle =
     haystack `shouldNotSatisfy` ByteString.isInfixOf needle
 
 dumpBaselineTimings :: [(String, Response)] -> IO ()
+callRosterSlotActionWithParams action params =
+    callActionWithParams action (params <> rosterMutationParams 0)
+
 dumpBaselineTimings responses = do
     shouldPrint <- Environment.lookupEnv "IHP_ROSTER_BASELINE_PRINT"
     when (shouldPrint == Just "1") do

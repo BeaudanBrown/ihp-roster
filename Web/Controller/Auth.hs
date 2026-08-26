@@ -1,5 +1,8 @@
 module Web.Controller.Auth where
 
+import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecipient,
+                                               passkeySetupTokenAuthorityIsCurrent)
+import Application.AccountSecurityEmail.Mutations (withPasskeySetupTokenLock)
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import qualified Application.Helper.FrontendContract.Wire.Passkey as PasskeyWire
 import Application.Helper.PasskeyRecoveryCodes (issueInitialRecoveryCodeIfMissing)
@@ -272,16 +275,17 @@ instance Controller AuthController where
                     ]
                 )
         redirectUrl <- getSessionAndClear passkeyStepUpRedirectSessionKey
+        let safeRedirectUrl = redirectUrl >>= safePasskeyReturnPath
         renderJson
             ( PasskeyWire.PasskeyAuthenticated
                 (unpackId currentUser.id)
-                (fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl)
+                (fromMaybe (Sessions.afterLoginRedirectPath @User) safeRedirectUrl)
             )
 
     action currentAction@NewPasskeySetupAction = runBepis currentAction BepisFormAction do
         rawToken <- setupTokenParamOrRedirect
         setupToken <- findActivePasskeySetupToken rawToken >>= maybe invalidSetupLink pure
-        targetUser <- fetch (Id setupToken.userId :: Id User)
+        targetUser <- fetchEligiblePasskeySetupTarget setupToken >>= maybe invalidSetupLink pure
         let targetEmail = targetUser.email
         let beginUrl = appendQueryParams (pathTo BeginPasskeySetupRegistrationAction) [("token", rawToken)]
         render NewSetupView { .. }
@@ -289,7 +293,7 @@ instance Controller AuthController where
     action currentAction@BeginPasskeySetupRegistrationAction = runBepis currentAction BepisMutationAction do
         rawToken <- setupTokenParamOrJsonError
         setupToken <- findActivePasskeySetupToken rawToken >>= maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure
-        targetUser <- fetch (Id setupToken.userId :: Id User)
+        targetUser <- fetchEligiblePasskeySetupTarget setupToken >>= maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure
         existingPasskeys <- fetchPasskeysForUser targetUser.id
         challenge <- liftIO generateChallenge
         setSession setupRegistrationChallengeSessionKey (unChallenge challenge)
@@ -313,7 +317,7 @@ instance Controller AuthController where
             clearSetupRegistrationSession
             jsonError status422 "The pending passkey setup is invalid."
 
-        targetUser <- fetch (Id setupToken.userId :: Id User)
+        targetUser <- fetchEligiblePasskeySetupTarget setupToken >>= maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure
         registrationRequest <- parseWebAuthnJsonBody @PasskeyWire.PasskeyRegistrationRequest
         passkeyName <- normalizeSubmittedPasskeyName (PasskeyWire.passkeyRegistrationName registrationRequest)
         credential <- case WebAuthnJson.wjDecodeCredentialRegistration (PasskeyWire.passkeyRegistrationCredential registrationRequest) of
@@ -339,23 +343,36 @@ instance Controller AuthController where
 
         let entry = rrEntry registrationResult
             credentialId = unCredentialId (get #ceCredentialId entry)
-        credentialAlreadyExists <-
-            query @Passkey
-                |> filterWhere (#credentialId, Binary credentialId)
-                |> fetchExists
-        when credentialAlreadyExists do
-            jsonError status409 "This passkey is already registered."
-
-        _ <- createPasskeyRecord targetUser.id passkeyName entry
-        now <- getCurrentTime
-        setupToken
-            |> set #consumedAt (Just now)
-            |> updateRecordDiscardResult
-        renderJson
-            ( PasskeyWire.PasskeySetupRegistered
-                (unpackId targetUser.id)
-                (pathTo NewSessionAction)
-            )
+        maybeCompleted <- withPasskeySetupTokenLock (unpackId setupTokenId) do
+            lockedToken <- activeSetupTokenById setupTokenId
+            case lockedToken of
+                Just activeToken
+                    | pendingUserId == Id activeToken.userId -> do
+                        maybeEligibleUser <- fetchEligiblePasskeySetupTarget activeToken
+                        when (isNothing maybeEligibleUser) do
+                            jsonError status422 "This passkey setup link is invalid or has expired."
+                        credentialAlreadyExists <-
+                            query @Passkey
+                                |> filterWhere (#credentialId, Binary credentialId)
+                                |> fetchExists
+                        when credentialAlreadyExists do
+                            jsonError status409 "This passkey is already registered."
+                        _ <- createPasskeyRecord targetUser.id passkeyName entry
+                        now <- getCurrentTime
+                        activeToken
+                            |> set #consumedAt (Just now)
+                            |> set #deliveryTokenCiphertext Nothing
+                            |> updateRecordDiscardResult
+                        pure True
+                _ -> pure False
+        if fromMaybe False maybeCompleted
+            then
+                renderJson
+                    ( PasskeyWire.PasskeySetupRegistered
+                        (unpackId targetUser.id)
+                        (pathTo NewSessionAction)
+                    )
+            else jsonError status422 "This passkey setup link is invalid or has expired."
 
 registrationChallengeSessionKey :: ByteString
 registrationChallengeSessionKey = "passkey-registration-challenge"
@@ -430,6 +447,15 @@ fetchPasskeysForUser userId =
     query @Passkey
         |> filterWhere (#userId, unpackId userId)
         |> fetch
+
+fetchEligiblePasskeySetupTarget ::
+    (?modelContext :: ModelContext) =>
+    PasskeySetupToken ->
+    IO (Maybe User)
+fetchEligiblePasskeySetupTarget setupToken = do
+    maybeUser <- fetchEligibleAccountSecurityRecipient setupToken.userId setupToken.sentToEmail
+    authorityIsCurrent <- passkeySetupTokenAuthorityIsCurrent setupToken
+    pure (if authorityIsCurrent then maybeUser else Nothing)
 
 activeSetupTokenById :: (?modelContext :: ModelContext) => Id PasskeySetupToken -> IO (Maybe PasskeySetupToken)
 activeSetupTokenById setupTokenId =

@@ -28,6 +28,8 @@ const sharedRequestRuntimeClosure = [
   "Application.Helper.FrontendContract.Surface.Request.Runtime.Internal",
   "Application.Helper.FrontendContract.Surface.SemanticIR",
   "Application.Helper.FrontendContract.Surface.Values",
+  "Application.Helper.FrontendContract.TypeError",
+  "Application.Helper.NominalText",
 ];
 
 const closureContracts = [
@@ -55,6 +57,8 @@ const closureContracts = [
       "Application.Helper.FrontendContract.Surface.Profile.Action",
       "Application.Helper.FrontendContract.Surface.Profile.Generated.Action",
       "Application.Helper.FrontendContract.Surface.Profile.HaskellAdapter",
+      "Application.Helper.Controller.Input",
+      "Application.PayRateSelection",
       "Application.Helper.FrontendContract.Surface.LeaveRequests",
       "Application.Helper.FrontendContract.Surface.SelfServiceLeave",
     ],

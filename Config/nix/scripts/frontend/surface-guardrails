@@ -273,14 +273,6 @@ if ! diff -u <(printf '%s\n' "${expected_operation_internal_consumers[@]}") <(pr
     fail "trusted request runtime internals must remain limited to compatibility runtime and generated Action/Intent output"
 fi
 
-# The generator's failure-atomic publication is behavior, not source shape.
-if [ -f '@scriptsRoot@/frontend/surface-adapter-publication-test' ]; then
-    publication_test='@scriptsRoot@/frontend/surface-adapter-publication-test'
-else
-    publication_test='Config/nix/scripts/frontend/surface-adapter-publication-test'
-fi
-bash "$publication_test" || fail "adapter publication must leave managed output untouched on validation failure"
-
 # This inventory is generated, not maintained by feature name. An emitted
 # browser token needs a production import and use to remain contract authority.
 mapfile -t browser_dom_tokens < <(sed -n 's/^export const \([A-Za-z0-9_]*DomToken\) = .*$/\1/p' frontend/ts/generated/contracts.ts)

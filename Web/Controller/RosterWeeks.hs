@@ -9,14 +9,18 @@ module Web.Controller.RosterWeeks where
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.AppShell (ConfirmDeleteRosterSlotOverlay,
                                                      ConfirmRemoveRosterRowOverlay,
-                                                     DeleteRosterSlotOverlay)
+                                                     CreateRosterShiftOverlay,
+                                                     DeleteRosterSlotOverlay,
+                                                     UpdateRosterShiftOverlay)
+import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode,
                                                             passkeySetupPromptModeFromValue)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
-import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError (..),
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
@@ -27,7 +31,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotifi
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
+                                           SurfaceResourceValue)
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
                                      defaultShiftTimesForVenueConfig,
                                      isQuarterHourMinutes,
@@ -40,13 +45,14 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (..),
+                                OverlayButtonAction (..), ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob,
                                 successToast)
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import qualified Application.RosterNotification as Notification
+import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
                                           applyRosterShiftAssignment,
                                           copyRosterShiftAssignment,
@@ -58,14 +64,15 @@ import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust, listToMaybe, mapMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, listToMaybe,
+                   mapMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
-import Network.HTTP.Types.Status (status400)
+import Network.HTTP.Types.Status (status400, status409)
 import qualified Network.Wai as Wai
 import qualified Text.Blaze.Html as Blaze
 import qualified Text.Read as TextRead
@@ -73,6 +80,15 @@ import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
 import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (..),
+                                  RosterWindow (..), RosterWindowDay (..),
+                                  RosterWindowLane (..), RosterWindowScope (..),
+                                  RosterWindowState (..), fetchRosterWindow,
+                                  previewRemoveRosterDayRowByLanes,
+                                  projectedRosterDayId,
+                                  resolveRosterLaneReference,
+                                  rosterWindowScopeForAnchor)
+import Web.RosterWeeks.DirectReadModel (fetchRosterNotificationWindowDays)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.DropWorkflow
 import Web.RosterWeeks.Filters
@@ -81,19 +97,12 @@ import Web.RosterWeeks.FrontendSurface (rosterDuplicateShiftIntentForm,
                                         rosterTimelineMoveShiftIntentForm)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
-import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterDayTimelineUrl,
-                              rosterWeekUrl)
+import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterTimelineWindowUrl,
+                              rosterWindowUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
-import Web.RosterWeeks.Responses (respondWithRosterContent,
-                                  respondWithRosterContentError,
-                                  respondWithRosterContentUpdate,
-                                  respondWithRosterDialogOverlay,
-                                  respondWithRosterFragments,
-                                  respondWithRosterFragmentsUpdate,
-                                  respondWithRosterOwnHighlightPreferenceUpdate,
-                                  respondWithRosterResourceInvalidation,
-                                  respondWithRosterToast)
+import qualified Web.RosterWeeks.Responses as RosterResponses
+import Web.RosterWeeks.Responses (respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.ShiftWorkflow
@@ -110,6 +119,27 @@ import Web.View.RosterWeeks.Show (renderNoRosterGroupShell,
                                   renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
+
+respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
+respondWithRosterContentError = RosterResponses.respondWithRosterContentError
+
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithRosterContentUpdate = RosterResponses.respondWithRosterContentUpdate
+
+respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Blaze.Html -> IO ()
+respondWithRosterDialogOverlay = RosterResponses.respondWithRosterDialogOverlay
+
+respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterFragments = RosterResponses.respondWithRosterFragments
+
+respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
+respondWithRosterFragmentsUpdate = RosterResponses.respondWithRosterFragmentsUpdate
+
+respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> ToastOverlayConfig -> IO ()
+respondWithRosterOwnHighlightPreferenceUpdate = RosterResponses.respondWithRosterOwnHighlightPreferenceUpdate
+
+respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterResourceInvalidation = RosterResponses.respondWithRosterResourceInvalidation
 
 rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
 rosterSurfaceRequestErrorMessage errors =
@@ -151,41 +181,42 @@ parseRosterStaffPanelScope
                     RosterStaffAllVenue     -> Right RosterStaffPanelAllVenue
                     RosterStaffCurrentGroup -> Right RosterStaffPanelCurrentGroup
 
-respondWithRosterCopyFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
-respondWithRosterCopyFailure rosterGroupId targetWeekOffset message =
+respondWithRosterCopyFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
+respondWithRosterCopyFailure targetScope message =
     if isHtmxRequest
         then respondWithRosterToast message "app-toast-error"
         else do
             setErrorMessage message
-            redirectToPath (rosterWeekUrl targetWeekOffset rosterGroupId)
+            redirectToRosterWindow targetScope
 
-respondWithRosterCopyOccurrenceDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Int -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> IO ()
-respondWithRosterCopyOccurrenceDialog rosterGroupId sourceWeekOffset targetWeekOffset startIsRepeated endIsRepeated selections =
+respondWithRosterCopyOccurrenceDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowScope -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> IO ()
+respondWithRosterCopyOccurrenceDialog sourceScope targetScope startIsRepeated endIsRepeated selections =
     if not isHtmxRequest
-        then respondWithRosterCopyFailure rosterGroupId targetWeekOffset "Choose repeated-time occurrences from the roster copy dialog."
+        then respondWithRosterCopyFailure targetScope "Choose repeated-time occurrences from the roster copy dialog."
         else do
             let dialog = renderRosterWeekCopyOccurrenceDialog
-                    (rosterCopyWeekUrl sourceWeekOffset targetWeekOffset rosterGroupId)
+                    (rosterCopyWeekUrl sourceScope.rosterWindowStart targetScope.rosterWindowStart targetScope.rosterWindowRosterGroupId)
+                    targetScope.rosterWindowCalendarRevision
                     startIsRepeated
                     endIsRepeated
                     selections
-            respondWithRosterDialogOverlay rosterGroupId targetWeekOffset dialog
+            respondWithRosterDialogOverlay targetScope dialog
 
-respondWithRosterShiftOccurrenceDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> FrontendSurfaceIntentForm -> (Text, Text) -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> IO ()
-respondWithRosterShiftOccurrenceDialog rosterGroupId weekOffset operationLabel intentForm (startOccurrenceField, endOccurrenceField) startIsRepeated endIsRepeated selections =
+respondWithRosterShiftOccurrenceDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> FrontendSurfaceIntentForm -> (Text, Text) -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> IO ()
+respondWithRosterShiftOccurrenceDialog scope operationLabel intentForm (startOccurrenceField, endOccurrenceField) startIsRepeated endIsRepeated selections =
     if not isHtmxRequest
-        then respondWithMoveRosterShiftFailure rosterGroupId weekOffset "Choose repeated-time occurrences from the roster copy dialog."
+        then respondWithMoveRosterShiftFailure scope "Choose repeated-time occurrences from the roster copy dialog."
         else do
             let dialog = renderRosterShiftOccurrenceDialog operationLabel intentForm (startOccurrenceField, endOccurrenceField) startIsRepeated endIsRepeated selections
-            respondWithRosterDialogOverlay rosterGroupId weekOffset dialog
+            respondWithRosterDialogOverlay scope dialog
 
-respondWithRosterSlotCopyBoundaryFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> FrontendSurfaceIntentForm -> (Text, Text) -> (Bool, Bool) -> ShiftCopyOccurrenceSelections -> BoundaryModelError -> IO ()
-respondWithRosterSlotCopyBoundaryFailure rosterGroupId weekOffset operationLabel intentForm occurrenceFields (startIsRepeated, endIsRepeated) selections failure =
+respondWithRosterSlotCopyBoundaryFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> FrontendSurfaceIntentForm -> (Text, Text) -> (Bool, Bool) -> ShiftCopyOccurrenceSelections -> BoundaryModelError -> IO ()
+respondWithRosterSlotCopyBoundaryFailure scope operationLabel intentForm occurrenceFields (startIsRepeated, endIsRepeated) selections failure =
     case failure of
         BoundaryCivilTimeError (RepeatedCivilTimeRequiresOccurrence _)
             | startIsRepeated || endIsRepeated ->
-                respondWithRosterShiftOccurrenceDialog rosterGroupId weekOffset operationLabel intentForm occurrenceFields startIsRepeated endIsRepeated selections
-        _ -> respondWithMoveRosterShiftFailure rosterGroupId weekOffset (rosterCopyBoundaryErrorMessage failure)
+                respondWithRosterShiftOccurrenceDialog scope operationLabel intentForm occurrenceFields startIsRepeated endIsRepeated selections
+        _ -> respondWithMoveRosterShiftFailure scope (rosterCopyBoundaryErrorMessage failure)
 
 rosterCopyBoundaryErrorMessage :: BoundaryModelError -> Text
 rosterCopyBoundaryErrorMessage (BoundaryCivilTimeError (NonexistentCivilTime _)) = "A copied roster time does not exist because clocks move forward. Change the source shift before copying."
@@ -206,230 +237,225 @@ instance Controller RosterWeeksController where
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
-        ensureProfileCompleted
+        case ?theAction of
+            RosterWeeksAction -> unless (currentUserIsImpersonating && currentImpersonationReturnFallbackVisible) ensureProfileCompleted
+            ShowRosterWindowAction {} -> unless (currentUserIsImpersonating && currentImpersonationReturnFallbackVisible) ensureProfileCompleted
+            _ -> ensureProfileCompleted
+        markStaleRosterCalendarResponseForRefresh
 
     action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
-        -- Redirect to the current week's offset based on today's date
-        currentWeekOffset <- fetchCurrentRosterWeekOffset
+        venueConfig <- fetchVenueConfig
+        today <- utctDay <$> getCurrentTime
         resolveRosterPageGroup >>= \case
-            Nothing -> renderNoRosterGroupPage
-            Just (currentRosterGroup, _) -> do
-                currentWeekPath <- case paramOrNothing @Text "rosterView" of
-                    Just "timeline" -> do
-                        venueConfig <- fetchVenueConfig
-                        today <- utctDay <$> getCurrentTime
-                        let todayDayOffset = fromInteger (Calendar.diffDays today (venueWeekStartDate venueConfig currentWeekOffset))
-                        pure (rosterDayTimelineUrl currentWeekOffset currentRosterGroup.id (max 0 (min 6 todayDayOffset)))
-                    _ -> pure (rosterWeekUrl currentWeekOffset currentRosterGroup.id)
-
-                if isHtmxRequest
-                    then case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
+            Nothing -> do
+                clearImpersonationReturnFallback
+                renderNoRosterGroupPage
+            Just (currentRosterGroup, requestedGroupWasViewable) -> do
+                let currentWeekPath = case paramOrNothing @Text "rosterView" of
+                        Just "timeline" -> rosterTimelineWindowUrl today currentRosterGroup.id
+                        _ -> rosterWindowUrl today currentRosterGroup.id
+                if not requestedGroupWasViewable || not isHtmxRequest
+                    then redirectToPath currentWeekPath
+                    else case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
                         (Just "timeline", Nothing) -> do
                             setHeader ("HX-Redirect", cs currentWeekPath)
                             respondHtmlProfiled mempty
                         _ -> do
+                            clearImpersonationReturnFallback
                             setHtmxPushUrl currentWeekPath
-                            renderRosterWeekPage currentWeekOffset currentRosterGroup.id
-                    else redirectToPath currentWeekPath
+                            renderRosterWeekPage (rosterWindowScopeForAnchor venueConfig currentRosterGroup.id today)
 
-    action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
+    action currentAction@ShowRosterWindowAction { anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        venueConfig <- fetchVenueConfig
         resolveRosterPageGroup >>= \case
-            Nothing -> renderNoRosterGroupPage
-            Just (rosterGroup, False) -> redirectToViewableRosterWeek weekOffset rosterGroup.id
-            Just (rosterGroup, True) -> do
-                when RosterAction.navigateRosterWeekActionParamsPresent do
-                    case RosterAction.parseNavigateRosterWeekActionParams of
-                        Left errors -> do
-                            setErrorMessage (rosterSurfaceRequestErrorMessage errors)
-                            redirectTo RosterWeeksAction
-                        Right fields -> do
-                            accessDeniedUnless (surfaceFieldValue @Surface.WeekOffset fields == weekOffset)
-                            accessDeniedUnless (surfaceFieldValue @Surface.RosterGroupId fields == unpackId rosterGroup.id)
-                case paramOrNothing @Calendar.Day "weekDate" of
-                    Just weekDate -> do
-                        venueConfig <- fetchVenueConfig
-                        let selectedWeekOffset = venueWeekOffsetForDay venueConfig weekDate
-                        let targetPath = rosterWeekUrl selectedWeekOffset rosterGroup.id
-                        if isHtmxRequest
-                            then do
-                                setHtmxPushUrl targetPath
-                                renderRosterWeekPage selectedWeekOffset rosterGroup.id
-                            else redirectToPath targetPath
-                    Nothing ->
-                        renderRosterWeekPage weekOffset rosterGroup.id
-
-    action currentAction@ShowRosterDayTimelineAction { weekOffset, rosterDayId } = runBepis currentAction BepisPageAction do
-        rosterGroup <- resolveRequestedRosterGroup
-        maybeRosterData <- fetchVisibleRosterReadModel rosterGroup.id weekOffset
-        case maybeRosterData of
             Nothing -> do
-                setErrorMessage "Roster week not found."
-                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
-            Just rosterData -> do
-                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole Manager
-                accessDeniedUnless canViewTimeline
-                case find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays of
-                    Nothing -> do
-                        setErrorMessage "Roster day not found."
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
-                    Just rosterDay ->
-                        redirectToPath (rosterDayTimelineUrl weekOffset rosterGroup.id rosterDay.dayOffset)
+                clearImpersonationReturnFallback
+                renderNoRosterGroupPage
+            Just (rosterGroup, True) -> do
+                clearImpersonationReturnFallback
+                renderRosterWeekPage (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
+            Just (rosterGroup, False) ->
+                redirectToPath (rosterWindowUrl anchorDate rosterGroup.id)
 
-    action currentAction@ShowRosterDayTimelineContentFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterDayTimelineContentFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        maybeRosterData <- fetchVisibleRosterReadModel rosterGroup.id weekOffset
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        maybeRosterData <- fetchVisibleRosterReadModel scope
         case maybeRosterData of
             Nothing -> respondHtmlProfiled mempty
             Just rosterData -> do
-                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole Manager
+                let canViewTimeline = maybe False (.windowIsPublished) rosterData.rosterWeek || hasRole Manager
                 accessDeniedUnless canViewTimeline
                 let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
                 respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterData) maybeRosterDay)
 
-    action currentAction@ShowRosterWeekOverviewFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekOverviewFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        respondHtmlProfiled =<< renderRosterWeekOverviewFragment weekOffset rosterGroup.id
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        respondHtmlProfiled =<< renderRosterWeekOverviewFragment scope.rosterWindowStart rosterGroup.id
 
-    action currentAction@ShowRosterWeekContentFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekContentFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        respondWithRosterContent rosterGroup.id weekOffset
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        RosterResponses.respondWithRosterContent scope
 
-    action currentAction@ShowRosterWeekGridToolbarFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekGridToolbarFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        toolbarHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridToolbar
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        toolbarHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionGridToolbar
         respondHtmlProfiled (fromMaybe mempty toolbarHtml)
 
-    action currentAction@ShowRosterWeekGridFrameFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekGridFrameFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        frameHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionGridFrame
         respondHtmlProfiled (fromMaybe mempty frameHtml)
 
-    action currentAction@ShowRosterWeekDayColumnsFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekDayColumnsFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayColumns
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionDayColumns
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekDayRailFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekDayRailFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayRail
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionDayRail
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekWageRailFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekWageRailFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionWageRail
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionWageRail
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekSlotsGridFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekSlotsGridFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionSlotsGrid
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionSlotsGrid
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekStaffPanelFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekStaffPanelFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
         panelScope <- case parseRosterStaffPanelScope of
             Left errorMessage -> setErrorMessage errorMessage >> pure RosterStaffPanelCurrentGroup
             Right scope -> pure scope
-        panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
+        panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope scope
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
 
-    action currentAction@ShowRosterNotificationConfirmationAction { rosterWeekId } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterNotificationConfirmationAction = runBepis currentAction BepisFragmentAction do
         ensureManagerRole
         notificationFields <- case RosterAction.parseShowRosterNotificationConfirmationActionParams of
             Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
             Right fields -> pure fields
-        accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        accessDeniedUnless rosterWeek.isLive
-        rosterGroup <- query @RosterGroup
-            |> filterWhere (#id, Id rosterWeek.rosterGroupId)
+        let rosterGroupId = Id (surfaceFieldValue @Surface.RosterGroupId notificationFields)
+        let windowStart = surfaceFieldValue @Surface.WindowStartDate notificationFields
+        let windowEnd = surfaceFieldValue @Surface.WindowEndDate notificationFields
+        let expectedCalendarRevision = surfaceFieldValue @Surface.RosterCalendarRevision notificationFields
+        maybeRosterGroup <- query @RosterGroup
+            |> filterWhere (#id, rosterGroupId)
             |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchOne
-        venue <- fetch currentVenueId
+            |> fetchOneOrNothing
+        accessDeniedUnless (isJust maybeRosterGroup)
+        let rosterGroup = fromMaybe (error "authorized notification roster group missing") maybeRosterGroup
         venueConfig <- fetchVenueConfig
+        accessDeniedUnless (expectedCalendarRevision == venueConfig.rosterCalendarRevision)
+        accessDeniedUnless (windowStart == startOfWeekFor venueConfig.rosterWeekStartsOn windowStart && windowEnd == Calendar.addDays 7 windowStart)
+        rosterDays <- fetchRosterNotificationWindowDays currentVenueId rosterGroup.id windowStart windowEnd
+        accessDeniedUnless (rosterDaysArePublished rosterDays && length rosterDays == 7)
+        venue <- fetch currentVenueId
         audience <- Notification.fetchRosterNotificationAudience venue rosterGroup
-        latestRun <- Notification.fetchLatestRosterNotificationRunSummary rosterWeek
-        let weekStart = venueWeekStartDate venueConfig rosterWeek.weekOffset
-        respondHtmlProfiled (renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audience latestRun)
+        latestRun <- Notification.fetchLatestRosterNotificationRunSummaryForWindow currentVenueId rosterGroup.id windowStart windowEnd
+        respondHtmlProfiled (renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd expectedCalendarRevision audience latestRun)
 
-    action currentAction@CreateRosterNotificationRunAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateRosterNotificationRunAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         notificationFields <- case RosterAction.parseCreateRosterNotificationRunActionParams of
             Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
             Right fields -> pure fields
-        accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        accessDeniedUnless rosterWeek.isLive
-        let rosterGroupId = Id rosterWeek.rosterGroupId
-        runResult <- Notification.createRosterNotificationRunUnlessActive currentUser rosterWeek
+        let rosterGroupId = Id (surfaceFieldValue @Surface.RosterGroupId notificationFields)
+        let windowStart = surfaceFieldValue @Surface.WindowStartDate notificationFields
+        let windowEnd = surfaceFieldValue @Surface.WindowEndDate notificationFields
+        let expectedCalendarRevision = surfaceFieldValue @Surface.RosterCalendarRevision notificationFields
+        maybeRosterGroup <- query @RosterGroup
+            |> filterWhere (#id, rosterGroupId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOneOrNothing
+        accessDeniedUnless (isJust maybeRosterGroup)
+        let rosterGroup = fromMaybe (error "authorized notification roster group missing") maybeRosterGroup
+        venueConfig <- fetchVenueConfig
+        accessDeniedUnless (expectedCalendarRevision == venueConfig.rosterCalendarRevision)
+        accessDeniedUnless (windowStart == startOfWeekFor venueConfig.rosterWeekStartsOn windowStart && windowEnd == Calendar.addDays 7 windowStart)
+        venue <- fetch currentVenueId
+        let scope = RosterWindowScope
+                { rosterWindowVenueId = currentVenueId
+                , rosterWindowRosterGroupId = rosterGroupId
+                , rosterWindowStart = windowStart
+                , rosterWindowEnd = windowEnd
+                , rosterWindowCalendarRevision = expectedCalendarRevision
+                }
+        runResult <- Notification.createRosterNotificationRunForWindowUnlessActiveAtRevision currentUser venue rosterGroup windowStart windowEnd expectedCalendarRevision
         case runResult of
+            Notification.RosterNotificationRunCalendarConflict ->
+                markStaleRosterCalendarResponseForRefresh >> respondRosterNotificationBadRequest "The roster calendar changed. Review the refreshed window and try again."
             Notification.RosterNotificationRunAlreadyActive ->
                 if isHtmxRequest
-                    then respondWithRosterFragments
-                        rosterGroupId
-                        rosterWeek.weekOffset
-                        [RosterProjectionStaffPanel]
-                        [hsx|
-                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
-                            {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
-                        |]
-                    else do
-                        setErrorMessage "Roster email delivery is already in progress."
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
+                        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                        {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
+                    |]
+                    else setErrorMessage "Roster email delivery is already in progress." >> redirectToRosterWindow scope
             Notification.RosterNotificationRunHasNoEligibleRecipients ->
                 if isHtmxRequest
-                    then respondWithRosterFragments
-                        rosterGroupId
-                        rosterWeek.weekOffset
-                        [RosterProjectionStaffPanel]
-                        [hsx|
-                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
-                            {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
-                        |]
-                    else do
-                        setErrorMessage "No eligible recipients are available."
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
+                        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                        {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
+                    |]
+                    else setErrorMessage "No eligible recipients are available." >> redirectToRosterWindow scope
             Notification.RosterNotificationRunCreated run -> do
                 recipients <- Notification.decodeRosterNotificationRecipients run
                 skippedRecipients <- Notification.decodeRosterNotificationSkippedRecipients run
-                let queuedCount = length recipients
-                let skippedCount = length skippedRecipients
-                let successMessage =
-                        "Roster email queued for "
-                            <> Notification.rosterNotificationRecipientCountLabel queuedCount
-                            <> ". "
-                            <> tshow skippedCount
-                            <> " skipped"
-                            <> "."
+                let successMessage = "Roster email queued for " <> Notification.rosterNotificationRecipientCountLabel (length recipients) <> ". " <> tshow (length skippedRecipients) <> " skipped."
                 if isHtmxRequest
                     then respondWithRosterResourceInvalidation
-                        rosterGroupId
-                        rosterWeek.weekOffset
-                        (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) rosterWeek.weekOffset))
+                        scope
+                        (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) run.weekStart run.windowEnd))
                         [RosterProjectionStaffPanel]
                         [hsx|
                             <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
                             {renderToastOob ToastBottomCenter (successToast successMessage)}
                         |]
-                    else do
-                        setSuccessMessage successMessage
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    else setSuccessMessage successMessage >> redirectToRosterWindow scope
 
-    action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
-        rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        daySectionHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
+    action currentAction@ShowRosterWeekDaySectionFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        scope <- rosterWindowScopeForFragmentRosterDay anchorDate rosterDayId
+        daySectionHtml <- renderVisibleRosterReadModelFragment scope (RosterProjectionDaySection (unpackId rosterDayId))
         respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
-    action currentAction@ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
-        rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        rowHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow (unpackId rosterDayId) rowIndex)
+    action currentAction@ShowRosterWeekRowFragmentAction { anchorDate = anchorDateParam, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        scope <- rosterWindowScopeForFragmentRosterDay anchorDate rosterDayId
+        rowHtml <- renderVisibleRosterReadModelFragment scope (RosterProjectionRow (unpackId rosterDayId) rowIndex)
         respondHtmlProfiled (fromMaybe mempty rowHtml)
 
-    action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
+    action currentAction@UpdateRosterAssignmentFiltersAction = runBepis currentAction BepisPreferenceAction do
         ensureManagerRole
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterActionScope rosterGroup.id
         case RosterAction.parseToggleRosterAssignmentFiltersActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
@@ -437,7 +463,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                        redirectToRosterWindow scope
             Right fields -> do
                 setRosterAssignmentFiltersSession RosterAssignmentFilters
                     { hideStaffAtIdealShifts = surfaceFieldValue @Surface.HideStaffAtIdealShifts fields
@@ -447,313 +473,313 @@ instance Controller RosterWeeksController where
                     }
                 respondHtmlProfiled mempty
 
-    action currentAction@CreateRosterWeekAction { weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateRosterWeekAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        mutationResult <- ensureRosterWeekExistsMutation rosterGroup.id weekOffset
-        let (rosterWeek, wasCreated) = mutationResult.liveMutationValue
+        scope <- rosterMutationScope rosterGroup.id
+        result <- ensureRosterWeekExistsMutation scope
+        case result of
+            Left message -> respondToRosterSlotDefinitionError scope message
+            Right mutationResult -> do
+                let (_, wasCreated) = mutationResult.liveMutationValue
+                let successMessage =
+                        if wasCreated
+                            then "Roster week created successfully"
+                            else "Roster week already exists."
+                let targetPath = rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId
+                if isHtmxRequest
+                    then do
+                        setHtmxPushUrl targetPath
+                        respondWithRosterContentUpdate scope mutationResult.liveMutationTouchedResources successMessage
+                    else do
+                        setSuccessMessage successMessage
+                        redirectToPath targetPath
 
-        let successMessage =
-                if wasCreated
-                    then "Roster week created successfully"
-                    else "Roster week already exists."
-        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroup.id
-        if isHtmxRequest
-            then do
-                setHtmxPushUrl targetPath
-                respondWithRosterContentUpdate rosterGroup.id rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
-            else do
-                setSuccessMessage successMessage
-                redirectToPath targetPath
-
-    action currentAction@CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@CopyRosterWeekAction = runBepis currentAction BepisMutationAction do
+        (sourceWindowStart, targetWindowStart) <- rosterCopyActionDates
+        venueConfig <- fetchVenueConfig
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
+        let sourceScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id sourceWindowStart
+            targetScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id targetWindowStart
 
-        if sourceWeekOffset == targetWeekOffset
+        if sourceWindowStart == targetWindowStart
             then do
                 let errorMessage = "Cannot copy a roster week onto itself."
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (rosterWeekUrl targetWeekOffset rosterGroup.id)
+                        redirectToRosterWindow targetScope
             else do
-                sourceWeekOrNothing <- query @RosterWeek
+                sourceDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId currentVenueId)
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-                    |> filterWhere (#weekOffset, sourceWeekOffset)
-                    |> fetchOneOrNothing
-                case sourceWeekOrNothing of
-                    Nothing -> do
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, sourceWindowStart)
+                    |> filterWhereLessThan (#operationalDate, Calendar.addDays 7 sourceWindowStart)
+                    |> fetch
+                case sourceDays of
+                    [] -> do
                         let errorMessage = "Source week not found. Cannot copy."
                         if isHtmxRequest
                             then respondWithRosterToast errorMessage "app-toast-error"
                             else do
                                 setErrorMessage errorMessage
-                                redirectToPath (rosterWeekUrl targetWeekOffset rosterGroup.id)
-                    Just sourceWeek ->
+                                redirectToRosterWindow targetScope
+                    _ ->
                         case copyOccurrenceSelectionsFromRosterAction of
-                            Left message -> respondWithRosterCopyFailure rosterGroup.id targetWeekOffset message
+                            Left message -> respondWithRosterCopyFailure targetScope message
                             Right selections -> do
-                                copyResult <- copyRosterWeekFromSourceMutation selections rosterGroup.id sourceWeek targetWeekOffset
+                                copyResult <- copyRosterWindowFromSourceMutation selections rosterGroup.id sourceWindowStart targetWindowStart
                                 case copyResult of
                                     Left (RosterWeekCopyPersistenceError message) ->
-                                        respondWithRosterCopyFailure rosterGroup.id targetWeekOffset message
+                                        respondWithRosterCopyFailure targetScope message
                                     Left (RosterWeekCopyBoundaryError failure) -> do
                                         venueConfig <- fetchVenueConfig
-                                        (startIsRepeated, endIsRepeated) <- rosterWeekCopyAmbiguousEndpoints venueConfig sourceWeek targetWeekOffset
+                                        (startIsRepeated, endIsRepeated) <- rosterWindowCopyAmbiguousEndpoints venueConfig currentVenueId rosterGroup.id sourceWindowStart targetWindowStart
                                         case failure of
                                             BoundaryCivilTimeError (RepeatedCivilTimeRequiresOccurrence _)
                                                 | startIsRepeated || endIsRepeated ->
-                                                    respondWithRosterCopyOccurrenceDialog rosterGroup.id sourceWeekOffset targetWeekOffset startIsRepeated endIsRepeated selections
-                                            _ -> respondWithRosterCopyFailure rosterGroup.id targetWeekOffset (rosterCopyBoundaryErrorMessage failure)
+                                                    respondWithRosterCopyOccurrenceDialog sourceScope targetScope startIsRepeated endIsRepeated selections
+                                            _ -> respondWithRosterCopyFailure targetScope (rosterCopyBoundaryErrorMessage failure)
                                     Right mutationResult -> do
                                         let successMessage = "Roster week copied from the previous week."
-                                        let targetPath = rosterWeekUrl targetWeekOffset rosterGroup.id
+                                        let targetPath = rosterWindowUrl targetScope.rosterWindowStart targetScope.rosterWindowRosterGroupId
                                         if isHtmxRequest
                                             then do
                                                 setHtmxPushUrl targetPath
-                                                respondWithRosterContentUpdate rosterGroup.id targetWeekOffset mutationResult.liveMutationTouchedResources successMessage
+                                                respondWithRosterContentUpdate targetScope mutationResult.liveMutationTouchedResources successMessage
                                             else do
                                                 setSuccessMessage successMessage
                                                 redirectToPath targetPath
 
-    action currentAction@ToggleRosterWeekLiveStatusAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@ToggleRosterWeekLiveStatusAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
+        window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+        let windowState = RosterWindowState
+                { windowRosterGroupId = unpackId rosterGroup.id
+                , windowIsPublished = rosterDaysArePublished (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
+                }
+        let targetPath = rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId
         case RosterAction.parseToggleRosterWeekLiveStatusActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
-                    then respondWithRosterContentError rosterGroupId rosterWeek.weekOffset errorMessage
+                    then respondWithRosterContentError scope errorMessage
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                        redirectToPath targetPath
             Right fields -> do
                 let nextLiveStatus = surfaceFieldValue @Surface.IsLive fields
-                mutationResult <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
+                mutationResult <- toggleRosterWeekLiveStatusMutation scope windowState nextLiveStatus
                 case mutationResult of
                     Left errorMessage ->
                         if isHtmxRequest
-                            then respondWithRosterContentError rosterGroupId rosterWeek.weekOffset errorMessage
+                            then respondWithRosterContentError scope errorMessage
                             else do
                                 setErrorMessage errorMessage
-                                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                                redirectToPath targetPath
                     Right mutationResult -> do
                         let successMessage =
                                 if nextLiveStatus
-                                    then "Roster week is now live. Timesheet suggestions are available immediately."
-                                    else "Roster week moved back to draft. Timesheet suggestions are hidden."
-                        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
+                                    then "Roster window Published. Timesheet suggestions are available immediately."
+                                    else "Roster window returned to Draft. Timesheet suggestions are hidden."
                         if isHtmxRequest
                             then do
                                 setHtmxPushUrl targetPath
-                                respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
+                                respondWithRosterContentUpdate scope mutationResult.liveMutationTouchedResources successMessage
                             else do
                                 setSuccessMessage successMessage
                                 redirectToPath targetPath
 
-    action currentAction@CreateRosterWeekSlotDefinitionAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateRosterWeekSlotDefinitionAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        requestedSlotName <- resolveRosterSlotDefinitionNameForCreate rosterWeek
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
+        window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+        let existingNames = map (.rosterWindowLaneName) window.rosterWindowLanes
+            submittedName = Text.strip (paramOrDefault @Text "" "name")
+            requestedSlotName = if Text.null submittedName
+                then Right (firstAvailableDefaultName existingNames)
+                else normalizeRosterSlotDefinitionName submittedName
         case requestedSlotName of
-            Left errorMessage -> respondToRosterSlotDefinitionError rosterWeek errorMessage
-            Right slotName -> do
-                duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName
-                case duplicate of
-                    Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
-                    Nothing -> do
-                        mutationResult <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
-                        respondToRosterSlotDefinitionSuccess rosterWeek mutationResult "Roster column added."
+            Left errorMessage -> respondToRosterSlotDefinitionError scope errorMessage
+            Right laneName -> do
+                result <- appendRosterWindowLaneMutation scope laneName
+                case result of
+                    Left errorMessage -> respondToRosterSlotDefinitionError scope errorMessage
+                    Right mutationResult -> respondToRosterSlotDefinitionSuccess scope mutationResult "Roster column added."
 
-    action currentAction@DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
+    action currentAction@RemoveRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        slotDefinition <- fetch rosterWeekSlotDefinitionId
-        rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        activeDefinitions <- query @RosterWeekSlotDefinition
-            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        rosterLane <- query @RosterLane
+            |> filterWhere (#id, rosterWeekSlotDefinitionId)
             |> filterWhere (#deletedAt, Nothing)
-            |> fetch
-        if length activeDefinitions <= 1
-            then respondToRosterSlotDefinitionError rosterWeek "Roster weeks need at least one column."
-            else do
-                let rosterGroupId = coerce rosterWeek.rosterGroupId
-                mutationResult <- removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition
-                respondToRosterSlotDefinitionSuccess rosterWeek mutationResult "Roster column removed."
+            |> fetchOne
+        rosterDay <- query @RosterDay
+            |> filterWhere (#id, Id rosterLane.rosterDayId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOne
+        accessDeniedUnless (rosterDay.publicationState == Draft)
+        let rosterGroupId = Id rosterDay.rosterGroupId
+        scope <- rosterMutationScope rosterGroupId
+        accessDeniedUnless (rosterDay.operationalDate >= scope.rosterWindowStart && rosterDay.operationalDate < scope.rosterWindowEnd)
+        result <- removeRosterWindowLaneMutation scope rosterLane.id
+        case result of
+            Left errorMessage -> respondToRosterSlotDefinitionError scope errorMessage
+            Right mutationResult -> respondToRosterSlotDefinitionSuccess scope mutationResult "Roster column removed."
 
-    action currentAction@SortRosterWeekAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@SortRosterWeekAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        mutationResult <- repackRosterWeekMutation rosterWeek
-
-        if isHtmxRequest
-            then
-                respondWithRosterResourceInvalidation
-                    rosterGroupId
-                    rosterWeek.weekOffset
-                    mutationResult.liveMutationTouchedResources
-                    rosterGridInnerAndStaffPanelFragments
-                    clearDialogOverlayOob
-            else do
-                setSuccessMessage "Roster sorted."
-                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
+        repackRosterWindowMutation scope >>= \case
+            Left errorMessage -> respondToRosterSlotDefinitionError scope errorMessage
+            Right mutationResult ->
+                if isHtmxRequest
+                    then
+                        respondWithRosterResourceInvalidation
+                            scope
+                            mutationResult.liveMutationTouchedResources
+                            rosterGridInnerAndStaffPanelFragments
+                            clearDialogOverlayOob
+                    else do
+                        setSuccessMessage "Roster sorted."
+                        redirectToRosterWindow scope
 
     action currentAction@ToggleRosterDayClosedAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
 
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        scope <- rosterMutationScopeForDay rosterDay
+        ensureRosterDayIsDraftForEdit scope rosterDay
         let nextClosedState = not rosterDay.isClosed
 
-        mutationResult <- toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState closedRosterDayRows
-
-        let successMessage =
-                if nextClosedState
-                    then "Roster day marked closed."
-                    else "Roster day reopened."
-        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
-        if isHtmxRequest
-            then do
-                mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
-                setHtmxPushUrl targetPath
-                respondWithRosterResourceInvalidation
-                    rosterGroupId
-                    rosterWeek.weekOffset
-                    mutationResult.liveMutationTouchedResources
-                    mountedProjections
-                    clearDialogOverlayOob
-            else do
-                setSuccessMessage successMessage
-                redirectToPath targetPath
+        toggleRosterDayClosedMutation scope rosterDay nextClosedState closedRosterDayRows >>= \case
+            Left errorMessage -> respondToRosterSlotDefinitionError scope errorMessage
+            Right mutationResult -> do
+                let successMessage =
+                        if nextClosedState
+                            then "Roster day marked closed."
+                            else "Roster day reopened."
+                let targetPath = rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId
+                if isHtmxRequest
+                    then do
+                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
+                        setHtmxPushUrl targetPath
+                        respondWithRosterResourceInvalidation
+                            scope
+                            mutationResult.liveMutationTouchedResources
+                            mountedProjections
+                            clearDialogOverlayOob
+                    else do
+                        setSuccessMessage successMessage
+                        redirectToPath targetPath
 
     action currentAction@AddRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
 
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        scope <- rosterMutationScopeForDay rosterDay
+        ensureRosterDayIsDraftForEdit scope rosterDay
 
         when rosterDay.isClosed do
-            let rosterGroupId = coerce rosterWeek.rosterGroupId
             let errorMessage = "Closed days stay locked at two blank rows until reopened."
             if isHtmxRequest
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
                     setErrorMessage errorMessage
-                    redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    redirectToRosterWindow scope
 
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        slotTemplate <- fetchRosterWeekSlotTemplate rosterWeek
+        activeLanes <- query @RosterLane
+            |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> fetch
 
-        if null slotTemplate
+        if null activeLanes
             then do
                 let errorMessage = "Add at least one active slot to the selected roster group before adding roster rows."
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-            else do
-                mutationResult <- addRosterDayRowMutation rosterGroupId rosterWeek rosterDay
-
-                if isHtmxRequest
-                    then do
-                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
-                        respondWithRosterResourceInvalidation
-                            rosterGroupId
-                            rosterWeek.weekOffset
-                            mutationResult.liveMutationTouchedResources
-                            mountedProjections
-                            clearDialogOverlayOob
-                    else do
-                        setSuccessMessage "Roster row added."
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                        redirectToRosterWindow scope
+            else
+                addRosterDayRowMutation scope rosterDay >>= \case
+                    Left errorMessage -> respondToRosterSlotDefinitionError scope errorMessage
+                    Right mutationResult ->
+                        if isHtmxRequest
+                            then do
+                                mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
+                                respondWithRosterResourceInvalidation
+                                    scope
+                                    mutationResult.liveMutationTouchedResources
+                                    mountedProjections
+                                    clearDialogOverlayOob
+                            else do
+                                setSuccessMessage "Roster row added."
+                                redirectToRosterWindow scope
 
     action currentAction@RemoveRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
 
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        scope <- rosterMutationScopeForDay rosterDay
+        ensureRosterDayIsDraftForEdit scope rosterDay
 
         when rosterDay.isClosed do
-            let rosterGroupId = coerce rosterWeek.rosterGroupId
             let errorMessage = "Closed days stay locked at two blank rows until reopened."
             if isHtmxRequest
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
                     setErrorMessage errorMessage
-                    redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    redirectToRosterWindow scope
 
         let rowCount = rosterDay.rowCount
         let confirmDeletePopulatedRow = paramOrDefault @Text "false" "confirmDeletePopulatedRow" == "true"
 
         when (rowCount <= minimumOpenRosterRows) do
-            let rosterGroupId = coerce rosterWeek.rosterGroupId
             let errorMessage = "Roster days must keep at least two rows."
             if isHtmxRequest
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
                     setErrorMessage errorMessage
-                    redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    redirectToRosterWindow scope
 
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        activeDefinitions <- fetchRosterWeekOrderedSlotNames rosterWeek
-        preview <- previewRemoveRosterRowPacking rosterDay activeDefinitions
-        if preview.removeRosterRowOverflowCount > 0 && not confirmDeletePopulatedRow
+        preview <- previewRemoveRosterDayRowByLanes rosterDay
+        if preview.laneRowRemovalOverflowCount > 0 && not confirmDeletePopulatedRow
             then respondWithRemoveRosterRowConfirmation rosterDay preview
-            else do
-                mutationResult <- removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions
+            else
+                removeRosterDayRowByLanesMutation scope rosterDay >>= \case
+                    Left errorMessage -> respondToRosterSlotDefinitionError scope errorMessage
+                    Right mutationResult ->
+                        if isHtmxRequest
+                            then do
+                                mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
+                                respondWithRosterResourceInvalidation
+                                    scope
+                                    mutationResult.liveMutationTouchedResources
+                                    mountedProjections
+                                    clearDialogOverlayOob
+                            else do
+                                setSuccessMessage "Roster row removed."
+                                redirectToRosterWindow scope
 
-                if isHtmxRequest
-                    then do
-                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
-                        respondWithRosterResourceInvalidation
-                            rosterGroupId
-                            rosterWeek.weekOffset
-                            mutationResult.liveMutationTouchedResources
-                            mountedProjections
-                            clearDialogOverlayOob
-                    else do
-                        setSuccessMessage "Roster row removed."
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-
-    action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@UpdateRosterLayoutPreferenceAction = runBepis currentAction BepisPreferenceAction do
         ensureManagerRole
-        ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
         let requestedLayoutMode =
                 case RosterIntent.parseSetRosterLayoutModeIntentParams of
                     Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
@@ -766,344 +792,377 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                        redirectToRosterWindow scope
             Right layoutMode -> do
                 venueConfig <- fetchVenueConfig
                 mutationResult <- setVenueRosterLayoutMode venueConfig layoutMode
                 if isHtmxRequest
                     then respondWithRosterResourceInvalidation
-                        rosterGroup.id
-                        weekOffset
+                        scope
                         mutationResult.liveMutationTouchedResources
                         rosterGridStructuralAndStaffPanelFragments
                         (renderToastOob ToastBottomCenter (successToast "Venue roster layout saved."))
                     else do
                         setSuccessMessage "Venue roster layout saved."
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                        redirectToRosterWindow scope
 
-    action currentAction@MoveRosterShiftToSlotAction { weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@MoveRosterShiftToSlotAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
         case RosterIntent.parseMoveRosterShiftToSlotIntentParams of
-            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Left errors -> respondWithMoveRosterShiftFailure scope (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
                 if parseRosterShiftDropDestinationToken targetToken == Just DeleteRosterShiftDestination
                     then do
-                        result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset sourceToken targetToken
+                        result <- validateRosterShiftDeleteDropIntent scope sourceToken targetToken
                         case result of
-                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+                            Left message -> respondWithMoveRosterShiftFailure scope message
+                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
                     else do
-                        result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset sourceToken targetToken
+                        result <- validateMoveRosterShiftIntent scope sourceToken targetToken
                         case result of
-                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
+                            Left message -> respondWithMoveRosterShiftFailure scope message
+                            Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp scope
                             Right resultValue@MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
                                 let startOccurrenceValue = surfaceFieldValue @Surface.CopyStartOccurrence fields
                                 let endOccurrenceValue = surfaceFieldValue @Surface.CopyEndOccurrence fields
                                 case copyOccurrenceSelectionsFromValues startOccurrenceValue endOccurrenceValue of
-                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                    Left message -> respondWithMoveRosterShiftFailure scope message
                                     Right selections -> do
                                         boundaryResolution <- resolveRosterDayDropBoundaries resultValue selections
-                                        let intentForm = rosterMoveShiftIntentForm weekOffset rosterGroup.id sourceToken targetToken Nothing Nothing
+                                        let intentForm = rosterMoveShiftIntentForm scope.rosterWindowStart rosterGroup.id (surfaceFieldValue @Surface.RosterCalendarRevision fields) sourceToken targetToken Nothing Nothing
                                         let occurrenceFields = (surfaceFieldNameFrom @Surface.CopyStartOccurrence fields, surfaceFieldNameFrom @Surface.CopyEndOccurrence fields)
                                         case boundaryResolution of
                                             RosterDayDropBoundaryFailure repeatedEndpoints failure ->
-                                                respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
-                                            RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot -> do
+                                                respondWithRosterSlotCopyBoundaryFailure scope "move" intentForm occurrenceFields repeatedEndpoints selections failure
+                                            RosterDayDropBoundaryReady copiedBoundariesSlot -> do
                                                 let updatedSlot = copiedBoundariesSlot
                                                         |> set #rosterDayId (unpackId targetRosterDay.id)
-                                                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                                        |> set #rosterLaneId (unpackId targetSlotDefinition.id)
                                                         |> set #slotSortOrder targetSlotDefinition.sortOrder
                                                         |> set #rowIndex targetRowIndex
-                                                mutationResult <- moveRosterSlotMutation rosterGroup.id targetRosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
+                                                mutationResult <- moveRosterSlotMutation scope sourceRosterDay targetRosterDay sourceSlot updatedSlot
                                                 case mutationResult of
-                                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                                    Left message -> respondWithMoveRosterShiftFailure scope message
                                                     Right mutationResult -> do
                                                         let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
                                                         let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
-                                                        respondToRosterSlotMove rosterGroup.id targetRosterWeek mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
+                                                        respondToRosterSlotMove scope mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
 
-    action currentAction@MoveRosterTimelineShiftAction { weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@MoveRosterTimelineShiftAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
         case RosterIntent.parseMoveRosterTimelineShiftIntentParams of
-            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Left errors -> respondWithMoveRosterShiftFailure scope (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
-                result <- validateMoveRosterTimelineShiftIntent rosterGroup.id weekOffset sourceToken targetToken
+                result <- validateMoveRosterTimelineShiftIntent scope sourceToken targetToken
                 case result of
-                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                    Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
+                    Left message -> respondWithMoveRosterShiftFailure scope message
+                    Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp scope
                     Right resultValue@MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex } -> do
                         let startOccurrenceValue = fromMaybe "" (surfaceFieldValue @Surface.TimelineStartOccurrence fields)
                         boundaryResolution <- resolveRosterTimelineDropBoundaries resultValue startOccurrenceValue
-                        let intentForm = rosterTimelineMoveShiftIntentForm weekOffset rosterGroup.id timelineTargetRosterDay.dayOffset sourceToken targetToken Nothing
+                        let calendarRevision = surfaceFieldValue @Surface.RosterCalendarRevision fields
+                        let intentForm = rosterTimelineMoveShiftIntentForm scope.rosterWindowStart rosterGroup.id timelineTargetRosterDay.operationalDate calendarRevision sourceToken targetToken Nothing
                         let startOccurrenceField = surfaceFieldNameFrom @Surface.TimelineStartOccurrence fields
                         let occurrenceFields = (startOccurrenceField, startOccurrenceField)
                         case boundaryResolution of
-                            RosterTimelineDropInvalid message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            RosterTimelineDropInvalid message -> respondWithMoveRosterShiftFailure scope message
                             RosterTimelineDropBoundaryFailure repeatedEndpoints selections failure ->
-                                respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "move" intentForm occurrenceFields repeatedEndpoints selections failure
-                            RosterTimelineDropBoundaryReady rosterWeek boundaries -> do
+                                respondWithRosterSlotCopyBoundaryFailure scope "move" intentForm occurrenceFields repeatedEndpoints selections failure
+                            RosterTimelineDropBoundaryReady boundaries -> do
                                 let updatedSlot = timelineSourceSlot
                                         |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
-                                        |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
+                                        |> set #rosterLaneId (unpackId timelineTargetSlotDefinition.id)
                                         |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
                                         |> set #rowIndex timelineTargetRowIndex
                                         |> applyRosterSlotBoundaries boundaries
-                                mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
+                                mutationResult <- moveRosterSlotMutation scope timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
                                 case mutationResult of
-                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                    Left message -> respondWithMoveRosterShiftFailure scope message
                                     Right mutationResult -> do
                                         let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                        respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
+                                        respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged
 
-    action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@DuplicateRosterShiftToDayAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
         case RosterIntent.parseDuplicateRosterShiftToDayIntentParams of
-            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Left errors -> respondWithMoveRosterShiftFailure scope (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
                 if parseRosterShiftDropDestinationToken targetToken == Just DeleteRosterShiftDestination
                     then do
-                        result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset sourceToken targetToken
+                        result <- validateRosterShiftDeleteDropIntent scope sourceToken targetToken
                         case result of
-                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+                            Left message -> respondWithMoveRosterShiftFailure scope message
+                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
                     else do
-                        result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset sourceToken targetToken
+                        result <- validateDuplicateRosterShiftIntent scope sourceToken targetToken
                         case result of
-                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            Left message -> respondWithMoveRosterShiftFailure scope message
                             Right resultValue@MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
                                 let startOccurrenceValue = surfaceFieldValue @Surface.CopyStartOccurrence fields
                                 let endOccurrenceValue = surfaceFieldValue @Surface.CopyEndOccurrence fields
                                 case copyOccurrenceSelectionsFromValues startOccurrenceValue endOccurrenceValue of
-                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                    Left message -> respondWithMoveRosterShiftFailure scope message
                                     Right selections -> do
                                         boundaryResolution <- resolveRosterDayDropBoundaries resultValue selections
-                                        let intentForm = rosterDuplicateShiftIntentForm weekOffset rosterGroup.id sourceToken targetToken Nothing Nothing
+                                        let intentForm = rosterDuplicateShiftIntentForm scope.rosterWindowStart rosterGroup.id (surfaceFieldValue @Surface.RosterCalendarRevision fields) sourceToken targetToken Nothing Nothing
                                         let occurrenceFields = (surfaceFieldNameFrom @Surface.CopyStartOccurrence fields, surfaceFieldNameFrom @Surface.CopyEndOccurrence fields)
                                         case boundaryResolution of
                                             RosterDayDropBoundaryFailure repeatedEndpoints failure ->
-                                                respondWithRosterSlotCopyBoundaryFailure rosterGroup.id weekOffset "duplicate" intentForm occurrenceFields repeatedEndpoints selections failure
-                                            RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot ->
+                                                respondWithRosterSlotCopyBoundaryFailure scope "duplicate" intentForm occurrenceFields repeatedEndpoints selections failure
+                                            RosterDayDropBoundaryReady copiedBoundariesSlot ->
                                                 case copyRosterShiftAssignment sourceSlot (newRecord @RosterSlot) of
-                                                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                                    Left message -> respondWithMoveRosterShiftFailure scope message
                                                     Right assignmentSlot -> do
                                                         let copiedSlot = assignmentSlot
                                                                 |> set #rosterDayId (unpackId targetRosterDay.id)
-                                                                |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                                                |> set #rosterLaneId (unpackId targetSlotDefinition.id)
                                                                 |> set #slotSortOrder targetSlotDefinition.sortOrder
                                                                 |> set #rowIndex targetRowIndex
                                                                 |> set #startsAt copiedBoundariesSlot.startsAt
                                                                 |> set #endsAt copiedBoundariesSlot.endsAt
                                                                 |> set #timezone copiedBoundariesSlot.timezone
                                                                 |> set #shiftTypeId sourceSlot.shiftTypeId
-                                                        mutationResult <- saveRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay Nothing copiedSlot
+                                                        mutationResult <- saveRosterSlotMutation scope targetRosterDay Nothing copiedSlot
                                                         case mutationResult of
-                                                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                                                            Left message -> respondWithMoveRosterShiftFailure scope message
                                                             Right mutationResult ->
-                                                                respondToRosterSlotMutation rosterGroup.id targetRosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
+                                                                respondToRosterSlotMutation scope targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
 
-    action currentAction@DropRosterStaffAction { weekOffset } = runBepis currentAction BepisMutationAction do
+    action currentAction@DropRosterStaffAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterMutationScope rosterGroup.id
         case RosterIntent.parseDropRosterStaffIntentParams of
-            Left errors -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset (rosterSurfaceRequestErrorMessage errors)
+            Left errors -> respondWithMoveRosterShiftFailure scope (rosterSurfaceRequestErrorMessage errors)
             Right fields -> do
                 let sourceToken = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetToken = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
-                result <- validateRosterStaffDropIntent rosterGroup.id weekOffset sourceToken targetToken
+                result <- validateRosterStaffDropIntent scope sourceToken targetToken
                 case result of
-                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                    Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
+                    Left message -> respondWithMoveRosterShiftFailure scope message
+                    Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay } -> do
                         let updatedSlot = staffDropSlot |> applyRosterShiftAssignment (StaffAssignment staffDropStaff.id)
-                        mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
+                        mutationResult <- updateRosterSlotMutation scope staffDropRosterDay staffDropSlot updatedSlot False
                         case mutationResult of
-                            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                            Left message -> respondWithMoveRosterShiftFailure scope message
                             Right mutationResult -> do
                                 let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
+                                respondToRosterSlotMutation scope staffDropRosterDay updatedSlot.rowIndex mutationResult $
                                     if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
-                    Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } -> do
+                    Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropSlotDefinition, staffDropRowIndex } -> do
                         payInvalidStaffIds <- fetchStaffPayConfigurationRequiredIds [staffDropStaff]
                         if coerce staffDropStaff.id `Set.member` payInvalidStaffIds
-                            then respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Resolve pay configuration for the selected staff member before adding a roster shift."
-                            else respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftSelectedAssignment = Just (StaffAssignment staffDropStaff.id) }
+                            then respondWithMoveRosterShiftFailure scope "Resolve pay configuration for the selected staff member before adding a roster shift."
+                            else respondWithRosterShiftCreateDialogOob scope staffDropRosterDay staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftSelectedAssignment = Just (StaffAssignment staffDropStaff.id) }
 
-    action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
-        runBepis currentAction BepisMutationAction do
-            ensureManagerRole
-            rosterGroup <- resolveRequestedRosterGroup
-            case RosterAction.parseToggleRosterWarningsActionParams of
-                Left errors -> do
-                    let errorMessage = rosterSurfaceRequestErrorMessage errors
-                    if isHtmxRequest
-                        then respondWithRosterToast errorMessage "app-toast-error"
-                        else setErrorMessage errorMessage >> redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
-                Right fields -> do
-                    _ <- upsertCurrentUserShowRosterWarnings (surfaceFieldValue @Surface.ShowRosterWarnings fields)
-                    if isHtmxRequest
-                        then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster warning preference saved.")
-                        else do
-                            setSuccessMessage "Roster warning preference saved."
-                            redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+    action currentAction@UpdateRosterWarningPreferenceAction = runBepis currentAction BepisMutationAction do
+        ensureManagerRole
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterActionScope rosterGroup.id
+        case RosterAction.parseToggleRosterWarningsActionParams of
+            Left errors -> do
+                let errorMessage = rosterSurfaceRequestErrorMessage errors
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else setErrorMessage errorMessage >> redirectToRosterWindow scope
+            Right fields -> do
+                _ <- upsertCurrentUserShowRosterWarnings (surfaceFieldValue @Surface.ShowRosterWarnings fields)
+                if isHtmxRequest
+                    then respondWithRosterFragmentsUpdate scope rosterGridStructuralAndStaffPanelFragments (successToast "Roster warning preference saved.")
+                    else do
+                        setSuccessMessage "Roster warning preference saved."
+                        redirectToRosterWindow scope
 
-    action currentAction@UpdateRosterWageEstimatePreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
+    action currentAction@UpdateRosterWageEstimatePreferenceAction = runBepis currentAction BepisPreferenceAction do
         accessDeniedUnless (hasRole VenueAdmin)
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterActionScope rosterGroup.id
         case RosterAction.parseToggleRosterWageEstimatesActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
-                    else setErrorMessage errorMessage >> redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                    else setErrorMessage errorMessage >> redirectToRosterWindow scope
             Right fields -> do
                 _ <- upsertCurrentUserShowWageEstimates (surfaceFieldValue @Surface.ShowWageEstimates fields)
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster wage estimate preference saved.")
+                    then respondWithRosterFragmentsUpdate scope rosterGridStructuralAndStaffPanelFragments (successToast "Roster wage estimate preference saved.")
                     else do
                         setSuccessMessage "Roster wage estimate preference saved."
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                        redirectToRosterWindow scope
 
-    action currentAction@UpdateRosterOwnLiveShiftHighlightPreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
+    action currentAction@UpdateRosterOwnLiveShiftHighlightPreferenceAction = runBepis currentAction BepisPreferenceAction do
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterActionScope rosterGroup.id
         case RosterAction.parseToggleRosterOwnLiveShiftHighlightActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
-                    else setErrorMessage errorMessage >> redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                    else setErrorMessage errorMessage >> redirectToRosterWindow scope
             Right fields -> do
                 _ <- upsertCurrentUserHighlightOwnLiveShifts (surfaceFieldValue @Surface.HighlightOwnLiveShifts fields)
                 if isHtmxRequest
-                    then respondWithRosterOwnHighlightPreferenceUpdate rosterGroup.id weekOffset (successToast "Own live-shift highlight preference saved.")
+                    then respondWithRosterOwnHighlightPreferenceUpdate scope (successToast "Own Published-shift highlight preference saved.")
                     else do
-                        setSuccessMessage "Own live-shift highlight preference saved."
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                        setSuccessMessage "Own Published-shift highlight preference saved."
+                        redirectToRosterWindow scope
 
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterDay, rosterWeek) <- fetchRosterSlotCreateContext rosterDayId
-        authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
-        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterWeekSlotDefinitionId
-        authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition
+        rosterDay <- fetchRosterDayForDialog rosterDayId
+        scope <- rosterActionScopeForDay rosterDay
+        authorizeRosterSlotCreateContext scope rosterDay rowIndex
+        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
+        authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
         shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
         if null shiftTypes
             then respondWithRosterToast "Create at least one shift type in Admin > Shift Types before adding roster shifts." "app-toast-error"
             else do
                 venueConfig <- fetchVenueConfig
-                renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig)
+                renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig)
 
     action currentAction@EditRosterSlotDialogAction { rosterSlotId } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
-        (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
-        authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek
-        renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek (rosterShiftDialogValuesFromSlot rosterSlot)
+        rosterDay <- fetchRosterSlotEditContext rosterSlot
+        scope <- rosterActionScopeForDay rosterDay
+        authorizeRosterSlotEditContext scope rosterSlot rosterDay
+        renderRosterShiftDialogForEdit scope rosterSlot rosterDay (rosterShiftDialogValuesFromSlot rosterSlot)
 
     action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterDay, rosterWeek) <- fetchRosterSlotCreateContext rosterDayId
-        authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
-        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterWeekSlotDefinitionId
-        authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        scope <- rosterMutationScopeForDay rosterDay
+        requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @CreateRosterShiftOverlay)
+        authorizeRosterSlotCreateContext scope rosterDay rowIndex
+        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
+        authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
+        let rosterGroupId = scope.rosterWindowRosterGroupId
         existingSlot <- query @RosterSlot
             |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-            |> filterWhere (#rosterWeekSlotDefinitionId, unpackId slotDefinition.id)
+            |> filterWhere (#rosterLaneId, unpackId slotDefinition.id)
             |> filterWhere (#rowIndex, rowIndex)
             |> filterWhere (#deletedAt, Nothing)
             |> fetchOneOrNothing
-        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek existingSlot rosterShiftDialogSubmissionFromRequest
+        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay existingSlot rosterShiftDialogSubmissionFromRequest
         case validation of
-            Left values -> renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values
+            Left values -> renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex values
             Right valid -> do
                 let newSlot =
                         fromMaybe
                             ( newRecord @RosterSlot
                             |> set #rosterDayId (unpackId rosterDay.id)
-                            |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
+                            |> set #rosterLaneId (unpackId slotDefinition.id)
                             |> set #slotSortOrder slotDefinition.sortOrder
                             |> set #rowIndex rowIndex
                             )
                             existingSlot
                             |> applyValidatedRosterShift valid
-                mutationResult <- saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
+                mutationResult <- saveRosterSlotMutation scope rosterDay existingSlot newSlot
                 case mutationResult of
                     Left message ->
-                        renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex
+                        renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex
                             (rosterShiftDialogValuesFromSlot newSlot) { rosterShiftFormError = Just message }
                     Right mutationResult ->
-                        respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult "Roster shift saved."
+                        respondToRosterSlotMutation scope rosterDay rowIndex mutationResult "Roster shift saved."
 
     action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
-        (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
-        authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        if rosterWeek.isLive
+        rosterDay <- fetchRosterSlotEditContext rosterSlot
+        scope <- rosterMutationScopeForDay rosterDay
+        requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @UpdateRosterShiftOverlay)
+        authorizeRosterSlotEditContext scope rosterSlot rosterDay
+        let rosterGroupId = scope.rosterWindowRosterGroupId
+        if rosterDay.publicationState == Published
             then do
                 validation <- validateLiveOpenShiftFill rosterGroupId rosterSlot rosterShiftDialogSubmissionFromRequest
                 case validation of
-                    Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
+                    Left values -> renderRosterShiftDialogForEdit scope rosterSlot rosterDay values
                     Right assignment -> do
                         let updatedSlot = applyRosterShiftAssignment assignment rosterSlot
-                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                        mutationResult <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot True
                         case mutationResult of
                             Left message ->
-                                renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek
+                                renderRosterShiftDialogForEdit scope rosterSlot rosterDay
                                     (rosterShiftDialogValuesFromSlot rosterSlot) { rosterShiftFormError = Just message }
                             Right mutationResult -> do
                                 let previousStaffId = mutationResult.liveMutationValue.rosterSlotMutationPreviousStaffId
-                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
+                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek scope (catMaybes [previousStaffId, updatedSlot.staffId])
                                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys False
+                                respondToRosterSlotUpdate scope mutationResult impactedRowKeys False
             else do
-                validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek (Just rosterSlot) rosterShiftDialogSubmissionFromRequest
+                validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay (Just rosterSlot) rosterShiftDialogSubmissionFromRequest
                 case validation of
-                    Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
+                    Left values -> renderRosterShiftDialogForEdit scope rosterSlot rosterDay values
                     Right valid -> do
                         let updatedSlot = applyValidatedRosterShift valid rosterSlot
-                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                        mutationResult <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot False
                         case mutationResult of
                             Left message ->
-                                renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek
+                                renderRosterShiftDialogForEdit scope rosterSlot rosterDay
                                     (rosterShiftDialogValuesFromSlot updatedSlot) { rosterShiftFormError = Just message }
                             Right mutationResult -> do
                                 let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
+                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek scope (catMaybes [previousStaffId, updatedSlot.staffId])
                                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
+                                respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
-        (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
-        authorizeRosterSlotDeleteContext rosterDay rosterWeek
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot >>= \case
-            Left message -> respondWithMoveRosterShiftFailure rosterGroupId rosterWeek.weekOffset message
-            Right mutationResult -> respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+        rosterDay <- fetchRosterSlotEditContext rosterSlot
+        scope <- rosterMutationScopeForDay rosterDay
+        authorizeRosterSlotDeleteContext scope rosterDay
+        deleteRosterSlotMutation scope rosterDay rosterSlot >>= \case
+            Left message -> respondWithMoveRosterShiftFailure scope message
+            Right mutationResult -> respondToRosterSlotUpdate scope mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+
+requireRosterShiftCalendarAppShellContext :: (?context :: ControllerContext, ?request :: Request) => Either [SurfaceRequestFieldError] fields -> IO ()
+requireRosterShiftCalendarAppShellContext requestFields =
+    case requestFields of
+        Right _ -> pure ()
+        Left errors -> do
+            let contextErrors = filter ((`elem` ["anchorDate", "rosterCalendarRevision"]) . (.surfaceRequestFieldErrorName)) errors
+            unless (null contextErrors) do
+                setErrorMessage (surfaceRequestFieldErrorsMessage contextErrors)
+                accessDeniedUnless False
+
+requireCurrentRosterCalendarRevision :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> Int -> IO ()
+requireCurrentRosterCalendarRevision venueConfig expectedRevision =
+    when (expectedRevision /= venueConfig.rosterCalendarRevision) do
+        respondAndExit
+            ( Wai.responseLBS
+                status409
+                [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                "The roster calendar changed. Review the refreshed window and try again."
+            )
+        error "unreachable"
 
 rosterShiftDialogSubmissionFromRequest :: (?context :: ControllerContext, ?request :: Request) => RosterShiftDialogSubmission
 rosterShiftDialogSubmissionFromRequest =
@@ -1116,111 +1175,114 @@ rosterShiftDialogSubmissionFromRequest =
         , submittedRosterShiftEndOccurrence = paramOrDefault "" "endOccurrence"
         }
 
-authorizeRosterSlotCreateContext :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterWeek -> Int -> IO ()
-authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex = do
-    ensureRecordInCurrentVenue rosterWeek.venueId
-    ensureRosterWeekIsDraftForEdit rosterWeek
+authorizeRosterSlotCreateContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Int -> IO ()
+authorizeRosterSlotCreateContext scope rosterDay rowIndex = do
+    ensureRosterDayIsDraftForEdit scope rosterDay
     accessDeniedUnless (not rosterDay.isClosed)
     accessDeniedUnless (rowIndex >= 0)
 
-authorizeRosterSlotDefinitionForCreate :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterWeekSlotDefinition -> IO ()
-authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition = do
-    accessDeniedUnless (slotDefinition.rosterWeekId == unpackId rosterWeek.id)
+authorizeRosterSlotDefinitionForCreate :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterLane -> IO ()
+authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition = do
+    accessDeniedUnless (slotDefinition.rosterDayId == unpackId rosterDay.id)
     accessDeniedUnless (isNothing slotDefinition.deletedAt)
 
 authorizeRosterSlotForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
 authorizeRosterSlotForEdit rosterSlot =
     accessDeniedUnless (isNothing rosterSlot.deletedAt)
 
-authorizeRosterSlotEditContext :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> RosterDay -> RosterWeek -> IO ()
-authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek = do
-    ensureRecordInCurrentVenue rosterWeek.venueId
+authorizeRosterSlotEditContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> IO ()
+authorizeRosterSlotEditContext scope rosterSlot rosterDay = do
     accessDeniedUnless (not rosterDay.isClosed)
-    unless (rosterWeek.isLive && rosterShiftIsOpen rosterSlot) do
-        ensureRosterWeekIsDraftForEdit rosterWeek
+    unless (rosterDay.publicationState == Published && rosterShiftIsOpen rosterSlot) do
+        ensureRosterDayIsDraftForEdit scope rosterDay
 
-authorizeRosterSlotDeleteContext :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterWeek -> IO ()
-authorizeRosterSlotDeleteContext rosterDay rosterWeek = do
-    ensureRecordInCurrentVenue rosterWeek.venueId
-    ensureRosterWeekIsDraftForEdit rosterWeek
+authorizeRosterSlotDeleteContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> IO ()
+authorizeRosterSlotDeleteContext scope rosterDay = do
+    ensureRosterDayIsDraftForEdit scope rosterDay
     accessDeniedUnless (not rosterDay.isClosed)
 
-respondWithMoveRosterShiftFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
-respondWithMoveRosterShiftFailure rosterGroupId weekOffset message =
+ensureRosterDayIsDraftForEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> IO ()
+ensureRosterDayIsDraftForEdit scope rosterDay =
+    when (rosterDay.publicationState /= Draft) do
+        let errorMessage = "Published roster windows are read-only. Return it to Draft to make changes."
+        if isHtmxRequest
+            then respondWithRosterToast errorMessage "app-toast-error"
+            else do
+                setErrorMessage errorMessage
+                redirectToRosterWindow scope
+
+respondWithMoveRosterShiftFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
+respondWithMoveRosterShiftFailure scope message =
     if isHtmxRequest
         then do
             setHeader ("HX-Reswap", "none")
             respondHtmlProfiled (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (errorToast message))
         else do
             setErrorMessage message
-            redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
+            redirectToRosterWindow scope
 
-respondWithSilentRosterNoOp :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
-respondWithSilentRosterNoOp rosterGroupId weekOffset =
+respondWithSilentRosterNoOp :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()
+respondWithSilentRosterNoOp scope =
     if isHtmxRequest
         then do
             setHeader ("HX-Reswap", "none")
             respondHtmlProfiled mempty
-        else redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
+        else redirectToRosterWindow scope
 
-renderRosterShiftDialogForCreate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO ()
-renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values =
-    respondHtmlProfiled =<< rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values
+renderRosterShiftDialogForCreate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogValues -> IO ()
+renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex values =
+    respondHtmlProfiled =<< rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values
 
-respondWithRosterShiftCreateDialogOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO ()
-respondWithRosterShiftCreateDialogOob rosterDay rosterWeek slotDefinition rowIndex values = do
-    dialog <- rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values
+respondWithRosterShiftCreateDialogOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogValues -> IO ()
+respondWithRosterShiftCreateDialogOob scope rosterDay slotDefinition rowIndex values = do
+    dialog <- rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values
     respondHtmlProfiled [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
             {dialog}
         </div>
     |]
 
-renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterDay -> RosterWeek -> RosterShiftDialogValues -> IO ()
-renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values =
-    respondHtmlProfiled =<< rosterShiftDialogForEditHtml rosterSlot rosterWeek values
+renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> RosterShiftDialogValues -> IO ()
+renderRosterShiftDialogForEdit scope rosterSlot rosterDay values =
+    respondHtmlProfiled =<< rosterShiftDialogForEditHtml scope rosterSlot rosterDay values
 
-respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
-respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult successMessage = do
+respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
+respondToRosterSlotMutation scope rosterDay rowIndex mutationResult successMessage = do
     mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation [(unpackId rosterDay.id, rowIndex)])
     if isHtmxRequest
         then
             respondWithRosterResourceInvalidation
-                rosterGroupId
-                rosterWeek.weekOffset
+                scope
                 mutationResult.liveMutationTouchedResources
                 mountedProjections
                 (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage))
         else do
             setSuccessMessage successMessage
-            redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+            redirectToRosterWindow scope
 
-respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterSlotMove rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotMove scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
     respondWithRosterResourceInvalidation
-        rosterGroupId
-        rosterWeek.weekOffset
+        scope
         mutationResult.liveMutationTouchedResources
         mountedProjections
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
-respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
-respondToRosterTimelineSlotMove rosterGroupId rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged = do
+respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
+respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged = do
     mountedProjections <- rosterMutationMountedProjections RosterTimelineMutation
     respondWithRosterResourceInvalidation
-        rosterGroupId
-        rosterWeek.weekOffset
+        scope
         mutationResult.liveMutationTouchedResources
         mountedProjections
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
-respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
     respondWithRosterResourceInvalidation
-        rosterGroupId
-        rosterWeek.weekOffset
+        scope
         mutationResult.liveMutationTouchedResources
         mountedProjections
         (clearDialogOverlayOob <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
@@ -1250,28 +1312,80 @@ resolveRequestedRosterGroup = do
     accessDeniedUnless (isJust maybeRosterGroup)
     pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
 
-redirectToViewableRosterWeek :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
-redirectToViewableRosterWeek weekOffset rosterGroupId = do
-    let targetPath = rosterWeekUrl weekOffset rosterGroupId
+renderNoRosterGroupPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
+renderNoRosterGroupPage = do
+    setTitle "Roster"
+    noRosterGroupPasskeySetupPrompt <- passkeySetupPromptFromSession
+    noRosterGroupPasskeyStrongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    let view = NoRosterGroupView { .. }
     if isHtmxRequest
-        then do
-            setHeader ("HX-Redirect", cs targetPath)
-            respondHtmlProfiled mempty
-        else redirectToPath targetPath
+        then respondHtmlProfiled (renderNoRosterGroupShell view)
+        else renderProfiled view
 
-resolveRosterGroupIdForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterDay -> IO (Id RosterGroup)
-resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
+fetchRosterDayForMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
+fetchRosterDayForMutation rosterDayId = do
+    venueConfig <- fetchVenueConfig
+    requireCurrentRosterCalendarRevision venueConfig (param @Int "rosterCalendarRevision")
+    fetchRosterDayForRequest rosterDayId
+
+fetchRosterDayForDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
+fetchRosterDayForDialog = fetchRosterDayForRequest
+
+fetchRosterDayForRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
+fetchRosterDayForRequest rosterDayId = do
+    existing <- query @RosterDay
+        |> filterWhere (#id, rosterDayId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> fetchOneOrNothing
+    case existing of
+        Just rosterDay
+            | rosterDay.publicationState == Draft -> do
+                scope <- rosterActionScopeForDay rosterDay
+                _ <- materializeRosterWindowMutation scope
+                fetch rosterDayId
+            | otherwise -> rosterActionScopeForDay rosterDay >> pure rosterDay
+        Nothing -> do
+            let rosterGroupId = Id (param @UUID "rosterGroupId")
+            let operationalDate = param @Calendar.Day "operationalDate"
+            rosterGroup <- query @RosterGroup
+                |> filterWhere (#id, rosterGroupId)
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#isActive, True)
+                |> fetchOne
+            scope <- rosterActionScope rosterGroup.id
+            accessDeniedUnless (operationalDate >= scope.rosterWindowStart && operationalDate < scope.rosterWindowEnd)
+            accessDeniedUnless (rosterDayId == projectedRosterDayId rosterGroup.id operationalDate)
+            _ <- materializeRosterWindowMutation scope
+            rosterDay <- fetch rosterDayId
+            accessDeniedUnless (rosterDay.operationalDate == operationalDate)
+            pure rosterDay
+
+rosterActionScopeForDay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> IO RosterWindowScope
+rosterActionScopeForDay rosterDay = do
+    ensureRecordInCurrentVenue rosterDay.venueId
+    scope <- rosterActionScope (Id rosterDay.rosterGroupId)
+    accessDeniedUnless (rosterDay.operationalDate >= scope.rosterWindowStart && rosterDay.operationalDate < scope.rosterWindowEnd)
+    pure scope
+
+rosterMutationScopeForDay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> IO RosterWindowScope
+rosterMutationScopeForDay rosterDay = do
+    scope <- rosterActionScopeForDay rosterDay
+    venueConfig <- fetchVenueConfig
+    requireCurrentRosterCalendarRevision venueConfig (param @Int "rosterCalendarRevision")
+    pure scope
+
+rosterWindowScopeForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> Id RosterDay -> IO RosterWindowScope
+rosterWindowScopeForFragmentRosterDay anchorDate rosterDayId = do
     rosterDay <- fetch rosterDayId
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
-    ensureRecordInCurrentVenue rosterWeek.venueId
-    accessDeniedUnless (rosterWeek.weekOffset == weekOffset)
-    let rosterGroupId = coerce rosterWeek.rosterGroupId
-    viewableRosterGroup <- fetchViewableRosterGroup rosterGroupId
-    accessDeniedUnless (isJust viewableRosterGroup)
-    pure rosterGroupId
+    ensureRecordInCurrentVenue rosterDay.venueId
+    let rosterGroupId = Id rosterDay.rosterGroupId
+    scope <- rosterWindowScopeForRequestedAnchor rosterGroupId anchorDate
+    accessDeniedUnless (rosterDay.operationalDate >= scope.rosterWindowStart)
+    accessDeniedUnless (rosterDay.operationalDate < scope.rosterWindowEnd)
+    pure scope
 
-respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
-respondWithDeleteRosterSlotDropConfirmation rosterSlot =
+respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> IO ()
+respondWithDeleteRosterSlotDropConfirmation rosterSlot anchorDate calendarRevision =
     respondHtmlProfiled [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
             {confirmationDialog}
@@ -1294,7 +1408,7 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot =
                     , overlayButtonClass = "btn btn-danger"
                     , overlayButtonAction = GeneratedDialogFormAction
                         (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
-                        (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
+                        (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)) anchorDate calendarRevision)
                         []
                         Nothing
                     }
@@ -1302,17 +1416,20 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot =
             , dialogOverlayDialogClass = ""
             }
 
-rosterDeleteSlotActionRoute :: Text -> AppShellActionRoute
-rosterDeleteSlotActionRoute actionUrl =
+rosterDeleteSlotActionRoute :: Text -> Calendar.Day -> Int -> AppShellActionRoute
+rosterDeleteSlotActionRoute actionUrl anchorDate calendarRevision =
     AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
+        { appShellActionRouteUrl = actionUrl <> "&anchorDate=" <> tshow anchorDate <> "&rosterCalendarRevision=" <> tshow calendarRevision
+        , appShellActionRouteFields =
+            [ AppShellFieldValue ("anchorDate", tshow anchorDate)
+            , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)
+            ]
         , appShellActionRouteCustomHtmx = []
         , appShellActionRouteStandardUrl = Nothing
         , appShellActionRouteExtraAttrs = []
         }
 
-respondWithRemoveRosterRowConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RemoveRosterRowPackingPreview -> IO ()
+respondWithRemoveRosterRowConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterDayRowRemovalPreview -> IO ()
 respondWithRemoveRosterRowConfirmation rosterDay preview =
     if isHtmxRequest
         then respondHtmlProfiled [hsx|
@@ -1326,7 +1443,7 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
             redirectToPath (pathTo RosterWeeksAction)
     where
         confirmFormId = "confirm-remove-roster-row-form" :: Text
-        overflowCount = preview.removeRosterRowOverflowCount
+        overflowCount = preview.laneRowRemovalOverflowCount
         overflowCopy =
             if overflowCount == 1
                 then "1 shift"
@@ -1336,7 +1453,10 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                 (appShellActionByMarker @ConfirmRemoveRosterRowOverlay)
                 AppShellActionRoute
                     { appShellActionRouteUrl = pathTo (RemoveRosterRowAction rosterDay.id)
-                    , appShellActionRouteFields = []
+                    , appShellActionRouteFields =
+                        [ AppShellFieldValue ("anchorDate", param @Text "anchorDate")
+                        , AppShellFieldValue ("rosterCalendarRevision", param @Text "rosterCalendarRevision")
+                        ]
                     , appShellActionRouteCustomHtmx = []
                     , appShellActionRouteStandardUrl = Nothing
                     , appShellActionRouteExtraAttrs =
@@ -1375,62 +1495,97 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
 clearDialogOverlayOob :: Blaze.Html
 clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
 
-currentRosterGridViewMode :: (?request :: Request) => RosterGridViewMode
-currentRosterGridViewMode =
-    case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
-        (Just "timeline", Just dayOffset) -> RosterDayTimelineGridView (max 0 (min 6 dayOffset))
+markStaleRosterCalendarResponseForRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+markStaleRosterCalendarResponseForRefresh =
+    when isHtmxRequest $
+        forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
+            venueConfig <- fetchVenueConfig
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) do
+                respondAndExit
+                    ( Wai.responseLBS
+                        status409
+                        [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                        "The roster calendar changed. Review the refreshed window and try again."
+                    )
+                error "unreachable"
+
+redirectToRosterWindow :: (?context :: ControllerContext, ?request :: Request) => RosterWindowScope -> IO ()
+redirectToRosterWindow scope =
+    redirectToPath (rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId)
+
+rosterActionScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> IO RosterWindowScope
+rosterActionScope rosterGroupId =
+    rosterWindowScopeForRequestedAnchor rosterGroupId (param @Calendar.Day "anchorDate")
+
+rosterMutationScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> IO RosterWindowScope
+rosterMutationScope rosterGroupId = do
+    venueConfig <- fetchVenueConfig
+    requireCurrentRosterCalendarRevision venueConfig (param @Int "rosterCalendarRevision")
+    pure (rosterWindowScopeForAnchor venueConfig rosterGroupId (param @Calendar.Day "anchorDate"))
+
+rosterCopyActionDates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Day, Day)
+rosterCopyActionDates = do
+    venueConfig <- fetchVenueConfig
+    let sourceAnchorDate = param @Calendar.Day "sourceAnchorDate"
+    let targetAnchorDate = param @Calendar.Day "targetAnchorDate"
+    let calendarRevision = param @Int "rosterCalendarRevision"
+    let resolve = startOfWeekFor venueConfig.rosterWeekStartsOn
+    requireCurrentRosterCalendarRevision venueConfig calendarRevision
+    pure (resolve sourceAnchorDate, resolve targetAnchorDate)
+
+rosterWindowScopeForRequestedAnchor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Calendar.Day -> IO RosterWindowScope
+rosterWindowScopeForRequestedAnchor rosterGroupId anchorDate = do
+    venueConfig <- fetchVenueConfig
+    pure (rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate)
+
+currentRosterGridViewMode :: (?request :: Request) => Calendar.Day -> RosterGridViewMode
+currentRosterGridViewMode windowStart =
+    case (paramOrNothing @Text "rosterView", paramOrNothing @Calendar.Day "dayDate", paramOrNothing @Int "dayOffset") of
+        (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (Calendar.diffDays dayDate windowStart)))
+        (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset)
         _ -> RosterWeekGridView
+  where
+    clampDayOffset = max 0 . min 6
 
 
 buildRosterTimelineTodayUrl :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO Text
 buildRosterTimelineTodayUrl rosterGroupId = do
     venueConfig <- fetchVenueConfig
     today <- utctDay <$> getCurrentTime
-    let currentWeekOffset = venueWeekOffsetForDay venueConfig today
-        todayDayOffset = fromInteger (Calendar.diffDays today (venueWeekStartDate venueConfig currentWeekOffset))
-    pure (rosterDayTimelineUrl currentWeekOffset rosterGroupId (max 0 (min 6 todayDayOffset)))
+    pure (rosterTimelineWindowUrl today rosterGroupId)
 
-renderNoRosterGroupPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
-renderNoRosterGroupPage = do
-    setTitle "Roster"
-    noRosterGroupPasskeySetupPrompt <- passkeySetupPromptFromSession
-    noRosterGroupPasskeyStrongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
-    let view = NoRosterGroupView { .. }
-    if isHtmxRequest
-        then respondHtmlProfiled (renderNoRosterGroupShell view)
-        else renderProfiled view
-
-renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
-renderRosterWeekPage weekOffset requestedRosterGroupId =
+renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> IO ()
+renderRosterWeekPage requestedScope =
     profileActionSpan "roster.page.render" do
-        venueConfig <- profileActionSpan "roster.page.fetch_venue_config" fetchVenueConfig
-        let weekStartDate = venueWeekStartDate venueConfig weekOffset
-        let weekEndDate = Calendar.addDays 6 weekStartDate
+        let weekStartDate = requestedScope.rosterWindowStart
+        let weekEndDate = Calendar.addDays (-1) requestedScope.rosterWindowEnd
         setTitle "Roster"
-        rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchViewableRosterGroups
-        let currentRosterGroup = fromMaybe (error "authorized roster group missing") (find ((== requestedRosterGroupId) . (.id)) rosterGroups)
-        _ <- profileActionSpan "roster.page.ensure_week_exists" (ensureRosterWeekExists currentRosterGroup.id weekOffset)
-        rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
+        rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
+        currentRosterGroup <- profileActionSpan "roster.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just requestedScope.rosterWindowRosterGroupId))
+        accessDeniedUnless (currentRosterGroup.id == requestedScope.rosterWindowRosterGroupId)
+        rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel requestedScope)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
         passkeyStrongAuthenticationRequired <- profileActionSpan "roster.page.passkey_policy" currentUserRequiresMandatoryPasskey
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
+            Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                 let visibleRosterWeek =
-                        if rosterWeek.isLive || hasRole Manager
-                            then Just rosterWeek
-                            else Nothing
+                        case rosterWeek of
+                            Just legacyRosterWeek
+                                | legacyRosterWeek.windowIsPublished || hasRole Manager -> Just legacyRosterWeek
+                            _ -> Nothing
                  in profileActionSpan "roster.page.respond" $
                         respondWithRosterWeekView
                             ShowView
                                 { rosterWeek = visibleRosterWeek
                                 , rosterDays
-                                , weekOffset
+                                , rosterWindowScope
                                 , rosterGroups
                                 , currentRosterGroup
                                 , weekStartDate
                                 , weekEndDate
+                                , rosterCalendarRevision
                                 , assignmentFilters
                                 , staffMembers
                                 , panelStaff
@@ -1456,11 +1611,11 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , publicHolidays = rosterPublicHolidays
                                 , passkeySetupPrompt
                                 , passkeyStrongAuthenticationRequired
-                                , rosterGridViewMode = currentRosterGridViewMode
+                                , rosterGridViewMode = currentRosterGridViewMode weekStartDate
                                 , rosterTimelineTodayUrl = Just timelineTodayUrl
                                 }
             Nothing ->
-                error "Roster week should exist after ensureRosterWeekExists"
+                error "Roster date range could not be projected for the selected roster group"
 
 respondWithRosterWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ShowView -> IO ()
 respondWithRosterWeekView showView =
@@ -1473,22 +1628,23 @@ passkeySetupPromptFromSession :: (?request :: Request) => IO (Maybe PasskeySetup
 passkeySetupPromptFromSession =
     fmap (>>= passkeySetupPromptModeFromValue) (getSessionAndClear @Text passkeySetupPromptSessionKey)
 
-renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Id RosterGroup -> IO Blaze.Html
-renderRosterWeekOverviewFragment weekOffset rosterGroupId = do
+renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Calendar.Day -> Id RosterGroup -> IO Blaze.Html
+renderRosterWeekOverviewFragment weekStartDate rosterGroupId = do
     venueConfig <- fetchVenueConfig
     todayDate <- utctDay <$> getCurrentTime
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let focusDate = initialOverviewFocusDate weekStartDate todayDate
     weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate)
-    pure (renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
+    pure (renderWeekOverviewPanelFragment rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
 
-fetchRelatedSlotsForStaffIdsInRosterWeek :: (?modelContext :: ModelContext) => RosterWeek -> [UUID.UUID] -> IO [RosterSlot]
-fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =
+fetchRelatedSlotsForStaffIdsInRosterWeek :: (?modelContext :: ModelContext) => RosterWindowScope -> [UUID.UUID] -> IO [RosterSlot]
+fetchRelatedSlotsForStaffIdsInRosterWeek scope staffIds =
     if null staffIds
         then pure []
         else do
             rosterDays <- query @RosterDay
-                |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                |> filterWhere (#rosterGroupId, unpackId scope.rosterWindowRosterGroupId)
+                |> filterWhereGreaterThanOrEqualTo (#operationalDate, scope.rosterWindowStart)
+                |> filterWhereLessThan (#operationalDate, scope.rosterWindowEnd)
                 |> fetch
             if null rosterDays
                 then pure []
@@ -1498,26 +1654,23 @@ fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
 
-respondToRosterSlotDefinitionError :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> Text -> IO ()
-respondToRosterSlotDefinitionError rosterWeek errorMessage =
+respondToRosterSlotDefinitionError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
+respondToRosterSlotDefinitionError scope errorMessage =
     if isHtmxRequest
         then respondWithRosterToast errorMessage "app-toast-error"
         else do
             setErrorMessage errorMessage
-            redirectToPath (rosterWeekUrl rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId :: Id RosterGroup))
+            redirectToRosterWindow scope
 
-respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> LiveMutationResult value -> Text -> IO ()
-respondToRosterSlotDefinitionSuccess rosterWeek mutationResult successMessage =
+respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult value -> Text -> IO ()
+respondToRosterSlotDefinitionSuccess scope mutationResult successMessage =
     if isHtmxRequest
         then
             respondWithRosterResourceInvalidation
-                rosterGroupId
-                rosterWeek.weekOffset
+                scope
                 mutationResult.liveMutationTouchedResources
                 rosterGridInnerAndStaffPanelFragments
                 mempty
         else do
             setSuccessMessage successMessage
-            redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-    where
-        rosterGroupId = coerce rosterWeek.rosterGroupId
+            redirectToRosterWindow scope

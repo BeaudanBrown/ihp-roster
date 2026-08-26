@@ -3,7 +3,6 @@ module Application.Helper.Export.ReadModel where
 import Application.Helper.Controller
 import Application.Helper.Pay (payVersionManifestForEntry)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes)
-import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Application.WageEngine (AwardClassification (..),
                                awardClassificationFromFixedId)
 import Control.Monad (guard)
@@ -11,7 +10,7 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -48,14 +47,14 @@ fetchApprovedTimesheetEntries ::
     Day ->
     Day ->
     IO [TimesheetEntry]
-fetchApprovedTimesheetEntries rangeStart rangeEnd = do
-    let (rangeStartsAt, rangeEndsAt) = requireMelbourneDateRangeUTC rangeStart rangeEnd
+fetchApprovedTimesheetEntries rangeStart rangeEnd =
     query @TimesheetEntry
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#isApproved, True)
         |> filterWhere (#deletedAt, Nothing)
-        |> filterWhereGreaterThanOrEqualTo (#startsAt, rangeStartsAt)
-        |> filterWhereLessThan (#startsAt, rangeEndsAt)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, rangeStart)
+        |> filterWhereLessThan (#operationalDate, addDays 1 rangeEnd)
+        |> orderByAsc #operationalDate
         |> orderByAsc #startsAt
         |> fetch
 
@@ -78,6 +77,17 @@ fetchApproverMap entries =
             pure (Map.fromList (map (\user -> (coerce (get #id user), user)) users))
     where
         approverIds = List.nub (mapMaybe (.approvedByUserId) entries)
+
+fetchApprovedEntryRosterWindowStarts :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Day)
+fetchApprovedEntryRosterWindowStarts entries = do
+    let calculationIds = List.nub (mapMaybe (.activePayCalculationId) entries)
+    if null calculationIds
+        then pure Map.empty
+        else do
+            calculations <- query @TimesheetPayCalculation
+                |> filterWhereIn (#id, calculationIds)
+                |> fetch
+            pure (Map.fromList [(calculation.timesheetEntryId, calculation.rosterWindowStart) | calculation <- calculations])
 
 fetchVersionManifestsForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Text)
 fetchVersionManifestsForEntries entries =

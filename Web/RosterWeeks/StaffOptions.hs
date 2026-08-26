@@ -7,6 +7,7 @@ module Web.RosterWeeks.StaffOptions
     , fetchStaffPayConfigurationRequiredIds
     , hasNoPreferredShiftsOnDay
     , rosterAssignmentOptionStateFor
+    , rosterAssignmentOptionStatesFor
     ) where
 
 import Application.Helper.Controller (venueRoleToText)
@@ -129,23 +130,19 @@ buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rost
             let visibleWeekdayIndexes =
                     Set.toList $
                         Set.fromList
-                            [ weekdayIndexForDay (Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate)
+                            [ weekdayIndexForDay rosterDay.operationalDate
                             | rosterDay <- rosterDays
                             ]
             leaveRequests <- fetchApprovedLeaveRequestsForRosterWindow staffIds weekStartDate weekEndExclusive
             shiftPreferences <- fetchRosterShiftPreferencesForWindow staffIds visibleWeekdayIndexes
 
-            let dayById = Map.fromList [ (coerce (get #id day), day) | day <- rosterDays ]
-            let staffAssignedSlots = filter rosterShiftIsStaffAssigned visibleSlots
-            let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- staffAssignedSlots, staffId <- maybeToList slot.staffId ]
-            let assignedDayCountByStaffId = Map.fromListWith (+) [ ((slot.rosterDayId, staffId), 1 :: Int) | slot <- staffAssignedSlots, staffId <- maybeToList slot.staffId ]
             let approvedLeaveByStaffAndDay =
                     Set.fromList
                         [ (leaveRequest.staffId, dayDate)
                         | leaveRequest <- leaveRequests
                         , leaveRequest.status == LeaveRequestStatusEnumApproved
                         , rosterDay <- rosterDays
-                        , let dayDate = Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
+                        , let dayDate = rosterDay.operationalDate
                         , dayDate >= leaveRequest.startDate
                         , dayDate < leaveRequest.endDate
                         ]
@@ -154,20 +151,28 @@ buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rost
                         [ (preference.staffId, preference.weekdayIndex)
                         | preference <- shiftPreferences
                         ]
-            pure $
-                Map.fromList
-                    [ ((coerce (get #id slot), coerce (get #id staff)), rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById assignedShiftCountByStaffId assignedDayCountByStaffId approvedLeaveByStaffAndDay preferredVisibleDays slot staff)
-                    | slot <- visibleSlots
-                    , staff <- staffMembers
-                    ]
+            pure (rosterAssignmentOptionStatesFor assignmentFilters weekStartDate rosterDays visibleSlots staffMembers approvedLeaveByStaffAndDay preferredVisibleDays)
+
+rosterAssignmentOptionStatesFor :: RosterAssignmentFilters -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> Set.Set (UUID.UUID, Calendar.Day) -> Set.Set (UUID.UUID, Int) -> Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState
+rosterAssignmentOptionStatesFor assignmentFilters weekStartDate rosterDays visibleSlots staffMembers approvedLeaveByStaffAndDay preferredVisibleDays =
+    Map.fromList
+        [ ((coerce slot.id, coerce staff.id), rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById assignedShiftCountByStaffId assignedDayCountByStaffId approvedLeaveByStaffAndDay preferredVisibleDays slot staff)
+        | slot <- visibleSlots
+        , staff <- staffMembers
+        ]
+  where
+    dayById = Map.fromList [(coerce day.id, day) | day <- rosterDays]
+    staffAssignedSlots = filter rosterShiftIsStaffAssigned visibleSlots
+    assignedShiftCountByStaffId = Map.fromListWith (+) [(staffId, 1 :: Int) | slot <- staffAssignedSlots, staffId <- maybeToList slot.staffId]
+    assignedDayCountByStaffId = Map.fromListWith (+) [((slot.rosterDayId, staffId), 1 :: Int) | slot <- staffAssignedSlots, staffId <- maybeToList slot.staffId]
 
 rosterAssignmentOptionStateFor :: RosterAssignmentFilters -> Calendar.Day -> Map.Map UUID.UUID RosterDay -> Map.Map UUID.UUID Int -> Map.Map (UUID.UUID, UUID.UUID) Int -> Set.Set (UUID.UUID, Calendar.Day) -> Set.Set (UUID.UUID, Int) -> RosterSlot -> Staff -> RosterAssignmentOptionState
 rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById assignedShiftCountByStaffId assignedDayCountByStaffId approvedLeaveByStaffAndDay preferredVisibleDays slot staff =
     let staffId = coerce (get #id staff)
         rosterDayDate =
             case Map.lookup slot.rosterDayId dayById of
-                Just rosterDay -> Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
-                Nothing -> weekStartDate
+                Just rosterDay -> rosterDay.operationalDate
+                Nothing        -> weekStartDate
         assignedShiftCount = Map.findWithDefault 0 staffId assignedShiftCountByStaffId
         assignedTodayCount = Map.findWithDefault 0 (slot.rosterDayId, staffId) assignedDayCountByStaffId
         currentSlotContribution = if slot.staffId == Just staffId then 1 else 0

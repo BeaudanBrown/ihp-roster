@@ -6,8 +6,8 @@ or roster views.
 ## Local Rules
 
 - Read `SPEC.md` before changing behavior.
-- Keep route semantics URL-driven through `weekOffset`.
-- Keep `RosterWeeksAction` as the this-week reset endpoint.
+- Keep canonical route semantics URL-driven through ISO `anchorDate`; do not add offset compatibility URLs.
+- Keep `RosterWeeksAction` as the this-window reset endpoint.
 - Use the feature modules here instead of adding more orchestration to the root
   controller.
 - Keep roster-owned DOM ids/selectors centralized in `Dom.hs`. Reusable shift

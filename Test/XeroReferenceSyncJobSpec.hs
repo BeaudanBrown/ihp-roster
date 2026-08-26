@@ -88,7 +88,10 @@ tests = aroundAll withDatabaseTestContext do
                     WaitForTrustedXeroReferenceSnapshot _ -> True
                     _ -> False
                 [job] <- query @AppJob |> fetch
-                performXeroReferenceSyncJobWith (testRuntime requestedAt) (emptyReferenceSource connection) job
+                let durableRuntime = (testRuntime requestedAt) { publishReferenceSyncTransition = publishReferenceSyncTransitionLive }
+                performXeroReferenceSyncJobWith durableRuntime (emptyReferenceSource connection) job
+                [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "xero.reference_sync.completed" :: Text) |> fetch
+                query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
                 let observedAt = addUTCTime 60 requestedAt
 
                 forM_ [1 .. 3 :: Int] \_ -> do

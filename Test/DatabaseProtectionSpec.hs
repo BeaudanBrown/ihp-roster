@@ -5,7 +5,7 @@ import Data.Either (isLeft, isRight)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
@@ -37,6 +37,78 @@ tests = aroundAll withDatabaseTestContext do
 
             map PG.fromOnly retiredTables `shouldBe` replicate 3 Nothing
             map PG.fromOnly retainedTables `shouldSatisfy` all isJust
+
+    describe "date-native roster compatibility retirement migration" do
+        it "executes against representative predecessor data without losing dated or immutable evidence" $ withContext do
+            withCleanDb do
+                predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-roster/pre-retirement-schema.sql"
+                retirementMigrationSql <- TextIO.readFile "Application/Migration/1788100000.sql"
+                triggerRepairMigrationSql <- TextIO.readFile "Application/Migration/1788100100.sql"
+                sqlExecDiscardResult "DROP SCHEMA IF EXISTS roster_retirement_374 CASCADE" ()
+                withTransaction do
+                    sqlExecDiscardResult "CREATE SCHEMA roster_retirement_374" ()
+                    sqlExecDiscardResult "SET LOCAL search_path TO roster_retirement_374, public" ()
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Roster retirement fixture requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner (HasqlSession.script predecessorSql)
+                            runInTransaction runner (HasqlSession.script retirementMigrationSql)
+
+                    sqlExecDiscardResult "SAVEPOINT stale_roster_day_trigger" ()
+                    staleDayWrite <- try (sqlExecDiscardResult "UPDATE roster_days SET operational_date = operational_date WHERE id = '50000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    staleDayWrite `shouldSatisfy` either (Text.isInfixOf "roster_week_id" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT stale_roster_day_trigger" ()
+                    sqlExecDiscardResult "SAVEPOINT stale_roster_slot_trigger" ()
+                    staleSlotWrite <- try (sqlExecDiscardResult "UPDATE roster_slots SET starts_at = starts_at WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    staleSlotWrite `shouldSatisfy` either (Text.isInfixOf "roster_week_slot_definition_id" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT stale_roster_slot_trigger" ()
+
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Roster trigger repair fixture requires a transaction runner"
+                        Just runner -> runInTransaction runner (HasqlSession.script triggerRepairMigrationSql)
+
+                    retiredTables :: [PG.Only (Maybe Text)] <-
+                        sqlQuery "SELECT to_regclass(name)::text FROM unnest(ARRAY['roster_retirement_374.roster_weeks', 'roster_retirement_374.roster_week_slot_definitions']) AS names(name) ORDER BY name" ()
+                    map PG.fromOnly retiredTables `shouldBe` [Nothing, Nothing]
+                    datedFacts :: [(Day, Text, Text)] <-
+                        sqlQuery "SELECT day.operational_date, day.publication_state, lane.name FROM roster_days day JOIN roster_lanes lane ON lane.roster_day_id = day.id" ()
+                    datedFacts `shouldBe` [(fromGregorian 2026 8 3, "published", "Early")]
+                    slotFacts :: [(UTCTime, UTCTime)] <-
+                        sqlQuery "SELECT starts_at, ends_at FROM roster_slots" ()
+                    slotFacts `shouldBe`
+                        [ ( UTCTime (fromGregorian 2026 8 2) (secondsToDiffTime (23 * 60 * 60))
+                          , UTCTime (fromGregorian 2026 8 3) (secondsToDiffTime (7 * 60 * 60))
+                          )
+                        ]
+                    notificationFacts :: [(Day, Day, Text)] <-
+                        sqlQuery "SELECT week_start, window_end, roster_snapshot->>'weekStart' FROM roster_notification_runs" ()
+                    notificationFacts `shouldBe` [(fromGregorian 2026 8 3, fromGregorian 2026 8 10, "2026-08-03")]
+                    timesheetEvidenceCount :: Int <- sqlQueryScalar "SELECT count(*)::int FROM timesheet_entries WHERE source_roster_slot_id IS NOT NULL AND operational_date = '2026-08-03'" ()
+                    exportEvidenceCount :: Int <- sqlQueryScalar "SELECT count(*)::int FROM export_job_entries WHERE source_roster_slot_id IS NOT NULL AND row_snapshot->>'operationalDate' = '2026-08-03'" ()
+                    timesheetEvidenceCount `shouldBe` 1
+                    exportEvidenceCount `shouldBe` 1
+                    sqlExecDiscardResult "UPDATE roster_days SET operational_date = operational_date WHERE id = '50000000-0000-0000-0000-000000000001'" ()
+                    sqlExecDiscardResult "UPDATE roster_slots SET starts_at = starts_at WHERE id = '80000000-0000-0000-0000-000000000001'" ()
+
+                    sqlExecDiscardResult "SAVEPOINT repaired_day_scope" ()
+                    invalidDayScope <- try (sqlExecDiscardResult "UPDATE roster_days SET venue_id = '20000000-0000-0000-0000-000000000099' WHERE id = '50000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidDayScope `shouldSatisfy` either (Text.isInfixOf "roster day venue and roster group must share scope" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_day_scope" ()
+                    sqlExecDiscardResult "SAVEPOINT repaired_slot_lane_scope" ()
+                    invalidSlotLane <- try (sqlExecDiscardResult "UPDATE roster_slots SET roster_day_id = '50000000-0000-0000-0000-000000000099' WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidSlotLane `shouldSatisfy` either (Text.isInfixOf "roster slot lane must be active and belong to its roster day" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_slot_lane_scope" ()
+                    sqlExecDiscardResult "SAVEPOINT repaired_slot_shift_type_scope" ()
+                    invalidSlotShiftType <- try (sqlExecDiscardResult "UPDATE roster_slots SET shift_type_id = 'c0000000-0000-0000-0000-000000000001' WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidSlotShiftType `shouldSatisfy` either (Text.isInfixOf "roster slot shift type must stay within roster day venue" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_slot_shift_type_scope" ()
+                    sqlExecDiscardResult "SAVEPOINT repaired_slot_staff_scope" ()
+                    invalidSlotStaff <- try (sqlExecDiscardResult "UPDATE roster_slots SET staff_id = 'd0000000-0000-0000-0000-000000000001' WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidSlotStaff `shouldSatisfy` either (Text.isInfixOf "roster slot staff assignment must stay within roster day venue" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_slot_staff_scope" ()
+
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA roster_retirement_374 CASCADE" ()
 
     describe "database hard-delete protection" do
         it "keeps approval-pinned imported Xero remote identities immutable" $ withContext do
@@ -184,6 +256,129 @@ tests = aroundAll withDatabaseTestContext do
                         |> fetchOneOrNothing
                 deletedPreference `shouldBe` Nothing
 
+    describe "date-native roster foundation migration" do
+        it "projects every legacy day, lane, and retained shift deterministically without changing legacy facts" $ withContext do
+            withCleanDb do
+                predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-roster/pre-foundation-schema.sql"
+                migrationSql <- TextIO.readFile "Application/Migration/1787001000.sql"
+                publicationMigrationSql <- TextIO.readFile "Application/Migration/1787003000.sql"
+                withTransaction do
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Date-native roster migration fixture requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner (HasqlSession.script predecessorSql)
+                            runInTransaction runner (HasqlSession.script migrationSql)
+                            runInTransaction runner (HasqlSession.script publicationMigrationSql)
+
+                    projectedDays :: [(Day, Text)] <- sqlQuery
+                        "SELECT operational_date, publication_state::text FROM date_native_roster_migration_acceptance.roster_days ORDER BY operational_date"
+                        ()
+                    projectedDays `shouldBe`
+                        [ (fromGregorian 2026 8 day, "published")
+                        | day <- [3 .. 9]
+                        ]
+                    laneCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_lanes"
+                        ()
+                    retainedLaneCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_lanes WHERE deleted_at IS NOT NULL AND delete_reason = 'layout changed'"
+                        ()
+                    laneCount `shouldBe` 14
+                    retainedLaneCount `shouldBe` 7
+
+                    projectedSlotCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_slots slot JOIN date_native_roster_migration_acceptance.roster_lanes lane ON lane.id = slot.roster_lane_id WHERE lane.roster_day_id = slot.roster_day_id AND lane.legacy_roster_week_slot_definition_id = slot.roster_week_slot_definition_id"
+                        ()
+                    preservedSlotFacts :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_slots WHERE (id = '90000000-0000-0000-0000-000000000001' AND assignment_state = 'staff' AND staff_id = '70000000-0000-0000-0000-000000000001' AND row_index = 2 AND starts_at = '2026-08-02 23:00:00+00' AND ends_at = '2026-08-03 07:00:00+00' AND created_at = '2026-07-06 00:00:00+00' AND updated_at = '2026-07-07 00:00:00+00' AND deleted_at IS NULL) OR (id = '90000000-0000-0000-0000-000000000002' AND assignment_state = 'open' AND staff_id IS NULL AND row_index = 3 AND deleted_at = '2026-07-08 00:00:00+00' AND delete_reason = 'old plan')"
+                        ()
+                    projectedSlotCount `shouldBe` 2
+                    preservedSlotFacts `shouldBe` 2
+
+                    sqlExecDiscardResult
+                        "UPDATE date_native_roster_migration_acceptance.roster_weeks SET is_live = FALSE WHERE id = '50000000-0000-0000-0000-000000000001'"
+                        ()
+                    draftDayCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_days WHERE publication_state = 'draft'"
+                        ()
+                    draftDayCount `shouldBe` 0
+
+                    sqlExecDiscardResult
+                        "UPDATE date_native_roster_migration_acceptance.venue_config SET roster_week_starts_on = 2, week_offset_epoch = '2026-08-04' WHERE id = '40000000-0000-0000-0000-000000000001'"
+                        ()
+                    sqlExecDiscardResult
+                        "UPDATE date_native_roster_migration_acceptance.roster_days SET row_count = row_count + 1 WHERE day_offset = 0"
+                        ()
+                    calendarRevision :: Int <- sqlQueryScalar
+                        "SELECT roster_calendar_revision FROM date_native_roster_migration_acceptance.venue_config"
+                        ()
+                    preservedOperationalDate :: Day <- sqlQueryScalar
+                        "SELECT operational_date FROM date_native_roster_migration_acceptance.roster_days WHERE day_offset = 0"
+                        ()
+                    calendarRevision `shouldBe` 2
+                    preservedOperationalDate `shouldBe` fromGregorian 2026 8 3
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA date_native_roster_migration_acceptance CASCADE" ()
+
+    describe "date-native Timesheet migration" do
+        it "backfills source Operational days without moving authoritative instants" $ withContext do
+            withCleanDb do
+                predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-timesheets/pre-operational-date-schema.sql"
+                migrationSql <- TextIO.readFile "Application/Migration/1787005000.sql"
+                withTransaction do
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Date-native Timesheet migration fixture requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner (HasqlSession.script predecessorSql)
+                            runInTransaction runner (HasqlSession.script migrationSql)
+
+                    migratedRows :: [(UUID, Day, UTCTime, UTCTime)] <- sqlQuery
+                        "SELECT id, operational_date, starts_at, ends_at FROM date_native_timesheet_migration_acceptance.timesheet_entries ORDER BY id"
+                        ()
+                    let startsAt = UTCTime (fromGregorian 2026 8 3) (secondsToDiffTime (16 * 60 * 60))
+                    let endsAt = UTCTime (fromGregorian 2026 8 3) (secondsToDiffTime (19 * 60 * 60))
+                    migratedRows `shouldBe`
+                        [ (migrationUuid "40000000-0000-0000-0000-000000000001", fromGregorian 2026 8 3, startsAt, endsAt)
+                        , (migrationUuid "40000000-0000-0000-0000-000000000002", fromGregorian 2026 8 4, startsAt, endsAt)
+                        ]
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA date_native_timesheet_migration_acceptance CASCADE" ()
+
+    describe "Operational payroll sealing migration" do
+        it "backfills immutable window facts without rewriting historical components" $ withContext do
+            withCleanDb do
+                migrationSql <- TextIO.readFile "Application/Migration/1787006000.sql"
+                withTransaction do
+                    sqlExecDiscardResult "CREATE SCHEMA operational_payroll_migration_acceptance" ()
+                    sqlExecDiscardResult "SET LOCAL search_path TO operational_payroll_migration_acceptance, public" ()
+                    sqlExecDiscardResult "CREATE TABLE venue_config (venue_id UUID PRIMARY KEY, roster_week_starts_on INT NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE timesheet_entries (id UUID PRIMARY KEY, venue_id UUID NOT NULL, operational_date DATE NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE timesheet_pay_calculations (id UUID PRIMARY KEY, timesheet_entry_id UUID NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE timesheet_pay_earnings_components (id UUID PRIMARY KEY, timesheet_pay_calculation_id UUID NOT NULL, calculation_source TEXT, source_rate_identity TEXT)" ()
+                    sqlExecDiscardResult "CREATE TABLE award_level_base_rates (id UUID PRIMARY KEY, operative_from DATE)" ()
+                    sqlExecDiscardResult "CREATE TABLE award_level_penalty_rates (id UUID PRIMARY KEY, operative_from DATE)" ()
+                    sqlExecDiscardResult "CREATE TABLE award_time_penalty_allowances (id UUID PRIMARY KEY, operative_from DATE)" ()
+                    sqlExecDiscardResult "CREATE FUNCTION reject_sealed_ledger_update() RETURNS TRIGGER AS $$ BEGIN RAISE EXCEPTION 'sealed ledger immutable'; END; $$ LANGUAGE plpgsql" ()
+                    sqlExecDiscardResult "CREATE TRIGGER enforce_timesheet_pay_calculations_immutable BEFORE UPDATE ON timesheet_pay_calculations FOR EACH ROW EXECUTE FUNCTION reject_sealed_ledger_update()" ()
+                    sqlExecDiscardResult "CREATE TRIGGER enforce_timesheet_pay_earnings_components_immutable BEFORE UPDATE ON timesheet_pay_earnings_components FOR EACH ROW EXECUTE FUNCTION reject_sealed_ledger_update()" ()
+                    sqlExecDiscardResult "INSERT INTO venue_config VALUES ('10000000-0000-0000-0000-000000000001', 2)" ()
+                    sqlExecDiscardResult "INSERT INTO timesheet_entries VALUES ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '2026-08-05')" ()
+                    sqlExecDiscardResult "INSERT INTO timesheet_pay_calculations VALUES ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001')" ()
+                    sqlExecDiscardResult "INSERT INTO award_level_base_rates VALUES ('50000000-0000-0000-0000-000000000001', '2026-07-01')" ()
+                    sqlExecDiscardResult "INSERT INTO timesheet_pay_earnings_components (id, timesheet_pay_calculation_id, calculation_source, source_rate_identity) VALUES ('40000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'hospitality_award', 'bepis-projection:award_level_base_rates:50000000-0000-0000-0000-000000000001/source:fwc_mapd_pay_rates:60000000-0000-0000-0000-000000000001')" ()
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Operational payroll migration fixture requires a transaction runner"
+                        Just runner -> runInTransaction runner (HasqlSession.script migrationSql)
+
+                    facts :: [(Day, Day, Int)] <- sqlQuery "SELECT operational_date, roster_window_start, roster_week_starts_on FROM operational_payroll_migration_acceptance.timesheet_pay_calculations" ()
+                    componentFacts :: [(Maybe Day, Maybe Day, Maybe Text, Maybe Text, Bool)] <- sqlQuery "SELECT component_date, resolved_rate_boundary_date, xero_local_bucket_key, xero_earnings_rate_id, xero_mapping_legacy_fallback FROM operational_payroll_migration_acceptance.timesheet_pay_earnings_components" ()
+                    facts `shouldBe` [(fromGregorian 2026 8 5, fromGregorian 2026 8 4, 2)]
+                    componentFacts `shouldBe` [(Nothing, Just (fromGregorian 2026 7 7), Nothing, Nothing, True)]
+                    enabledGuards :: [PG.Only Bool] <- sqlQuery "SELECT trigger.tgenabled = 'O' FROM pg_trigger trigger JOIN pg_class relation ON relation.oid = trigger.tgrelid JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace WHERE namespace.nspname = 'operational_payroll_migration_acceptance' AND trigger.tgname IN ('enforce_timesheet_pay_calculations_immutable', 'enforce_timesheet_pay_earnings_components_immutable') ORDER BY trigger.tgname" ()
+                    enabledGuards `shouldBe` [PG.Only True, PG.Only True]
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA operational_payroll_migration_acceptance CASCADE" ()
+
     describe "explicit roster shift assignment migration" do
         it "upgrades representative predecessor rows without deleting history or Timesheet provenance" $ withContext do
             withCleanDb do
@@ -282,47 +477,47 @@ tests = aroundAll withDatabaseTestContext do
 
                 nonPositiveTimesheet <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, startsAt))
                     :: IO (Either SomeException ())
                 halfBreak <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, timezone) VALUES (?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, breakStart))
                     :: IO (Either SomeException ())
                 outsideBreak <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, beforeStart, breakStart))
                     :: IO (Either SomeException ())
                 emptyTimesheetTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, '')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, '', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt))
                     :: IO (Either SomeException ())
                 unsupportedTimesheetTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'not-a-zone')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, 'not-a-zone', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt))
                     :: IO (Either SomeException ())
                 wholeShiftBreak <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, startsAt, endsAt))
                     :: IO (Either SomeException ())
                 nonPositiveRoster <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone) VALUES (?, ?, 0, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, starts_at, ends_at, timezone) VALUES (?, ?, 0, ?, ?, 'Australia/Melbourne')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id, startsAt, startsAt))
                     :: IO (Either SomeException ())
                 emptyRosterTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, timezone) VALUES (?, ?, 1, '')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, timezone) VALUES (?, ?, 1, '')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id))
                     :: IO (Either SomeException ())
                 unsupportedRosterTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, timezone) VALUES (?, ?, 2, 'not-a-zone')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, timezone) VALUES (?, ?, 2, 'not-a-zone')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id))
                     :: IO (Either SomeException ())
 
@@ -493,7 +688,7 @@ tests = aroundAll withDatabaseTestContext do
                     insertShift rowIndex assignmentState maybeStaffId maybeStartsAt maybeEndsAt maybeShiftTypeId =
                         try
                             ( sqlExecDiscardResult
-                                "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, assignment_state, staff_id, starts_at, ends_at, timezone, shift_type_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', ?)"
+                                "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, assignment_state, staff_id, starts_at, ends_at, timezone, shift_type_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', ?)"
                                 (unpackId rosterDay.id, unpackId slotDefinition.id, rowIndex, assignmentState :: Text, maybeStaffId, maybeStartsAt, maybeEndsAt, maybeShiftTypeId)
                             ) :: IO (Either SomeException ())
 
@@ -520,14 +715,14 @@ tests = aroundAll withDatabaseTestContext do
 
                 result <- try
                     ( sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, assignment_state, staff_id, timezone, deleted_at, delete_reason) VALUES (?, ?, 0, 'open', NULL, 'Australia/Melbourne', NOW(), 'historical_fixture')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, assignment_state, staff_id, timezone, deleted_at, delete_reason) VALUES (?, ?, 0, 'open', NULL, 'Australia/Melbourne', NOW(), 'historical_fixture')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id)
                     ) :: IO (Either SomeException ())
 
                 result `shouldSatisfy` isRight
 
     describe "database tenant integrity protection" do
-        it "rejects direct SQL roster weeks whose venue does not match the roster group" $ withContext do
+        it "rejects direct SQL roster days whose venue does not match the roster group" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Tenant Roster A"
                 venueB <- createVenueWithConfig "Tenant Roster B"
@@ -539,8 +734,8 @@ tests = aroundAll withDatabaseTestContext do
                 result <-
                     try
                         ( sqlExecDiscardResult
-                            "INSERT INTO roster_weeks (venue_id, roster_group_id, week_offset) VALUES (?, ?, ?)"
-                            (unpackId venueA.id, unpackId foreignGroup.id, 42 :: Int)
+                            "INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count) VALUES (?, ?, DATE '2026-08-03', 'draft', FALSE, 2)"
+                            (unpackId venueA.id, unpackId foreignGroup.id)
                         ) :: IO (Either SomeException ())
 
                 result `shouldSatisfy` isLeft
@@ -591,7 +786,7 @@ tests = aroundAll withDatabaseTestContext do
                 result <-
                     try
                         ( sqlExecDiscardResult
-                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                             (unpackId venueA.id, unpackId staffA.id, unpackId foreignShiftType.id, startsAt, endsAt)
                         ) :: IO (Either SomeException ())
 
@@ -612,7 +807,8 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId sourceStaff.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
-                        |> setTestWorkedOn defaultWeekEpoch
+                        |> set #operationalDate rosterDay.operationalDate
+                        |> setTestWorkedOn rosterDay.operationalDate
                         |> setTestStartTime (TimeOfDay 9 0 0)
                         |> setTestEndTime (TimeOfDay 17 0 0)
                         |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
@@ -623,15 +819,14 @@ tests = aroundAll withDatabaseTestContext do
                     (unpackId otherStaff.id, unpackId linkedEntry.id)
                 reassignedEntry <- fetch linkedEntry.id
                 reassignedEntry.staffId `shouldBe` unpackId otherStaff.id
-                testWorkedOn reassignedEntry `shouldBe` defaultWeekEpoch
+                reassignedEntry.operationalDate `shouldBe` rosterDay.operationalDate
                 reassignedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
-                let movedStartsAt = resolveTestFixtureInstant linkedEntry.timezone (addDays 1 defaultWeekEpoch) (TimeOfDay 9 0 0)
                 changedDateResult <-
                     try
                         ( sqlExecDiscardResult
-                            "UPDATE timesheet_entries SET starts_at = ? WHERE id = ?"
-                            (movedStartsAt, unpackId linkedEntry.id)
+                            "UPDATE timesheet_entries SET operational_date = ? WHERE id = ?"
+                            (addDays 1 rosterDay.operationalDate, unpackId linkedEntry.id)
                         ) :: IO (Either SomeException ())
                 changedDateResult `shouldSatisfy` isLeft
 
@@ -645,7 +840,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 retainedEntry <- fetch linkedEntry.id
                 retainedEntry.staffId `shouldBe` unpackId otherStaff.id
-                testWorkedOn retainedEntry `shouldBe` defaultWeekEpoch
+                retainedEntry.operationalDate `shouldBe` rosterDay.operationalDate
                 retainedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
                 secondRosterSlot <- createRosterSlotRecord rosterDay slotName (Just sourceStaff) 1

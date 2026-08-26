@@ -2,6 +2,7 @@ module Test.Controller.SupportSpec where
 
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
+import Application.Helper.Controller (passkeyStepUpRedirectSessionKey)
 import Application.Helper.ControllerContext
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.Impersonation
@@ -36,6 +37,7 @@ import Test.Support.XeroAdmin (testXeroConfig)
 import qualified Web.ClientSession as ClientSession
 import Web.Controller.Support ()
 import Web.FrontController ()
+import Web.RosterWeeks.Paths (supportVenueSwitchReturnPath)
 import Web.Types
 
 supportFragmentRef :: SupportLiveFragment -> FrontendSurfaceMountedFragment
@@ -47,6 +49,10 @@ supportFragmentRef fragment =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "SupportController" do
+        it "drops venue-scoped roster groups from canonical support-switch return paths" $ withContext do
+            supportVenueSwitchReturnPath "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=11111111-1111-1111-1111-111111111111"
+                `shouldBe` "/RosterWeeks"
+
         it "redirects unauthenticated users from live support fragments" $ withContext do
             response <- callAction ShowFwcMapdAwardRatesSectionAction
 
@@ -244,7 +250,7 @@ tests = aroundAll withDatabaseTestContext do
                         [("userId", cs (inputValue worker.id))]
                     adminResponse <- callAction AdminAction
                     profileResponse <- callAction EditProfileAction
-                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse <- callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                     pure (adminResponse, profileResponse, rosterResponse)
 
                 adminResponse `responseStatusShouldBe` status302
@@ -292,8 +298,8 @@ tests = aroundAll withDatabaseTestContext do
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
                     callActionWithParams
-                        (UpdateRosterLayoutPreferenceAction 0)
-                        [("rosterLayoutMode", "day_columns")]
+                        UpdateRosterLayoutPreferenceAction
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302
                 venueConfig <- query @VenueConfig
@@ -312,8 +318,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     callActionWithParams
-                        (UpdateRosterLayoutPreferenceAction 0)
-                        [("rosterLayoutMode", "day_columns")]
+                        UpdateRosterLayoutPreferenceAction
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302
                 venueConfig <- query @VenueConfig
@@ -447,6 +453,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"support-impersonation-user\""
                 response `responseBodyShouldContain` "id=\"support-impersonation-user-mobile\""
+                response `responseBodyShouldContain` "hx-post=\"/SwitchSupportImpersonation\""
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` "this.form.requestSubmit(); this.form.reset()"
                 response `responseBodyShouldContain` "app-header-desktop-actions d-none d-xl-flex"
                 response `responseBodyShouldContain` "app-mobile-menu-toggle d-xl-none"
                 response `responseBodyShouldContain` "app-mobile-nav d-xl-none"
@@ -509,6 +518,221 @@ tests = aroundAll withDatabaseTestContext do
                     missingNextResponse `responseStatusShouldBe` status302
                     lookup HTTP.hLocation (Wai.responseHeaders missingNextResponse)
                         `shouldBe` Just "http://localhost/RosterWeeks"
+
+        it "revalidates current-page returns after start, switch, and exit" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Return Authorization Venue"
+                founder <- createUserRecordWithPlatformRole "impersonation-return-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "impersonation-return-worker@example.com" "staff" True
+                owner <- createUserRecord "impersonation-return-owner@example.com" "staff" True
+                incompleteOwner <- createUserRecord "impersonation-return-incomplete-owner@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createVenueMembershipRecord venue incompleteOwner VenueOwner
+
+                withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    startResponse <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/ShowRosterWindow?anchorDate=2026-08-10")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders startResponse)
+                        `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2026-08-10"
+
+                    supportFallbackResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/Support?section=security")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders supportFallbackResponse)
+                        `shouldBe` Just "http://localhost/RosterWeeks"
+
+                    forM_ ["/Billing", "/Admin", "/Xero", "/ExportJobs", "/EditProfile?section=security", "/PasskeyStepUp", "/VerifyEmail?token=secret", "/UnknownPage"] \unavailablePath -> do
+                        unavailableResponse <- callActionWithParams
+                            SwitchSupportImpersonationAction
+                            [ ("userId", cs (inputValue worker.id))
+                            , ("next", unavailablePath)
+                            ]
+                        (unavailablePath, lookup HTTP.hLocation (Wai.responseHeaders unavailableResponse))
+                            `shouldBe` (unavailablePath, Just "http://localhost/RosterWeeks")
+
+                    forM_ ["/Billing/not-a-route", "/ShowRosterWindowGarbage", "/ShowRosterWindow?anchorDate=not-a-date", "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=not-a-uuid", "/ShowRosterWindow?anchorDate=2026-08-10&anchorDate=2026-08-11", "/ShowRosterWindow?anchorDate=2026-08-10&unexpected=value", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=invalid", "/RosterWeeks?rosterView"] \malformedPagePath -> do
+                        malformedPageResponse <- callActionWithParams
+                            SwitchSupportImpersonationAction
+                            [ ("userId", cs (inputValue worker.id))
+                            , ("next", malformedPagePath)
+                            ]
+                        lookup HTTP.hLocation (Wai.responseHeaders malformedPageResponse)
+                            `shouldBe` Just "http://localhost/RosterWeeks"
+
+                    incompleteOwnerResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue incompleteOwner.id))
+                        , ("next", "/Billing")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders incompleteOwnerResponse)
+                        `shouldBe` Just "http://localhost/RosterWeeks"
+
+                    ownerBillingResponse <- withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            SwitchSupportImpersonationAction
+                            [ ("userId", cs (inputValue owner.id))
+                            , ("next", "/Billing")
+                            ]
+                    ownerBillingResponse `responseStatusShouldBe` status200
+                    lookup "HX-Redirect" (Wai.responseHeaders ownerBillingResponse)
+                        `shouldBe` Just "/Billing"
+
+                    ownerBillingCancelResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue owner.id))
+                        , ("next", "/BillingCancel?attempt_id=11111111-1111-1111-1111-111111111111")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders ownerBillingCancelResponse)
+                        `shouldBe` Just "http://localhost/BillingCancel?attempt_id=11111111-1111-1111-1111-111111111111"
+
+                    forM_ ["/Billing?unexpected=value", "/Billing?checkout=nope", "/Billing?checkout=success&attempt_id=not-a-uuid", "/LeaveRequests?archivePage=not-an-int"] \invalidOwnerPath -> do
+                        invalidOwnerResponse <- callActionWithParams
+                            SwitchSupportImpersonationAction
+                            [ ("userId", cs (inputValue owner.id))
+                            , ("next", invalidOwnerPath)
+                            ]
+                        lookup HTTP.hLocation (Wai.responseHeaders invalidOwnerResponse)
+                            `shouldBe` Just "http://localhost/RosterWeeks"
+
+                    ownerLeaveResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue owner.id))
+                        , ("next", "/LeaveRequests?archivePage=2&openSection=archive&section=archive")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders ownerLeaveResponse)
+                        `shouldBe` Just "http://localhost/LeaveRequests?archivePage=2&openSection=archive&section=archive"
+
+                    ownerTemplateReferenceResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue owner.id))
+                        , ("next", "/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders ownerTemplateReferenceResponse)
+                        `shouldBe` Just "http://localhost/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week"
+
+                    ownerTemplateConfirmationResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue owner.id))
+                        , ("next", "/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders ownerTemplateConfirmationResponse)
+                        `shouldBe` Just "http://localhost/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1"
+
+                    workerTimesheetResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/ShowTimesheetWindow?anchorDate=2026-08-10&rosterGroupFilterId=11111111-1111-1111-1111-111111111111")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders workerTimesheetResponse)
+                        `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2026-08-10&rosterGroupFilterId=11111111-1111-1111-1111-111111111111"
+
+                    workerTimelineResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders workerTimelineResponse)
+                        `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1"
+
+                    workerRosterGroupResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/RosterWeeks?rosterGroupId=11111111-1111-1111-1111-111111111111")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders workerRosterGroupResponse)
+                        `shouldBe` Just "http://localhost/RosterWeeks?rosterGroupId=11111111-1111-1111-1111-111111111111"
+
+                    workerHelpResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/ShowPageHelp?topic=roster")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders workerHelpResponse)
+                        `shouldBe` Just "http://localhost/ShowPageHelp?topic=roster"
+
+                    workerNewLeaveResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/NewLeaveRequest")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders workerNewLeaveResponse)
+                        `shouldBe` Just "http://localhost/NewLeaveRequest"
+
+                    workerFeedbackResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/NewFeedback")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders workerFeedbackResponse)
+                        `shouldBe` Just "http://localhost/NewFeedback"
+
+                    unknownHelpResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue worker.id))
+                        , ("next", "/ShowPageHelp?topic=unknown")
+                        ]
+                    lookup HTTP.hLocation (Wai.responseHeaders unknownHelpResponse)
+                        `shouldBe` Just "http://localhost/RosterWeeks"
+
+                    exitResponse <- callActionWithParams
+                        ExitSupportImpersonationAction
+                        [("next", "/Support?section=security")]
+                    lookup HTTP.hLocation (Wai.responseHeaders exitResponse)
+                        `shouldBe` Just "http://localhost/Support?section=security"
+
+                    founderNewStaffResponse <- callActionWithParams
+                        ExitSupportImpersonationAction
+                        [("next", "/NewStaff?anchorDate=2026-08-10")]
+                    lookup HTTP.hLocation (Wai.responseHeaders founderNewStaffResponse)
+                        `shouldBe` Just "http://localhost/NewStaff?anchorDate=2026-08-10"
+
+                    unknownExitResponse <- callActionWithParams
+                        ExitSupportImpersonationAction
+                        [("next", "/VerifyEmail?token=secret")]
+                    lookup HTTP.hLocation (Wai.responseHeaders unknownExitResponse)
+                        `shouldBe` Just "http://localhost/RosterWeeks"
+
+        it "retains safe current-page context through passkey step-up without entering impersonation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Step-up Return Venue"
+                founder <- createUserRecordWithPlatformRole "impersonation-step-up-return@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "impersonation-step-up-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                ensureTestUserHasPasskey founder
+
+                (response, storedReturnPath, invalidResponse, invalidStoredReturnPath, effectiveUserId) <- withUserAndCurrentVenue founder venue.id do
+                    response <- withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            SwitchSupportImpersonationAction
+                            [ ("userId", cs (inputValue worker.id))
+                            , ("next", "/ShowRosterWindow?anchorDate=2026-08-10")
+                            ]
+                    storedReturnPath <- getSession @Text passkeyStepUpRedirectSessionKey
+                    invalidResponse <- withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            SwitchSupportImpersonationAction
+                            [ ("userId", cs (inputValue worker.id))
+                            , ("next", "/Billing?checkout=nope")
+                            ]
+                    invalidStoredReturnPath <- getSession @Text passkeyStepUpRedirectSessionKey
+                    effectiveUserId <- getSession @(Id User) effectiveUserSessionKey
+                    pure (response, storedReturnPath, invalidResponse, invalidStoredReturnPath, effectiveUserId)
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (Wai.responseHeaders response)
+                    `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
+                storedReturnPath `shouldBe` Just "/ShowRosterWindow?anchorDate=2026-08-10"
+                invalidResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (Wai.responseHeaders invalidResponse)
+                    `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
+                invalidStoredReturnPath `shouldBe` Just "/RosterWeeks"
+                effectiveUserId `shouldBe` Nothing
 
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do

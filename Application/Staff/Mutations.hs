@@ -1,29 +1,12 @@
 module Application.Staff.Mutations
-    ( withStaffOperationalLock
-    , withStaffOperationalLocks
-    , withStaffOperationalLocksInCurrentTransaction
-    , withStaffRemovalLock
+    ( withStaffOperationalLocksInCurrentTransaction
+    , withStaffRemovalLockInCurrentTransaction
     ) where
 
 import qualified Data.List as List
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
-
-withStaffOperationalLock ::
-    (?modelContext :: ModelContext) =>
-    UUID ->
-    ((?modelContext :: ModelContext) => IO result) ->
-    IO (Maybe result)
-withStaffOperationalLock staffId = withStaffOperationalLocks [staffId]
-
-withStaffOperationalLocks ::
-    (?modelContext :: ModelContext) =>
-    [UUID] ->
-    ((?modelContext :: ModelContext) => IO result) ->
-    IO (Maybe result)
-withStaffOperationalLocks staffIds action =
-    withTransaction (withStaffOperationalLocksInCurrentTransaction staffIds action)
 
 withStaffOperationalLocksInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
@@ -38,13 +21,12 @@ withStaffOperationalLocksInCurrentTransaction staffIds action = do
         then Just <$> action
         else pure Nothing
 
-withStaffRemovalLock ::
+withStaffRemovalLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UUID ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
-withStaffRemovalLock staffId action =
-    withTransaction do
+withStaffRemovalLockInCurrentTransaction staffId action = do
         lockStaffOperationalKey staffId
         lockedStaffIds :: [PG.Only UUID] <- sqlQuery
             "SELECT id FROM staff WHERE id = ? FOR UPDATE"

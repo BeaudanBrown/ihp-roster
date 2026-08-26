@@ -15,7 +15,6 @@ import Application.Helper.VenueScopedQueries
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
-import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Application.WageEngine (EarningsComponent (sourceCondition),
                                SourceCondition (ImportedFlatRateCondition),
                                WageCalculation (earningsComponents))
@@ -93,7 +92,7 @@ validateXeroTimesheetReadiness ::
 validateXeroTimesheetReadiness request = do
     maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
     now <- getCurrentTime
-    periodEntries <- fetchActivePeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+    periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
     notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
     let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
     let entriesBeforeCalendarFilter = filter (not . staffIsSkipped baseSkippedStaffIds . (.staffId)) periodEntries
@@ -187,14 +186,14 @@ fetchActiveXeroConnection venueId =
         |> orderByDesc #connectedAt
         |> fetchOneOrNothing
 
-fetchActivePeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
-fetchActivePeriodTimesheetEntries venueId periodStart periodEnd = do
-    let (periodStartsAt, periodEndsAt) = requireMelbourneDateRangeUTC periodStart periodEnd
+fetchPeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
+fetchPeriodTimesheetEntries venueId periodStart periodEnd =
     query @TimesheetEntry
         |> filterWhere (#venueId, unpackId venueId)
-        |> filterWhereGreaterThanOrEqualTo (#startsAt, periodStartsAt)
-        |> filterWhereLessThan (#startsAt, periodEndsAt)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, periodStart)
+        |> filterWhereLessThan (#operationalDate, addDays 1 periodEnd)
         |> filterWhere (#deletedAt, Nothing)
+        |> orderBy #operationalDate
         |> orderBy #startsAt
         |> fetch
 

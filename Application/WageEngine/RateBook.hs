@@ -13,6 +13,7 @@ module Application.WageEngine.RateBook
     , ProjectionRateSource (..)
     , projectionRateSourceIdentity
     , rateSourceIdentityReferencesProjection
+    , projectionRateSourceFromIdentity
     , RateSourceOwner (..)
     , EffectivePeriod (..)
     , CandidateRate (..)
@@ -140,6 +141,20 @@ rateSourceIdentityReferencesProjection source (RateSourceIdentity identity) =
 
     prefix projectionTable projectionId sourceTable =
         "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":"
+
+projectionRateSourceFromIdentity :: RateSourceIdentity -> Maybe ProjectionRateSource
+projectionRateSourceFromIdentity (RateSourceIdentity value) = do
+    (projectionTable, projectionId, sourceTable, sourceId) <- case Text.splitOn ":" (Text.replace "/source:" ":" value) of
+        ["bepis-projection", projectionTable, projectionIdText, sourceTable, sourceIdText] -> do
+            projectionId <- UUID.fromText projectionIdText
+            sourceId <- UUID.fromText sourceIdText
+            pure (projectionTable, projectionId, sourceTable, sourceId)
+        _ -> Nothing
+    case (projectionTable, sourceTable) of
+        ("award_level_base_rates", "fwc_mapd_pay_rates") -> Just (AwardLevelBaseRateSource projectionId sourceId)
+        ("award_level_penalty_rates", "fwc_mapd_penalty_rates") -> Just (AwardLevelPenaltyRateSource projectionId sourceId)
+        ("award_time_penalty_allowances", "fwc_mapd_wage_allowances") -> Just (AwardTimePenaltyAllowanceSource projectionId sourceId)
+        _ -> Nothing
 
 data RateSourceOwner
     = ClassificationOwner !Int

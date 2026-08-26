@@ -1,23 +1,30 @@
 module Test.WageSourceEnforcementSpec where
 
+import Application.EmailDelivery
+import Application.Helper.Mail (AppMailSettings (..))
 import Application.WageSourceEnforcement
-import Application.WageSourceNotifications (emitLatestAwardDriftNotifications,
-                                            wageSourceDriftNotificationJobKind)
-import Application.WageSourcePolicy (PolicyClock (..), SourceDiagnostic (..))
+import Application.WageSourceNotification.Email
+import Application.WageSourceNotifications (emitLatestAwardDriftNotifications)
+import Application.WageSourcePolicy (AwardDriftKind (AwardClassificationStructureChanged),
+                                     PolicyClock (..), SourceDiagnostic (..))
+import Config (config)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (isLeft, isRight)
+import Data.IORef
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Prelude
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
+import Web.Mail.WageSourceDrift (WageSourceDriftMail (..))
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -108,10 +115,54 @@ tests = aroundAll withDatabaseTestContext do
                 length first `shouldBe` 3
                 map (.id) second `shouldBe` map (.id) first
                 jobs <- query @AppJob
-                    |> filterWhere (#jobKind, wageSourceDriftNotificationJobKind)
+                    |> filterWhere (#jobKind, emailDeliveryJobKind)
                     |> fetch
                 length jobs `shouldBe` 3
                 mapMaybe payloadRecipient jobs `shouldBe` replicate 3 (unpackId superAdmin.id)
+                map (.payload) jobs `shouldSatisfy` all (not . Text.isInfixOf "expectedValue" . cs . Aeson.encode)
+                deactivatedAt <- getCurrentTime
+                _ <- superAdmin |> set #deactivatedAt (Just deactivatedAt) |> updateRecord
+                deliveryCalls <- newIORef (0 :: Int)
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    forM_ jobs $
+                        performEmailDeliveryJobWith
+                            EmailDeliveryRuntime
+                                { deliveryIsDisabled = pure False
+                                , deliverMail = \_ -> modifyIORef' deliveryCalls (+ 1)
+                                }
+                readIORef deliveryCalls `shouldReturn` 0
+                completed <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetch
+                map (.result) completed `shouldSatisfy` all (Text.isInfixOf "recipient_ineligible" . cs . Aeson.encode)
+
+        it "renders Award drift from its referenced fingerprint after a newer refresh" $ withContext do
+            withCleanDb do
+                superAdmin <- createUserRecordWithPlatformRole "drift-snapshot@example.com" "staff" (Just SuperAdmin) True
+                now <- getCurrentTime
+                seedFingerprintSnapshot now 1 "Hospitality level 1"
+                seedFingerprintSnapshot (addUTCTime 1 now) 2 "Hospitality level one"
+                jobs <- emitLatestAwardDriftNotifications
+                seedFingerprintSnapshot (addUTCTime 2 now) 3 "Hospitality renamed later"
+                let targetKind = awardDriftMailKind AwardClassificationStructureChanged
+                let Just job = find ((== Just targetKind) . payloadMailKind) jobs
+                let Just referenceId = payloadDomainReference job
+                projection <-
+                    loadAwardDriftMail
+                        targetKind
+                        (unpackId superAdmin.id)
+                        superAdmin.email
+                        referenceId
+                        AppMailSettings
+                            { mailFromAddress = "noreply@example.com"
+                            , mailReplyToAddress = "support@example.com"
+                            , mailSupportEmail = "support@example.com"
+                            }
+                case projection of
+                    AwardDriftMailSkipped reason -> expectationFailure (cs reason)
+                    AwardDriftMailReady mail -> do
+                        mail.expectedValue `shouldSatisfy` Text.isInfixOf "Hospitality level 1"
+                        mail.observedValue `shouldSatisfy` Text.isInfixOf "Hospitality level one"
+                        mail.observedValue `shouldSatisfy` not . Text.isInfixOf "renamed later"
   where
     isFwcStale FwcSnapshotStale {} = True
     isFwcStale _                   = False
@@ -140,4 +191,10 @@ seedFingerprintSnapshot syncedAt versionNumber classification = do
         |> createRecord
 
 payloadRecipient :: AppJob -> Maybe UUID
-payloadRecipient job = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "userId")) job.payload
+payloadRecipient job = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "recipientAccountId")) job.payload
+
+payloadMailKind :: AppJob -> Maybe Text
+payloadMailKind job = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "mailKind")) job.payload
+
+payloadDomainReference :: AppJob -> Maybe UUID
+payloadDomainReference job = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "domainReferenceId")) job.payload

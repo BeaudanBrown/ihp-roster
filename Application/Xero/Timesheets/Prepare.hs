@@ -20,6 +20,7 @@ import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
+import Application.Xero.EmployeeId (XeroEmployeeId, xeroEmployeeIdText)
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
 import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePresentation (..),
                                                      xeroPreparationReferencePresentation)
@@ -43,7 +44,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 data XeroPreparationStaffDecision
-    = SelectXeroEmployee !Text
+    = SelectXeroEmployee !XeroEmployeeId
     | MarkStaffNotPaidThroughXero
     deriving (Eq, Show)
 
@@ -152,7 +153,8 @@ loadXeroTimesheetPreparationView runId = do
             periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
             xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-            payItemRequirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
+            payItemRequirementsResult <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
+            let payItemRequirements = either (const []) (\values -> values) payItemRequirementsResult
             payrollCalendars <- fetchCurrentVenueXeroPayrollCalendars (Just connection)
             accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
             accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
@@ -287,11 +289,12 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                             reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
                         SelectXeroEmployee employeeId -> do
                             pendingSuggestion <- fetchPendingStaffAutoMatch run staff
-                            let decisionKind =
+                            let employeeIdText = xeroEmployeeIdText employeeId
+                                decisionKind =
                                     case pendingSuggestion >>= (.xeroEmployeeId) of
-                                        Just suggestedEmployeeId | suggestedEmployeeId == employeeId -> StaffAutoMatch
+                                        Just suggestedEmployeeId | suggestedEmployeeId == employeeIdText -> StaffAutoMatch
                                         _ -> StaffManualMapping
-                            applyEmployeeMappingDecision run connection staff decisionKind employeeId
+                            applyEmployeeMappingDecision run connection staff decisionKind employeeIdText
     where
         remoteTimesheetsFromCurrentRun updatedRun = remoteTimesheetsFromRun updatedRun
 
@@ -303,38 +306,43 @@ ensurePreparationPayItemsReady ::
 ensurePreparationPayItemsReady run maybeAccountCode = do
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-    requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
-    accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
-    accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
-    forM_ (Text.strip <$> maybeAccountCode) \accountCode ->
-        when (not (Text.null accountCode)) do
-            persistPreparationAccountCodeSelection connection accountCodeOptions accountCode
-    latestSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
-    let selectedAccountCode = selectedXeroPayItemAccountCode accountCodeOptions latestSelection <|> selectedXeroPayItemAccountCode accountCodeOptions accountCodeSelection
-        proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
-    case selectedAccountCode of
-        Nothing
-            | null proposedRequirements -> pure (Right ())
-            | otherwise -> pure (Left "Choose a Xero account code before submitting; the missing managed pay items need one.")
-        Just accountCode
-            | null proposedRequirements -> pure (Right ())
-            | otherwise ->
-                readXeroConfig >>= \case
-                    Left message -> pure (Left message)
-                    Right config ->
-                        refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
-                            Left message -> pure (Left message)
-                            Right (refreshedConnection, accessToken) -> do
-                                xeroClient <- currentXeroClient
-                                now <- getCurrentTime
-                                createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements >>= \case
-                                    Left message -> pure (Left message)
-                                    Right verification
-                                        | verification.missingCount > 0 ->
-                                            pure (Left (xeroPayItemVerificationFailureMessage verification))
-                                        | otherwise -> do
-                                            markPayItemCreateDecisionsApplied run proposedRequirements
-                                            pure (Right ())
+    requirementsResult <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
+    case requirementsResult of
+        Left message -> pure (Left (preparationPayItemRequirementsError message))
+        Right requirements -> ensureRequirementsReady connection requirements
+  where
+    ensureRequirementsReady connection requirements = do
+        accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
+        accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
+        forM_ (Text.strip <$> maybeAccountCode) \accountCode ->
+            when (not (Text.null accountCode)) do
+                persistPreparationAccountCodeSelection connection accountCodeOptions accountCode
+        latestSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
+        let selectedAccountCode = selectedXeroPayItemAccountCode accountCodeOptions latestSelection <|> selectedXeroPayItemAccountCode accountCodeOptions accountCodeSelection
+            proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
+        case selectedAccountCode of
+            Nothing
+                | null proposedRequirements -> pure (Right ())
+                | otherwise -> pure (Left "Choose a Xero account code before submitting; the missing managed pay items need one.")
+            Just accountCode
+                | null proposedRequirements -> pure (Right ())
+                | otherwise ->
+                    readXeroConfig >>= \case
+                        Left message -> pure (Left message)
+                        Right config ->
+                            refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
+                                Left message -> pure (Left message)
+                                Right (refreshedConnection, accessToken) -> do
+                                    xeroClient <- currentXeroClient
+                                    now <- getCurrentTime
+                                    createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements >>= \case
+                                        Left message -> pure (Left message)
+                                        Right verification
+                                            | verification.missingCount > 0 ->
+                                                pure (Left (xeroPayItemVerificationFailureMessage verification))
+                                            | otherwise -> do
+                                                markPayItemCreateDecisionsApplied run proposedRequirements
+                                                pure (Right ())
 
 selectXeroTimesheetPreparationPeriod ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -463,19 +471,22 @@ fetchPreparationPayItemRequirements ::
     XeroTimesheetPreparationRun ->
     XeroConnection ->
     [XeroEarningsRate] ->
-    IO [XeroPayItemRequirement]
+    IO (Either Text [XeroPayItemRequirement])
 fetchPreparationPayItemRequirements run connection xeroEarningsRates = do
     requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
     case (run.payPeriodStart, run.payPeriodEnd) of
         (Just periodStart, Just periodEnd) -> do
             skippedStaffIds <- fetchPreparationNotPaidStaffIds connection
             bucketResult <- fetchPeriodXeroLocalEarningsBuckets (Id run.venueId) periodStart periodEnd skippedStaffIds
-            buckets <- case bucketResult of
-                Left message -> fail (cs ("Cannot derive managed pay items from approved wage facts: " <> message))
-                Right values  -> pure values
-            let bucketKeys = map (.localBucketKey) buckets
-            pure (filter (\requirement -> requirement.payItemRequirementKey `elem` bucketKeys) requirements)
-        _ -> pure []
+            pure do
+                buckets <- bucketResult
+                let bucketKeys = map (.localBucketKey) buckets
+                pure (filter (\requirement -> requirement.payItemRequirementKey `elem` bucketKeys) requirements)
+        _ -> pure (Right [])
+
+preparationPayItemRequirementsError :: Text -> Text
+preparationPayItemRequirementsError message =
+    "Cannot derive managed pay items from approved wage facts: " <> message
 
 fetchPreparationNotPaidStaffIds ::
     (?modelContext :: ModelContext) =>
@@ -518,8 +529,9 @@ ensurePreparationPayItemDecisionProposals ::
 ensurePreparationPayItemDecisionProposals run = do
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-    requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
-    let proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
+    requirementsResult <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
+    let requirements = either (const []) (\values -> values) requirementsResult
+        proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
     forM_ proposedRequirements \requirement ->
         void $
             ensurePendingPreparationDecision

@@ -18,31 +18,15 @@ import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
 import Web.RosterWeeks.Types
 
 buildRosterMonthOverviewDays :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> Id RosterGroup -> Calendar.Day -> IO [RosterWeekOverviewDay]
-buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
+buildRosterMonthOverviewDays _venueConfig rosterGroupId focusDate = do
     let (monthStartDate, monthEndDate) = monthBounds focusDate
-    let weekStartsOn = venueConfig.rosterWeekStartsOn
-    let firstWeekOffset = venueWeekOffsetForDay venueConfig (startOfWeekFor weekStartsOn monthStartDate)
-    let lastWeekOffset = venueWeekOffsetForDay venueConfig (startOfWeekFor weekStartsOn monthEndDate)
-    let monthWeekOffsets = [firstWeekOffset .. lastWeekOffset]
-
-    rosterWeeks <-
-        if null monthWeekOffsets
-            then pure []
-            else
-                (query @RosterWeek
-                    |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-                    |> filterWhereIn (#weekOffset, monthWeekOffsets)
-                    |> applyVisibleRosterWeekScope
-                )
-                    |> fetch
-
-    let rosterWeekIds = map (coerce . (.id)) rosterWeeks
     rosterDays <-
-        if null rosterWeekIds
-            then pure []
-            else query @RosterDay
-                |> filterWhereIn (#rosterWeekId, rosterWeekIds)
-                |> fetch
+        query @RosterDay
+            |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+            |> filterWhereGreaterThanOrEqualTo (#operationalDate, monthStartDate)
+            |> filterWhereLessThanOrEqualTo (#operationalDate, monthEndDate)
+            |> applyVisibleRosterDayScope
+            |> fetch
 
     let rosterDayIds = map (coerce . (.id)) rosterDays
     allSlots <-
@@ -62,17 +46,9 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
             then pure []
             else fetchLeaveRequestsForRosterWindowByStatus [LeaveRequestStatusEnumPending, LeaveRequestStatusEnumApproved] overviewStaffIds monthStartDate monthEndExclusive
 
-    let rosterWeekStartDates = Map.fromList
-            [ (coerce rosterWeek.id, venueWeekStartDate venueConfig rosterWeek.weekOffset)
-            | rosterWeek <- rosterWeeks
-            ]
     let rosterDaysByDate = Map.fromList
-            [ (overviewDate, rosterDay)
+            [ (rosterDay.operationalDate, rosterDay)
             | rosterDay <- rosterDays
-            , Just weekStartDate <- [Map.lookup rosterDay.rosterWeekId rosterWeekStartDates]
-            , let overviewDate = Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
-            , overviewDate >= monthStartDate
-            , overviewDate <= monthEndDate
             ]
     let slotsByRosterDayId = Map.fromListWith (++) [ (slot.rosterDayId, [slot]) | slot <- allSlots ]
 
@@ -80,10 +56,10 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
          | overviewDate <- [monthStartDate .. monthEndDate]
          ]
     where
-        applyVisibleRosterWeekScope queryBuilder =
+        applyVisibleRosterDayScope queryBuilder =
             if hasRole Manager
                 then queryBuilder
-                else queryBuilder |> filterWhere (#isLive, True)
+                else queryBuilder |> filterWhere (#publicationState, Published)
 
         buildDaySummary overviewDate maybeRosterDay daySlots leaveRequests =
             let

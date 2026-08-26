@@ -17,9 +17,9 @@ module Application.Helper.FrontendContract.Surface.Request.Runtime.Internal
     , intentEvidence
     ) where
 
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.ContractIR (HtmxActionIR,
                                                                IntentIR (..))
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Values (ActionFields,
                                                            IntentFields,
                                                            surfaceFieldsText)

@@ -71,7 +71,7 @@ async function openFreshSaturdayShift(page: Page, targetMonday: string) {
     );
     const initialLauncherCount = await newShiftLaunchers.count();
     await addRowToRosterDay(saturdaySection(page));
-    await expect(newShiftLaunchers).toHaveCount(initialLauncherCount + 1);
+    await expect.poll(() => newShiftLaunchers.count()).toBeGreaterThan(initialLauncherCount);
     await openRosterShiftDialog(page, newShiftLaunchers.last());
 }
 

@@ -4,6 +4,7 @@ import Application.Script.SeedProfile
 import Data.Either (isLeft)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import Data.Time.Calendar (fromGregorian)
 import IHP.Prelude
 import Test.Hspec
 
@@ -24,7 +25,10 @@ smallOptions =
         }
 
 smallPlan :: ProfileSeedPlan
-smallPlan = buildProfileSeedPlan smallOptions 9
+smallPlan = buildProfileSeedPlan smallOptions profileTestWindowStart
+
+profileTestWindowStart :: Day
+profileTestWindowStart = fromGregorian 2025 3 10
 
 tests :: Spec
 tests = do
@@ -37,9 +41,8 @@ tests = do
                     , ("staff", 3)
                     , ("staff_pay_versions", 2)
                     , ("shift_type_pay_versions", 3)
-                    , ("roster_weeks", 4)
                     , ("roster_days", 28)
-                    , ("roster_week_slot_definitions", 12)
+                    , ("roster_lanes", 84)
                     , ("roster_slots", 84)
                     , ("timesheet_entries", 2)
                     , ("leave_requests", 6)
@@ -97,9 +100,8 @@ tests = do
                     , "slot_names.csv"
                     , "staff_roster_groups.csv"
                     , "staff_shift_preferences.csv"
-                    , "roster_weeks.csv"
                     , "roster_days.csv"
-                    , "roster_week_slot_definitions.csv"
+                    , "roster_lanes.csv"
                     , "roster_slots.csv"
                     , "leave_requests.csv"
                     , "timesheet_entries.csv"
@@ -112,33 +114,33 @@ tests = do
 
         it "keeps load SQL shape, escaping, and boundary statements stable" do
             let loadLines = Text.lines (renderLoadSql "/tmp/profile seed's")
-            length loadLines `shouldBe` 36
+            length loadLines `shouldBe` 35
             head loadLines `shouldBe` "BEGIN;"
             loadLines !! 1
                 `shouldBe` "\\copy venues (id, name, status) FROM '/tmp/profile seed''s/venues.csv' WITH (FORMAT csv, NULL '\\N')"
             loadLines `shouldContain` ["CREATE TEMP TABLE profile_seed_timesheet_entries (LIKE timesheet_entries INCLUDING DEFAULTS);"]
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_pay_calculations calculation SET sealed_at")
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_entries entry SET active_pay_calculation_id")
-            drop 34 loadLines `shouldBe` ["COMMIT;", "ANALYZE;"]
+            drop 33 loadLines `shouldBe` ["COMMIT;", "ANALYZE;"]
 
     describe "ProfileSeed application routes" do
         it "keeps typed-route target bytes stable" do
-            rosterWeekPath 9 1 1
-                `shouldBe` "/ShowRosterWeek?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            rosterWeekContentFragmentPath 9 1 1
-                `shouldBe` "/ShowRosterWeekContentFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            rosterWeekStaffPanelFragmentPath 9 1 1
-                `shouldBe` "/ShowRosterWeekStaffPanelFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            rosterWeekOverviewFragmentPath 9 1 1
-                `shouldBe` "/ShowRosterWeekOverviewFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            timesheetWeekPath 9
-                `shouldBe` "/ShowTimesheetWeek?weekOffset=9"
-            timesheetResetPath 9
+            rosterWeekPath profileTestWindowStart 1 1
+                `shouldBe` "/ShowRosterWindow?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+            rosterWeekContentFragmentPath profileTestWindowStart 1 1
+                `shouldBe` "/ShowRosterWeekContentFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+            rosterWeekStaffPanelFragmentPath profileTestWindowStart 1 1
+                `shouldBe` "/ShowRosterWeekStaffPanelFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+            rosterWeekOverviewFragmentPath profileTestWindowStart 1 1
+                `shouldBe` "/ShowRosterWeekOverviewFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+            timesheetWeekPath profileTestWindowStart
+                `shouldBe` "/ShowTimesheetWindow?anchorDate=2025-03-10"
+            timesheetResetPath
                 `shouldBe` "/Timesheets"
-            timesheetStaffFilterPath 9 "004c4b41-0001-4000-8002-00001ddcab28"
-                `shouldBe` "/ShowTimesheetWeek?weekOffset=9&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28"
-            timesheetDayFragmentPath 9 0
-                `shouldBe` "/ShowTimesheetDaySectionFragment?weekOffset=9&dayOffset=0"
+            timesheetStaffFilterPath profileTestWindowStart "004c4b41-0001-4000-8002-00001ddcab28"
+                `shouldBe` "/ShowTimesheetWindow?anchorDate=2025-03-10&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28"
+            timesheetDayFragmentPath profileTestWindowStart 0
+                `shouldBe` "/ShowTimesheetDaySectionFragment?anchorDate=2025-03-10&operationalDate=2025-03-10"
             profileLeaveSectionFragmentPath
                 `shouldBe` "/ShowprofileContentLiveFragment?section=leave"
             adminInvitesFragmentPath 1 1

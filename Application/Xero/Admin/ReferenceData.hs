@@ -16,6 +16,9 @@ module Application.Xero.Admin.ReferenceData
 import Application.Helper.Audit (AuditEventType (XeroReferenceSyncFailedAudit, XeroReferenceSyncSucceededAudit),
                                  AuditSourceChannel (ApplicationAuditSource),
                                  recordAuditEvent)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroReferenceSyncStateResource)
+import Application.Helper.SurfaceResource (liveMutationResult,
+                                           liveMutationValue)
 import Application.Helper.Xero
 import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified)
 import Control.Monad (void)
@@ -25,6 +28,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
 
 data XeroReferenceDataSyncResult = XeroReferenceDataSyncResult
     { referenceDataSyncRun                  :: XeroSyncRun
@@ -41,7 +45,7 @@ startXeroReferenceDataSync ::
     IO XeroSyncRun
 startXeroReferenceDataSync connection = do
     now <- getCurrentTime
-    withTransaction do
+    liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.started" do
         interruptedRuns <-
             query @XeroSyncRun
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
@@ -54,13 +58,14 @@ startXeroReferenceDataSync connection = do
                 |> set #finishedAt (Just now)
                 |> updateRecord
                 |> void
-        newRecord @XeroSyncRun
+        syncRun <- newRecord @XeroSyncRun
             |> set #venueId connection.venueId
             |> set #xeroConnectionId (unpackId connection.id)
             |> set #syncStatus Running
             |> set #syncKind PayrollReferenceData
             |> set #startedAt now
             |> createRecord
+        pure (liveMutationResult syncRun [xeroReferenceSyncStateResource connection.venueId])
 
 completeXeroReferenceDataSync ::
     (?modelContext :: ModelContext) =>
@@ -75,7 +80,7 @@ completeXeroReferenceDataSync ::
     IO XeroReferenceDataSyncResult
 completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
     now <- getCurrentTime
-    completedRun <- withTransaction do
+    completedRun <- liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.data_completed" do
         activeSyncRun <- fetch syncRun.id
         when (activeSyncRun.syncStatus /= Running) $
             fail "Xero reference sync run is no longer active."
@@ -110,7 +115,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
                 , "accountsCount" Aeson..= length accounts
                 ]
             )
-        pure updatedSyncRun
+        pure (liveMutationResult updatedSyncRun [xeroReferenceSyncStateResource connection.venueId])
     pure
         XeroReferenceDataSyncResult
             { referenceDataSyncRun = completedRun
@@ -130,7 +135,7 @@ failXeroReferenceDataSync ::
     IO (Either Text a)
 failXeroReferenceDataSync maybeActorUserId syncRun connection message = do
     now <- getCurrentTime
-    withTransaction do
+    void $ withDurableLiveMutationWithoutContext "xero.reference_sync.failed" do
         _ <-
             syncRun
                 |> set #syncStatus XeroSyncStatusEnumFailed
@@ -149,6 +154,7 @@ failXeroReferenceDataSync maybeActorUserId syncRun connection message = do
                 , "failure" Aeson..= message
                 ]
             )
+        pure (liveMutationResult () [xeroReferenceSyncStateResource connection.venueId])
     pure (Left message)
 
 recordXeroReferenceSyncAudit ::

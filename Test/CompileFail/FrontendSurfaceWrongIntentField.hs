@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE TypeFamilies     #-}
 
 module Test.CompileFail.FrontendSurfaceWrongIntentField where
 

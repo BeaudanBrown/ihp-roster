@@ -47,6 +47,11 @@ destructive changes:
 - `timesheet-pay-ledger-234-runbook.md` and
   `haskell-wage-cutover-239-runbook.md` — immutable ledger and wage-authority
   cutover sequence.
+- `date-native-roster-readiness-373-runbook.md` — additive date-native Roster
+  rollout, bounded reconciliation, observation, and non-destructive recovery.
+- `date-native-roster-retirement-374-runbook.md` — destructive retirement of
+  redundant roster-week/offset identity after approved observation, backup,
+  restore rehearsal, and forward-recovery planning.
 
 Do not infer production approval from a committed migration or runbook; use the
 named approval boundary in that runbook.

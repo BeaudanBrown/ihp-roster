@@ -1,7 +1,6 @@
 import { parseLiveFragmentsRefreshEventDetail, type LiveUpdateMessage } from "../generated/contracts";
 import type { createLiveUpdateDiagnostics } from "./diagnostics";
 import {
-    liveUpdateInvalidationIsOwnEcho,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
     resolveMountedFragmentsForInvalidation,
@@ -27,11 +26,10 @@ export type LiveUpdateInvalidationRuntime = {
 
 export function createLiveUpdateInvalidationRuntime(options: {
     activeSubscriptions: Map<string, SurfaceSubscription>;
-    activeClientId: () => string | null;
     refresher: LiveFragmentRefresher;
     diagnostics: LiveUpdateDiagnostics;
 }): LiveUpdateInvalidationRuntime {
-    const { activeSubscriptions, activeClientId, refresher, diagnostics } = options;
+    const { activeSubscriptions, refresher, diagnostics } = options;
     const scopeVersions = new Map<string, number>();
 
     const versions: LiveUpdateVersionStore = {
@@ -56,10 +54,10 @@ export function createLiveUpdateInvalidationRuntime(options: {
 
         versions.set(scopeKey, message.currentVersion);
         if (message.resync) subscription.resync(subscription);
+        diagnostics.emitDebugEvent("subscription_acknowledged", { scopeKey, resync: message.resync });
     }
 
     function handleInvalidateMessage(message: Extract<LiveUpdateMessage, { type: "invalidate" }>): void {
-        if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId())) return;
         const nextVersion = normalizeLiveUpdateVersion(message.version);
         const perfSpan = diagnostics.beginPerfSpan("live_updates.handle_invalidate", {
             fragmentCount: message.fragments.length,
@@ -79,13 +77,6 @@ export function createLiveUpdateInvalidationRuntime(options: {
 
         const previousVersion = versions.get(scopeKey);
         if (nextVersion !== null) {
-            if (previousVersion !== null && nextVersion > previousVersion + 1) {
-                versions.set(scopeKey, nextVersion);
-                subscription.resync(subscription);
-                diagnostics.emitDebugEvent("resync_version_gap", { scopeKey, previousVersion, nextVersion });
-                diagnostics.endPerfSpan(perfSpan, { outcome: "resync_gap", scopeKey, previousVersion, nextVersion });
-                return;
-            }
             if (previousVersion !== null && nextVersion <= previousVersion) {
                 diagnostics.endPerfSpan(perfSpan, { outcome: "stale", scopeKey, previousVersion, nextVersion });
                 return;

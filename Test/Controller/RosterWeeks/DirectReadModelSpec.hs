@@ -11,12 +11,14 @@ import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe, isNothing)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -24,41 +26,89 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Web.RosterWeeks.DateRange (RosterWindowLane (..), RosterWindowScope (..),
+                                  rosterWindowScopeForAnchor)
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.RenderData
+import Web.RosterWeeks.StaffOptions (rosterAssignmentOptionStatesFor)
 import Web.RosterWeeks.Types
 
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController direct read model" do
+        it "hides another same-day assignment from a dated shift dialog" $ withContext do
+            let dayId = Id (fromMaybe (error "day uuid") (UUID.fromString "10000000-0000-0000-0000-000000000001")) :: Id RosterDay
+            let firstSlotId = Id (fromMaybe (error "first slot uuid") (UUID.fromString "20000000-0000-0000-0000-000000000001")) :: Id RosterSlot
+            let targetSlotId = Id (fromMaybe (error "target slot uuid") (UUID.fromString "30000000-0000-0000-0000-000000000001")) :: Id RosterSlot
+            let staffId = Id (fromMaybe (error "staff uuid") (UUID.fromString "40000000-0000-0000-0000-000000000001")) :: Id Staff
+            let day = newRecord @RosterDay |> set #id dayId |> set #operationalDate (Calendar.fromGregorian 2025 1 6)
+            let assignedSlot = newRecord @RosterSlot |> set #id firstSlotId |> set #rosterDayId (unpackId dayId) |> set #assignmentState "staff" |> set #staffId (Just (unpackId staffId))
+            let targetSlot = newRecord @RosterSlot |> set #id targetSlotId |> set #rosterDayId (unpackId dayId)
+            let staff = newRecord @Staff |> set #id staffId |> set #idealShiftsPerWeek 5
+            let states = rosterAssignmentOptionStatesFor allAssignmentFilters (Calendar.fromGregorian 2025 1 6) [day] [assignedSlot, targetSlot] [staff] Set.empty Set.empty
+            fmap (.optionHiddenByAssignedToday) (Map.lookup (unpackId targetSlotId, unpackId staffId) states) `shouldBe` Just True
+
         it "reads manager-visible base facts directly" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
 
                 facts <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
+                        fetchRosterBaseFactsDirect fixture.windowScope
 
                 let RosterBaseFacts { baseRosterWeek, baseRosterDays, baseAllSlots, baseVisibleSlots, baseOrderedSlotDefinitions, baseShiftTypes, baseEligibleStaff, baseAssignedStaff, baseStaffMembers } = fromJust facts
-                baseRosterWeek.id `shouldBe` fixture.rosterWeek.id
-                map (.dayOffset) baseRosterDays `shouldBe` [0 .. 6]
+                ((.windowRosterGroupId) <$> baseRosterWeek) `shouldBe` Just (unpackId fixture.rosterGroup.id)
+                map (.operationalDate) baseRosterDays `shouldBe` map (`Calendar.addDays` fixture.windowScope.rosterWindowStart) [0 .. 6]
                 map (.rowIndex) baseVisibleSlots `shouldBe` [3]
                 map (.id) baseAllSlots `shouldContain` [fixture.closedDaySlot.id]
                 map (.id) baseVisibleSlots `shouldNotContain` [fixture.closedDaySlot.id, fixture.otherGroupSlot.id]
-                map (.sortOrder) baseOrderedSlotDefinitions `shouldBe` sort (map (.sortOrder) baseOrderedSlotDefinitions)
+                map (.rosterWindowLaneFirstSeen) baseOrderedSlotDefinitions `shouldBe` sort (map (.rosterWindowLaneFirstSeen) baseOrderedSlotDefinitions)
                 map (.name) baseShiftTypes `shouldBe` ["Breakfast", "Dinner"]
                 map (.id) baseEligibleStaff `shouldContain` [fixture.eligibleStaff.id]
                 map (.id) baseEligibleStaff `shouldNotContain` [fixture.assignedInactiveStaff.id]
                 map (.id) baseAssignedStaff `shouldBe` [fixture.assignedInactiveStaff.id]
                 map (.id) baseStaffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
 
+        it "rejects malformed or stale explicit roster-window scopes" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+                let malformedEnd = fixture.windowScope { rosterWindowEnd = Calendar.addDays 1 fixture.windowScope.rosterWindowEnd }
+                let staleRevision = fixture.windowScope { rosterWindowCalendarRevision = fixture.windowScope.rosterWindowCalendarRevision + 1 }
+
+                results <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        forM [malformedEnd, staleRevision] fetchRosterBaseFactsDirect
+
+                map isNothing results `shouldBe` [True, True]
+
+        it "does not project a sparse explicit window from another dated window" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Sparse Explicit Window Venue"
+                manager <- createUserRecord "sparse-explicit-window-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                rosterGroup <- ensureVenueDefaultRosterGroup venue
+                _previousWindow <- createRosterWeekRecordForRosterGroup venue rosterGroup (-1) True
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let scope = rosterWindowScopeForAnchor venueConfig rosterGroup.id (testAnchorForOffset 0)
+
+                facts <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        fetchRosterBaseFactsDirect scope
+
+                let projectedWindow = fromJust (fromJust facts).baseRosterWeek
+                projectedWindow.windowIsPublished `shouldBe` False
+                projectedWindow.windowRosterGroupId `shouldBe` unpackId rosterGroup.id
+                map (.operationalDate) (fromJust facts).baseRosterDays
+                    `shouldBe` map (\dayIndex -> Calendar.addDays dayIndex (testAnchorForOffset 0)) [0 .. 6]
+
         it "keeps deployed record decoding independent of physical table order" $ withContext do
             directReadSource <- TextIO.readFile "Web/RosterWeeks/DirectReadModel.hs"
             mutationSource <- TextIO.readFile "Web/Timesheets/Mutations.hs"
             directReadSource `shouldSatisfy` (not . Text.isInfixOf "SELECT roster_slots.*")
             directReadSource `shouldSatisfy` (not . Text.isInfixOf "SELECT staff.*")
+            directReadSource `shouldSatisfy` (not . Text.isInfixOf "params.week_start + roster_days.day_offset")
             mutationSource `shouldSatisfy` (not . Text.isInfixOf "SELECT timesheet_entries.*")
             mutationSource `shouldSatisfy` (not . Text.isInfixOf "SELECT roster_slots.*")
 
@@ -68,13 +118,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 renderData <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        fetchVisibleRosterReadModel fixture.windowScope
 
                 let rosterData = fromJust renderData
-                rosterData.rosterWeek.id `shouldBe` fixture.rosterWeek.id
+                ((.windowRosterGroupId) <$> rosterData.rosterWeek) `shouldBe` Just fixture.rosterWeek.fixtureRosterGroupId
                 map (.id) rosterData.staffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
                 map (.id) rosterData.allSlots `shouldContain` [fixture.visibleSparseSlot.id, fixture.closedDaySlot.id]
-                map (.id) rosterData.orderedSlotNames `shouldBe` map (.id) (sortSlotDefinitions rosterData.orderedSlotNames)
+                map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames `shouldBe` sortOn (\value -> value) (map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames)
 
         it "reads venue role values for direct staff panel entries" $ withContext do
             withCleanDb do
@@ -89,7 +139,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 entries <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.rosterGroup.id fixture.rosterWeek
+                        fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.windowScope
 
                 let entry = fromJust (find ((== fixture.eligibleStaff.id) . (.staff.id)) entries)
                 entry.userRole `shouldBe` "manager"
@@ -100,13 +150,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
                         openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
                         _ <- fixture.eligibleStaff |> set #idealShiftsPerWeek 1 |> updateRecord
                         _ <- createRosterSlotRecord openDay fixture.earlySlotName (Just fixture.eligibleStaff) 4
                         _ <- createLeaveRequestRecord fixture.venue fixture.eligibleStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) LeaveRequestStatusEnumApproved
 
-                        facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
+                        facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.windowScope
                         states <- buildRosterStaffOptionStatesDirect allAssignmentFilters initialData.weekStartDate facts.baseVisibleSlots facts.baseStaffMembers
 
                         let targetState = fromJust (Map.lookup (coerce fixture.visibleSparseSlot.id, coerce fixture.eligibleStaff.id) states)
@@ -116,13 +166,37 @@ tests = aroundAll withDatabaseTestContext do
                         targetState.optionHiddenByLeave `shouldBe` True
                         targetState.optionHiddenByAssignedToday `shouldBe` True
 
+        it "keys wage prediction days by Operational date when compatibility offsets collide" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
+                        venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                        openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        wageLevel <- createPayLevelRecord fixture.venue "Operational Date Wage"
+                        wageStaff <- fixture.eligibleStaff
+                            |> set #payAssignmentMode AwardRate
+                            |> set #defaultAwardLevelId (Just wageLevel.id)
+                            |> updateRecord
+                        wageSlot <- createCompleteRosterSlotRecord openDay fixture.earlySlotName wageStaff 12
+                        let expectedDate = (.operationalDate) (fromJust (find ((== wageSlot.rosterDayId) . unpackId . (.id)) initialData.rosterDays))
+
+                        prediction <- fetchRosterWagePredictionForWindow venueConfig initialData.rosterDays [wageSlot]
+
+                        prediction.predictionCalculationFailures `shouldBe` []
+                        sum (map (.predictionDayShiftCount) prediction.predictionDays) `shouldBe` prediction.predictionCompleteShiftCount
+                        map (.predictionDayDate) (filter ((> 0) . (.predictionDayShiftCount)) prediction.predictionDays)
+                            `shouldBe` [expectedDate]
+
         it "uses the authoritative local start date for after-midnight preferences" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
 
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
                         openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
                         staff <- createStaffRecord fixture.venue Nothing "After Midnight" "Preference"
                         slot <- createRosterSlotRecord openDay fixture.earlySlotName (Just staff) 8
@@ -145,8 +219,8 @@ tests = aroundAll withDatabaseTestContext do
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
                         (duplicateSlot, lateSlot, preferenceSlot) <- addDirectReadModelConflictFacts fixture
-                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
-                        facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
+                        facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.windowScope
                         conflicts <- buildSlotConflictsDirect fixture.rosterGroup.id 480 initialData.weekStartDate facts.baseVisibleSlots
 
                         let allTypes = sort (concatMap (map (.conflictType) . snd) conflicts)
@@ -163,13 +237,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
-                        beforePanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.rosterGroup.id fixture.rosterWeek
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
+                        beforePanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.windowScope
                         rosterDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
                         openSlot <- createRosterSlotRecord rosterDay fixture.earlySlotName Nothing 12
                         venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
 
-                        prediction <- fetchRosterWagePrediction venueConfig fixture.rosterWeek initialData.rosterDays [openSlot]
+                        prediction <- fetchRosterWagePredictionForWindow venueConfig initialData.rosterDays [openSlot]
                         prediction.predictionWeekTotal `shouldBe` 0
                         prediction.predictionCompleteShiftCount `shouldBe` 0
                         prediction.predictionIncompleteShiftCount `shouldBe` 0
@@ -178,7 +252,7 @@ tests = aroundAll withDatabaseTestContext do
                         conflicts <- buildSlotConflictsForSlotsDirect fixture.rosterGroup.id 60 initialData.weekStartDate [openSlot] [openSlot]
                         conflicts `shouldBe` []
 
-                        afterPanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.rosterGroup.id fixture.rosterWeek
+                        afterPanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.windowScope
                         map (\entry -> (entry.staff.id, entry.assignedShiftCount)) afterPanelEntries
                             `shouldBe` map (\entry -> (entry.staff.id, entry.assignedShiftCount)) beforePanelEntries
 
@@ -188,7 +262,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
                         rosterDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
                         firstSlot <- createRosterSlotRecord rosterDay fixture.earlySlotName (Just fixture.eligibleStaff) 9
                             >>= updateRecord
@@ -204,11 +278,11 @@ tests = aroundAll withDatabaseTestContext do
 
 addDirectReadModelConflictFacts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => DirectReadModelFixture -> IO (RosterSlot, RosterSlot, RosterSlot)
 addDirectReadModelConflictFacts fixture = do
-    initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+    initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
     openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
     nextDay <- query @RosterDay
-        |> filterWhere (#rosterWeekId, unpackId fixture.rosterWeek.id)
-        |> filterWhere (#dayOffset, 1)
+        |> filterWhere (#rosterGroupId, unpackId fixture.rosterGroup.id)
+        |> filterWhere (#operationalDate, Calendar.addDays 1 fixture.windowScope.rosterWindowStart)
         |> fetchOne
     _ <- nextDay |> set #isClosed False |> updateRecord
     _ <- fixture.assignedInactiveStaff |> set #idealShiftsPerWeek 1 |> updateRecord
@@ -230,9 +304,10 @@ addDirectReadModelConflictFacts fixture = do
 
 data DirectReadModelFixture = DirectReadModelFixture
     { venue                 :: Venue
+    , windowScope           :: RosterWindowScope
     , manager               :: User
     , rosterGroup           :: RosterGroup
-    , rosterWeek            :: RosterWeek
+    , rosterWeek            :: TestRosterWindow
     , earlySlotName         :: SlotName
     , eligibleUser          :: User
     , eligibleStaff         :: Staff
@@ -248,6 +323,8 @@ createDirectReadModelFixture = do
     manager <- createUserRecord "direct-read-manager@example.com" "staff" True
     _ <- createVenueMembershipRecord venue manager Manager
     rosterGroup <- ensureVenueDefaultRosterGroup venue
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    let windowScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id (testAnchorForOffset 0)
     otherRosterGroup <- createVenueRosterGroupWithDefaults venue "Other" 1 True
     earlySlotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
     otherSlotName <- fetchSlotNameRecordForRosterGroup otherRosterGroup "Early"
@@ -291,10 +368,7 @@ createDirectReadModelFixture = do
     otherDay <- createRosterDayRecord otherWeek 0
     otherGroupSlot <- createRosterSlotRecord otherDay otherSlotName (Just eligibleStaff) 0
 
-    pure DirectReadModelFixture { venue, manager, rosterGroup, earlySlotName, rosterWeek, eligibleUser, eligibleStaff, assignedInactiveStaff = assignedInactiveStaff', visibleSparseSlot, closedDaySlot, otherGroupSlot }
-
-sortSlotDefinitions :: [RosterWeekSlotDefinition] -> [RosterWeekSlotDefinition]
-sortSlotDefinitions = sortOn (\slotDefinition -> (slotDefinition.sortOrder, slotDefinition.createdAt))
+    pure DirectReadModelFixture { venue, windowScope, manager, rosterGroup, earlySlotName, rosterWeek, eligibleUser, eligibleStaff, assignedInactiveStaff = assignedInactiveStaff', visibleSparseSlot, closedDaySlot, otherGroupSlot }
 
 allAssignmentFilters :: RosterAssignmentFilters
 allAssignmentFilters =

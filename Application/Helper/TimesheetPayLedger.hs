@@ -3,12 +3,17 @@ module Application.Helper.TimesheetPayLedger
     , loadApprovedTimesheetPayCalculation
     , loadApprovedTimesheetPayCalculations
     , persistApprovedTimesheetPayCalculation
+    , persistDevSeedApprovedTimesheetPayCalculation
     , roundWageLedgerRational
     ) where
 
+import Application.Helper.WeekBoundaries (startOfWeekFor,
+                                          venueEffectiveRateDate)
 import Application.VenueTime.Model
 import Application.WageEngine
 import Application.WageEvaluation
+import Application.WagePublication (datedEarningsComponents)
+import Application.Xero.Timesheets.BucketKey
 import Control.Exception (Exception)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
@@ -95,6 +100,7 @@ wageCalculationFromRows entry calculation segmentRows componentRows = do
         { calculatedEntryId = CalculationEntryId (tshow (unpackId entry.id))
         , calculationVersion = WageCalculationVersion calculation.calculationVersion
         , calculationRateBookVersion = RateBookVersion <$> calculation.rateBookVersion
+        , publishedOperationalDate = Just calculation.operationalDate
         , paidTimeSegments = segments
         , earningsComponents = components
         }
@@ -131,6 +137,11 @@ componentFromRow row = do
         , unitType = unit
         , ratePerUnit = row.ratePerUnit
         , amount = toRational row.exactAmount
+        , publishedComponentDate = row.componentDate
+        , publishedRateBoundaryDate = row.resolvedRateBoundaryDate
+        , publishedXeroLocalBucketKey = row.xeroLocalBucketKey
+        , publishedXeroEarningsRateId = row.xeroEarningsRateId
+        , publishedXeroMappingLegacyFallback = row.xeroMappingLegacyFallback
         , sourceCondition = condition
         , calculationSource = source
         , sourceRateIdentity = RateSourceIdentity <$> row.sourceRateIdentity
@@ -153,7 +164,25 @@ persistApprovedTimesheetPayCalculation ::
     (?modelContext :: ModelContext) =>
     TimesheetEntry ->
     IO (Either Text TimesheetPayCalculation)
-persistApprovedTimesheetPayCalculation entry = do
+persistApprovedTimesheetPayCalculation =
+    persistApprovedTimesheetPayCalculationWith True
+
+-- | Development fixtures are synthetic approvals created before a retained
+-- Xero tenant is restored. Keep their Xero facts explicitly eligible for the
+-- legacy lookup path instead of sealing IDs from the throwaway seed tenant.
+persistDevSeedApprovedTimesheetPayCalculation ::
+    (?modelContext :: ModelContext) =>
+    TimesheetEntry ->
+    IO (Either Text TimesheetPayCalculation)
+persistDevSeedApprovedTimesheetPayCalculation =
+    persistApprovedTimesheetPayCalculationWith False
+
+persistApprovedTimesheetPayCalculationWith ::
+    (?modelContext :: ModelContext) =>
+    Bool ->
+    TimesheetEntry ->
+    IO (Either Text TimesheetPayCalculation)
+persistApprovedTimesheetPayCalculationWith sealXeroMapping entry = do
     case timesheetWageSubject entry of
         Left err -> pure (Left ("Cannot freeze approved pay calculation: " <> renderWageEvaluationError err))
         Right subject -> do
@@ -161,7 +190,9 @@ persistApprovedTimesheetPayCalculation entry = do
             case Map.lookup (TimesheetSubject (unpackId entry.id)) results of
                 Nothing -> pure (Left "Cannot freeze approved pay calculation: result was not loaded.")
                 Just (Left err) -> pure (Left ("Cannot freeze approved pay calculation: " <> renderWageEvaluationError err))
-                Just (Right calculation) -> Right <$> persist entry calculation
+                Just (Right calculation) -> do
+                    rateBoundaryFacts <- loadRateBoundaryFacts [calculation]
+                    Right <$> persistWithRateBoundaryFacts sealXeroMapping rateBoundaryFacts entry calculation
 
 data PayLedgerBackfillException = PayLedgerBackfillException [(UUID, Text)]
     deriving (Show)
@@ -223,8 +254,9 @@ backfillApprovedTimesheetPayCalculations = do
         unless (null failures) (Exception.throwIO (PayLedgerBackfillException failures))
         historicalFactFailures <- validateHistoricalHolidayFacts entries (Map.fromList (zip (map (unpackId . (.id)) entries) successfulCalculations))
         unless (null historicalFactFailures) (Exception.throwIO (PayLedgerBackfillException historicalFactFailures))
+        rateBoundaryFacts <- loadRateBoundaryFacts successfulCalculations
         forM_ (zip entries successfulCalculations) \(entry, calculation) -> do
-            calculationRecord <- persist entry calculation
+            calculationRecord <- persistWithRateBoundaryFacts False rateBoundaryFacts entry calculation
             void $ entry
                 |> set #activePayCalculationId (Just calculationRecord.id)
                 |> set #legacyPayBackfillPending False
@@ -271,18 +303,51 @@ validateHistoricalHolidayFacts entries contexts = do
          in List.nub [startYear, endYear]
     yearOf day = let (year, _, _) = toGregorian day in year
 
+data RateBoundaryFacts = RateBoundaryFacts
+    { baseRateOperativeFromById    :: !(Map.Map UUID (Maybe Day))
+    , penaltyRateOperativeFromById :: !(Map.Map UUID (Maybe Day))
+    , allowanceOperativeFromById   :: !(Map.Map UUID (Maybe Day))
+    }
+
+loadRateBoundaryFacts :: (?modelContext :: ModelContext) => [WageCalculation] -> IO RateBoundaryFacts
+loadRateBoundaryFacts calculations = do
+    let sources = mapMaybe (.sourceRateIdentity) (concatMap (.earningsComponents) calculations)
+        baseIds = List.nub [projectionId | identity <- sources, Just (AwardLevelBaseRateSource projectionId _) <- [projectionRateSourceFromIdentity identity]]
+        penaltyIds = List.nub [projectionId | identity <- sources, Just (AwardLevelPenaltyRateSource projectionId _) <- [projectionRateSourceFromIdentity identity]]
+        allowanceIds = List.nub [projectionId | identity <- sources, Just (AwardTimePenaltyAllowanceSource projectionId _) <- [projectionRateSourceFromIdentity identity]]
+    baseRates <- if null baseIds then pure [] else query @AwardLevelBaseRate |> filterWhereIn (#id, map Id baseIds) |> fetch
+    penaltyRates <- if null penaltyIds then pure [] else query @AwardLevelPenaltyRate |> filterWhereIn (#id, map Id penaltyIds) |> fetch
+    allowances <- if null allowanceIds then pure [] else query @AwardTimePenaltyAllowance |> filterWhereIn (#id, map Id allowanceIds) |> fetch
+    pure RateBoundaryFacts
+        { baseRateOperativeFromById = Map.fromList [(unpackId row.id, row.operativeFrom) | row <- baseRates]
+        , penaltyRateOperativeFromById = Map.fromList [(unpackId row.id, row.operativeFrom) | row <- penaltyRates]
+        , allowanceOperativeFromById = Map.fromList [(unpackId row.id, row.operativeFrom) | row <- allowances]
+        }
+
 persist :: (?modelContext :: ModelContext) => TimesheetEntry -> WageCalculation -> IO TimesheetPayCalculation
 persist entry calculation = do
+    rateBoundaryFacts <- loadRateBoundaryFacts [calculation]
+    persistWithRateBoundaryFacts True rateBoundaryFacts entry calculation
+
+persistWithRateBoundaryFacts :: (?modelContext :: ModelContext) => Bool -> RateBoundaryFacts -> TimesheetEntry -> WageCalculation -> IO TimesheetPayCalculation
+persistWithRateBoundaryFacts sealXeroMapping rateBoundaryFacts entry calculation = do
     approvedAt <- maybe (fail "approved entry missing approved_at") pure entry.approvedAt
     approvedBy <- maybe (fail "approved entry missing approved_by_user_id") pure entry.approvedByUserId
     staffVersion <- maybe (fail "approved entry missing staff_pay_version_id") pure entry.staffPayVersionId
     shiftVersion <- maybe (fail "approved entry missing shift_type_pay_version_id") pure entry.shiftTypePayVersionId
     source <- calculationSourceFor calculation
+    venueConfig <- query @VenueConfig
+        |> filterWhere (#venueId, entry.venueId)
+        |> fetchOne
+    xeroMappingContext <- if sealXeroMapping then loadApprovalXeroMappingContext entry else pure Nothing
     calculationRecord <- newRecord @TimesheetPayCalculation
         |> set #timesheetEntryId (unpackId entry.id)
         |> set #calculationVersion (let WageCalculationVersion value = calculation.calculationVersion in value)
         |> set #calculationSource (calculationSourceValue source)
         |> set #rateBookVersion (fmap (\(RateBookVersion value) -> value) calculation.calculationRateBookVersion)
+        |> set #operationalDate entry.operationalDate
+        |> set #rosterWindowStart (startOfWeekFor venueConfig.rosterWeekStartsOn entry.operationalDate)
+        |> set #rosterWeekStartsOn venueConfig.rosterWeekStartsOn
         |> set #venueTimezone "Australia/Melbourne"
         |> set #holidayJurisdiction "VIC"
         |> set #staffPayVersionId staffVersion
@@ -300,7 +365,9 @@ persist entry calculation = do
             |> set #localDate paidSegment.paidTimeLocalDate
             |> set #sourceCondition (sourceConditionValue paidSegment.paidTimeSourceCondition)
             |> createRecord
-    forM_ (zip [0 :: Int ..] calculation.earningsComponents) \(ordinal, component) ->
+    forM_ (zip [0 :: Int ..] (datedEarningsComponents calculation)) \(ordinal, (componentDate, component)) -> do
+        resolvedRateBoundaryDate <- resolveComponentRateBoundary rateBoundaryFacts venueConfig.rosterWeekStartsOn component
+        (xeroLocalBucketKey, xeroEarningsRateId) <- resolveApprovalXeroMapping xeroMappingContext venueConfig.rosterWeekStartsOn entry componentDate (component { publishedRateBoundaryDate = resolvedRateBoundaryDate })
         void $ newRecord @TimesheetPayEarningsComponent
             |> set #timesheetPayCalculationId (unpackId calculationRecord.id)
             |> set #ordinal ordinal
@@ -308,6 +375,11 @@ persist entry calculation = do
             |> set #unitType (unitValue component.unitType)
             |> set #ratePerUnit component.ratePerUnit
             |> set #exactAmount (exactScientific component.amount)
+            |> set #componentDate (Just componentDate)
+            |> set #resolvedRateBoundaryDate resolvedRateBoundaryDate
+            |> set #xeroLocalBucketKey xeroLocalBucketKey
+            |> set #xeroEarningsRateId xeroEarningsRateId
+            |> set #xeroMappingLegacyFallback (not sealXeroMapping)
             |> set #sourceCondition (sourceConditionValue component.sourceCondition)
             |> set #calculationSource (calculationSourceValue component.calculationSource)
             |> set #sourceRateIdentity (fmap (\(RateSourceIdentity value) -> value) component.sourceRateIdentity)
@@ -316,6 +388,82 @@ persist entry calculation = do
     calculationRecord
         |> set #sealedAt (Just sealedAt)
         |> updateRecord
+
+data ApprovalXeroMappingContext = ApprovalXeroMappingContext
+    { approvalBucketContext       :: !XeroComponentBucketContext
+    , approvalStaff               :: !Staff
+    , approvalEarningsMappings    :: ![XeroEarningsRateMapping]
+    , approvalPayItemRequirements :: ![XeroPayItemRequirementRecord]
+    , approvalImportedPayItems    :: ![XeroImportedPayItem]
+    }
+
+loadApprovalXeroMappingContext :: (?modelContext :: ModelContext) => TimesheetEntry -> IO (Maybe ApprovalXeroMappingContext)
+loadApprovalXeroMappingContext entry = do
+    connection <- query @XeroConnection
+        |> filterWhere (#venueId, entry.venueId)
+        |> filterWhere (#connectionStatus, "active" :: Text)
+        |> orderByDesc #connectedAt
+        |> fetchOneOrNothing
+    forM connection \activeConnection -> do
+        staff <- fetch (Id entry.staffId)
+        staffVersionId <- maybe (fail "Approved entry missing staff pay version for Xero mapping.") pure entry.staffPayVersionId
+        shiftVersionId <- maybe (fail "Approved entry missing shift pay version for Xero mapping.") pure entry.shiftTypePayVersionId
+        staffVersion <- fetch (Id staffVersionId)
+        shiftVersion <- fetch (Id shiftVersionId)
+        awardLevels <- query @AwardLevel |> fetch
+        earningsMappings <- query @XeroEarningsRateMapping
+            |> filterWhere (#xeroConnectionId, unpackId activeConnection.id)
+            |> filterWhere (#mappingStatus, XeroEarningsRateMappingStatusEnumVerified)
+            |> fetch
+        requirements <- query @XeroPayItemRequirementRecord
+            |> filterWhere (#xeroConnectionId, unpackId activeConnection.id)
+            |> filterWhereIn (#requirementStatus, [Matched, XeroPayItemRequirementStatusEnumCreated])
+            |> fetch
+        importedPayItems <- query @XeroImportedPayItem
+            |> filterWhere (#xeroConnectionId, unpackId activeConnection.id)
+            |> fetch
+        pure ApprovalXeroMappingContext
+            { approvalBucketContext = XeroComponentBucketContext
+                { bucketStaffPayVersions = Map.singleton staffVersionId staffVersion
+                , bucketShiftTypePayVersions = Map.singleton shiftVersionId shiftVersion
+                , bucketAwardLevels = awardLevels
+                }
+            , approvalStaff = staff
+            , approvalEarningsMappings = earningsMappings
+            , approvalPayItemRequirements = requirements
+            , approvalImportedPayItems = importedPayItems
+            }
+
+resolveApprovalXeroMapping :: Maybe ApprovalXeroMappingContext -> Int -> TimesheetEntry -> Day -> EarningsComponent -> IO (Maybe Text, Maybe Text)
+resolveApprovalXeroMapping Nothing _ _ _ _ = pure (Nothing, Nothing)
+resolveApprovalXeroMapping (Just context) rosterWeekStartsOn entry componentDate component = do
+    localBucketKey <- either (fail . cs) pure (componentBucketKey rosterWeekStartsOn context.approvalBucketContext entry context.approvalStaff component componentDate)
+    let earningsRateId = case component.sourceCondition of
+            ImportedFlatRateCondition itemId ->
+                context.approvalImportedPayItems
+                    |> find ((== itemId) . inputValue . (.id))
+                    |> fmap (.xeroEarningsRateId)
+            _ ->
+                (context.approvalEarningsMappings |> find ((== localBucketKey) . (.localBucketKey)) >>= (.xeroEarningsRateId))
+                    <|> (context.approvalPayItemRequirements |> find ((== localBucketKey) . (.requirementKey)) >>= (.xeroEarningsRateId))
+    pure $ case earningsRateId of
+        Nothing    -> (Nothing, Nothing)
+        Just value -> (Just localBucketKey, Just value)
+
+resolveComponentRateBoundary :: RateBoundaryFacts -> Int -> EarningsComponent -> IO (Maybe Day)
+resolveComponentRateBoundary facts rosterWeekStartsOn component =
+    case component.sourceRateIdentity of
+        Nothing -> pure Nothing
+        Just identity -> case projectionRateSourceFromIdentity identity of
+            Just (AwardLevelBaseRateSource projectionId _) -> resolveFrom facts.baseRateOperativeFromById projectionId
+            Just (AwardLevelPenaltyRateSource projectionId _) -> resolveFrom facts.penaltyRateOperativeFromById projectionId
+            Just (AwardTimePenaltyAllowanceSource projectionId _) -> resolveFrom facts.allowanceOperativeFromById projectionId
+            Nothing -> fail "Approved earnings component has an unsupported rate source identity."
+  where
+    resolveFrom operativeFromById projectionId =
+        case Map.lookup projectionId operativeFromById of
+            Nothing -> fail "Approved earnings component rate source does not exist."
+            Just operativeFrom -> pure (venueEffectiveRateDate rosterWeekStartsOn <$> operativeFrom)
 
 calculationSourceFor :: WageCalculation -> IO CalculationSource
 calculationSourceFor calculation =

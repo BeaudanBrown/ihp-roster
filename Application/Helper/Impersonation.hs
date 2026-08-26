@@ -3,6 +3,9 @@ module Application.Helper.Impersonation
     , effectiveUserSessionKey
     , enterCurrentVenueImpersonation
     , exitCurrentImpersonation
+    , impersonationReturnFallbackMessage
+    , markImpersonationReturnFallback
+    , clearImpersonationReturnFallback
     , impersonationSessionIdSessionKey
     , initImpersonationContext
     , initSupportImpersonationOptions
@@ -31,6 +34,21 @@ effectiveUserSessionKey = "supportImpersonationEffectiveUserId"
 
 impersonationSessionIdSessionKey :: ByteString
 impersonationSessionIdSessionKey = "supportImpersonationSessionId"
+
+impersonationReturnFallbackSessionKey :: ByteString
+impersonationReturnFallbackSessionKey = "supportImpersonationReturnFallback"
+
+impersonationReturnFallbackMessage :: Text
+impersonationReturnFallbackMessage =
+    "That page is not available for the resulting account. Showing its Roster instead."
+
+markImpersonationReturnFallback :: (?context :: ControllerContext, ?request :: Request) => IO ()
+markImpersonationReturnFallback =
+    setSession impersonationReturnFallbackSessionKey True
+
+clearImpersonationReturnFallback :: (?context :: ControllerContext, ?request :: Request) => IO ()
+clearImpersonationReturnFallback =
+    deleteSession impersonationReturnFallbackSessionKey
 
 initSupportImpersonationOptions :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initSupportImpersonationOptions = do
@@ -94,6 +112,9 @@ supportImpersonationOption nameCounts (userId, venueRole, baseName, maybeLastNam
 initImpersonationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initImpersonationContext = do
     putContext (Nothing :: Maybe ImpersonationRequestContext)
+    fallbackVisible <- withRequestContext (getSession @Bool impersonationReturnFallbackSessionKey)
+    putContext ImpersonationReturnFallbackContext
+        { impersonationReturnFallbackVisible = fallbackVisible == Just True }
     initAuthenticatedEffectiveStaffContext
     maybeEffectiveUserId <- withRequestContext (getSession @(Id User) effectiveUserSessionKey)
     maybeSessionIdText <- withRequestContext (getSession @Text impersonationSessionIdSessionKey)
@@ -290,5 +311,6 @@ clearImpersonationSession = do
     withRequestContext do
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
+        clearImpersonationReturnFallback
     putContext (Nothing :: Maybe ImpersonationRequestContext)
     initAuthenticatedEffectiveStaffContext

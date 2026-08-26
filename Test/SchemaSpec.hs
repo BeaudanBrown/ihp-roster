@@ -15,9 +15,10 @@ import Application.Helper.View (formatDateDisplay,
                                 quarterHourTimeOptionsInRange,
                                 storageTimeToDisplayLabel)
 import Application.Helper.View.Leave (renderDateRangeText)
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.UUID (UUID)
@@ -36,8 +37,8 @@ tests = describe "Schema" do
     it "generates core foundation models" do
         let _ = (Nothing :: Maybe Staff)
         let _ = (Nothing :: Maybe StaffDocument)
-        let _ = (Nothing :: Maybe RosterWeek)
         let _ = (Nothing :: Maybe RosterDay)
+        let _ = (Nothing :: Maybe RosterLane)
         let _ = (Nothing :: Maybe RosterSlot)
         let _ = (Nothing :: Maybe TimesheetEntry)
         let _ = (Nothing :: Maybe TimesheetEntryVersion)
@@ -54,7 +55,6 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe ShiftType)
         let _ = (Nothing :: Maybe RosterGroup)
         let _ = (Nothing :: Maybe SlotName)
-        let _ = (Nothing :: Maybe RosterWeekSlotDefinition)
         let _ = (Nothing :: Maybe DayName)
         let _ = (Nothing :: Maybe AuditEvent)
         let _ = (Nothing :: Maybe ExportJob)
@@ -91,7 +91,6 @@ tests = describe "Schema" do
                 ( get #venueId venueConfig
                 , get #timezone venueConfig
                 , get #rosterWeekStartsOn venueConfig
-                , get #weekOffsetEpoch venueConfig
                 , get #lateToEarlyMinStartGapMinutes venueConfig
                 , get #timePickerStartMinuteOfDay venueConfig
                 , get #timePickerFinalSelectableMinuteOfDay venueConfig
@@ -105,8 +104,8 @@ tests = describe "Schema" do
         let _staffVenueId = get #venueId (newRecord @Staff)
         let _staffDocumentVenueId = get #venueId (newRecord @StaffDocument)
         let _rosterGroupVenueId = get #venueId (newRecord @RosterGroup)
-        let _rosterWeekVenueId = get #venueId (newRecord @RosterWeek)
-        let _rosterWeekRosterGroupId = get #rosterGroupId (newRecord @RosterWeek)
+        let _rosterDayVenueId = get #venueId (newRecord @RosterDay)
+        let _rosterDayRosterGroupId = get #rosterGroupId (newRecord @RosterDay)
         let _rosterSlotStartsAt = get #startsAt (newRecord @RosterSlot)
         let _rosterSlotEndsAt = get #endsAt (newRecord @RosterSlot)
         let _rosterSlotTimezone = get #timezone (newRecord @RosterSlot)
@@ -117,6 +116,7 @@ tests = describe "Schema" do
         let _timesheetBreakStartsAt = get #breakStartsAt (newRecord @TimesheetEntry)
         let _timesheetBreakEndsAt = get #breakEndsAt (newRecord @TimesheetEntry)
         let _timesheetTimezone = get #timezone (newRecord @TimesheetEntry)
+        let _timesheetOperationalDate = get #operationalDate (newRecord @TimesheetEntry)
         let _timesheetSourceRosterSlotId = get #sourceRosterSlotId (newRecord @TimesheetEntry)
         let _timesheetStaffPayVersionId = get #staffPayVersionId (newRecord @TimesheetEntry)
         let _timesheetShiftTypePayVersionId = get #shiftTypePayVersionId (newRecord @TimesheetEntry)
@@ -152,6 +152,7 @@ tests = describe "Schema" do
         get #lastAppliedStripeEventCreatedAt subscription `shouldBe` Nothing
         get #lastAppliedStripeEventId subscription `shouldBe` Nothing
         get #stripeCreatedAt billingEvent `shouldBe` Nothing
+        get #notificationSnapshot billingEvent `shouldBe` Aeson.Null
 
     it "venue membership exposes role and active fields" do
         let membership = newRecord @VenueMembership
@@ -333,6 +334,20 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON xero_timesheet_submissions"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries"
 
+    it "persists immutable late Xero routing without rewriting approved wage components" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788100200.sql"
+        forM_ [schemaSqlText, migrationSqlText] \sqlText -> do
+            sqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_component_xero_bindings"
+            sqlText `shouldSatisfy` Text.isInfixOf "UNIQUE (timesheet_pay_earnings_component_id, xero_connection_id)"
+            sqlText `shouldSatisfy` Text.isInfixOf "late Xero component bindings are immutable"
+            sqlText `shouldSatisfy` Text.isInfixOf "component.xero_local_bucket_key IS NULL"
+            sqlText `shouldSatisfy` Text.isInfixOf "connection.venue_id = entry.venue_id"
+            sqlText `shouldSatisfy` Text.isInfixOf "entry.active_pay_calculation_id = calculation.id"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "UPDATE timesheet_pay_earnings_components"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+
     it "makes pre-deployment pending Xero submissions recoverable without deleting audit history" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1788000100.sql"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "UPDATE xero_timesheet_submissions"
@@ -356,6 +371,52 @@ tests = describe "Schema" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1785813100.sql"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_notification_runs"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "idx_app_jobs_related ON app_jobs (related_table, related_id)"
+
+    it "retains the historical additive date-native roster foundation migration" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1787001000.sql"
+        runbookExists <- Directory.doesFileExist "Application/Migration/date-native-roster-foundation-365-runbook.md"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_day_publication_state_enum AS ENUM ('draft', 'published');"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_calendar_revision INT DEFAULT 1 NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER advance_roster_calendar_revision BEFORE UPDATE ON venue_config"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "refresh_legacy_roster_config_day_projections"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "operational_date DATE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "publication_state roster_day_publication_state_enum DEFAULT 'draft' NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "UNIQUE(roster_group_id, operational_date)"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_lanes"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_lane_id UUID NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (roster_lane_id) REFERENCES roster_lanes (id) ON DELETE RESTRICT"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "date-native roster preflight blocked"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "date-native roster equivalence check failed"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "week_offset_epoch + (rw.week_offset * 7) + rd.day_offset"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "rs.starts_at AT TIME ZONE rs.timezone"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "legacy_roster_week_slot_definition_id"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ON CONFLICT (roster_week_id, day_offset) DO NOTHING"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "expected_seven_day_projections"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CROSS JOIN generate_series(0, 6) AS offsets(day_offset)"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "prevent_legacy_roster_lane_identity_change"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "prevent_legacy_roster_definition_week_change"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        runbookExists `shouldBe` True
+
+    it "makes Timesheet Operational dates explicit without moving authoritative instants" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1787005000.sql"
+        let (_, timesheetSchema) = Text.breakOn "CREATE TABLE timesheet_entries" schemaSqlText
+        Text.take 3000 timesheetSchema `shouldSatisfy` Text.isInfixOf "operational_date DATE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_timesheet_entries_venue_operational_date ON timesheet_entries (venue_id, operational_date) WHERE deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "rd.operational_date = NEW.operational_date"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "NEW.operational_date IS DISTINCT FROM OLD.operational_date"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN operational_date DATE"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "rd.operational_date"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "(te.starts_at AT TIME ZONE te.timezone)::DATE"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN operational_date SET NOT NULL"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "UPDATE timesheet_entries\nSET starts_at"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "UPDATE timesheet_entries\nSET ends_at"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
 
     it "stores roster and timesheet time only as authoritative instant boundaries" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -404,10 +465,9 @@ tests = describe "Schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((weekday_index >= 0) AND (weekday_index <= 6))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6))"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((day_offset >= 0) AND (day_offset <= 6))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (end_date > start_date)"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_slots_active_lane_cell ON roster_slots (roster_day_id, row_index, roster_lane_id) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "minute_precision_shift_times_enabled BOOLEAN DEFAULT FALSE NOT NULL"
@@ -434,6 +494,23 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (manager_note IS NULL OR char_length(manager_note) <= 1000)"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))"
 
+    it "gives roster template days explicit calendar-weekday identity" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1787004000.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "weekday_index INT DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "idx_roster_template_days_design_weekday"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "(venue_config.roster_week_starts_on + roster_template_days.day_index) % 7"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "roster_template_designs.scale = 'week'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "roster template weekday backfill failed"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "window_end DATE NOT NULL"
+        schemaSqlText `shouldNotSatisfy` Text.isInfixOf "roster_week_id UUID DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE roster_notification_runs DISABLE TRIGGER enforce_roster_notification_runs_immutable"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE roster_notification_runs ENABLE TRIGGER enforce_roster_notification_runs_immutable"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN roster_week_id DROP NOT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN week_offset DROP NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "IF NEW.window_end <> NEW.week_start + 7 THEN"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER validate_roster_notification_window BEFORE INSERT OR UPDATE ON roster_notification_runs"
+
     it "defines explicit roster-shift assignment state in the fresh schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         runbookExists <- Directory.doesFileExist "Application/Migration/explicit-roster-shift-assignment-304-runbook.md"
@@ -441,7 +518,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_slots_assignment_state_check CHECK (assignment_state = 'staff' OR assignment_state = 'open')"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_slots_active_structure_check CHECK"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot staff_id must stay within roster week venue"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot staff assignment must stay within roster day venue"
         runbookExists `shouldBe` True
 
     it "adds and safely backfills explicit pay-assignment modes" do
@@ -533,14 +610,14 @@ tests = describe "Schema" do
 
     it "enforces database-level tenant integrity for cross-venue relationships" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION enforce_roster_week_venue_integrity()"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION validate_roster_day_scope()"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER validate_roster_day_scope BEFORE INSERT OR UPDATE ON roster_days"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift type must stay within roster day venue"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source roster slot must match entry venue and Operational date"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -601,6 +678,23 @@ tests = describe "Schema" do
         Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "bank_account"
         Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "superannuation"
 
+    describe "Roster offset retirement" do
+        it "keeps only explicit date-native roster persistence in the fresh schema" do
+            schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+            forM_
+                [ "roster_weeks"
+                , "roster_week_slot_definitions"
+                , "week_offset_epoch"
+                , "week_offset"
+                , "day_offset"
+                , "roster_week_id"
+                , "roster_week_slot_definition_id"
+                , "legacy_roster_week_slot_definition_id"
+                ]
+                (\legacyName -> schemaSqlText `shouldNotSatisfy` Text.isInfixOf legacyName)
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "operational_date DATE NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_lane_id UUID NOT NULL"
+
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do
             let startDate = fromGregorian 2025 3 10
@@ -611,25 +705,6 @@ tests = describe "Schema" do
             isLeaveDateRangeValid startDate sameDay `shouldBe` False
             isLeaveDateRangeValid startDate laterDate `shouldBe` True
             isLeaveDateRangeValid startDate earlierDate `shouldBe` False
-
-        it "computes affected week offsets for a leave range" do
-            let mondayVenueConfig =
-                    newRecord @VenueConfig
-                        |> set #rosterWeekStartsOn 1
-                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay 1)
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 6) (fromGregorian 2025 1 13) `shouldBe` [0]
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 12) (fromGregorian 2025 1 14) `shouldBe` [0, 1]
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 20) (fromGregorian 2025 1 21) `shouldBe` [2]
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 21) (fromGregorian 2025 1 20) `shouldBe` []
-
-        it "computes affected week offsets for a non-monday roster week" do
-            let tuesdayVenueConfig =
-                    newRecord @VenueConfig
-                        |> set #rosterWeekStartsOn 2
-                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay 2)
-            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 7) (fromGregorian 2025 1 14) `shouldBe` [0]
-            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 13) (fromGregorian 2025 1 15) `shouldBe` [0, 1]
-            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 14) (fromGregorian 2025 1 16) `shouldBe` [1]
 
     it "requires all mandatory contact fields for profile completion" do
         let completeStaff =
@@ -935,14 +1010,12 @@ tests = describe "Schema" do
                 , "weekday_index", "shift_type_id", "day_name_id"
                 , "venue_id", "venue_role", "invited_by_user_id", "accepted_by_user_id"
                 , "invite_role", "accepted_at", "expires_at"
-                , "timezone", "week_offset_epoch"
-                , "late_to_early_min_start_gap_minutes"
+                , "timezone", "late_to_early_min_start_gap_minutes"
                 , "roster_end_times_enabled"
-                , "staff_timesheet_edit_window_days", "week_offset"
-                , "is_live", "roster_week_id", "day_offset", "roster_day_id"
-                , "staff_id", "roster_week_slot_definition_id", "row_index", "starts_at"
+                , "staff_timesheet_edit_window_days", "roster_day_id"
+                , "staff_id", "roster_lane_id", "row_index", "starts_at"
                 , "ends_at", "break_starts_at", "break_ends_at", "specific_date", "is_available"
-                , "start_date", "end_date", "status", "notes", "source_roster_slot_id"
+                , "start_date", "end_date", "status", "notes", "source_roster_slot_id", "operational_date"
                 , "is_approved", "approved_at", "approved_by_user_id"
                 , "actor_user_id", "event_type", "target_table", "target_id"
                 , "source_channel", "payload"
@@ -970,6 +1043,14 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_calculations"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_time_segments"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_earnings_components"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "operational_date DATE NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_window_start DATE NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_week_starts_on INT NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "component_date DATE DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "resolved_rate_boundary_date DATE DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_local_bucket_key TEXT DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_earnings_rate_id TEXT DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_mapping_legacy_fallback BOOLEAN DEFAULT FALSE NOT NULL"
 
         it "defers retirement until the automatic post-migration Haskell cutover" do
             markerSqlText <- TextIO.readFile "Application/Migration/1785242000.sql"
@@ -1029,6 +1110,40 @@ tests = describe "Schema" do
             automaticMealBreakForShift (TimeOfDay 9 0 0) (TimeOfDay 15 0 0) `shouldBe` Nothing
             automaticMealBreakForShift (TimeOfDay 9 0 0) (TimeOfDay 15 15 0) `shouldBe` Just (TimeOfDay 14 30 0, TimeOfDay 15 0 0, 30)
             automaticMealBreakForShift (TimeOfDay 20 0 0) (TimeOfDay 2 15 0) `shouldBe` Just (TimeOfDay 1 30 0, TimeOfDay 2 0 0, 30)
+
+    describe "date-native Roster compatibility retirement" do
+        it "preflights date-native authority before dropping only redundant identity" do
+            migrationSql <- TextIO.readFile "Application/Migration/1788100000.sql"
+            migrationCheck <- TextIO.readFile "bin/date-native-roster-migration-check"
+            migrationSql `shouldSatisfy` Text.isInfixOf "legacy roster retirement preflight blocked"
+            migrationSql `shouldSatisfy` Text.isInfixOf "roster slot date-local lane mismatch"
+            migrationSql `shouldSatisfy` Text.isInfixOf "roster notification lacks an explicit seven-day window"
+            migrationSql `shouldSatisfy` Text.isInfixOf "DROP TABLE roster_week_slot_definitions"
+            migrationSql `shouldSatisfy` Text.isInfixOf "DROP TABLE roster_weeks"
+            migrationSql `shouldSatisfy` Text.isInfixOf "ALTER TABLE venue_config DROP COLUMN week_offset_epoch"
+            migrationSql `shouldNotSatisfy` Text.isInfixOf "DROP TABLE roster_days"
+            migrationSql `shouldNotSatisfy` Text.isInfixOf "DROP TABLE roster_lanes"
+            migrationSql `shouldNotSatisfy` Text.isInfixOf "DROP TABLE roster_slots"
+            migrationSql `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+            migrationCheck `shouldSatisfy` Text.isInfixOf "regen-types"
+            migrationCheck `shouldSatisfy` Text.isInfixOf "date-native roster compatibility retirement"
+
+        it "retains the bounded read-only observation and reconciliation evidence command" do
+            readinessCommand <- TextIO.readFile "bin/date-native-roster-readiness"
+            readinessAudit <- TextIO.readFile "scripts/operations/date-native-roster-readiness-373.sql"
+            readinessCommand `shouldSatisfy` Text.isInfixOf "default_transaction_read_only=on"
+            readinessCommand `shouldSatisfy` Text.isInfixOf "sampleEntityIds | length) <= 25"
+            readinessCommand `shouldSatisfy` Text.isInfixOf "DATE_NATIVE_ROSTER_READINESS_EXPECTED_DATABASE"
+            readinessAudit `shouldSatisfy` Text.isInfixOf "BEGIN TRANSACTION READ ONLY"
+            readinessAudit `shouldSatisfy` Text.isInfixOf "LIMIT 25"
+
+        it "requires backup, restore rehearsal, redirect telemetry, named deployment approval, and forward recovery" do
+            runbook <- TextIO.readFile "Application/Migration/date-native-roster-retirement-374-runbook.md"
+            runbook `shouldSatisfy` Text.isInfixOf "issue-374-production-retirement-approved"
+            runbook `shouldSatisfy` Text.isInfixOf "pg_restore --list"
+            runbook `shouldSatisfy` Text.isInfixOf "zero compatibility redirects"
+            runbook `shouldSatisfy` Text.isInfixOf "There is no in-place SQL rollback"
+            runbook `shouldSatisfy` Text.isInfixOf "Do not recreate legacy tables"
 
     describe "TimeRules roster operational day" do
         it "exposes the 06:00 to 05:45 next-day roster window" do

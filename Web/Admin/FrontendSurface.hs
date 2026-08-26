@@ -8,8 +8,7 @@ module Web.Admin.FrontendSurface
     , adminXeroPageSurfaceImpl
     , adminVenueSettingsSurfaceImpl
     , adminInvitesSurfaceImpl
-    , adminExportsSurfaceImpl
-    , adminExportsSurfaceImplForWeek
+    , adminExportsSurfaceImplForWindow
     , adminShiftTypesSurfaceImpl
     , adminRosterGroupsSurfaceImpl
     , adminXeroSurfaceImpl
@@ -17,6 +16,7 @@ module Web.Admin.FrontendSurface
     , adminXeroPayItemImportWaitSurfaceImpl
     , adminVenueSettingsFragment
     , adminInvitesFragment
+    , adminExportsFragmentForWindow
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminXeroShellFragment
@@ -75,16 +75,13 @@ adminInvitesSurfaceImpl scope =
         noSurfaceFields
         [adminInvitesFragment scope.adminRosterGroupId]
 
-adminExportsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminExportsSurface
-adminExportsSurfaceImpl scope = adminExportsSurfaceImplForWeek scope 0
-
-adminExportsSurfaceImplForWeek :: AdminVenueScopeValue -> Int -> SurfaceImpl Surface.AdminExportsSurface
-adminExportsSurfaceImplForWeek scope weekOffset =
+adminExportsSurfaceImplForWindow :: AdminVenueScopeValue -> Day -> SurfaceImpl Surface.AdminExportsSurface
+adminExportsSurfaceImplForWindow scope anchorDate =
     mkSurfaceImplFromValues @Surface.AdminExportsSurface @Surface.AdminExportsScope
         "primary"
         (adminVenueScopeFields scope)
         noSurfaceFields
-        [adminExportsFragmentForWeek weekOffset]
+        [adminExportsFragmentForWindow anchorDate]
 
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
 adminShiftTypesSurfaceImpl scope =
@@ -165,12 +162,12 @@ adminInvitesFragment maybeRosterGroupId =
     query = maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId
 
 
-adminExportsFragmentForWeek :: Int -> FrontendSurfaceMountedFragment
-adminExportsFragmentForWeek weekOffset =
+adminExportsFragmentForWindow :: Day -> FrontendSurfaceMountedFragment
+adminExportsFragmentForWindow anchorDate =
     frontendSurfaceMountedFragmentFor @Surface.AdminExportsSurface @Surface.AdminExportsFragment
         noSurfaceFields
         noSurfaceFields
-        (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) [("weekOffset", tshow weekOffset)])
+        (appendQueryParams (pathTo ShowadminExportsLiveFragmentAction) [("anchorDate", tshow anchorDate)])
         FrontendSurfaceReplace
 
 adminShiftTypesFragment :: FrontendSurfaceMountedFragment

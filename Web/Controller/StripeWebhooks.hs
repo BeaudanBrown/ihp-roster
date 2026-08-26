@@ -2,15 +2,15 @@ module Web.Controller.StripeWebhooks where
 
 import Application.Billing.Stripe
 import Application.Billing.Webhook
-import Application.Helper.SurfaceResource (liveMutationResult)
+import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Control.Exception (SomeException, try)
-import Control.Monad (void)
+import qualified Data.Set as Set
 import qualified Data.Text.Encoding as TextEncoding
 import Network.HTTP.Types.Status (Status, status400, status500)
 import qualified Network.Wai as Wai
 import Web.Billing.Mutations (billingTouchedResources)
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 
 instance Controller StripeWebhooksController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
@@ -26,22 +26,22 @@ instance Controller StripeWebhooksController where
                     Left message ->
                         renderPlainWithStatus status400 message
                     Right _ -> do
-                        processing <- try (handleStripeWebhookPayload stripeConfig.stripeMode rawBody)
+                        processing <- try $
+                            withDurableLiveMutationOutcome billingWebhookPublication $
+                                handleStripeWebhookPayloadInCurrentTransaction stripeConfig.stripeMode rawBody
                         case processing of
                             Left (_ :: SomeException) ->
                                 renderPlainWithStatus status500 "Stripe webhook processing failed"
                             Right (Left message) ->
                                 renderPlainWithStatus status400 message
-                            Right (Right result) -> do
-                                _ <- try (invalidateBillingWebhookResult result) :: IO (Either SomeException ())
-                                renderPlain "ok"
+                            Right (Right _) -> renderPlain "ok"
 
-invalidateBillingWebhookResult :: BillingWebhookResult -> IO ()
-invalidateBillingWebhookResult result =
-    forM_ (billingWebhookVenueId result) \venueId ->
-        void $
-            invalidateTouchedResourcesWithoutContext "billing.webhook" $
-                liveMutationResult result (billingTouchedResources (Id venueId))
+billingWebhookPublication :: Either Text BillingWebhookResult -> Maybe (Text, Set.Set SurfaceResourceValue)
+billingWebhookPublication = \case
+    Left _ -> Nothing
+    Right result -> do
+        venueId <- billingWebhookVenueId result
+        pure ("billing.webhook", Set.fromList (billingTouchedResources (Id venueId)))
 
 billingWebhookVenueId :: BillingWebhookResult -> Maybe UUID
 billingWebhookVenueId = \case

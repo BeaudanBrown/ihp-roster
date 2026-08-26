@@ -38,9 +38,10 @@ data SurfaceFragmentKey = SurfaceFragmentKey
     deriving (Eq, Show)
 
 data SurfaceSubscription = SurfaceSubscription
-    { scope     :: !SurfaceScope
-    , scopeKey  :: !Text
-    , fragments :: ![SurfaceFragmentKey]
+    { scope                       :: !SurfaceScope
+    , scopeKey                    :: !Text
+    , fragments                   :: ![SurfaceFragmentKey]
+    , renderedDependencyWatermark :: !Int
     }
     deriving (Eq, Show)
 
@@ -54,7 +55,6 @@ data LiveFragmentsRefreshEventDetail = LiveFragmentsRefreshEventDetail
 data LiveUpdateCommand
     = Subscribe
         { subscription    :: !SurfaceSubscription
-        , clientId        :: !Text
         , lastSeenVersion :: !(Maybe Int)
         }
     | Unsubscribe
@@ -70,11 +70,10 @@ data LiveUpdateMessage
         , resync         :: !Bool
         }
     | Invalidate
-        { scope          :: !SurfaceScope
-        , scopeKey       :: !Text
-        , version        :: !Int
-        , fragments      :: ![SurfaceFragmentKey]
-        , sourceClientId :: !(Maybe Text)
+        { scope     :: !SurfaceScope
+        , scopeKey  :: !Text
+        , version   :: !Int
+        , fragments :: ![SurfaceFragmentKey]
         }
     | Error
         { message :: !Text
@@ -111,18 +110,19 @@ instance Aeson.FromJSON SurfaceFragmentKey where
         pure SurfaceFragmentKey { surface, kind, params }
 
 instance Aeson.ToJSON SurfaceSubscription where
-    toJSON SurfaceSubscription { scope, scopeKey, fragments } =
+    toJSON SurfaceSubscription { scope, scopeKey, fragments, renderedDependencyWatermark } =
         recordValue @Contract.SurfaceSubscription
             ( requiredField @Contract.Scope scope
                 &: requiredField @Contract.ScopeKey scopeKey
                 &: requiredField @Contract.Fragments fragments
+                &: requiredField @Contract.RenderedDependencyWatermark renderedDependencyWatermark
                 &: noFields
             )
 
 instance Aeson.FromJSON SurfaceSubscription where
     parseJSON =
         parseRecord @Contract.SurfaceSubscription
-            (\(scope, (scopeKey, (fragments, ()))) -> pure SurfaceSubscription { scope, scopeKey, fragments })
+            (\(scope, (scopeKey, (fragments, (renderedDependencyWatermark, ())))) -> pure SurfaceSubscription { scope, scopeKey, fragments, renderedDependencyWatermark })
 
 instance Aeson.ToJSON LiveFragmentsRefreshEventDetail where
     toJSON LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments } =
@@ -139,10 +139,9 @@ instance Aeson.FromJSON LiveFragmentsRefreshEventDetail where
             (\(scope, (scopeKey, (fragments, ()))) -> pure LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments })
 
 instance Aeson.ToJSON LiveUpdateCommand where
-    toJSON Subscribe { subscription, clientId, lastSeenVersion } =
+    toJSON Subscribe { subscription, lastSeenVersion } =
         taggedUnionValue @Contract.LiveUpdateCommand @Contract.Subscribe
             ( requiredField @Contract.Subscription subscription
-                &: requiredField @Contract.ClientId clientId
                 &: nullableField @Contract.LastSeenVersion lastSeenVersion
                 &: noFields
             )
@@ -156,7 +155,7 @@ instance Aeson.FromJSON LiveUpdateCommand where
     parseJSON =
         parseTaggedUnion @Contract.LiveUpdateCommand
             ( unionCase @Contract.Subscribe
-                (\(subscription, (clientId, (lastSeenVersion, ()))) -> pure Subscribe { subscription, clientId, lastSeenVersion })
+                (\(subscription, (lastSeenVersion, ())) -> pure Subscribe { subscription, lastSeenVersion })
                 |: unionCase @Contract.Unsubscribe
                     (\(subscription, ()) -> pure Unsubscribe { subscription })
                 |: noUnionCases
@@ -171,13 +170,12 @@ instance Aeson.ToJSON LiveUpdateMessage where
                 &: requiredField @Contract.Resync resync
                 &: noFields
             )
-    toJSON Invalidate { scope, scopeKey, version, fragments, sourceClientId } =
+    toJSON Invalidate { scope, scopeKey, version, fragments } =
         taggedUnionValue @Contract.LiveUpdateMessage @Contract.Invalidate
             ( requiredField @Contract.Scope scope
                 &: requiredField @Contract.ScopeKey scopeKey
                 &: requiredField @Contract.Version version
                 &: requiredField @Contract.Fragments fragments
-                &: nullableField @Contract.SourceClientId sourceClientId
                 &: noFields
             )
     toJSON Error { message } =
@@ -192,7 +190,7 @@ instance Aeson.FromJSON LiveUpdateMessage where
             ( unionCase @Contract.Subscribed
                 (\(scope, (scopeKey, (currentVersion, (resync, ())))) -> pure Subscribed { scope, scopeKey, currentVersion, resync })
                 |: unionCase @Contract.Invalidate
-                    (\(scope, (scopeKey, (version, (fragments, (sourceClientId, ()))))) -> pure Invalidate { scope, scopeKey, version, fragments, sourceClientId })
+                    (\(scope, (scopeKey, (version, (fragments, ())))) -> pure Invalidate { scope, scopeKey, version, fragments })
                 |: unionCase @Contract.Error
                     (\(message, ()) -> pure Error { message })
                 |: noUnionCases

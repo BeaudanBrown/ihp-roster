@@ -2,26 +2,32 @@ module Test.MailSpec where
 
 import Application.Billing.NotificationKind (BillingNotificationKind (BillingPaymentTrouble, BillingRenewalResumed))
 import Application.Helper.Mail
+import Application.WageSourceAlert.Types
 import Control.Exception (bracket)
 import Data.Text (isInfixOf)
+import qualified Data.Text.Lazy as LazyText
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude (createRecord, getCurrentTime, newRecord, set,
                               unpackId, (|>))
-import IHP.Mail
+import IHP.MailPrelude
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.Mail.Mime (Address (..))
 import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
+import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import Web.Mail.Billing.Notification
+import Web.Mail.FeedbackNotification
 import Web.Mail.StaffDocuments.RsaReminder
 import Web.Mail.Users.EmailVerification
 import Web.Mail.Users.PasskeySetupLink
 import Web.Mail.Users.PasswordReset
 import Web.Mail.Users.VenueInvitation
 import Web.Mail.Users.VenueOnboardingInvitation
+import Web.Mail.WageSourceAlert
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -33,6 +39,7 @@ tests = aroundAll withDatabaseTestContext do
                 let mail =
                         VenueInvitationMail
                             { invitation = invitation
+                            , recipientAddress = invitation.email
                             , venue = venue
                             , inviteUrl = "https://app.example/NewUser?invitationId=test"
                             , fromAddress = "noreply@example.com"
@@ -61,6 +68,7 @@ tests = aroundAll withDatabaseTestContext do
                 let mail =
                         VenueInvitationMail
                             { invitation = invitation
+                            , recipientAddress = invitation.email
                             , venue = venue
                             , inviteUrl = "https://app.example/NewUser?invitationId=trial"
                             , fromAddress = "noreply@example.com"
@@ -87,6 +95,7 @@ tests = aroundAll withDatabaseTestContext do
                 let mail =
                         VenueOnboardingInvitationMail
                             { invitation = invitation
+                            , recipientAddress = invitation.email
                             , inviteUrl = "https://app.example/NewVenueOnboardingUser?invitationId=test"
                             , fromAddress = "support@example.com"
                             , replyToAddress = "support@example.com"
@@ -109,7 +118,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "verify-mail@example.com" "staff" False
                 let mail =
                         EmailVerificationMail
-                            { user = user
+                            { recipientAddress = user.email
                             , verificationUrl = "https://app.example/VerifyEmail?token=test"
                             , fromAddress = "verify@example.com"
                             , replyToAddress = "support@example.com"
@@ -133,7 +142,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "billing-mail@example.com" "staff" True
                 let mail =
                         BillingNotificationMail
-                            { recipient = user
+                            { recipientAddress = user.email
                             , venue = venue
                             , notificationKind = BillingPaymentTrouble
                             , sourceReference = Nothing
@@ -156,6 +165,105 @@ tests = aroundAll withDatabaseTestContext do
                 text mail `shouldSatisfy` (not . isInfixOf "invoice.payment_failed")
                 text mail `shouldSatisfy` (not . isInfixOf "pm_secret")
 
+        it "renders escaped feedback triage context in explicit HTML and plain text" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback Mail Venue"
+                submitter <- createUserRecord "feedback-mail-submitter@example.com" "staff" True
+                let submittedAt = UTCTime (fromGregorian 2026 8 20) (secondsToDiffTime (3 * 60 * 60 + 15 * 60))
+                let feedbackItem =
+                        newRecord @UserFeedbackItem
+                            |> set #venueId (unpackId venue.id)
+                            |> set #submittedByUserId (unpackId submitter.id)
+                            |> set #feedbackType Bug
+                            |> set #content "<script>alert('escaped')</script>\nSecond line"
+                            |> set #submittedRole (Just "worker")
+                            |> set #submittedPath (Just "/RosterWeeks")
+                            |> set #userAgent (Just "Browser <unsafe>")
+                            |> set #viewportWidth (Just 390)
+                            |> set #viewportHeight (Just 844)
+                            |> set #devicePixelRatio (Just 2.625)
+                            |> set #deviceClass (Just "mobile")
+                            |> set #displayMode (Just "standalone")
+                            |> set #createdAt submittedAt
+                let mail =
+                        FeedbackNotificationMail
+                            { recipientAddress = "support-recipient@example.com"
+                            , feedbackItem
+                            , venue
+                            , submitter
+                            , venueTimezone = "Australia/Melbourne"
+                            , supportUrl = "https://app.example/Support"
+                            , fromAddress = "noreply@example.com"
+                            , replyToAddress = "support@example.com"
+                            }
+                let ?context = ?mocking
+                let ?mail = mail
+                let renderedHtml = LazyText.toStrict (HtmlRenderer.renderHtml (html mail))
+
+                addressEmail (to mail) `shouldBe` "support-recipient@example.com"
+                subject `shouldBe` "New Bepis feedback submitted"
+                addressEmail from `shouldBe` "noreply@example.com"
+                fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
+                renderedHtml `shouldSatisfy` isInfixOf "&lt;script&gt;alert(&#39;escaped&#39;)&lt;/script&gt;"
+                renderedHtml `shouldSatisfy` (not . isInfixOf "<script>")
+                renderedHtml `shouldSatisfy` isInfixOf "Browser &lt;unsafe&gt;"
+                text mail `shouldSatisfy` isInfixOf "Type: Bug"
+                text mail `shouldSatisfy` isInfixOf "Submission-time role: worker"
+                text mail `shouldSatisfy` isInfixOf "Submitted: 2026-08-20 13:15:00 Australia/Melbourne"
+                text mail `shouldSatisfy` isInfixOf "<script>alert('escaped')</script>\nSecond line"
+                text mail `shouldSatisfy` isInfixOf "Open Bepis Support: https://app.example/Support"
+
+        it "renders distinct safe wage-source failure and stale alerts" $ withContext do
+            let detectedAt = UTCTime (fromGregorian 2026 8 20) 0
+            let sourceJobId = "00000000-0000-0000-0000-000000000253"
+            let failureSnapshot =
+                    WageSourceAlertSnapshot
+                        { alertKind = RefreshFailedAlert
+                        , source = FwcWageSource
+                        , detectedAt
+                        , sourceJobId
+                        , refreshTriggerClass = Just TimerRefresh
+                        , affectedYears = []
+                        , latestValidSuccessAt = Nothing
+                        , freshnessMaximumAge = Nothing
+                        , annualRequiredOnOrAfter = Nothing
+                        , annualTriggerVenueId = Nothing
+                        }
+            let staleSnapshot =
+                    WageSourceAlertSnapshot
+                        { alertKind = SourceStaleAlert
+                        , source = DataVicWageSource
+                        , detectedAt
+                        , sourceJobId
+                        , refreshTriggerClass = Nothing
+                        , affectedYears = [2025, 2026, 2027]
+                        , latestValidSuccessAt = Just (UTCTime (fromGregorian 2026 6 1) 0)
+                        , freshnessMaximumAge = Just (45 * 24 * 60 * 60)
+                        , annualRequiredOnOrAfter = Nothing
+                        , annualTriggerVenueId = Nothing
+                        }
+            let mailFor snapshot =
+                    WageSourceAlertMail
+                        { recipientAddress = "support-recipient@example.com"
+                        , snapshot
+                        , supportUrl = "https://app.example/Support"
+                        , fromAddress = "noreply@example.com"
+                        , replyToAddress = "support@example.com"
+                        }
+            let failureMail = mailFor failureSnapshot
+            let staleMail = mailFor staleSnapshot
+            let ?context = ?mocking
+            let ?mail = failureMail
+
+            subject `shouldBe` "Fair Work Commission MAPD refresh failed"
+            text failureMail `shouldSatisfy` isInfixOf "Refresh class: timer"
+            text failureMail `shouldSatisfy` isInfixOf "Refresh job ID: 00000000-0000-0000-0000-000000000253"
+            text failureMail `shouldSatisfy` not . isInfixOf "exception"
+            let ?mail = staleMail
+            subject `shouldBe` "DataVic public holidays data is stale"
+            text staleMail `shouldSatisfy` isInfixOf "Affected years: 2025, 2026, 2027"
+            text staleMail `shouldSatisfy` isInfixOf "Open Bepis Support: https://app.example/Support"
+
         it "renders renewal-resumed billing confirmation copy" $ withContext do
             let copy = billingNotificationCopy BillingRenewalResumed "Billing Mail Venue"
             copy.copySubject `shouldBe` "Subscription will renew"
@@ -167,7 +275,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "passkey-mail@example.com" "staff" True
                 let mail =
                         PasskeySetupLinkMail
-                            { user = user
+                            { recipientAddress = user.email
                             , setupUrl = "https://app.example/NewPasskeySetup?token=test"
                             , fromAddress = "accounts@example.com"
                             , replyToAddress = "support@example.com"
@@ -192,7 +300,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "password-reset-mail@example.com" "staff" True
                 let mail =
                         PasswordResetMail
-                            { user
+                            { recipientAddress = user.email
                             , resetUrl = "https://app.example/NewPasswordReset?token=test"
                             , fromAddress = "accounts@example.com"
                             , replyToAddress = "support@example.com"
@@ -221,7 +329,8 @@ tests = aroundAll withDatabaseTestContext do
                             |> set #expiryDate (fromGregorian 2026 1 31)
                 let mail =
                         RsaReminderMail
-                            { recipient = user
+                            { recipientAddress = user.email
+                            , recipientName = "Riley RSA"
                             , venue = venue
                             , staff = staff
                             , staffDocument = staffDocument

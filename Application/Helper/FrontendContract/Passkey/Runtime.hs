@@ -58,10 +58,10 @@ canonicalPasskeyDom = PasskeyDom
     , passkeyFlowConfigAttribute = domAttrValue @Contract.PasskeyFlowConfig
     }
 
-passkeyLoginAttrs :: Text -> Text -> Maybe Text -> [(Text, Text)]
-passkeyLoginAttrs beginUrl finishUrl successRedirect =
+passkeyLoginAttrs :: Text -> Text -> Maybe Text -> Bool -> Bool -> [(Text, Text)]
+passkeyLoginAttrs beginUrl finishUrl successRedirect autoStart closeOverlayOnSuccess =
     roleAttrs canonicalPasskeyDom.passkeyLoginAttribute
-        <> configAttrs (loginFlowConfig beginUrl finishUrl successRedirect)
+        <> configAttrs (loginFlowConfig beginUrl finishUrl successRedirect autoStart closeOverlayOnSuccess)
 
 passkeyRegistrationAttrs :: Text -> Text -> Maybe Text -> [(Text, Text)]
 passkeyRegistrationAttrs beginUrl finishUrl successRedirect =
@@ -94,8 +94,8 @@ passkeyRecoveryAttrs = [(canonicalPasskeyDom.passkeyRecoveryAttribute, statusRel
 passkeyDismissalAttrs :: [(Text, Text)]
 passkeyDismissalAttrs = roleAttrs canonicalPasskeyDom.passkeyDismissalAttribute
 
-loginFlowConfig :: Text -> Text -> Maybe Text -> Aeson.Value
-loginFlowConfig beginUrl finishUrl successRedirect =
+loginFlowConfig :: Text -> Text -> Maybe Text -> Bool -> Bool -> Aeson.Value
+loginFlowConfig beginUrl finishUrl successRedirect autoStart closeOverlayOnSuccess =
     taggedUnionValue @Contract.PasskeyFlowConfig @Contract.Login
         ( statusFlowFields
             beginUrl
@@ -103,6 +103,8 @@ loginFlowConfig beginUrl finishUrl successRedirect =
             successRedirect
             "Signed in."
             "No passkey was selected."
+            autoStart
+            closeOverlayOnSuccess
         )
 
 registrationFlowConfig :: Text -> Text -> Maybe Text -> Aeson.Value
@@ -114,9 +116,11 @@ registrationFlowConfig beginUrl finishUrl successRedirect =
             successRedirect
             "Passkey added."
             "Passkey registration was cancelled."
+            False
+            False
         )
 
-statusFlowFields beginUrl finishUrl successRedirect successMessage cancelledMessage =
+statusFlowFields beginUrl finishUrl successRedirect successMessage cancelledMessage autoStart closeOverlayOnSuccess =
     requiredField @Contract.BeginUrl (requiredText "Passkey begin URL" beginUrl)
         &: requiredField @Contract.FinishUrl (requiredText "Passkey finish URL" finishUrl)
         &: optionalField @Contract.SuccessRedirect (requiredText "Passkey success redirect" <$> successRedirect)
@@ -127,6 +131,8 @@ statusFlowFields beginUrl finishUrl successRedirect successMessage cancelledMess
         &: requiredField @Contract.FailureMessage "Passkey request failed."
         &: requiredField @Contract.PendingLabel "Please wait"
         &: requiredField @Contract.CancelledMessage cancelledMessage
+        &: requiredField @Contract.AutoStart autoStart
+        &: requiredField @Contract.CloseOverlayOnSuccess closeOverlayOnSuccess
         &: noFields
 
 instance ContractReference Contract.PasskeySetupPromptMode where

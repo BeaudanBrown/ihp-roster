@@ -28,7 +28,7 @@ async function rosterLiveRoot(page: Page) {
     const root = page
         .locator('[data-week-toolbar="roster"]')
         .locator(`[${toggleRootDomAttr}]`)
-        .filter({ hasText: 'Live' });
+        .filter({ hasText: 'Published' });
     await expect(root).toHaveCount(1);
     await expect(root).toBeVisible();
     return root;
@@ -56,7 +56,7 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
     await expect(input).not.toBeChecked();
 
     await expectRosterLiveRequest(page, 'true', () => root.click());
-    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster week is now live', { timeout: E2E_TIMEOUT.assertion });
+    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster window Published', { timeout: E2E_TIMEOUT.assertion });
     root = await rosterLiveRoot(page);
     input = root.locator(`[${toggleInputDomAttr}]`);
     await expect(input).toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
@@ -67,7 +67,7 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
     await expect(input).toBeChecked();
 
     await expectRosterLiveRequest(page, 'false', () => root.click());
-    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster week moved back to draft', { timeout: E2E_TIMEOUT.assertion });
+    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster window returned to Draft', { timeout: E2E_TIMEOUT.assertion });
     root = await rosterLiveRoot(page);
     input = root.locator(`[${toggleInputDomAttr}]`);
     await expect(input).not.toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
@@ -85,16 +85,15 @@ test.describe('Generated toggle capability', () => {
         resetTimesheetDisplayPreferences('e2e-worker@example.com');
     });
 
-    test('persists roster live state in both directions from the desktop control', async ({ page }) => {
+    test('persists roster Published state in both directions from the desktop control', async ({ page }) => {
         await exerciseRosterLivePersistence(page, { width: 1280, height: 900 }, 11);
     });
 
-    test('persists roster live state in both directions from the canonical mobile-visible control', async ({ page }) => {
+    test('persists roster Published state in both directions from the canonical mobile-visible control', async ({ page }) => {
         await exerciseRosterLivePersistence(page, { width: 390, height: 844 }, 12);
     });
 
     test('rejects publishing when an assigned shift pay configuration becomes unavailable', async ({ page }) => {
-        runSql("UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';");
         runSql("UPDATE shift_types SET is_active = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000133';");
         try {
             await openRoster(page, { weekOffset: 0, ensureDraft: true, ensureEditable: true });
@@ -107,11 +106,10 @@ test.describe('Generated toggle capability', () => {
             await expect(root.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
         } finally {
             runSql("UPDATE shift_types SET is_active = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000133';");
-            runSql("UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';");
-        }
+            }
     });
 
-    test('submits explicit roster scope and persists the Timesheets show-approved preference', async ({ page }) => {
+    test('submits explicit roster scope and persists the Timesheets hide-approved preference', async ({ page }) => {
         const extraRosterGroupId = 'a1000000-0000-0000-0000-000000000169';
         runSql(`
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
@@ -167,42 +165,39 @@ test.describe('Generated toggle capability', () => {
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.getByRole('link', { name: '>' }).click();
-        await expect(page).toHaveURL(/weekOffset=1/);
+        await expect(page).toHaveURL(/anchorDate=/);
+        const currentAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
+        expect(currentAnchorDate).toBeTruthy();
         const rawMountConfig = await page.locator(`[${surfaceDomAttr}="timesheets"][${surfaceConfigDomAttr}]`).getAttribute(surfaceConfigDomAttr);
         const mountConfig = parseFrontendSurfaceMountConfig(JSON.parse(rawMountConfig ?? 'null'));
         expect(mountConfig.surface).toBe('timesheets');
-        expect(mountConfig.scopeKey).toMatch(/:1$/);
-        expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('weekOffset') === '1')).toBe(true);
+        expect(mountConfig.scopeKey).toMatch(/^timesheets:[^:]+:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}:\d+$/);
+        const scopeWindowStart = mountConfig.scopeKey.split(':')[2];
+        expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('anchorDate') === scopeWindowStart)).toBe(true);
         await openTimesheetSettings(page);
-        let showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
-        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
+        let hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
+        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
 
         let requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
-            && new URL(request.url()).pathname.includes('ToggleTimesheetShowApproved')
-            && request.postData()?.includes('showApproved=false') === true
-            && request.postData()?.includes('weekOffset=1') === true,
+            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
+            && request.postData()?.includes('hideApproved=true') === true,
         );
-        const navigatedWeekRefresh = page.waitForResponse((response) =>
-            response.request().method() === 'GET'
-            && new URL(response.url()).pathname.includes('ShowtimesheetDayColumnsLiveFragment')
-            && new URL(response.url()).searchParams.get('weekOffset') === '1',
-        );
-        await showApprovedRoot.click();
-        await requestPromise;
-        await navigatedWeekRefresh;
-        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        await hideApprovedRoot.click();
+        const toggleResponse = await (await requestPromise).response();
+        expect(toggleResponse?.ok()).toBe(true);
+        await toggleResponse?.finished();
         await page.reload();
         await openTimesheetSettings(page);
-        showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
-        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
+        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
 
         requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
-            && new URL(request.url()).pathname.includes('ToggleTimesheetShowApproved')
-            && request.postData()?.includes('showApproved=true') === true,
+            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
+            && request.postData()?.includes('hideApproved=false') === true,
         );
-        await showApprovedRoot.click();
+        await hideApprovedRoot.click();
         await requestPromise;
         resetTimesheetDisplayPreferences('e2e-test@example.com');
     });

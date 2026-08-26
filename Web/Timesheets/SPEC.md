@@ -19,9 +19,14 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 
 ## Time Contract
 
-- Entries persist authoritative start/end instants, paired nullable break
-  instants, and an `Australia/Melbourne` timezone snapshot. Worked date, clocks,
-  break duration, and paid duration are projections from those values.
+- Entries persist an explicit Operational date plus authoritative start/end
+  instants, paired nullable break instants, and an `Australia/Melbourne`
+  timezone snapshot. The Operational date owns Timesheet windows and cards;
+  clocks, component dates, break duration, and paid duration remain projections
+  from authoritative instants.
+- Within a selected Operational date, clocks from 00:00 through 05:59 belong to
+  the following calendar date. Existing historical ad-hoc entries retain their
+  former local-start date during backfill; no authoritative timestamp moves.
 - Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require the
   relevant first/second occurrence, including equal repeated-clock intervals.
 - Input precision and picker range follow venue configuration. Existing values
@@ -64,8 +69,10 @@ trial, roster-only, deleted, incomplete, or already-materialized shifts do not
 produce suggestions.
 
 Suggestions are derived on every projection with no background rows or grace
-period. Their week/day follows the authoritative projected start date. Staff see
-only their own; managers see their normal venue scope.
+period. Their day follows the source Roster day's explicit Operational date,
+independently of the local start calendar date. Windows are venue-wide across
+all active roster groups. Staff see only their own; managers see their normal
+venue scope.
 
 ## Materialization And History
 
@@ -80,7 +87,7 @@ only their own; managers see their normal venue scope.
   entry may make the current source eligible for a new snapshot while retaining
   deleted history. Ad-hoc entries remain unrelated to suggestions.
 - Staff cannot reassign roster-derived entries. Managers may correct staff in
-  scope, but source identity and worked date remain immutable.
+  scope, but source identity and Operational date remain immutable.
 
 ## Wage Estimates, Approval And Payroll
 

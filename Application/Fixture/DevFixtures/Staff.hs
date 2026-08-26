@@ -27,6 +27,7 @@ data SeededAccounts = SeededAccounts
     , provisionedWorkerStaff :: !Staff
     , aliasStaff             :: ![Staff]
     , invitation             :: !VenueInvitation
+    , defaultPasswordHash    :: !Text
     }
 
 data SeededStaff = SeededStaff
@@ -45,14 +46,18 @@ data SeededStaff = SeededStaff
 
 seedAccounts :: (?modelContext :: ModelContext) => Venue -> SeedScenario -> IO SeededAccounts
 seedAccounts venue scenario = do
-    admin <- createSeededUserRecordWithPassword "venue2@bepis.lol" "venue2" "admin" True
+    passwordHashes <- hashDistinctSeedPasswords [testPassword, "venue2", "admin", "staff", "manager", "venue", "owner"]
+    let passwordHash password =
+            fromMaybe (error ("Missing dev seed password hash for " <> cs password)) (Map.lookup password passwordHashes)
+        defaultPasswordHash = passwordHash testPassword
+    admin <- createSeededUserRecordWithPasswordHash "venue2@bepis.lol" (passwordHash "venue2") "admin" Nothing True
     _ <- provisionVenueUser venue admin VenueAdmin "venue2" "bepis"
-    supportAdmin <- createSeededUserRecordWithPasswordAndPlatformRole "admin@bepis.lol" "admin" "admin" (Just SuperAdmin) True
-    managerUsers <- createManagerUsers venue scenario.managerCount
+    supportAdmin <- createSeededUserRecordWithPasswordHash "admin@bepis.lol" (passwordHash "admin") "admin" (Just SuperAdmin) True
+    managerUsers <- createManagerUsers venue defaultPasswordHash scenario.managerCount
     let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
-    workerUser <- createUserRecord "dev-worker@example.com" "staff" True
+    workerUser <- createSeededUserRecordWithPasswordHash "dev-worker@example.com" defaultPasswordHash "staff" Nothing True
     (_, provisionedWorkerStaff) <- provisionVenueUser venue workerUser Worker "Willa" "Worker"
-    aliasStaff <- seedSandboxRoleAliasAccounts venue
+    aliasStaff <- seedSandboxRoleAliasAccounts venue passwordHashes
     invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" Worker
     pure SeededAccounts { .. }
 
@@ -60,7 +65,7 @@ seedStaff :: (?modelContext :: ModelContext) => Venue -> SeedScenario -> SeededA
 seedStaff venue scenario accounts = do
     managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] accounts.managerUsers)
     workerStaff <- accounts.provisionedWorkerStaff |> set #idealShiftsPerWeek 3 |> updateRecord
-    generatedStaff <- createGeneratedStaff venue scenario.scenarioSeed scenario.staffCount
+    generatedStaff <- createGeneratedStaff venue accounts.defaultPasswordHash scenario.scenarioSeed scenario.staffCount
     let frontOnlyStaff = takeByAssignment FrontOnly generatedStaff
     let backOnlyStaff = takeByAssignment BackOnly generatedStaff
     let crossGroupStaff = takeByAssignment CrossGroup generatedStaff
@@ -91,49 +96,74 @@ applySeededPayAssignments awardLevelId importedPayItemId aliasStaff fixture = do
     rosterOnlyStaff <- fixture.rosterOnlyStaff |> set #payAssignmentMode RosterOnly |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord
     remediationStaff <- maybe (fail "Dev seed requires a linked remediation profile") pure (listToMaybe aliasStaff)
     remediationStaff |> set #payAssignmentMode LegacyUnresolved |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord |> void
-    managerStaffs <- refreshStaff fixture.managerStaffs
-    generatedStaff <- refreshStaff fixture.generatedStaff
-    frontOnlyStaff <- refreshStaff fixture.frontOnlyStaff
-    backOnlyStaff <- refreshStaff fixture.backOnlyStaff
-    crossGroupStaff <- refreshStaff fixture.crossGroupStaff
-    trialStaffs <- refreshStaff fixture.trialStaffs
-    let workerStaff = xeroStaff
-    let allOperationalStaff = managerStaffs <> [xeroStaff] <> generatedStaff <> trialStaffs
+    refreshedStaff <-
+        query @Staff
+            |> filterWhere (#venueId, fixture.workerStaff.venueId)
+            |> fetch
+    let refreshedById = Map.fromList [(staff.id, staff) | staff <- refreshedStaff]
+        refreshOne staff = fromMaybe (error ("Missing refreshed dev staff " <> show staff.id)) (Map.lookup staff.id refreshedById)
+        refreshSet = map refreshOne
+        managerStaffs = refreshSet fixture.managerStaffs
+        generatedStaff = refreshSet fixture.generatedStaff
+        frontOnlyStaff = refreshSet fixture.frontOnlyStaff
+        backOnlyStaff = refreshSet fixture.backOnlyStaff
+        crossGroupStaff = refreshSet fixture.crossGroupStaff
+        trialStaffs = refreshSet fixture.trialStaffs
+        refreshedAwardStaff = refreshOne awardStaff
+        refreshedXeroStaff = refreshOne xeroStaff
+        refreshedRosterOnlyStaff = refreshOne rosterOnlyStaff
+        allOperationalStaff = managerStaffs <> [refreshedXeroStaff] <> generatedStaff <> trialStaffs
     pure fixture
         { managerStaffs = managerStaffs
-        , workerStaff = workerStaff
+        , workerStaff = refreshedXeroStaff
         , generatedStaff = generatedStaff
         , frontOnlyStaff = frontOnlyStaff
         , backOnlyStaff = backOnlyStaff
         , crossGroupStaff = crossGroupStaff
         , trialStaffs = trialStaffs
-        , awardStaff = awardStaff
-        , xeroStaff = xeroStaff
-        , rosterOnlyStaff = rosterOnlyStaff
+        , awardStaff = refreshedAwardStaff
+        , xeroStaff = refreshedXeroStaff
+        , rosterOnlyStaff = refreshedRosterOnlyStaff
         , allOperationalStaff = allOperationalStaff
         }
-  where
-    refreshStaff = mapM (fetch . (.id))
 
-seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO [Staff]
-seedSandboxRoleAliasAccounts venue = do
-    staffUser <- createSeededUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
+seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> Map.Map Text Text -> IO [Staff]
+seedSandboxRoleAliasAccounts venue passwordHashes = do
+    staffUser <- seededAliasUser "staff@bepis.lol" "staff" "staff"
     (_, staffProfile) <- provisionVenueUser venue staffUser Worker "staff" "bepis"
-    managerUser <- createSeededUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
+    managerUser <- seededAliasUser "manager@bepis.lol" "manager" "manager"
     (_, managerProfile) <- provisionVenueUser venue managerUser Manager "manager" "bepis"
-    venueAdminUser <- createSeededUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
+    venueAdminUser <- seededAliasUser "venue@bepis.lol" "venue" "admin"
     (_, venueAdminProfile) <- provisionVenueUser venue venueAdminUser VenueAdmin "venue" "bepis"
-    venueOwnerUser <- createSeededUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
+    venueOwnerUser <- seededAliasUser "owner@bepis.lol" "owner" "admin"
     (_, venueOwnerProfile) <- provisionVenueUser venue venueOwnerUser VenueOwner "owner" "bepis"
     pure [staffProfile, managerProfile, venueAdminProfile, venueOwnerProfile]
+  where
+    seededAliasUser emailAddress password globalRole =
+        createSeededUserRecordWithPasswordHash
+            emailAddress
+            (fromMaybe (error ("Missing dev seed alias password hash for " <> cs password)) (Map.lookup password passwordHashes))
+            globalRole
+            Nothing
+            True
 
-createSeededUserRecordWithPassword :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Bool -> IO User
-createSeededUserRecordWithPassword emailAddress password globalRole isProfileCompleted =
-    createSeededUserRecordWithPasswordAndPlatformRole emailAddress password globalRole Nothing isProfileCompleted
+hashDistinctSeedPasswords :: [Text] -> IO (Map.Map Text Text)
+hashDistinctSeedPasswords passwords =
+    Map.fromList <$> mapM hashOne (nub passwords)
+  where
+    hashOne password = do
+        passwordHash <- hashPassword password
+        pure (password, passwordHash)
 
-createSeededUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRoleEnum -> Bool -> IO User
-createSeededUserRecordWithPasswordAndPlatformRole emailAddress password globalRole platformRole isProfileCompleted =
-    createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted (seededUserIdForPasskeyEmail emailAddress)
+createSeededUserRecordWithPasswordHash :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRoleEnum -> Bool -> IO User
+createSeededUserRecordWithPasswordHash emailAddress passwordHash globalRole platformRole isProfileCompleted =
+    createUserRecordWithPasswordInputAndPlatformRoleAndId
+        emailAddress
+        (UseRuntimeFixturePasswordHash passwordHash)
+        globalRole
+        platformRole
+        isProfileCompleted
+        (seededUserIdForPasskeyEmail emailAddress)
 
 seededUserIdForPasskeyEmail :: Text -> Maybe (Id User)
 seededUserIdForPasskeyEmail emailAddress =
@@ -150,11 +180,11 @@ seededUserIdsForPasskeys =
         , ("venue2@bepis.lol", "4c83e177-4d6e-4ef2-abf3-92e9781cfc90")
         ]
 
-createManagerUsers :: (?modelContext :: ModelContext) => Venue -> Int -> IO [User]
-createManagerUsers venue count =
+createManagerUsers :: (?modelContext :: ModelContext) => Venue -> Text -> Int -> IO [User]
+createManagerUsers venue defaultPasswordHash count =
     forM [0 .. max 0 (count - 1)] \index -> do
         let emailAddress = if index == 0 then "dev-manager@example.com" else "dev-manager-" <> tshow (index + 1) <> "@example.com"
-        user <- createUserRecord emailAddress "manager" True
+        user <- createSeededUserRecordWithPasswordHash emailAddress defaultPasswordHash "manager" Nothing True
         _ <- createVenueMembershipRecord venue user Manager
         pure user
 
@@ -165,10 +195,10 @@ createManagerStaff venue (index, user) =
     where
         (firstName, lastName) = fromMaybe ("Morgan", "Manager") (safeIndex managerNames index)
 
-createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Int -> Int -> IO [Staff]
-createGeneratedStaff venue seedValue requestedCount =
+createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Text -> Int -> Int -> IO [Staff]
+createGeneratedStaff venue defaultPasswordHash seedValue requestedCount =
     forM (take (max 0 requestedCount) generatedStaffCatalog) \(index, firstName, lastName, preferredName) -> do
-        user <- createUserRecord ("dev-" <> Text.toLower firstName <> "-" <> tshow (index + 1) <> "@example.com") "staff" True
+        user <- createSeededUserRecordWithPasswordHash ("dev-" <> Text.toLower firstName <> "-" <> tshow (index + 1) <> "@example.com") defaultPasswordHash "staff" Nothing True
         _ <- createVenueMembershipRecord venue user Worker
         createPlaceholderStaffRecord venue (Just user) firstName lastName
             >>= updateRecord . set #preferredName (preferredNameFor seedValue index firstName preferredName)

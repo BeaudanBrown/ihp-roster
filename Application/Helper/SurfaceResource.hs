@@ -31,8 +31,8 @@ recordLiveMutationDiagnostics label result = do
         TextIO.putStrLn $
             "live_mutation_touches label="
                 <> label
-                <> " resources="
-                <> tshow (Set.toAscList (liveMutationTouchedResources result))
+                <> " resource_count="
+                <> tshow (Set.size (liveMutationTouchedResources result))
     pure result
 
 liveMutationDiagnosticsEnabled :: IO Bool

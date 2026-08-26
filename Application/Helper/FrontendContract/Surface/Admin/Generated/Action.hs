@@ -95,6 +95,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , updateRosterGroupActionFields
     , updateRosterTimePickerWindowAction
     , updateRosterTimePickerWindowActionFields
+    , updateRosterWeekStartsOnAction
+    , updateRosterWeekStartsOnActionFields
     , updateShiftTypeAction
     , updateShiftTypeActionFields
     , updateUnavailableStaffWarningThresholdAction
@@ -127,9 +129,10 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            surfaceNullableField,
                                                            surfaceOptionalField,
                                                            (&:))
+import qualified Application.PayRateSelection as Types4
 import Data.Time (Day)
 import qualified Data.UUID as UUID
-import qualified Generated.Types as Types4
+import qualified Generated.Types as Types5
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -140,16 +143,16 @@ type instance ActionMarker AutosaveShiftTypeNameActionOperation = Types2.Autosav
 type instance ActionFieldSpecs AutosaveShiftTypeNameActionOperation =
     '[ 'Field Types2.ShowInactiveShiftTypes 'WireBool
      , 'Field Types2.Name 'WireText
-     , 'Field Types2.PayRateSelection 'WireText
-     , 'Field Types2.ColourKey ('WireClosed Types4.ShiftTypeColourKeyEnum)
+     , 'Field Types2.PayRateSelection ('WireDomain Types4.ShiftTypePayRateSelection)
+     , 'Field Types2.ColourKey ('WireClosed Types5.ShiftTypeColourKeyEnum)
      , 'Field Types2.IsActive 'WireBool
      ]
 
 autosaveShiftTypeNameActionFields ::
     Bool ->
     Text ->
-    Text ->
-    Types4.ShiftTypeColourKeyEnum ->
+    Types4.ShiftTypePayRateSelection ->
+    Types5.ShiftTypeColourKeyEnum ->
     Bool ->
     ActionFields AutosaveShiftTypeNameActionOperation
 autosaveShiftTypeNameActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
@@ -164,7 +167,7 @@ autosaveShiftTypeNameActionFields showInactiveShiftTypes name payRateSelection c
 
 autosaveShiftTypeNameActionEvidence :: ActionEvidence AutosaveShiftTypeNameActionOperation
 autosaveShiftTypeNameActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "AutosaveShiftTypeName" "autosave-shift-type-name" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "input-changed-autosave-custom-htmx" "name input autosave uses HTMX input changed delay:600ms, blur changed trigger and hx-include=closest form")])
+    actionEvidence (SurfaceIR.HtmxActionIR "AutosaveShiftTypeName" "autosave-shift-type-name" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireDomainIR "Application.PayRateSelection" "ShiftTypePayRateSelection") SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "input-changed-autosave-custom-htmx" "name input autosave uses HTMX input changed delay:600ms, blur changed trigger and hx-include=closest form")])
 
 autosaveShiftTypeNameAction :: ActionFields AutosaveShiftTypeNameActionOperation -> FrontendSurfaceAction
 autosaveShiftTypeNameAction =
@@ -177,16 +180,16 @@ type instance ActionMarker AutosaveShiftTypeSelectionActionOperation = Types2.Au
 type instance ActionFieldSpecs AutosaveShiftTypeSelectionActionOperation =
     '[ 'Field Types2.ShowInactiveShiftTypes 'WireBool
      , 'Field Types2.Name 'WireText
-     , 'Field Types2.PayRateSelection 'WireText
-     , 'Field Types2.ColourKey ('WireClosed Types4.ShiftTypeColourKeyEnum)
+     , 'Field Types2.PayRateSelection ('WireDomain Types4.ShiftTypePayRateSelection)
+     , 'Field Types2.ColourKey ('WireClosed Types5.ShiftTypeColourKeyEnum)
      , 'Field Types2.IsActive 'WireBool
      ]
 
 autosaveShiftTypeSelectionActionFields ::
     Bool ->
     Text ->
-    Text ->
-    Types4.ShiftTypeColourKeyEnum ->
+    Types4.ShiftTypePayRateSelection ->
+    Types5.ShiftTypeColourKeyEnum ->
     Bool ->
     ActionFields AutosaveShiftTypeSelectionActionOperation
 autosaveShiftTypeSelectionActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
@@ -201,7 +204,7 @@ autosaveShiftTypeSelectionActionFields showInactiveShiftTypes name payRateSelect
 
 autosaveShiftTypeSelectionActionEvidence :: ActionEvidence AutosaveShiftTypeSelectionActionOperation
 autosaveShiftTypeSelectionActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "AutosaveShiftTypeSelection" "autosave-shift-type-selection" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "change-autosave-custom-htmx" "select autosave uses HTMX change trigger and hx-include=closest form")])
+    actionEvidence (SurfaceIR.HtmxActionIR "AutosaveShiftTypeSelection" "autosave-shift-type-selection" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireDomainIR "Application.PayRateSelection" "ShiftTypePayRateSelection") SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "change-autosave-custom-htmx" "select autosave uses HTMX change trigger and hx-include=closest form")])
 
 autosaveShiftTypeSelectionAction :: ActionFields AutosaveShiftTypeSelectionActionOperation -> FrontendSurfaceAction
 autosaveShiftTypeSelectionAction =
@@ -290,16 +293,16 @@ type instance ActionMarker CreateShiftTypeActionOperation = Types2.CreateShiftTy
 type instance ActionFieldSpecs CreateShiftTypeActionOperation =
     '[ 'Field Types2.ShowInactiveShiftTypes 'WireBool
      , 'Field Types2.Name 'WireText
-     , 'Field Types2.PayRateSelection 'WireText
-     , 'Field Types2.ColourKey ('WireClosed Types4.ShiftTypeColourKeyEnum)
+     , 'Field Types2.PayRateSelection ('WireDomain Types4.ShiftTypePayRateSelection)
+     , 'Field Types2.ColourKey ('WireClosed Types5.ShiftTypeColourKeyEnum)
      , 'Field Types2.IsActive 'WireBool
      ]
 
 createShiftTypeActionFields ::
     Bool ->
     Text ->
-    Text ->
-    Types4.ShiftTypeColourKeyEnum ->
+    Types4.ShiftTypePayRateSelection ->
+    Types5.ShiftTypeColourKeyEnum ->
     Bool ->
     ActionFields CreateShiftTypeActionOperation
 createShiftTypeActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
@@ -314,7 +317,7 @@ createShiftTypeActionFields showInactiveShiftTypes name payRateSelection colourK
 
 createShiftTypeActionEvidence :: ActionEvidence CreateShiftTypeActionOperation
 createShiftTypeActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateShiftType" "create-shift-type" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateShiftType" "create-shift-type" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireDomainIR "Application.PayRateSelection" "ShiftTypePayRateSelection") SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
 
 createShiftTypeAction :: ActionFields CreateShiftTypeActionOperation -> FrontendSurfaceAction
 createShiftTypeAction =
@@ -834,7 +837,27 @@ type instance ActionSurface UpdateRosterWeekStartsOnActionOperation = AdapterSur
 type instance ActionMarker UpdateRosterWeekStartsOnActionOperation = Types2.UpdateRosterWeekStartsOn
 type instance ActionFieldSpecs UpdateRosterWeekStartsOnActionOperation =
     '[ 'Field Types2.RosterWeekStartsOn 'WireInt
+     , 'Field Types2.RosterCalendarRevision 'WireInt
      ]
+
+updateRosterWeekStartsOnActionFields ::
+    Int ->
+    Int ->
+    ActionFields UpdateRosterWeekStartsOnActionOperation
+updateRosterWeekStartsOnActionFields rosterWeekStartsOn rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterWeekStartsOn rosterWeekStartsOn)
+        ( surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+            &: noSurfaceFields
+        )
+
+updateRosterWeekStartsOnActionEvidence :: ActionEvidence UpdateRosterWeekStartsOnActionOperation
+updateRosterWeekStartsOnActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateRosterWeekStartsOn" "update-roster-week-starts-on" [SurfaceIR.FieldIR "RosterWeekStartsOn" "rosterWeekStartsOn" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-roster-window-start-day-setting" ["admin-roster-window-start-day-setting"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTriggerIR (SurfaceIR.HtmxTypedSyntaxIR "change" []))])
+
+updateRosterWeekStartsOnAction :: ActionFields UpdateRosterWeekStartsOnActionOperation -> FrontendSurfaceAction
+updateRosterWeekStartsOnAction =
+    frontendSurfaceActionFromEvidence updateRosterWeekStartsOnActionEvidence
 
 parseUpdateRosterWeekStartsOnActionParams ::
     (?request :: Request) =>
@@ -850,16 +873,16 @@ type instance ActionMarker UpdateShiftTypeActionOperation = Types2.UpdateShiftTy
 type instance ActionFieldSpecs UpdateShiftTypeActionOperation =
     '[ 'Field Types2.ShowInactiveShiftTypes 'WireBool
      , 'Field Types2.Name 'WireText
-     , 'Field Types2.PayRateSelection 'WireText
-     , 'Field Types2.ColourKey ('WireClosed Types4.ShiftTypeColourKeyEnum)
+     , 'Field Types2.PayRateSelection ('WireDomain Types4.ShiftTypePayRateSelection)
+     , 'Field Types2.ColourKey ('WireClosed Types5.ShiftTypeColourKeyEnum)
      , 'Field Types2.IsActive 'WireBool
      ]
 
 updateShiftTypeActionFields ::
     Bool ->
     Text ->
-    Text ->
-    Types4.ShiftTypeColourKeyEnum ->
+    Types4.ShiftTypePayRateSelection ->
+    Types5.ShiftTypeColourKeyEnum ->
     Bool ->
     ActionFields UpdateShiftTypeActionOperation
 updateShiftTypeActionFields showInactiveShiftTypes name payRateSelection colourKey isActive =
@@ -874,7 +897,7 @@ updateShiftTypeActionFields showInactiveShiftTypes name payRateSelection colourK
 
 updateShiftTypeActionEvidence :: ActionEvidence UpdateShiftTypeActionOperation
 updateShiftTypeActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UpdateShiftType" "update-shift-type" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateShiftType" "update-shift-type" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "Name" "name" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireDomainIR "Application.PayRateSelection" "ShiftTypePayRateSelection") SurfaceIR.RequiredField, SurfaceIR.FieldIR "ColourKey" "colourKey" (SurfaceIR.WireClosedIR "ShiftTypeColourKeyEnum" "Generated.Types" "ShiftTypeColourKeyEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "IsActive" "isActive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
 
 updateShiftTypeAction :: ActionFields UpdateShiftTypeActionOperation -> FrontendSurfaceAction
 updateShiftTypeAction =

@@ -49,9 +49,18 @@ requestFixedStaffPayCsvExport rangeStart rangeEnd = do
     enforceFinalWageEntries includedEntries >>= \case
         Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
         Right calculations -> do
-            weekSelections <- rangeWeekSlices rangeStart rangeEnd
+            venueConfig <- fetchVenueConfig
+            sealedWindowStartsByEntryId <- fetchApprovedEntryRosterWindowStarts includedEntries
+            let fallbackWindowStart = startOfWeekFor venueConfig.rosterWeekStartsOn rangeStart
+            let sealedWindowStarts = Map.elems sealedWindowStartsByEntryId
+            let needsFallbackWindows = null includedEntries || any (\entry -> Map.notMember (unpackId entry.id) sealedWindowStartsByEntryId) includedEntries
+            let fallbackWindowStarts =
+                    if needsFallbackWindows
+                        then map (.weekStart) (map (.weekSelection) (rangeWeekSlices rangeStart rangeEnd fallbackWindowStart))
+                        else []
+            let weekStarts = List.sort (List.nub (sealedWindowStarts <> fallbackWindowStarts))
             let calculationsByEntryId = calculationMap includedEntries calculations
-            payloadResults <- mapM (buildFixedStaffPayCsvPayload calculationsByEntryId) weekSelections
+            payloadResults <- mapM (buildFixedStaffPayCsvPayload calculationsByEntryId sealedWindowStartsByEntryId rangeStart rangeEnd) weekStarts
             case lefts payloadResults of
                 err : _ -> pure (Left err)
                 [] -> do
@@ -65,7 +74,7 @@ persistFixedStaffPayExport ::
     Day ->
     [StaffPayCsvPayload] ->
     IO ExportJob
-persistFixedStaffPayExport rangeStart rangeEnd payloads = withTransaction do
+persistFixedStaffPayExport rangeStart rangeEnd payloads = do
     now <- getCurrentTime
     let expiresAt = addUTCTime exportExpirySeconds now
     let exportType = exportJobTypeToText StaffPayCsv
@@ -153,7 +162,7 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
                     [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_staff_hours.csv", renderHourlyBreakdownDateCsv date window columns entries)
                     | date <- dates
                     ]
-        exportJob <- withTransaction do
+        exportJob <- do
             now <- getCurrentTime
             persistReadyExportJob
                 (exportJobTypeToText HourlyBreakdownZip)
@@ -222,7 +231,7 @@ requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd = do
                             [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_wage_totals.csv", renderHourlyWageTotalsDateCsv date window columns wageCents)
                             | date <- dates
                             ]
-                exportJob <- withTransaction do
+                exportJob <- do
                     now <- getCurrentTime
                     persistReadyExportJob
                         (exportJobTypeToText HourlyWageTotalsZip)
@@ -284,7 +293,7 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
                         |> List.sort
             let exportVersionManifest = collapseVersionManifests versionManifests
             let fileName = "payroll_earnings-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
-            exportJob <- withTransaction do
+            exportJob <- do
                 now <- getCurrentTime
                 persistReadyExportJob
                     (exportJobTypeToText PayrollEarningsCsv)
@@ -326,7 +335,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
         Left message -> pure (Left message)
         Right () -> Right <$> persistExport entries
   where
-    persistExport entries = withTransaction do
+    persistExport entries = do
         now <- getCurrentTime
         let expiresAt = addUTCTime exportExpirySeconds now
         let exportType = exportJobTypeToText ApprovedTimesheetsCsv

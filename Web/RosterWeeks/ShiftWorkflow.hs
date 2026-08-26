@@ -10,7 +10,6 @@ module Web.RosterWeeks.ShiftWorkflow
     , applyValidatedRosterShift
     , defaultRosterShiftDialogValuesForVenue
     , fetchCurrentVenueRosterShiftTypesForDialog
-    , fetchRosterSlotCreateContext
     , fetchRosterSlotDefinitionForCreate
     , fetchRosterSlotEditContext
     , fetchRosterSlotForEdit
@@ -30,6 +29,7 @@ import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
@@ -44,6 +44,8 @@ import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
+import Web.RosterWeeks.DateRange (RosterWindowScope (..),
+                                  resolveRosterLaneReference)
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Service (fetchActiveStaffForCurrentVenue)
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
@@ -66,39 +68,30 @@ data ValidatedRosterShift = ValidatedRosterShift
     , validRosterShiftTypeId     :: !UUID.UUID
     }
 
-fetchRosterSlotCreateContext :: (?modelContext :: ModelContext) => Id RosterDay -> IO (RosterDay, RosterWeek)
-fetchRosterSlotCreateContext rosterDayId = do
-    rosterDay <- fetch rosterDayId
-    let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-    rosterWeek <- fetch rosterWeekId
-    pure (rosterDay, rosterWeek)
-
-fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterWeekSlotDefinition -> IO RosterWeekSlotDefinition
-fetchRosterSlotDefinitionForCreate = fetch
+fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterLane -> IO RosterLane
+fetchRosterSlotDefinitionForCreate rosterDayId requestedId =
+    resolveRosterLaneReference (Just rosterDayId) requestedId
+        >>= maybe (error "Roster lane does not exist for the selected Operational date") pure
 
 fetchRosterSlotForEdit :: (?modelContext :: ModelContext) => Id RosterSlot -> IO RosterSlot
 fetchRosterSlotForEdit = fetch
 
-fetchRosterSlotEditContext :: (?modelContext :: ModelContext) => RosterSlot -> IO (RosterDay, RosterWeek)
-fetchRosterSlotEditContext rosterSlot = do
-    let rosterDayId = (coerce rosterSlot.rosterDayId :: Id RosterDay)
-    rosterDay <- fetch rosterDayId
-    let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-    rosterWeek <- fetch rosterWeekId
-    pure (rosterDay, rosterWeek)
+fetchRosterSlotEditContext :: (?modelContext :: ModelContext) => RosterSlot -> IO RosterDay
+fetchRosterSlotEditContext rosterSlot =
+    fetch (coerce rosterSlot.rosterDayId :: Id RosterDay)
 
-rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO Blaze.Html
-rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values = do
-    (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff (coerce rosterWeek.rosterGroupId) Nothing
+rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = do
+    (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff scope.rosterWindowRosterGroupId Nothing
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
     venueConfig <- fetchVenueConfig
     let targetSlot =
             newRecord @RosterSlot
                 |> set #rosterDayId (unpackId rosterDay.id)
-                |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
+                |> set #rosterLaneId (unpackId slotDefinition.id)
                 |> set #slotSortOrder slotDefinition.sortOrder
                 |> set #rowIndex rowIndex
-    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek targetSlot staffMembers
+    staffOptionStates <- buildRosterShiftDialogStaffOptionStates scope.rosterWindowRosterGroupId rosterDay targetSlot staffMembers
     pure $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = NewRosterShiftDialog rosterDay.id slotDefinition.id rowIndex
         , rosterShiftDialogTitle = "Add shift"
@@ -111,17 +104,19 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = False
+        , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
+        , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
-rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterWeek -> RosterShiftDialogValues -> IO Blaze.Html
-rosterShiftDialogForEditHtml rosterSlot rosterWeek values = do
-    (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff (coerce rosterWeek.rosterGroupId) rosterSlot.staffId
+rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForEditHtml scope rosterSlot rosterDay values = do
+    (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff scope.rosterWindowRosterGroupId rosterSlot.staffId
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
     venueConfig <- fetchVenueConfig
-    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek rosterSlot staffMembers
+    staffOptionStates <- buildRosterShiftDialogStaffOptionStates scope.rosterWindowRosterGroupId rosterDay rosterSlot staffMembers
     pure $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = EditRosterShiftDialog rosterSlot.id
-        , rosterShiftDialogTitle = if rosterWeek.isLive then "Fill Open shift" else "Edit shift"
+        , rosterShiftDialogTitle = if rosterDay.publicationState == Published then "Fill Open shift" else "Edit shift"
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogPayInvalidStaffIds = payInvalidStaffIds
@@ -130,7 +125,9 @@ rosterShiftDialogForEditHtml rosterSlot rosterWeek values = do
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
-        , rosterShiftDialogAssignmentOnly = rosterWeek.isLive
+        , rosterShiftDialogAssignmentOnly = rosterDay.publicationState == Published
+        , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
+        , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
 defaultRosterShiftDialogValuesForVenue :: VenueConfig -> RosterShiftDialogValues
@@ -141,13 +138,18 @@ defaultRosterShiftDialogValuesForVenue venueConfig =
             , rosterShiftEndTime = timeOfDayToStorageValue defaultEnd
             }
 
-buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
-buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staffMembers = do
+buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterDay -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
+buildRosterShiftDialogStaffOptionStates rosterGroupId targetDay targetSlot staffMembers = do
     venueConfig <- fetchVenueConfig
     assignmentFilters <- fetchRosterAssignmentFilters
-    let weekStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
+    let assignmentFiltersForDialog = assignmentFilters
+            { hideStaffAlreadyAssignedToday = assignmentFilters.hideStaffAlreadyAssignedToday || paramOrDefault @Bool False "hideStaffAlreadyAssignedToday"
+            }
+    let weekStartDate = startOfWeekFor venueConfig.rosterWeekStartsOn targetDay.operationalDate
     rosterDays <- query @RosterDay
-        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, weekStartDate)
+        |> filterWhereLessThanOrEqualTo (#operationalDate, Calendar.addDays 6 weekStartDate)
         |> fetch
     visibleSlots <-
         if null rosterDays
@@ -158,7 +160,9 @@ buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staf
                 |> fetch
     let targetSlotId = coerce targetSlot.id
     let slotsForOptions = targetSlot : filter (\slot -> coerce slot.id /= targetSlotId) visibleSlots
-    optionStates <- buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays slotsForOptions staffMembers
+    let targetDayId = unpackId targetDay.id
+    let rosterDaysForOptions = targetDay : filter (\day -> coerce day.id /= targetDayId) rosterDays
+    optionStates <- buildRosterStaffOptionStates rosterGroupId assignmentFiltersForDialog weekStartDate rosterDaysForOptions slotsForOptions staffMembers
     pure $ Map.fromList
         [ (coerce staff.id, optionState)
         | staff <- staffMembers
@@ -191,7 +195,7 @@ validateLiveOpenShiftFill rosterGroupId rosterSlot submission = do
                 ]
                 || submission.submittedRosterShiftStartOccurrence /= ""
                 || submission.submittedRosterShiftEndOccurrence /= ""
-    let formError = if protectedFieldsSubmitted then Just "Only Staff can be changed while filling a live Open shift." else Nothing
+    let formError = if protectedFieldsSubmitted then Just "Only Staff can be changed while filling a Published Open shift." else Nothing
     let values =
             (rosterShiftDialogValuesFromSlot rosterSlot)
                 { rosterShiftSelectedAssignment = parsedAssignment
@@ -202,10 +206,10 @@ validateLiveOpenShiftFill rosterGroupId rosterSlot submission = do
         (Nothing, Nothing, Just assignment@StaffAssignment {}) -> pure (Right assignment)
         _ -> pure (Left values)
 
-validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> RosterWeek -> Maybe RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
-validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExistingSlot submission = do
+validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> Maybe RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
+validateRosterShiftDialogSubmission rosterGroupId rosterDay maybeExistingSlot submission = do
     venueConfig <- fetchVenueConfig
-    let rosterDate = Calendar.addDays (toInteger rosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
+    let rosterDate = rosterDay.operationalDate
     let staffParam = submission.submittedRosterShiftStaffId
     let startParam = submission.submittedRosterShiftStartTime
     let endParam = submission.submittedRosterShiftEndTime

@@ -27,6 +27,8 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
+import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
+                                  laneForOperationalDate, rosterWindowLaneName)
 import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId,
                             rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
@@ -40,19 +42,21 @@ import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
                                         applyRosterShiftDialogLauncherAttrs,
-                                        rosterSlotDialogAction)
+                                        rosterSlotDialogUrl)
 
 renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDay -> Html
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWindowScope, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
     let rosterData = RosterRenderData
-            { rosterWeek = rosterWeek
+            { rosterWeek = Just rosterWeek
+            , rosterWindowScope = gridWindowScope
             , rosterDays = gridRosterDays
             , rosterGroups = []
             , currentRosterGroup = gridCurrentRosterGroup
             , weekStartDate = gridWeekStartDate
+            , rosterCalendarRevision = gridRosterCalendarRevision
             , assignmentFilters = gridAssignmentFilters
             , staffMembers = gridStaffMembers
             , panelStaff = gridPanelStaff
@@ -79,12 +83,14 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just roste
      in renderRosterDayTimelineMounted rosterData rosterDay (renderRosterDayTimelineContent Nothing rosterData rosterDay)
 
 renderRosterDayTimelineMounted :: RosterRenderData -> RosterDay -> Html -> Html
-renderRosterDayTimelineMounted RosterRenderData { rosterWeek, currentRosterGroup } rosterDay body =
+renderRosterDayTimelineMounted RosterRenderData { rosterWindowScope } rosterDay body =
     let timelineSurfaceScope = RosterDayTimelineScopeValue
-            { rosterDayTimelineVenueId = currentRosterGroup.venueId
-            , rosterDayTimelineGroupId = currentRosterGroup.id
-            , rosterDayTimelineWeekOffset = rosterWeek.weekOffset
-            , rosterDayTimelineDayOffset = rosterDay.dayOffset
+            { rosterDayTimelineVenueId = unpackId rosterWindowScope.rosterWindowVenueId
+            , rosterDayTimelineGroupId = rosterWindowScope.rosterWindowRosterGroupId
+            , rosterDayTimelineWindowStart = rosterWindowScope.rosterWindowStart
+            , rosterDayTimelineWindowEnd = rosterWindowScope.rosterWindowEnd
+            , rosterDayTimelineCalendarRevision = rosterWindowScope.rosterWindowCalendarRevision
+            , rosterDayTimelineOperationalDate = rosterDay.operationalDate
             , rosterDayTimelineDayId = rosterDay.id
             }
         timelineSurface = rosterDayTimelineSurfaceImpl timelineSurfaceScope
@@ -103,12 +109,12 @@ data TimelineShift = TimelineShift
 
 renderRosterDayTimelineContent :: Maybe Text -> RosterRenderData -> RosterDay -> Html
 renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
-    let date = Calendar.addDays (toInteger rosterDay.dayOffset) rosterData.weekStartDate
+    let date = rosterDay.operationalDate
         daySlots = filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) rosterData.allSlots
-        slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterWeekSlotDefinitionId, [slot]) | slot <- daySlots ]
+        slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterLaneId, [slot]) | slot <- daySlots ]
         staffById = Map.fromList [ (unpackId staff.id, staff) | staff <- rosterData.staffMembers ]
         shiftTypeById = Map.fromList [ (unpackId shiftType.id, shiftType) | shiftType <- rosterData.shiftTypes ]
-        editable = currentUserIsManager && not rosterData.rosterWeek.isLive && not rosterDay.isClosed
+        editable = currentUserIsManager && maybe False (not . (.windowIsPublished)) rosterData.rosterWeek && not rosterDay.isClosed
         timelineWindow = timelineWindowFromRosterData rosterData
      in [hsx|
         <section id={rosterDayTimelineContentFragmentId rosterDay.id}
@@ -118,7 +124,7 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
                  hx-swap-oob={maybeSwapOob}>
             <div class="roster-day-timeline" role="grid" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
                 {renderTimelineScale timelineWindow}
-                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slotsByDefinition)}
+                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay rosterData.rosterCalendarRevision staffById shiftTypeById slotsByDefinition)}
             </div>
         </section>
     |]
@@ -155,19 +161,20 @@ renderTimelineScaleTick timelineWindow minute = [hsx|
     </div>
 |]
 
-renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> RosterWeekSlotDefinition -> Html
-renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slotsByDefinition slotDefinition =
-    let laneSlots = Map.findWithDefault [] (unpackId slotDefinition.id) slotsByDefinition
+renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Int -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> RosterWindowLane -> Html
+renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById shiftTypeById slotsByDefinition windowLane =
+    let maybeLane = laneForOperationalDate rosterDay.operationalDate windowLane
+        laneSlots = maybe [] (\lane -> Map.findWithDefault [] (unpackId lane.id) slotsByDefinition) maybeLane
         positionedShifts = assignTimelineTracks (mapMaybe (timelineShiftFromSlot timelineWindow) laneSlots)
         trackCount = max 1 (1 + maximum (0 : map timelineShiftTrack positionedShifts))
         assignedShiftCount = length (filter (rosterShiftIsStaffAssigned . (.timelineShiftSlot)) positionedShifts)
-        dropzones = if editable then timelineDropzones timelineWindow rosterDay slotDefinition else []
+        dropzones = if editable then maybe [] (timelineDropzones timelineWindow rosterDay) maybeLane else []
      in [hsx|
         <section class="roster-day-timeline-lane"
                  role="rowgroup"
                  style={"--roster-timeline-track-count:" <> tshow trackCount <> ";"}>
             <div class="roster-day-timeline-lane-label">
-                <span class="fw-semibold">{slotDefinition.name}</span>
+                <span class="fw-semibold">{rosterWindowLaneName windowLane}</span>
                 <span class="text-muted small">{assignedShiftCount} shifts</span>
             </div>
             <div class="roster-day-timeline-lane-body" role="row">
@@ -175,7 +182,7 @@ renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slo
                     {forEach dropzones (renderTimelineDropzone timelineWindow)}
                 </div>
                 <div class="roster-day-timeline-shifts">
-                    {forEach positionedShifts (renderTimelineShift timelineWindow editable staffById shiftTypeById)}
+                    {forEach positionedShifts (renderTimelineShift timelineWindow editable staffById shiftTypeById rosterDay.operationalDate calendarRevision)}
                 </div>
             </div>
         </section>
@@ -191,8 +198,8 @@ renderTimelineDropzone timelineWindow (minute, targetKey) =
         </div>
     |]
 
-renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> TimelineShift -> Html
-renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
+renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
+renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
     let isOpen = rosterShiftIsOpen timelineShiftSlot
         canLaunch = editable || (isOpen && hasRole Manager)
         staffLabel = if isOpen then "OPEN" else maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
@@ -209,7 +216,7 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShif
         |]
         launchableArticle =
             if canLaunch
-                then applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction (ExistingRosterSlotTarget timelineShiftSlot.id))) shiftArticle
+                then applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision)) shiftArticle
                 else shiftArticle
         card = [hsx|
             <div class="roster-day-timeline-shift-position"
@@ -264,7 +271,7 @@ placeInTrack trackIndex (trackEnd:rest) startMin endMin
         let (selectedTrack, updatedRest) = placeInTrack (trackIndex + 1) rest startMin endMin
          in (selectedTrack, trackEnd : updatedRest)
 
-timelineDropzones :: TimelineWindow -> RosterDay -> RosterWeekSlotDefinition -> [(Int, Text)]
+timelineDropzones :: TimelineWindow -> RosterDay -> RosterLane -> [(Int, Text)]
 timelineDropzones timelineWindow rosterDay slotDefinition =
     [ (minute, "time:" <> tshow rosterDay.id <> ":" <> tshow slotDefinition.id <> ":" <> tshow minute)
     | minute <- timelineQuarterHours timelineWindow

@@ -144,7 +144,7 @@ test.describe('Shared week toolbar responsive layout', () => {
 
         await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
         const toolbar = page.locator('[data-week-toolbar="roster"]');
-        await expect(toolbar.locator('[data-week-toolbar-section="primary"]').getByText('Live')).toBeVisible();
+        await expect(toolbar.locator('[data-week-toolbar-section="primary"]').getByText('Published')).toBeVisible();
         await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();
         await expect(toolbar.getByRole('button', { name: 'Roster settings' })).toHaveCount(0);
         await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toBeVisible();

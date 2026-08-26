@@ -47,6 +47,7 @@ CREATE TYPE staff_document_type_enum AS ENUM ('rsa_statement_of_attainment');
 CREATE TYPE staff_document_status_enum AS ENUM ('pending_review', 'verified', 'rejected', 'expired');
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
 CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
+CREATE TYPE roster_day_publication_state_enum AS ENUM ('draft', 'published');
 CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
 CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
 CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
@@ -145,6 +146,7 @@ CREATE TABLE passkey_setup_tokens (
     requested_by_user_id UUID DEFAULT NULL,
     venue_id UUID DEFAULT NULL,
     token_hash TEXT NOT NULL,
+    delivery_token_ciphertext TEXT DEFAULT NULL,
     purpose TEXT NOT NULL,
     sent_to_email TEXT NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -157,7 +159,8 @@ CREATE TABLE passkey_setup_tokens (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     CHECK ((purpose = 'self_new_device') OR (purpose = 'staff_new_device') OR (purpose = 'staff_recovery')),
     CHECK ((char_length(btrim(sent_to_email)) > 0) AND (char_length(sent_to_email) <= 254)),
-    CHECK (char_length(btrim(token_hash)) > 0)
+    CHECK (char_length(btrim(token_hash)) > 0),
+    CHECK ((delivery_token_ciphertext IS NULL) OR (char_length(btrim(delivery_token_ciphertext)) > 0))
 );
 CREATE TABLE password_reset_tokens (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -165,6 +168,7 @@ CREATE TABLE password_reset_tokens (
     requested_by_user_id UUID DEFAULT NULL,
     venue_id UUID NOT NULL,
     token_hash TEXT NOT NULL,
+    delivery_token_ciphertext TEXT DEFAULT NULL,
     sent_to_email TEXT NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     consumed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -175,7 +179,8 @@ CREATE TABLE password_reset_tokens (
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     CHECK ((char_length(btrim(sent_to_email)) > 0) AND (char_length(sent_to_email) <= 254)),
-    CHECK (char_length(btrim(token_hash)) > 0)
+    CHECK (char_length(btrim(token_hash)) > 0),
+    CHECK ((delivery_token_ciphertext IS NULL) OR (char_length(btrim(delivery_token_ciphertext)) > 0))
 );
 CREATE TABLE user_preferences (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -432,7 +437,7 @@ CREATE TABLE venue_config (
     venue_id UUID NOT NULL,
     timezone TEXT NOT NULL,
     roster_week_starts_on INT NOT NULL,
-    week_offset_epoch DATE NOT NULL,
+    roster_calendar_revision INT DEFAULT 1 NOT NULL,
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
     time_picker_start_minute_of_day INT DEFAULT 360 NOT NULL,
     time_picker_final_selectable_minute_of_day INT DEFAULT 345 NOT NULL,
@@ -450,6 +455,7 @@ CREATE TABLE venue_config (
     UNIQUE(venue_id),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6)),
+    CHECK (roster_calendar_revision > 0),
     CHECK (late_to_early_min_start_gap_minutes >= 0),
     CHECK ((time_picker_start_minute_of_day >= 0) AND (time_picker_start_minute_of_day < 1440) AND (MOD(time_picker_start_minute_of_day, 15) = 0)),
     CHECK ((time_picker_final_selectable_minute_of_day >= 0) AND (time_picker_final_selectable_minute_of_day < 1440) AND (MOD(time_picker_final_selectable_minute_of_day, 15) = 0)),
@@ -746,6 +752,38 @@ CREATE TABLE public_holidays (
     UNIQUE(jurisdiction, holiday_date, name, region)
 );
 
+-- schema-nav: live-invalidations
+-- Durable handoff for typed Surface resources. Payloads are versioned JSON so
+-- adding a resource never requires database DDL.
+CREATE SEQUENCE live_invalidation_events_sequence_number_seq;
+CREATE TABLE live_invalidation_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    sequence_number INT DEFAULT nextval('live_invalidation_events_sequence_number_seq') NOT NULL UNIQUE,
+    source TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK ((char_length(btrim(source)) > 0) AND (char_length(source) <= 120))
+);
+CREATE TABLE live_invalidation_event_resources (
+    event_id UUID NOT NULL,
+    resource_key TEXT NOT NULL,
+    resource_payload JSONB NOT NULL,
+    PRIMARY KEY (event_id, resource_key),
+    FOREIGN KEY (event_id) REFERENCES live_invalidation_events (id) ON DELETE CASCADE,
+    CHECK (octet_length(resource_key) <= 2048),
+    CHECK (octet_length(resource_payload::TEXT) <= 8192)
+);
+-- Historical event headers are prunable; latest_event_id is opaque publication
+-- provenance while latest_event_sequence remains authority.
+CREATE TABLE live_resource_versions (
+    resource_key TEXT PRIMARY KEY NOT NULL,
+    resource_payload JSONB NOT NULL,
+    latest_event_id UUID NOT NULL,
+    latest_event_sequence INT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK (octet_length(resource_key) <= 2048),
+    CHECK (octet_length(resource_payload::TEXT) <= 8192)
+);
+
 -- schema-nav: async-jobs
 CREATE TABLE app_jobs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -823,6 +861,7 @@ CREATE TABLE roster_template_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_template_design_id UUID NOT NULL,
     day_index INT NOT NULL,
+    weekday_index INT DEFAULT NULL,
     is_closed BOOLEAN DEFAULT FALSE NOT NULL,
     row_count INT DEFAULT 4 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -830,6 +869,7 @@ CREATE TABLE roster_template_days (
     UNIQUE(roster_template_design_id, day_index),
     FOREIGN KEY (roster_template_design_id) REFERENCES roster_template_designs (id) ON DELETE CASCADE,
     CHECK ((day_index >= 0) AND (day_index <= 6)),
+    CHECK (weekday_index IS NULL OR ((weekday_index >= 0) AND (weekday_index <= 6))),
     CHECK (row_count >= 0)
 );
 CREATE TABLE roster_template_columns (
@@ -872,38 +912,24 @@ CREATE TABLE roster_template_shifts (
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT
 );
-CREATE TABLE roster_weeks (
+CREATE TABLE roster_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     roster_group_id UUID NOT NULL,
-    week_offset INT NOT NULL,
-    is_live BOOLEAN DEFAULT FALSE NOT NULL,
-    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-    archived_by_user_id UUID DEFAULT NULL,
-    archive_reason TEXT DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(roster_group_id, week_offset),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
-    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
-);
-CREATE TABLE roster_days (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    roster_week_id UUID NOT NULL,
-    day_offset INT NOT NULL,
+    operational_date DATE NOT NULL,
+    publication_state roster_day_publication_state_enum DEFAULT 'draft' NOT NULL,
     is_closed BOOLEAN DEFAULT FALSE NOT NULL,
     row_count INT DEFAULT 4 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(roster_week_id, day_offset),
-    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
-    CHECK ((day_offset >= 0) AND (day_offset <= 6)),
+    UNIQUE(roster_group_id, operational_date),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
     CHECK (row_count >= 0)
 );
-CREATE TABLE roster_week_slot_definitions (
+CREATE TABLE roster_lanes (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    roster_week_id UUID NOT NULL,
+    roster_day_id UUID NOT NULL,
     name TEXT NOT NULL,
     sort_order INT DEFAULT 0 NOT NULL,
     deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -911,7 +937,7 @@ CREATE TABLE roster_week_slot_definitions (
     delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
     CHECK (sort_order >= 0)
@@ -919,9 +945,9 @@ CREATE TABLE roster_week_slot_definitions (
 CREATE TABLE roster_slots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_day_id UUID NOT NULL,
+    roster_lane_id UUID NOT NULL,
     assignment_state TEXT NOT NULL,
     staff_id UUID,
-    roster_week_slot_definition_id UUID NOT NULL,
     slot_sort_order INT DEFAULT 0 NOT NULL,
     row_index INT NOT NULL,
     starts_at TIMESTAMP WITH TIME ZONE,
@@ -948,18 +974,17 @@ CREATE TABLE roster_slots (
     CHECK (char_length(btrim(timezone)) > 0),
     CHECK (timezone = 'Australia/Melbourne'),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_lane_id) REFERENCES roster_lanes (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
-    FOREIGN KEY (roster_week_slot_definition_id) REFERENCES roster_week_slot_definitions (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE roster_notification_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     roster_group_id UUID NOT NULL,
-    roster_week_id UUID NOT NULL,
-    week_offset INT NOT NULL,
     week_start DATE NOT NULL,
+    window_end DATE NOT NULL,
     snapshot_schema_version INT DEFAULT 1 NOT NULL,
     roster_snapshot JSONB NOT NULL,
     recipient_snapshot JSONB NOT NULL,
@@ -968,9 +993,9 @@ CREATE TABLE roster_notification_runs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
-    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (snapshot_schema_version > 0),
+    CHECK (window_end > week_start),
     CHECK (jsonb_typeof(roster_snapshot) = 'object'),
     CHECK (jsonb_typeof(recipient_snapshot) = 'array'),
     CHECK (jsonb_typeof(skipped_recipient_snapshot) = 'array')
@@ -1226,6 +1251,7 @@ CREATE TABLE billing_events (
     stripe_customer_id TEXT DEFAULT NULL,
     stripe_subscription_id TEXT DEFAULT NULL,
     status TEXT DEFAULT 'received' NOT NULL,
+    notification_snapshot JSONB DEFAULT '[]'::JSONB NOT NULL,
     error_summary TEXT DEFAULT NULL,
     received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     processed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -1241,6 +1267,7 @@ CREATE TABLE billing_events (
     CHECK (stripe_customer_id IS NULL OR ((char_length(btrim(stripe_customer_id)) > 0) AND (char_length(stripe_customer_id) <= 255))),
     CHECK (stripe_subscription_id IS NULL OR ((char_length(btrim(stripe_subscription_id)) > 0) AND (char_length(stripe_subscription_id) <= 255))),
     CHECK ((status = 'received') OR (status = 'processed') OR (status = 'failed') OR (status = 'ignored')),
+    CHECK (jsonb_typeof(notification_snapshot) = 'array'),
     CHECK (error_summary IS NULL OR ((char_length(btrim(error_summary)) > 0) AND (char_length(error_summary) <= 1000))),
     CHECK (((status = 'processed') AND processed_at IS NOT NULL) OR (status <> 'processed'))
 );
@@ -1554,6 +1581,7 @@ CREATE TABLE timesheet_entries (
     break_starts_at TIMESTAMP WITH TIME ZONE,
     break_ends_at TIMESTAMP WITH TIME ZONE,
     timezone TEXT NOT NULL,
+    operational_date DATE NOT NULL,
     active_pay_calculation_id UUID DEFAULT NULL,
     legacy_pay_backfill_pending BOOLEAN DEFAULT FALSE NOT NULL,
     staff_pay_version_id UUID,
@@ -1591,6 +1619,9 @@ CREATE TABLE timesheet_pay_calculations (
     calculation_version TEXT NOT NULL,
     calculation_source TEXT NOT NULL,
     rate_book_version TEXT DEFAULT NULL,
+    operational_date DATE NOT NULL,
+    roster_window_start DATE NOT NULL,
+    roster_week_starts_on INT NOT NULL,
     venue_timezone TEXT NOT NULL,
     holiday_jurisdiction TEXT NOT NULL,
     staff_pay_version_id UUID NOT NULL,
@@ -1605,6 +1636,8 @@ CREATE TABLE timesheet_pay_calculations (
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (char_length(btrim(calculation_version)) > 0),
     CHECK (calculation_source = 'hospitality_award' OR calculation_source = 'external_imported_pay_item'),
+    CHECK (roster_week_starts_on >= 0),
+    CHECK (roster_week_starts_on <= 6),
     CHECK (char_length(btrim(venue_timezone)) > 0),
     CHECK (char_length(btrim(holiday_jurisdiction)) > 0)
 );
@@ -1633,6 +1666,11 @@ CREATE TABLE timesheet_pay_earnings_components (
     unit_type TEXT NOT NULL,
     rate_per_unit NUMERIC NOT NULL,
     exact_amount NUMERIC NOT NULL,
+    component_date DATE DEFAULT NULL,
+    resolved_rate_boundary_date DATE DEFAULT NULL,
+    xero_local_bucket_key TEXT DEFAULT NULL,
+    xero_earnings_rate_id TEXT DEFAULT NULL,
+    xero_mapping_legacy_fallback BOOLEAN DEFAULT FALSE NOT NULL,
     source_condition TEXT NOT NULL,
     calculation_source TEXT NOT NULL,
     source_rate_identity TEXT DEFAULT NULL,
@@ -1646,6 +1684,9 @@ CREATE TABLE timesheet_pay_earnings_components (
     CHECK (char_length(btrim(source_condition)) > 0),
     CHECK (calculation_source = 'hospitality_award' OR calculation_source = 'external_imported_pay_item'),
     CHECK (source_rate_identity IS NULL OR char_length(btrim(source_rate_identity)) > 0),
+    CHECK (xero_local_bucket_key IS NULL OR char_length(btrim(xero_local_bucket_key)) > 0),
+    CHECK (xero_earnings_rate_id IS NULL OR char_length(btrim(xero_earnings_rate_id)) > 0),
+    CHECK ((xero_local_bucket_key IS NULL) = (xero_earnings_rate_id IS NULL)),
     UNIQUE (timesheet_pay_calculation_id, ordinal)
 );
 ALTER TABLE timesheet_entries
@@ -1654,6 +1695,22 @@ ALTER TABLE timesheet_entries
 CREATE INDEX idx_timesheet_pay_calculations_entry ON timesheet_pay_calculations (timesheet_entry_id, created_at DESC);
 CREATE INDEX idx_timesheet_pay_time_segments_calculation ON timesheet_pay_time_segments (timesheet_pay_calculation_id, ordinal);
 CREATE INDEX idx_timesheet_pay_earnings_components_calculation ON timesheet_pay_earnings_components (timesheet_pay_calculation_id, ordinal);
+CREATE TABLE timesheet_pay_component_xero_bindings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    timesheet_pay_earnings_component_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    local_bucket_key TEXT NOT NULL,
+    xero_earnings_rate_id TEXT NOT NULL,
+    resolution_source TEXT NOT NULL,
+    resolved_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (timesheet_pay_earnings_component_id) REFERENCES timesheet_pay_earnings_components (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    CHECK (char_length(btrim(local_bucket_key)) > 0),
+    CHECK (char_length(btrim(xero_earnings_rate_id)) > 0),
+    CHECK (resolution_source = 'verified_mapping' OR resolution_source = 'managed_pay_item' OR resolution_source = 'imported_pay_item'),
+    UNIQUE (timesheet_pay_earnings_component_id, xero_connection_id)
+);
+CREATE INDEX idx_timesheet_pay_component_xero_bindings_connection ON timesheet_pay_component_xero_bindings (xero_connection_id);
 CREATE OR REPLACE FUNCTION enforce_timesheet_pay_calculation_immutability()
 RETURNS TRIGGER
 AS $$
@@ -1685,6 +1742,33 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER enforce_timesheet_pay_calculations_immutable BEFORE UPDATE OR DELETE ON timesheet_pay_calculations FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_pay_calculation_immutability();
 CREATE TRIGGER enforce_timesheet_pay_time_segments_immutable BEFORE INSERT OR UPDATE OR DELETE ON timesheet_pay_time_segments FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_pay_child_immutability();
 CREATE TRIGGER enforce_timesheet_pay_earnings_components_immutable BEFORE INSERT OR UPDATE OR DELETE ON timesheet_pay_earnings_components FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_pay_child_immutability();
+CREATE OR REPLACE FUNCTION enforce_timesheet_pay_component_xero_binding_immutability()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF TG_OP <> 'INSERT' THEN
+        RAISE EXCEPTION 'late Xero component bindings are immutable';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM timesheet_pay_earnings_components component
+        JOIN timesheet_pay_calculations calculation ON calculation.id = component.timesheet_pay_calculation_id
+        JOIN timesheet_entries entry ON entry.id = calculation.timesheet_entry_id
+        JOIN xero_connections connection ON connection.id = NEW.xero_connection_id AND connection.venue_id = entry.venue_id
+        WHERE component.id = NEW.timesheet_pay_earnings_component_id
+            AND component.xero_local_bucket_key IS NULL
+            AND component.xero_earnings_rate_id IS NULL
+            AND component.xero_mapping_legacy_fallback = FALSE
+            AND calculation.sealed_at IS NOT NULL
+            AND entry.is_approved = TRUE
+            AND entry.active_pay_calculation_id = calculation.id
+    ) THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'late Xero binding requires an active sealed component without approval-time routing';
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER enforce_timesheet_pay_component_xero_bindings_immutable BEFORE INSERT OR UPDATE OR DELETE ON timesheet_pay_component_xero_bindings FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_pay_component_xero_binding_immutability();
 CREATE OR REPLACE FUNCTION prevent_legacy_pay_backfill_grant()
 RETURNS TRIGGER
 AS $$
@@ -1719,6 +1803,7 @@ BEGIN
                                 SELECT 1 FROM timesheet_pay_calculations calculation
                                 WHERE calculation.id = entry.active_pay_calculation_id
                                     AND calculation.timesheet_entry_id = entry.id
+                                    AND calculation.operational_date = entry.operational_date
                                     AND calculation.sealed_at IS NOT NULL
                             )
                         )
@@ -1726,7 +1811,7 @@ BEGIN
                 )
             )
     ) THEN
-        RAISE EXCEPTION 'timesheet approval requires a sealed same-entry active pay calculation';
+        RAISE EXCEPTION 'timesheet approval requires a sealed same-entry active pay calculation with matching Operational date';
     END IF;
     RETURN NEW;
 END;
@@ -1942,19 +2027,20 @@ CREATE INDEX idx_roster_templates_group_updated ON roster_templates (roster_grou
 CREATE UNIQUE INDEX idx_roster_template_designs_one_draft_per_user ON roster_template_designs (draft_owner_user_id) WHERE draft_owner_user_id IS NOT NULL;
 CREATE UNIQUE INDEX idx_roster_template_designs_saved_version ON roster_template_designs (template_id, version_number) WHERE template_id IS NOT NULL;
 CREATE INDEX idx_roster_template_designs_group ON roster_template_designs (roster_group_id);
+CREATE UNIQUE INDEX idx_roster_template_days_design_weekday ON roster_template_days (roster_template_design_id, weekday_index) WHERE weekday_index IS NOT NULL;
 CREATE UNIQUE INDEX idx_roster_template_columns_design_name ON roster_template_columns (roster_template_design_id, LOWER(btrim(name)));
 CREATE UNIQUE INDEX idx_roster_template_columns_design_sort ON roster_template_columns (roster_template_design_id, sort_order);
 CREATE UNIQUE INDEX idx_roster_template_shifts_cell ON roster_template_shifts (roster_template_day_id, row_index, roster_template_column_id);
 CREATE INDEX idx_roster_template_shifts_staff ON roster_template_shifts (staff_id) WHERE staff_id IS NOT NULL;
 CREATE INDEX idx_roster_template_shifts_shift_type ON roster_template_shifts (shift_type_id);
-CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
-CREATE INDEX idx_roster_week_slot_definitions_week_sort ON roster_week_slot_definitions (roster_week_id, sort_order ASC, created_at ASC) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_roster_week_slot_definitions_active_name ON roster_week_slot_definitions (roster_week_id, name) WHERE deleted_at IS NULL;
+CREATE INDEX idx_roster_days_venue_date ON roster_days (venue_id, operational_date);
+CREATE INDEX idx_roster_lanes_day_sort ON roster_lanes (roster_day_id, sort_order);
 CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_roster_slots_lane ON roster_slots (roster_lane_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;
-CREATE INDEX idx_roster_notification_runs_group_week_created ON roster_notification_runs (roster_group_id, week_offset, created_at DESC);
-CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_roster_notification_runs_group_window_created ON roster_notification_runs (roster_group_id, week_start, window_end, created_at DESC);
+CREATE UNIQUE INDEX idx_roster_slots_active_lane_cell ON roster_slots (roster_day_id, row_index, roster_lane_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
 CREATE UNIQUE INDEX idx_staff_pay_versions_one_open ON staff_pay_versions (staff_id) WHERE effective_to IS NULL;
 CREATE INDEX idx_staff_pay_versions_imported_xero_pay_item ON staff_pay_versions (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
@@ -1973,14 +2059,18 @@ CREATE INDEX idx_award_level_base_rates_lookup ON award_level_base_rates (award_
 CREATE INDEX idx_award_level_penalty_rates_lookup ON award_level_penalty_rates (award_level_id, employment_basis, penalty_kind, operative_from, operative_to);
 CREATE INDEX idx_award_time_penalty_allowances_lookup ON award_time_penalty_allowances (award_fixed_id, penalty_kind, operative_from, operative_to);
 CREATE INDEX idx_public_holidays_lookup ON public_holidays (jurisdiction, holiday_date);
+CREATE INDEX idx_live_invalidation_events_created_at ON live_invalidation_events (created_at, id);
+CREATE INDEX idx_live_invalidation_event_resources_resource_key ON live_invalidation_event_resources (resource_key);
 CREATE UNIQUE INDEX idx_public_holidays_unique_null_safe ON public_holidays (jurisdiction, holiday_date, name, COALESCE(region, ''));
 CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
 CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);
 CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);
 CREATE INDEX idx_app_jobs_related ON app_jobs (related_table, related_id);
 CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry');
+CREATE UNIQUE INDEX idx_app_jobs_email_delivery_dedupe ON app_jobs (dedupe_key) WHERE job_kind = 'email_delivery' AND dedupe_key IS NOT NULL;
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_starts_at ON timesheet_entries (venue_id, starts_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_timesheet_entries_venue_operational_date ON timesheet_entries (venue_id, operational_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
 CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
 CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;
@@ -2157,9 +2247,9 @@ CREATE TRIGGER prevent_hard_delete_shift_type_pay_versions BEFORE DELETE ON shif
 CREATE TRIGGER prevent_locked_staff_pay_version_imported_item_update BEFORE UPDATE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_staff_pay_version_change();
 CREATE TRIGGER prevent_locked_shift_pay_version_imported_item_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_shift_pay_version_change();
 CREATE TRIGGER prevent_locked_shift_pay_version_payroll_label_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_shift_pay_version_label_change();
-CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER enforce_roster_notification_runs_immutable BEFORE UPDATE OR DELETE ON roster_notification_runs FOR EACH ROW EXECUTE FUNCTION enforce_roster_notification_run_immutability();
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_roster_lanes BEFORE DELETE ON roster_lanes FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_shift_preferences BEFORE DELETE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_leave_requests BEFORE DELETE ON leave_requests FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -2190,19 +2280,18 @@ CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON x
 CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 -- schema-nav: tenant-integrity-triggers
-CREATE OR REPLACE FUNCTION enforce_roster_week_venue_integrity()
+CREATE OR REPLACE FUNCTION advance_roster_calendar_revision()
 RETURNS TRIGGER
 AS $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM roster_groups rg
-        WHERE rg.id = NEW.roster_group_id
-            AND rg.venue_id = NEW.venue_id
-    ) THEN
-        RAISE EXCEPTION 'roster week venue_id must match roster_group_id venue';
+    IF NEW.roster_week_starts_on IS DISTINCT FROM OLD.roster_week_starts_on THEN
+        IF OLD.roster_calendar_revision = 2147483647 THEN
+            RAISE EXCEPTION 'roster calendar revision exhausted';
+        END IF;
+        NEW.roster_calendar_revision := OLD.roster_calendar_revision + 1;
+    ELSE
+        NEW.roster_calendar_revision := OLD.roster_calendar_revision;
     END IF;
-
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -2275,6 +2364,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION validate_roster_notification_window()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.window_end <> NEW.week_start + 7 THEN
+        RAISE EXCEPTION 'roster notification window must span exactly seven days';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION enforce_roster_template_integrity()
 RETURNS TRIGGER
 AS $$
@@ -2286,8 +2386,11 @@ BEGIN
     IF TG_TABLE_NAME = 'roster_template_days' THEN
         SELECT roster_group_id, scale INTO design_group_id, design_scale
         FROM roster_template_designs WHERE id = NEW.roster_template_design_id;
-        IF design_scale = 'day' AND NEW.day_index <> 0 THEN
-            RAISE EXCEPTION 'day roster templates may contain only day index zero';
+        IF design_scale = 'day' AND (NEW.day_index <> 0 OR NEW.weekday_index IS NOT NULL) THEN
+            RAISE EXCEPTION 'day roster templates may contain only target-relative day index zero';
+        END IF;
+        IF design_scale = 'week' AND NEW.weekday_index IS NULL THEN
+            RAISE EXCEPTION 'week roster template days require explicit weekday identity';
         END IF;
         RETURN NEW;
     END IF;
@@ -2355,50 +2458,54 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION enforce_roster_slot_week_definition_integrity()
+CREATE OR REPLACE FUNCTION validate_roster_day_scope()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM roster_groups roster_group
+        WHERE roster_group.id = NEW.roster_group_id
+          AND roster_group.venue_id = NEW.venue_id
+    ) THEN
+        RAISE EXCEPTION 'roster day venue and roster group must share scope';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION validate_roster_slot_integrity()
 RETURNS TRIGGER
 AS $$
 BEGIN
     IF NEW.deleted_at IS NOT NULL THEN
         RETURN NEW;
     END IF;
-
     IF NOT EXISTS (
-        SELECT 1
-        FROM roster_days rd
-        JOIN roster_week_slot_definitions rwsd ON rwsd.id = NEW.roster_week_slot_definition_id
-        WHERE rd.id = NEW.roster_day_id
-            AND rd.roster_week_id = rwsd.roster_week_id
+        SELECT 1 FROM roster_lanes lane
+        WHERE lane.id = NEW.roster_lane_id
+          AND lane.roster_day_id = NEW.roster_day_id
+          AND lane.deleted_at IS NULL
     ) THEN
-        RAISE EXCEPTION 'roster slot day and slot definition must belong to the same roster week';
+        RAISE EXCEPTION 'roster slot lane must be active and belong to its roster day';
     END IF;
-
-    IF NEW.shift_type_id IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM roster_days rd
-            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-            JOIN shift_types st ON st.id = NEW.shift_type_id
-            WHERE rd.id = NEW.roster_day_id
-                AND st.venue_id = rw.venue_id
-        )
-    THEN
-        RAISE EXCEPTION 'roster slot shift_type_id must stay within roster week venue';
+    IF NEW.shift_type_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM roster_days roster_day
+        JOIN shift_types shift_type ON shift_type.id = NEW.shift_type_id
+        WHERE roster_day.id = NEW.roster_day_id
+          AND shift_type.venue_id = roster_day.venue_id
+    ) THEN
+        RAISE EXCEPTION 'roster slot shift type must stay within roster day venue';
     END IF;
-
-    IF NEW.staff_id IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM roster_days rd
-            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-            JOIN staff s ON s.id = NEW.staff_id
-            WHERE rd.id = NEW.roster_day_id
-                AND s.venue_id = rw.venue_id
-        )
-    THEN
-        RAISE EXCEPTION 'roster slot staff_id must stay within roster week venue';
+    IF NEW.staff_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM roster_days roster_day
+        JOIN staff staff_member ON staff_member.id = NEW.staff_id
+        WHERE roster_day.id = NEW.roster_day_id
+          AND staff_member.venue_id = roster_day.venue_id
+    ) THEN
+        RAISE EXCEPTION 'roster slot staff assignment must stay within roster day venue';
     END IF;
-
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -2540,12 +2647,12 @@ BEGIN
             SELECT 1
             FROM roster_slots rs
             JOIN roster_days rd ON rd.id = rs.roster_day_id
-            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
             WHERE rs.id = NEW.source_roster_slot_id
-                AND rw.venue_id = NEW.venue_id
+                AND rd.venue_id = NEW.venue_id
+                AND rd.operational_date = NEW.operational_date
         )
     THEN
-        RAISE EXCEPTION 'timesheet entry source_roster_slot_id must stay within entry venue';
+        RAISE EXCEPTION 'timesheet entry source roster slot must match entry venue and Operational date';
     END IF;
 
     RETURN NEW;
@@ -2559,11 +2666,11 @@ BEGIN
     IF (OLD.source_roster_slot_id IS NOT NULL OR NEW.source_roster_slot_id IS NOT NULL)
         AND (
             NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id
-            OR (NEW.starts_at AT TIME ZONE NEW.timezone)::DATE IS DISTINCT FROM (OLD.starts_at AT TIME ZONE OLD.timezone)::DATE
+            OR NEW.operational_date IS DISTINCT FROM OLD.operational_date
             OR NEW.timezone IS DISTINCT FROM OLD.timezone
         )
     THEN
-        RAISE EXCEPTION 'roster-derived timesheet local date, timezone and source are immutable';
+        RAISE EXCEPTION 'roster-derived timesheet Operational date, timezone and source are immutable';
     END IF;
 
     RETURN NEW;
@@ -2668,6 +2775,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER validate_roster_notification_window BEFORE INSERT OR UPDATE ON roster_notification_runs FOR EACH ROW EXECUTE FUNCTION validate_roster_notification_window();
 CREATE TRIGGER prevent_saved_roster_template_design_mutation BEFORE UPDATE OR DELETE ON roster_template_designs FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_design_mutation();
 CREATE TRIGGER prevent_saved_roster_template_days_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
 CREATE TRIGGER prevent_saved_roster_template_columns_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_columns FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
@@ -2675,9 +2783,10 @@ CREATE TRIGGER prevent_saved_roster_template_shifts_mutation BEFORE INSERT OR UP
 CREATE TRIGGER enforce_roster_template_design_integrity BEFORE INSERT OR UPDATE ON roster_template_designs FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_design_integrity();
 CREATE TRIGGER enforce_roster_template_day_integrity BEFORE INSERT OR UPDATE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();
 CREATE TRIGGER enforce_roster_template_shift_integrity BEFORE INSERT OR UPDATE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();
-CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION enforce_roster_week_venue_integrity();
+CREATE TRIGGER advance_roster_calendar_revision BEFORE UPDATE ON venue_config FOR EACH ROW EXECUTE FUNCTION advance_roster_calendar_revision();
+CREATE TRIGGER validate_roster_day_scope BEFORE INSERT OR UPDATE ON roster_days FOR EACH ROW EXECUTE FUNCTION validate_roster_day_scope();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
-CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity();
+CREATE TRIGGER validate_roster_slot_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION validate_roster_slot_integrity();
 CREATE TRIGGER enforce_venue_invitation_staff_venue_integrity BEFORE INSERT OR UPDATE ON venue_invitations FOR EACH ROW EXECUTE FUNCTION enforce_venue_invitation_staff_venue_integrity();
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();

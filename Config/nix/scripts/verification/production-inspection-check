@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# production-package-smoke owns the single optimized-package traversal,
+# including filtered-source, inventory, executable, and dependency authority.
+# Source-boundary mutation probes are tooling self-tests in verify-tooling.
+# Source rather than execute the smoke check: its resolved package handoff is
+# consumed by the budget profile below, avoiding a second Nix evaluation.
+source "$(command -v production-package-smoke)"
+production-build-budget-check

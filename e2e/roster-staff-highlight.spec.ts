@@ -128,7 +128,7 @@ test.describe('Roster staff shift highlight', () => {
         const liveToggle = page
             .locator('[data-week-toolbar="roster"]')
             .locator(`[${toggleRootDomAttr}]`)
-            .filter({ hasText: 'Live' });
+            .filter({ hasText: 'Published' });
         await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
         await expect(page.locator(`[${rosterStaffHighlightDefaultDomAttr}]`)).toHaveCount(0);
 
@@ -186,15 +186,11 @@ test.describe('Roster staff shift highlight', () => {
         const fixtureSlotId = 'b3000000-0000-0000-0000-000000000001';
         try {
             runSql(`
-                DROP TABLE IF EXISTS e2e_pinned_wage_week_backup;
                 DROP TABLE IF EXISTS e2e_pinned_wage_day_backup;
                 DROP TABLE IF EXISTS e2e_pinned_wage_staff_backup;
                 DROP TABLE IF EXISTS e2e_pinned_wage_shift_type_backup;
                 DROP TABLE IF EXISTS e2e_pinned_wage_pay_version_backup;
                 DROP TABLE IF EXISTS e2e_pinned_wage_preference_backup;
-                CREATE TABLE e2e_pinned_wage_week_backup AS
-                    SELECT id, is_live, updated_at FROM roster_weeks
-                    WHERE id = 'a1000000-0000-0000-0000-000000000051';
                 CREATE TABLE e2e_pinned_wage_day_backup AS
                     SELECT id, row_count, is_closed, updated_at FROM roster_days
                     WHERE id = 'a1000000-0000-0000-0000-000000000061';
@@ -210,10 +206,6 @@ test.describe('Roster staff shift highlight', () => {
                 CREATE TABLE e2e_pinned_wage_preference_backup AS
                     SELECT * FROM user_preferences
                     WHERE user_id = 'a0000000-0000-0000-0000-000000000003';
-
-                UPDATE roster_weeks
-                SET is_live = FALSE, updated_at = NOW()
-                WHERE id = 'a1000000-0000-0000-0000-000000000051';
 
                 UPDATE roster_days
                 SET row_count = 4, is_closed = FALSE, updated_at = NOW()
@@ -254,7 +246,7 @@ test.describe('Roster staff shift highlight', () => {
                     updated_at = NOW()
                 WHERE id = 'a1000000-0000-0000-0000-000000000303';
 
-                INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id)
+                INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_lane_id, row_index, starts_at, ends_at, timezone, shift_type_id)
                 VALUES (
                     '${fixtureSlotId}',
                     'a1000000-0000-0000-0000-000000000061',
@@ -271,7 +263,7 @@ test.describe('Roster staff shift highlight', () => {
                     roster_day_id = EXCLUDED.roster_day_id,
                     staff_id = EXCLUDED.staff_id,
                     assignment_state = EXCLUDED.assignment_state,
-                    roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
+                    roster_lane_id = EXCLUDED.roster_lane_id,
                     row_index = EXCLUDED.row_index,
                     starts_at = EXCLUDED.starts_at,
                     ends_at = EXCLUDED.ends_at,
@@ -371,14 +363,19 @@ test.describe('Roster staff shift highlight', () => {
             await expect(weekTotal).toHaveText(venueTotal ?? '');
 
             await pinAndWait(alphaStaffKey);
+            const initialAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
+            const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
+            expect(rawSurfaceConfig).not.toBeNull();
+            const scopeParts = (JSON.parse(rawSurfaceConfig!).scopeKey as string).split(':');
+            const initialWindowStart = scopeParts[scopeParts.length - 3];
             await Promise.all([
-                page.waitForURL((url) => url.pathname === '/ShowRosterWeek' && url.searchParams.get('weekOffset') === '1', { timeout: E2E_TIMEOUT.navigation }),
+                page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') !== initialAnchorDate, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Next week' }).click(),
             ]);
             expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);
             await expect(page.locator(`[${rosterStaffHighlightPinDomAttr}="${alphaStaffKey}"]`).first()).toHaveAttribute('aria-pressed', 'false');
             await Promise.all([
-                page.waitForURL((url) => url.pathname === '/ShowRosterWeek' && url.searchParams.get('weekOffset') === '0', { timeout: E2E_TIMEOUT.navigation }),
+                page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') === initialWindowStart, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Previous week' }).click(),
             ]);
             expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);
@@ -399,11 +396,6 @@ test.describe('Roster staff shift highlight', () => {
             await expect(disabledPin).toHaveAttribute('aria-pressed', 'true');
         } finally {
             runSql(`
-                UPDATE roster_weeks AS target
-                SET is_live = backup.is_live,
-                    updated_at = backup.updated_at
-                FROM e2e_pinned_wage_week_backup AS backup
-                WHERE target.id = backup.id;
                 UPDATE roster_days AS target
                 SET row_count = backup.row_count,
                     is_closed = backup.is_closed,
@@ -444,7 +436,6 @@ test.describe('Roster staff shift highlight', () => {
                     updated_at = backup.updated_at
                 FROM e2e_pinned_wage_pay_version_backup AS backup
                 WHERE target.id = backup.id;
-                DROP TABLE e2e_pinned_wage_week_backup;
                 DROP TABLE e2e_pinned_wage_day_backup;
                 DROP TABLE e2e_pinned_wage_staff_backup;
                 DROP TABLE e2e_pinned_wage_shift_type_backup;

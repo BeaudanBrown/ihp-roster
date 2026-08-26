@@ -4,49 +4,17 @@ set -euo pipefail
 . "@scriptsRoot@/lib/stripe.sh"
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
+# shellcheck source=../lib/stripe-dev.sh
+. "@scriptsRoot@/lib/stripe-dev.sh"
 
-if [ ! -f "$PWD/.env" ]; then
-    echo "dev-start-stripe requires a local .env file with STRIPE_SECRET_KEY and STRIPE_PRICE_ID or STRIPE_PRICE_LOOKUP_KEY." >&2
-    exit 64
-fi
-
-set -a
-# shellcheck disable=SC1091
-. "$PWD/.env"
-set +a
-
-# Reassert workspace-owned runtime coordinates after loading opt-in secrets.
-bepis_workspace_configure
+stripe_dev_load_and_validate_config
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
-STRIPE_LOG_FILE="$STATE_DIR/stripe-listen.log"
 STRIPE_GENERATED_ENV="$STATE_DIR/stripe-generated.env"
 APP_HEALTH_URL="$APP_BASE_URL"
 mkdir -p "$STATE_DIR"
-
-if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
-    echo "dev-start-stripe requires STRIPE_SECRET_KEY in .env." >&2
-    exit 64
-fi
-require_stripe_test_secret_key "$STRIPE_SECRET_KEY" "dev-start-stripe"
-if [ "${STRIPE_MODE:-test}" != "test" ]; then
-    echo "dev-start-stripe requires STRIPE_MODE=test." >&2
-    exit 64
-fi
-export STRIPE_MODE="test"
-export STRIPE_BILLING_ENABLED="true"
-export STRIPE_CHECKOUT_ENABLED="${STRIPE_CHECKOUT_ENABLED:-true}"
-export STRIPE_OWNER_NAVIGATION_VISIBLE="${STRIPE_OWNER_NAVIGATION_VISIBLE:-false}"
-if [ -z "${STRIPE_PRICE_ID:-}" ] && [ -z "${STRIPE_PRICE_LOOKUP_KEY:-}" ]; then
-    echo "dev-start-stripe requires STRIPE_PRICE_ID or STRIPE_PRICE_LOOKUP_KEY in .env." >&2
-    exit 64
-fi
-if ! command -v stripe >/dev/null 2>&1; then
-    echo "stripe CLI is not available in this shell." >&2
-    exit 69
-fi
 
 if dev-status >/dev/null 2>&1; then
     echo "devenv already healthy; run dev-stop before dev-start-stripe if you need Stripe webhook forwarding."
@@ -62,18 +30,7 @@ if [ -f "$PID_FILE" ]; then
     rm -f "$PID_FILE"
 fi
 
-if [ -f "$STRIPE_PID_FILE" ]; then
-    STRIPE_PID=$(cat "$STRIPE_PID_FILE")
-    if kill -0 "$STRIPE_PID" 2>/dev/null; then
-        echo "[dev-start-stripe] stopping existing stripe listen (pid=$STRIPE_PID)" >&2
-        kill -TERM -"$STRIPE_PID" 2>/dev/null || kill -TERM "$STRIPE_PID" 2>/dev/null || true
-        sleep 1
-    fi
-    rm -f "$STRIPE_PID_FILE"
-fi
-
 : > "$LOG_FILE"
-: > "$STRIPE_LOG_FILE"
 rm -f "$STRIPE_GENERATED_ENV"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
 mkdir -p "$XDG_CACHE_HOME"
@@ -82,61 +39,17 @@ dev-ensure-mailhog
 
 if command -v lsof >/dev/null 2>&1 \
     && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 \
-    && ! curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
+    && ! curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null; then
     echo "Port $PORT is occupied but not responding to $APP_HEALTH_URL." >&2
     echo "Stop the stale process before starting dev again:" >&2
     lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >&2 || true
     exit 1
 fi
 
-if [ ! -f "$STRIPE_PID_FILE" ]; then
-    echo "[dev-start-stripe] launching stripe listen for pinned contract $IHP_ROSTER_STRIPE_API_VERSION" >>"$LOG_FILE"
-    setsid nohup stripe listen \
-        --api-key "$STRIPE_SECRET_KEY" \
-        --skip-update \
-        --latest \
-        --events "$IHP_ROSTER_STRIPE_WEBHOOK_EVENTS" \
-        --forward-to "127.0.0.1:$PORT/StripeWebhook" \
-        </dev/null >>"$STRIPE_LOG_FILE" 2>&1 &
-    STRIPE_PID=$!
-    echo "$STRIPE_PID" > "$STRIPE_PID_FILE"
-    disown "$STRIPE_PID" 2>/dev/null || true
-fi
-
-WEBHOOK_SECRET=""
-for _ in $(seq 1 30); do
-    if [ -f "$STRIPE_PID_FILE" ]; then
-        STRIPE_PID=$(cat "$STRIPE_PID_FILE")
-        if ! kill -0 "$STRIPE_PID" 2>/dev/null; then
-            echo "stripe listen exited before printing a webhook secret; recent log output:" >&2
-            tail -n 80 "$STRIPE_LOG_FILE" >&2 || true
-            rm -f "$STRIPE_PID_FILE"
-            exit 1
-        fi
-    fi
-    WEBHOOK_SECRET=$(grep -Eo 'whsec_[A-Za-z0-9_]+' "$STRIPE_LOG_FILE" | tail -n 1 || true)
-    if [ -n "$WEBHOOK_SECRET" ]; then
-        break
-    fi
-    sleep 1
-done
-
-if [ -z "$WEBHOOK_SECRET" ]; then
-    echo "Timed out waiting for stripe listen to print a webhook signing secret." >&2
-    echo "Run 'bash ./bin/in-env stripe login' if the Stripe CLI is not authenticated." >&2
-    echo "--- recent stripe listen log ---" >&2
-    tail -n 80 "$STRIPE_LOG_FILE" >&2 || true
-    exit 1
-fi
+stripe_dev_start_listener "$STATE_DIR" "$PORT"
 
 umask 077
-printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$WEBHOOK_SECRET" > "$STRIPE_GENERATED_ENV"
-# stripe listen prints its local signing secret once during startup. The app
-# receives it through the private one-use env file below; do not retain it in
-# the listener log.
-printf '%s\n' '[dev-start-stripe] listener ready; secret-bearing startup output discarded' >"$STRIPE_LOG_FILE"
-
-echo "[dev-start-stripe] launching start with Stripe webhook forwarding" >>"$LOG_FILE"
+printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET" > "$STRIPE_GENERATED_ENV"
 # The child shell expands its own positional parameters.
 # shellcheck disable=SC2016
 setsid nohup bash -c '
@@ -161,13 +74,9 @@ for _ in $(seq 1 3); do
         echo "devenv failed to start; recent log output:"
         tail -n 60 "$LOG_FILE" || true
         rm -f "$PID_FILE" "$STRIPE_GENERATED_ENV"
-        if [ -f "$STRIPE_PID_FILE" ]; then
-            STRIPE_PID=$(cat "$STRIPE_PID_FILE")
-            kill -TERM -"$STRIPE_PID" 2>/dev/null || kill -TERM "$STRIPE_PID" 2>/dev/null || true
-            rm -f "$STRIPE_PID_FILE"
-        fi
+        stripe_dev_stop_listener "$STRIPE_PID_FILE"
         exit 1
     fi
 done
 
-echo "devenv started with Stripe forwarding (pid=$PID, stripe_pid=$(cat "$STRIPE_PID_FILE"), log=$LOG_FILE, stripe_log=$STRIPE_LOG_FILE)"
+echo "devenv started with Stripe forwarding (pid=$PID, stripe_pid=$(cat "$STRIPE_PID_FILE"), log=$LOG_FILE, stripe_log=$STATE_DIR/stripe-listen.log)"

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import {
-    toggleInputDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import {
@@ -20,7 +19,7 @@ import {
 test.describe('Roster notification workflow', () => {
     test('adds and removes Email roster live for actor and passive manager tabs', async ({ browser, page }, testInfo) => {
         test.skip(testInfo.project.name !== 'desktop-chromium', 'Publication live-update fanout is covered once on desktop.');
-        runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = 0;`);
+        runSql(`UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6;`);
         const viewerContext = await browser.newContext();
         const viewerPage = await viewerContext.newPage();
         try {
@@ -31,8 +30,9 @@ test.describe('Roster notification workflow', () => {
 
             const liveToggle = page.locator('[data-week-toolbar="roster"]')
                 .locator(`[${toggleRootDomAttr}]`)
-                .filter({ hasText: 'Live' });
-            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+                .filter({ hasText: 'Published' });
+            const publicationSwitch = liveToggle.getByRole('switch');
+            await expect(publicationSwitch).not.toBeChecked();
             await expect(page.locator('#roster-email-button')).toHaveCount(0);
             await expect(viewerPage.locator('#roster-email-button')).toHaveCount(0);
 
@@ -42,7 +42,7 @@ test.describe('Roster notification workflow', () => {
             );
             await liveToggle.click();
             expect((await publishResponse).ok()).toBe(true);
-            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
+            await expect(publicationSwitch).toBeChecked();
             await expect(page.locator('#roster-email-button')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerPage.locator('#roster-email-button')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
@@ -52,23 +52,38 @@ test.describe('Roster notification workflow', () => {
             );
             await liveToggle.click();
             expect((await unpublishResponse).ok()).toBe(true);
-            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+            await expect(publicationSwitch).not.toBeChecked();
             await expect(page.locator('#roster-email-button')).toHaveCount(0);
             await expect(viewerPage.locator('#roster-email-button')).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
         } finally {
             await viewerContext.close();
-            runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = 0;`);
+            runSql(`UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6;`);
         }
     });
 
     test('opens confirmation in place for managers and stays hidden from workers', async ({ browser, page }, testInfo) => {
         test.skip(testInfo.project.name !== 'desktop-chromium', 'Role-specific notification workflow is covered once on desktop.');
-        await openRoster(page);
-        const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
-        runSql(`UPDATE roster_weeks SET is_live = TRUE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+        const weekOffset = 52;
+        runSql(`
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
+                'a1000000-0000-0000-0000-000000000001',
+                'a1000000-0000-0000-0000-000000000211',
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + (${weekOffset} * 7) + day_index,
+                'draft', FALSE, 2
+            FROM generate_series(0, 6) AS day_index
+            ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'draft';
+        `);
+        await openRoster(page, { weekOffset });
+        const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
+        const publishToggle = publishToggleRoot.getByRole('switch');
+        const publishResponsePromise = page.waitForResponse((response) => response.url().includes('/ToggleRosterWeekLiveStatus'));
+        await publishToggleRoot.click();
+        expect((await publishResponsePromise).status()).toBe(200);
+        await expect(publishToggle).toBeChecked();
+        await page.reload();
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
         try {
-            await page.reload();
-            await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
             await openRosterSettings(page);
             const emailRoster = page.locator('#roster-email-button');
             await expect(emailRoster).toBeVisible();
@@ -96,7 +111,8 @@ test.describe('Roster notification workflow', () => {
                 await workerContext.close();
             }
         } finally {
-            runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+            await page.keyboard.press('Escape');
+            if (await publishToggle.isChecked()) await publishToggleRoot.click();
         }
     });
 
@@ -105,29 +121,16 @@ test.describe('Roster notification workflow', () => {
         testInfo.setTimeout(E2E_TIMEOUT.slowTest);
         const recipientEmail = `${uniqueE2EValue('e2e-roster-notification')}-retry-${testInfo.retry}@example.com`;
         const rosterGroupId = randomUUID();
-        const rosterWeekId = randomUUID();
         const rosterGroupName = uniqueE2EValue('e2e-notification-acceptance');
         runSql(`
-            DELETE FROM staff_roster_groups
-            WHERE staff_id IN (
-                SELECT staff.id FROM staff
-                JOIN users ON users.id = staff.user_id
-                WHERE users.email LIKE 'e2e-roster-notification-%@example.com'
-            );
-            DELETE FROM staff
-            WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com');
-            DELETE FROM venue_memberships
-            WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com');
-            DELETE FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com';
-
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
             VALUES ('${rosterGroupId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupName}', 99, TRUE, FALSE);
-            INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
-            VALUES ('${rosterWeekId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupId}', 0, TRUE);
-            INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
-            SELECT '${rosterWeekId}', day_offset, FALSE, 2 FROM generate_series(0, 6) AS day_offset;
-            INSERT INTO roster_week_slot_definitions (roster_week_id, name, sort_order)
-            VALUES ('${rosterWeekId}', 'Acceptance lane', 0);
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
+                'a1000000-0000-0000-0000-000000000001', '${rosterGroupId}',
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + day_index,
+                'published', FALSE, 2
+            FROM generate_series(0, 6) AS day_index;
             INSERT INTO staff_roster_groups (staff_id, roster_group_id)
             SELECT staff_id, '${rosterGroupId}'
             FROM staff_roster_groups
@@ -164,7 +167,12 @@ test.describe('Roster notification workflow', () => {
             ensureDraft: false,
             ensureEditable: false,
         });
-        const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
+        const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
+        expect(rawSurfaceConfig).not.toBeNull();
+        const scopeKey = JSON.parse(rawSurfaceConfig!).scopeKey as string;
+        const scopeParts = scopeKey.split(':');
+        const windowStart = scopeParts[scopeParts.length - 3];
+        expect(windowStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         runSql(`
             CREATE OR REPLACE FUNCTION e2e_defer_roster_notification_jobs()
             RETURNS TRIGGER AS $$
@@ -177,7 +185,7 @@ test.describe('Roster notification workflow', () => {
             CREATE TRIGGER e2e_defer_roster_notification_jobs
                 BEFORE INSERT ON app_jobs
                 FOR EACH ROW
-                WHEN (NEW.job_kind = 'roster_notification_delivery')
+                WHEN (NEW.job_kind = 'email_delivery' AND NEW.related_table = 'roster_notification_runs')
                 EXECUTE FUNCTION e2e_defer_roster_notification_jobs();
         `);
         try {
@@ -192,15 +200,13 @@ test.describe('Roster notification workflow', () => {
             await expect(page.locator('body')).toContainText('Roster email queued for 4 recipients. 1 skipped.');
 
             runSql(`
-                UPDATE roster_weeks
-                SET is_live = FALSE
-                WHERE id = '${rosterWeekId}';
+                UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 DROP TRIGGER e2e_defer_roster_notification_jobs ON app_jobs;
                 UPDATE app_jobs
                 SET status = 'job_status_retry', run_at = NOW()
                 WHERE related_id = (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_start = '${windowStart}'
                     ORDER BY created_at DESC LIMIT 1
                 );
                 DROP FUNCTION e2e_defer_roster_notification_jobs();
@@ -214,18 +220,16 @@ test.describe('Roster notification workflow', () => {
                 FROM app_jobs
                 WHERE related_id IN (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_start = '${windowStart}'
                 )
                   AND status IN ('job_status_not_started', 'job_status_running', 'job_status_retry');
             `), 10), { timeout: E2E_TIMEOUT.mailhog }).toBe(0);
 
             runSql(`
-                UPDATE roster_weeks
-                SET is_live = TRUE
-                WHERE id = '${rosterWeekId}';
+                UPDATE roster_days SET publication_state = 'published' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 UPDATE app_jobs
                 SET status = 'job_status_retry', run_at = NOW() + INTERVAL '1 hour'
-                WHERE payload ->> 'recipientEmail' = '${recipientEmail}';
+                WHERE payload ->> 'recipientAddress' = '${recipientEmail}';
             `);
             await page.reload();
             await openRosterSettings(page);
@@ -235,13 +239,13 @@ test.describe('Roster notification workflow', () => {
             runSql(`
                 UPDATE app_jobs
                 SET status = CASE
-                        WHEN payload ->> 'recipientEmail' = '${recipientEmail}' THEN 'job_status_failed'::job_status
+                        WHEN payload ->> 'recipientAddress' = '${recipientEmail}' THEN 'job_status_failed'::job_status
                         ELSE 'job_status_succeeded'::job_status
                     END,
                     run_at = NOW()
                 WHERE related_id = (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_start = '${windowStart}'
                     ORDER BY created_at DESC LIMIT 1
                 );
             `);
@@ -256,9 +260,7 @@ test.describe('Roster notification workflow', () => {
             await waitForMailhogMessages(request, recipientEmail, 2, E2E_TIMEOUT.mailhog);
         } finally {
             runSql(`
-                UPDATE roster_weeks
-                SET is_live = FALSE
-                WHERE id = '${rosterWeekId}';
+                UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 UPDATE roster_groups
                 SET is_active = FALSE
                 WHERE id = '${rosterGroupId}';

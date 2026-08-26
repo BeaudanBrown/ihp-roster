@@ -73,78 +73,49 @@ lockRosterTemplateContentReferenceRows rosterGroupId shiftTypeIds staffIds = do
 
 lockRosterTemplateReferenceRows ::
     (?modelContext :: ModelContext) =>
-    Id RosterWeek ->
-    Maybe Int ->
+    Id Venue ->
+    Id RosterGroup ->
+    Day ->
+    Day ->
+    Maybe Day ->
     IO ()
-lockRosterTemplateReferenceRows rosterWeekId selectedDayOffset = do
-    -- Parent FOR UPDATE locks conflict with PostgreSQL's foreign-key FOR KEY SHARE
-    -- checks, so concurrent day, definition, and slot inserts cannot become phantoms
-    -- while the locked reference snapshot is read and copied.
-    _weekLocks :: [Only UUID] <- sqlQuery
-        "SELECT id FROM roster_weeks WHERE id = ? FOR UPDATE"
-        (Only (unpackId rosterWeekId))
+lockRosterTemplateReferenceRows venueId rosterGroupId windowStart windowEnd selectedDate = do
     _dayLocks :: [Only UUID] <- sqlQuery
-        "SELECT id FROM roster_days \
-        \WHERE roster_week_id = ? \
-        \AND (?::int IS NULL OR day_offset = ?::int) \
-        \ORDER BY id FOR UPDATE"
-        (unpackId rosterWeekId, selectedDayOffset, selectedDayOffset)
-    _definitionLocks :: [Only UUID] <- sqlQuery
-        "SELECT id FROM roster_week_slot_definitions \
-        \WHERE roster_week_id = ? AND deleted_at IS NULL \
-        \ORDER BY id FOR UPDATE"
-        (Only (unpackId rosterWeekId))
+        "SELECT id FROM roster_days WHERE venue_id = ? AND roster_group_id = ? AND operational_date >= ? AND operational_date < ? AND (?::date IS NULL OR operational_date = ?::date) ORDER BY operational_date FOR UPDATE"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, selectedDate, selectedDate)
+    _laneLocks :: [Only UUID] <- sqlQuery
+        "SELECT roster_lanes.id FROM roster_lanes JOIN roster_days ON roster_days.id = roster_lanes.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) ORDER BY roster_lanes.id FOR UPDATE OF roster_lanes"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, selectedDate, selectedDate)
     _slotLocks :: [Only UUID] <- sqlQuery
-        "SELECT roster_slots.id FROM roster_slots \
-        \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-        \WHERE roster_days.roster_week_id = ? \
-        \AND (?::int IS NULL OR roster_days.day_offset = ?::int) \
-        \AND roster_slots.deleted_at IS NULL \
-        \ORDER BY roster_slots.id FOR UPDATE OF roster_slots"
-        (unpackId rosterWeekId, selectedDayOffset, selectedDayOffset)
+        "SELECT roster_slots.id FROM roster_slots JOIN roster_days ON roster_days.id = roster_slots.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) AND roster_slots.deleted_at IS NULL ORDER BY roster_slots.id FOR UPDATE OF roster_slots"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, selectedDate, selectedDate)
     pure ()
 
 lockRosterTemplateApplicationRows ::
     (?modelContext :: ModelContext) =>
     Id RosterTemplate ->
-    Id RosterWeek ->
-    Maybe Int ->
+    Id Venue ->
+    Id RosterGroup ->
+    Day ->
+    Day ->
+    Maybe Day ->
     IO ()
-lockRosterTemplateApplicationRows templateId rosterWeekId targetDayOffset = do
+lockRosterTemplateApplicationRows templateId venueId rosterGroupId windowStart windowEnd targetDate = do
     _templateLocks :: [Only UUID] <- sqlQuery
         "SELECT id FROM roster_templates WHERE id = ? FOR UPDATE"
         (Only (unpackId templateId))
-    _weekLocks :: [Only UUID] <- sqlQuery
-        "SELECT id FROM roster_weeks WHERE id = ? FOR UPDATE"
-        (Only (unpackId rosterWeekId))
     _dayLocks :: [Only UUID] <- sqlQuery
-        "SELECT id FROM roster_days \
-        \WHERE roster_week_id = ? \
-        \AND (?::int IS NULL OR day_offset = ?::int) \
-        \ORDER BY id FOR UPDATE"
-        (unpackId rosterWeekId, targetDayOffset, targetDayOffset)
-    _definitionLocks :: [Only UUID] <- sqlQuery
-        "SELECT id FROM roster_week_slot_definitions \
-        \WHERE roster_week_id = ? AND deleted_at IS NULL \
-        \ORDER BY id FOR UPDATE"
-        (Only (unpackId rosterWeekId))
+        "SELECT id FROM roster_days WHERE venue_id = ? AND roster_group_id = ? AND operational_date >= ? AND operational_date < ? AND (?::date IS NULL OR operational_date = ?::date) ORDER BY operational_date FOR UPDATE"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, targetDate, targetDate)
+    _laneLocks :: [Only UUID] <- sqlQuery
+        "SELECT roster_lanes.id FROM roster_lanes JOIN roster_days ON roster_days.id = roster_lanes.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) ORDER BY roster_lanes.id FOR UPDATE OF roster_lanes"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, targetDate, targetDate)
     _slotLocks :: [Only UUID] <- sqlQuery
-        "SELECT roster_slots.id FROM roster_slots \
-        \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-        \WHERE roster_days.roster_week_id = ? \
-        \AND (?::int IS NULL OR roster_days.day_offset = ?::int) \
-        \AND roster_slots.deleted_at IS NULL \
-        \ORDER BY roster_slots.id FOR UPDATE OF roster_slots"
-        (unpackId rosterWeekId, targetDayOffset, targetDayOffset)
+        "SELECT roster_slots.id FROM roster_slots JOIN roster_days ON roster_days.id = roster_slots.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) AND roster_slots.deleted_at IS NULL ORDER BY roster_slots.id FOR UPDATE OF roster_slots"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, targetDate, targetDate)
     _timesheetLocks :: [Only UUID] <- sqlQuery
-        "SELECT timesheet_entries.id FROM timesheet_entries \
-        \JOIN roster_slots ON roster_slots.id = timesheet_entries.source_roster_slot_id \
-        \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-        \WHERE roster_days.roster_week_id = ? \
-        \AND (?::int IS NULL OR roster_days.day_offset = ?::int) \
-        \AND timesheet_entries.deleted_at IS NULL \
-        \ORDER BY timesheet_entries.id FOR UPDATE OF timesheet_entries"
-        (unpackId rosterWeekId, targetDayOffset, targetDayOffset)
+        "SELECT timesheet_entries.id FROM timesheet_entries JOIN roster_slots ON roster_slots.id = timesheet_entries.source_roster_slot_id JOIN roster_days ON roster_days.id = roster_slots.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) AND timesheet_entries.deleted_at IS NULL ORDER BY timesheet_entries.id FOR UPDATE OF timesheet_entries"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, targetDate, targetDate)
     _shiftTypeLocks :: [Only UUID] <- sqlQuery
         "SELECT shift_types.id \
         \FROM roster_templates \

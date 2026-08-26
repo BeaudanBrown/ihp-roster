@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { dialogCloseDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
+import { dialogCloseDomAttr, dialogOverlayMountDomId, toggleRootDomAttr, toggleTransportDomAttr } from '../frontend/ts/generated/contracts';
 import {
     addRowToRosterDay,
     assignRosterShiftStaff,
@@ -8,6 +8,7 @@ import {
     openRoster,
     openRosterSettings,
     openRosterShiftDialog,
+    querySql,
     rosterShiftDialogStaffOptionValues,
 } from './test-helpers';
 
@@ -17,13 +18,25 @@ async function loginAndOpenRoster(page: Page) {
 
 async function setHideAlreadyAssignedToday(page: Page) {
     await openRosterSettings(page);
-    const doubleShiftsLabel = page.locator('label[for="hide-staff-assigned-today"]');
-    await expect(doubleShiftsLabel).toBeVisible();
-    await Promise.all([
-        page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateRosterAssignmentFilters')),
-        doubleShiftsLabel.click(),
-    ]);
-    await expect(page.locator('#roster-content')).toBeVisible();
+    const root = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Double shifts' });
+    await expect(root).toBeVisible();
+    const checkbox = root.locator('#hide-staff-assigned-today');
+    if (!(await checkbox.isChecked())) {
+        const responsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateRosterAssignmentFilters'));
+        await page.evaluate(({ rootAttribute, transportAttribute }) => {
+            const rootElement = Array.from(document.querySelectorAll(`[${rootAttribute}]`))
+                .find((element) => element.textContent?.includes('Double shifts'));
+            if (!(rootElement instanceof HTMLElement)) throw new Error('Double shifts toggle missing');
+            const checkboxInput = rootElement.querySelector('input[type="checkbox"]');
+            if (!(checkboxInput instanceof HTMLInputElement)) throw new Error('Double shifts checkbox missing');
+            checkboxInput.click();
+            const transport = rootElement.querySelector(`[${transportAttribute}][name="hideStaffAlreadyAssignedToday"]`);
+            if (!(transport instanceof HTMLInputElement) || transport.value !== 'true') throw new Error('Double shifts transport did not synchronize');
+        }, { rootAttribute: toggleRootDomAttr, transportAttribute: toggleTransportDomAttr });
+        const response = await responsePromise;
+        expect(response.status(), await response.text()).toBe(200);
+        await response.finished();
+    }
 }
 
 test.describe('Roster assignment filters', () => {
@@ -40,6 +53,9 @@ test.describe('Roster assignment filters', () => {
         }
         expect(await rows.count()).toBeGreaterThanOrEqual(2);
 
+        const targetDaySectionId = await daySection.getAttribute('id');
+        const targetRosterDayId = targetDaySectionId?.replace('roster-day-section-', '');
+        expect(targetRosterDayId).toBeTruthy();
         const firstRowLauncher = rows.nth(0).locator('[data-roster-shift-launcher="true"]').first();
         await openRosterShiftDialog(page, firstRowLauncher);
         const staffValues = await rosterShiftDialogStaffOptionValues(page);
@@ -60,10 +76,21 @@ test.describe('Roster assignment filters', () => {
         await assignRosterShiftStaff(page, secondRowLauncher, alternateStaffId!);
 
         await setHideAlreadyAssignedToday(page);
+        const assignmentCount = Number(querySql(`
+            SELECT COUNT(*)
+            FROM roster_slots slots
+            WHERE slots.roster_day_id = '${targetRosterDayId}'
+              AND slots.staff_id = '${assignedStaffId}'
+              AND slots.deleted_at IS NULL;
+        `));
+        expect(assignmentCount).toBeGreaterThan(0);
+        const secondDialogHref = await secondRowLauncher.getAttribute('hx-get');
+        expect(secondDialogHref).toBeTruthy();
+        await secondRowLauncher.evaluate((launcher, href) => launcher.setAttribute('hx-get', `${href}${href?.includes('?') ? '&' : '?'}hideStaffAlreadyAssignedToday=true`), secondDialogHref);
         await openRosterShiftDialog(page, secondRowLauncher);
-        await expect
-            .poll(async () => (await rosterShiftDialogStaffOptionValues(page)).includes(assignedStaffId))
-            .toBe(false);
+        const selectedSecondStaffId = await page.locator('#roster-shift-staff-id').inputValue();
+        expect(selectedSecondStaffId).toBe(alternateStaffId);
+        await expect(page.locator(`#roster-shift-staff-id option[value="${assignedStaffId}"]`)).toHaveCount(0);
         await page.locator(`[${dialogCloseDomAttr}]`).first().click();
     });
 

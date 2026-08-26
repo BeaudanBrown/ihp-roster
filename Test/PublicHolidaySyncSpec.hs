@@ -1,11 +1,16 @@
 module Test.PublicHolidaySyncSpec where
 
 import Application.PublicHolidays.Coverage
+import Application.PublicHolidays.Job (performPublicHolidayRefreshJobWith,
+                                       publicHolidayRefreshJobKind)
 import Application.PublicHolidays.Sync
+import Application.WageSourceAlert.Job (wageSourceHealthCheckJobKind)
+import Application.WageSourcePolicy (dataVicMaximumAge)
 import Config
 import qualified Control.Exception as Exception
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (addUTCTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -59,6 +64,17 @@ databaseTests :: Spec
 databaseTests = do
     aroundAll withDatabaseTestContext do
         describe "DataVic public holiday import" do
+            it "durably publishes the support public-holiday resource without a local browser hub" $ withContext do
+                withCleanDb do
+                    appJob <- newRecord @AppJob |> set #jobKind publicHolidayRefreshJobKind |> createRecord
+                    let summary = PublicHolidaySyncSummary [] 0 0 0 0 0 0 0
+                    performPublicHolidayRefreshJobWith (pure summary) appJob
+                    [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "support.public_holidays.refresh" :: Text) |> fetch
+                    query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
+                    [freshnessCheck] <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
+                    freshnessCheck.relatedId `shouldBe` Just (unpackId appJob.id)
+                    freshnessCheck.runAt `shouldSatisfy` (> addUTCTime dataVicMaximumAge appJob.createdAt)
+
             it "projects the dated statewide fixture, including its additional public holiday, into the 2026 cache" $ withContext do
                 withCleanDb do
                     records <- loadDataVicHolidayFixture

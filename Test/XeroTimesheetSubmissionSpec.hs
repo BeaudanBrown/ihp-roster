@@ -23,6 +23,7 @@ import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
 import Test.XeroTimesheetPreviewSpec (EntrySpec (..), PreviewFixture (..),
+                                      createLateBindingPreviewFixture,
                                       createPreviewFixture,
                                       createPreviewFixtureAtPeriod,
                                       fixtureStaffA, fixtureStaffB)
@@ -67,6 +68,31 @@ tests =
                                     entries <- query @XeroTimesheetSubmissionEntry |> filterWhere (#xeroTimesheetSubmissionId, submissionId) |> fetch
                                     map (.timesheetEntryId) entries `shouldBe` map (unpackId . (.id)) fixture.entries
                                 _ -> expectationFailure "expected one Xero timesheet submission row"
+
+            it "submits late-bound components approved before Xero setup" $ withContext do
+                withCleanDb do
+                    fixture <- createLateBindingPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    prepareConnectionForStrictMock fixture.connection
+
+                    result <-
+                        XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
+                            withXeroRequestBaseUrlsForTest urls do
+                                withXeroConfigForTest (Right testXeroConfig) do
+                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+
+                    case result of
+                        Left message -> expectationFailure (cs message)
+                        Right run -> do
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
+                            bindings <- query @TimesheetPayComponentXeroBinding
+                                |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+                                |> fetch
+                            bindings `shouldSatisfy` (not . null)
+                            sealedComponents <- query @TimesheetPayEarningsComponent
+                                |> filterWhereIn (#timesheetPayCalculationId, mapMaybe (fmap unpackId . (.activePayCalculationId)) fixture.entries)
+                                |> fetch
+                            sealedComponents `shouldSatisfy` all (isNothing . (.xeroLocalBucketKey))
+                            sealedComponents `shouldSatisfy` all (isNothing . (.xeroEarningsRateId))
 
             it "submits a historical selected Xero period without a global calendar selection" $ withContext do
                 withCleanDb do

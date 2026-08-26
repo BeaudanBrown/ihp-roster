@@ -22,20 +22,43 @@ async function loginAndOpenRoster(page: Page) {
 }
 
 async function expectReliableEndEllipsis(label: Locator, fullLabel: string) {
-    const metrics = await label.evaluate((element) => {
-        if (!(element instanceof HTMLElement)) throw new Error('Expected an HTML shift-type label');
-        const style = getComputedStyle(element);
-        return {
-            display: style.display,
-            overflow: style.overflow,
-            textOverflow: style.textOverflow,
-            whiteSpace: style.whiteSpace,
-            title: element.title,
-            text: element.textContent,
-            clientWidth: element.clientWidth,
-            scrollWidth: element.scrollWidth,
-        };
-    });
+    type EllipsisMetrics = {
+        display: string;
+        overflow: string;
+        textOverflow: string;
+        whiteSpace: string;
+        title: string;
+        text: string | null;
+        clientWidth: number;
+        scrollWidth: number;
+    };
+    let metrics = {} as EllipsisMetrics;
+    let hasStableMetrics = false;
+    await expect.poll(async () => {
+        const candidate = await label.evaluate(async (element, settleMs) => {
+            if (!(element instanceof HTMLElement)) throw new Error('Expected an HTML shift-type label');
+            await new Promise((resolve) => window.setTimeout(resolve, settleMs));
+            if (!element.isConnected) return null;
+            const style = getComputedStyle(element);
+            return {
+                display: style.display,
+                overflow: style.overflow,
+                textOverflow: style.textOverflow,
+                whiteSpace: style.whiteSpace,
+                title: element.title,
+                text: element.textContent,
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+            };
+        }, E2E_TIMEOUT.labelGeometrySettle);
+        if (candidate === null) return false;
+        metrics = candidate;
+        hasStableMetrics = metrics.display === 'block'
+            && metrics.clientWidth > 20
+            && metrics.scrollWidth > metrics.clientWidth;
+        return hasStableMetrics;
+    }).toBe(true);
+    if (!hasStableMetrics) throw new Error('Expected stable roster shift label geometry');
 
     expect(metrics.display).toBe('block');
     expect(metrics.overflow).toBe('hidden');
@@ -70,13 +93,17 @@ test.describe('Roster row controls', () => {
         }
 
         const rosterUrl = new URL(page.url());
+        const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
+        expect(rawSurfaceConfig).not.toBeNull();
+        const scopeParts = (JSON.parse(rawSurfaceConfig!).scopeKey as string).split(':');
+        const windowStart = scopeParts[scopeParts.length - 3];
         await gotoWhenReady(
             page,
-            `/ShowRosterWeek?${new URLSearchParams({
-                weekOffset: rosterUrl.searchParams.get('weekOffset') ?? '0',
+            `/ShowRosterWindow?${new URLSearchParams({
+                anchorDate: rosterUrl.searchParams.get('anchorDate') ?? '',
                 rosterGroupId: rosterUrl.searchParams.get('rosterGroupId') ?? '',
                 rosterView: 'timeline',
-                dayOffset: '0',
+                dayDate: windowStart,
             }).toString()}`,
             '.roster-day-timeline',
         );
@@ -145,9 +172,13 @@ test.describe('Roster row controls', () => {
             const actionForm = pane.querySelector('form[action*="CopyRosterWeek"]');
             if (!(actionForm instanceof HTMLFormElement)) throw new Error('Expected roster week action form');
             const actionUrl = new URL(actionForm.action);
+            const currentUrl = new URL(window.location.href);
             const fragmentUrl = new URL('/ShowRosterWeekStaffPanelFragment', window.location.origin);
-            fragmentUrl.searchParams.set('weekOffset', actionUrl.searchParams.get('targetWeekOffset') ?? '0');
+            const revisionInput = actionForm.elements.namedItem('rosterCalendarRevision');
+            if (!(revisionInput instanceof HTMLInputElement)) throw new Error('Expected roster calendar revision input');
+            fragmentUrl.searchParams.set('anchorDate', currentUrl.searchParams.get('anchorDate') ?? '');
             fragmentUrl.searchParams.set('rosterGroupId', actionUrl.searchParams.get('rosterGroupId') ?? '');
+            fragmentUrl.searchParams.set('rosterCalendarRevision', revisionInput.value);
             const htmx = (window as Window & {
                 htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown };
             }).htmx;

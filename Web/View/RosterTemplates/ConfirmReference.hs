@@ -1,20 +1,18 @@
 module Web.View.RosterTemplates.ConfirmReference where
 
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleValue)
-import Application.Helper.Url (appendQueryParams)
-import Data.Time.Calendar (addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Web.RosterWeeks.Paths (rosterTemplateReferenceUrl)
 import Web.RosterWeeks.TemplateDesigner
 import Web.View.Prelude
 
 data ConfirmReferenceView = ConfirmReferenceView
-    { rosterGroup       :: !RosterGroup
-    , referenceWeek     :: !RosterTemplateReferenceWeek
-    , weekOffset        :: !Int
-    , templateName      :: !Text
-    , templateScale     :: !RosterTemplateScaleEnum
-    , selectedDayOffset :: !(Maybe Int)
-    , confirmationToken :: !Text
+    { rosterGroup             :: !RosterGroup
+    , referenceWeek           :: !RosterTemplateReferenceWeek
+    , templateName            :: !Text
+    , templateScale           :: !RosterTemplateScaleEnum
+    , selectedOperationalDate :: !(Maybe Day)
+    , confirmationToken       :: !Text
     }
 
 instance View ConfirmReferenceView where
@@ -35,11 +33,12 @@ instance View ConfirmReferenceView where
                             <div class="alert alert-info">No roster data will be changed. The reference is copied once into your private template draft.</div>
                             <div class="d-flex flex-wrap justify-content-end gap-2">
                                 <a class="btn btn-outline-secondary" href={backPath}>Back</a>
-                                <form method="POST" action={CreateRosterTemplateFromReferenceAction rosterGroup.id weekOffset}>
+                                <form method="POST" action={CreateRosterTemplateFromReferenceAction rosterGroup.id}>
+                                    <input type="hidden" name="anchorDate" value={tshow referenceWeek.referenceWeekStart} />
                                     <input type="hidden" name="name" value={templateName} />
                                     <input type="hidden" name="scale" value={rosterTemplateScaleValue templateScale} />
                                     <input type="hidden" name="confirmationToken" value={confirmationToken} />
-                                    {forEach selectedDayOffset renderDayOffsetInput}
+                                    {forEach selectedOperationalDate renderOperationalDateInput}
                                     <button class="btn btn-primary" type="submit">Open prefilled designer</button>
                                 </form>
                             </div>
@@ -49,17 +48,13 @@ instance View ConfirmReferenceView where
             |]
             }
       where
-        referenceLabel = case selectedDayOffset of
+        referenceLabel = case selectedOperationalDate of
             Nothing -> "the week of " <> formatDate referenceWeek.referenceWeekStart
-            Just dayOffset ->
-                let date = addDays (toInteger dayOffset) referenceWeek.referenceWeekStart
-                 in cs (formatTime defaultTimeLocale "%A %d %b %Y" date)
-        backPath = appendQueryParams
-            (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id, weekOffset })
-            [("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
+            Just operationalDate -> cs (formatTime defaultTimeLocale "%A %d %b %Y" operationalDate)
+        backPath = rosterTemplateReferenceUrl referenceWeek.referenceWeekStart rosterGroup.id templateName (rosterTemplateScaleValue templateScale)
 
-renderDayOffsetInput :: Int -> Html
-renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]
+renderOperationalDateInput :: Day -> Html
+renderOperationalDateInput operationalDate = [hsx|<input type="hidden" name="operationalDate" value={tshow operationalDate} />|]
 
 
 formatDate :: Day -> Text

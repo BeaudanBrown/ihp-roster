@@ -1,11 +1,11 @@
 module Application.Helper.FrontendContract.Surface.Timesheets.Live
-    ( activeTimesheetWeekScopes
-    , activeTimesheetWeekScopesWithBus
+    ( activeTimesheetWindowScopes
+    , activeTimesheetWindowScopesWithBus
     , matchTimesheetDayColumnsLiveFragment
     , matchTimesheetDaySectionLiveFragment
     , matchTimesheetSidePanelContentLiveFragment
     , matchTimesheetToolbarLiveFragment
-    , matchTimesheetWeekLiveScope
+    , matchTimesheetWindowLiveScope
     , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
     , timesheetSidePanelContentLiveFragment
@@ -27,17 +27,18 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Generate
 import Application.Helper.LiveUpdate.Runtime (LiveBus,
                                               activeSurfaceScopeMatches,
                                               activeSurfaceScopeMatchesWithBus)
+import Data.Time.Calendar (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
-matchTimesheetWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, Int)
-matchTimesheetWeekLiveScope scope = do
-    (venueId, (weekOffset, ())) <- Generated.matchTimesheetWeekLiveScope scope
-    pure (venueId, weekOffset)
+matchTimesheetWindowLiveScope :: SurfaceScope -> Maybe (UUID.UUID, Day, Day, Int)
+matchTimesheetWindowLiveScope scope = do
+    (venueId, (windowStart, (windowEnd, (calendarRevision, ())))) <- Generated.matchTimesheetWeekLiveScope scope
+    pure (venueId, windowStart, windowEnd, calendarRevision)
 
-activeTimesheetWeekScopes :: IO [(UUID.UUID, Int)]
-activeTimesheetWeekScopes = activeSurfaceScopeMatches matchTimesheetWeekLiveScope
+activeTimesheetWindowScopes :: IO [(UUID.UUID, Day, Day, Int)]
+activeTimesheetWindowScopes = activeSurfaceScopeMatches matchTimesheetWindowLiveScope
 
-activeTimesheetWeekScopesWithBus :: LiveBus -> IO [(UUID.UUID, Int)]
-activeTimesheetWeekScopesWithBus bus =
-    activeSurfaceScopeMatchesWithBus bus matchTimesheetWeekLiveScope
+activeTimesheetWindowScopesWithBus :: LiveBus -> IO [(UUID.UUID, Day, Day, Int)]
+activeTimesheetWindowScopesWithBus bus =
+    activeSurfaceScopeMatchesWithBus bus matchTimesheetWindowLiveScope

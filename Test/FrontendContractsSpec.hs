@@ -28,8 +28,7 @@ import Application.Helper.FrontendContract.HorizontalScroll.Runtime (HorizontalS
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
 import qualified Application.Helper.FrontendContract.LiveUpdate as LiveContract
-import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdHeaderName,
-                                                             liveUpdateSocketPathSegment,
+import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateSocketPathSegment,
                                                              surfaceActionDomAttribute,
                                                              surfaceConfigDomAttribute,
                                                              surfaceDomAttribute)
@@ -107,14 +106,13 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type InteractionSessionEffect"
 
-    it "shares reflected live endpoint, header, and mount DOM constants across Haskell and TypeScript" do
+    it "shares reflected live endpoint and mount DOM constants across Haskell and TypeScript" do
         liveUpdateSocketPathSegment `shouldBe` "live-updates"
-        liveUpdateClientIdHeaderName `shouldBe` "X-Live-Update-Client-Id"
         surfaceDomAttribute `shouldBe` "data-bepis-surface"
         surfaceConfigDomAttribute `shouldBe` "data-bepis-surface-config"
         surfaceActionDomAttribute `shouldBe` "data-bepis-surface-action"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const liveUpdateSocketPath = \"live-updates\" as const;"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const liveUpdateClientIdHeader = \"X-Live-Update-Client-Id\" as const;"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "liveUpdateClientIdHeader"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceDomAttr = \"data-bepis-surface\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceConfigDomAttr = \"data-bepis-surface-config\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceActionDomAttr = \"data-bepis-surface-action\" as const;"
@@ -182,7 +180,7 @@ tests = describe "Frontend contract generator foundation" do
             , "export const rosterImageExportRowDomAttr = \"data-bepis-roster-image-export-row\" as const;"
             , "export const rosterImageExportCellDomAttr = \"data-bepis-roster-image-export-cell\" as const;"
             , "export const rosterImageExportFormatDomAttr = \"data-bepis-roster-image-export-format\" as const;"
-            , "export type RosterImageExportFormatState = \"jpg\";"
+            , "export type RosterImageExportFormatState = \"png\";"
             , "export function isRosterImageExportFormatState(value: unknown): value is RosterImageExportFormatState"
             , "export type RosterImageExportStyle ="
             , "export type RosterImageExportConfig = { imageExportFilename: string; imageExportStyle: RosterImageExportStyle;"
@@ -225,7 +223,7 @@ tests = describe "Frontend contract generator foundation" do
         forM_ ["SurfaceWireFragment", "SurfaceFragmentProtection"] \name ->
             generatedTypes `shouldNotContain` [name]
         frontendContractsTypeScript
-            `shouldSatisfy` Text.isInfixOf "export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };"
+            `shouldSatisfy` Text.isInfixOf "export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey>; renderedDependencyWatermark: number };"
 
     it "embeds the checked Surface topology directly in the unified registry" do
         registeredFrontendContractIR.contractSurfaces
@@ -238,7 +236,7 @@ tests = describe "Frontend contract generator foundation" do
         let actionOptions :: [Contract.HtmxActionOptionIR] = concatMap (Contract.optionHtmxActionOptions . (.htmxActionOptions)) fixture.surfaceHtmxActions
 
         map (\field -> (field.fieldName, field.fieldWire)) scopeFields
-            `shouldBe` [("venueId", Contract.WireUuidIR), ("weekOffset", Contract.WireIntIR)]
+            `shouldBe` [("venueId", Contract.WireUuidIR), ("anchorDate", Contract.WireDayIR)]
         map Contract.schemaNameAndMarker dtoSchemas
             `shouldBe` [("FixturePayload", "FixturePayload"), ("FixtureRelatedPayload", "FixtureRelatedPayload")]
         actionOptions `shouldContain` [Contract.HtmxActionMethodIR Contract.HtmxPostIR]
@@ -455,11 +453,12 @@ tests = describe "Frontend contract generator foundation" do
         lookupEnumLiteralValue @Text @Text `shouldBe` Left "No FrontendContract enum case Text for enum marker Text"
 
     it "validates records, refs, arrays, nullable fields, and tagged unions through the IR JSON interpreter" do
-        let scope = Live.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
-        let fragmentKey = Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let subscription = Live.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey]
-        let command = Live.Subscribe subscription "client-1" (Just 9)
-        let message = Live.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 [fragmentKey] (Just "client-2")
+        let scope = Live.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "windowStartDate" Aeson..= ("2025-02-03" :: Text), "windowEndDate" Aeson..= ("2025-02-10" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)])
+        let fragmentKey = Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["operationalDate" Aeson..= ("2025-02-05" :: Text)])
+        let scopeKey = "timesheets:11111111-1111-1111-1111-111111111111:2025-02-03:2025-02-10:1"
+        let subscription = Live.SurfaceSubscription scope scopeKey [fragmentKey] 0
+        let command = Live.Subscribe subscription (Just 9)
+        let message = Live.Invalidate scope scopeKey 10 [fragmentKey]
 
         AesonTypes.parseEither (validateContractMarkerValue @LiveContract.SurfaceSubscription) (Aeson.toJSON subscription) `shouldSatisfy` isRight
         AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON command) `shouldSatisfy` isRight
@@ -514,8 +513,8 @@ tests = describe "Frontend contract generator foundation" do
         AesonTypes.parseEither (validateContractMarkerValueWith @SpecUnion contract) (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested, "extra" Aeson..= True]) `shouldSatisfy` isLeft
 
     it "validates semantic scope and fragment-key wire constructors without executable descriptors" do
-        let scope = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "scope" Aeson..= Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int)]]
-        let key = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "kind" Aeson..= ("timesheet-day-section" :: Text), "params" Aeson..= Aeson.object ["dayOffset" Aeson..= (0 :: Int)]]
+        let scope = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "scope" Aeson..= Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "windowStartDate" Aeson..= ("2025-01-06" :: Text), "windowEndDate" Aeson..= ("2025-01-13" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)]]
+        let key = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "kind" Aeson..= ("timesheet-day-section" :: Text), "params" Aeson..= Aeson.object ["operationalDate" Aeson..= ("2025-01-06" :: Text)]]
         let descriptor = addJsonField "url" (Aeson.String "/fragment") key
         AesonTypes.parseEither (validateWireValue "scope" Contract.WireSurfaceScopeIR) scope `shouldSatisfy` isRight
         AesonTypes.parseEither (validateWireValue "key" Contract.WireSurfaceFragmentKeyIR) key `shouldSatisfy` isRight

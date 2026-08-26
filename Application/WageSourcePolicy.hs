@@ -17,8 +17,12 @@ module Application.WageSourcePolicy
     , SourceSnapshot (..)
     , WageSourceDecision (..)
     , WageSourcePolicyInput (..)
+    , awardDriftKindText
     , dataVicMaximumAge
     , detectAwardDrift
+    , evaluateDataVicDiagnostics
+    , evaluateFwcAnnualDiagnostics
+    , evaluateFwcFreshnessDiagnostics
     , evaluateWageSourcePolicy
     , firstVenueWeekStartingOnOrAfter
     , fwcMaximumAge
@@ -152,55 +156,72 @@ readyDecision :: WageSourceDecision
 readyDecision = WageSourceDecision DraftSourcesReady FinalSourcesReady
 
 fwcDiagnostics :: PolicyClock -> WageSourcePolicyInput -> [SourceDiagnostic]
-fwcDiagnostics clock input = freshnessDiagnostic <> annualRefreshDiagnostic
-  where
-    latestSuccess =
-        input.fwcSnapshots
-            |> filter ((== ValidatedMapdSnapshot) . (.provenance))
-            |> map (.fwcSnapshotMetadata)
-            |> latestCompleteSuccess clock.now
-    freshnessDiagnostic = case latestSuccess of
+fwcDiagnostics clock input =
+    evaluateFwcFreshnessDiagnostics clock input.fwcSnapshots
+        <> evaluateFwcAnnualDiagnostics
+            clock
+            input.payWeekStart
+            input.venueWeekStartsOn
+            input.fwcSnapshots
+
+evaluateFwcFreshnessDiagnostics :: PolicyClock -> [FwcSnapshot] -> [SourceDiagnostic]
+evaluateFwcFreshnessDiagnostics clock snapshots =
+    case latestValidatedFwcSuccess clock snapshots of
         Nothing -> [FwcSnapshotMissing]
         Just completedAt
             | snapshotAge clock.now completedAt > fwcMaximumAge ->
                 [FwcSnapshotStale completedAt fwcMaximumAge]
             | otherwise -> []
-    annualRefreshDiagnostic
-        | input.payWeekStart /= annualFirstWeek = []
-        | maybe False ((>= annualStart) . utctDay) latestSuccess = []
-        | otherwise =
-            [ FwcAnnualRefreshMissing
-                { annualRefreshRequiredOnOrAfter = annualStart
-                , firstFullPayWeekStart = annualFirstWeek
-                , latestCompleteFwcSuccess = latestSuccess
-                }
-            ]
-    (payWeekYear, _, _) = toGregorian input.payWeekStart
+
+evaluateFwcAnnualDiagnostics :: PolicyClock -> Day -> DayOfWeek -> [FwcSnapshot] -> [SourceDiagnostic]
+evaluateFwcAnnualDiagnostics clock payWeekStart venueWeekStartsOn snapshots
+    | payWeekStart /= annualFirstWeek = []
+    | maybe False ((>= annualStart) . utctDay) latestSuccess = []
+    | otherwise =
+        [ FwcAnnualRefreshMissing
+            { annualRefreshRequiredOnOrAfter = annualStart
+            , firstFullPayWeekStart = annualFirstWeek
+            , latestCompleteFwcSuccess = latestSuccess
+            }
+        ]
+  where
+    latestSuccess = latestValidatedFwcSuccess clock snapshots
+    (payWeekYear, _, _) = toGregorian payWeekStart
     annualStart = fromGregorian payWeekYear 7 1
-    annualFirstWeek = firstVenueWeekStartingOnOrAfter input.venueWeekStartsOn annualStart
+    annualFirstWeek = firstVenueWeekStartingOnOrAfter venueWeekStartsOn annualStart
+
+latestValidatedFwcSuccess :: PolicyClock -> [FwcSnapshot] -> Maybe UTCTime
+latestValidatedFwcSuccess clock snapshots =
+    snapshots
+        |> filter ((== ValidatedMapdSnapshot) . (.provenance))
+        |> map (.fwcSnapshotMetadata)
+        |> latestCompleteSuccess clock.now
 
 dataVicDiagnostics :: PolicyClock -> WageSourcePolicyInput -> [SourceDiagnostic]
 dataVicDiagnostics clock input =
-    input.applicableDataVicTargetYears
+    evaluateDataVicDiagnostics clock input.applicableDataVicTargetYears input.dataVicSnapshots
+
+evaluateDataVicDiagnostics :: PolicyClock -> Set.Set Integer -> [DataVicSnapshot] -> [SourceDiagnostic]
+evaluateDataVicDiagnostics clock targetYears snapshots =
+    targetYears
         |> Set.toAscList
         |> concatMap diagnosticForYear
   where
     diagnosticForYear targetYear =
-        case latestCompleteSuccess clock.now snapshotsForYear of
+        case latestCompleteSuccess clock.now (snapshotsForYear targetYear) of
             Nothing -> [DataVicSnapshotMissing targetYear]
             Just completedAt
                 | snapshotAge clock.now completedAt > dataVicMaximumAge ->
                     [DataVicSnapshotStale targetYear completedAt dataVicMaximumAge]
                 | otherwise -> []
-      where
-        snapshotsForYear =
-            input.dataVicSnapshots
-                |> filter
-                    ( \candidate ->
-                        candidate.targetYear == targetYear
-                            && candidate.coverage == StatewideVictoria
-                    )
-                |> map (.snapshot)
+    snapshotsForYear targetYear =
+        snapshots
+            |> filter
+                ( \candidate ->
+                    candidate.targetYear == targetYear
+                        && candidate.coverage == StatewideVictoria
+                )
+            |> map (.snapshot)
 
 latestCompleteSuccess :: UTCTime -> [SourceSnapshot] -> Maybe UTCTime
 latestCompleteSuccess now snapshots =
@@ -309,18 +330,18 @@ renderKeys = Text.intercalate ", " . Set.toAscList
 awardDriftDedupeKey :: AwardDriftKind -> Text -> Text -> Text
 awardDriftDedupeKey kind expectedCanonical observedCanonical =
     "award-drift:"
-        <> driftKindValue kind
+        <> awardDriftKindText kind
         <> ":"
         <> tshow digest
   where
-    payload = canonicalTextParts [driftKindValue kind, expectedCanonical, observedCanonical]
+    payload = canonicalTextParts [awardDriftKindText kind, expectedCanonical, observedCanonical]
     digest = Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256
 
 canonicalTextParts :: [Text] -> Text
 canonicalTextParts = Text.concat . map (\value -> tshow (Text.length value) <> ":" <> value)
 
-driftKindValue :: AwardDriftKind -> Text
-driftKindValue AwardDocumentChecksumChanged        = "document-checksum"
-driftKindValue AwardDocumentVersionChanged         = "document-version"
-driftKindValue AwardClassificationStructureChanged = "classification-structure"
-driftKindValue AwardCategoryStructureChanged       = "category-structure"
+awardDriftKindText :: AwardDriftKind -> Text
+awardDriftKindText AwardDocumentChecksumChanged        = "document-checksum"
+awardDriftKindText AwardDocumentVersionChanged         = "document-version"
+awardDriftKindText AwardClassificationStructureChanged = "classification-structure"
+awardDriftKindText AwardCategoryStructureChanged       = "category-structure"

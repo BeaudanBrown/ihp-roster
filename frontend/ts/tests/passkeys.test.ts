@@ -1,4 +1,5 @@
 import {
+    initializePasskeyRoot,
     parsePasskeyFlowConfiguration,
     passkeyStatusMessageForError,
 } from "../app-passkeys";
@@ -8,14 +9,20 @@ import {
     safePasskeyRedirectPath,
 } from "../passkeys/wire";
 import {
+    dialogCloseDomAttr,
+    dialogMountDomAttr,
     encodePasskeyAuthenticationRequest,
     encodePasskeyRegistrationRequest,
     parsePasskeyAuthenticationOptions,
     parsePasskeyErrorResponse,
     parsePasskeyFinishResponse,
     parsePasskeyRegistrationOptions,
+    passkeyActionButtonDomAttr,
     passkeyAdditionalDeviceMode,
     passkeyFirstPasskeyMode,
+    passkeyFlowConfigDomAttr,
+    passkeyLoginDomAttr,
+    passkeyStatusDomAttr,
     type PasskeyAuthenticationOptions,
     type PasskeyRegistrationOptions,
 } from "../generated/contracts";
@@ -33,6 +40,8 @@ const loginFlow = {
     failureMessage: "Passkey request failed.",
     pendingLabel: "Please wait",
     cancelledMessage: "No passkey was selected.",
+    autoStart: false,
+    closeOverlayOnSuccess: false,
 } as const;
 
 const registrationOptions = {
@@ -75,6 +84,48 @@ test("passkey adapter parses only the generated exact flow configuration", () =>
         () => parsePasskeyFlowConfiguration(JSON.stringify({ ...loginFlow, successRedirect: null })),
         "Invalid PasskeyFlowConfig",
     );
+});
+
+test("in-place passkey overlay attempts immediately and retains an accessible retry after unsupported browser failure", async () => {
+    if (typeof document === "undefined") return;
+
+    const originalPublicKeyCredential = Object.getOwnPropertyDescriptor(window, "PublicKeyCredential");
+    Object.defineProperty(window, "PublicKeyCredential", { configurable: true, value: undefined });
+    const dialog = document.createElement("div");
+    dialog.setAttribute(dialogMountDomAttr, "true");
+    const close = document.createElement("button");
+    close.setAttribute(dialogCloseDomAttr, "true");
+    const root = document.createElement("div");
+    root.setAttribute(passkeyLoginDomAttr, "true");
+    root.setAttribute(passkeyFlowConfigDomAttr, JSON.stringify({
+        ...loginFlow,
+        autoStart: true,
+        closeOverlayOnSuccess: true,
+    }));
+    const action = document.createElement("button");
+    action.setAttribute(passkeyActionButtonDomAttr, "true");
+    const statusRegion = document.createElement("div");
+    statusRegion.setAttribute("role", "status");
+    const status = document.createElement("span");
+    status.setAttribute(passkeyStatusDomAttr, "status");
+    statusRegion.append(status);
+    root.append(action, statusRegion);
+    dialog.append(close, root);
+    document.body.append(dialog);
+
+    try {
+        initializePasskeyRoot(root);
+        await Promise.resolve();
+        assertEqual(status.textContent, loginFlow.unsupportedMessage);
+        assertEqual(action.disabled, false);
+    } finally {
+        dialog.remove();
+        if (originalPublicKeyCredential === undefined) {
+            delete (window as Window & { PublicKeyCredential?: typeof PublicKeyCredential }).PublicKeyCredential;
+        } else {
+            Object.defineProperty(window, "PublicKeyCredential", originalPublicKeyCredential);
+        }
+    }
 });
 
 test("passkey begin envelopes parse exactly before conversion to browser buffers", () => {
@@ -163,7 +214,7 @@ test("passkey credential encoders preserve exact nullable and nested request sha
 
 test("passkey redirects remain path-only and same-origin after URL normalization", () => {
     const origin = "https://bepis.test";
-    assertEqual(safePasskeyRedirectPath("/RosterWeeks?weekOffset=1", origin), "/RosterWeeks?weekOffset=1");
+    assertEqual(safePasskeyRedirectPath("/ShowRosterWindow?anchorDate=2025-01-13", origin), "/ShowRosterWindow?anchorDate=2025-01-13");
     assertEqual(safePasskeyRedirectPath("//evil.example/", origin), null);
     assertEqual(safePasskeyRedirectPath("/\\evil.example/", origin), null);
     assertEqual(safePasskeyRedirectPath("https://bepis.test/RosterWeeks", origin), null);

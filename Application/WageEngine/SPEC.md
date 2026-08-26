@@ -51,8 +51,9 @@ result through `Application.Helper.TimesheetPayLedger`; approved exact facts can
 without consulting mutable rate sources. Final workflows use
 `loadApprovedTimesheetPayCalculations`, which reads calculations, paid-time segments,
 and earnings components in three bounded queries regardless of entry count; the
-single-entry helper delegates to that bulk seam. Draft callers calculate through `Application.WageEvaluation`. Approved/final callers
-load sealed ledger facts; cutover #239 retired the legacy SQL calculator and decoder
+single-entry helper delegates to that bulk seam. Draft callers calculate through `Application.WageEvaluation`. Approval seals Operational-window ownership,
+component dates, exact amounts, and source facts; approved/final callers load
+those ledger facts without consulting mutable rate sources. Cutover #239 retired the legacy SQL calculator and decoder
 seam.
 
 Production pay-module classification is explicit: `Application.WageEvaluation` is
@@ -81,6 +82,13 @@ valid. Failed, incomplete, unvalidated, and non-statewide candidates never displ
 last complete authoritative success, while imported Xero overrides bypass both source
 checks.
 
+Source-health alert orchestration consumes these same fixed thresholds and diagnostic
+constructors. Successful FWC/DataVic refresh jobs schedule delayed checks just after
+expiry; final failed attempts also evaluate persisted facts. Exact boundaries remain
+valid, newer complete snapshots supersede delayed checks, and annual FWC absence is
+anchored to the earliest active venue's first full week on or after 1 July. DataVic
+alerts aggregate previous/current/next Melbourne-calendar years.
+
 The same module compares canonical Award document and structural fingerprints. A
 document checksum/version, classification, or category change emits a deterministic
 deduplication key scoped to a non-blocking platform-super-admin signal. Rate-only and
@@ -88,7 +96,9 @@ unchanged-structure refreshes emit no drift signal. The pure policy performs no 
 or network work. `Application.WageSourceEnforcement` adapts persisted source facts and
 entry calculations into per-entry draft outcomes and strict final batches. Successful MAPD
 publication compares the latest two fingerprints and enqueues permanently deduplicated
-notifications for active platform super admins only; drift remains non-blocking.
+shared email envelopes for active platform super admins only. Each envelope references
+the retained current Award snapshot, reconstructs the same prior/current comparison,
+and revalidates active super-admin eligibility at delivery; drift remains non-blocking.
 
 ## Validated rate book
 
@@ -103,8 +113,10 @@ constructor is hidden. A valid MA000009 book has one common effective period and
   classification or Award.
 
 MAPD annual projection rows can remain open-ended after a newer annual snapshot is
-published. For a worked date, the adapter selects the snapshot with the latest applicable
-`operative_from` before constructing the candidate; it preserves every historical source
+published. For an Operational date, the adapter selects the snapshot with the latest
+applicable venue-window-normalized `operative_from` before constructing the
+candidate; actual component dates continue to own Award conditions and public
+holidays. It preserves every historical source
 row and still rejects conflicts within the selected snapshot. Value-identical duplicate
 semantic keys normalize. Any conflict, missing category, unsupported classification,
 inconsistent period, invalid value, identity, or owner returns a named `RateBookError`.

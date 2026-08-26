@@ -54,6 +54,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withSessionValues
                     [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
                     , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , ("supportImpersonationReturnFallback", Serialize.encode True)
                     , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
                     , (passkeyVerifiedAtSessionKey, Serialize.encode ("9999999999" :: Text))
                     ]
@@ -61,6 +62,7 @@ tests = aroundAll withDatabaseTestContext do
                         response <- callAction EditProfileAction
                         getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
                         getSession @Text passkeyVerifiedAtSessionKey `shouldReturn` Nothing
+                        getSession @Bool "supportImpersonationReturnFallback" `shouldReturn` Nothing
                         pure response
 
                 response `responseStatusShouldBe` status302
@@ -229,7 +231,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                     loginResponse `responseStatusShouldBe` status302
 
-                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse <- callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                     rosterResponse `responseStatusShouldBe` status200
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeySetupPromptAttribute
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute
@@ -255,7 +257,7 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                         loginResponse `responseStatusShouldBe` status302
 
-                        rosterResponse <- callAction (ShowRosterWeekAction 0)
+                        rosterResponse <- callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                         rosterResponse `responseStatusShouldBe` status200
                         rosterResponse `responseBodyShouldContain` "Set up faster sign-in"
                         rosterResponse `responseBodyShouldContain` "You can skip this for now."
@@ -276,7 +278,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                     loginResponse `responseStatusShouldBe` status302
 
-                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse <- callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                     rosterResponse `responseStatusShouldBe` status200
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeySetupPromptAttribute
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute

@@ -935,6 +935,7 @@ validateWireReferences surface =
                 | name `elem` dtoNames -> []
                 | otherwise -> [diagnostic "invalid-wire-ref" ("field " <> fieldName <> " references missing dto " <> name <> " on surface " <> surface.surfaceName)]
             WireClosedIR {} -> []
+            WireDomainIR {} -> []
             WireListIR inner -> validateWire fieldName inner
             WireMapIR key value -> validateWire fieldName key <> validateWire fieldName value
             WireOptionalIR inner -> validateWire fieldName inner

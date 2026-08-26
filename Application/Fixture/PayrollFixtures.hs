@@ -46,35 +46,39 @@ data ExplorationPayrollFixture = ExplorationPayrollFixture
     }
 
 data TimesheetFixtureValues = TimesheetFixtureValues
-    { shiftTypeId    :: !UUID
-    , startTime      :: !TimeOfDay
-    , endTime        :: !TimeOfDay
-    , hadBreak       :: !Bool
-    , breakStartTime :: !(Maybe TimeOfDay)
-    , breakEndTime   :: !(Maybe TimeOfDay)
-    , breakMinutes   :: !Int
+    { shiftTypeId       :: !UUID
+    , startTime         :: !TimeOfDay
+    , endTime           :: !TimeOfDay
+    , hadBreak          :: !Bool
+    , breakStartTime    :: !(Maybe TimeOfDay)
+    , breakEndTime      :: !(Maybe TimeOfDay)
+    , breakMinutes      :: !Int
+    , calendarDayOffset :: !Int
     }
 
 instance SetField "shiftTypeId" TimesheetFixtureValues UUID where
-    setField value fixture = fixture { shiftTypeId = value }
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.shiftTypeId = value }
 
 instance SetField "startTime" TimesheetFixtureValues TimeOfDay where
-    setField value fixture = fixture { startTime = value }
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.startTime = value }
 
 instance SetField "endTime" TimesheetFixtureValues TimeOfDay where
-    setField value fixture = fixture { endTime = value }
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.endTime = value }
 
 instance SetField "hadBreak" TimesheetFixtureValues Bool where
-    setField value fixture = fixture { hadBreak = value }
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.hadBreak = value }
 
 instance SetField "breakStartTime" TimesheetFixtureValues (Maybe TimeOfDay) where
-    setField value fixture = fixture { breakStartTime = value }
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.breakStartTime = value }
 
 instance SetField "breakEndTime" TimesheetFixtureValues (Maybe TimeOfDay) where
-    setField value fixture = fixture { breakEndTime = value }
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.breakEndTime = value }
 
 instance SetField "breakMinutes" TimesheetFixtureValues Int where
-    setField value fixture = fixture { breakMinutes = value }
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.breakMinutes = value }
+
+instance SetField "calendarDayOffset" TimesheetFixtureValues Int where
+    setField value fixture = fixture { Application.Fixture.PayrollFixtures.calendarDayOffset = value }
 
 seedWeekDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
 seedWeekDayNames venue = do
@@ -143,6 +147,7 @@ applyTimesheetFixtureTransforms workedOn transforms entry =
             , breakStartTime = Nothing
             , breakEndTime = Nothing
             , breakMinutes = 0
+            , calendarDayOffset = 0
             }
         breakInput =
             if values.hadBreak
@@ -156,7 +161,7 @@ applyTimesheetFixtureTransforms workedOn transforms entry =
         boundaries =
             either (error . ("Invalid payroll fixture boundaries: " <>) . show) Prelude.id $
                 resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
-                    { shiftBoundaryDate = workedOn
+                    { shiftBoundaryDate = addDays (toInteger values.calendarDayOffset) workedOn
                     , shiftBoundaryStartTime = values.startTime
                     , shiftBoundaryStartOccurrence = Nothing
                     , shiftBoundaryEndTime = values.endTime
@@ -210,7 +215,6 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
     venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
     _ <- venueConfig
         |> set #rosterWeekStartsOn (fixtureWeekdayIndex fixtureWeekStart)
-        |> set #weekOffsetEpoch fixtureWeekStart
         |> updateRecord
     admin <- createUserRecord "payroll-parity-admin@example.com" "staff" True
     _ <- provisionVenueUser venue admin VenueAdmin "Payroll" "Admin"

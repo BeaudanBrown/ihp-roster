@@ -9,7 +9,7 @@ import {
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
 
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 const managerCreds = {
     email: 'e2e-test@example.com',
@@ -31,9 +31,9 @@ async function loginWorker(page: Page) {
 
 async function showApprovedTimesheets(page: Page) {
     await openTimesheetSettings(page);
-    const showApproved = page.locator('label', { hasText: 'Show approved' });
-    if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
-        await showApproved.click();
+    const hideApproved = page.locator('label', { hasText: 'Hide approved' });
+    if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
+        await hideApproved.click();
     }
 }
 
@@ -87,8 +87,8 @@ function cleanupManagerApprovalEntry() {
     `);
 }
 
-async function createTimesheetForDaySection(page: Page, dayOffset: string, startTime: string, endTime: string) {
-    await page.locator(`#timesheet-day-section-${dayOffset} [data-timesheet-day-add="true"]`).click();
+async function createTimesheetForDaySection(page: Page, operationalDate: string, startTime: string, endTime: string) {
+    await page.locator(`[data-timesheet-operational-date="${operationalDate}"] [data-timesheet-day-add="true"]`).click();
     await fillAndSaveTimesheetDialog(page, startTime, endTime);
 }
 
@@ -254,22 +254,22 @@ test.describe('Live fragment multi-view coverage', () => {
         `);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 
-        const leaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note });
+        const pendingLeaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note }).filter({ hasText: 'Pending' });
 
-        await expect(leaveRow).toContainText('Pending');
+        await expect(pendingLeaveRow).toContainText('Pending');
         await expect(viewerPage.locator('#roster-content')).toBeVisible();
         await expect(viewerTargetStaffCell).not.toHaveAttribute('title', /approved unavailable period/i);
 
         const approvalResponsePromise = actorPage.waitForResponse((response) =>
             response.request().method() === 'POST' && response.url().includes('/ApproveLeaveRequest'),
         );
-        await leaveRow.getByRole('button', { name: 'Approve' }).click();
+        await pendingLeaveRow.getByRole('button', { name: 'Approve' }).click();
         const approvalResponse = await approvalResponsePromise;
         expect(approvalResponse.status(), await approvalResponse.text()).toBe(200);
         await approvalResponse.finished();
 
-        await expect(leaveRow).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(leaveRow).toContainText('Approved');
+        const approvedLeaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note }).filter({ hasText: 'Approved' });
+        await expect(approvedLeaveRow).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
@@ -296,17 +296,21 @@ test.describe('Live fragment multi-view coverage', () => {
             SET deleted_at = NOW(), delete_reason = 'e2e_reset', updated_at = NOW()
             WHERE id = '${rosterSlotId}' AND deleted_at IS NULL;
 
-            UPDATE roster_weeks
-            SET is_live = TRUE, updated_at = NOW()
-            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
-              AND week_offset = 0;
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
+                'a1000000-0000-0000-0000-000000000001',
+                'a1000000-0000-0000-0000-000000000211',
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + day_index,
+                'published', FALSE, 2
+            FROM generate_series(0, 6) AS day_index
+            ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'published';
 
             INSERT INTO roster_slots (
                 id,
                 roster_day_id,
                 staff_id,
                 assignment_state,
-                roster_week_slot_definition_id,
+                roster_lane_id,
                 slot_sort_order,
                 row_index,
                 starts_at,
@@ -321,43 +325,41 @@ test.describe('Live fragment multi-view coverage', () => {
                 roster_days.id,
                 staff.id,
                 'staff',
-                roster_week_slot_definitions.id,
+                roster_lanes.id,
                 0,
                 10,
-                ((venue_config.week_offset_epoch + (roster_weeks.week_offset * 7) + roster_days.day_offset) + TIME '06:15') AT TIME ZONE venue_config.timezone,
-                ((venue_config.week_offset_epoch + (roster_weeks.week_offset * 7) + roster_days.day_offset) + TIME '07:15') AT TIME ZONE venue_config.timezone,
+                (roster_days.operational_date + TIME '06:15') AT TIME ZONE venue_config.timezone,
+                (roster_days.operational_date + TIME '07:15') AT TIME ZONE venue_config.timezone,
                 venue_config.timezone,
                 shift_types.id,
                 NULL,
                 NULL
-            FROM roster_weeks
-            JOIN roster_days
-              ON roster_days.roster_week_id = roster_weeks.id
-             AND roster_days.day_offset = 0
+            FROM roster_days
             JOIN venue_config
-              ON venue_config.venue_id = roster_weeks.venue_id
-            JOIN roster_week_slot_definitions
-              ON roster_week_slot_definitions.roster_week_id = roster_weeks.id
-             AND roster_week_slot_definitions.deleted_at IS NULL
+              ON venue_config.venue_id = roster_days.venue_id
+            JOIN roster_lanes
+              ON roster_lanes.roster_day_id = roster_days.id
+             AND roster_lanes.deleted_at IS NULL
             JOIN users
               ON users.email = '${workerCreds.email}'
             JOIN staff
-              ON staff.venue_id = roster_weeks.venue_id
+              ON staff.venue_id = roster_days.venue_id
              AND staff.user_id = users.id
              AND staff.is_active = TRUE
             JOIN shift_types
-              ON shift_types.venue_id = roster_weeks.venue_id
+              ON shift_types.venue_id = roster_days.venue_id
              AND shift_types.is_active = TRUE
              AND shift_types.archived_at IS NULL
-            WHERE roster_weeks.venue_id = 'a1000000-0000-0000-0000-000000000001'
-              AND roster_weeks.week_offset = 0
-            ORDER BY roster_week_slot_definitions.sort_order, shift_types.created_at
+            WHERE roster_days.venue_id = 'a1000000-0000-0000-0000-000000000001'
+              AND roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+              AND roster_days.operational_date = CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)
+            ORDER BY roster_lanes.sort_order, shift_types.created_at
             LIMIT 1
             ON CONFLICT (id) DO UPDATE SET
                 roster_day_id = EXCLUDED.roster_day_id,
                 staff_id = EXCLUDED.staff_id,
                 assignment_state = EXCLUDED.assignment_state,
-                roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
+                roster_lane_id = EXCLUDED.roster_lane_id,
                 row_index = EXCLUDED.row_index,
                 starts_at = EXCLUDED.starts_at,
                 ends_at = EXCLUDED.ends_at,
@@ -436,8 +438,8 @@ test.describe('Live fragment multi-view coverage', () => {
 
             await createTimesheet(workerPage, '11:15', '15:15', managerApprovalEntryMarker);
 
-            const managerEntry = managerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
-            const workerEntry = workerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
+            const managerEntry = managerPage.locator('[data-timesheet-operational-date]').first().locator('.timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
+            const workerEntry = workerPage.locator('[data-timesheet-operational-date]').first().locator('.timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
 
             await expect(managerEntry).toHaveCount(1);
             await expect(managerEntry).toContainText(renderedRange);
@@ -472,18 +474,19 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(rosterPage, e2eRosterPath, '#roster-staff-self-service-timesheet-live-surface');
         await gotoWhenReady(timesheetPage, '/Timesheets', '#timesheet-week-shell');
 
-        const rosterDay = rosterPage.locator('#roster-staff-self-service-timesheet-live-surface [data-timesheet-day-offset]').first();
-        const dayOffset = await rosterDay.getAttribute('data-timesheet-day-offset');
-        expect(dayOffset).toBeTruthy();
+        const rosterDay = rosterPage.locator('#roster-staff-self-service-timesheet-live-surface [data-timesheet-operational-date]').first();
+        const operationalDate = await rosterDay.getAttribute('data-timesheet-operational-date');
+        expect(operationalDate).toBeTruthy();
 
-        await createTimesheetForDaySection(rosterPage, dayOffset!, '13:15', '16:15');
+        await createTimesheetForDaySection(rosterPage, operationalDate!, '13:15', '16:15');
 
         await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(rosterCreatedRange);
-        await expect(timesheetPage.locator(`#timesheet-day-section-${dayOffset}`)).toContainText(rosterCreatedRange, { timeout: E2E_TIMEOUT.liveUpdate });
+        const timesheetDay = timesheetPage.locator(`[data-timesheet-operational-date="${operationalDate}"]`);
+        await expect(timesheetDay).toContainText(rosterCreatedRange, { timeout: E2E_TIMEOUT.liveUpdate });
 
-        await createTimesheetForDaySection(timesheetPage, dayOffset!, '16:30', '19:30');
+        await createTimesheetForDaySection(timesheetPage, operationalDate!, '16:30', '19:30');
 
-        await expect(timesheetPage.locator(`#timesheet-day-section-${dayOffset}`)).toContainText(timesheetCreatedRange);
+        await expect(timesheetDay).toContainText(timesheetCreatedRange);
         await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(rosterCreatedRange);
 
         await rosterContext.close();

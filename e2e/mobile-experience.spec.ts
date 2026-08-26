@@ -44,18 +44,18 @@ test.describe('Mobile experience smoke', () => {
         await expectNoHorizontalViewportOverflow(page);
 
         await userSwitcher.selectOption({ label: 'Alpha — Worker' });
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Alpha — Worker');
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Alpha — Worker');
-        await expect(page.getByRole('link', { name: 'Support', exact: true })).toBeVisible();
+        await expect(page.locator('a[href="/Support"]:visible')).toHaveCount(1);
         await expectNoHorizontalViewportOverflow(page);
 
         await page.locator('#support-impersonation-user-mobile').selectOption({ label: 'Super admin' });
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Super admin');
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Super admin');
         await expectNoHorizontalViewportOverflow(page);
     });
 
@@ -159,7 +159,7 @@ test.describe('Mobile experience smoke', () => {
         } else {
             await page.getByRole('link', { name: 'timesheets' }).click();
         }
-        await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
     });
 
@@ -230,7 +230,7 @@ test.describe('Mobile experience smoke', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
-        await expect(page.locator('#timesheet-day-section-0')).toBeVisible();
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toBeVisible();
         await expectContainerToManageHorizontalOverflow(page, '.timesheet-week-frame');
         await expectNoHorizontalViewportOverflow(page);
 
@@ -247,7 +247,7 @@ test.describe('Mobile experience smoke', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
-        await expect(page.locator('#timesheet-day-section-0')).toBeVisible();
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toBeVisible();
 
         const snapMetrics = await page.locator('.timesheet-week-frame').first().evaluate(async (frame) => {
             if (!(frame instanceof HTMLElement)) {
@@ -316,7 +316,7 @@ test.describe('Mobile experience smoke', () => {
         expect(Math.abs(snapMetrics.actualScrollLeft - snapMetrics.expectedScrollLeft)).toBeLessThanOrEqual(2);
         expect(Math.abs(snapMetrics.nearestCenterOffset)).toBeLessThanOrEqual(2);
 
-        const centeredDayAddBar = page.locator('#timesheet-day-section-1 [data-timesheet-day-add="true"]');
+        const centeredDayAddBar = page.locator('[data-timesheet-operational-date]').nth(1).locator('[data-timesheet-day-add="true"]');
         await expect(centeredDayAddBar).toBeVisible();
         await centeredDayAddBar.click();
         await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
@@ -328,7 +328,7 @@ test.describe('Mobile experience smoke', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
-        await expect(page.locator('#timesheet-day-section-0')).toBeVisible();
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toBeVisible();
 
         const snapMetrics = await page.locator('.timesheet-week-frame').first().evaluate(async (frame) => {
             if (!(frame instanceof HTMLElement)) {
@@ -500,8 +500,13 @@ test.describe('Mobile experience smoke', () => {
         expect(Math.abs(afterFilterScroll - beforeFilterScroll)).toBeLessThanOrEqual(2);
 
         const beforeWeekScroll = await setScroll();
+        const previousAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
         await page.locator('.app-week-nav-group').getByRole('link', { name: '>' }).click();
-        await expect(page).toHaveURL(/weekOffset=1/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL((url) =>
+            url.pathname === '/ShowTimesheetWindow'
+            && url.searchParams.has('anchorDate')
+            && url.searchParams.get('anchorDate') !== previousAnchorDate,
+        { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-day-columns')).toBeVisible();
         const afterWeekScroll = await readScroll();
         expect(Math.abs(afterWeekScroll - beforeWeekScroll)).toBeLessThanOrEqual(2);
@@ -517,9 +522,9 @@ test.describe('Mobile experience smoke', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const showApproved = page.locator('label', { hasText: 'Show approved' });
-        if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
-            await showApproved.click();
+        const hideApproved = page.getByRole('checkbox', { name: 'Hide approved' });
+        if (await hideApproved.isChecked()) {
+            await hideApproved.locator('..').click();
         }
 
         const approvedEntry = page.locator('[data-timesheet-entry-approved="true"]').first();

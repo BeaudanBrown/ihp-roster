@@ -45,6 +45,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.LoginSupport.Middleware (initAuthentication)
+import qualified IHP.Log as Log
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
@@ -249,7 +250,28 @@ setTestDurationMinutes (Just minutes) slot =
 withDatabaseTestContext :: (MockContext WebApplication -> IO a) -> IO a
 withDatabaseTestContext action = do
     setEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH" "true"
-    withMockContext WebApplication config action
+    withMockContext WebApplication databaseTestConfig action
+
+-- Routine database suites suppress per-query Debug output. Focused diagnosis can
+-- restore the normal Development logger without replacing explicit test-local
+-- capture loggers installed on a ModelContext.
+databaseTestConfig :: ConfigBuilder
+databaseTestConfig = do
+    detailedSql <- configIO ((== Just "1") <$> lookupEnv "HSPEC_SQL_LOG")
+    logger <- configIO do
+        let Log.LoggerSettings
+                { Log.formatter = defaultFormatter
+                , Log.destination = defaultDestination
+                , Log.timeFormat = defaultTimeFormat
+                } = def
+        Log.newLogger Log.LoggerSettings
+            { Log.level = if detailedSql then Log.Debug else Log.Warn
+            , Log.formatter = defaultFormatter
+            , Log.destination = defaultDestination
+            , Log.timeFormat = defaultTimeFormat
+            }
+    option logger
+    config
 
 withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
 withPrivilegedStrongAuthentication enabled action =
@@ -428,14 +450,74 @@ fetchSlotNameRecordForRosterGroup rosterGroup slotName =
         |> filterWhere (#name, slotName)
         |> fetchOne
 
-createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecord = ApplicationFixture.createRosterWeekRecord
+data TestRosterWindow = TestRosterWindow
+    { fixtureVenueId           :: !UUID
+    , fixtureRosterGroupId     :: !UUID
+    , fixtureWindowStart       :: !Day
+    , fixtureWindowIsPublished :: !Bool
+    }
+    deriving (Eq, Show)
 
-createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecordForRosterGroup = ApplicationFixture.createRosterWeekRecordForRosterGroup
+fromApplicationRosterWindow :: ApplicationFixture.FixtureRosterWindow -> TestRosterWindow
+fromApplicationRosterWindow rosterWindow = TestRosterWindow
+    { fixtureVenueId = rosterWindow.fixtureVenueId
+    , fixtureRosterGroupId = rosterWindow.fixtureRosterGroupId
+    , fixtureWindowStart = rosterWindow.fixtureWindowStart
+    , fixtureWindowIsPublished = rosterWindow.fixtureWindowIsPublished
+    }
 
-createRosterDayRecord :: (?modelContext :: ModelContext) => RosterWeek -> Int -> IO RosterDay
-createRosterDayRecord = ApplicationFixture.createRosterDayRecord
+toApplicationRosterWindow :: TestRosterWindow -> ApplicationFixture.FixtureRosterWindow
+toApplicationRosterWindow rosterWindow = ApplicationFixture.FixtureRosterWindow
+    { fixtureVenueId = rosterWindow.fixtureVenueId
+    , fixtureRosterGroupId = rosterWindow.fixtureRosterGroupId
+    , fixtureWindowStart = rosterWindow.fixtureWindowStart
+    , fixtureWindowIsPublished = rosterWindow.fixtureWindowIsPublished
+    }
+
+createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Bool -> IO TestRosterWindow
+createRosterWeekRecord venue windowIndex isPublished = do
+    rosterWeek <- fromApplicationRosterWindow <$> ApplicationFixture.createRosterWeekRecord venue (testAnchorForOffset windowIndex) isPublished
+    when isPublished (void (mapM (ApplicationFixture.createRosterDayRecord (toApplicationRosterWindow rosterWeek)) [0 .. 6]))
+    pure rosterWeek
+
+createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Int -> Bool -> IO TestRosterWindow
+createRosterWeekRecordForRosterGroup venue rosterGroup windowIndex isPublished =
+    createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset windowIndex) isPublished
+
+createRosterWindowRecordForRosterGroupAt :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Bool -> IO TestRosterWindow
+createRosterWindowRecordForRosterGroupAt venue rosterGroup windowStart isPublished = do
+    rosterWindow <- fromApplicationRosterWindow <$> ApplicationFixture.createRosterWeekRecordForRosterGroup venue rosterGroup windowStart isPublished
+    when isPublished (void (mapM (ApplicationFixture.createRosterDayRecord (toApplicationRosterWindow rosterWindow)) [0 .. 6]))
+    pure rosterWindow
+
+fetchTestRosterWindowDays :: (?modelContext :: ModelContext) => TestRosterWindow -> IO [RosterDay]
+fetchTestRosterWindowDays rosterWindow =
+    query @RosterDay
+        |> filterWhere (#venueId, rosterWindow.fixtureVenueId)
+        |> filterWhere (#rosterGroupId, rosterWindow.fixtureRosterGroupId)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, rosterWindow.fixtureWindowStart)
+        |> filterWhereLessThan (#operationalDate, addDays 7 rosterWindow.fixtureWindowStart)
+        |> orderByAsc #operationalDate
+        |> fetch
+
+createRosterDayRecord :: (?modelContext :: ModelContext) => TestRosterWindow -> Int -> IO RosterDay
+createRosterDayRecord rosterWindow dayIndex = do
+    let operationalDate = addDays (toInteger dayIndex) rosterWindow.fixtureWindowStart
+    existing <- query @RosterDay
+        |> filterWhere (#venueId, rosterWindow.fixtureVenueId)
+        |> filterWhere (#rosterGroupId, rosterWindow.fixtureRosterGroupId)
+        |> filterWhere (#operationalDate, operationalDate)
+        |> fetchOneOrNothing
+    maybe (ApplicationFixture.createRosterDayRecord (toApplicationRosterWindow rosterWindow) dayIndex) pure existing
+
+createNativeRosterDayRecord :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Int -> IO RosterDay
+createNativeRosterDayRecord venue rosterGroup operationalDate _dayIndex =
+    newRecord @RosterDay
+        |> set #venueId (unpackId venue.id)
+        |> set #rosterGroupId (unpackId rosterGroup.id)
+        |> set #operationalDate operationalDate
+        |> set #publicationState Draft
+        |> createRecord
 
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Maybe Staff -> Int -> IO RosterSlot
 createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =
@@ -443,18 +525,25 @@ createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =
   where
     assignment = maybe OpenAssignment (StaffAssignment . (.id)) maybeStaff
 
+fetchRosterLaneForDefinition :: (?modelContext :: ModelContext) => RosterDay -> RosterLane -> IO RosterLane
+fetchRosterLaneForDefinition rosterDay rosterLane =
+    query @RosterLane
+        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+        |> filterWhere (#name, rosterLane.name)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchOne
+
 createCompleteRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Staff -> Int -> IO RosterSlot
 createCompleteRosterSlotRecord rosterDay slotName staff rowIndex = do
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
-    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
+    venue <- fetch (Id rosterDay.venueId :: Id Venue)
     shiftType <- ensureVenueDefaultShiftType venue
     createRosterSlotRecord rosterDay slotName (Just staff) rowIndex
         >>= updateRecord
             . set #shiftTypeId (Just (unpackId shiftType.id))
             . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
 
-ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition
-ensureRosterWeekSlotDefinitionForSlotName = ApplicationFixture.ensureRosterWeekSlotDefinitionForSlotName
+ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterLane
+ensureRosterWeekSlotDefinitionForSlotName = ApplicationFixture.ensureRosterLaneForSlotName
 
 createTimesheetEntryRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> IO TimesheetEntry
 createTimesheetEntryRecord venue staff workedOn =
@@ -516,6 +605,7 @@ createApprovedTimesheetEntryRecordAtWithShiftTimes venue staff approver shiftTyp
         |> set #venueId (unpackId venue.id)
         |> set #staffId (unpackId staff.id)
         |> set #shiftTypeId (unpackId shiftType.id)
+        |> set #operationalDate workedOn
         |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
@@ -660,6 +750,35 @@ withRequestHeaders headers callback = do
 
 defaultWeekEpoch :: Day
 defaultWeekEpoch = ApplicationFixture.defaultWeekEpoch
+
+testAnchorForOffset :: Int -> Day
+testAnchorForOffset windowIndex = addDays (toInteger (windowIndex * 7)) defaultWeekEpoch
+
+testWindowIndexForDay :: Day -> Int
+testWindowIndexForDay day = fromInteger (diffDays day defaultWeekEpoch `div` 7)
+
+rosterCopyParams :: Int -> Int -> [(ByteString.ByteString, ByteString.ByteString)]
+rosterCopyParams sourceOffset targetOffset =
+    [ ("sourceAnchorDate", cs (show (testAnchorForOffset sourceOffset)))
+    , ("targetAnchorDate", cs (show (testAnchorForOffset targetOffset)))
+    , ("rosterCalendarRevision", "1")
+    ]
+
+rosterNotificationParams :: TestRosterWindow -> [(ByteString.ByteString, ByteString.ByteString)]
+rosterNotificationParams rosterWeek =
+    [ ("rosterGroupId", cs (show rosterWeek.fixtureRosterGroupId))
+    , ("windowStartDate", cs (show windowStart))
+    , ("windowEndDate", cs (show (addDays 7 windowStart)))
+    , ("rosterCalendarRevision", "1")
+    ]
+  where
+    windowStart = rosterWeek.fixtureWindowStart
+
+rosterMutationParams :: Int -> [(ByteString.ByteString, ByteString.ByteString)]
+rosterMutationParams weekOffset =
+    [ ("anchorDate", cs (show (testAnchorForOffset weekOffset)))
+    , ("rosterCalendarRevision", "1")
+    ]
 
 testPassword :: Text
 testPassword = "test-password-123"

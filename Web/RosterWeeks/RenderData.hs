@@ -22,11 +22,11 @@ import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import qualified Application.RosterNotification as Notification
+import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterTemplates (RosterTemplateLibrary,
                                     currentRosterTemplateActor,
                                     fetchRosterTemplateLibrary,
                                     rosterTemplateActorUserId)
-import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Data.Coerce (coerce)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
@@ -36,11 +36,12 @@ import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities
+import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
+                                  rosterWindowScopeMatchesConfig)
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Rows
-import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.WageFilter (filterRosterWageSlots,
@@ -70,17 +71,17 @@ fetchRosterPublicHolidayMap venueConfig weekStartDate = do
             | holiday <- holidays
             ]
 
-renderVisibleRosterReadModelFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
-renderVisibleRosterReadModelFragment rosterGroupId weekOffset fragment =
+renderVisibleRosterReadModelFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
+renderVisibleRosterReadModelFragment scope fragment =
     profileActionSpan "roster.read_model.render_fragment" do
         case fragment of
             RosterProjectionContent -> do
                 rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchViewableRosterGroups
-                currentRosterGroupOrNothing <- profileActionSpan "roster.fragment.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
+                currentRosterGroupOrNothing <- profileActionSpan "roster.fragment.resolve_current_group" (fetchViewableRosterGroup scope.rosterWindowRosterGroupId)
                 accessDeniedUnless (isJust currentRosterGroupOrNothing)
-                rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                rosterData <- fetchVisibleRosterReadModel scope
                 Just <$> renderRosterContentFromProjection rosterGroups (fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing) rosterData
-            _ -> renderVisibleRosterFragment rosterGroupId weekOffset fragment
+            _ -> renderVisibleRosterFragment scope fragment
 
 renderRosterProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Blaze.Html
 renderRosterProjectionFragment =
@@ -120,7 +121,7 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
             projection <- maybeRosterData
             let visibleRosterWeek = visibleRosterWeekForCurrentUser projection.rosterWeek
             let viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
-            let gridModel = (rosterGridRenderModelFromProjection viewCapabilities projection) { gridViewMode = currentRosterGridViewMode }
+            let gridModel = (rosterGridRenderModelFromProjection viewCapabilities projection) { gridViewMode = currentRosterGridViewMode projection.weekStartDate }
             pure $ case renderMode of
                 FragmentPlain        -> plainRenderer gridModel
                 FragmentOob swapAttr -> swapRenderer swapAttr gridModel
@@ -180,11 +181,11 @@ rosterGridRenderModelFromProjection viewCapabilities projection@RosterRenderData
     rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities RosterWeekGridView projection
 
 rosterGridRenderModelFromProjectionWithGroups :: (?context :: ControllerContext) => [RosterGroup] -> RosterGroup -> RosterViewCapabilities -> RosterGridViewMode -> RosterRenderData -> RosterGridRenderModel
-rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities gridViewMode RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } =
+rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities gridViewMode RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } =
     RosterGridRenderModel
         { gridRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
         , gridRosterDays = rosterDays
-        , gridWeekOffset = rosterWeek.weekOffset
+        , gridWindowScope = rosterWindowScope
         , gridRosterGroups = rosterGroups
         , gridCurrentRosterGroup = currentRosterGroup
         , gridAssignmentFilters = assignmentFilters
@@ -197,6 +198,7 @@ rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup vi
         , gridSlotNames = orderedSlotNames
         , gridShiftTypes = shiftTypes
         , gridWeekStartDate = weekStartDate
+        , gridRosterCalendarRevision = rosterCalendarRevision
         , gridAllSlots = allSlots
         , gridSlotConflicts = slotConflicts
         , gridRenderIndexes = renderIndexes
@@ -216,30 +218,35 @@ rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup vi
         , gridTimelineTodayUrl = Nothing
         }
 
-currentRosterGridViewMode :: (?request :: Request) => RosterGridViewMode
-currentRosterGridViewMode =
-    case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
-        (Just "timeline", Just dayOffset) -> RosterDayTimelineGridView (max 0 (min 6 dayOffset))
+currentRosterGridViewMode :: (?request :: Request) => Calendar.Day -> RosterGridViewMode
+currentRosterGridViewMode windowStart =
+    case (paramOrNothing @Text "rosterView", paramOrNothing @Calendar.Day "dayDate", paramOrNothing @Int "dayOffset") of
+        (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (Calendar.diffDays dayDate windowStart)))
+        (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset)
         _ -> RosterWeekGridView
+  where
+    clampDayOffset = max 0 . min 6
 
-visibleRosterWeekForCurrentUser :: (?context :: ControllerContext) => RosterWeek -> Maybe RosterWeek
-visibleRosterWeekForCurrentUser rosterWeek
-    | rosterWeek.isLive || hasRole Manager = Just rosterWeek
-    | otherwise = Nothing
+visibleRosterWeekForCurrentUser :: (?context :: ControllerContext) => Maybe RosterWindowState -> Maybe RosterWindowState
+visibleRosterWeekForCurrentUser (Just rosterWeek)
+    | rosterWeek.windowIsPublished || hasRole Manager = Just rosterWeek
+visibleRosterWeekForCurrentUser Nothing = Nothing
+visibleRosterWeekForCurrentUser _ = Nothing
 
-isHiddenDraftForCurrentUser :: (?context :: ControllerContext) => RosterWeek -> Bool
-isHiddenDraftForCurrentUser rosterWeek = isNothing (visibleRosterWeekForCurrentUser rosterWeek)
+isHiddenDraftForCurrentUser :: (?context :: ControllerContext) => Maybe RosterWindowState -> Bool
+isHiddenDraftForCurrentUser maybeRosterWeek =
+    not (hasRole Manager) && maybe True (not . (.windowIsPublished)) maybeRosterWeek
 
 rosterDayRenderModelFromProjection :: (?context :: ControllerContext) => RosterRenderData -> RosterDayRenderModel
-rosterDayRenderModelFromProjection RosterRenderData { rosterWeek, currentRosterGroup, weekStartDate, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } =
+rosterDayRenderModelFromProjection RosterRenderData { rosterWeek, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } =
     RosterDayRenderModel
-        { dayIsEditable = hasRole Manager && not rosterWeek.isLive
+        { dayIsEditable = hasRole Manager && maybe False (not . (.windowIsPublished)) rosterWeek
         , daySlotNames = orderedSlotNames
         , dayAssignmentFilters = assignmentFilters
         , dayStaffMembers = staffMembers
         , dayShiftTypes = shiftTypes
         , dayWeekStartDate = weekStartDate
-        , dayTimelineContext = Just (rosterWeek.weekOffset, currentRosterGroup.id)
+        , dayCalendarRevision = rosterCalendarRevision
         , dayAllSlots = allSlots
         , daySlotConflicts = slotConflicts
         , dayRenderIndexes = renderIndexes
@@ -263,11 +270,11 @@ renderRosterStaffPanelFromProjectionWithMode renderMode rosterData =
                     FragmentOob swapAttr -> renderrosterStaffPanelLiveFragmentWithSwap swapAttr panelModel
 
 rosterStaffPanelRenderModelFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterStaffPanelScope -> RosterRenderData -> RosterStaffPanelRenderModel
-rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, weekStartDate, assignmentFilters, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, rosterLayoutMode, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts } =
+rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, weekStartDate, rosterCalendarRevision, assignmentFilters, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, rosterLayoutMode, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts } =
     RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
-        , staffPanelWeekOffset = rosterWeek.weekOffset
         , staffPanelWeekStartDate = weekStartDate
+        , staffPanelCalendarRevision = rosterCalendarRevision
         , staffPanelRosterGroups = rosterGroups
         , staffPanelCurrentRosterGroup = currentRosterGroup
         , staffPanelAssignmentFilters = assignmentFilters
@@ -276,7 +283,7 @@ rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWe
         , staffPanelShowWageEstimates = showWageEstimates
         , staffPanelShowRosterWarnings = showRosterWarnings
         , staffPanelHighlightOwnLiveShifts = highlightOwnLiveShifts
-        , staffPanelViewMode = currentRosterGridViewMode
+        , staffPanelViewMode = currentRosterGridViewMode weekStartDate
         , staffPanelScope = panelScope
         , staffPanelEntries = panelStaff
         , staffPanelTemplateLibrary = templateLibrary
@@ -285,74 +292,45 @@ rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWe
         }
 
 renderRequestedRowFragmentFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterRenderData -> UUID.UUID -> Int -> Maybe Blaze.Html
-renderRequestedRowFragmentFromProjectionWithMode renderMode RosterRenderData { rosterWeek, weekStartDate, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } rosterDayId rowIndex =
+renderRequestedRowFragmentFromProjectionWithMode renderMode RosterRenderData { rosterWeek, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } rosterDayId rowIndex =
     case renderMode of
-        FragmentPlain -> renderRequestedRowFragment (hasRole Manager && not rosterWeek.isLive) weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayId, rowIndex)
-        FragmentOob _ -> renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayId, rowIndex)
+        FragmentPlain -> renderRequestedRowFragment (hasRole Manager && maybe False (not . (.windowIsPublished)) rosterWeek) weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayId, rowIndex)
+        FragmentOob _ -> renderRequestedRow weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayId, rowIndex)
 
 renderRequestedDaySectionFragmentFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterRenderData -> UUID.UUID -> Maybe Blaze.Html
-renderRequestedDaySectionFragmentFromProjectionWithMode renderMode RosterRenderData { rosterWeek, weekStartDate, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } rosterDayId =
+renderRequestedDaySectionFragmentFromProjectionWithMode renderMode RosterRenderData { rosterWeek, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } rosterDayId =
     case renderMode of
-        FragmentPlain -> renderRequestedDaySectionFragment (hasRole Manager && not rosterWeek.isLive) weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayId
-        FragmentOob _ -> renderRequestedDaySection weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayId
+        FragmentPlain -> renderRequestedDaySectionFragment (hasRole Manager && maybe False (not . (.windowIsPublished)) rosterWeek) weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayId
+        FragmentOob _ -> renderRequestedDaySection weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayId
 
-fetchVisibleRosterReadModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
-fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster.read_model.fetch_visible" do
-    currentRosterGroupOrNothing <- profileActionSpan "roster.direct.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
-    accessDeniedUnless (isJust currentRosterGroupOrNothing)
-    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
-    visibleRosterWeek <- profileActionSpan "roster.direct.fetch_visible_week" (fetchVisibleRosterWeek rosterGroupId weekOffset)
-    rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchViewableRosterGroups
-    (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
-    highlightOwnLiveShifts <- fetchCurrentUserHighlightOwnLiveShifts
-    let currentViewerStaffKey = Nothing
-    case visibleRosterWeek of
-        Nothing -> do
-            (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, maskedSlots) <- fetchHiddenRosterRenderData rosterGroupId weekOffset
-            rosterLayoutMode <- fetchCurrentRosterLayoutMode
-            userShowWageEstimates <- fetchCurrentUserShowWageEstimates
-            showRosterWarnings <- fetchCurrentUserShowRosterWarnings
-            venueConfig <- fetchVenueConfig
-            let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
-            rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffset highlightOwnLiveShifts)
-            let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
-            pure $
-                Just
-                    RosterRenderData
-                        { rosterWeek = backingRosterWeek
-                        , rosterGroups = rosterGroups
-                        , currentRosterGroup = currentRosterGroup
-                        , rosterDays
-                        , weekStartDate
-                        , assignmentFilters = defaultRosterAssignmentFilters
+fetchVisibleRosterReadModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterRenderData)
+fetchVisibleRosterReadModel scope = profileActionSpan "roster.read_model.fetch_visible" do
+    rosterGroupIsViewable <- isJust <$> fetchViewableRosterGroup scope.rosterWindowRosterGroupId
+    accessDeniedUnless rosterGroupIsViewable
+    visibleRosterWeek <- profileActionSpan "roster.direct.fetch_visible_week" (fetchVisibleRosterWeek scope)
+    rosterDataOrNothing <- fetchRosterRenderData scope
+    pure $ case (visibleRosterWeek, rosterDataOrNothing) of
+        (Nothing, Just rosterData) ->
+            let hiddenRenderIndexes = buildRosterRenderIndexes rosterData.rosterDays [] [] []
+             in Just
+                    rosterData
+                        { assignmentFilters = defaultRosterAssignmentFilters
                         , staffMembers = []
                         , panelStaff = []
-                        , templateLibrary
-                        , templateLibraryUserId
                         , rosterNotificationPanelData = Nothing
-                        , staffSelfServicePanel
-                        , orderedSlotNames
-                        , shiftTypes
-                        , allSlots = maskedSlots
+                        , allSlots = []
                         , slotConflicts = []
-                        , renderIndexes
-                        , rosterLayoutMode
-                        , rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled
-                        , rosterTimePickerStartMinute = venueConfig.timePickerStartMinuteOfDay
-                        , rosterTimePickerFinalSelectableMinute = venueConfig.timePickerFinalSelectableMinuteOfDay
+                        , renderIndexes = hiddenRenderIndexes
                         , rosterWagePrediction = Nothing
-                        , showWageEstimates
-                        , showRosterWarnings
-                        , highlightOwnLiveShifts
-                        , currentViewerStaffKey
-                        , rosterPublicHolidays
+                        , currentViewerStaffKey = Nothing
                         }
-        Just _  -> fetchRosterRenderData rosterGroupId weekOffset
+        _ -> rosterDataOrNothing
 
-fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
-fetchRosterRenderData rosterGroupId weekOffset = do
+fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterRenderData)
+fetchRosterRenderData scope = do
     venueConfig <- profileActionSpan "roster.direct.fetch_venue_config" fetchVenueConfig
+    accessDeniedUnless (rosterWindowScopeMatchesConfig venueConfig scope)
+    let rosterGroupId = scope.rosterWindowRosterGroupId
     rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchViewableRosterGroups
     currentRosterGroupOrNothing <- profileActionSpan "roster.direct.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
@@ -364,11 +342,11 @@ fetchRosterRenderData rosterGroupId weekOffset = do
     highlightOwnLiveShifts <- profileActionSpan "roster.direct.fetch_own_highlight_preference" fetchCurrentUserHighlightOwnLiveShifts
     maybeCurrentViewerStaff <- profileActionSpan "roster.direct.fetch_current_staff" fetchCurrentUserStaff
     let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
+    let weekStartDate = scope.rosterWindowStart
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
     rosterPublicHolidays <- profileActionSpan "roster.direct.fetch_public_holidays" (fetchRosterPublicHolidayMap venueConfig weekStartDate)
 
-    baseFactsOrNothing <- profileActionSpan "roster.direct.fetch_base_facts" (fetchRosterBaseFactsDirect rosterGroupId weekOffset)
+    baseFactsOrNothing <- profileActionSpan "roster.direct.fetch_base_facts" (fetchRosterBaseFactsDirect scope)
     case baseFactsOrNothing of
         Nothing -> pure Nothing
         Just RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, basePanelStaff = panelStaffMembers, baseStaffMembers = staffMembers } -> do
@@ -381,27 +359,30 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                                 Just ("staff:" <> tshow staff.id)
                         _ -> Nothing
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries panelStaffMembers visibleSlots)
-            notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup (Just rosterWeek)
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffset highlightOwnLiveShifts)
+            notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate rosterDays
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLiveShifts)
             slotConflicts <-
-                if rosterWeek.isLive
+                if maybe False (.windowIsPublished) rosterWeek
                     then pure []
                     else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsDirect rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate visibleSlots)
             let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
             let wageSlots = filterRosterWageSlots (pinnedRosterWageStaffId showWageEstimates panelStaffMembers) visibleSlots
             rosterWagePrediction <-
                 if showWageEstimates
-                    then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePrediction venueConfig rosterWeek rosterDays wageSlots)
+                    then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePredictionForWindow venueConfig rosterDays wageSlots)
                     else pure Nothing
-            pure (Just RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterTimePickerStartMinute = venueConfig.timePickerStartMinuteOfDay, rosterTimePickerFinalSelectableMinute = venueConfig.timePickerFinalSelectableMinuteOfDay, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays })
+            let rosterCalendarRevision = venueConfig.rosterCalendarRevision
+            pure (Just RosterRenderData { rosterWeek, rosterWindowScope = scope, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterTimePickerStartMinute = venueConfig.timePickerStartMinuteOfDay, rosterTimePickerFinalSelectableMinute = venueConfig.timePickerFinalSelectableMinuteOfDay, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays })
 
-fetchRosterPanelNotificationData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> Maybe RosterWeek -> IO (Maybe Notification.RosterNotificationPanelData)
-fetchRosterPanelNotificationData rosterGroup (Just rosterWeek)
-    | hasRole Manager && rosterWeek.isLive = do
+fetchRosterPanelNotificationData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> Day -> [RosterDay] -> IO (Maybe Notification.RosterNotificationPanelData)
+fetchRosterPanelNotificationData rosterGroup windowStart rosterDays
+    | hasRole Manager
+    , map (.operationalDate) rosterDays == map (`Calendar.addDays` windowStart) [0 .. 6]
+    , rosterDaysArePublished rosterDays = do
         panelNotificationAudience <- Notification.fetchRosterNotificationAudience currentVenue rosterGroup
-        panelLatestNotificationRun <- Notification.fetchLatestRosterNotificationRunSummary rosterWeek
+        panelLatestNotificationRun <- Notification.fetchLatestRosterNotificationRunSummaryForWindow currentVenueId rosterGroup.id windowStart (Calendar.addDays 7 windowStart)
         pure (Just Notification.RosterNotificationPanelData { .. })
-fetchRosterPanelNotificationData _ _ = pure Nothing
+fetchRosterPanelNotificationData _ _ _ = pure Nothing
 
 -- Templates are intentionally hidden from the Roster side panel for the next release.
 -- Keep the implementation and routes intact so the feature can be re-enabled later.
@@ -417,8 +398,8 @@ fetchRosterPanelTemplateLibrary rosterGroup
         library <- fetchRosterTemplateLibrary actor rosterGroup
         pure (rosterTemplateActorUserId actor <$ library, library)
 
-fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> [RosterGroup] -> Id RosterGroup -> Int -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
-fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffset highlightOwnLiveShifts
+fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> [RosterGroup] -> RosterWindowScope -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
+fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLiveShifts
     | hasRole Manager = pure Nothing
     | currentUserIsUnimpersonatedSuperAdmin = pure Nothing
     | otherwise = do
@@ -427,15 +408,12 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffs
             Nothing -> pure Nothing
             Just staff -> do
                 operationalDay <- currentOperationalDayForVenue venueConfig
-                let timesheetWeekOffset = venueWeekOffsetForDay venueConfig operationalDay
-                let timesheetWeekStartDate = venueWeekStartDate venueConfig timesheetWeekOffset
-                let (dayStartsAt, dayEndsAt) = requireMelbourneDateRangeUTC operationalDay operationalDay
+                let timesheetWeekStartDate = startOfWeekFor venueConfig.rosterWeekStartsOn operationalDay
                 quickToolsTimesheetEntries <-
                     query @TimesheetEntry
                         |> filterWhere (#venueId, unpackId currentVenueId)
                         |> filterWhere (#staffId, unpackId staff.id)
-                        |> filterWhereGreaterThanOrEqualTo (#startsAt, dayStartsAt)
-                        |> filterWhereLessThan (#startsAt, dayEndsAt)
+                        |> filterWhere (#operationalDate, operationalDay)
                         |> filterWhere (#deletedAt, Nothing)
                         |> orderByAsc #startsAt
                         |> fetch
@@ -446,34 +424,27 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffs
                         RosterStaffSelfServicePanel
                             { quickToolsLeaveRequest
                             , quickToolsVenueId = currentVenueId
-                            , quickToolsRosterGroupId = rosterGroupId
+                            , quickToolsRosterGroupId = scope.rosterWindowRosterGroupId
                             , quickToolsRosterGroups = rosterGroups
-                            , quickToolsRosterWeekOffset = weekOffset
+                            , quickToolsRosterWeekStartDate = scope.rosterWindowStart
                             , quickToolsTimesheetEntries
                             , quickToolsStaffMembers = [staff]
                             , quickToolsShiftTypes
                             , quickToolsOperationalDay = operationalDay
-                            , quickToolsTimesheetWeekOffset = timesheetWeekOffset
                             , quickToolsTimesheetWeekStartDate = timesheetWeekStartDate
+                            , quickToolsCalendarRevision = venueConfig.rosterCalendarRevision
                             , quickToolsTimesheetEditWindowDays = venueConfig.staffTimesheetEditWindowDays
                             , quickToolsHighlightOwnLiveShifts = highlightOwnLiveShifts
                             }
 
-fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterWeek)
-fetchVisibleRosterWeek rosterGroupId weekOffset = do
-    rosterGroupIsViewable <- isJust <$> fetchViewableRosterGroup rosterGroupId
+fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterWindowState)
+fetchVisibleRosterWeek scope = do
+    rosterGroupIsViewable <- isJust <$> fetchViewableRosterGroup scope.rosterWindowRosterGroupId
     accessDeniedUnless rosterGroupIsViewable
-    _ <- profileActionSpan "roster.visible_week.ensure_exists" (ensureRosterWeekExists rosterGroupId weekOffset)
-    rosterWeekOrNothing <-
-        profileActionSpan "roster.visible_week.fetch" do
-            query @RosterWeek
-                |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-                |> filterWhere (#weekOffset, weekOffset)
-                |> fetchOneOrNothing
-
+    baseFacts <- profileActionSpan "roster.visible_window.fetch" (fetchRosterBaseFactsDirect scope)
     pure $
-        case rosterWeekOrNothing of
-            Just rosterWeek | get #isLive rosterWeek || hasRole Manager -> Just rosterWeek
+        case baseFacts >>= (.baseRosterWeek) of
+            Just rosterWeek | rosterWeek.windowIsPublished || hasRole Manager -> Just rosterWeek
             _ -> Nothing
 
 buildRosterRenderIndexes :: [RosterDay] -> [RosterSlot] -> [Staff] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes
@@ -493,88 +464,89 @@ buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts =
                 ]
         , rosterSlotByDayRowSlotName =
             Map.fromList
-                [ ((slot.rosterDayId, slot.rowIndex, slot.rosterWeekSlotDefinitionId), slot)
+                [ ((slot.rosterDayId, slot.rowIndex, slot.rosterLaneId), slot)
                 | slot <- visibleSlots
                 ]
         , rosterStaffById = Map.fromList [(coerce (get #id staff), staff) | staff <- staffMembers]
         , rosterConflictsBySlotId = Map.fromList [(coerce slotId, conflicts) | (slotId, conflicts) <- slotConflicts]
         }
 
-renderVisibleRosterFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
-renderVisibleRosterFragment rosterGroupId weekOffset fragment = do
-    visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
+renderVisibleRosterFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
+renderVisibleRosterFragment scope fragment = do
+    visibleRosterWeek <- fetchVisibleRosterWeek scope
     case visibleRosterWeek of
         Nothing -> do
-            rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+            rosterData <- fetchVisibleRosterReadModel scope
             pure (renderRosterProjectionFragment rosterData fragment)
         Just rosterWeek ->
             case fragment of
                 RosterProjectionStaffPanel -> do
-                    panelModel <- fetchVisibleRosterStaffPanelRenderModel RosterStaffPanelCurrentGroup rosterGroupId weekOffset
+                    panelModel <- fetchVisibleRosterStaffPanelRenderModel RosterStaffPanelCurrentGroup scope
                     pure (Just (renderrosterStaffPanelLiveFragment panelModel))
                 RosterProjectionContent -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                    rosterData <- fetchVisibleRosterReadModel scope
                     case rosterData of
                         Nothing -> pure Nothing
                         Just projection -> Just <$> renderRosterContentFromProjection projection.rosterGroups projection.currentRosterGroup rosterData
                 RosterProjectionGridToolbar -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                    rosterData <- fetchVisibleRosterReadModel scope
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionGridFrame -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                    rosterData <- fetchVisibleRosterReadModel scope
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionDayColumns -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                    rosterData <- fetchVisibleRosterReadModel scope
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionDayRail -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                    rosterData <- fetchVisibleRosterReadModel scope
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionWageRail -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                    rosterData <- fetchVisibleRosterReadModel scope
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionSlotsGrid -> do
-                    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+                    rosterData <- fetchVisibleRosterReadModel scope
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionRow rosterDayUuid rowIndex -> do
-                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers } <- fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek
+                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers } <- fromMaybe (error "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
                     venueConfig <- fetchVenueConfig
                     assignmentFilters <- fetchRosterAssignmentFilters
                     rosterLayoutMode <- fetchCurrentRosterLayoutMode
-                    let weekStartDate = venueWeekStartDate venueConfig weekOffset
+                    let weekStartDate = scope.rosterWindowStart
                     let targetSlots = filter (\slot -> slot.rosterDayId == rosterDayUuid && slot.rowIndex == rowIndex) visibleSlots
                     slotConflicts <-
-                        if rosterWeek.isLive
+                        if rosterWeek.windowIsPublished
                             then pure []
-                            else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsForSlotsDirect rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate visibleSlots targetSlots)
+                            else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsForSlotsDirect scope.rosterWindowRosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate visibleSlots targetSlots)
                     let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
-                    pure (renderRequestedRowFragment (hasRole Manager && not rosterWeek.isLive) weekStartDate facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled (rosterDayUuid, rowIndex))
+                    pure (renderRequestedRowFragment (hasRole Manager && not rosterWeek.windowIsPublished) weekStartDate scope.rosterWindowCalendarRevision facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled (rosterDayUuid, rowIndex))
                 RosterProjectionDaySection rosterDayUuid -> do
-                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers, basePanelStaff = panelStaffMembers } <- fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek
+                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers, basePanelStaff = panelStaffMembers } <- fromMaybe (error "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
                     venueConfig <- fetchVenueConfig
                     assignmentFilters <- fetchRosterAssignmentFilters
                     rosterLayoutMode <- fetchCurrentRosterLayoutMode
                     userShowWageEstimates <- fetchCurrentUserShowWageEstimates
                     showRosterWarnings <- fetchCurrentUserShowRosterWarnings
                     let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
-                    let weekStartDate = venueWeekStartDate venueConfig weekOffset
+                    let weekStartDate = scope.rosterWindowStart
                     rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
                     let targetSlots = filter (\slot -> slot.rosterDayId == rosterDayUuid) visibleSlots
                     slotConflicts <-
-                        if rosterWeek.isLive
+                        if rosterWeek.windowIsPublished
                             then pure []
-                            else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsForSlotsDirect rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate visibleSlots targetSlots)
+                            else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsForSlotsDirect scope.rosterWindowRosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate visibleSlots targetSlots)
                     let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
                     let wageSlots = filterRosterWageSlots (pinnedRosterWageStaffId showWageEstimates panelStaffMembers) visibleSlots
                     rosterWagePrediction <-
                         if showWageEstimates
-                            then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePrediction venueConfig rosterWeek rosterDays wageSlots)
+                            then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePredictionForWindow venueConfig rosterDays wageSlots)
                             else pure Nothing
-                    pure (renderRequestedDaySectionFragment (hasRole Manager && not rosterWeek.isLive) weekStartDate facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes facts.baseAllSlots slotConflicts renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid)
+                    pure (renderRequestedDaySectionFragment (hasRole Manager && not rosterWeek.windowIsPublished) weekStartDate venueConfig.rosterCalendarRevision facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes facts.baseAllSlots slotConflicts renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid)
 
 
-fetchVisibleRosterStaffPanelRenderModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO RosterStaffPanelRenderModel
-fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
-    visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
+fetchVisibleRosterStaffPanelRenderModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> RosterWindowScope -> IO RosterStaffPanelRenderModel
+fetchVisibleRosterStaffPanelRenderModel panelScope scope = do
+    let rosterGroupId = scope.rosterWindowRosterGroupId
+    visibleRosterWeek <- fetchVisibleRosterWeek scope
     rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchViewableRosterGroups
     currentRosterGroupOrNothing <- profileActionSpan "roster.fragment.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
@@ -585,16 +557,21 @@ fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
     showRosterWarnings <- profileActionSpan "roster.fragment.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
     highlightOwnLiveShifts <- profileActionSpan "roster.fragment.fetch_own_highlight_preference" fetchCurrentUserHighlightOwnLiveShifts
     venueConfig <- profileActionSpan "roster.fragment.fetch_venue_config" fetchVenueConfig
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
+    let weekStartDate = scope.rosterWindowStart
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
-    panelStaff <- case visibleRosterWeek of
+    baseFacts <- fetchRosterBaseFactsDirect scope
+    panelStaff <- case baseFacts of
         Nothing -> pure []
-        Just rosterWeek -> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek)
-    notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup visibleRosterWeek
+        Just facts -> do
+            panelStaffMembers <- case panelScope of
+                RosterStaffPanelCurrentGroup -> pure facts.basePanelStaff
+                RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
+            profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers facts.baseVisibleSlots)
+    notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate (maybe [] (.baseRosterDays) baseFacts)
     pure RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeek
-        , staffPanelWeekOffset = weekOffset
         , staffPanelWeekStartDate = weekStartDate
+        , staffPanelCalendarRevision = venueConfig.rosterCalendarRevision
         , staffPanelRosterGroups = rosterGroups
         , staffPanelCurrentRosterGroup = currentRosterGroup
         , staffPanelAssignmentFilters = assignmentFilters
@@ -603,7 +580,7 @@ fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
         , staffPanelShowWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
         , staffPanelShowRosterWarnings = showRosterWarnings
         , staffPanelHighlightOwnLiveShifts = highlightOwnLiveShifts
-        , staffPanelViewMode = currentRosterGridViewMode
+        , staffPanelViewMode = currentRosterGridViewMode weekStartDate
         , staffPanelScope = panelScope
         , staffPanelEntries = panelStaff
         , staffPanelTemplateLibrary = templateLibrary
@@ -611,45 +588,37 @@ fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
         , staffPanelNotificationPanelData = notificationPanelData
         }
 
-fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [RosterWeekSlotDefinition], [ShiftType], [RosterSlot])
-fetchHiddenRosterRenderData rosterGroupId weekOffset = do
-    rosterDataOrNothing <- fetchRosterRenderData rosterGroupId weekOffset
-    case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes } ->
-            pure (rosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, [])
-        Nothing -> error "Roster week should exist after ensureRosterWeekExists"
-
-renderRequestedRow :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> [RosterWeekSlotDefinition] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
-renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do
+renderRequestedRow :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
+renderRequestedRow weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
     dayRows <- Map.lookup rosterDayUuid renderIndexes.rosterDayRowsByDayId
     let rowCount = length dayRows
     let lastRowIndex = lastRowIndexForRows dayRows
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
-    let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowOob RosterRowRenderModel { rowIsEditable = True, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowShiftTypes = shiftTypes, rowDate = date, rowRosterDay = rosterDay, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes, rowRosterLayoutMode = rosterLayoutMode, rowRosterEndTimesEnabled = rosterEndTimesEnabled, rowPublishAttempted = False } (rowPosition, (targetRowIndex, rowSlots)))
+    let date = rosterDay.operationalDate
+    pure (renderRowOob RosterRowRenderModel { rowIsEditable = True, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowShiftTypes = shiftTypes, rowDate = date, rowDayIndex = fromInteger (Calendar.diffDays date weekStartDate), rowRosterDay = rosterDay, rowCalendarRevision = calendarRevision, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes, rowRosterLayoutMode = rosterLayoutMode, rowRosterEndTimesEnabled = rosterEndTimesEnabled, rowPublishAttempted = False } (rowPosition, (targetRowIndex, rowSlots)))
 
-renderRequestedRowFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> [RosterWeekSlotDefinition] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
-renderRequestedRowFragment isEditable weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do
+renderRequestedRowFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
+renderRequestedRowFragment isEditable weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
     dayRows <- Map.lookup rosterDayUuid renderIndexes.rosterDayRowsByDayId
     let rowCount = length dayRows
     let lastRowIndex = lastRowIndexForRows dayRows
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
-    let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowFragment RosterRowRenderModel { rowIsEditable = isEditable, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowShiftTypes = shiftTypes, rowDate = date, rowRosterDay = rosterDay, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes, rowRosterLayoutMode = rosterLayoutMode, rowRosterEndTimesEnabled = rosterEndTimesEnabled, rowPublishAttempted = False } (rowPosition, (targetRowIndex, rowSlots)))
+    let date = rosterDay.operationalDate
+    pure (renderRowFragment RosterRowRenderModel { rowIsEditable = isEditable, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowShiftTypes = shiftTypes, rowDate = date, rowDayIndex = fromInteger (Calendar.diffDays date weekStartDate), rowRosterDay = rosterDay, rowCalendarRevision = calendarRevision, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes, rowRosterLayoutMode = rosterLayoutMode, rowRosterEndTimesEnabled = rosterEndTimesEnabled, rowPublishAttempted = False } (rowPosition, (targetRowIndex, rowSlots)))
 
-renderRequestedDaySection :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> [RosterWeekSlotDefinition] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Blaze.Html
-renderRequestedDaySection weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid = do
+renderRequestedDaySection :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Blaze.Html
+renderRequestedDaySection weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
-    pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = True, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayShiftTypes = shiftTypes, dayWeekStartDate = weekStartDate, dayTimelineContext = Nothing, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes, dayRosterLayoutMode = rosterLayoutMode, dayRosterEndTimesEnabled = rosterEndTimesEnabled, dayRosterWagePrediction = rosterWagePrediction, dayShowWageEstimates = showWageEstimates, dayShowRosterWarnings = showRosterWarnings, dayPublicHolidays = rosterPublicHolidays, dayPublishAttempted = False } rosterDay)
+    pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = True, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayShiftTypes = shiftTypes, dayWeekStartDate = weekStartDate, dayCalendarRevision = calendarRevision, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes, dayRosterLayoutMode = rosterLayoutMode, dayRosterEndTimesEnabled = rosterEndTimesEnabled, dayRosterWagePrediction = rosterWagePrediction, dayShowWageEstimates = showWageEstimates, dayShowRosterWarnings = showRosterWarnings, dayPublicHolidays = rosterPublicHolidays, dayPublishAttempted = False } rosterDay)
 
-renderRequestedDaySectionFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> [RosterWeekSlotDefinition] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Blaze.Html
-renderRequestedDaySectionFragment isEditable weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid = do
+renderRequestedDaySectionFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Blaze.Html
+renderRequestedDaySectionFragment isEditable weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
-    pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = isEditable, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayShiftTypes = shiftTypes, dayWeekStartDate = weekStartDate, dayTimelineContext = Nothing, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes, dayRosterLayoutMode = rosterLayoutMode, dayRosterEndTimesEnabled = rosterEndTimesEnabled, dayRosterWagePrediction = rosterWagePrediction, dayShowWageEstimates = showWageEstimates, dayShowRosterWarnings = showRosterWarnings, dayPublicHolidays = rosterPublicHolidays, dayPublishAttempted = False } rosterDay)
+    pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = isEditable, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayShiftTypes = shiftTypes, dayWeekStartDate = weekStartDate, dayCalendarRevision = calendarRevision, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes, dayRosterLayoutMode = rosterLayoutMode, dayRosterEndTimesEnabled = rosterEndTimesEnabled, dayRosterWagePrediction = rosterWagePrediction, dayShowWageEstimates = showWageEstimates, dayShowRosterWarnings = showRosterWarnings, dayPublicHolidays = rosterPublicHolidays, dayPublishAttempted = False } rosterDay)
 
 fetchCurrentVenueRosterShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueRosterShiftTypes =

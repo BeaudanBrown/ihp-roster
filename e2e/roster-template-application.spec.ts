@@ -15,8 +15,8 @@ function resetTemplates() {
     runSql(`
         TRUNCATE roster_template_shifts, roster_template_columns, roster_template_days,
             roster_template_designs, roster_templates;
-        UPDATE roster_weeks
-        SET is_live = FALSE
+        UPDATE roster_days
+        SET publication_state = 'draft'
         WHERE roster_group_id = '${defaultE2ERosterGroupId}';
     `);
     resetApplicationTargetState();
@@ -25,9 +25,11 @@ function resetTemplates() {
 function resetApplicationTargetState() {
     runSql(`
         UPDATE roster_days
-        SET is_closed = FALSE, row_count = 4
-        WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
-        UPDATE roster_week_slot_definitions
+        SET is_closed = FALSE, row_count = 4, publication_state = 'draft'
+        WHERE roster_group_id = '${defaultE2ERosterGroupId}'
+          AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)
+              AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6;
+        UPDATE roster_lanes
         SET deleted_at = CASE
                 WHEN id = 'a1000000-0000-0000-0000-000000000081' THEN NULL
                 ELSE COALESCE(deleted_at, NOW())
@@ -37,7 +39,12 @@ function resetApplicationTargetState() {
                 WHEN id = 'a1000000-0000-0000-0000-000000000081' THEN NULL
                 ELSE 'e2e_template_acceptance_reset'
             END
-        WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
+        WHERE roster_day_id IN (
+            SELECT id FROM roster_days
+            WHERE roster_group_id = '${defaultE2ERosterGroupId}'
+              AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)
+                  AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6
+        );
         UPDATE roster_slots
         SET deleted_at = NULL, deleted_by_user_id = NULL, delete_reason = NULL
         WHERE id = 'a1000000-0000-0000-0000-000000000071';
@@ -74,18 +81,13 @@ test.beforeEach(async ({ page }) => {
     await createBlankTemplate(page, 'Lunch service', 'Day');
     await createBlankTemplate(page, 'Standard week', 'Week');
     runSql(`
-        INSERT INTO roster_days (roster_week_id, day_offset)
-        SELECT roster_weeks.id, offsets.day_offset
-        FROM roster_weeks
-        CROSS JOIN generate_series(0, 6) AS offsets(day_offset)
-        WHERE roster_weeks.roster_group_id = '${defaultE2ERosterGroupId}'
-          AND roster_weeks.week_offset = 0
-          AND roster_weeks.archived_at IS NULL
-          AND NOT EXISTS (
-              SELECT 1 FROM roster_days
-              WHERE roster_days.roster_week_id = roster_weeks.id
-                AND roster_days.day_offset = offsets.day_offset
-          );
+        INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+        SELECT
+            'a1000000-0000-0000-0000-000000000001', '${defaultE2ERosterGroupId}',
+            CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + day_index,
+            'draft', FALSE, 2
+        FROM generate_series(0, 6) AS day_index
+        ON CONFLICT (roster_group_id, operational_date) DO NOTHING;
     `);
     await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
     await openRoster(page, { email: managerEmail, useCurrentSession: true });
@@ -95,17 +97,19 @@ test.beforeEach(async ({ page }) => {
 test('live roster explains rejection and exposes no application targets', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop-chromium', 'Live-target rejection is covered once on desktop.');
     const viewedUrl = new URL(page.url());
-    const viewedWeekOffset = Number(viewedUrl.searchParams.get('weekOffset') ?? '0');
+    const viewedAnchorDate = viewedUrl.searchParams.get('anchorDate');
+    if (viewedAnchorDate === null) throw new Error('Expected canonical roster anchor date');
     runSql(`
-        UPDATE roster_weeks
-        SET is_live = TRUE
+        UPDATE roster_days
+        SET publication_state = 'published'
         WHERE roster_group_id = '${defaultE2ERosterGroupId}'
-          AND week_offset = ${viewedWeekOffset};
+          AND operational_date >= '${viewedAnchorDate}'::date
+          AND operational_date < '${viewedAnchorDate}'::date + 7;
     `);
     await gotoWhenReady(page, viewedUrl.toString(), '#roster-content');
     await openTemplatesTab(page);
 
-    await expect(page.getByRole('status')).toContainText('Templates cannot be applied to a live roster');
+    await expect(page.getByRole('status')).toContainText('Templates cannot be applied to a Published roster');
     await expect(page.getByRole('button', { name: 'Apply Lunch service' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Apply Standard week' })).toBeDisabled();
     await expect(page.locator('[data-bepis-dropzone-ref="day-template-dropzone"]')).toHaveCount(0);
@@ -165,7 +169,7 @@ test('Day and Week cards converge on confirmation while controls and cancellatio
     await openTemplatesTab(page);
 
     const weekCard = page.getByRole('button', { name: 'Apply Standard week' }).locator('..').locator('..');
-    await expect(weekCard.locator('[data-bepis-roster-template-target-input]')).toHaveValue(/^week:/);
+    await expect(weekCard.locator('[data-bepis-roster-template-target-input]')).toHaveValue(/^window:\d{4}-\d{2}-\d{2}$/);
     const weekPreviewResponse = page.waitForResponse((response) => response.url().includes('PreviewRosterTemplateDrop'));
     await page.getByRole('button', { name: 'Apply Standard week' }).click();
     expect((await weekPreviewResponse).status()).toBe(200);
@@ -179,7 +183,7 @@ test('Day template keyboard targeting works in timeline mode', async ({ page }, 
     test.skip(testInfo.project.name !== 'desktop-chromium', 'Timeline keyboard targeting is exercised once on desktop.');
     const timelineUrl = new URL(page.url());
     timelineUrl.searchParams.set('rosterView', 'timeline');
-    timelineUrl.searchParams.set('dayOffset', '0');
+    timelineUrl.searchParams.set('dayDate', timelineUrl.searchParams.get('anchorDate') ?? '');
     await gotoWhenReady(page, timelineUrl.toString(), '.roster-day-timeline-shell');
     await openTemplatesTab(page);
 

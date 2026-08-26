@@ -1,8 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Web.View.Layout (defaultLayout, Html) where
+module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, Html) where
 
-import Application.Billing.Stripe (StripeOwnerNavigationVisibility (..))
+import Application.Billing.Stripe (BillingNavigationContext (..))
 import Application.Helper.Controller (EffectiveUser (..),
                                       ImpersonationRequestContext (..),
                                       SupportImpersonationOption (..),
@@ -12,17 +12,20 @@ import Application.Helper.Controller (EffectiveUser (..),
                                       currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
-import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog)
+import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog,
+                                                     SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             applyAppShellActionAttrs,
+                                                             renderAppShellActionForm)
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
-import IHP.ControllerSupport (getHeader, getRequestPathAndQuery)
+import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
+import qualified Network.Wai as Wai
 import qualified Text.Blaze.Html5 as Html5
 import Web.Routes
 import Web.Types
@@ -136,9 +139,9 @@ renderFeedbackOverlayButton buttonClasses iconClasses label =
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|
-    {renderDesktopNavLink "roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
+    {renderDesktopNavLink "roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWindow", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderDesktopNavLink "profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
-    {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
+    {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWindow", "/ShowTimesheetWeek"]}
     {renderWhenAudience ManagerAudience (renderDesktopNavLink "unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderDesktopNavLink "xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderOwnerBillingDesktopNavLink}
@@ -149,9 +152,9 @@ renderDesktopNavLinks = [hsx|
 
 renderMobileNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderMobileNavLinks = [hsx|
-    {renderMobileNavLink "Roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
+    {renderMobileNavLink "Roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWindow", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderMobileNavLink "Profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
-    {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
+    {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWindow", "/ShowTimesheetWeek"]}
     {renderWhenAudience ManagerAudience (renderMobileNavLink "Unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderMobileNavLink "Xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderOwnerBillingMobileNavLink}
@@ -161,19 +164,62 @@ renderMobileNavLinks = [hsx|
 
 renderOwnerBillingDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
 renderOwnerBillingDesktopNavLink =
-    when ownerBillingNavigationIsVisible $
-        renderDesktopNavLink "billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]
+    when ownerBillingNavigationIsVisible [hsx|
+        <a
+            class={ownerBillingDesktopNavLinkClass}
+            href={pathTo BillingAction}
+            aria-current={navAriaCurrent ["/Billing"]}
+            aria-label={ownerBillingNavigationLabel}
+        >
+            <i class="bi bi-credit-card" aria-hidden="true"></i>
+            <span>billing</span>
+        </a>
+    |]
 
 renderOwnerBillingMobileNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
 renderOwnerBillingMobileNavLink =
-    when ownerBillingNavigationIsVisible $
-        renderMobileNavLink "Billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]
+    when ownerBillingNavigationIsVisible [hsx|
+        <a
+            class={ownerBillingMobileNavLinkClass}
+            href={pathTo BillingAction}
+            aria-current={navAriaCurrent ["/Billing"]}
+            aria-label={ownerBillingNavigationLabel}
+        >
+            <i class="bi bi-credit-card app-mobile-nav-icon" aria-hidden="true"></i>
+            <span>Billing</span>
+        </a>
+    |]
+
+ownerBillingDesktopNavLinkClass :: (?context :: ControllerContext, ?request :: Request) => Text
+ownerBillingDesktopNavLinkClass =
+    classes
+        [ ("btn btn-outline-secondary btn-sm app-header-nav-item", billingSubscriptionIsLive)
+        , ("btn btn-warning btn-sm app-header-nav-item app-header-nav-item-warning", not billingSubscriptionIsLive)
+        , ("is-active", navItemIsActive ["/Billing"])
+        ]
+
+ownerBillingMobileNavLinkClass :: (?context :: ControllerContext, ?request :: Request) => Text
+ownerBillingMobileNavLinkClass =
+    classes
+        [ ("app-mobile-nav-link", True)
+        , ("app-mobile-nav-link-warning", not billingSubscriptionIsLive)
+        , ("is-active", navItemIsActive ["/Billing"])
+        ]
+
+ownerBillingNavigationLabel :: (?context :: ControllerContext) => Text
+ownerBillingNavigationLabel
+    | billingSubscriptionIsLive = "Billing"
+    | otherwise = "Billing — subscription inactive"
+
+billingSubscriptionIsLive :: (?context :: ControllerContext) => Bool
+billingSubscriptionIsLive =
+    (fromFrozenContext @BillingNavigationContext).ownerBillingSubscriptionIsLive
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
 ownerBillingNavigationIsVisible =
     (not currentUserIsSupportAdmin || currentUserIsImpersonating)
         && currentUserIsVenueOwner
-        && (fromFrozenContext @StripeOwnerNavigationVisibility).ownerBillingNavigationVisible
+        && (fromFrozenContext @BillingNavigationContext).ownerBillingNavigationVisible
 
 renderDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html
 renderDesktopNavLink label iconClass url activePrefixes = [hsx|
@@ -239,18 +285,26 @@ renderSupportVenueOption venue = [hsx|
 |]
 
 renderSupportImpersonationSwitcher :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Html
-renderSupportImpersonationSwitcher switchId formClass = [hsx|
-    <form class={formClass} method="POST" action={SwitchSupportImpersonationAction}>
-        <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
-        <div class="input-group input-group-sm">
-            <label class="input-group-text" for={switchId}>View as</label>
-            <select id={switchId} class="form-select" name="userId" onchange="this.form.submit()">
-                <option value="" selected={isNothing currentImpersonationOrNothing}>Super admin</option>
-                {forEach currentSupportImpersonationOptions renderSupportImpersonationOption}
-            </select>
-        </div>
-    </form>
-|]
+renderSupportImpersonationSwitcher switchId formClass =
+    renderAppShellActionForm
+        (appShellActionByMarker @SubmitPasskeyProtectedAction)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo SwitchSupportImpersonationAction
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Just (pathTo SwitchSupportImpersonationAction)
+            , appShellActionRouteExtraAttrs = [("class", formClass)]
+            }
+        [hsx|
+            <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
+            <div class="input-group input-group-sm">
+                <label class="input-group-text" for={switchId}>View as</label>
+                <select id={switchId} class="form-select" name="userId" onchange="this.form.requestSubmit(); this.form.reset()">
+                    <option value="" selected={isNothing currentImpersonationOrNothing}>Super admin</option>
+                    {forEach currentSupportImpersonationOptions renderSupportImpersonationOption}
+                </select>
+            </div>
+        |]
 
 renderSupportImpersonationOption :: (?context :: ControllerContext) => SupportImpersonationOption -> Html
 renderSupportImpersonationOption userOption = [hsx|
@@ -372,12 +426,16 @@ devScripts = [hsx|
 
 developmentLiveReloadWebsocketUrl :: (?request :: Request) => Text
 developmentLiveReloadWebsocketUrl =
-    case requestHost of
+    developmentLiveReloadWebsocketUrlForHost liveReloadWebsocketUrl (Wai.requestHeaderHost ?request)
+
+developmentLiveReloadWebsocketUrlForHost :: Text -> Maybe ByteString -> Text
+developmentLiveReloadWebsocketUrlForHost fallbackUrl requestHost =
+    case normalizedRequestHost of
         Just "dev.bepis.lol" -> "wss://dev.bepis.lol/__ihp-livereload"
-        _                    -> liveReloadWebsocketUrl
+        _                    -> fallbackUrl
   where
-    requestHost =
-        getHeader "Host"
+    normalizedRequestHost =
+        requestHost
             |> fmap (Text.takeWhile (/= ':') . Text.toCaseFold . TextEncoding.decodeUtf8)
 
 isPublicLegalPage :: (?context :: ControllerContext, ?request :: Request) => Bool

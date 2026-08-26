@@ -4,9 +4,8 @@ module Web.View.Timesheets.SuggestedNew where
 
 import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
-import Application.VenueTime.Model (timesheetEntryWorkedOn)
-import Web.Timesheets.Filters
-import Web.Timesheets.Paths (timesheetWeekUrl)
+import Application.VenueTime.Model (timesheetEntryOperationalDate)
+import Web.Timesheets.Paths (timesheetWindowUrl)
 import Web.View.Prelude
 
 data SuggestedNewView = SuggestedNewView
@@ -14,8 +13,8 @@ data SuggestedNewView = SuggestedNewView
     , timesheetEntry        :: TimesheetEntry
     , staffMembers          :: [Staff]
     , shiftTypes            :: [ShiftType]
-    , weekOffset            :: Int
-    , viewFilters           :: TimesheetViewFilters
+    , calendarRevision      :: Int
+    , selectedStaffFilterId :: Maybe UUID
     , currentViewerStaffId  :: Maybe UUID
     , pickerStart           :: Text
     , pickerEnd             :: Text
@@ -25,31 +24,31 @@ data SuggestedNewView = SuggestedNewView
 instance View SuggestedNewView where
     html SuggestedNewView { .. } =
         renderTimesheetEntryModal
-            ("Rostered " <> timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
-            (timesheetWeekUrl weekOffset viewFilters)
+            ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
+            (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
             suggestedTimesheetFormId
-            (renderSuggestedTimesheetForm PageOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep)
+            (renderSuggestedTimesheetForm PageOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
 
 suggestedTimesheetFormId :: Text
 suggestedTimesheetFormId = "timesheet-suggestion-create-form"
 
-renderSuggestedTimesheetDialog :: Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> TimesheetViewFilters -> Maybe UUID -> Text -> Text -> Int -> Html
-renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderSuggestedTimesheetDialog :: Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
+renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetEntryDialog
-        ("Rostered " <> timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
+        ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
         suggestedTimesheetFormId
-        (renderSuggestedTimesheetForm HtmxOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep)
+        (renderSuggestedTimesheetForm HtmxOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
 
-renderSuggestedTimesheetForm :: (?context :: ControllerContext) => OverlayFormMode -> Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> TimesheetViewFilters -> Maybe UUID -> Text -> Text -> Int -> Html
-renderSuggestedTimesheetForm formMode rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderSuggestedTimesheetForm :: (?context :: ControllerContext) => OverlayFormMode -> Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
+renderSuggestedTimesheetForm formMode rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetForm
         (appShellActionByMarker @CreateTimesheetEntryOverlay)
         RosteredTimesheetForm
         timesheetEntry
         staffMembers
         shiftTypes
-        weekOffset
-        viewFilters
+        calendarRevision
+        selectedStaffFilterId
         currentViewerStaffId
         pickerStart
         pickerEnd

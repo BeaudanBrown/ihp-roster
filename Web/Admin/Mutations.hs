@@ -18,20 +18,20 @@ module Web.Admin.Mutations
     , setRosterEndTimesEnabledMutation
     , setUnavailableStaffWarningThresholdMutation
     , setRosterTimePickerWindowMutation
-    , setRosterWeekStartsOnMutation
     , shiftTypeAffectsXeroPayItems
     , shiftTypePayResources
     , shiftTypeXeroPayItemScopeChanged
     , updateRosterGroupMutation
+    , updateRosterWindowStartDayMutation
     , updateShiftTypeMutation
     ) where
 
 import Application.Helper.Audit
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
-import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
-import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.PasskeySetupTokens
@@ -46,19 +46,21 @@ import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
-import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
+import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.PayAssignment (selectableShiftAssignmentMode)
-import Application.VenueInvitation.Mutations (withVenueInvitationEmailLock,
-                                              withVenueInvitationRenewalLock)
+import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction,
+                                              withVenueInvitationRenewalLockInCurrentTransaction)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
+import Web.Admin.RosterWindowStartDay
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation,
+                                withDurableLiveMutationOutcome)
 
 issueStaffPasskeySetupLinkMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -67,15 +69,13 @@ issueStaffPasskeySetupLinkMutation ::
     User ->
     IO (PasskeySetupToken, Text)
 issueStaffPasskeySetupLinkMutation staffId purpose targetUser =
-    withTransaction do
-        issuedToken <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
+    issuePasskeySetupTokenWith purpose targetUser (Just currentUser.id) (Just currentVenueId) \_ ->
         void $
             recordCurrentUserAuditEvent
                 (staffPasskeySetupAuditEvent purpose)
                 "users"
                 (unpackId targetUser.id)
                 (Aeson.object ["staffId" Aeson..= staffId])
-        pure issuedToken
 
 staffPasskeySetupAuditEvent :: PasskeySetupTokenPurpose -> AuditEventType
 staffPasskeySetupAuditEvent StaffNewDevicePasskeySetup = StaffPasskeySetupRequestedAudit
@@ -88,60 +88,48 @@ data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     }
 
 setDefaultStaffPayRateMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> IO (LiveMutationResult VenueConfig)
-setDefaultStaffPayRateMutation venueConfig payAssignmentMode awardLevelId = do
-    updated <- venueConfig
-        |> set #defaultStaffPayAssignmentMode payAssignmentMode
-        |> set #defaultStaffAwardLevelId awardLevelId
-        |> updateRecord
-    invalidateTouchedResources
-        "admin.venue_config.default_staff_pay_rate"
-        (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId))
+setDefaultStaffPayRateMutation venueConfig payAssignmentMode awardLevelId =
+    withDurableLiveMutation "admin.venue_config.default_staff_pay_rate" do
+        updated <- venueConfig
+            |> set #defaultStaffPayAssignmentMode payAssignmentMode
+            |> set #defaultStaffAwardLevelId awardLevelId
+            |> updateRecord
+        pure (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId))
 
 setMinutePrecisionShiftTimesEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
-setMinutePrecisionShiftTimesEnabledMutation venueConfig enabled = do
-    updated <- venueConfig
-        |> set #minutePrecisionShiftTimesEnabled enabled
-        |> updateRecord
-    invalidateTouchedResources
-        "admin.venue_config.minute_precision_shift_times"
-        (liveMutationResult updated (rosterTimePickerWindowTouchedResources currentVenueId))
+setMinutePrecisionShiftTimesEnabledMutation venueConfig enabled =
+    withDurableLiveMutation "admin.venue_config.minute_precision_shift_times" do
+        updated <- venueConfig
+            |> set #minutePrecisionShiftTimesEnabled enabled
+            |> updateRecord
+        pure (liveMutationResult updated (rosterTimePickerWindowTouchedResources currentVenueId))
 
 setRosterEndTimesEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
-setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled = do
-    updated <- venueConfig
-        |> set #rosterEndTimesEnabled rosterEndTimesEnabled
-        |> updateRecord
-    invalidateTouchedResources "admin.venue_config.roster_end_times" (liveMutationResult updated (rosterEndTimesTouchedResources currentVenueId))
+setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled =
+    withDurableLiveMutation "admin.venue_config.roster_end_times" do
+        updated <- venueConfig
+            |> set #rosterEndTimesEnabled rosterEndTimesEnabled
+            |> updateRecord
+        pure (liveMutationResult updated (rosterEndTimesTouchedResources currentVenueId))
 
 setUnavailableStaffWarningThresholdMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe Int -> IO (LiveMutationResult VenueConfig)
-setUnavailableStaffWarningThresholdMutation venueConfig threshold = do
-    now <- getCurrentTime
-    updated <- venueConfig
-        |> set #unavailableStaffWarningThreshold threshold
-        |> set #updatedAt now
-        |> updateRecord
-    invalidateTouchedResources
-        "admin.venue_config.unavailable_staff_warning_threshold"
-        (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId <> [leaveAvailabilityWarningsResource (unpackId currentVenueId)]))
-
-setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
-setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
-    updated <- withTransaction do
-        venueConfig
-            |> set #rosterWeekStartsOn rosterWeekStartsOn
-            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
+setUnavailableStaffWarningThresholdMutation venueConfig threshold =
+    withDurableLiveMutation "admin.venue_config.unavailable_staff_warning_threshold" do
+        now <- getCurrentTime
+        updated <- venueConfig
+            |> set #unavailableStaffWarningThreshold threshold
+            |> set #updatedAt now
             |> updateRecord
-    invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
+        pure (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId <> [leaveAvailabilityWarningsResource (unpackId currentVenueId)]))
 
 setRosterTimePickerWindowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> Int -> IO (LiveMutationResult VenueConfig)
-setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute = do
-    updated <- venueConfig
-        |> set #timePickerStartMinuteOfDay startMinute
-        |> set #timePickerFinalSelectableMinuteOfDay finalSelectableMinute
-        |> updateRecord
-    invalidateTouchedResources
-        ("admin.venue_config.time_picker_window " <> formatMinuteOfDayText startMinute <> "-" <> formatMinuteOfDayText finalSelectableMinute)
-        (liveMutationResult updated (rosterTimePickerWindowTouchedResources currentVenueId))
+setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute =
+    withDurableLiveMutation ("admin.venue_config.time_picker_window " <> formatMinuteOfDayText startMinute <> "-" <> formatMinuteOfDayText finalSelectableMinute) do
+        updated <- venueConfig
+            |> set #timePickerStartMinuteOfDay startMinute
+            |> set #timePickerFinalSelectableMinuteOfDay finalSelectableMinute
+            |> updateRecord
+        pure (liveMutationResult updated (rosterTimePickerWindowTouchedResources currentVenueId))
 
 adminVenueSettingsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 adminVenueSettingsTouchedResources venueId =
@@ -156,61 +144,62 @@ rosterTimePickerWindowTouchedResources venueId =
     adminVenueSettingsTouchedResources venueId
         <> [ timePickerConfigResource (unpackId venueId) ]
 
-rosterWeekStartsOnTouchedResources :: Id Venue -> [SurfaceResourceValue]
-rosterWeekStartsOnTouchedResources venueId =
-    adminVenueSettingsTouchedResources venueId
-        <> [ rosterWeekBoundaryConfigResource (unpackId venueId)
-           , timesheetWeekBoundaryConfigResource (unpackId venueId)
-           ]
-
 createVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (Either Text (LiveMutationResult VenueInvitation))
 createVenueInvitationMutation email = do
-    creation <- withVenueInvitationEmailLock (Text.toCaseFold email) do
-        staffLinkedInvitations <- query @VenueInvitation
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhereNot (#staffId, Nothing)
-            |> fetch
-        let matchingInvitations = filter ((== Text.toCaseFold email) . Text.toCaseFold . (.email)) staffLinkedInvitations
-        matchingTrialStaff <- forM (mapMaybe (.staffId) matchingInvitations) fetch
-        if any isAdoptableTrialStaff matchingTrialStaff
-            then pure (Left "Use the trial-staff renewal workflow for this active trial staff email.")
-            else do
-                now <- getCurrentTime
-                invitation <- newRecord @VenueInvitation
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #invitedByUserId (Just (unpackId currentUser.id))
-                    |> set #email email
-                    |> set #inviteRole (Worker)
-                    |> set #status (InvitationStatusEnumPending)
-                    |> set #deliveryStatus (Queued)
-                    |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
-                    |> createRecord
-                void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
-                pure (Right invitation)
-    case creation of
-        Left message -> pure (Left message)
-        Right invitation ->
-            Right <$> invalidateTouchedResources "admin.invite.create" (liveMutationResult invitation [adminInvitesResource (unpackId currentVenueId)])
+    creation <-
+        withDurableLiveMutationOutcome publicationFor $
+            withVenueInvitationEmailLockInCurrentTransaction (Text.toCaseFold email) do
+                staffLinkedInvitations <- query @VenueInvitation
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhereNot (#staffId, Nothing)
+                    |> fetch
+                let matchingInvitations = filter ((== Text.toCaseFold email) . Text.toCaseFold . (.email)) staffLinkedInvitations
+                matchingTrialStaff <- forM (mapMaybe (.staffId) matchingInvitations) fetch
+                if any isAdoptableTrialStaff matchingTrialStaff
+                    then pure (Left "Use the trial-staff renewal workflow for this active trial staff email.")
+                    else do
+                        now <- getCurrentTime
+                        invitation <- newRecord @VenueInvitation
+                            |> set #venueId (unpackId currentVenueId)
+                            |> set #invitedByUserId (Just (unpackId currentUser.id))
+                            |> set #email email
+                            |> set #inviteRole (Worker)
+                            |> set #status (InvitationStatusEnumPending)
+                            |> set #deliveryStatus (Queued)
+                            |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+                            |> createRecord
+                        void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
+                        pure (Right invitation)
+    pure (fmap (\invitation -> liveMutationResult invitation resources) creation)
+    where
+        resources = [adminInvitesResource (unpackId currentVenueId)]
+        publicationFor = either (const Nothing) (const (Just ("admin.invite.create", Set.fromList resources)))
 
 renewVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> Text -> IO (Either Text (LiveMutationResult VenueInvitation))
 renewVenueInvitationMutation invitation correctedEmail
     | invitation.venueId /= unpackId currentVenueId = pure (Left "Choose an invitation from the current venue.")
     | isJust invitation.staffId = pure (Left "Use the trial-staff renewal workflow for staff-linked invitations.")
     | otherwise = do
-        maybeRenewal <- withVenueInvitationRenewalLock
-            (unpackId invitation.id)
-            Nothing
-            (Text.toCaseFold correctedEmail)
-            do
-                lockedInvitation <- fetch invitation.id
-                if not (invitationStatusAllowsRenewal lockedInvitation.status)
-                    then pure (Left "Only pending invitations can be renewed.")
-                    else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
-        case maybeRenewal of
-            Nothing -> pure (Left "That invitation is no longer available to renew.")
-            Just (Left message) -> pure (Left message)
-            Just (Right replacement) ->
-                Right <$> invalidateTouchedResources "admin.invite.renew" (liveMutationResult replacement [adminInvitesResource (unpackId currentVenueId)])
+        maybeRenewal <-
+            withDurableLiveMutationOutcome publicationFor $
+                withVenueInvitationRenewalLockInCurrentTransaction
+                    (unpackId invitation.id)
+                    Nothing
+                    (Text.toCaseFold correctedEmail)
+                    do
+                        lockedInvitation <- fetch invitation.id
+                        if not (invitationStatusAllowsRenewal lockedInvitation.status)
+                            then pure (Left "Only pending invitations can be renewed.")
+                            else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
+        pure case maybeRenewal of
+            Nothing -> Left "That invitation is no longer available to renew."
+            Just (Left message) -> Left message
+            Just (Right replacement) -> Right (liveMutationResult replacement resources)
+    where
+        resources = [adminInvitesResource (unpackId currentVenueId)]
+        publicationFor = \case
+            Just (Right _) -> Just ("admin.invite.renew", Set.fromList resources)
+            _ -> Nothing
 
 replaceVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> Text -> IO VenueInvitation
 replaceVenueInvitation invitation correctedEmail = do
@@ -227,59 +216,63 @@ replaceVenueInvitation invitation correctedEmail = do
         |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) replacement)
+    void (enqueueVenueInvitationEmail (Just currentUser.id) replacement)
     pure replacement
 
 revokeVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> IO (LiveMutationResult VenueInvitation)
-revokeVenueInvitationMutation invitation = do
-    updated <- invitation
-        |> set #status (Revoked)
-        |> updateRecord
-    invalidateTouchedResources "admin.invite.revoke" (liveMutationResult updated [adminInvitesResource (unpackId currentVenueId)])
+revokeVenueInvitationMutation invitation =
+    withDurableLiveMutation "admin.invite.revoke" do
+        updated <- invitation
+            |> set #status (Revoked)
+            |> updateRecord
+        pure (liveMutationResult updated [adminInvitesResource (unpackId currentVenueId)])
 
 ensureAdminRosterGroupsNormalizedMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (LiveMutationResult ())
-ensureAdminRosterGroupsNormalizedMutation = do
-    syncVenueDefaultRosterGroupToTopActive currentVenueId
-    pure (liveMutationResult () [adminRosterGroupsResource (unpackId currentVenueId)])
+ensureAdminRosterGroupsNormalizedMutation =
+    withDurableLiveMutation "admin.roster_group.normalize" do
+        syncVenueDefaultRosterGroupToTopActive currentVenueId
+        pure (liveMutationResult () [adminRosterGroupsResource (unpackId currentVenueId)])
 
 createRosterGroupMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Venue -> Text -> Bool -> IO (LiveMutationResult RosterGroup)
-createRosterGroupMutation venue name isActive = do
-    sortOrder <- nextRosterGroupSortOrder
-    rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
-    syncVenueDefaultRosterGroupToTopActive currentVenueId
-    invalidateTouchedResources "admin.roster_group.create" (liveMutationResult rosterGroup [adminRosterGroupsResource (unpackId currentVenueId)])
+createRosterGroupMutation venue name isActive =
+    withDurableLiveMutation "admin.roster_group.create" do
+        sortOrder <- nextRosterGroupSortOrder
+        rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
+        syncVenueDefaultRosterGroupToTopActive currentVenueId
+        pure (liveMutationResult rosterGroup [adminRosterGroupsResource (unpackId currentVenueId)])
 
 updateRosterGroupMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Venue -> RosterGroup -> Text -> Bool -> IO (LiveMutationResult RosterGroup)
-updateRosterGroupMutation venue rosterGroup name isActive = do
-    sortOrder <-
-        if not rosterGroup.isActive && isActive
-            then nextRosterGroupSortOrder
-            else pure rosterGroup.sortOrder
-    updatedRosterGroup <- rosterGroup
-        |> set #name name
-        |> set #sortOrder sortOrder
-        |> set #isActive isActive
-        |> updateRecord
-    when isActive do
-        _ <- ensureDefaultRosterSlots venue updatedRosterGroup
-        pure ()
-    syncVenueDefaultRosterGroupToTopActive currentVenueId
-    invalidateTouchedResources "admin.roster_group.update" (liveMutationResult updatedRosterGroup [adminRosterGroupsResource (unpackId currentVenueId)])
+updateRosterGroupMutation venue rosterGroup name isActive =
+    withDurableLiveMutation "admin.roster_group.update" do
+        sortOrder <-
+            if not rosterGroup.isActive && isActive
+                then nextRosterGroupSortOrder
+                else pure rosterGroup.sortOrder
+        updatedRosterGroup <- rosterGroup
+            |> set #name name
+            |> set #sortOrder sortOrder
+            |> set #isActive isActive
+            |> updateRecord
+        when isActive do
+            _ <- ensureDefaultRosterSlots venue updatedRosterGroup
+            pure ()
+        syncVenueDefaultRosterGroupToTopActive currentVenueId
+        pure (liveMutationResult updatedRosterGroup [adminRosterGroupsResource (unpackId currentVenueId)])
 
 moveRosterGroupMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterGroup -> Int -> IO (LiveMutationResult ())
-moveRosterGroupMutation _rosterGroup direction = do
-    withTransaction do
+moveRosterGroupMutation _rosterGroup direction =
+    withDurableLiveMutation "admin.roster_group.move" do
         reorderActiveRosterGroups _rosterGroup.id direction
         syncVenueDefaultRosterGroupToTopActive currentVenueId
-    invalidateTouchedResources "admin.roster_group.move" (liveMutationResult () [adminRosterGroupsResource (unpackId currentVenueId)])
+        pure (liveMutationResult () [adminRosterGroupsResource (unpackId currentVenueId)])
 
 createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey = do
-    sortOrder <- nextShiftTypeSortOrder
-    colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
-    now <- getCurrentTime
-    let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
-    shiftType <- withTransaction do
+createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey =
+    withDurableLiveMutation "admin.shift_type.create" do
+        sortOrder <- nextShiftTypeSortOrder
+        colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
+        now <- getCurrentTime
+        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
         shiftType <- newRecord @ShiftType
             |> set #venueId (unpackId currentVenueId)
             |> set #name name
@@ -291,24 +284,23 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
             |> set #isActive isActive
             |> createRecord
         _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
-        pure shiftType
-    let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
-    activeRosterScopes <- activeRosterWeekScopes
-    activeTimesheetScopes <- activeTimesheetWeekScopes
-    let payResources = shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
-    invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
+        let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
+        activeRosterScopes <- activeRosterWindowScopes
+        activeTimesheetScopes <- activeTimesheetWindowScopes
+        let payResources = shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
+        pure (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
 updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey = do
-    now <- getCurrentTime
-    sortOrder <-
-        if not shiftType.isActive && isActive
-            then nextShiftTypeSortOrder
-            else pure shiftType.sortOrder
-    colourKey <- resolveSubmittedShiftTypeColourKey (Just shiftType.id) isActive maybeSubmittedColourKey shiftType.colourKey
-    let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
-    updatedShiftType <- withTransaction do
-        updated <- shiftType
+updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey =
+    withDurableLiveMutation "admin.shift_type.update" do
+        now <- getCurrentTime
+        sortOrder <-
+            if not shiftType.isActive && isActive
+                then nextShiftTypeSortOrder
+                else pure shiftType.sortOrder
+        colourKey <- resolveSubmittedShiftTypeColourKey (Just shiftType.id) isActive maybeSubmittedColourKey shiftType.colourKey
+        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
+        updatedShiftType <- shiftType
             |> set #name name
             |> set #sortOrder sortOrder
             |> set #payAssignmentMode payAssignmentMode
@@ -317,18 +309,17 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
             |> set #colourKey colourKey
             |> set #isActive isActive
             |> updateRecord
-        when (shiftType.name /= updated.name || shiftType.payAssignmentMode /= updated.payAssignmentMode || shiftType.overrideAwardLevelId /= updated.overrideAwardLevelId || shiftType.importedXeroPayItemId /= updated.importedXeroPayItemId) do
-            _ <- ensureShiftTypePayVersionForShiftType currentUser.id updated (utctDay now)
+        when (shiftType.name /= updatedShiftType.name || shiftType.payAssignmentMode /= updatedShiftType.payAssignmentMode || shiftType.overrideAwardLevelId /= updatedShiftType.overrideAwardLevelId || shiftType.importedXeroPayItemId /= updatedShiftType.importedXeroPayItemId) do
+            _ <- ensureShiftTypePayVersionForShiftType currentUser.id updatedShiftType (utctDay now)
             pure ()
-        pure updated
-    let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
-    activeRosterScopes <- activeRosterWeekScopes
-    activeTimesheetScopes <- activeTimesheetWeekScopes
-    let payResources =
-            if shiftTypePayDispositionChanged shiftType updatedShiftType
-                then shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
-                else []
-    invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
+        let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
+        activeRosterScopes <- activeRosterWindowScopes
+        activeTimesheetScopes <- activeTimesheetWindowScopes
+        let payResources =
+                if shiftTypePayDispositionChanged shiftType updatedShiftType
+                    then shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
+                    else []
+        pure (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
 resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe ShiftTypeColourKeyEnum -> ShiftTypeColourKeyEnum -> IO ShiftTypeColourKeyEnum
 resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
@@ -337,29 +328,28 @@ resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmitt
         Just submittedColourKey -> pure (normalizeShiftTypeColourKey submittedColourKey)
 
 moveShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Int -> IO (LiveMutationResult ())
-moveShiftTypeMutation shiftType direction = do
-    withTransaction do
+moveShiftTypeMutation shiftType direction =
+    withDurableLiveMutation "admin.shift_type.move" do
         reorderActiveShiftTypes shiftType.id direction
-        pure ()
-    invalidateTouchedResources "admin.shift_type.move" (liveMutationResult () [adminShiftTypesResource (unpackId currentVenueId)])
+        pure (liveMutationResult () [adminShiftTypesResource (unpackId currentVenueId)])
 
 shiftTypeTouchedResources :: (?context :: ControllerContext) => [SurfaceResourceValue]
 shiftTypeTouchedResources =
     [adminShiftTypesResource (unpackId currentVenueId)]
 
-shiftTypePayResources :: UUID -> [(UUID, UUID, Int)] -> [(UUID, Int)] -> [SurfaceResourceValue]
+shiftTypePayResources :: UUID -> [(UUID, UUID, Day, Day, Int)] -> [(UUID, Day, Day, Int)] -> [SurfaceResourceValue]
 shiftTypePayResources venueId activeRosterScopes activeTimesheetScopes =
     Set.toList $ Set.fromList
         ( [ resource
-          | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
+          | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeRosterScopes
           , activeVenueId == venueId
           , resource <-
-                [ rosterWeekResource rosterGroupId weekOffset
-                , rosterSlotsContentResource rosterGroupId weekOffset
+                [ rosterWeekResource rosterGroupId windowStart windowEnd
+                , rosterSlotsContentResource rosterGroupId windowStart windowEnd
                 ]
           ]
-            <> [ timesheetWeekResource activeVenueId weekOffset
-               | (activeVenueId, weekOffset) <- activeTimesheetScopes
+            <> [ timesheetWeekResource activeVenueId windowStart windowEnd
+               | (activeVenueId, windowStart, windowEnd, _calendarRevision) <- activeTimesheetScopes
                , activeVenueId == venueId
                ]
         )

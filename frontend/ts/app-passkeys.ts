@@ -1,6 +1,7 @@
 import {
     dialogCloseDomAttr,
     dialogDismissedEvent,
+    dialogMountDomAttr,
     parsePasskeyAuthenticationOptions,
     parsePasskeyErrorResponse,
     parsePasskeyFinishResponse,
@@ -59,7 +60,8 @@ export type PasskeyDiagnosticCode =
     | "invalid-status-relationship"
     | "invalid-recovery-relationship"
     | "invalid-dismissal-relationship"
-    | "invalid-overlay-dismissal-role";
+    | "invalid-overlay-dismissal-role"
+    | "invalid-overlay-close-relationship";
 
 export type PasskeyDiagnostic = {
     code: PasskeyDiagnosticCode;
@@ -81,6 +83,7 @@ type PasskeyLoginControl = {
     action: HTMLButtonElement;
     config: Extract<PasskeyFlowConfig, { tag: "login" }>;
     status: PasskeyStatusControl;
+    overlayClose: HTMLButtonElement | null;
 };
 
 type PasskeyRegistrationControl = {
@@ -284,6 +287,26 @@ function readStatus(
     };
 }
 
+function readOverlayClose(
+    root: HTMLElement,
+    config: Extract<PasskeyFlowConfig, { tag: "login" }>,
+    report: PasskeyDiagnosticReporter,
+): HTMLButtonElement | null {
+    if (!config.closeOverlayOnSuccess) return null;
+    const dialog = root.closest(`[${dialogMountDomAttr}]`);
+    if (!(dialog instanceof HTMLElement)) {
+        report(diagnostic(root, "invalid-overlay-close-relationship", "In-place passkey login must be inside one generated dialog"));
+        return null;
+    }
+    const closes = Array.from(dialog.querySelectorAll(`[${dialogCloseDomAttr}]`))
+        .filter((element): element is HTMLButtonElement => element instanceof HTMLButtonElement && roleIsTrue(element, dialogCloseDomAttr));
+    if (closes.length === 0) {
+        report(diagnostic(root, "invalid-overlay-close-relationship", "In-place passkey login requires a generated dialog close button"));
+        return null;
+    }
+    return closes[0];
+}
+
 function readLoginControl(
     root: HTMLElement,
     config: Extract<PasskeyFlowConfig, { tag: "login" }>,
@@ -296,7 +319,9 @@ function readLoginControl(
         report(diagnostic(root, "invalid-device-name-relationship", "Passkey login must not contain a registration device-name role"));
         return null;
     }
-    return { root, action, config, status };
+    const overlayClose = readOverlayClose(root, config, report);
+    if (config.closeOverlayOnSuccess && overlayClose === null) return null;
+    return { root, action, config, status, overlayClose };
 }
 
 function readRegistrationControl(
@@ -332,7 +357,7 @@ function readPromptControl(
     return { root, config, dismissal: dismissals[0] };
 }
 
-function initializePasskeyRoot(
+export function initializePasskeyRoot(
     root: HTMLElement,
     report: PasskeyDiagnosticReporter = defaultDiagnosticReporter,
 ): void {
@@ -349,6 +374,7 @@ function initializePasskeyRoot(
             control.action.addEventListener("click", () => {
                 void runPasskeyLogin(control);
             });
+            if (control.config.autoStart) void runPasskeyLogin(control);
             return;
         }
         case "registration": {
@@ -399,32 +425,48 @@ function promptModeAlreadyConfigured(config: PasskeyPromptFlowConfig): boolean {
 }
 
 async function runPasskeyLogin(control: PasskeyLoginControl): Promise<void> {
-    await withPasskeyButton(control, async () => {
-        setPasskeyStatus(control.status, "info", control.config.waitingMessage);
-        const beginResponse = await postJson(
-            control.config.beginUrl,
-            control.config.failureMessage,
-            parsePasskeyAuthenticationOptions,
-        );
-        const credential = await window.navigator.credentials.get({
-            publicKey: authenticationOptionsToNative(beginResponse),
+    const abortController = control.overlayClose === null ? null : new AbortController();
+    const dialog = control.root.closest(`[${dialogMountDomAttr}]`);
+    const abortPendingRequest = () => abortController?.abort();
+    if (dialog !== null && abortController !== null) {
+        dialog.addEventListener(dialogDismissedEvent, abortPendingRequest, { once: true });
+    }
+
+    try {
+        await withPasskeyButton(control, async () => {
+            setPasskeyStatus(control.status, "info", control.config.waitingMessage);
+            const beginResponse = await postJson(
+                control.config.beginUrl,
+                control.config.failureMessage,
+                parsePasskeyAuthenticationOptions,
+            );
+            const credential = await window.navigator.credentials.get({
+                publicKey: authenticationOptionsToNative(beginResponse),
+                signal: abortController?.signal,
+            });
+            if (!(credential instanceof PublicKeyCredential)) throw new PasskeyStatusError(control.config.cancelledMessage);
+
+            const finishResponse = await postJson(
+                control.config.finishUrl,
+                control.config.failureMessage,
+                parsePasskeyFinishResponse,
+                serializeAuthenticationCredential(credential),
+            );
+            if (finishResponse.tag !== "authenticated") {
+                throw new PasskeyStatusError(control.config.failureMessage);
+            }
+
+            markPasskeySeen(requirePasskeyResponseText("user id", finishResponse.userId));
+            setPasskeyStatus(control.status, "success", control.config.successMessage);
+            if (control.config.closeOverlayOnSuccess) {
+                control.overlayClose?.click();
+            } else {
+                redirectToPasskeyDestination(finishResponse.redirectTo);
+            }
         });
-        if (!(credential instanceof PublicKeyCredential)) throw new PasskeyStatusError(control.config.cancelledMessage);
-
-        const finishResponse = await postJson(
-            control.config.finishUrl,
-            control.config.failureMessage,
-            parsePasskeyFinishResponse,
-            serializeAuthenticationCredential(credential),
-        );
-        if (finishResponse.tag !== "authenticated") {
-            throw new PasskeyStatusError(control.config.failureMessage);
-        }
-
-        markPasskeySeen(requirePasskeyResponseText("user id", finishResponse.userId));
-        setPasskeyStatus(control.status, "success", control.config.successMessage);
-        redirectToPasskeyDestination(finishResponse.redirectTo);
-    });
+    } finally {
+        dialog?.removeEventListener(dialogDismissedEvent, abortPendingRequest);
+    }
 }
 
 async function runPasskeyRegistration(control: PasskeyRegistrationControl): Promise<void> {

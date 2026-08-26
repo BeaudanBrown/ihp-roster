@@ -31,7 +31,7 @@ const validConfig = {
 
 test("roster image export accepts only the generated PNG format and exact Haskell config", () => {
     assertEqual(isRosterImageExportFormatState(rosterImageExportFormatStates.png), true);
-    assertEqual(isRosterImageExportFormatState("png"), false);
+    assertEqual(isRosterImageExportFormatState("jpg"), false);
     assertDeepEqual(parseRosterImageExportConfiguration(JSON.stringify(validConfig)), validConfig);
     assertThrows(
         () => parseRosterImageExportConfiguration(JSON.stringify({ ...validConfig, extension: "jpg" })),

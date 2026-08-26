@@ -175,7 +175,7 @@ test("browser-reachable surface DOM tokens are generated as tree-shakeable featu
 });
 
 test("browser-reachable production surface fragment types remain consumable", () => {
-    const timesheetFragment: TimesheetsSurfaceFragmentKey = { kind: "timesheet-day-section", params: { dayOffset: 2 } };
+    const timesheetFragment: TimesheetsSurfaceFragmentKey = { kind: "timesheet-day-section", params: { operationalDate: "2025-01-08" } };
 
-    assertEqual(timesheetFragment.params.dayOffset, 2);
+    assertEqual(timesheetFragment.params.operationalDate, "2025-01-08");
 });

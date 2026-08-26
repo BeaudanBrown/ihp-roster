@@ -84,10 +84,14 @@ The product must not rely on global in-app business roles without venue boundari
   active users with active memberships and show preferred/first name plus role,
   never email. A member without the optional active linked Staff row uses
   `Venue user`; duplicate displayed first names append the last-name initial.
-  Selection is a full-page POST that requires fresh passkey verification for
-  entry, accepts only same-origin return paths, and leaves normal route guards to
-  authorize the returned page. The selected option is the only impersonation
-  indicator; no badge or banner is rendered.
+  Selection uses the shared protected-action overlay contract and requires fresh
+  passkey verification for entry. Start, switch, and exit accept only validated
+  same-origin page paths, then revalidate role-sensitive destinations against the
+  resulting effective identity. An unavailable page—including retaining Support
+  while viewing as an ordinary user—falls back to that identity's Roster with
+  clear feedback. Successful step-up does not replay a blocked selection; the
+  selector resets so the founder deliberately chooses it again. The selected
+  option is the only impersonation indicator; no badge or banner is rendered.
 - Business actor/requester/approver/deleter/uploader columns continue to use the
   actual founder. Current-request audit and domain-event payloads add
   `accessMode = "impersonation"`, the effective user id, and impersonation

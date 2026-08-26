@@ -1,30 +1,30 @@
 module Test.Controller.StaffSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
+import Application.EmailDelivery
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterGroupStaffResource,
+                                                                    rosterSlotsContentResource,
                                                                     rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (..),
                                               issuePasskeySetupToken)
+import Application.Helper.PasswordResetTokens (issuePasswordResetToken)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
-                                          venueWeekStartDate)
-import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob,
-                                           performVenueInvitationDeliveryJob,
-                                           venueInvitationDeliveryJobKind)
+import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception.Safe (SomeException, try)
 import Control.Monad (void, zipWithM)
+import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -52,7 +52,7 @@ tests = aroundAll withDatabaseTestContext do
         let sampleStaffId = Id "6f9638dc-f13c-4ed3-b4f1-a2f860532cab"
         it "redirects unauthenticated users through shared controller middleware" $ withContext do
             actionResponsesShouldHaveStatus status302
-                [ ("edit", callActionWithParams (EditStaffAction sampleStaffId) [("weekOffset", "7")])
+                [ ("edit", callActionWithParams (EditStaffAction sampleStaffId) [("anchorDate", "2025-02-24")])
                 , ( "update"
                   , callActionWithParams (UpdateStaffAction sampleStaffId)
                         [ ("section", "profile")
@@ -63,7 +63,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactName", "Casey User")
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "3")
-                        , ("weekOffset", "7")
+                        , ("anchorDate", "2025-02-24")
                         ]
                   )
                 , ("new trial", callAction NewStaffAction)
@@ -185,7 +185,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactPhone", "Trial placeholder")
                         , ("idealShiftsPerWeek", "2")
                         , ("isActive", "on")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow frontOfHouse.id))
                         , ("rosterGroupIds", cs (tshow backOfHouse.id))
                         ]
@@ -395,19 +395,21 @@ tests = aroundAll withDatabaseTestContext do
                 otherVenue <- createVenueWithConfig "Other Staff Group Resource Venue"
                 otherGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId otherVenue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 let activeScopes =
-                        [ (unpackId venue.id, unpackId previousGroup.id, 0)
-                        , (unpackId venue.id, unpackId selectedGroup.id, 1)
-                        , (unpackId otherVenue.id, unpackId otherGroup.id, 0)
+                        [ (unpackId venue.id, unpackId previousGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                        , (unpackId venue.id, unpackId selectedGroup.id, testAnchorForOffset 1, addDays 7 (testAnchorForOffset 1), 1)
+                        , (unpackId otherVenue.id, unpackId otherGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
 
                 let resources = staffRosterGroupResources (unpackId venue.id) activeScopes [previousGroup.id, selectedGroup.id]
 
                 Set.fromList resources
                     `shouldBe` Set.fromList
-                        [ rosterWeekResource (unpackId previousGroup.id) 0
-                        , rosterSlotsContentResource (unpackId previousGroup.id) 0
-                        , rosterWeekResource (unpackId selectedGroup.id) 1
-                        , rosterSlotsContentResource (unpackId selectedGroup.id) 1
+                        [ rosterGroupStaffResource (unpackId previousGroup.id)
+                        , rosterWeekResource (unpackId previousGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        , rosterSlotsContentResource (unpackId previousGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        , rosterGroupStaffResource (unpackId selectedGroup.id)
+                        , rosterWeekResource (unpackId selectedGroup.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
+                        , rosterSlotsContentResource (unpackId selectedGroup.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
                         ]
 
         it "touches every active venue Timesheet week after staff pay changes" $ withContext do
@@ -415,14 +417,14 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Staff Timesheet Resource Venue"
                 otherVenue <- createVenueWithConfig "Other Staff Timesheet Resource Venue"
                 let resources = staffTimesheetResources (unpackId venue.id)
-                        [ (unpackId venue.id, 0)
-                        , (unpackId venue.id, 2)
-                        , (unpackId otherVenue.id, 0)
+                        [ (unpackId venue.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                        , (unpackId venue.id, testAnchorForOffset 2, addDays 7 (testAnchorForOffset 2), 1)
+                        , (unpackId otherVenue.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
 
                 Set.fromList resources `shouldBe` Set.fromList
-                    [ timesheetWeekResource (unpackId venue.id) 0
-                    , timesheetWeekResource (unpackId venue.id) 2
+                    [ timesheetWeekResource (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                    , timesheetWeekResource (unpackId venue.id) (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2))
                     ]
 
         it "invalidates roster child and staff list resources for HTMX roster-launched staff edits" $ withContext do
@@ -449,7 +451,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("emergencyContactPhone", "0411111111")
                             , ("idealShiftsPerWeek", "4")
                             , ("isActive", "on")
-                            , ("weekOffset", "0")
+                            , ("anchorDate", "2025-01-06")
                             , ("rosterGroupIds", cs (tshow rosterGroup.id))
                             ]
 
@@ -472,7 +474,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Trial" "Invite"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"invitationEmail\""
@@ -488,7 +490,7 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Pending invite"
@@ -509,7 +511,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (NewTrialStaffInvitationAction staff.id)
-                            [ ("weekOffset", "3")
+                            [ ("anchorDate", "2025-01-27")
                             , ("rosterGroupId", cs (tshow rosterGroup.id))
                             ]
 
@@ -518,7 +520,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "app-staff-edit-dialog"
                 response `responseBodyShouldContain` "id=\"trial-staff-invite-form\""
                 response `responseBodyShouldContain` "pending-dialog@example.com"
-                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"3\""
+                response `responseBodyShouldContain` "name=\"anchorDate\" value=\"2025-01-27\""
 
         it "shows expired trial invitations with corrected-email renewal controls" $ withContext do
             withCleanDb do
@@ -626,7 +628,7 @@ tests = aroundAll withDatabaseTestContext do
                             [("invitationEmail", "trial-invite-claim@example.com")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation sent to trial-invite-claim@example.com"
+                response `responseBodyShouldContain` "Invitation queued for trial-invite-claim@example.com and should arrive shortly"
                 response `responseBodyShouldContain` "id=\"toast-overlay-mount\""
                 response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 response `responseBodyShouldNotContain` "Edit Staff Member"
@@ -644,7 +646,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#relatedTable, Just ("venue_invitations" :: Text))
                     |> filterWhere (#relatedId, Just (unpackId invitation.id))
                     |> fetchOne
-                appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
+                appJob.jobKind `shouldBe` emailDeliveryJobKind
                 versionAfter <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
@@ -656,14 +658,14 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Renew" "Invite"
                 original <- createVenueInvitationRecord venue (Just manager) "renew-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
-                EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
+                EnqueuedEmailDelivery originalJob <- enqueueVenueInvitationEmail (Just manager.id) original
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction (RenewTrialStaffInvitationAction original.id)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation renewed for renew-trial-invite@example.com"
+                response `responseBodyShouldContain` "Renewed invitation queued for renew-trial-invite@example.com and should arrive shortly"
                 response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 response `responseBodyShouldNotContain` "Invite trial staff"
                 revokedOriginal <- fetch original.id
@@ -683,8 +685,8 @@ tests = aroundAll withDatabaseTestContext do
                 replacementJob.dedupeKey `shouldNotBe` originalJob.dedupeKey
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performVenueInvitationDeliveryJob originalJob
-                    performVenueInvitationDeliveryJob replacementJob
+                    performEmailDeliveryJobWith testEmailRuntime originalJob
+                    performEmailDeliveryJobWith testEmailRuntime replacementJob
                 staleOriginal <- fetch original.id
                 deliveredReplacement <- fetch replacement.id
                 staleOriginal.deliveredAt `shouldBe` Nothing
@@ -832,12 +834,12 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Delivery" "Race"
                 original <- createVenueInvitationRecord venue (Just manager) "staff-delivery-renew-race@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
-                EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
+                EnqueuedEmailDelivery originalJob <- enqueueVenueInvitationEmail (Just manager.id) original
 
                 results <- withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     runConcurrentStaffActionList
-                        [ performVenueInvitationDeliveryJob originalJob
+                        [ performEmailDeliveryJobWith testEmailRuntime originalJob
                         , void $ withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callAction (RenewTrialStaffInvitationAction original.id)
@@ -869,7 +871,7 @@ tests = aroundAll withDatabaseTestContext do
                             [("invitationEmail", " corrected-trial-invite@example.com ")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation renewed for corrected-trial-invite@example.com"
+                response `responseBodyShouldContain` "Renewed invitation queued for corrected-trial-invite@example.com and should arrive shortly"
                 renewedOriginals <- query @VenueInvitation
                     |> filterWhereIn (#id, [firstOriginal.id, secondOriginal.id])
                     |> fetch
@@ -964,7 +966,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                        callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"staff\""
@@ -1000,7 +1002,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> createRecord
 
                 editResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
                 editResponse `responseStatusShouldBe` status200
                 editResponse `responseBodyShouldNotContain` ">Roster Groups</label>"
                 editResponse `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId activeGroup.id) <> "\"")
@@ -1016,7 +1018,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactName", "Jordan Keeper")
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow activeGroup.id))
                         , ("rosterGroupIds", cs (tshow inactiveGroup.id))
                         ]
@@ -1048,7 +1050,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
                         , ("isActive", "on")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow frontOfHouse.id))
                         , ("rosterGroupIds", cs (tshow backOfHouse.id))
                         ]
@@ -1088,7 +1090,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
                         , ("isActive", "on")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 
@@ -1110,7 +1112,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
                         [ ("section", "preferences")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("shiftPreferenceKeys", cs preferenceKey)
                         , (cs (shiftPreferenceStartHourParamName preferenceKey), "8")
                         , (cs (shiftPreferenceEndHourParamName preferenceKey), "14")
@@ -1142,7 +1144,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("emergencyContactPhone", "0411111111")
                             , ("idealShiftsPerWeek", "4")
                             , ("isActive", "on")
-                            , ("weekOffset", "0")
+                            , ("anchorDate", "2025-01-06")
                             , ("rosterGroupIds", "not-a-uuid")
                             , ("shiftPreferenceKeys", "bad|key|not-a-uuid")
                             ]
@@ -1175,7 +1177,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
                         , ("payRateSelection", cs ("award:" <> tshow payLevel.id))
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 
@@ -1196,7 +1198,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
@@ -1217,7 +1219,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Profile Details"
@@ -1231,7 +1233,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Removal" "Target"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"isActive\""
@@ -1247,7 +1249,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Confirm" "Removal"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (NewRemoveStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (NewRemoveStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Remove staff member"
@@ -1342,7 +1344,7 @@ tests = aroundAll withDatabaseTestContext do
                 preservedStaff.isActive `shouldBe` True
                 preservedStaff.archivedAt `shouldBe` Nothing
 
-        it "revokes linked invitations and only current-venue manager-issued setup tokens" $ withContext do
+        it "revokes current-venue staff credential links for the removed target and issuer" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Credential Cleanup Venue"
                 otherVenue <- createVenueWithConfig "Preserved Credential Venue"
@@ -1351,6 +1353,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createVenueMembershipRecord venue worker Worker
                 _ <- createVenueMembershipRecord otherVenue worker Worker
+                otherTarget <- createUserRecord "staff-credential-cleanup-other@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue otherTarget Worker
                 staff <- createStaffRecord venue (Just worker) "Credential" "Worker"
                 passkey <- createTestPasskeyRecord worker "Preserved global passkey"
                 invitation <- createVenueInvitationRecord venue (Just admin) worker.email Worker
@@ -1359,7 +1363,10 @@ tests = aroundAll withDatabaseTestContext do
                 (currentVenueSetupToken, _) <- issuePasskeySetupToken StaffNewDevicePasskeySetup worker (Just admin.id) (Just venue.id)
                 (unattributedToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery worker Nothing (Just venue.id)
                 (selfIssuedToken, _) <- issuePasskeySetupToken SelfNewDevicePasskeySetup worker (Just worker.id) (Just venue.id)
+                (issuedSetupToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery otherTarget (Just worker.id) (Just venue.id)
                 (otherVenueToken, _) <- issuePasskeySetupToken StaffNewDevicePasskeySetup worker (Just admin.id) (Just otherVenue.id)
+                (targetResetToken, _) <- issuePasswordResetToken worker admin.id venue.id
+                (issuedResetToken, _) <- issuePasswordResetToken otherTarget worker.id venue.id
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (RemoveStaffAction staff.id)
@@ -1371,8 +1378,16 @@ tests = aroundAll withDatabaseTestContext do
                 invalidatedRecoveryToken.consumedAt `shouldSatisfy` isJust
                 invalidatedSetupToken <- fetch currentVenueSetupToken.id
                 invalidatedSetupToken.consumedAt `shouldSatisfy` isJust
-                preservedUnattributedToken <- fetch unattributedToken.id
-                preservedUnattributedToken.consumedAt `shouldBe` Nothing
+                invalidatedUnattributedToken <- fetch unattributedToken.id
+                invalidatedUnattributedToken.consumedAt `shouldSatisfy` isJust
+                invalidatedIssuedSetupToken <- fetch issuedSetupToken.id
+                invalidatedIssuedSetupToken.consumedAt `shouldSatisfy` isJust
+                invalidatedTargetResetToken <- fetch targetResetToken.id
+                invalidatedTargetResetToken.consumedAt `shouldSatisfy` isJust
+                invalidatedTargetResetToken.deliveryTokenCiphertext `shouldBe` Nothing
+                invalidatedIssuedResetToken <- fetch issuedResetToken.id
+                invalidatedIssuedResetToken.consumedAt `shouldSatisfy` isJust
+                invalidatedIssuedResetToken.deliveryTokenCiphertext `shouldBe` Nothing
                 preservedSelfToken <- fetch selfIssuedToken.id
                 preservedSelfToken.consumedAt `shouldBe` Nothing
                 preservedOtherVenueToken <- fetch otherVenueToken.id
@@ -1393,12 +1408,12 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                pastWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup (currentWeekOffset - 1) True
-                currentWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup currentWeekOffset True
-                futureWeek <- createRosterWeekRecordForRosterGroup venue secondGroup (currentWeekOffset + 1) True
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                pastWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup (currentWindowIndex - 1) True
+                currentWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup currentWindowIndex True
+                futureWeek <- createRosterWeekRecordForRosterGroup venue secondGroup (currentWindowIndex + 1) True
                 pastDay <- createRosterDayRecord pastWeek 0
-                currentDay <- createRosterDayRecord currentWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                currentDay <- createRosterDayRecord currentWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 futureDay <- createRosterDayRecord futureWeek 0
                 pastSlot <- createRosterSlotRecord pastDay defaultSlotName (Just staff) 0
                 currentSlot <- createRosterSlotRecord currentDay defaultSlotName (Just staff) 0
@@ -1430,9 +1445,9 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
                 ensureTestUserHasPasskey admin
 
@@ -1442,12 +1457,14 @@ tests = aroundAll withDatabaseTestContext do
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callActionWithParams
-                                (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
-                                [ ("staffId", cs (tshow staff.id))
-                                , ("startTime", "09:00")
-                                , ("endTime", "17:00")
-                                , ("shiftTypeId", cs (tshow shiftType.id))
-                                ]
+                                (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
+                                ( [ ("staffId", cs (tshow staff.id))
+                                  , ("startTime", "09:00")
+                                  , ("endTime", "17:00")
+                                  , ("shiftTypeId", cs (tshow shiftType.id))
+                                  ]
+                                    <> rosterMutationParams currentWindowIndex
+                                )
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1481,7 +1498,7 @@ tests = aroundAll withDatabaseTestContext do
                             callActionWithParams
                                 (UpdateStaffAction staff.id)
                                 [ ("section", "preferences")
-                                , ("weekOffset", "0")
+                                , ("anchorDate", "2025-01-06")
                                 , ("shiftPreferenceKeys", cs preferenceKey)
                                 , (cs (shiftPreferenceStartHourParamName preferenceKey), "9")
                                 , (cs (shiftPreferenceEndHourParamName preferenceKey), "17")
@@ -1520,9 +1537,9 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just removedStaff) 0
                     >>= updateRecord
                         . setTestStartTime (Just (TimeOfDay 9 0 0))
@@ -1537,11 +1554,13 @@ tests = aroundAll withDatabaseTestContext do
                         withRequestHeaders [("HX-Request", "true")] do
                             callActionWithParams
                                 (UpdateRosterSlotAction rosterSlot.id)
-                                [ ("staffId", cs (tshow replacementStaff.id))
-                                , ("startTime", "09:00")
-                                , ("endTime", "17:00")
-                                , ("shiftTypeId", cs (tshow shiftType.id))
-                                ]
+                                ( [ ("staffId", cs (tshow replacementStaff.id))
+                                  , ("startTime", "09:00")
+                                  , ("endTime", "17:00")
+                                  , ("shiftTypeId", cs (tshow shiftType.id))
+                                  ]
+                                    <> rosterMutationParams currentWindowIndex
+                                )
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1569,12 +1588,12 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 rosterSlot <- createCompleteRosterSlotRecord rosterDay slotName staff 0
                 let sourceToken = "existing:" <> tshow rosterSlot.id
-                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow rosterSlot.rosterWeekSlotDefinitionId <> ":1"
+                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow rosterSlot.rosterLaneId <> ":1"
                 ensureTestUserHasPasskey admin
 
                 results <- runConcurrentStaffActionList
@@ -1582,11 +1601,13 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams MoveRosterShiftToSlotAction { weekOffset = currentWeekOffset }
-                                [ ("rosterGroupId", cs (tshow rosterGroup.id))
-                                , ("sourceItemKey", cs sourceToken)
-                                , ("targetDropzoneKey", cs targetToken)
-                                ]
+                            callActionWithParams MoveRosterShiftToSlotAction
+                                ( [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                                  , ("sourceItemKey", cs sourceToken)
+                                  , ("targetDropzoneKey", cs targetToken)
+                                  ]
+                                    <> rosterMutationParams currentWindowIndex
+                                )
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1627,7 +1648,7 @@ tests = aroundAll withDatabaseTestContext do
                                 ]
                     , withUserAndCurrentVenue manager venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (DeleteRosterSlotAction rosterSlot.id)
+                            callActionWithParams (DeleteRosterSlotAction rosterSlot.id) (rosterMutationParams 0)
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1648,11 +1669,11 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                let operationalDayOffset = fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                let operationalDayOffset = fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex))
                 sourceDay <- createRosterDayRecord sourceWeek operationalDayOffset
-                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup (currentWeekOffset + 1) False
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup (currentWindowIndex + 1) False
                 _ <- createRosterDayRecord targetWeek operationalDayOffset
                 _ <- createRosterSlotRecord sourceDay slotName (Just staff) 0
                     >>= updateRecord
@@ -1666,7 +1687,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (CopyRosterWeekAction currentWeekOffset (currentWeekOffset + 1))
+                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWindowIndex (currentWindowIndex + 1))
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1702,9 +1723,9 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                sourceDay <- createRosterDayRecord sourceWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                sourceDay <- createRosterDayRecord sourceWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 _ <- createRosterSlotRecord sourceDay slotName (Just staff) 0
                     >>= updateRecord
                         . setTestStartTime (Just (TimeOfDay 9 0 0))
@@ -1717,7 +1738,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (CopyRosterWeekAction currentWeekOffset (currentWeekOffset + 1))
+                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWindowIndex (currentWindowIndex + 1))
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1895,7 +1916,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Trial" "Role"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Staff Role"
@@ -1913,7 +1934,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue (Just workerUser) "Role" "Target"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Staff Role"
@@ -1935,7 +1956,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("employmentBasis", "casual")
                         , ("payRateSelection", "")
                         , ("venueRole", "manager")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 
@@ -1961,7 +1982,7 @@ tests = aroundAll withDatabaseTestContext do
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue effectiveAdmin.id))]
-                    editResponse <- callActionWithParams (EditStaffAction targetStaff.id) [("weekOffset", "0")]
+                    editResponse <- callActionWithParams (EditStaffAction targetStaff.id) [("anchorDate", "2025-01-06")]
                     updateResponse <- callActionWithParams (UpdateStaffAction targetStaff.id)
                         [ ("section", "profile")
                         , ("firstName", "Role")
@@ -1975,7 +1996,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("employmentBasis", "casual")
                         , ("payRateSelection", "")
                         , ("venueRole", "venue_owner")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
                     pure (editResponse, updateResponse)
@@ -1999,7 +2020,7 @@ tests = aroundAll withDatabaseTestContext do
                 importedPayItem <- createImportedXeroPayItemRecord venue admin "Imported Staff Rate" "imported-staff-rate" 55.25
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
@@ -2024,7 +2045,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
                         , ("payRateSelection", cs ("xero:" <> tshow importedPayItem.id))
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
                 updateResponse `responseStatusShouldBe` status302
@@ -2048,7 +2069,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
@@ -2064,7 +2085,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue (Just worker) "Access" "Worker"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Sign-in access"
@@ -2100,7 +2121,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
                         , ("payRateSelection", cs ("award:" <> tshow payLevel.id))
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 
@@ -2108,6 +2129,13 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Casual
                 updatedStaff.defaultAwardLevelId `shouldBe` Nothing
+
+testEmailRuntime :: EmailDeliveryRuntime
+testEmailRuntime =
+    EmailDeliveryRuntime
+        { deliveryIsDisabled = pure False
+        , deliverMail = \_ -> pure ()
+        }
 
 runConcurrentStaffActionList :: [IO result] -> IO [Either SomeException result]
 runConcurrentStaffActionList actions = do

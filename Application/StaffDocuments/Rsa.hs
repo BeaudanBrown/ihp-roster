@@ -1,6 +1,7 @@
 module Application.StaffDocuments.Rsa
     ( RsaDocumentUpload (..)
     , RsaExtractionProvenance (..)
+    , RsaReminderKind (..)
     , RsaReminderSweepSummary (..)
     , StaffRsaComplianceRow (..)
     , StaffRsaComplianceStatus (..)
@@ -10,19 +11,19 @@ module Application.StaffDocuments.Rsa
     , effectiveRsaComplianceStatus
     , effectiveRsaState
     , enqueueDueRsaReminderJobs
-    , performRsaReminderJob
+    , guardStillDue
+    , markRsaReminderSent
+    , parseRsaReminderMailKind
     , reviewRsaDocument
     , rsaDocumentMaxBytes
     , rsaDocumentReminderDedupeKey
-    , rsaReminderJobKind
+    , rsaReminderIntro
+    , rsaReminderMailKind
+    , rsaReminderSubject
     , staffRsaComplianceRowsForVenue
     ) where
 
-import Application.Async.Queue
-import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
-import Application.Helper.Mail
-import qualified Control.Exception.Safe as Exception
-import Control.Monad (void)
+import Application.EmailDelivery.Enqueue
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Map.Strict as Map
@@ -32,9 +33,6 @@ import Data.Time.Calendar (addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
-import IHP.Mail
-import Web.Mail.StaffDocuments.RsaReminder
 
 data RsaExtractionProvenance = RsaExtractionProvenance
     { rsaExtractionMethod       :: !Text
@@ -94,9 +92,6 @@ data RsaReminderSweepSummary = RsaReminderSweepSummary
     , existingRsaReminderCount :: !Int
     }
     deriving (Eq, Show)
-
-rsaReminderJobKind :: Text
-rsaReminderJobKind = "staff_document_rsa_reminder"
 
 rsaDocumentMaxBytes :: Int64
 rsaDocumentMaxBytes = 10 * 1024 * 1024
@@ -263,36 +258,31 @@ enqueueDueRsaReminderJobs ::
 enqueueDueRsaReminderJobs today = do
     documents <- latestRsaDocumentsForAllStaff today
     let dueReminders = mapMaybe (dueRsaReminder today) documents
-    enqueueResults <- forM dueReminders \(staffDocument, reminderKind) ->
-        enqueueAppJob (rsaReminderJobRequest staffDocument reminderKind)
+    enqueueResults <- fmap catMaybes $ forM dueReminders \(staffDocument, reminderKind) -> do
+        staff <- fetch (Id staffDocument.staffId :: Id Staff)
+        case staff.userId of
+            Nothing -> pure Nothing
+            Just userId -> do
+                user <- fetch (Id userId :: Id User)
+                if Text.null (Text.strip user.email)
+                    then pure Nothing
+                    else Just <$> enqueueEmailDeliveryWithStatus
+                        EmailDeliveryRequest
+                            { mailKind = rsaReminderMailKind reminderKind
+                            , recipientAccountId = userId
+                            , recipientAddress = user.email
+                            , domainReferenceTable = "staff_documents"
+                            , domainReferenceId = unpackId staffDocument.id
+                            , semanticEventKey = rsaDocumentReminderDedupeKey staffDocument.id (rsaReminderKindText reminderKind)
+                            , requestedByUserId = Nothing
+                            , venueId = Just staffDocument.venueId
+                            }
     pure
         RsaReminderSweepSummary
             { dueRsaReminderCount = length dueReminders
-            , enqueuedRsaReminderCount = length [ () | EnqueuedAppJob _ <- enqueueResults ]
-            , existingRsaReminderCount = length [ () | ExistingActiveAppJob _ <- enqueueResults ]
+            , enqueuedRsaReminderCount = length [ () | EnqueuedEmailDelivery _ <- enqueueResults ]
+            , existingRsaReminderCount = length [ () | ExistingEmailDelivery _ <- enqueueResults ]
             }
-
-performRsaReminderJob ::
-    (?context :: FrameworkConfig, ?modelContext :: ModelContext) =>
-    AppJob ->
-    IO ()
-performRsaReminderJob appJob = do
-    today <- utctDay <$> getCurrentTime
-    staffDocument <- fetchRsaReminderDocument appJob
-    let reminderKind = rsaReminderKindFromJob appJob
-    case reminderKind >>= \kind -> guardStillDue today kind staffDocument of
-        Nothing ->
-            markReminderJobSucceeded appJob (Aeson.object ["skipped" Aeson..= True])
-        Just kind -> do
-            result <- deliverRsaReminder kind staffDocument
-            updatedDocument <- markRsaReminderSent kind staffDocument
-            let resultPayload =
-                    Aeson.object
-                        [ "staffDocumentId" Aeson..= tshow updatedDocument.id
-                        , "reminderKind" Aeson..= rsaReminderKindText kind
-                        , "emailResult" Aeson..= either (\message -> message) (const "sent") result
-                        ]
-            markReminderJobSucceeded appJob resultPayload
 
 rsaReminderWindowDays :: Integer
 rsaReminderWindowDays = 30
@@ -351,51 +341,14 @@ dueRsaReminder today staffDocument
         Just (staffDocument, RsaReminderExpiringSoon)
     | otherwise = Nothing
 
-rsaReminderJobRequest :: StaffDocument -> RsaReminderKind -> AppJobRequest
-rsaReminderJobRequest staffDocument reminderKind =
-    AppJobRequest
-        { jobKind = rsaReminderJobKind
-        , payload =
-            Aeson.object
-                [ "staffDocumentId" Aeson..= tshow staffDocument.id
-                , "reminderKind" Aeson..= rsaReminderKindText reminderKind
-                ]
-        , payloadSchemaVersion = 1
-        , requestedByUserId = Nothing
-        , venueId = Just staffDocument.venueId
-        , relatedTable = Just "staff_documents"
-        , relatedId = Just (unpackId staffDocument.id)
-        , dedupeKey = Just (rsaDocumentReminderDedupeKey staffDocument.id (rsaReminderKindText reminderKind))
-        , runAt = Nothing
-        }
+rsaReminderMailKind :: RsaReminderKind -> Text
+rsaReminderMailKind reminderKind =
+    "rsa_reminder_" <> rsaReminderKindText reminderKind <> "_v1"
 
-fetchRsaReminderDocument :: (?modelContext :: ModelContext) => AppJob -> IO StaffDocument
-fetchRsaReminderDocument appJob =
-    case (appJob.relatedTable, appJob.relatedId) of
-        (Just "staff_documents", Just rawId) ->
-            fetch (Id rawId :: Id StaffDocument)
-        _ ->
-            fail ("Invalid RSA reminder job payload for job " <> cs (tshow appJob.id))
-
-rsaReminderKindFromJob :: AppJob -> Maybe RsaReminderKind
-rsaReminderKindFromJob appJob =
-    case Aeson.fromJSON appJob.payload :: Aeson.Result RsaReminderJobPayload of
-        Aeson.Success payload -> parseRsaReminderKind payload.reminderKind
-        Aeson.Error _         -> Nothing
-
-newtype RsaReminderJobPayload = RsaReminderJobPayload
-    { reminderKind :: Text
-    }
-
-instance Aeson.FromJSON RsaReminderJobPayload where
-    parseJSON =
-        Aeson.withObject "RsaReminderJobPayload" \object ->
-            RsaReminderJobPayload <$> object Aeson..: "reminderKind"
-
-parseRsaReminderKind :: Text -> Maybe RsaReminderKind
-parseRsaReminderKind "expiring_soon" = Just RsaReminderExpiringSoon
-parseRsaReminderKind "expired"       = Just RsaReminderExpired
-parseRsaReminderKind _               = Nothing
+parseRsaReminderMailKind :: Text -> Maybe RsaReminderKind
+parseRsaReminderMailKind "rsa_reminder_expiring_soon_v1" = Just RsaReminderExpiringSoon
+parseRsaReminderMailKind "rsa_reminder_expired_v1"      = Just RsaReminderExpired
+parseRsaReminderMailKind _                               = Nothing
 
 rsaReminderKindText :: RsaReminderKind -> Text
 rsaReminderKindText RsaReminderExpiringSoon = "expiring_soon"
@@ -406,47 +359,6 @@ guardStillDue today reminderKind staffDocument =
     case dueRsaReminder today staffDocument of
         Just (_, dueKind) | dueKind == reminderKind -> Just reminderKind
         _                                           -> Nothing
-
-deliverRsaReminder ::
-    (?context :: FrameworkConfig, ?modelContext :: ModelContext) =>
-    RsaReminderKind ->
-    StaffDocument ->
-    IO (Either Text ())
-deliverRsaReminder reminderKind staffDocument = do
-    staff <- fetch (Id staffDocument.staffId :: Id Staff)
-    venue <- fetch (Id staffDocument.venueId :: Id Venue)
-    case staff.userId of
-        Nothing ->
-            pure (Left "staff has no linked user")
-        Just userId -> do
-            user <- fetch (Id userId :: Id User)
-            Exception.tryAny (sendRsaReminderEmail reminderKind venue staff user staffDocument) >>= \case
-                Right () -> pure (Right ())
-                Left exception -> pure (Left (cs (displayException exception)))
-
-sendRsaReminderEmail ::
-    (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>
-    RsaReminderKind ->
-    Venue ->
-    Staff ->
-    User ->
-    StaffDocument ->
-    IO ()
-sendRsaReminderEmail reminderKind venue staff user staffDocument = do
-    AppMailSettings { .. } <- loadAppMailSettings
-    emailDeliveryDisabled <- isEmailDeliveryDisabled
-    unless emailDeliveryDisabled do
-        sendMail RsaReminderMail
-            { recipient = user
-            , venue = venue
-            , staff = staff
-            , staffDocument = staffDocument
-            , reminderSubject = rsaReminderSubject reminderKind
-            , reminderIntro = rsaReminderIntro reminderKind staffDocument
-            , fromAddress = mailFromAddress
-            , replyToAddress = mailReplyToAddress
-            , supportEmail = mailSupportEmail
-            }
 
 rsaReminderSubject :: RsaReminderKind -> Text
 rsaReminderSubject RsaReminderExpiringSoon = "RSA document expires soon"
@@ -475,12 +387,3 @@ markRsaReminderSent reminderKind staffDocument = do
                 |> set #status Expired
                 |> set #expiredReminderSentAt (Just now)
                 |> updateRecord
-
-markReminderJobSucceeded :: (?modelContext :: ModelContext) => AppJob -> Aeson.Value -> IO ()
-markReminderJobSucceeded appJob resultPayload =
-    void
-        ( appJob
-            |> set #result resultPayload
-            |> set #status JobStatusSucceeded
-            |> updateRecord
-        )

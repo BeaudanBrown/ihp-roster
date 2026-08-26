@@ -191,26 +191,26 @@ renderSurfaceIntentAdapterModules ::
 renderSurfaceIntentAdapterModules = renderSurfaceRequestAdapterModules intentRequestRenderer
 
 data RequestAdapterRenderer kind = RequestAdapterRenderer
-    { requestAdapterLayout             :: !(AdapterModuleLayout kind)
-    , requestAdapterLanguagePragmas    :: ![Text]
-    , requestAdapterBaseName           :: !(Text -> Text)
-    , requestAdapterMetadataSuffix     :: !Text
-    , requestAdapterFieldsType         :: !Text
-    , requestAdapterBindFields         :: !Text
-    , requestAdapterEmptyFields        :: !Text
-    , requestAdapterMetadataImports    :: ![Text]
+    { requestAdapterLayout                        :: !(AdapterModuleLayout kind)
+    , requestAdapterLanguagePragmas               :: ![Text]
+    , requestAdapterBaseName                      :: !(Text -> Text)
+    , requestAdapterMetadataSuffix                :: !Text
+    , requestAdapterFieldsType                    :: !Text
+    , requestAdapterBindFields                    :: !Text
+    , requestAdapterEmptyFields                   :: !Text
+    , requestAdapterMetadataImports               :: ![Text]
     , requestAdapterOperationLocalMetadataImports :: ![Text]
-    , requestAdapterMetadataResultType :: !Text
-    , requestAdapterMetadataBuilder    :: !Text
-    , requestAdapterParser             :: !Text
-    , requestAdapterOperationPrefix    :: !Text
-    , requestAdapterOperationFields    :: !Text
-    , requestAdapterOperationFieldSpecs :: !Text
-    , requestAdapterOperationSurface   :: !Text
-    , requestAdapterOperationMarker    :: !Text
-    , requestAdapterOperationEmpty     :: !Text
-    , requestAdapterOperationBind      :: !Text
-    , requestAdapterOperationPresent   :: !Text
+    , requestAdapterMetadataResultType            :: !Text
+    , requestAdapterMetadataBuilder               :: !Text
+    , requestAdapterParser                        :: !Text
+    , requestAdapterOperationPrefix               :: !Text
+    , requestAdapterOperationFields               :: !Text
+    , requestAdapterOperationFieldSpecs           :: !Text
+    , requestAdapterOperationSurface              :: !Text
+    , requestAdapterOperationMarker               :: !Text
+    , requestAdapterOperationEmpty                :: !Text
+    , requestAdapterOperationBind                 :: !Text
+    , requestAdapterOperationPresent              :: !Text
     }
 
 actionRequestRenderer :: RequestAdapterRenderer 'ActionAdapterKind
@@ -388,7 +388,7 @@ renderRequestImports renderer aliases adapters =
     isOperationLocal adapter =
         adapter.renderableAdapterPayload.surfaceRequestDeclarationEvidenceMode == OperationLocalRequestEvidence
     hasOperationLocal = any isOperationLocal adapters
-    hasWholeSurface = any (not . isOperationLocal) adapters
+    hasWholeSurface = not (all isOperationLocal adapters)
     builderAdapters = filter (hasGeneratedOperation (.surfaceAdapterFieldsBuilderOperation)) adapters
     emptyBuilderAdapters = filter (null . (.renderableAdapterFields)) builderAdapters
     nonEmptyBuilderAdapters = filter (not . null . (.renderableAdapterFields)) builderAdapters
@@ -398,11 +398,11 @@ renderRequestImports renderer aliases adapters =
     hasMetadata = not (null metadataAdapters)
     hasParser = not (null parserAdapters)
     hasOperationLocalParser = any isOperationLocal parserAdapters
-    hasWholeSurfaceParser = any (not . isOperationLocal) parserAdapters
+    hasWholeSurfaceParser = not (all isOperationLocal parserAdapters)
     presentAdapters = filter (hasGeneratedOperation (.surfaceAdapterParamsPresentOperation)) adapters
     hasOperationLocalPresence = any isOperationLocal presentAdapters
     hasOperationLocalMetadata = any isOperationLocal metadataAdapters
-    hasWholeSurfaceMetadata = any (not . isOperationLocal) metadataAdapters
+    hasWholeSurfaceMetadata = not (all isOperationLocal metadataAdapters)
     valueImports =
         List.sort
             ( List.nub
@@ -416,7 +416,7 @@ renderRequestImports renderer aliases adapters =
                     <> [renderer.requestAdapterEmptyFields | not (null emptyBuilderAdapters) && hasWholeSurface]
                     <> [renderer.requestAdapterOperationEmpty | any (\adapter -> isOperationLocal adapter && null adapter.renderableAdapterFields) builderAdapters]
                     <> (if null nonEmptyBuilderAdapters then [] else ["noSurfaceFields"])
-                    <> [renderer.requestAdapterBindFields | any (not . isOperationLocal) nonEmptyBuilderAdapters]
+                    <> [renderer.requestAdapterBindFields | not (all isOperationLocal nonEmptyBuilderAdapters)]
                     <> [renderer.requestAdapterOperationBind | any isOperationLocal nonEmptyBuilderAdapters]
                     <> ["surfaceField" | any ((== RequiredField) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
                     <> ["surfaceNullableField" | any ((== NullableFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
@@ -598,7 +598,7 @@ renderPromotedFieldList :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
 renderPromotedFieldList _ [] = ["    '[]"]
 renderPromotedFieldList aliases (first : rest) =
     ["    '[ " <> renderPromotedField aliases first]
-        <> map ("     , " <>) (map (renderPromotedField aliases) rest)
+        <> map (("     , " <>) . renderPromotedField aliases) rest
         <> ["     ]"]
 
 renderPromotedField :: Map.Map Text Text -> ResolvedAdapterField -> Text
@@ -621,6 +621,11 @@ renderPromotedWire aliases = \case
     WireDayIR -> "'WireDay"
     WireClosedIR _ sourceModule sourceType ->
         "('WireClosed " <> qualifyHaskellType aliases (HaskellTypeMetadata
+            { haskellTypeModule = sourceModule
+            , haskellTypeName = sourceType
+            }) <> ")"
+    WireDomainIR sourceModule sourceType ->
+        "('WireDomain " <> qualifyHaskellType aliases (HaskellTypeMetadata
             { haskellTypeModule = sourceModule
             , haskellTypeName = sourceType
             }) <> ")"
@@ -700,6 +705,8 @@ renderWireIR = \case
     WireClosedIR schema sourceModule sourceType ->
         "SurfaceIR.WireClosedIR " <> renderTextLiteral schema <> " "
             <> renderTextLiteral sourceModule <> " " <> renderTextLiteral sourceType
+    WireDomainIR sourceModule sourceType ->
+        "SurfaceIR.WireDomainIR " <> renderTextLiteral sourceModule <> " " <> renderTextLiteral sourceType
     WireUnknownIR -> "SurfaceIR.WireUnknownIR"
     WireListIR inner -> "SurfaceIR.WireListIR (" <> renderWireIR inner <> ")"
     WireMapIR key value -> "SurfaceIR.WireMapIR (" <> renderWireIR key <> ") (" <> renderWireIR value <> ")"

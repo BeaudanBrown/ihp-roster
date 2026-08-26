@@ -266,6 +266,28 @@ test("committed intents fill the matching helper-rendered form and dispatch the 
     assertEqual(dispatchedTrigger, intentSubmitEvent);
 });
 
+test("bridge preserves server-rendered required context fields omitted by the interaction session", () => {
+    const { mount, form } = buildMount();
+    const calendarRevision = form.append(new MiniElement({
+        name: "rosterCalendarRevision",
+        value: "7",
+        [attrs.intentField]: "rosterCalendarRevision",
+        [attrs.fieldPresence]: "required",
+    }));
+
+    const result = submitCommittedInteractionIntent({
+        phase: "commit",
+        intent: "select-cell",
+        fields: { cellId: "cell-2" },
+        mount: mount as unknown as Element,
+        marker: null,
+        sourceEvent: null,
+    }, { warn: () => undefined });
+
+    assertEqual(result.ok, true);
+    assertEqual(calendarRevision.value, "7");
+});
+
 test("bridge resolves the concrete mount from an activation marker", () => {
     const { marker, required } = buildMount();
 

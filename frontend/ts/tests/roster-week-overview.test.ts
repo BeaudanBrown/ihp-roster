@@ -34,7 +34,7 @@ const validDay = {
     weekOverviewHoursDisplay: "30h",
     weekOverviewSummaryText: "2 unavailable periods, 5 shifts assigned, 30h rostered.",
     weekOverviewWeekLabel: "In Week of 6 Jan",
-    weekOverviewNavigationUrl: "/ShowRosterWeek?weekOffset=0&weekDate=2025-01-06",
+    weekOverviewNavigationUrl: "/ShowRosterWindow?anchorDate=2025-01-06",
     weekOverviewAvailability: rosterWeekOverviewAvailabilityStates.loaded,
     weekOverviewClosure: rosterWeekOverviewClosureStates.closed,
 };

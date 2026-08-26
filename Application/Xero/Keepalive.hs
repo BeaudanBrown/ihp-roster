@@ -18,11 +18,13 @@ import Application.Xero.ReferenceSyncJob (acquireXeroReferenceSyncLease,
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+                                withDurableLiveMutationWithoutContext)
 
 data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary
     { dueConnectionCount              :: !Int
@@ -153,35 +155,32 @@ performLeasedXeroConnectionKeepaliveJob appJob connection =
         Right xeroConfig -> do
             refreshResult <- forceRefreshXeroConnectionAccess xeroConfig connection
             case refreshResult of
-                Right (updatedConnection, _) -> do
-                    _ <- invalidateXeroKeepaliveConnection updatedConnection "xero.connection.keepalive.refresh"
-                    completeKeepaliveJob appJob
-                        (Aeson.object
+                Right (updatedConnection, _) ->
+                    completeKeepaliveMutation appJob updatedConnection "xero.connection.keepalive.refresh" $
+                        Aeson.object
                             [ "xeroConnectionId" Aeson..= tshow updatedConnection.id
                             , "tenantId" Aeson..= updatedConnection.tenantId
                             , "refreshed" Aeson..= True
                             ]
-                        )
                 Left message -> do
                     latestConnection <- fetch connection.id
                     if latestConnection.connectionStatus == "reauthorization_required"
-                        then do
-                            _ <- invalidateXeroKeepaliveConnection latestConnection "xero.connection.keepalive.reauthorization_required"
-                            completeKeepaliveJob appJob
-                                ( Aeson.object
+                        then
+                            completeKeepaliveMutation appJob latestConnection "xero.connection.keepalive.reauthorization_required" $
+                                Aeson.object
                                     [ "xeroConnectionId" Aeson..= tshow latestConnection.id
                                     , "tenantId" Aeson..= latestConnection.tenantId
                                     , "refreshed" Aeson..= False
                                     , "reauthorizationRequired" Aeson..= True
                                     , "message" Aeson..= message
                                     ]
-                                )
                         else fail (cs message)
 
-invalidateXeroKeepaliveConnection :: XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
-invalidateXeroKeepaliveConnection connection label =
-    invalidateTouchedResourcesWithoutContext label $
-        liveMutationResult connection [xeroConnectionResource connection.venueId]
+completeKeepaliveMutation :: (?modelContext :: ModelContext) => AppJob -> XeroConnection -> Text -> Aeson.Value -> IO ()
+completeKeepaliveMutation appJob connection label resultPayload =
+    void $ withDurableLiveMutationWithoutContext label do
+        completeKeepaliveJobInCurrentTransaction appJob resultPayload
+        pure (liveMutationResult connection [xeroConnectionResource connection.venueId])
 
 completeKeepaliveJob ::
     (?modelContext :: ModelContext) =>
@@ -189,6 +188,14 @@ completeKeepaliveJob ::
     Aeson.Value ->
     IO ()
 completeKeepaliveJob appJob resultPayload =
+    void $ withDurableLiveMutationOutcomeWithoutContext publicationFor do
+        completeKeepaliveJobInCurrentTransaction appJob resultPayload
+        pure appJob.venueId
+    where
+        publicationFor = fmap (\venueId -> ("xero.connection.keepalive.skipped", Set.singleton (xeroConnectionResource venueId)))
+
+completeKeepaliveJobInCurrentTransaction :: (?modelContext :: ModelContext) => AppJob -> Aeson.Value -> IO ()
+completeKeepaliveJobInCurrentTransaction appJob resultPayload =
     void
         ( appJob
             |> set #result resultPayload

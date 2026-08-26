@@ -11,7 +11,7 @@ import IHP.Prelude
 wrongPresence :: ActionFields RosterAction.NavigateRosterWeekActionOperation
 wrongPresence =
     actionFields @RosterAction.NavigateRosterWeekActionOperation
-        (surfaceOptionalField @Roster.WeekOffset (Just 2))
+        (surfaceOptionalField @Roster.AnchorDate Nothing)
         ( surfaceField @Roster.RosterGroupId nil
             &: noSurfaceFields
         )

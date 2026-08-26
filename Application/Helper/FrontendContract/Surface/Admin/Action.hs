@@ -69,6 +69,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , updateRosterGroupActionFields
     , updateRosterTimePickerWindowAction
     , updateRosterTimePickerWindowActionFields
+    , updateRosterWeekStartsOnAction
+    , updateRosterWeekStartsOnActionFields
     , updateShiftTypeAction
     , updateShiftTypeActionFields
     , updateUnavailableStaffWarningThresholdAction
@@ -145,6 +147,8 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            updateRosterGroupActionFields,
                                                                            updateRosterTimePickerWindowAction,
                                                                            updateRosterTimePickerWindowActionFields,
+                                                                           updateRosterWeekStartsOnAction,
+                                                                           updateRosterWeekStartsOnActionFields,
                                                                            updateShiftTypeAction,
                                                                            updateShiftTypeActionFields,
                                                                            updateUnavailableStaffWarningThresholdAction,

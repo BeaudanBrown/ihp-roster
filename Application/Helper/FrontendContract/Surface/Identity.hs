@@ -84,6 +84,7 @@ canonicalWireSegment wire value =
                 _ -> fail "Surface scope UUID must be a string"
         Contract.WireDayIR -> escapedText value
         Contract.WireClosedIR {} -> escapedText value
+        Contract.WireDomainIR {} -> escapedText value
         Contract.WireOptionalIR inner -> canonicalWireSegment inner value
         Contract.WireNullableIR _ | value == Aeson.Null -> pure "~null"
         Contract.WireNullableIR inner -> canonicalWireSegment inner value

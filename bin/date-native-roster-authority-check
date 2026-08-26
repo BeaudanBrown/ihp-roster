@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    echo "date-native-roster-authority-check: $*" >&2
+    exit 1
+}
+
+legacy_schema_vocabulary="$(
+    rg -n 'roster_weeks|roster_week_slot_definitions|week_offset_epoch|week_offset|day_offset|roster_week_id|roster_week_slot_definition_id|legacy_roster_week_slot_definition_id' \
+        Application/Schema.sql Application/Fixtures.sql Application Web frontend/ts e2e \
+        --glob '*.hs' --glob '*.sql' --glob '*.ts' \
+        --glob '!Application/Migration/**' \
+        --glob '!Application/Helper/FrontendContract/Surface/Roster/Generated/**' \
+        --glob '!e2e/date-native-roster-readiness.spec.ts' \
+        || true
+)"
+[[ -z "$legacy_schema_vocabulary" ]] \
+    || fail $'Retired roster persistence vocabulary returned outside historical migrations:\n'"$legacy_schema_vocabulary"
+
+legacy_generated_models="$(
+    rg -n '@RosterWeek\b|\bId RosterWeek\b|\bRosterWeekSlotDefinition\b|\.weekOffset\b|#weekOffset\b|\.weekOffsetEpoch\b|#weekOffsetEpoch\b' \
+        Application Web --glob '*.hs' \
+        --glob '!Application/Helper/FrontendContract/Surface/**' \
+        || true
+)"
+[[ -z "$legacy_generated_models" ]] \
+    || fail $'Retired generated roster models or persisted offset fields returned:\n'"$legacy_generated_models"
+
+extract_controller() {
+    local controller="$1"
+    awk -v controller="$controller" '
+        $0 ~ "^data " controller { capture = 1 }
+        capture { print }
+        capture && /^    deriving / { exit }
+    ' Web/Types.hs
+}
+
+roster_routes="$(extract_controller RosterWeeksController)"
+timesheet_routes="$(extract_controller TimesheetsController)"
+
+[[ "$roster_routes" == *'ShowRosterWindowAction { anchorDate :: !Text }'* ]] \
+    || fail "Roster canonical route must carry anchorDate"
+[[ "$timesheet_routes" == *'ShowTimesheetWindowAction { anchorDate :: !Text }'* ]] \
+    || fail "Timesheets canonical route must carry anchorDate"
+if grep -q 'weekOffset' <<<"$roster_routes$timesheet_routes"; then
+    fail "Roster/Timesheets public route constructors must not carry weekOffset"
+fi
+
+surface_offset_fields="$(
+    rg -n 'WeekOffset|weekOffset' \
+        Application/Helper/FrontendContract/AppShell.hs \
+        Application/Helper/FrontendContract/Surface/Profile.hs \
+        Application/Helper/FrontendContract/Surface/Roster.hs \
+        Application/Helper/FrontendContract/Surface/Timesheets.hs \
+        || true
+)"
+[[ -z "$surface_offset_fields" ]] \
+    || fail $'Roster/Timesheets Surface contracts must use explicit windows, not weekOffset:\n'"$surface_offset_fields"
+
+public_offset_fields="$(
+    rg -n 'name="weekOffset"|\("weekOffset"|paramOr[A-Za-z]*[^\n]*"weekOffset"' \
+        Web/Controller \
+        Web/View \
+        || true
+)"
+[[ -z "$public_offset_fields" ]] \
+    || fail $'Public controllers/forms must carry anchorDate, not legacy weekOffset:\n'"$public_offset_fields"
+
+payroll_offset_fields="$(
+    rg -n 'WeekOffset|weekOffset|week_offset' \
+        Application/Helper/Export \
+        Application/Xero \
+        || true
+)"
+[[ -z "$payroll_offset_fields" ]] \
+    || fail $'Payroll export/Xero authority must use explicit Operational-date ranges, not legacy offsets:\n'"$payroll_offset_fields"
+
+timesheet_runtime_offsets="$(
+    rg -n 'WeekOffset|weekOffset|week_offset|venueWeekOffsetForDay|venueWeekStartDate|weekOffsetFrom' \
+        Web/Controller/Timesheets.hs \
+        Web/Timesheets \
+        Web/View/Timesheets \
+        Application/Helper/View/Timesheets.hs \
+        Web/Profiles/Mutations.hs \
+        Web/Staff/Mutations.hs \
+        Web/LeaveRequests/Mutations.hs \
+        Web/RosterWeeks/Mutations.hs \
+        Application/RosterPublication/Mutations.hs \
+        || true
+)"
+[[ -z "$timesheet_runtime_offsets" ]] \
+    || fail $'Timesheet and cross-feature runtime interfaces must use explicit windows, not legacy offsets:\n'"$timesheet_runtime_offsets"
+
+notification_offset_authority="$(
+    rg -n 'venueWeekOffsetForDay|venueWeekStartDate|withRosterWindowLock' \
+        Application/RosterNotification.hs \
+        Application/RosterNotification \
+        || true
+)"
+[[ -z "$notification_offset_authority" ]] \
+    || fail $'Roster notifications must select and lock explicit windows:\n'"$notification_offset_authority"
+
+legacy_authority_queries="$(
+    rg -n 'filterWhere[[:space:]]*\(#weekOffset|week_offset[[:space:]]*=' \
+        Application/RosterPublication.hs \
+        Application/RosterPublication/Mutations.hs \
+        Application/Helper/Export/ReadModel.hs \
+        Application/Xero/Timesheets/Buckets.hs \
+        Application/Xero/Timesheets/Preview.hs \
+        Web/Admin/RosterWindowStartDay.hs \
+        Web/Timesheets/Projection.hs \
+        Web/Timesheets/Suggestion.hs \
+        || true
+)"
+[[ -z "$legacy_authority_queries" ]] \
+    || fail $'Authoritative date-native reads/mutations must not select by legacy offset:\n'"$legacy_authority_queries"
+
+legacy_roster_day_offset_reads="$(
+    rg -n '\.dayOffset|get #dayOffset|roster_days[.]day_offset|orderBy[A-Za-z]* #dayOffset|filterWhere[^[:cntrl:]]*#dayOffset' \
+        Application Web \
+        --glob '*.hs' \
+        --glob '!Application/Migration/**' \
+        || true
+)"
+[[ -z "$legacy_roster_day_offset_reads" ]] \
+    || fail $'Runtime code must read RosterDay.operationalDate; day_offset persistence is retired:\n'"$legacy_roster_day_offset_reads"
+
+legacy_roster_day_offset_writes="$(
+    rg -n 'set #dayOffset' Application Web --glob '*.hs' || true
+)"
+[[ -z "$legacy_roster_day_offset_writes" ]] \
+    || fail $'Runtime code must not write retired day_offset persistence:\n'"$legacy_roster_day_offset_writes"
+
+rg -q 'operationalDate' Web/Timesheets/Projection.hs \
+    || fail "Timesheets projection must retain explicit Operational-date authority"
+rg -q 'operationalDate' Application/Helper/Export/ReadModel.hs \
+    || fail "exports must retain explicit Operational-date selection"
+rg -q 'operationalDate' Application/Xero/Timesheets/Buckets.hs \
+    || fail "Xero buckets must retain explicit Operational-date ownership"
+
+echo "date-native-roster-authority-check: ok"

@@ -84,6 +84,7 @@ data WireType
     | WireUUID
     | WireDay
     | WireClosed Type
+    | WireDomain Type
     | WireList WireType
     | WireOptional WireType
     | WireNullable WireType

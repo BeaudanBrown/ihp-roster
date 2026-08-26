@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-production-inventory-check
-
 output="$(nix build --no-link --print-out-paths .#optimized-prod-server --accept-flake-config)"
 actual="$(find "$output/bin" -maxdepth 1 -type f -printf '%f\n' | sort)"
 expected="$(awk -F '\t' 'NR > 1 { print $1 }' Config/nix/production-executable-inventory.tsv | sort)"
@@ -13,7 +11,61 @@ if [ "$actual" != "$expected" ]; then
 fi
 
 production_derivation="$(nix-store --query --deriver "$output")"
-mapfile -t app_lib_src_derivations < <(nix-store --query --requisites "$production_derivation" | grep -- '-app-lib-src\.drv$')
+requisites="$(nix-store --query --requisites "$production_derivation")"
+
+# verify-full hands over its generated tooling root. Standalone package smoke
+# resolves the same root so production/tooling isolation remains unconditional.
+tooling_root="${FRONTEND_CONTRACT_TOOLS_ROOT:-$(nix build --no-link --print-out-paths .#frontend-contract-tools --accept-flake-config)}"
+if printf '%s\n' "$requisites" | grep -Fxq "$tooling_root"; then
+    echo "production-package-smoke: production closure references frontend-contract tooling output" >&2
+    exit 1
+fi
+
+# The optimized package traversal is the authority for the filtered project
+# source. Keep this coupled to package inspection so verify-full does not
+# independently evaluate a second filtered source derivation.
+mapfile -t source_paths < <(printf '%s\n' "$requisites" | grep -- '-ihp-roster-source$' || true)
+if [ "${#source_paths[@]}" -ne 1 ]; then
+    echo "production-package-smoke: expected one filtered project source derivation, found ${#source_paths[@]}" >&2
+    printf '%s\n' "${source_paths[@]}" >&2
+    exit 1
+fi
+production_source="${source_paths[0]}"
+if [ -e "$production_source/Test" ]; then
+    echo "production-package-smoke: Test leaked into filtered production source" >&2
+    exit 1
+fi
+while IFS= read -r -d '' required_path; do
+    if [ ! -e "$production_source/$required_path" ]; then
+        echo "production-package-smoke: required production input omitted: $required_path" >&2
+        exit 1
+    fi
+done < <(git ls-files -z -- Application/Schema.sql Application/Migration static Config/nix/hosts Config/nix/modules)
+while IFS=$'\t' read -r module_path packaging _; do
+    [ "$module_path" = "path" ] && continue
+    [ -z "$module_path" ] && continue
+    if [ "$packaging" = "production" ]; then
+        [ -f "$production_source/$module_path" ] || {
+            echo "production-package-smoke: production source omitted $module_path" >&2
+            exit 1
+        }
+    elif [ -e "$production_source/$module_path" ]; then
+        echo "production-package-smoke: development source leaked into production: $module_path" >&2
+        exit 1
+    fi
+done < Config/nix/production-module-inventory.tsv
+actual_scripts="$({
+    find "$production_source/Application/Script" -maxdepth 1 -type f -name '*.hs' \
+        -printf '%f\n' | sed 's/\.hs$//' | grep -v '^Prelude$' | sort
+})"
+expected_scripts="$(awk -F '\t' 'NR > 1 && $2 == "production" { print $1 }' Config/nix/production-script-inventory.tsv | sort)"
+if [ "$actual_scripts" != "$expected_scripts" ]; then
+    echo "production-package-smoke: filtered production scripts disagree with explicit inventory" >&2
+    diff -u <(printf '%s\n' "$expected_scripts") <(printf '%s\n' "$actual_scripts") >&2 || true
+    exit 1
+fi
+
+mapfile -t app_lib_src_derivations < <(printf '%s\n' "$requisites" | grep -- '-app-lib-src\.drv$')
 if [ "${#app_lib_src_derivations[@]}" -ne 1 ]; then
     echo "production-package-smoke: expected one generated app-lib source derivation, found ${#app_lib_src_derivations[@]}" >&2
     printf '%s\n' "${app_lib_src_derivations[@]}" >&2
@@ -50,13 +102,19 @@ if [ "$actual_cabal_dependencies" != "$expected_cabal_dependencies" ]; then
     exit 1
 fi
 
-mapfile -t app_lib_derivations < <(nix-store --query --requisites "$production_derivation" | grep -- '-app-lib-0\.1\.0\.drv$')
+mapfile -t app_lib_derivations < <(printf '%s\n' "$requisites" | grep -- '-app-lib-0\.1\.0\.drv$')
 if [ "${#app_lib_derivations[@]}" -ne 1 ]; then
     echo "production-package-smoke: expected one app-lib derivation, found ${#app_lib_derivations[@]}" >&2
     printf '%s\n' "${app_lib_derivations[@]}" >&2
     exit 1
 fi
 app_lib_output="$(nix-store --query --outputs "${app_lib_derivations[0]}")"
+# Hand the already-resolved derivation, source, and output to the following
+# budget inspection so it can profile this package without re-evaluating it.
+export PRODUCTION_PACKAGE_DERIVATION="$production_derivation"
+export PRODUCTION_PACKAGE_APP_LIBRARY_DERIVATION="${app_lib_derivations[0]}"
+export PRODUCTION_PACKAGE_APP_LIBRARY_OUTPUT="$app_lib_output"
+export PRODUCTION_PACKAGE_APP_LIBRARY_SOURCE="$app_lib_src"
 if find "$app_lib_output" \( -type f -o -type l \) \( -name '*.dyn_hi' -o -name '*.so' -o -name '*.so.*' \) -print -quit | grep -q .; then
     echo "production-package-smoke: static-only app-lib contains a dynamic interface or shared object" >&2
     find "$app_lib_output" \( -type f -o -type l \) \( -name '*.dyn_hi' -o -name '*.so' -o -name '*.so.*' \) -print >&2
@@ -99,13 +157,5 @@ while IFS= read -r executable; do
     fi
     "$wrapper" +RTS --info >/dev/null
 done <<< "$expected"
-
-# Focused deployed service evaluations retain migration/recovery, Stripe
-# reconciliation, and reference-refresh cadence consumers. Remaining executable
-# consumers are checked against their exact NixOS source markers by
-# production-inventory-check.
-nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
-nix eval --impure --json --file Config/nix/tests/billing-stripe-module.nix >/dev/null
-nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
 
 echo "production-package-smoke: ok ($(printf '%s\n' "$expected" | wc -l) packaged executables)"

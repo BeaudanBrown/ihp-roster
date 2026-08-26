@@ -100,7 +100,7 @@ test.describe('Imported Xero pay item dropdowns', () => {
         await expect(page.locator('#new-shift-type-pay-rate option', { hasText: 'E2E Imported Bar Rate' })).toHaveAttribute('value', `xero:${importedPayItemId}`);
         await expectFwcRatesBeforeXeroPayItems('#new-shift-type-pay-rate', page);
 
-        await page.goto(`/EditStaff?staffId=${staffId}&weekOffset=0`);
+        await page.goto(`/EditStaff?staffId=${staffId}&anchorDate=2025-01-06`);
         const staffPayRateSelection = page.locator('#payRateSelection');
         await expect(staffPayRateSelection).toHaveCount(1);
         await expect(staffPayRateSelection).toContainText('E2E Imported Bar Rate');

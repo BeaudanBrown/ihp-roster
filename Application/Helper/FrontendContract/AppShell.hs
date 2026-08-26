@@ -20,7 +20,6 @@ module Application.Helper.FrontendContract.AppShell
     , CreateTimesheetEntryOverlay
     , UpdateTimesheetEntryOverlay
     , DeleteTimesheetEntryOverlay
-    , WeekOffsetField
     , StaffFilterIdField
     , StaffIdField
     , ShiftTypeIdField
@@ -34,6 +33,7 @@ module Application.Helper.FrontendContract.AppShell
     , ManagerNoteField
     , OpenPasskeySetupDialog
     , OpenPasskeyRecoveryCodeDialog
+    , SubmitPasskeyProtectedAction
     , CreateLeaveRequestOverlay
     , OpenXeroTimesheetPreparationOverlay
     , RunXeroTimesheetPreparationOverlay
@@ -62,6 +62,8 @@ module Application.Helper.FrontendContract.AppShell
     , UpdateStaffShiftPreferencesOverlay
     , CreateTrialStaffInvitationOverlay
     , RemoveStaffOverlay
+    , AnchorDateField
+    , RosterCalendarRevisionField
     , StartDateField
     , EndDateField
     , ReasonField
@@ -90,6 +92,8 @@ module Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Overlay (DialogOverlayMount)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
+import Application.PayRateSelection (StaffPayRateSelection)
+import Application.Xero.EmployeeId (XeroEmployeeSelection)
 import Generated.Types (FeedbackTypeEnum, StaffEmploymentBasisEnum,
                         VenueRoleEnum)
 
@@ -112,7 +116,6 @@ data EditTimesheetEntryDialog
 data CreateTimesheetEntryOverlay
 data UpdateTimesheetEntryOverlay
 data DeleteTimesheetEntryOverlay
-data WeekOffsetField
 data StaffFilterIdField
 data StaffIdField
 data ShiftTypeIdField
@@ -127,6 +130,7 @@ data ManagerNoteField
 
 data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
+data SubmitPasskeyProtectedAction
 data CreateLeaveRequestOverlay
 data OpenXeroTimesheetPreparationOverlay
 data RunXeroTimesheetPreparationOverlay
@@ -155,6 +159,8 @@ data UpdateStaffProfileOverlay
 data UpdateStaffShiftPreferencesOverlay
 data CreateTrialStaffInvitationOverlay
 data RemoveStaffOverlay
+data AnchorDateField
+data RosterCalendarRevisionField
 data StartDateField
 data EndDateField
 data ReasonField
@@ -226,7 +232,8 @@ type AppShellContract =
          , AppShellAction CreateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          , AppShellAction UpdateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          , AppShellAction DeleteTimesheetEntryOverlay
-            '[ Field WeekOffsetField 'WireText
+            '[ Field AnchorDateField 'WireText
+             , Field RosterCalendarRevisionField 'WireText
              , Field StaffFilterIdField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellDelete
@@ -237,6 +244,13 @@ type AppShellContract =
              ]
          , AppShellAction OpenPasskeySetupDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenPasskeyRecoveryCodeDialog DialogLauncherFields DialogLauncherOptions
+         , AppShellAction SubmitPasskeyProtectedAction
+            '[]
+            '[ AppShellHtmxMethod 'AppShellPost
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction CreateLeaveRequestOverlay
             '[ Field StartDateField 'WireText
              , Field EndDateField 'WireText
@@ -266,7 +280,7 @@ type AppShellContract =
          , AppShellAction RunXeroTimesheetPreparationSubmissionOverlay '[] DialogSubmitOptions
          , AppShellAction ApplyXeroTimesheetPreparationStaffDecisionOverlay
             '[ Field StaffIdField 'WireUUID
-             , Field XeroEmployeeSelectionField 'WireText
+             , Field XeroEmployeeSelectionField ('WireDomain XeroEmployeeSelection)
              ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
@@ -298,7 +312,9 @@ type AppShellContract =
          , AppShellAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction DeleteRosterSlotOverlay
-            '[]
+            '[ Field AnchorDateField 'WireText
+             , Field RosterCalendarRevisionField 'WireText
+             ]
             '[ AppShellHtmxMethod 'AppShellDelete
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
@@ -314,6 +330,8 @@ type AppShellContract =
              ]
          , AppShellAction ConfirmRemoveRosterRowOverlay
             '[ Field ConfirmDeletePopulatedRowField 'WireText
+             , Field AnchorDateField 'WireText
+             , Field RosterCalendarRevisionField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
@@ -358,6 +376,8 @@ type RosterShiftFields =
      , Field ShiftTypeIdField 'WireText
      , Field StartTimeField 'WireText
      , Field EndTimeField 'WireText
+     , Field AnchorDateField 'WireText
+     , Field RosterCalendarRevisionField 'WireText
      ]
 
 type StaffProfileFields =
@@ -369,23 +389,24 @@ type StaffProfileFields =
      , Field EmergencyContactNameField 'WireText
      , Field EmergencyContactPhoneField 'WireText
      , Field SectionField ('WireClosed StaffProfileSectionValue)
-     , Field WeekOffsetField 'WireText
+     , Field AnchorDateField 'WireText
      , Field RosterGroupIdField 'WireText
      , Field VenueRoleField ('WireClosed VenueRoleEnum)
      , Field EmploymentBasisField ('WireClosed StaffEmploymentBasisEnum)
-     , Field PayRateSelectionField 'WireText
+     , Field PayRateSelectionField ('WireDomain StaffPayRateSelection)
      , Field RosterGroupIdsField 'WireText
      ]
 
 type StaffShiftPreferenceFields =
     '[ Field SectionField ('WireClosed StaffProfileSectionValue)
-     , Field WeekOffsetField 'WireText
+     , Field AnchorDateField 'WireText
      , Field RosterGroupIdField 'WireText
      , Field ShiftPreferenceKeysField 'WireText
      ]
 
 type TimesheetEntryFields =
-    '[ Field WeekOffsetField 'WireText
+    '[ Field AnchorDateField 'WireText
+     , Field RosterCalendarRevisionField 'WireText
      , Field StaffFilterIdField 'WireText
      , Field StaffIdField 'WireText
      , Field ShiftTypeIdField 'WireText

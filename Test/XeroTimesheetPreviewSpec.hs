@@ -8,9 +8,12 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
+import Application.WageEngine (EarningsComponent (..), WageCalculation (..))
 import Application.Xero.Timesheets.Preview
+import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Either (isLeft)
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
@@ -35,7 +38,7 @@ tests =
                     let line = onlyPreviewLine previewRun
                     line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
 
-            it "allocates every final-day overnight component to the shift start day" $ withContext do
+            it "allocates every final-day overnight component to its Operational-day position" $ withContext do
                 withCleanDb do
                     fixture <-
                         createPreviewFixture
@@ -60,7 +63,7 @@ tests =
                     (lineFor "penalty:late_night_after_midnight").previewLineNumberOfUnits `shouldBe` replicate 6 0 <> [2]
                     map (.previewLineLocalBucketKey) lines `shouldSatisfy` all (not . Text.isInfixOf "penalty:missed_meal_break_addition")
 
-            it "keeps a mid-period overnight shift in its start-day Xero position" $ withContext do
+            it "keeps a mid-period overnight shift in its Operational-day Xero position" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 2 fixtureStaffA (TimeOfDay 22 0 0) (TimeOfDay 2 0 0)]
                     previewRun <- buildFixturePreview fixture
@@ -70,18 +73,18 @@ tests =
                     lines `shouldSatisfy` all (\line -> drop 3 line.previewLineNumberOfUnits == replicate 4 0)
                     lines `shouldSatisfy` all (\line -> line.previewLineNumberOfUnits !! 2 > 0)
 
-            it "rejects a preview whose shift start day is outside the selected period" $ withContext do
+            it "allocates a final-day cross-midnight shift in full to its Operational-day position" $ withContext do
                 withCleanDb do
-                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                    input <- fetchPreviewInput fixture.request fixture.connection
-                    let moveAfterPeriod entry =
-                            entry
-                                |> set #startsAt (addUTCTime (7 * 24 * 60 * 60) entry.startsAt)
-                                |> set #endsAt (addUTCTime (7 * 24 * 60 * 60) entry.endsAt)
-                        invalidInput = input { previewTimesheetEntries = map moveAfterPeriod input.previewTimesheetEntries }
+                    fixture <- createPreviewFixtureWithRosterStart 4 "weekly" [EntrySpec 6 fixtureStaffA (TimeOfDay 22 0 0) (TimeOfDay 2 0 0)]
+                    previewRun <- buildFixturePreview fixture
 
-                    buildXeroTimesheetPreviewRun invalidInput
-                        `shouldBe` Left "Timesheet start day is outside the selected Xero period."
+                    let lines = (onlyPreview previewRun).previewLines
+                        unitsAt index = sum [line.previewLineNumberOfUnits !! index | line <- lines]
+                    payCalculation <- query @TimesheetPayCalculation |> filterWhere (#timesheetEntryId, unpackId (fromMaybe (error "expected entry") (head fixture.entries)).id) |> fetchOne
+                    payCalculation.rosterWindowStart `shouldNotBe` fixture.periodStart
+                    payCalculation.rosterWeekStartsOn `shouldBe` 4
+                    map unitsAt [0 .. 5] `shouldBe` replicate 6 0
+                    unitsAt 6 `shouldBe` 6
 
             it "preserves minute-level hourly Xero quantities" $ withContext do
                 withCleanDb do
@@ -125,14 +128,20 @@ tests =
                         case find (\candidate -> unpackId candidate.id == payLevelUuid) input.previewAwardLevels of
                             Just value -> pure value
                             Nothing -> expectationFailure "expected preview award level" >> error "unreachable"
-                    baseRate <-
-                        case find (\candidate -> candidate.awardLevelId == payLevelUuid && candidate.employmentBasis == staff.employmentBasis) input.previewAwardLevelBaseRates of
-                            Just value -> pure value
-                            Nothing -> expectationFailure "expected preview base rate" >> error "unreachable"
+                    baseRate <- query @AwardLevelBaseRate
+                        |> filterWhere (#awardLevelId, payLevelUuid)
+                        |> filterWhere (#employmentBasis, staff.employmentBasis)
+                        |> fetchOne
                     mapping <-
                         case find (Text.isInfixOf ":ordinary:source:" . (.localBucketKey)) input.previewEarningsMappings of
                             Just value -> pure value
                             Nothing -> expectationFailure "expected ordinary earnings mapping" >> error "unreachable"
+                    sealedRateBoundary <- case do
+                        calculation <- (Map.lookup (unpackId firstEntry.id) input.previewCalculationsByEntryId :: Maybe WageCalculation)
+                        component <- (head calculation.earningsComponents :: Maybe EarningsComponent)
+                        component.publishedRateBoundaryDate of
+                            Just value -> pure value
+                            Nothing -> expectationFailure "expected sealed rate boundary" >> error "unreachable"
                     let sourceIdentity =
                             "bepis-projection:award_level_base_rates:"
                                 <> tshow (unpackId baseRate.id)
@@ -143,24 +152,106 @@ tests =
                                 <> tshow awardLevel.classificationFixedId
                                 <> ":basis:"
                                 <> inputValue staff.employmentBasis
-                                <> ":effective:2025-07-07:ordinary:source:"
+                                <> ":effective:"
+                                <> tshow sealedRateBoundary
+                                <> ":ordinary:source:"
                                 <> sourceIdentity
                                 <> ":rate:"
                                 <> tshow baseRate.hourlyRate
-                        oldBaseRate = baseRate |> set #operativeFrom (Just (fromGregorian 2025 7 1)) |> set #operativeTo Nothing
-                        newerBaseRate = baseRate |> set #operativeFrom (Just (fromGregorian 2026 7 1)) |> set #operativeTo Nothing |> set #hourlyRate 40
-                        otherBaseRates = filter (\candidate -> candidate.awardLevelId /= payLevelUuid || candidate.employmentBasis /= staff.employmentBasis) input.previewAwardLevelBaseRates
                         preparedInput =
                             input
-                                { previewRosterWeekStartsOn = 1
-                                , previewAwardLevelBaseRates = oldBaseRate : newerBaseRate : otherBaseRates
+                                { previewPayCalculationsByEntryId = fmap (withSealedRosterWeekStartsOn 1) input.previewPayCalculationsByEntryId
                                 , previewEarningsMappings = [mapping |> set #localBucketKey expectedKey]
                                 , previewPayItemRequirements = []
                                 }
+                    _ <- baseRate |> set #operativeFrom (Just (fromGregorian 2026 7 1)) |> set #hourlyRate 40 |> updateRecord
 
                     case buildXeroTimesheetPreviewRun preparedInput of
                         Left err -> expectationFailure (cs err)
                         Right previewRun -> (onlyPreviewLine previewRun).previewLineLocalBucketKey `shouldBe` expectedKey
+
+            it "late-binds components approved before Xero routing without changing sealed wage facts" $ withContext do
+                withCleanDb do
+                    fixture <- createLateBindingPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    sealedBefore <- query @TimesheetPayEarningsComponent
+                        |> filterWhereIn (#timesheetPayCalculationId, mapMaybe (fmap unpackId . (.activePayCalculationId)) fixture.entries)
+                        |> orderBy #ordinal
+                        |> fetch
+                    sealedBefore `shouldSatisfy` all (isNothing . (.xeroLocalBucketKey))
+                    sealedBefore `shouldSatisfy` all (isNothing . (.xeroEarningsRateId))
+
+                    preparedInput <- fetchPreparedPreviewInput fixture.request fixture.connection >>= \case
+                        Left message -> expectationFailure (cs message) >> error "unreachable"
+                        Right value -> pure value
+                    previewRun <- case buildXeroTimesheetPreviewRun preparedInput of
+                        Left message -> expectationFailure (cs message) >> error "unreachable"
+                        Right value -> pure value
+                    previewRun.previewRunTimesheets `shouldSatisfy` (not . null)
+
+                    bindings <- query @TimesheetPayComponentXeroBinding
+                        |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+                        |> orderBy #resolvedAt
+                        |> fetch
+                    length bindings `shouldBe` length (filter ((> 0) . (.quantity)) sealedBefore)
+                    bindings `shouldSatisfy` all ((== "verified_mapping") . (.resolutionSource))
+                    sealedAfter <- query @TimesheetPayEarningsComponent
+                        |> filterWhereIn (#id, map (.id) sealedBefore)
+                        |> orderBy #ordinal
+                        |> fetch
+                    map (\component -> (component.xeroLocalBucketKey, component.xeroEarningsRateId)) sealedAfter
+                        `shouldBe` map (\component -> (component.xeroLocalBucketKey, component.xeroEarningsRateId)) sealedBefore
+
+                    _ <- fetchPreparedPreviewInput fixture.request fixture.connection
+                    persistedAgain <- query @TimesheetPayComponentXeroBinding
+                        |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+                        |> fetch
+                    map (.id) persistedAgain `shouldMatchList` map (.id) bindings
+
+                    mappingRows <- query @XeroEarningsRateMapping
+                        |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+                        |> fetch
+                    forM_ mappingRows \mapping ->
+                        mapping |> set #xeroEarningsRateId (Just "changed-after-late-binding") |> updateRecord >>= const (pure ())
+                    routedAgain <- fetchPreparedPreviewInput fixture.request fixture.connection >>= \case
+                        Left message -> expectationFailure (cs message) >> error "unreachable"
+                        Right value -> pure value
+                    rebuilt <- case buildXeroTimesheetPreviewRun routedAgain of
+                        Left message -> expectationFailure (cs message) >> error "unreachable"
+                        Right value -> pure value
+                    map (.previewLineXeroEarningsRateId) (onlyPreview rebuilt).previewLines
+                        `shouldSatisfy` all (`elem` map (.xeroEarningsRateId) bindings)
+
+                    let firstBinding = fromMaybe (error "expected a late Xero binding") (head bindings)
+                    updateAttempt :: Either SomeException TimesheetPayComponentXeroBinding <-
+                        try (firstBinding |> set #xeroEarningsRateId "forbidden-reroute" |> updateRecord)
+                    updateAttempt `shouldSatisfy` isLeft
+
+            it "keeps approved Xero bucket mappings after the venue start day changes" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    originalPreview <- buildFixturePreview fixture
+                    sealedComponents <- query @TimesheetPayEarningsComponent
+                        |> filterWhereIn (#timesheetPayCalculationId, mapMaybe (fmap unpackId . (.activePayCalculationId)) fixture.entries)
+                        |> fetch
+                    sealedComponents `shouldSatisfy` all (isJust . (.xeroLocalBucketKey))
+                    sealedComponents `shouldSatisfy` all (isJust . (.xeroEarningsRateId))
+                    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                    _ <- venueConfig |> set #rosterWeekStartsOn 4 |> updateRecord
+                    mappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                    forM_ mappings \mapping ->
+                        mapping |> set #xeroEarningsRateId (Just "changed-after-approval") |> updateRecord >>= const (pure ())
+
+                    changedInput <- fetchPreviewInput fixture.request fixture.connection
+                    changedPreview <- case buildXeroTimesheetPreviewRun changedInput of
+                        Left err -> expectationFailure (cs err) >> error "unreachable"
+                        Right value -> pure value
+
+                    map (.previewLineLocalBucketKey) (onlyPreview originalPreview).previewLines
+                        `shouldBe` map (.previewLineLocalBucketKey) (onlyPreview changedPreview).previewLines
+                    map (.previewLineXeroEarningsRateId) (onlyPreview originalPreview).previewLines
+                        `shouldBe` map (.previewLineXeroEarningsRateId) (onlyPreview changedPreview).previewLines
+                    map (.previewLineXeroEarningsRateId) (onlyPreview changedPreview).previewLines
+                        `shouldNotSatisfy` elem "changed-after-approval"
 
             it "builds fortnightly daily units in selected payroll-calendar order" $ withContext do
                 withCleanDb do
@@ -362,32 +453,61 @@ data PreviewFixture = PreviewFixture
     }
 
 createPreviewFixture :: (?modelContext :: ModelContext) => Text -> [EntrySpec] -> IO PreviewFixture
-createPreviewFixture calendarType entrySpecs = do
+createPreviewFixture = createPreviewFixtureWithRosterStart 1
+
+createPreviewFixtureWithRosterStart :: (?modelContext :: ModelContext) => Int -> Text -> [EntrySpec] -> IO PreviewFixture
+createPreviewFixtureWithRosterStart rosterWeekStartsOn calendarType entrySpecs =
+    createPreviewFixtureWithApprovalOrder rosterWeekStartsOn False calendarType entrySpecs
+
+createLateBindingPreviewFixture :: (?modelContext :: ModelContext) => Text -> [EntrySpec] -> IO PreviewFixture
+createLateBindingPreviewFixture = createPreviewFixtureWithApprovalOrder 1 True
+
+createPreviewFixtureWithApprovalOrder :: (?modelContext :: ModelContext) => Int -> Bool -> Text -> [EntrySpec] -> IO PreviewFixture
+createPreviewFixtureWithApprovalOrder rosterWeekStartsOn approveBeforeXero calendarType entrySpecs = do
     today <- utctDay <$> getCurrentTime
     let anchorStart = fromGregorian 2026 5 4
         periodLength = if calendarType == "fortnightly" then 14 else 7
         periodsElapsed = diffDays today anchorStart `div` periodLength
         periodStart = addDays (periodsElapsed * periodLength) anchorStart
-    fixture <- createPreviewFixtureAtPeriod calendarType periodStart entrySpecs
+    fixture <- createPreviewFixtureAtPeriodWithApprovalOrder rosterWeekStartsOn approveBeforeXero calendarType periodStart entrySpecs
     _ <- createPreviewPayRun fixture "DRAFT"
     pure fixture
 
 createPreviewFixtureAtPeriod :: (?modelContext :: ModelContext) => Text -> Day -> [EntrySpec] -> IO PreviewFixture
-createPreviewFixtureAtPeriod calendarType periodStart entrySpecs = do
+createPreviewFixtureAtPeriod = createPreviewFixtureAtPeriodWithRosterStart 1
+
+createPreviewFixtureAtPeriodWithRosterStart :: (?modelContext :: ModelContext) => Int -> Text -> Day -> [EntrySpec] -> IO PreviewFixture
+createPreviewFixtureAtPeriodWithRosterStart rosterWeekStartsOn calendarType periodStart entrySpecs =
+    createPreviewFixtureAtPeriodWithApprovalOrder rosterWeekStartsOn False calendarType periodStart entrySpecs
+
+createPreviewFixtureAtPeriodWithApprovalOrder :: (?modelContext :: ModelContext) => Int -> Bool -> Text -> Day -> [EntrySpec] -> IO PreviewFixture
+createPreviewFixtureAtPeriodWithApprovalOrder rosterWeekStartsOn approveBeforeXero calendarType periodStart entrySpecs = do
     let periodLength = if calendarType == "fortnightly" then 14 else 7
         periodEnd = addDays (periodLength - 1) periodStart
     venue <- createVenueWithConfig "Xero Preview Venue"
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    _ <- venueConfig
+        |> set #rosterWeekStartsOn rosterWeekStartsOn
+        |> updateRecord
     owner <- createUserRecord "preview-owner@example.com" "admin" True
     _ <- createVenueMembershipRecord venue owner VenueOwner
     awardLevel <- createPayLevelRecordWithRates venue "Level 2" 25 2 3 1 1.25 1.5
     staffA <- createMappedStaff venue awardLevel "Ada" "Lovelace"
     staffB <- createMappedStaff venue awardLevel "Grace" "Hopper"
-    entries <- mapM (createFixtureEntry venue owner staffA staffB periodStart) entrySpecs
+    shiftType <- createShiftTypeRecord venue awardLevel "Preview Shift"
+    entriesBeforeXero <-
+        if approveBeforeXero
+            then mapM (createFixtureEntry venue owner staffA staffB shiftType periodStart) entrySpecs
+            else pure []
     connection <- createPreviewXeroConnection venue owner
     _ <- createPreviewSyncRun venue connection
     _ <- createPreviewPayrollCalendar venue connection calendarType periodStart
     buckets <- currentVenueBuckets venue periodStart
     createPreviewMappings venue connection periodStart staffA staffB buckets
+    entries <-
+        if approveBeforeXero
+            then pure entriesBeforeXero
+            else mapM (createFixtureEntry venue owner staffA staffB shiftType periodStart) entrySpecs
     pure PreviewFixture
         { venue
         , owner
@@ -424,15 +544,16 @@ createMappedStaff venue awardLevel firstName lastName = do
         |> set #defaultAwardLevelId (Just awardLevel.id)
         |> updateRecord
 
-createFixtureEntry :: (?modelContext :: ModelContext) => Venue -> User -> Staff -> Staff -> Day -> EntrySpec -> IO TimesheetEntry
-createFixtureEntry venue owner staffA staffB periodStart spec = do
+createFixtureEntry :: (?modelContext :: ModelContext) => Venue -> User -> Staff -> Staff -> ShiftType -> Day -> EntrySpec -> IO TimesheetEntry
+createFixtureEntry venue owner staffA staffB shiftType periodStart spec = do
     let staff = if spec.entryStaff == FixtureStaffA then staffA else staffB
     approvedAt <- getCurrentTime
-    createAndApproveEntry venue staff (addDays spec.entryDayOffset periodStart) () owner approvedAt (entryTransforms spec)
+    createAndApproveEntry venue staff (addDays spec.entryDayOffset periodStart) () owner approvedAt (entryTransforms shiftType spec)
 
-entryTransforms :: EntrySpec -> [TimesheetFixtureValues -> TimesheetFixtureValues]
-entryTransforms spec =
-    [ setTestStartTime spec.entryStartTime
+entryTransforms :: ShiftType -> EntrySpec -> [TimesheetFixtureValues -> TimesheetFixtureValues]
+entryTransforms shiftType spec =
+    [ set #shiftTypeId (unpackId shiftType.id)
+    , setTestStartTime spec.entryStartTime
     , setTestEndTime spec.entryEndTime
     ]
         <> case spec of
@@ -601,7 +722,11 @@ currentVenueBuckets venue effectiveDay = do
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    pure (deriveXeroLocalEarningsBuckets 1 effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    pure (deriveXeroLocalEarningsBuckets venueConfig.rosterWeekStartsOn effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
+
+withSealedRosterWeekStartsOn :: Int -> TimesheetPayCalculation -> TimesheetPayCalculation
+withSealedRosterWeekStartsOn startsOn calculation = calculation |> set #rosterWeekStartsOn startsOn
 
 buildFixturePreview :: (?modelContext :: ModelContext) => PreviewFixture -> IO XeroTimesheetPreviewRun
 buildFixturePreview fixture = buildFixturePreviewWithRemotes fixture []
@@ -619,14 +744,13 @@ buildFixturePreviewWithRemotes fixture remoteTimesheets = do
     staffPayVersions <- query @StaffPayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) fixture.entries) |> fetch
     shiftTypePayVersions <- query @ShiftTypePayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) fixture.entries) |> fetch
     importedPayItems <- query @XeroImportedPayItem |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+    payCalculations <- query @TimesheetPayCalculation |> filterWhereIn (#id, mapMaybe (.activePayCalculationId) fixture.entries) |> fetch
+    componentRows <- query @TimesheetPayEarningsComponent |> filterWhereIn (#timesheetPayCalculationId, map (unpackId . (.id)) payCalculations) |> orderBy #ordinal |> fetch
+    lateBindings <- query @TimesheetPayComponentXeroBinding |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> filterWhereIn (#timesheetPayEarningsComponentId, map (unpackId . (.id)) componentRows) |> fetch
     awardLevels <- query @AwardLevel |> fetch
-    baseRates <- query @AwardLevelBaseRate |> fetch
-    penaltyRates <- query @AwardLevelPenaltyRate |> fetch
-    timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
     let input =
             XeroTimesheetPreviewInput
                 { previewVenueId = fixture.venue.id
-                , previewRosterWeekStartsOn = 1
                 , previewPeriodStart = fixture.periodStart
                 , previewPeriodEnd = fixture.periodEnd
                 , previewTimesheetEntries = fixture.entries
@@ -638,10 +762,10 @@ buildFixturePreviewWithRemotes fixture remoteTimesheets = do
                 , previewEarningsMappings = earningsMappings
                 , previewPayItemRequirements = payItemRequirements
                 , previewCalculationsByEntryId = calculations
+                , previewPayCalculationsByEntryId = Map.fromList [(calculation.timesheetEntryId, calculation) | calculation <- payCalculations]
+                , previewComponentRowsByCalculationId = Map.fromListWith (<>) [(row.timesheetPayCalculationId, [row]) | row <- componentRows]
+                , previewLateBindingsByComponentId = Map.fromList [(binding.timesheetPayEarningsComponentId, binding) | binding <- lateBindings]
                 , previewAwardLevels = awardLevels
-                , previewAwardLevelBaseRates = baseRates
-                , previewAwardLevelPenalties = penaltyRates
-                , previewTimePenaltyAllowances = timeAllowances
                 , previewRemoteTimesheets = remoteTimesheets
                 }
     case buildXeroTimesheetPreviewRun input of

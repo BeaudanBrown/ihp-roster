@@ -4,19 +4,14 @@ module Application.Helper.PasswordResetTokens
     , issuePasswordResetToken
     , issuePasswordResetTokenWith
     , passwordResetTokenLifetime
-    , sendPasswordResetTokenEmail
     ) where
 
-import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
-import Application.Helper.Mail
+import Application.AccountSecurityEmail.Enqueue (enqueuePasswordResetDelivery)
+import Application.AccountSecurityEmail.TokenCipher (encryptAccountSecurityDeliveryToken)
 import Application.Helper.OpaqueToken (generateOpaqueToken, hashOpaqueToken)
-import Application.Helper.Url (appendQueryParams)
 import Application.PasswordReset.Mutations (withPasswordResetUserLock)
-import IHP.EnvVar
-import IHP.Mail
+import Control.Monad (void)
 import Web.Controller.Prelude
-import Web.Mail.Users.PasswordReset
-import Web.Types
 
 passwordResetTokenLifetime :: NominalDiffTime
 passwordResetTokenLifetime = 60 * 60
@@ -39,6 +34,7 @@ issuePasswordResetTokenWith ::
     IO (PasswordResetToken, Text)
 issuePasswordResetTokenWith targetUser requestedByUserId venueId afterIssue = do
     rawToken <- generateOpaqueToken
+    deliveryTokenCiphertext <- encryptAccountSecurityDeliveryToken rawToken
     now <- getCurrentTime
     maybeToken <- withPasswordResetUserLock (unpackId targetUser.id) do
         existingTokens <- query @PasswordResetToken
@@ -48,39 +44,23 @@ issuePasswordResetTokenWith targetUser requestedByUserId venueId afterIssue = do
         forM_ existingTokens \token ->
             token
                 |> set #consumedAt (Just now)
+                |> set #deliveryTokenCiphertext Nothing
                 |> updateRecordDiscardResult
         token <- newRecord @PasswordResetToken
             |> set #userId (unpackId targetUser.id)
             |> set #requestedByUserId (Just (unpackId requestedByUserId))
             |> set #venueId (unpackId venueId)
             |> set #tokenHash (hashOpaqueToken rawToken)
+            |> set #deliveryTokenCiphertext (Just deliveryTokenCiphertext)
             |> set #sentToEmail targetUser.email
             |> set #expiresAt (addUTCTime passwordResetTokenLifetime now)
             |> createRecord
         afterIssue token
+        void (enqueuePasswordResetDelivery token)
         pure token
     case maybeToken of
         Just token -> pure (token, rawToken)
         Nothing -> error "Password reset target disappeared while issuing token"
-
-sendPasswordResetTokenEmail ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    User ->
-    Text ->
-    IO ()
-sendPasswordResetTokenEmail targetUser rawToken = do
-    AppMailSettings { .. } <- loadAppMailSettings
-    appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
-    emailDeliveryDisabled <- isEmailDeliveryDisabled
-    let resetUrl = appBaseUrl <> appendQueryParams (pathTo NewPasswordResetAction) [("token", rawToken)]
-    unless emailDeliveryDisabled do
-        sendMail PasswordResetMail
-            { user = targetUser
-            , resetUrl
-            , fromAddress = mailFromAddress
-            , replyToAddress = mailReplyToAddress
-            , supportEmail = mailSupportEmail
-            }
 
 findActivePasswordResetToken :: (?modelContext :: ModelContext) => Text -> IO (Maybe PasswordResetToken)
 findActivePasswordResetToken rawToken =

@@ -83,6 +83,7 @@ test.describe('roster pointer session effects', () => {
         await dialog.getByRole('button', { name: 'Delete shift' }).click();
         expect((await deleteResponse).status()).toBe(200);
         await expect(deletedSource).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
+        resetCanonicalRosterAssignedShiftFixture();
     });
 
     test('staff drag highlights the full empty row-grid shift span', async ({ page }) => {

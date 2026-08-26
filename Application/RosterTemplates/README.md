@@ -6,6 +6,7 @@
 - Saved content is immutable by version. Edits use a private copy and commit with optimistic version checking.
 - Each effective user has at most one private recoverable draft globally.
 - Draft content uses explicit Staff/Open assignments and structurally complete shifts.
+- Week days persist explicit weekday identity. Presentation and application rotate by the venue's current start weekday; Day templates remain target-date-relative.
 - Save converts stale or pay-invalid Staff assignments to Open with typed warnings; stale Shift types block the whole save.
 - Saved templates soft-delete. Unsaved drafts and their content may be permanently discarded.
 - Access uses the same manager-or-higher and venue-writable capability as roster editing, including support-mode super admins.
@@ -16,7 +17,8 @@
 
 `Web.RosterWeeks.TemplateApplication` owns authoritative preview and confirmation application. It:
 
-- replaces one draft day while preserving unrelated week columns, or replaces the complete draft week;
+- targets explicit Operational dates in a `[start,end)` roster-group window without requiring `RosterWeek` identity;
+- replaces one draft day while preserving unrelated date-local lanes, or replaces all seven dated days and lanes;
 - resolves date-free template minutes against target Melbourne dates and requires explicit repeated-time choices;
 - blocks stale Shift types and converts unavailable, group-invalid, or pay-invalid Staff assignments to Open;
 - writes assignment cleanup as a new immutable template version in the same transaction as the roster replacement;

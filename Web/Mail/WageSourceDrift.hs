@@ -1,23 +1,22 @@
 module Web.Mail.WageSourceDrift where
 
-import Generated.Types
 import IHP.MailPrelude
 import Web.Mail.Shared
 
 
 data WageSourceDriftMail = WageSourceDriftMail
-    { recipient      :: !User
-    , driftKind      :: !Text
-    , expectedValue  :: !Text
-    , observedValue  :: !Text
-    , fromAddress    :: !Text
-    , replyToAddress :: !Text
-    , supportEmail   :: !Text
+    { recipientAddress :: !Text
+    , driftKind        :: !Text
+    , expectedValue    :: !Text
+    , observedValue    :: !Text
+    , fromAddress      :: !Text
+    , replyToAddress   :: !Text
+    , supportEmail     :: !Text
     }
 
 instance BuildMail WageSourceDriftMail where
     subject = "Bepis Award source drift detected"
-    to WageSourceDriftMail { recipient } = Address Nothing recipient.email
+    to WageSourceDriftMail { recipientAddress } = Address Nothing recipientAddress
     from = bepisFrom ?mail.fromAddress
     replyTo WageSourceDriftMail { replyToAddress } = bepisReplyTo replyToAddress
     html WageSourceDriftMail { driftKind, expectedValue, observedValue, supportEmail } =

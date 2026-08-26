@@ -36,6 +36,7 @@ createVenueRecordWithRosterDefaults name = do
 
 data FixturePasswordInput
     = HashFixturePassword !Text
+    | UseRuntimeFixturePasswordHash !Text
     | UseFixturePasswordHash !Text
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
@@ -64,8 +65,9 @@ createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRol
 createUserRecordWithPasswordInputAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> FixturePasswordInput -> Text -> Maybe PlatformRoleEnum -> Bool -> Maybe (Id User) -> IO User
 createUserRecordWithPasswordInputAndPlatformRoleAndId emailAddress passwordInput globalRole platformRole isProfileCompleted maybeUserId = do
     passwordHash <- case passwordInput of
-        HashFixturePassword password        -> hashPassword password
-        UseFixturePasswordHash existingHash -> pure existingHash
+        HashFixturePassword password               -> hashPassword password
+        UseRuntimeFixturePasswordHash existingHash -> pure existingHash
+        UseFixturePasswordHash existingHash        -> pure existingHash
     let user =
             newRecord @User
                 |> set #email emailAddress
@@ -183,35 +185,51 @@ createStaffRosterGroupRecord staff rosterGroup =
         |> set #rosterGroupId (unpackId (get #id rosterGroup))
         |> createRecord
 
-createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecord venue weekOffset isLive = do
+data FixtureRosterWindow = FixtureRosterWindow
+    { fixtureVenueId           :: !UUID
+    , fixtureRosterGroupId     :: !UUID
+    , fixtureWindowStart       :: !Day
+    , fixtureWindowIsPublished :: !Bool
+    }
+    deriving (Eq, Show)
+
+createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Day -> Bool -> IO FixtureRosterWindow
+createRosterWeekRecord venue windowStart isLive = do
     rosterGroup <- ensureVenueDefaultRosterGroup venue
-    createRosterWeekRecordForRosterGroup venue rosterGroup weekOffset isLive
+    createRosterWeekRecordForRosterGroup venue rosterGroup windowStart isLive
 
-createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecordForRosterGroup venue rosterGroup weekOffset isLive =
-    newRecord @RosterWeek
-        |> set #venueId (unpackId (get #id venue))
-        |> set #rosterGroupId (unpackId rosterGroup.id)
-        |> set #weekOffset weekOffset
-        |> set #isLive isLive
-        |> createRecord
+createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Bool -> IO FixtureRosterWindow
+createRosterWeekRecordForRosterGroup venue rosterGroup windowStart isLive =
+    pure FixtureRosterWindow
+        { fixtureVenueId = unpackId venue.id
+        , fixtureRosterGroupId = unpackId rosterGroup.id
+        , fixtureWindowStart = windowStart
+        , fixtureWindowIsPublished = isLive
+        }
 
-createRosterDayRecord :: (?modelContext :: ModelContext) => RosterWeek -> Int -> IO RosterDay
-createRosterDayRecord rosterWeek dayOffset =
+createRosterWeekRecordForWindow :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Bool -> IO FixtureRosterWindow
+createRosterWeekRecordForWindow = createRosterWeekRecordForRosterGroup
+
+createRosterDayRecord :: (?modelContext :: ModelContext) => FixtureRosterWindow -> Int -> IO RosterDay
+createRosterDayRecord rosterWindow dayIndex =
+    createRosterDayRecordForOperationalDate rosterWindow rosterWindow.fixtureWindowStart (addDays (toInteger dayIndex) rosterWindow.fixtureWindowStart)
+
+createRosterDayRecordForOperationalDate :: (?modelContext :: ModelContext) => FixtureRosterWindow -> Day -> Day -> IO RosterDay
+createRosterDayRecordForOperationalDate rosterWindow _windowStart operationalDate =
     newRecord @RosterDay
-        |> set #rosterWeekId (unpackId (get #id rosterWeek))
-        |> set #dayOffset dayOffset
+        |> set #venueId rosterWindow.fixtureVenueId
+        |> set #rosterGroupId rosterWindow.fixtureRosterGroupId
+        |> set #operationalDate operationalDate
+        |> set #publicationState (if rosterWindow.fixtureWindowIsPublished then Published else Draft)
         |> set #isClosed False
         |> createRecord
 
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> RosterShiftAssignment -> Int -> IO RosterSlot
 createRosterSlotRecord rosterDay slotName assignment rowIndex = do
-    slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
-    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
+    rosterLane <- ensureRosterLaneForSlotName rosterDay slotName
+    venue <- fetch (Id rosterDay.venueId :: Id Venue)
     shiftType <- ensureVenueDefaultShiftType venue
-    let rosterDate = addDays (toInteger rosterDay.dayOffset) (fromGregorian 2025 1 6)
+    let rosterDate = rosterDay.operationalDate
         boundaries =
             either (error . ("Invalid roster shift fixture: " <>) . show) Prelude.id $
                 resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
@@ -224,26 +242,26 @@ createRosterSlotRecord rosterDay slotName assignment rowIndex = do
                     }
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId (get #id rosterDay))
-        |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
-        |> set #slotSortOrder slotDefinition.sortOrder
+        |> set #rosterLaneId (unpackId (get #id rosterLane))
+        |> set #slotSortOrder rosterLane.sortOrder
         |> set #rowIndex rowIndex
         |> set #shiftTypeId (Just (unpackId shiftType.id))
         |> applyRosterShiftAssignment assignment
         |> applyRosterSlotBoundaries boundaries
         |> createRecord
 
-ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition
-ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
-    existing <- query @RosterWeekSlotDefinition
-        |> filterWhere (#rosterWeekId, rosterDay.rosterWeekId)
+ensureRosterLaneForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterLane
+ensureRosterLaneForSlotName rosterDay slotName = do
+    existing <- query @RosterLane
+        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
         |> filterWhere (#name, slotName.name)
         |> filterWhere (#deletedAt, Nothing)
         |> fetchOneOrNothing
     case existing of
-        Just slotDefinition -> pure slotDefinition
+        Just rosterLane -> pure rosterLane
         Nothing ->
-            newRecord @RosterWeekSlotDefinition
-                |> set #rosterWeekId rosterDay.rosterWeekId
+            newRecord @RosterLane
+                |> set #rosterDayId (unpackId rosterDay.id)
                 |> set #name slotName.name
                 |> set #sortOrder slotName.sortOrder
                 |> createRecord
@@ -255,6 +273,10 @@ createTimesheetEntryRecord venue staff workedOn =
 createTimesheetEntryRecordWithDefaultLevelName :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Text -> IO TimesheetEntry
 createTimesheetEntryRecordWithDefaultLevelName venue staff workedOn defaultLevelName = do
     shiftType <- ensureVenueDefaultShiftTypeWithLevelName venue defaultLevelName
+    createTimesheetEntryRecordForShiftType venue staff shiftType workedOn
+
+createTimesheetEntryRecordForShiftType :: (?modelContext :: ModelContext) => Venue -> Staff -> ShiftType -> Day -> IO TimesheetEntry
+createTimesheetEntryRecordForShiftType venue staff shiftType workedOn = do
     let boundaries =
             either (error . ("Invalid support timesheet fixture: " <>) . show) Prelude.id $
                 resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
@@ -269,6 +291,7 @@ createTimesheetEntryRecordWithDefaultLevelName venue staff workedOn defaultLevel
         |> set #venueId (unpackId (get #id venue))
         |> set #staffId (unpackId (get #id staff))
         |> set #shiftTypeId (unpackId (get #id shiftType))
+        |> set #operationalDate workedOn
         |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
 

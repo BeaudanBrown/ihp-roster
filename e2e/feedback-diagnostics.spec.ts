@@ -64,7 +64,7 @@ test.describe('Feedback diagnostics', () => {
             await noJavaScriptPage.locator('#feedback-content').fill(uniqueE2EValue('feedback-no-js'));
             await noJavaScriptPage.locator('button[type="submit"][form="feedback-form"]').click();
 
-            await expect(noJavaScriptPage).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+            await expect(noJavaScriptPage).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
             await expect(noJavaScriptPage.locator('#feedback-form')).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         } finally {
             await noJavaScriptContext.close();

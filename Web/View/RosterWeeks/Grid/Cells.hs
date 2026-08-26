@@ -13,7 +13,7 @@ module Web.View.RosterWeeks.Grid.Cells
     , renderShiftTypeOptionLabel
     , rosterGridColumnSpanStyle
     , slotColumnCount
-    , rosterSlotDialogAction
+    , rosterSlotDialogUrl
     , shiftTypeBadgeColourKey
     ) where
 
@@ -42,6 +42,7 @@ import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Text.Blaze.Html as Blaze
+import Web.RosterWeeks.DateRange (RosterWindowLane, laneForOperationalDate)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (rosterDragDropzoneRef,
                                         rosterDragSourceRef,
@@ -49,12 +50,14 @@ import Web.RosterWeeks.FrontendSurface (rosterDragDropzoneRef,
                                         rosterShiftGroupLinkedHighlight,
                                         rosterStaffCreateDropzoneRef,
                                         rosterStaffLinkedHighlight)
+import Web.RosterWeeks.Paths (rosterExistingSlotDialogUrl,
+                              rosterNewSlotDialogUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
 data RosterSlotCellTarget
-    = ExistingRosterSlotTarget (Id RosterSlot)
-    | NewRosterSlotTarget (Id RosterDay) (Id RosterWeekSlotDefinition) Int
+    = ExistingRosterSlotTarget (Id RosterSlot) Day Int
+    | NewRosterSlotTarget (Id RosterDay) (Id RosterLane) (Id RosterGroup) Day Int Int
 
 data ExistingSlotDisplay = ExistingSlotDisplay
     { displayStartLabel         :: Text
@@ -79,26 +82,26 @@ data ReadOnlyExistingSlotCell = ReadOnlyExistingSlotCell
     , readOnlyCellExportText        :: Text
     , readOnlyCellExportEndEllipsis :: Bool
     }
-renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
-renderBlockCells isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex _rowSlots renderIndexes (blockIndex, slotName) =
+renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWindowLane) -> Html
+renderBlockCells isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex _rowSlots renderIndexes (blockIndex, slotName) =
     mconcat
         [ profileRenderCounter "render.roster.slot_block" 1
         , if isEditable
-            then renderEditableBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex renderIndexes blockIndex slotName
-            else renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex renderIndexes blockIndex slotName
+            then renderEditableBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
+            else renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
         ]
 
-renderEditableBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> RosterRenderIndexes -> Int -> RosterWeekSlotDefinition -> Html
-renderEditableBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex renderIndexes blockIndex slotName
+renderEditableBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> Int -> RosterRenderIndexes -> Int -> RosterWindowLane -> Html
+renderEditableBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
     | rosterDay.isClosed = renderClosedBlockCells endTimesEnabled blockIndex
     | otherwise =
         maybe
-            (renderCreateBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled rosterDay rowIndex blockIndex slotName)
-            (renderEditableExistingSlotBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex)
+            (renderCreateBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled rosterDay calendarRevision rowIndex blockIndex slotName)
+            (renderEditableExistingSlotBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes rosterDay.operationalDate calendarRevision blockIndex)
             (lookupRosterSlotForBlock rosterDay rowIndex slotName renderIndexes)
 
-renderReadOnlyBlockCells :: (?context :: ControllerContext) => [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> RosterRenderIndexes -> Int -> RosterWeekSlotDefinition -> Html
-renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex renderIndexes blockIndex slotName
+renderReadOnlyBlockCells :: (?context :: ControllerContext) => [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> Int -> RosterRenderIndexes -> Int -> RosterWindowLane -> Html
+renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
     | rosterDay.isClosed = renderClosedBlockCells endTimesEnabled blockIndex
     | otherwise =
         maybe
@@ -107,12 +110,13 @@ renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay r
             (lookupRosterSlotForBlock rosterDay rowIndex slotName renderIndexes)
   where
     renderExisting slot
-        | hasRole Manager && rosterShiftIsOpen slot = renderLiveOpenExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot
+        | hasRole Manager && rosterShiftIsOpen slot = renderLiveOpenExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes rosterDay.operationalDate calendarRevision blockIndex slot
         | otherwise = renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot
 
-lookupRosterSlotForBlock :: RosterDay -> Int -> RosterWeekSlotDefinition -> RosterRenderIndexes -> Maybe RosterSlot
-lookupRosterSlotForBlock rosterDay rowIndex slotName renderIndexes =
-    Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName
+lookupRosterSlotForBlock :: RosterDay -> Int -> RosterWindowLane -> RosterRenderIndexes -> Maybe RosterSlot
+lookupRosterSlotForBlock rosterDay rowIndex windowLane renderIndexes = do
+    lane <- laneForOperationalDate rosterDay.operationalDate windowLane
+    Map.lookup (unpackId rosterDay.id, rowIndex, unpackId lane.id) renderIndexes.rosterSlotByDayRowSlotName
 
 
 slotColumnCount :: Bool -> Int
@@ -123,10 +127,10 @@ rosterGridColumnSpanStyle :: Int -> Text
 rosterGridColumnSpanStyle gridSpan =
     "--roster-grid-column-span: " <> tshow gridSpan <> ";"
 
-renderEditableExistingSlotBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
-renderEditableExistingSlotBlockCells _assignmentFilters _staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
+renderEditableExistingSlotBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Day -> Int -> Int -> RosterSlot -> Html
+renderEditableExistingSlotBlockCells _assignmentFilters _staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes anchorDate calendarRevision blockIndex slot =
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
-        target = ExistingRosterSlotTarget slot.id
+        target = ExistingRosterSlotTarget slot.id anchorDate calendarRevision
         groupKey = rosterShiftGroupKey target
         cellCount = if endTimesEnabled then 4 else 3
      in mconcat
@@ -164,7 +168,7 @@ renderEditableShiftUnit target groupKey slot gridSpan cells =
         SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey $
             withRosterShiftGroupHighlight groupKey $
                 withRosterStaffHighlight slot.staffId groupKey $
-                    applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+                    applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl target) [hsx|
                     <div role="gridcell"
                          class={classes [("roster-shift-unit roster-shift-launcher", True), ("is-roster-shift-open", rosterShiftIsOpen slot)]}
                          style={rosterGridColumnSpanStyle gridSpan}
@@ -199,14 +203,14 @@ renderExistingSlotCell maybeRole cellClasses ReadOnlyExistingSlotCell { readOnly
             then rosterImageExportEllipsizedCellAttrs readOnlyCellExportText
             else rosterImageExportCellAttrs readOnlyCellExportText
 
-renderLiveOpenExistingSlotBlockCells :: (?context :: ControllerContext) => [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
-renderLiveOpenExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
+renderLiveOpenExistingSlotBlockCells :: (?context :: ControllerContext) => [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Day -> Int -> Int -> RosterSlot -> Html
+renderLiveOpenExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes anchorDate calendarRevision blockIndex slot =
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
-        target = ExistingRosterSlotTarget slot.id
+        target = ExistingRosterSlotTarget slot.id anchorDate calendarRevision
         groupKey = rosterShiftGroupKey target
         cells = readOnlyExistingSlotCells display endTimesEnabled blockIndex
         gridSpan = length cells
-     in applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+     in applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl target) [hsx|
             <div role="gridcell"
                  class="roster-shift-unit roster-shift-launcher is-roster-shift-open"
                  style={rosterGridColumnSpanStyle gridSpan}
@@ -223,7 +227,7 @@ renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
         cells = readOnlyExistingSlotCells display endTimesEnabled blockIndex
         cellCount = length cells
-        groupKey = rosterShiftGroupKey (ExistingRosterSlotTarget slot.id)
+        groupKey = "existing:" <> tshow slot.id
         renderHighlightedCell cell =
             withRosterStaffHighlight slot.staffId groupKey (renderReadOnlyExistingSlotCell cell)
      in mconcat
@@ -322,9 +326,9 @@ readOnlyShiftTypeCell display = ReadOnlyExistingSlotCell
 renderReadOnlyExistingSlotCell :: ReadOnlyExistingSlotCell -> Html
 renderReadOnlyExistingSlotCell cell =
     renderExistingSlotCell (Just "gridcell") cell.readOnlyCellClasses cell
-renderDayColumnRosterSlotCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterSlot -> Html
-renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } slot =
-    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) (rosterShiftIsOpen slot) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
+renderDayColumnRosterSlotCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> RosterSlot -> Html
+renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayCalendarRevision, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } rosterDay slot =
+    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id rosterDay.operationalDate dayCalendarRevision) (rosterShiftIsOpen slot) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
 
 renderDayColumnCreateCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Maybe RosterSlotCellTarget -> Html
 renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybeTarget
@@ -336,7 +340,7 @@ renderDayColumnCreateLauncherCard target =
     let groupKey = rosterShiftGroupKey target
      in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterStaffCreateDropzoneRef groupKey $
         withRosterShiftGroupHighlight groupKey $
-            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+            applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl target) [hsx|
             <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                      data-roster-shift-launcher={("true" :: Text)}
                      tabindex="0"
@@ -346,13 +350,13 @@ renderDayColumnCreateLauncherCard target =
             </article>
         |]
 
-renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
-renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (_, slotName)
+renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWindowLane) -> Html
+renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex rowSlots renderIndexes (_, windowLane)
     | rosterDay.isClosed = [hsx|<div class="roster-shift-card roster-shift-card-closed"><span>Closed</span></div>|]
     | otherwise =
-        case Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName of
+        case laneForOperationalDate rosterDay.operationalDate windowLane >>= (\lane -> Map.lookup (unpackId rosterDay.id, rowIndex, unpackId lane.id) renderIndexes.rosterSlotByDayRowSlotName) of
             Just slot ->
-                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id) (rosterShiftIsOpen slot) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
+                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id rosterDay.operationalDate calendarRevision) (rosterShiftIsOpen slot) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
             Nothing -> [hsx|<div class="roster-shift-card roster-shift-card-empty"></div>|]
 
 renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Bool -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Html
@@ -399,7 +403,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
         staffHighlightedCard = withRosterStaffHighlight staffId groupKey card
         launcherCard =
             if canLaunch
-                then applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) staffHighlightedCard
+                then applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl target) staffHighlightedCard
                 else staffHighlightedCard
         linkedLauncherCard =
             if isEditable
@@ -433,14 +437,19 @@ renderEmptyBlockCells =
 -- Create slots use the same single-launcher shape as existing editable shifts,
 -- but keep unmerged visual empty cells until hover/focus/highlight reveals the
 -- centered merged plus overlay.
-renderCreateBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> RosterDay -> Int -> Int -> RosterWeekSlotDefinition -> Html
-renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes endTimesEnabled rosterDay rowIndex blockIndex slotName =
-    let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
-        groupKey = rosterShiftGroupKey target
-        gridSpan = slotColumnCount endTimesEnabled
-        visualCellClasses = createShiftUnitVisualCellClasses endTimesEnabled blockIndex
-        visualCellCount = length visualCellClasses
-     in mconcat
+renderCreateBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> RosterDay -> Int -> Int -> Int -> RosterWindowLane -> Html
+renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes endTimesEnabled rosterDay calendarRevision rowIndex blockIndex windowLane =
+    case laneForOperationalDate rosterDay.operationalDate windowLane of
+        Nothing   -> renderEmptyBlockCells endTimesEnabled blockIndex
+        Just lane -> renderForLane lane
+  where
+    renderForLane lane =
+      let target = NewRosterSlotTarget rosterDay.id lane.id (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision rowIndex
+          groupKey = rosterShiftGroupKey target
+          gridSpan = slotColumnCount endTimesEnabled
+          visualCellClasses = createShiftUnitVisualCellClasses endTimesEnabled blockIndex
+          visualCellCount = length visualCellClasses
+       in mconcat
         [ profileCreateSlotCounters endTimesEnabled visualCellCount
         , renderCreateShiftUnit target groupKey visualCellClasses gridSpan
         ]
@@ -474,7 +483,7 @@ renderCreateShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget
 renderCreateShiftUnit target groupKey visualCellClasses gridSpan =
     SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
         withRosterShiftGroupHighlight groupKey $
-            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+            applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl target) [hsx|
                 <div role="gridcell"
                      class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
                      style={rosterGridColumnSpanStyle gridSpan}
@@ -566,16 +575,16 @@ renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict =
     mconcat
         [ [hsx|<div class="app-dense-static slot-cell-static">{currentStaffLabel}</div>|] ]
 
-rosterSlotDialogAction :: RosterSlotCellTarget -> RosterWeeksController
-rosterSlotDialogAction (ExistingRosterSlotTarget rosterSlotId) =
-    EditRosterSlotDialogAction rosterSlotId
-rosterSlotDialogAction (NewRosterSlotTarget rosterDayId rosterWeekSlotDefinitionId rowIndex) =
-    NewRosterSlotDialogAction rosterDayId rosterWeekSlotDefinitionId rowIndex
+rosterSlotDialogUrl :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text
+rosterSlotDialogUrl (ExistingRosterSlotTarget rosterSlotId anchorDate calendarRevision) =
+    rosterExistingSlotDialogUrl rosterSlotId anchorDate calendarRevision
+rosterSlotDialogUrl (NewRosterSlotTarget rosterDayId rosterLaneId rosterGroupId operationalDate calendarRevision rowIndex) =
+    rosterNewSlotDialogUrl rosterDayId rosterLaneId rowIndex rosterGroupId operationalDate calendarRevision
 
 rosterShiftGroupKey :: RosterSlotCellTarget -> Text
-rosterShiftGroupKey (ExistingRosterSlotTarget rosterSlotId) =
+rosterShiftGroupKey (ExistingRosterSlotTarget rosterSlotId _ _) =
     "existing:" <> tshow rosterSlotId
-rosterShiftGroupKey (NewRosterSlotTarget rosterDayId rosterWeekSlotDefinitionId rowIndex) =
+rosterShiftGroupKey (NewRosterSlotTarget rosterDayId rosterWeekSlotDefinitionId _ _ _ rowIndex) =
     "new:" <> tshow rosterDayId <> ":" <> tshow rosterWeekSlotDefinitionId <> ":" <> tshow rowIndex
 
 renderRosterShiftTypeLabel :: Text -> Html

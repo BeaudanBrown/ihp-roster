@@ -1,74 +1,69 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Application.VenueInvitation.Mutations
-    ( withTrialStaffInvitationLock
-    , withVenueInvitationAcceptanceLock
-    , withVenueInvitationEmailLock
-    , withVenueInvitationLock
-    , withVenueInvitationRenewalLock
+    ( withTrialStaffInvitationLockInCurrentTransaction
+    , withVenueInvitationAcceptanceLockInCurrentTransaction
+    , withVenueInvitationEmailLockInCurrentTransaction
+    , withVenueInvitationLockInCurrentTransaction
+    , withVenueInvitationRenewalLockInCurrentTransaction
     ) where
 
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
-withVenueInvitationLock ::
+withVenueInvitationLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UUID ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
-withVenueInvitationLock invitationId action =
-    withTransaction (lockVenueInvitation invitationId action)
+withVenueInvitationLockInCurrentTransaction = lockVenueInvitation
 
-withVenueInvitationAcceptanceLock ::
+withVenueInvitationAcceptanceLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UUID ->
     Maybe UUID ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
-withVenueInvitationAcceptanceLock invitationId maybeStaffId action =
-    withTransaction do
-        forM_ maybeStaffId lockTrialStaff
-        lockVenueInvitation invitationId action
+withVenueInvitationAcceptanceLockInCurrentTransaction invitationId maybeStaffId action = do
+    forM_ maybeStaffId lockTrialStaff
+    lockVenueInvitation invitationId action
 
-withVenueInvitationEmailLock ::
+withVenueInvitationEmailLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     Text ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO result
-withVenueInvitationEmailLock email action =
-    withTransaction do
-        lockVenueInvitationEmail email
-        action
+withVenueInvitationEmailLockInCurrentTransaction email action = do
+    lockVenueInvitationEmail email
+    action
 
-withVenueInvitationRenewalLock ::
+withVenueInvitationRenewalLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UUID ->
     Maybe UUID ->
     Text ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
-withVenueInvitationRenewalLock invitationId maybeStaffId correctedEmail action =
-    withTransaction do
-        lockVenueInvitationEmail correctedEmail
-        forM_ maybeStaffId lockTrialStaff
-        lockVenueInvitation invitationId action
+withVenueInvitationRenewalLockInCurrentTransaction invitationId maybeStaffId correctedEmail action = do
+    lockVenueInvitationEmail correctedEmail
+    forM_ maybeStaffId lockTrialStaff
+    lockVenueInvitation invitationId action
 
-withTrialStaffInvitationLock ::
+withTrialStaffInvitationLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UUID ->
     Text ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
-withTrialStaffInvitationLock staffId email action =
-    withTransaction do
-        lockVenueInvitationEmail email
-        lockedStaffIds :: [PG.Only UUID] <- sqlQuery
-            "SELECT id FROM staff WHERE id = ? FOR UPDATE"
-            (PG.Only staffId)
-        case lockedStaffIds of
-            [_] -> Just <$> action
-            []  -> pure Nothing
-            _   -> error "Trial staff lock returned multiple rows"
+withTrialStaffInvitationLockInCurrentTransaction staffId email action = do
+    lockVenueInvitationEmail email
+    lockedStaffIds :: [PG.Only UUID] <- sqlQuery
+        "SELECT id FROM staff WHERE id = ? FOR UPDATE"
+        (PG.Only staffId)
+    case lockedStaffIds of
+        [_] -> Just <$> action
+        []  -> pure Nothing
+        _   -> error "Trial staff lock returned multiple rows"
 
 lockVenueInvitationEmail :: (?modelContext :: ModelContext) => Text -> IO ()
 lockVenueInvitationEmail email = do

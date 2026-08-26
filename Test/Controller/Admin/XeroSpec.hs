@@ -1,14 +1,17 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
-import Application.Fixture.PayrollFixtures (createAndApproveEntry)
+import Application.Fixture.PayrollFixtures (approveEntryWithVersions,
+                                            createAndApproveEntry)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.LiveUpdate
+import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
+import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
@@ -988,7 +991,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 managedRequirement.requirementStatus `shouldBe` XeroPayItemRequirementStatusEnumStale
                 managedRequirement.lastVerifiedAt `shouldBe` Nothing
                 staffEditResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
                 staffEditResponse `responseBodyShouldContain` "Pay configuration required"
                 staffEditResponse `responseBodyShouldNotContain` "Venue ordinary"
                 staffPayAssignmentRequiresRemediation [] [] (StaffPayAssignment XeroRate Nothing (Just importedItem.id)) `shouldBe` True
@@ -1550,6 +1553,68 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.payPeriodEnd `shouldBe` Just fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
 
+        it "routes approved wage facts without sealed Xero mapping into pay-item setup" $ withContext do
+            withCleanDb do
+                fixture <-
+                    Preview.createPreviewFixture
+                        "weekly"
+                        [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                markOtherFixtureStaffNotPaid fixture
+                entry <- maybe (error "Expected a fixture timesheet entry") pure (listToMaybe fixture.entries)
+                _ <- fixture.connection |> set #connectionStatus ("disconnected" :: Text) |> updateRecord
+                approvedAt <- getCurrentTime
+                unmappedEntry <-
+                    createAndApproveEntry
+                        fixture.venue
+                        fixture.staffA
+                        fixture.periodStart
+                        ()
+                        fixture.owner
+                        approvedAt
+                        [set #shiftTypeId entry.shiftTypeId]
+                unmappedComponents <-
+                    query @TimesheetPayEarningsComponent
+                        |> filterWhereIn (#timesheetPayCalculationId, maybe [] (pure . unpackId) unmappedEntry.activePayCalculationId)
+                        |> fetch
+                unmappedComponents `shouldSatisfy` all (isNothing . (.xeroLocalBucketKey))
+                unmappedComponents `shouldSatisfy` all (not . (.xeroMappingLegacyFallback))
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #connectionStatus ("active" :: Text)
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                openClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                _ <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest openClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction OpenXeroTimesheetPreparationAction
+                run <- query @XeroTimesheetPreparationRun |> fetchOne
+                let selectionClient =
+                        referenceSyncXeroClient
+                            (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText))
+                            []
+                            []
+                            []
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest selectionClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams (SelectXeroTimesheetPreparationPeriodAction run.id)
+                                    [("periodKey", fixturePeriodKey fixture)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Xero account"
+                response `responseBodyShouldContain` "Choose the account for new Xero pay items."
+                response `responseBodyShouldContain` "Continue"
+                response `responseBodyShouldNotContain` "Unapprove and reapprove"
+                response `responseBodyShouldNotContain` tshow unmappedEntry.id
+                response `responseBodyShouldNotContain` "Approved component has no sealed Xero earnings mapping"
+                refreshedRun <- fetch run.id
+                refreshedRun.status `shouldBe` ReadyForPreview
+                refreshedRun.selectedPeriodKey `shouldBe` Just (fixturePeriodKey fixture)
+
         it "keeps staff rows visible while manual changes auto-save and Continue approves suggestions" $ withContext do
             withCleanDb do
                 fixture <-
@@ -1773,7 +1838,15 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #importedXeroPayItemId (Just previousPayItem.id)
                         |> updateRecord
                 now <- getCurrentTime
-                _ <- createAndApproveEntry fixture.venue previousStaff (addDays 1 fixture.periodStart) () fixture.owner now []
+                historicalEntry <- createTimesheetEntryRecord fixture.venue previousStaff (addDays 1 fixture.periodStart)
+                (historicalStaffPayVersion, historicalShiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval fixture.owner.id historicalEntry
+                lockPayVersionsForApproval fixture.owner.id now historicalStaffPayVersion historicalShiftTypePayVersion
+                _ <- Test.Support.withLegacyPayBackfillFixture do
+                    historicalEntry
+                        |> approveEntryWithVersions historicalStaffPayVersion historicalShiftTypePayVersion fixture.owner now
+                        |> updateRecord
+                Right 1 <- backfillApprovedTimesheetPayCalculations
+                pure ()
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection

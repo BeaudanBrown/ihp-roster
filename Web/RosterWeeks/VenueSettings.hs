@@ -6,18 +6,17 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterLayout
 import Application.Helper.SurfaceResource (LiveMutationResult,
                                            liveMutationResult)
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation)
 
 setVenueRosterLayoutMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     VenueConfig ->
     RosterLayoutModeEnum ->
     IO (LiveMutationResult VenueConfig)
-setVenueRosterLayoutMode venueConfig layoutMode = do
-    updated <-
-        venueConfig
-            |> set #rosterLayoutMode layoutMode
-            |> updateRecord
-    invalidateTouchedResources
-        "roster.venue_config.layout_mode"
-        (liveMutationResult updated [rosterLayoutConfigResource (unpackId currentVenueId)])
+setVenueRosterLayoutMode venueConfig layoutMode =
+    withDurableLiveMutation "roster.venue_config.layout_mode" do
+        updated <-
+            venueConfig
+                |> set #rosterLayoutMode layoutMode
+                |> updateRecord
+        pure (liveMutationResult updated [rosterLayoutConfigResource (unpackId currentVenueId)])

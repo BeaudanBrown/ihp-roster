@@ -11,17 +11,29 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
 buildFixedStaffPayCsvPayload ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Map.Map UUID WageCalculation ->
-    ReportWeekSlice ->
+    Map.Map UUID Day ->
+    Day ->
+    Day ->
+    Day ->
     IO (Either Text StaffPayCsvPayload)
-buildFixedStaffPayCsvPayload calculationsByEntryId reportWeekSlice = do
-    entries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
+buildFixedStaffPayCsvPayload calculationsByEntryId sealedWindowStartsByEntryId rangeStart rangeEnd weekStart = do
+    let reportWeekSlice =
+            ReportWeekSlice
+                { weekSelection = reportWeekSelection weekStart
+                , sliceStart = max rangeStart weekStart
+                , sliceEnd = min rangeEnd (addDays 6 weekStart)
+                }
+    windowEntries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
+    let entries = filter belongsToSealedWindow windowEntries
+        belongsToSealedWindow entry =
+            Map.findWithDefault weekStart (unpackId entry.id) sealedWindowStartsByEntryId == weekStart
     staffById <- fetchReportStaffMap entries
     labelsByEntryId <- fetchApprovedEntryStaffHoursLabels entries
     versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
@@ -72,14 +84,17 @@ buildFixedStaffPayCsvRecords reportWeekSelection entries staffById calculationsB
     accumulateEntry acc entry =
         case (Map.lookup entry.staffId staffById, Map.lookup (unpackId entry.id) calculationsByEntryId) of
             (Just staff, Just calculation) ->
-                foldl' (accumulateContribution staff (Map.findWithDefault Nothing (unpackId entry.id) labelsByEntryId)) acc (staffHoursContributions calculation)
+                let operationalDate = fromMaybe entry.operationalDate calculation.publishedOperationalDate
+                 in foldl' (accumulateContribution operationalDate staff (Map.findWithDefault Nothing (unpackId entry.id) labelsByEntryId)) acc (staffHoursContributions calculation)
             _ -> acc
 
-    accumulateContribution staff payLabel acc contribution =
-        let publicationContribution =
-                contribution
-                    { staffHoursDate = staffHoursPublicationDate reportWeekSelection contribution.staffHoursDate
-                    }
+    accumulateContribution operationalDate staff payLabel acc contribution =
+        let contributionDate = contribution.staffHoursDate
+            publicationDate =
+                if contributionDate >= reportWeekSelection.weekStart && contributionDate <= reportWeekSelection.weekEnd
+                    then contributionDate
+                    else operationalDate
+            publicationContribution = contribution { staffHoursDate = publicationDate }
          in case staffPayContributionBucketIndex buckets publicationContribution of
             Nothing -> acc
             Just bucketIndex ->
@@ -93,11 +108,6 @@ buildFixedStaffPayCsvRecords reportWeekSelection entries staffById calculationsB
             , label = payLabel
             , bucketHours = hoursByBucket
             }
-
-staffHoursPublicationDate :: ReportWeekSelection -> Day -> Day
-staffHoursPublicationDate selection actualDate
-    | actualDate >= selection.weekStart && actualDate <= selection.weekEnd = actualDate
-    | otherwise = addDays (diffDays actualDate selection.weekStart `mod` 7) selection.weekStart
 
 shouldIncludeFixedStaffPayEntry :: Map.Map UUID Staff -> TimesheetEntry -> Bool
 shouldIncludeFixedStaffPayEntry staffById entry =
@@ -117,7 +127,8 @@ collapseVersionManifests versionManifests =
 data PayrollEarningsAggregation = PayrollEarningsAggregation
     { aggregationStaffFirstName      :: !Text
     , aggregationStaffLastName       :: !Text
-    , aggregationWorkDate            :: !Day
+    , aggregationOperationalDate     :: !Day
+    , aggregationComponentDate       :: !Day
     , aggregationPayLabels           :: ![Text]
     , aggregationTrackingCodes       :: ![Text]
     , aggregationComponents          :: ![EarningsComponent]
@@ -145,29 +156,30 @@ buildPayrollEarningsCsvRecords entries staffById calculationsByEntryId labelsByE
     aggregated
         |> Map.elems
         |> concatMap toRecords
-        |> List.sortOn (\record -> (record.workDate, Text.toCaseFold record.staffLastName, Text.toCaseFold record.staffFirstName, record.earningsRateName, record.unit, record.ratePerUnit))
+        |> List.sortOn (\record -> (record.operationalDate, record.componentDate, Text.toCaseFold record.staffLastName, Text.toCaseFold record.staffFirstName, record.earningsRateName, record.unit, record.ratePerUnit))
   where
     aggregated = foldl' accumulateEntry Map.empty entries
 
     accumulateEntry acc entry =
         case (Map.lookup entry.staffId staffById, Map.lookup (unpackId entry.id) calculationsByEntryId) of
             (Just staff, Just calculation) ->
-                foldl' (accumulateComponent entry staff calculation) acc (datedEarningsComponents calculation)
+                foldl' (accumulateComponent (fromMaybe entry.operationalDate calculation.publishedOperationalDate) entry staff calculation) acc (datedEarningsComponents calculation)
             _ -> acc
 
-    accumulateComponent entry staff calculation acc (componentDate, component)
+    accumulateComponent operationalDate entry staff calculation acc (componentDate, component)
         | component.quantity <= 0 = acc
         | otherwise =
             let entryId = unpackId entry.id
                 staffId = unpackId staff.id
                 payLabel = Map.findWithDefault Nothing entryId labelsByEntryId
                 trackingCode = Map.lookup entryId shiftLabelsByEntryId
-                key = (staffId, componentDate, publicationBucketKey component)
+                key = (staffId, operationalDate, componentDate, publicationBucketKey component)
                 newAggregation =
                     PayrollEarningsAggregation
                         { aggregationStaffFirstName = staff.firstName
                         , aggregationStaffLastName = staff.lastName
-                        , aggregationWorkDate = componentDate
+                        , aggregationOperationalDate = operationalDate
+                        , aggregationComponentDate = componentDate
                         , aggregationPayLabels = maybeToList payLabel
                         , aggregationTrackingCodes = maybeToList trackingCode
                         , aggregationComponents = [component]
@@ -206,7 +218,8 @@ buildPayrollEarningsCsvRecords entries staffById calculationsByEntryId labelsByE
            in PayrollEarningsCsvRecord
                 { staffFirstName = aggregation.aggregationStaffFirstName
                 , staffLastName = aggregation.aggregationStaffLastName
-                , workDate = aggregation.aggregationWorkDate
+                , operationalDate = aggregation.aggregationOperationalDate
+                , componentDate = aggregation.aggregationComponentDate
                 , earningsRateName = earningsLineName payLabel bucket.finalEarningsBucketSourceCondition
                 , exactQuantity = line.publishedExactQuantity
                 , quantity = line.publishedQuantity

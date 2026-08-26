@@ -45,6 +45,7 @@ data UnsealedWageSubject = UnsealedWageSubject
     , wageSubjectVenueId               :: !UUID
     , wageSubjectStaffId               :: !UUID
     , wageSubjectShiftTypeId           :: !UUID
+    , wageSubjectOperationalDate       :: !Day
     , wageSubjectBoundaries            :: !AuthoritativeBoundaries
     , wageSubjectStaffPayVersionId     :: !(Maybe UUID)
     , wageSubjectShiftTypePayVersionId :: !(Maybe UUID)
@@ -124,7 +125,7 @@ subjectSourceDiagnostics clock facts subject calculation =
         clock
         facts
         subject.wageSubjectVenueId
-        (subjectWorkedOn subject)
+        subject.wageSubjectOperationalDate
         (subjectTargetYears subject)
         (if calculationUsesImportedOverride calculation then ImportedXeroOverride else HospitalityAwardSources)
 
@@ -132,9 +133,6 @@ calculationUsesImportedOverride :: WageCalculation -> Bool
 calculationUsesImportedOverride calculation =
     not (null calculation.earningsComponents)
         && all ((== ExternalImportedPayItem) . (.calculationSource)) calculation.earningsComponents
-
-subjectWorkedOn :: UnsealedWageSubject -> Day
-subjectWorkedOn = (.localDay) . authoritativeStartLocalTime . (.wageSubjectBoundaries)
 
 subjectTargetYears :: UnsealedWageSubject -> Set.Set Integer
 subjectTargetYears subject = Set.fromList
@@ -159,7 +157,9 @@ requiredImmutableVersions candidate
 subjectRequest :: UnsealedWageSubject -> WageEngineSubjectRequest
 subjectRequest subject = WageEngineSubjectRequest
     { subjectRequestId = subjectIdentity subject.wageSubjectKey
-    , subjectRequestWorkedOn = subjectWorkedOn subject
+    , subjectRequestOperationalDate = subject.wageSubjectOperationalDate
+    , subjectRequestComponentStartDate = (authoritativeStartLocalTime subject.wageSubjectBoundaries).localDay
+    , subjectRequestComponentEndDate = (authoritativeEndLocalTime subject.wageSubjectBoundaries).localDay
     , subjectRequestVenueId = subject.wageSubjectVenueId
     , subjectRequestStaffId = subject.wageSubjectStaffId
     , subjectRequestShiftTypeId = subject.wageSubjectShiftTypeId
@@ -180,13 +180,14 @@ timesheetWageSubject entry = do
         , wageSubjectVenueId = entry.venueId
         , wageSubjectStaffId = entry.staffId
         , wageSubjectShiftTypeId = entry.shiftTypeId
+        , wageSubjectOperationalDate = entry.operationalDate
         , wageSubjectBoundaries = boundaries
         , wageSubjectStaffPayVersionId = entry.staffPayVersionId
         , wageSubjectShiftTypePayVersionId = entry.shiftTypePayVersionId
         }
 
-rosterSlotWageSubject :: UUID -> RosterSlot -> Either WageEvaluationError UnsealedWageSubject
-rosterSlotWageSubject venueId slot = do
+rosterSlotWageSubject :: UUID -> Day -> RosterSlot -> Either WageEvaluationError UnsealedWageSubject
+rosterSlotWageSubject venueId operationalDate slot = do
     let key = RosterSlotSubject (unpackId slot.id)
     staffId <- maybe (Left (WageSubjectBoundariesFailed key "Roster slot has no staff member.")) Right slot.staffId
     shiftTypeId <- maybe (Left (WageSubjectBoundariesFailed key "Roster slot has no shift type.")) Right slot.shiftTypeId
@@ -196,6 +197,7 @@ rosterSlotWageSubject venueId slot = do
         , wageSubjectVenueId = venueId
         , wageSubjectStaffId = staffId
         , wageSubjectShiftTypeId = shiftTypeId
+        , wageSubjectOperationalDate = operationalDate
         , wageSubjectBoundaries = boundaries
         , wageSubjectStaffPayVersionId = Nothing
         , wageSubjectShiftTypePayVersionId = Nothing

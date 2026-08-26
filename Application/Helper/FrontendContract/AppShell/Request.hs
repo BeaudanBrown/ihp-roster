@@ -1,11 +1,11 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Nominal AppShell request fields derived directly from 'AppShellContract'.
@@ -16,15 +16,13 @@ module Application.Helper.FrontendContract.AppShell.Request
     , AppShellActionFields
     , appShellActionFields
     , appShellActionFor
-    , appShellActionRouteFieldValues
     , noAppShellActionFields
     , parseAppShellActionParamPairs
     , parseAppShellActionParams
     ) where
 
 import Application.Helper.FrontendContract.AppShell (AppShellContract)
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellFieldValue (..),
-                                                             appShellActionByMarker)
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
 import qualified Application.Helper.FrontendContract.DSL as Global
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFieldHead,
@@ -34,19 +32,20 @@ import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFie
                                                                 SurfaceFieldsTail)
 import qualified Application.Helper.FrontendContract.Surface.DSL as Surface
 import Application.Helper.FrontendContract.Surface.Request (KnownSurfaceRequestFields,
-                                                           SurfaceRequestFieldError,
-                                                           parseDeclaredRequestParamPairs,
-                                                           parseDeclaredRequestParams)
+                                                            SurfaceRequestFieldError,
+                                                            parseDeclaredRequestParamPairs,
+                                                            parseDeclaredRequestParams)
 import Application.Helper.FrontendContract.Surface.Values (DeclaredRequestFields,
-                                                          SurfaceFieldInput,
-                                                          SurfaceFields,
-                                                          declaredRequestFields,
-                                                          noDeclaredRequestFields,
-                                                          surfaceFieldsText)
+                                                           SurfaceFieldInput,
+                                                           SurfaceFields,
+                                                           declaredRequestFields,
+                                                           noDeclaredRequestFields,
+                                                           surfaceFieldsText)
+import Application.Helper.FrontendContract.TypeError (BepisTypeError)
 import Data.ByteString (ByteString)
 import Data.Kind (Type)
 import Data.Typeable (Typeable)
-import GHC.TypeLits (ErrorMessage (..), TypeError)
+import GHC.TypeLits (ErrorMessage (..))
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -65,7 +64,7 @@ type family FindAppShellPrimitiveFields (action :: Type) (primitives :: [Global.
     FindAppShellPrimitiveFields action (primitive ': rest) =
         FindAppShellPrimitiveFields action rest
     FindAppShellPrimitiveFields action '[] =
-        TypeError
+        BepisTypeError "BEPIS-FC-014"
             ( 'Text "AppShell contract does not declare action marker "
                 ':<>: 'ShowType action
             )
@@ -88,12 +87,13 @@ type family AppShellSurfaceWire (wire :: Global.WireType) :: Surface.WireType wh
     AppShellSurfaceWire 'Global.WireUUID = 'Surface.WireUUID
     AppShellSurfaceWire 'Global.WireDay = 'Surface.WireDay
     AppShellSurfaceWire ('Global.WireClosed value) = 'Surface.WireClosed value
+    AppShellSurfaceWire ('Global.WireDomain value) = 'Surface.WireDomain value
     AppShellSurfaceWire ('Global.WireList inner) = 'Surface.WireList (AppShellSurfaceWire inner)
     AppShellSurfaceWire ('Global.WireOptional inner) = 'Surface.WireOptional (AppShellSurfaceWire inner)
     AppShellSurfaceWire ('Global.WireNullable inner) = 'Surface.WireNullable (AppShellSurfaceWire inner)
     AppShellSurfaceWire ('Global.WireRef dto) = 'Surface.WireRef dto
     AppShellSurfaceWire wire =
-        TypeError
+        BepisTypeError "BEPIS-FC-015"
             ( 'Text "AppShell request fields do not support wire "
                 ':<>: 'ShowType wire
             )
@@ -132,12 +132,6 @@ appShellActionFor ::
     AppShellActionFields action ->
     AppShellActionIR
 appShellActionFor _ = appShellActionByMarker @action
-
-appShellActionRouteFieldValues ::
-    AppShellActionFields action ->
-    [AppShellFieldValue]
-appShellActionRouteFieldValues =
-    map AppShellFieldValue . surfaceFieldsText
 
 parseAppShellActionParams ::
     forall action.

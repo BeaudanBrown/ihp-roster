@@ -9,7 +9,6 @@ module Application.Helper.VenueBootstrap
     , provisionVenueUser
     ) where
 
-import Application.Helper.Controller (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import qualified Data.Char as Char
@@ -44,7 +43,6 @@ createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig = do
             |> set #venueId (unpackId venue.id)
             |> set #timezone bootstrapConfig.venueBootstrapTimezone
             |> set #rosterWeekStartsOn bootstrapConfig.venueBootstrapRosterWeekStartsOn
-            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay bootstrapConfig.venueBootstrapRosterWeekStartsOn)
             |> set #rosterEndTimesEnabled bootstrapConfig.venueBootstrapRosterEndTimesEnabled
             |> set #rosterLayoutMode DayColumns
             |> set #defaultStaffPayAssignmentMode RosterOnly

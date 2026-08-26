@@ -7,9 +7,11 @@ module Web.View.Passkeys.Management
     )
 where
 
-import Application.Helper.FrontendContract.AppShell (OpenPasskeySetupDialog)
+import Application.Helper.FrontendContract.AppShell (OpenPasskeySetupDialog,
+                                                     SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             renderAppShellActionForm,
                                                              renderAppShellActionLink)
 import Data.Time.Clock (diffUTCTime)
 import Web.View.Prelude
@@ -56,12 +58,20 @@ renderPasskeySetupDialogLink dialogUrl =
 
 renderNewDevicePasskeyAction :: [Passkey] -> Html
 renderNewDevicePasskeyAction [] = mempty
-renderNewDevicePasskeyAction _ = [hsx|
-    <form method="POST" action={SendNewDevicePasskeySetupEmailAction} class="mt-3">
-        <button type="submit" class="btn btn-outline-secondary btn-sm">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceLabel}</button>
-        <div class="form-text app-muted">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceHelp}</div>
-    </form>
-|]
+renderNewDevicePasskeyAction _ =
+    renderAppShellActionForm
+        (appShellActionByMarker @SubmitPasskeyProtectedAction)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo SendNewDevicePasskeySetupEmailAction
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = [("class", "mt-3")]
+            }
+        [hsx|
+            <button type="submit" class="btn btn-outline-secondary btn-sm">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceLabel}</button>
+            <div class="form-text app-muted">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceHelp}</div>
+        |]
 
 renderPasskeyTable :: UTCTime -> [Passkey] -> Html
 renderPasskeyTable _ [] = [hsx|

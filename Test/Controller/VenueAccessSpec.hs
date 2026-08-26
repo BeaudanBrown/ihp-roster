@@ -3,6 +3,7 @@
 module Test.Controller.VenueAccessSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
+import Application.EmailDelivery
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (currentVenueSessionKey,
@@ -15,13 +16,13 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Rost
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate
-import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob,
-                                           performVenueOnboardingInvitationDeliveryJob)
+import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception (SomeException, try)
 import Control.Monad (zipWithM)
+import Data.Coerce (coerce)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
@@ -65,7 +66,7 @@ tests = aroundAll withDatabaseTestContext do
                 foreignStaff <- createStaffRecord venueB Nothing "Brie" "Foreign"
 
                 response <- withUser manager do
-                    callActionWithParams (EditStaffAction foreignStaff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction foreignStaff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status403
 
@@ -97,7 +98,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status403
 
-        it "denies toggling a roster week from another venue" $ withContext do
+        it "denies Publishing a roster window from another venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -106,7 +107,13 @@ tests = aroundAll withDatabaseTestContext do
                 foreignWeek <- createRosterWeekRecord venueB 0 False
 
                 response <- withUser manager do
-                    callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = foreignWeek.id }
+                    callActionWithParams
+                        ToggleRosterWeekLiveStatusAction
+                        [ ("anchorDate", "2025-01-06")
+                        , ("rosterGroupId", idToParam (Id foreignWeek.fixtureRosterGroupId :: Id RosterGroup))
+                        , ("rosterCalendarRevision", "1")
+                        , ("isLive", "true")
+                        ]
 
                 response `responseStatusShouldBe` status403
 
@@ -147,7 +154,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
 
                 response <- withUser user do
-                    callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = rosterWeek.id }
+                    callAction ToggleRosterWeekLiveStatusAction
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
@@ -189,11 +196,11 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 leaveAuthorized <- withAuthenticatedControllerContext user venue.id do
                     authorizeSurfaceScope (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
                 timesheetAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 profileAuthorized <- withAuthenticatedControllerContext user venue.id do
                     authorizeSurfaceScope (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
@@ -212,7 +219,7 @@ tests = aroundAll withDatabaseTestContext do
                 foreignStaff <- createStaffRecord venueB Nothing "Foreign" "Staff"
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
+                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 adminXeroAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (AdminLive.adminXeroLiveScope (unpackId venueB.id))
                 billingAuthorized <- withAuthenticatedControllerContext admin venueA.id do
@@ -220,7 +227,7 @@ tests = aroundAll withDatabaseTestContext do
                 leaveAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (LeaveLive.leaveRequestsLiveScope (unpackId venueB.id))
                 timesheetAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venueB.id) 0)
+                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venueB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 profileAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (ProfileLive.profileLiveScope (unpackId venueB.id) (unpackId foreignStaff.id))
 
@@ -254,7 +261,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupB.id) 0)
+                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 adminRosterGroupsAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (AdminLive.adminRosterGroupsLiveScope (unpackId venueA.id))
 
@@ -321,7 +328,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "Current support venue"
                 response `responseBodyShouldContain` "Invite Venue Owner"
                 response `responseBodyShouldNotContain` "Create Venue"
-                response `responseBodyShouldNotContain` "Roster week starts on"
+                response `responseBodyShouldNotContain` "Roster window start day"
                 response `responseBodyShouldContain` "Sign-In Methods"
                 response `responseBodyShouldContain` "Support laptop"
                 response `responseBodyShouldNotContain` "Add passkey"
@@ -500,7 +507,7 @@ tests = aroundAll withDatabaseTestContext do
                 original <-
                     createVenueOnboardingInvitationRecord (Just founder) "mistyped-owner@example.com"
                         >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
-                EnqueuedAppJob originalJob <- enqueueVenueOnboardingInvitationDeliveryJob (Just founder.id) original
+                EnqueuedEmailDelivery originalJob <- enqueueVenueOnboardingInvitationEmail (Just founder.id) original
 
                 response <- withPasskeyVerifiedUser founder do
                     callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
@@ -653,11 +660,11 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "delivery-renewal-race@example.com"
-                EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob (Just founder.id) invitation
+                EnqueuedEmailDelivery appJob <- enqueueVenueOnboardingInvitationEmail (Just founder.id) invitation
 
                 let performDelivery = withFrameworkConfig config \frameworkConfig -> do
                         let ?context = frameworkConfig
-                        performVenueOnboardingInvitationDeliveryJob appJob
+                        performEmailDeliveryJobWith venueAccessEmailRuntime appJob
                 results <- runConcurrentVenueAccessActionList
                     [ performDelivery >> pure status200
                     , withPasskeyVerifiedUser founder do
@@ -997,7 +1004,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks?rosterView=timeline"
 
-        it "preserves a roster week return path without venue-scoped parameters" $ withContext do
+        it "drops unsupported offset roster return paths after a support switch" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
@@ -1020,7 +1027,7 @@ tests = aroundAll withDatabaseTestContext do
                                 ]
 
                         response `responseStatusShouldBe` status302
-                        lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just ("http://localhost" <> nextPath)
+                        lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "drops the previous venue roster scope when redirecting after a support switch" $ withContext do
             withCleanDb do
@@ -1123,7 +1130,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venueB staffB defaultWeekEpoch
 
                 response <- withUser manager do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Ava Hours"
@@ -1146,13 +1153,13 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venueB (Just linkedUserB) "Beta" "Crew"
 
                 response <- withUser manager do
-                    callAction ShowRosterWeekAction { weekOffset = 0 }
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-staff-panel"
                 response `responseBodyShouldNotContain` "Beta Crew"
 
-        it "uses only current-venue slot names when creating a roster week" $ withContext do
+        it "uses only current-venue slot names when materializing a roster window" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -1162,24 +1169,24 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueB)
 
                 response <- withUser manager do
-                    callAction CreateRosterWeekAction { weekOffset = 0 }
+                    callActionWithParams CreateRosterWeekAction (rosterMutationParams 0)
 
                 response `responseStatusShouldBe` status302
 
-                rosterWeek <- query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venueA.id)
-                    |> filterWhere (#weekOffset, 0)
-                    |> fetchOne
                 rosterDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#venueId, unpackId venueA.id)
                     |> fetch
-                slotDefinitions <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                rosterLanes <- query @RosterLane
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
                     |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                otherVenueDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId venueB.id)
                     |> fetch
 
                 length rosterDays `shouldBe` 7
-                map (.name) slotDefinitions `shouldMatchList` ["Early", "Mid", "Late"]
+                nub (map (.name) rosterLanes) `shouldMatchList` ["Early", "Mid", "Late"]
+                otherVenueDays `shouldBe` []
 
 runConcurrentVenueAccessActions :: Int -> IO a -> IO [Either SomeException a]
 runConcurrentVenueAccessActions count action =
@@ -1198,6 +1205,13 @@ runConcurrentVenueAccessActionList actions = do
     mapM_ takeMVar readyVars
     putMVar startVar ()
     mapM takeMVar resultVars
+
+venueAccessEmailRuntime :: EmailDeliveryRuntime
+venueAccessEmailRuntime =
+    EmailDeliveryRuntime
+        { deliveryIsDisabled = pure False
+        , deliverMail = \_ -> pure ()
+        }
 
 withAuthenticatedControllerContext ::
     forall result.

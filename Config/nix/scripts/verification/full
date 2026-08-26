@@ -4,19 +4,23 @@ set -euo pipefail
 echo "verify-full: working-tree devenv script freshness"
 devenv-script-freshness-check
 
-echo "verify-full: explicit production module and script inventory"
-production-inventory-check
+echo "verify-full: explicit production manifest authority"
+production-manifest-check
 
 echo "verify-full: production HTTP polling policy"
-http-polling-policy-check
+http-repository-check
 
-echo "verify-full: production source hash boundary"
-production-source-boundary-check
+echo "verify-full: zero-bypass typed contract authority"
+typed-contract-authority-check
 
-# Reuse the isolated package for every generator/freshness command below.
-export FRONTEND_CONTRACT_USE_PACKAGE=1
-echo "verify-full: isolated frontend-contract tooling package"
-frontend-contract-package-check
+echo "verify-full: canonical wage authority and fixtures"
+bash ./bin/wage-authority-check
+
+echo "verify-full: date-native Roster runtime authority"
+bash ./bin/date-native-roster-authority-check
+
+echo "verify-full: documentation links, anchors, archive inventory, and scoped retired terms"
+documentation-repository-check
 
 echo "verify-full: typecheck"
 typecheck
@@ -25,50 +29,40 @@ typecheck
 echo "verify-full: complete Hspec"
 hspec-test
 
-echo "verify-full: zero-bypass typed contract authority"
-typed-contract-authority-check
+echo "verify-full: application reachability policy"
+weeder-check
+
+# Reuse the isolated package for every generator/freshness command below.
+export FRONTEND_CONTRACT_USE_PACKAGE=1
+echo "verify-full: isolated frontend-contract tooling package"
+# Retain the resolved tooling root for the later single production-closure
+# traversal, which proves tooling isolation without a second package build.
+source "$(command -v frontend-contract-package-check)"
+# The package check generated these contracts; later architecture validation
+# consumes that same checked output rather than regenerating it.
+export ARCHITECTURE_CONTRACTS_CURRENT=1
 
 echo "verify-full: curated FrontendContract warnings"
 frontend-contract-warnings
 
-echo "verify-full: application reachability policy"
-weeder-policy-test
-weeder-check
-
 echo "verify-full: generated frontend, TypeScript, and browser unit checks"
-frontend-check
+frontend-runtime-check
+frontend-surface-compile-fail-check
 
 echo "verify-full: CSS ownership and stale-selector checks"
 bash ./bin/style-audit
 
-echo "verify-full: architecture and documentation structure"
-architecture-check-fresh
-bash ./bin/doc-drift-check
+echo "verify-full: current architecture authority"
+architecture-repository-check
 
-echo "verify-full: production build profiler and budget contracts"
-production-build-profile-test
-production-build-budget-test
+echo "verify-full: optimized production package and consolidated inspection"
+production-inspection-check
 
-echo "verify-full: production package executable and deployment smoke"
-production-package-smoke
+echo "verify-full: billing contracts"
+billing-contract-check
 
-echo "verify-full: stable production build and inventory budgets"
-production-build-budget-check
-
-echo "verify-full: canonical wage authority and fixtures"
-bash ./bin/wage-authority-check
-
-echo "verify-full: billing production-readiness"
-billing-production-readiness
-
-echo "verify-full: wage-cutover deployment ordering"
-nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
-
-echo "verify-full: FWC MAPD refresh cadence"
-nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
-
-echo "verify-full: E2E PostgreSQL lifecycle preflight"
-e2e-postgres-lifecycle-test
+echo "verify-full: deployment modules"
+deployment-module-check
 
 echo "verify-full: complete Playwright"
-e2e
+E2E_SHARDS=8 e2e

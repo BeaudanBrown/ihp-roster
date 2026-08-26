@@ -5,7 +5,7 @@ import Application.Helper.Export.Render (fallbackReportDayLabels)
 import Application.Helper.Export.Types
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime)
-import Generated.Types (VenueConfig)
+import Generated.Types
 import IHP.ControllerPrelude
 
 currentExportWeekSelection ::
@@ -14,49 +14,37 @@ currentExportWeekSelection ::
 currentExportWeekSelection = do
     venueConfig <- fetchVenueConfig
     today <- utctDay <$> getCurrentTime
-    pure (exportWeekSelection venueConfig (venueWeekOffsetForDay venueConfig today))
+    pure (exportWeekSelection venueConfig today)
 
-exportWeekSelectionForOffset ::
+exportWeekSelectionForAnchor ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Int ->
+    Day ->
     IO ReportWeekSelection
-exportWeekSelectionForOffset weekOffset = do
+exportWeekSelectionForAnchor anchorDate = do
     venueConfig <- fetchVenueConfig
-    pure (exportWeekSelection venueConfig weekOffset)
+    pure (exportWeekSelection venueConfig anchorDate)
 
-exportWeekSelection :: VenueConfig -> Int -> ReportWeekSelection
-exportWeekSelection venueConfig weekOffset =
+exportWeekSelection :: VenueConfig -> Day -> ReportWeekSelection
+exportWeekSelection venueConfig anchorDate =
+    reportWeekSelection (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate)
+
+reportWeekSelection :: Day -> ReportWeekSelection
+reportWeekSelection weekStart =
     ReportWeekSelection
-        { weekOffset
-        , weekStart
+        { weekStart
         , weekEnd = addDays 6 weekStart
         , dayLabels = fallbackReportDayLabels weekStart
         }
-  where
-    weekStart = venueWeekStartDate venueConfig weekOffset
 
 
-rangeWeekSlices ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Day ->
-    Day ->
-    IO [ReportWeekSlice]
-rangeWeekSlices rangeStart rangeEnd = do
-    venueConfig <- fetchVenueConfig
-    let firstWeekStart = venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig rangeStart)
-    let weekStarts = takeWhile (<= rangeEnd) (iterate (addDays 7) firstWeekStart)
-    pure (map (toSlice venueConfig) weekStarts)
+rangeWeekSlices :: Day -> Day -> Day -> [ReportWeekSlice]
+rangeWeekSlices rangeStart rangeEnd firstWeekStart =
+    map toSlice (takeWhile (<= rangeEnd) (iterate (addDays 7) firstWeekStart))
     where
-        toSlice venueConfig weekStart =
+        toSlice weekStart =
             let weekEnd = addDays 6 weekStart
              in ReportWeekSlice
-                    { weekSelection =
-                        ReportWeekSelection
-                            { weekOffset = venueWeekOffsetForDay venueConfig weekStart
-                            , weekStart
-                            , weekEnd
-                            , dayLabels = fallbackReportDayLabels weekStart
-                            }
+                    { weekSelection = reportWeekSelection weekStart
                     , sliceStart = max rangeStart weekStart
                     , sliceEnd = min rangeEnd weekEnd
                     }

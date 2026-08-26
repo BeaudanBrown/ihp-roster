@@ -6,6 +6,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       passkeyRecoveryVerifiedAtSessionKey,
                                       passkeyRecoveryVerifiedUserSessionKey,
                                       passkeyStepUpRedirectSessionKey,
+                                      safePasskeyReturnPath,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
@@ -61,6 +62,12 @@ tests = aroundAll withDatabaseTestContext do
             formatRelativeLastUsed now (Just (addUTCTime (negate (3 * 24 * 60 * 60)) now)) `shouldBe` "less than 3 days ago"
             formatRelativeLastUsed now (Just (addUTCTime (negate (13 * 24 * 60 * 60)) now)) `shouldBe` "less than 2 weeks ago"
             formatRelativeLastUsed now (Just (addUTCTime (negate (35 * 24 * 60 * 60)) now)) `shouldBe` "less than 2 months ago"
+
+        it "accepts only normalized local passkey return paths" $ withContext do
+            safePasskeyReturnPath "/ShowRosterWindow?anchorDate=2025-02-03" `shouldBe` Just "/ShowRosterWindow?anchorDate=2025-02-03"
+            safePasskeyReturnPath "/EditProfile?section=Sign%20In" `shouldBe` Just "/EditProfile?section=Sign%20In"
+            map safePasskeyReturnPath ["", "//evil.example/path", "/\\evil.example/path", "https://evil.example/path", "/EditProfile?bad=%ZZ", "/EditProfile?bad=%"]
+                `shouldBe` replicate 6 Nothing
 
         it "uses forwarded HTTPS origin when running behind a reverse proxy" $ withContext do
             withRequestHeaders [("X-Forwarded-Proto", "https")] do
@@ -214,7 +221,7 @@ tests = aroundAll withDatabaseTestContext do
                     (\(role, response) ->
                         ( role
                         , lookup HTTP.hLocation (responseHeaders response)
-                            |> maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
+                            |> maybe False ("http://localhost/ShowRosterWindow?anchorDate=" `ByteString.isPrefixOf`)
                         )
                     )
                     responses
@@ -249,6 +256,36 @@ tests = aroundAll withDatabaseTestContext do
                     dialogResponse `responseBodyShouldContain` "Recover Passkey Access"
                     dialogResponse `responseBodyShouldContain` "Use recovery code"
                     dialogResponse `responseBodyShouldContain` "action=\"/UsePasskeyRecoveryCode\""
+
+        it "returns the shared in-place step-up overlay for protected HTMX requests without opening the protected page" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin In-place Step Up Venue"
+                user <- createUserRecord "admin-in-place-step-up@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user VenueAdmin
+                _ <- createTestPasskeyRecord user "Admin security key"
+
+                withUserAndCurrentVenue user venue.id do
+                    response <- withRequestHeaders [("HX-Request", "true")] do
+                        callAction AdminAction
+                    response `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
+
+                    setSession passkeyStepUpRedirectSessionKey ("/Admin" :: Text)
+                    overlayResponse <- withRequestHeaders [("HX-Request", "true")] do
+                        callAction ShowPasskeyStepUpDialogAction
+                    overlayResponse `responseStatusShouldBe` status200
+                    overlayResponse `responseBodyShouldContain` "Passkey Verification"
+                    overlayResponse `responseBodyShouldContain` "Verify with passkey"
+                    overlayResponse `responseBodyShouldContain` "&quot;autoStart&quot;:true"
+                    overlayResponse `responseBodyShouldContain` "&quot;closeOverlayOnSuccess&quot;:true"
+                    overlayResponse `responseBodyShouldContain` cs canonicalOverlayDom.overlayDialogCloseAttribute
+                    overlayResponse `responseBodyShouldNotContain` "app-page"
+
+                    setSession passkeyStepUpRedirectSessionKey ("//evil.example/path" :: Text)
+                    invalidReturnResponse <- withRequestHeaders [("HX-Request", "true")] do
+                        callAction ShowPasskeyStepUpDialogAction
+                    invalidReturnResponse `responseStatusShouldBe` status200
+                    lookup "HX-Redirect" (responseHeaders invalidReturnResponse) `shouldBe` Just "/RosterWeeks"
 
         it "audits failed passkey step-up attempts" $ withContext do
             withCleanDb do
@@ -335,9 +372,21 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction AdminAction
+                htmxResponse <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction AdminAction
 
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeySetup"
+                htmxResponse `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders htmxResponse) `shouldBe` Just "/PasskeySetup"
+
+                noPasskeyDialogResponse <- withUserAndCurrentVenue user venue.id do
+                    setSession passkeyStepUpRedirectSessionKey ("/Admin" :: Text)
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction ShowPasskeyStepUpDialogAction
+                noPasskeyDialogResponse `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders noPasskeyDialogResponse) `shouldBe` Just "/PasskeySetup"
 
         it "requires fresh passkey verification before adding another admin passkey" $ withContext do
             withCleanDb do
@@ -610,12 +659,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callActionWithParams (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
-                        [ ("returnTo", "staff")
-                        , ("weekOffset", "3")
-                        ]
+                        [("returnTo", "staff")]
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWeek?weekOffset=3"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
                 setupToken <- query @PasskeySetupToken |> fetchOne
                 setupToken.userId `shouldBe` unpackId target.id
                 setupToken.requestedByUserId `shouldBe` Just (unpackId owner.id)
@@ -670,12 +717,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 responses <- withUserAndCurrentVenue admin venue.id do
                     setupResponse <- callActionWithParams (SendStaffPasskeySetupEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "4")]
-                    getSession @Text passkeyStepUpRedirectSessionKey `shouldReturn` Just "/ShowRosterWeek?weekOffset=4"
+                        [("returnTo", "staff"), ("anchorDate", "2025-02-03")]
+                    getSession @Text passkeyStepUpRedirectSessionKey `shouldReturn` Just "/ShowRosterWindow?anchorDate=2025-02-03"
                     recoveryResponse <- callActionWithParams (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "4")]
+                        [("returnTo", "staff"), ("anchorDate", "2025-02-03")]
                     passwordResponse <- callActionWithParams (SendStaffPasswordResetEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "4")]
+                        [("returnTo", "staff"), ("anchorDate", "2025-02-03")]
                     pure [setupResponse, recoveryResponse, passwordResponse]
 
                 forM_ responses \response -> do
@@ -698,10 +745,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     callActionWithParams (SendStaffPasswordResetEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "2")]
+                        [("returnTo", "staff"), ("anchorDate", "2025-01-20")]
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWeek?weekOffset=2"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2025-01-20"
                 resetToken <- query @PasswordResetToken |> fetchOne
                 resetToken.userId `shouldBe` unpackId target.id
                 resetToken.venueId `shouldBe` unpackId venue.id

@@ -2,8 +2,7 @@ module Test.RosterTemplateApplicationSpec where
 
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
-                                          venueWeekStartDate)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates
@@ -25,6 +24,7 @@ import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
 import Web.RosterWeeks.TemplateApplication
+import Web.RosterWeeks.TemplateDesigner (startBlankRosterTemplateDesignerDraft)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -39,7 +39,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Opening day"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
-                    { contentDays = [RosterTemplateDayInput 0 True 2]
+                    { contentDays = [RosterTemplateDayInput 0 Nothing True 2]
                     , contentColumns =
                         [ RosterTemplateColumnInput "Early" 0
                         , RosterTemplateColumnInput "Late" 1
@@ -57,16 +57,13 @@ tests = aroundAll withDatabaseTestContext do
                 earlyDefinition <- createDefinition targetWeek "Early" 1
                 oldTargetSlot <- createSlot targetDay existingDefinition shiftType OpenAssignment 0
                 unrelatedSlot <- createSlot unrelatedDay existingDefinition shiftType OpenAssignment 0
-                let request = RosterTemplateApplicationRequest
-                        { applicationTemplateId = saved.savedTemplate.id
-                        , applicationTargetWeekId = targetWeek.id
-                        , applicationTargetDayOffset = Just 2
-                        , applicationOccurrenceSelections = noShiftCopyOccurrenceSelections
+                let request = (applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 2) noShiftCopyOccurrenceSelections)
+                        { applicationTargetOperationalDate = Just targetDay.operationalDate
                         }
 
                 preview <- previewRosterTemplateApplication actor request
                 let Right confirmation = preview
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedTargetDay <- fetch targetDay.id
                 activeTargetSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId targetDay.id)
@@ -76,8 +73,8 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#id, unrelatedSlot.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOneOrNothing
-                definitions <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                targetLanes <- query @RosterLane
+                    |> filterWhere (#rosterDayId, unpackId targetDay.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> orderByAsc #sortOrder
                     |> fetch
@@ -85,25 +82,25 @@ tests = aroundAll withDatabaseTestContext do
 
                 confirmation.applicationPreviewTemplateName `shouldBe` "Opening day"
                 confirmation.applicationPreviewScale `shouldBe` Day
-                confirmation.applicationPreviewTargetWeekOffset `shouldBe` 10
-                confirmation.applicationPreviewTargetDayOffset `shouldBe` Just 2
+                confirmation.applicationPreviewTargetWindowStart `shouldBe` testAnchorForOffset 10
+                confirmation.applicationPreviewTargetWindowEnd `shouldBe` addDays 7 (testAnchorForOffset 10)
+                confirmation.applicationPreviewTargetOperationalDate `shouldBe` Just targetDay.operationalDate
                 confirmation.applicationReplacementShiftCount `shouldBe` 1
                 confirmation.applicationExistingShiftCount `shouldBe` 1
                 Set.fromList confirmation.applicationTouchedResources `shouldBe` Set.fromList
-                    [ rosterWeekResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , rosterWeekStructureResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , rosterSlotsStructureResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , rosterSlotsContentResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , timesheetWeekResource (unpackId venue.id) targetWeek.weekOffset
+                    [ rosterWeekResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetWindowStart (addDays 7 confirmation.applicationPreviewTargetWindowStart)
+                    , rosterWeekStructureResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetWindowStart (addDays 7 confirmation.applicationPreviewTargetWindowStart)
+                    , rosterSlotsStructureResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetWindowStart (addDays 7 confirmation.applicationPreviewTargetWindowStart)
+                    , rosterSlotsContentResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetWindowStart (addDays 7 confirmation.applicationPreviewTargetWindowStart)
+                    , timesheetWeekResource (unpackId venue.id) confirmation.applicationPreviewTargetWindowStart (addDays 7 confirmation.applicationPreviewTargetWindowStart)
                     ]
                 applied `shouldSatisfy` isRight
                 (refreshedTargetDay.isClosed, refreshedTargetDay.rowCount) `shouldBe` (True, 2)
-                map (.name) definitions `shouldBe` ["Existing", "Early", "Late"]
+                map (.name) targetLanes `shouldBe` ["Existing", "Early", "Late"]
                 map (.rowIndex) activeTargetSlots `shouldBe` [1]
                 map (.assignmentState) activeTargetSlots `shouldBe` ["staff"]
                 retainedUnrelated `shouldSatisfy` isJust
                 replacedSlot.deletedAt `shouldSatisfy` isJust
-                earlyDefinition.deletedAt `shouldBe` Nothing
 
         it "rejects forbidden, cross-group, and live target weeks" $ withContext do
             withCleanDb do
@@ -126,16 +123,23 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterDayRecord crossGroupWeek 0
                 liveWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 16 True
                 _ <- createRosterDayRecord liveWeek 0
-                let crossGroupRequest = RosterTemplateApplicationRequest saved.savedTemplate.id crossGroupWeek.id (Just 0) noShiftCopyOccurrenceSelections
-                let liveRequest = RosterTemplateApplicationRequest saved.savedTemplate.id liveWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                mixedWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 17 False
+                _ <- createRosterDayRecord mixedWeek 0
+                mixedPublishedDay <- createRosterDayRecord mixedWeek 1
+                _ <- mixedPublishedDay |> set #publicationState Published |> updateRecord
+                let crossGroupRequest = applicationRequestForTestWindow saved.savedTemplate.id crossGroupWeek (Just 0) noShiftCopyOccurrenceSelections
+                let liveRequest = applicationRequestForTestWindow saved.savedTemplate.id liveWeek (Just 0) noShiftCopyOccurrenceSelections
+                let mixedRequest = applicationRequestForTestWindow saved.savedTemplate.id mixedWeek (Just 0) noShiftCopyOccurrenceSelections
 
                 forbidden <- previewRosterTemplateApplication forbiddenActor liveRequest
                 crossGroup <- previewRosterTemplateApplication actor crossGroupRequest
                 live <- previewRosterTemplateApplication actor liveRequest
+                mixed <- previewRosterTemplateApplication actor mixedRequest
 
                 forbidden `shouldBe` Left RosterTemplateApplicationForbidden
                 crossGroup `shouldBe` Left RosterTemplateApplicationScopeMismatch
                 live `shouldBe` Left RosterTemplateApplicationTargetLive
+                mixed `shouldBe` Left RosterTemplateApplicationTargetLive
 
         it "blocks archived Shift types before changing template or target" $ withContext do
             withCleanDb do
@@ -152,7 +156,7 @@ tests = aroundAll withDatabaseTestContext do
                 definition <- createDefinition targetWeek "Existing" 0
                 oldSlot <- createSlot targetDay definition shiftType OpenAssignment 0
                 _ <- shiftType |> set #isActive False |> set #archivedAt (Just (UTCTime (fromGregorian 2026 1 1) 0)) |> updateRecord
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
 
                 preview <- previewRosterTemplateApplication actor request
                 refreshedTemplate <- fetch saved.savedTemplate.id
@@ -173,7 +177,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Assignment reasons"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
-                    { contentDays = [RosterTemplateDayInput 0 False 2]
+                    { contentDays = [RosterTemplateDayInput 0 Nothing False 2]
                     , contentColumns = [RosterTemplateColumnInput "Only" 0]
                     , contentShifts =
                         [ RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment groupStaff.id)
@@ -196,7 +200,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- payStaff |> set #payAssignmentMode LegacyUnresolved |> updateRecord
                 targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 13 False
                 _ <- createRosterDayRecord targetWeek 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
 
                 preview <- previewRosterTemplateApplication actor request
                 let Right confirmation = preview
@@ -217,7 +221,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Stale day"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
-                    { contentDays = [RosterTemplateDayInput 0 False 1]
+                    { contentDays = [RosterTemplateDayInput 0 Nothing False 1]
                     , contentColumns = [RosterTemplateColumnInput "Only" 0]
                     , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment staff.id)]
                     }
@@ -237,15 +241,16 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #staffId (unpackId staff.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
                         |> set #sourceRosterSlotId (Just (unpackId oldSlot.id))
+                        |> set #operationalDate targetDay.operationalDate
                         |> applyTimesheetEntryBoundaries entryBoundaries
                         |> createRecord
                 let entrySnapshot = (entry.staffId, entry.startsAt, entry.endsAt, entry.sourceRosterSlotId)
                 _ <- staff |> set #isActive False |> updateRecord
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
 
                 preview <- previewRosterTemplateApplication actor request
                 let Right confirmation = preview
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedEntry <- fetch entry.id
                 activeTargetSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId targetDay.id)
@@ -277,11 +282,11 @@ tests = aroundAll withDatabaseTestContext do
                 Right () <- replaceRosterTemplateDraftContent actor springDraft.draftDesign.id (oneOpenShiftContent shiftType.id 1560 1620)
                 Right springSaved <- saveRosterTemplateDraft actor springDraft.draftDesign.id
                 let springOperationalDay = fromGregorian 2026 10 3
-                let springWeekOffset = venueWeekOffsetForDay venueConfig springOperationalDay
-                let springDayOffset = fromInteger (diffDays springOperationalDay (venueWeekStartDate venueConfig springWeekOffset))
-                springWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup springWeekOffset False
+                let springWindowStart = startOfWeekFor venueConfig.rosterWeekStartsOn springOperationalDay
+                let springDayOffset = fromInteger (diffDays springOperationalDay springWindowStart)
+                springWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup springWindowStart False
                 _ <- createRosterDayRecord springWeek springDayOffset
-                let springRequest = RosterTemplateApplicationRequest springSaved.savedTemplate.id springWeek.id (Just springDayOffset) noShiftCopyOccurrenceSelections
+                let springRequest = applicationRequestForTestWindow springSaved.savedTemplate.id springWeek (Just springDayOffset) noShiftCopyOccurrenceSelections
 
                 springPreview <- previewRosterTemplateApplication actor springRequest
 
@@ -291,13 +296,13 @@ tests = aroundAll withDatabaseTestContext do
                 Right () <- replaceRosterTemplateDraftContent actor autumnDraft.draftDesign.id (oneOpenShiftContent shiftType.id 1590 1650)
                 Right autumnSaved <- saveRosterTemplateDraft actor autumnDraft.draftDesign.id
                 let autumnOperationalDay = fromGregorian 2026 4 4
-                let autumnWeekOffset = venueWeekOffsetForDay venueConfig autumnOperationalDay
-                let autumnDayOffset = fromInteger (diffDays autumnOperationalDay (venueWeekStartDate venueConfig autumnWeekOffset))
-                autumnWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup autumnWeekOffset False
+                let autumnWindowStart = startOfWeekFor venueConfig.rosterWeekStartsOn autumnOperationalDay
+                let autumnDayOffset = fromInteger (diffDays autumnOperationalDay autumnWindowStart)
+                autumnWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup autumnWindowStart False
                 _ <- createRosterDayRecord autumnWeek autumnDayOffset
-                let autumnRequest occurrence = RosterTemplateApplicationRequest
+                let autumnRequest occurrence = applicationRequestForTestWindow
                         autumnSaved.savedTemplate.id
-                        autumnWeek.id
+                        autumnWeek
                         (Just autumnDayOffset)
                         noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = Just occurrence }
 
@@ -331,7 +336,7 @@ tests = aroundAll withDatabaseTestContext do
                 let Just oldStartsAt = oldSlot.startsAt
                 let Just oldEndsAt = oldSlot.endsAt
                 let Right entryBoundaries = authoritativeBoundariesFromInstants oldSlot.timezone oldStartsAt oldEndsAt Nothing Nothing
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
                 materializationStarted <- newEmptyMVar
                 let materialize = withTransaction do
@@ -342,6 +347,7 @@ tests = aroundAll withDatabaseTestContext do
                                 |> set #staffId (unpackId staff.id)
                                 |> set #shiftTypeId (unpackId shiftType.id)
                                 |> set #sourceRosterSlotId (Just (unpackId oldSlot.id))
+                                |> set #operationalDate targetDay.operationalDate
                                 |> applyTimesheetEntryBoundaries entryBoundaries
                                 |> createRecord
                         putMVar materializationStarted ()
@@ -349,12 +355,12 @@ tests = aroundAll withDatabaseTestContext do
                         pure entry
                 let confirmAfterMaterializationStarts = do
                         takeMVar materializationStarted
-                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
 
                 (entry, staleApply) <- concurrently materialize confirmAfterMaterializationStarts
                 refreshedConfirmation <- previewRosterTemplateApplication actor request
                 let Right currentConfirmation = refreshedConfirmation
-                applied <- applyRosterTemplateApplication actor request currentConfirmation.applicationExpectedVersion currentConfirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request currentConfirmation.applicationExpectedVersion currentConfirmation.applicationExpectedTargetRevision currentConfirmation.applicationRosterCalendarRevision
                 refreshedEntry <- fetch entry.id
 
                 staleApply `shouldBe` Left RosterTemplateApplicationTargetConflict
@@ -377,7 +383,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Pay day"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
-                    { contentDays = [RosterTemplateDayInput 0 False 1]
+                    { contentDays = [RosterTemplateDayInput 0 Nothing False 1]
                     , contentColumns = [RosterTemplateColumnInput "Only" 0]
                     , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment configuredStaff.id)]
                     }
@@ -386,7 +392,7 @@ tests = aroundAll withDatabaseTestContext do
                 let templateShiftId = (savedAggregate.savedShifts !! 0).id
                 targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 23 False
                 _ <- createRosterDayRecord targetWeek 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
                 payChangeStarted <- newEmptyMVar
                 let deactivatePayReference = withTransaction do
@@ -395,7 +401,7 @@ tests = aroundAll withDatabaseTestContext do
                         threadDelay 200000
                 let confirmAfterPayChangeStarts = do
                         takeMVar payChangeStarted
-                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
 
                 (_, applied) <- concurrently deactivatePayReference confirmAfterPayChangeStarts
                 let Right result = applied
@@ -415,7 +421,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Membership day"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
-                    { contentDays = [RosterTemplateDayInput 0 False 1]
+                    { contentDays = [RosterTemplateDayInput 0 Nothing False 1]
                     , contentColumns = [RosterTemplateColumnInput "Only" 0]
                     , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment staff.id)]
                     }
@@ -429,7 +435,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchOne
                 targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 21 False
                 _ <- createRosterDayRecord targetWeek 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
                 removalStarted <- newEmptyMVar
                 let removeMembership = withTransaction do
@@ -442,7 +448,7 @@ tests = aroundAll withDatabaseTestContext do
                         threadDelay 200000
                 let confirmAfterRemovalStarts = do
                         takeMVar removalStarted
-                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
 
                 (_, applied) <- concurrently removeMembership confirmAfterRemovalStarts
                 let Right result = applied
@@ -462,7 +468,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Day "Concurrent day"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
-                    { contentDays = [RosterTemplateDayInput 0 False 1]
+                    { contentDays = [RosterTemplateDayInput 0 Nothing False 1]
                     , contentColumns = [RosterTemplateColumnInput "Only" 0]
                     , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment staff.id)]
                     }
@@ -470,12 +476,12 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- staff |> set #isActive False |> updateRecord
                 targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 19 False
                 _ <- createRosterDayRecord targetWeek 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
 
                 (firstResult, secondResult) <- concurrently
-                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision)
-                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision)
+                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision)
+                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision)
                 let results = [firstResult, secondResult]
                 refreshedTemplate <- fetch saved.savedTemplate.id
                 activeSlots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
@@ -500,11 +506,11 @@ tests = aroundAll withDatabaseTestContext do
                 targetDay <- createRosterDayRecord targetWeek 0
                 definition <- createDefinition targetWeek "Existing" 0
                 oldSlot <- createSlot targetDay definition shiftType OpenAssignment 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
                 _ <- targetDay |> set #rowCount 9 |> updateRecord
 
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedSlot <- fetch oldSlot.id
 
                 applied `shouldBe` Left RosterTemplateApplicationTargetConflict
@@ -526,16 +532,60 @@ tests = aroundAll withDatabaseTestContext do
                 targetDay <- createRosterDayRecord targetWeek 0
                 definition <- createDefinition targetWeek "Existing" 0
                 oldSlot <- createSlot targetDay definition shiftType OpenAssignment 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id (Just 0) noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek (Just 0) noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication firstActor request
                 Right editDraft <- startRosterTemplateEditDraft secondActor saved.savedTemplate.id
                 Right _ <- saveRosterTemplateDraft secondActor editDraft.draftDesign.id
 
-                applied <- applyRosterTemplateApplication firstActor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication firstActor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedSlot <- fetch oldSlot.id
 
                 applied `shouldBe` Left (RosterTemplateApplicationVersionConflict 2)
                 refreshedSlot.deletedAt `shouldBe` Nothing
+
+        it "applies Week template weekdays in the current venue window order" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Rotated Week template"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "rotated-week-template@example.com" "staff" True
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Week "Calendar weekdays"
+                Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
+                    { contentDays =
+                        [ RosterTemplateDayInput dayIndex (Just weekdayIndex) False weekdayIndex
+                        | (dayIndex, weekdayIndex) <- zip [0 .. 6] [1, 2, 3, 4, 5, 6, 0]
+                        ]
+                    , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                    , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id OpenAssignment]
+                    }
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig
+                    |> set #rosterWeekStartsOn 4
+                    |> set #rosterCalendarRevision (venueConfig.rosterCalendarRevision + 1)
+                    |> updateRecord
+                let rotatedWindowStart = fromGregorian 2025 5 8
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup rotatedWindowStart False
+                targetDays <- forM [0 .. 6] \dayOffset -> createNativeRosterDayRecord venue rosterGroup (addDays dayOffset rotatedWindowStart) (fromInteger dayOffset)
+                let request = (applicationRequestForTestWindow saved.savedTemplate.id targetWeek Nothing noShiftCopyOccurrenceSelections)
+                        { applicationTargetWindowStart = rotatedWindowStart
+                        , applicationTargetWindowEnd = addDays 7 rotatedWindowStart
+                        }
+
+                Right confirmation <- previewRosterTemplateApplication actor request
+                Right _ <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
+                refreshedDays <- query @RosterDay
+                    |> filterWhereIn (#id, map (.id) targetDays)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                activeSlots <- query @RosterSlot
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) refreshedDays)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+
+                map (.rowCount) refreshedDays `shouldBe` [4, 5, 6, 0, 1, 2, 3]
+                map (.rosterDayId) activeSlots `shouldBe` [unpackId (refreshedDays !! 4).id]
 
         it "replaces the complete Week column order, day states, rows, and shifts" $ withContext do
             withCleanDb do
@@ -547,7 +597,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Week "Standard week"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
                     { contentDays =
-                        [RosterTemplateDayInput dayIndex (dayIndex == 6) (dayIndex + 1) | dayIndex <- [0 .. 6]]
+                        [RosterTemplateDayInput dayIndex (Just ((dayIndex + 1) `mod` 7)) (dayIndex == 6) (dayIndex + 1) | dayIndex <- [0 .. 6]]
                     , contentColumns =
                         [ RosterTemplateColumnInput "Late" 0
                         , RosterTemplateColumnInput "Early" 1
@@ -562,16 +612,18 @@ tests = aroundAll withDatabaseTestContext do
                 targetDays <- forM [0 .. 6] (createRosterDayRecord targetWeek)
                 oldDefinition <- createDefinition targetWeek "Old" 0
                 oldSlot <- createSlot (targetDays !! 4) oldDefinition shiftType OpenAssignment 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id Nothing noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek Nothing noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
 
-                result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
-                    |> orderByAsc #dayOffset
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, targetWeek.fixtureWindowStart)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 targetWeek.fixtureWindowStart)
+                    |> orderByAsc #operationalDate
                     |> fetch
-                activeDefinitions <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                firstDayLanes <- query @RosterLane
+                    |> filterWhere (#rosterDayId, unpackId (targetDays !! 0).id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> orderByAsc #sortOrder
                     |> fetch
@@ -581,15 +633,13 @@ tests = aroundAll withDatabaseTestContext do
                     |> orderByAsc #rowIndex
                     |> fetch
                 replacedSlot <- fetch oldSlot.id
-                replacedDefinition <- fetch oldDefinition.id
 
                 result `shouldSatisfy` isRight
-                map (.name) activeDefinitions `shouldBe` ["Late", "Early"]
+                map (.name) firstDayLanes `shouldBe` ["Late", "Early"]
                 map (\day -> (day.isClosed, day.rowCount)) refreshedDays
                     `shouldBe` [(False, 1), (False, 2), (False, 3), (False, 4), (False, 5), (False, 6), (True, 7)]
                 map (.rowIndex) activeSlots `shouldBe` [0, 2]
                 replacedSlot.deletedAt `shouldSatisfy` isJust
-                replacedDefinition.deletedAt `shouldSatisfy` isJust
 
         it "rejects an incomplete Week template without changing the target" $ withContext do
             withCleanDb do
@@ -600,7 +650,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right draft <- startBlankRosterTemplateDraft actor rosterGroup Week "Incomplete week"
                 Right () <- replaceRosterTemplateDraftContent actor draft.draftDesign.id RosterTemplateContent
-                    { contentDays = [RosterTemplateDayInput 0 True 1]
+                    { contentDays = [RosterTemplateDayInput 0 (Just 1) True 1]
                     , contentColumns = [RosterTemplateColumnInput "Only" 0]
                     , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id OpenAssignment]
                     }
@@ -609,18 +659,31 @@ tests = aroundAll withDatabaseTestContext do
                 targetDays <- forM [0 .. 6] (createRosterDayRecord targetWeek)
                 definition <- createDefinition targetWeek "Existing" 0
                 oldSlot <- createSlot (targetDays !! 0) definition shiftType OpenAssignment 0
-                let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id Nothing noShiftCopyOccurrenceSelections
+                let request = applicationRequestForTestWindow saved.savedTemplate.id targetWeek Nothing noShiftCopyOccurrenceSelections
 
                 preview <- previewRosterTemplateApplication actor request
                 refreshedSlot <- fetch oldSlot.id
 
-                preview `shouldBe` Left (RosterTemplateApplicationInvalidStructure "Week templates must contain all seven days.")
+                preview `shouldBe` Left (RosterTemplateApplicationInvalidStructure "Week templates must contain all seven weekdays.")
                 refreshedSlot.deletedAt `shouldBe` Nothing
+
+applicationRequestForTestWindow :: Id RosterTemplate -> TestRosterWindow -> Maybe Int -> ShiftCopyOccurrenceSelections -> RosterTemplateApplicationRequest
+applicationRequestForTestWindow templateId targetWeek targetDayOffset occurrenceSelections =
+    RosterTemplateApplicationRequest
+        { applicationTemplateId = templateId
+        , applicationTargetRosterGroupId = Id targetWeek.fixtureRosterGroupId
+        , applicationTargetWindowStart = windowStart
+        , applicationTargetWindowEnd = addDays 7 windowStart
+        , applicationTargetOperationalDate = (`addDays` windowStart) . toInteger <$> targetDayOffset
+        , applicationOccurrenceSelections = occurrenceSelections
+        }
+  where
+    windowStart = targetWeek.fixtureWindowStart
 
 oneOpenShiftContent :: Id ShiftType -> Int -> Int -> RosterTemplateContent
 oneOpenShiftContent shiftTypeId startMinute endMinute =
     RosterTemplateContent
-        { contentDays = [RosterTemplateDayInput 0 False 1]
+        { contentDays = [RosterTemplateDayInput 0 Nothing False 1]
         , contentColumns = [RosterTemplateColumnInput "Only" 0]
         , contentShifts = [RosterTemplateShiftInput 0 0 0 startMinute endMinute shiftTypeId OpenAssignment]
         }
@@ -629,22 +692,30 @@ isBoundaryFailure :: Either RosterTemplateApplicationError value -> Bool
 isBoundaryFailure Left { } = True
 isBoundaryFailure _        = False
 
-createDefinition :: (?modelContext :: ModelContext) => RosterWeek -> Text -> Int -> IO RosterWeekSlotDefinition
-createDefinition rosterWeek name sortOrder =
-    newRecord @RosterWeekSlotDefinition
-        |> set #rosterWeekId (unpackId rosterWeek.id)
-        |> set #name name
-        |> set #sortOrder sortOrder
-        |> createRecord
+data TestLaneDefinition = TestLaneDefinition
+    { definitionName      :: !Text
+    , definitionSortOrder :: !Int
+    }
 
-createSlot :: (?modelContext :: ModelContext) => RosterDay -> RosterWeekSlotDefinition -> ShiftType -> RosterShiftAssignment -> Int -> IO RosterSlot
+createDefinition :: (?modelContext :: ModelContext) => TestRosterWindow -> Text -> Int -> IO TestLaneDefinition
+createDefinition _rosterWindow name sortOrder = pure TestLaneDefinition
+    { definitionName = name
+    , definitionSortOrder = sortOrder
+    }
+
+createSlot :: (?modelContext :: ModelContext) => RosterDay -> TestLaneDefinition -> ShiftType -> RosterShiftAssignment -> Int -> IO RosterSlot
 createSlot rosterDay definition shiftType assignment rowIndex = do
+    rosterLane <- newRecord @RosterLane
+        |> set #rosterDayId (unpackId rosterDay.id)
+        |> set #name definition.definitionName
+        |> set #sortOrder definition.definitionSortOrder
+        |> createRecord
     let startsAt = UTCTime (fromGregorian 2026 3 2) (secondsToDiffTime 0)
     let endsAt = UTCTime (fromGregorian 2026 3 2) (secondsToDiffTime (8 * 60 * 60))
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId rosterDay.id)
-        |> set #rosterWeekSlotDefinitionId (unpackId definition.id)
-        |> set #slotSortOrder definition.sortOrder
+        |> set #rosterLaneId (unpackId rosterLane.id)
+        |> set #slotSortOrder definition.definitionSortOrder
         |> set #rowIndex rowIndex
         |> set #startsAt (Just startsAt)
         |> set #endsAt (Just endsAt)

@@ -2,13 +2,15 @@ module Application.Fixture.DevFixtures.Leave
     ( seedLeaveProjection
     ) where
 
-import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
 import Application.Fixture.Seed.Scenario
+import Control.Monad (void)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
 
 seedLeaveProjection :: (?modelContext :: ModelContext) => Day -> Day -> Venue -> SeedScenario -> [Staff] -> IO ()
@@ -24,9 +26,24 @@ seedLeaveRequests fixtureWeekStart _leaveMonthAnchor venue scenario staffPool = 
 
 createLeaveBatch :: (?modelContext :: ModelContext) => Venue -> [Staff] -> [(Day, Day)] -> Int -> Int -> LeaveRequestStatusEnum -> IO ()
 createLeaveBatch venue staffPool leaveDates startIndex count status =
-    forM_ (zip [startIndex ..] (zip (drop startIndex (cycle staffPool)) (take count (drop startIndex leaveDates)))) \(index, (staff, (startDate, endDate))) -> do
-        _ <- createLeaveRequestRecordWithNotes venue staff startDate endDate status (Just (leaveNoteFor status index))
-        pure ()
+    unless (count <= 0 || null staffPool) do
+        leaveIds <- map Id <$> freshUUIDs count
+        now <- getCurrentTime
+        let inputs = zip [startIndex ..] (zip (drop startIndex (cycle staffPool)) (take count (drop startIndex leaveDates)))
+            rows =
+                [ newRecord @LeaveRequest
+                    |> set #id leaveId
+                    |> set #venueId (unpackId venue.id)
+                    |> set #staffId (unpackId staff.id)
+                    |> set #startDate startDate
+                    |> set #endDate endDate
+                    |> set #status status
+                    |> set #notes (Just (leaveNoteFor status index))
+                    |> set #createdAt now
+                    |> set #updatedAt now
+                | (leaveId, (index, (staff, (startDate, endDate)))) <- zip leaveIds inputs
+                ]
+        void (createMany rows)
 
 spreadLeaveDatesAcrossSeedWindow :: Day -> Int -> [(Day, Day)]
 spreadLeaveDatesAcrossSeedWindow fixtureWeekStart count

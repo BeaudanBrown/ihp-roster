@@ -4,11 +4,12 @@ module Web.Timesheets.Mutations
     , materializeAndApproveTimesheetSuggestionMutation
     , materializeTimesheetSuggestionMutation
     , deleteTimesheetEntryMutation
-    , timesheetEntryTouchedResources
+    , timesheetEntryTouchedResourcesForScopes
     , unapproveTimesheetEntryMutation
     , updateTimesheetEntryMutation
     ) where
 
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
@@ -16,55 +17,93 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
+import Application.RosterPublication.Mutations (withRosterCalendarLockInCurrentTransaction)
 import Application.VenueTime.Model
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Control.Exception (IOException, try)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (diffDays)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime)
 import Data.Tuple.Only (Only (..))
 import IHP.ModelSupport (sqlQuery)
+import Network.HTTP.Types.Status (status409)
+import qualified Network.Wai as Wai
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation,
+                                withDurableLiveMutationOutcome)
+import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue,
+                                       timesheetWeekScopeMatchesConfig)
 import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
 import Web.Timesheets.Suggestion (TimesheetSuggestion (..))
 import Web.Timesheets.Validation (resetApprovalOnEdit)
 
-createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
-createTimesheetEntryMutation _weekOffset timesheetEntry = do
+withTimesheetCalendarMutationLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> IO value -> IO value
+withTimesheetCalendarMutationLock scope action =
+    withRosterCalendarLockInCurrentTransaction currentVenueId do
+        venueConfig <- fetchVenueConfig
+        if timesheetWeekScopeMatchesConfig venueConfig scope
+            then action
+            else
+                if isHtmxRequest
+                    then do
+                        respondAndExit
+                            ( Wai.responseLBS
+                                status409
+                                [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                                "The roster calendar changed. Review the refreshed window and try again."
+                            )
+                        error "unreachable"
+                    else do
+                        accessDeniedUnless False
+                        action
+
+createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+createTimesheetEntryMutation scope timesheetEntry = do
     accessDeniedUnless (isNothing timesheetEntry.sourceRosterSlotId)
-    createdEntry <- withTransaction (createTimesheetEntryWithVersion timesheetEntry)
-    invalidateTimesheetCreation "timesheet.create" createdEntry
+    withDurableLiveMutation "timesheet.create" $
+        withTimesheetCalendarMutationLock scope do
+            createdEntry <- createTimesheetEntryWithVersion timesheetEntry
+            timesheetCreationResult createdEntry
 
-materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (LiveMutationResult TimesheetEntry))
-materializeTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetEntry = do
-    materialization <- withTransaction (materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry)
-    case materialization of
-        Nothing -> pure Nothing
-        Just (materializedEntry, wasCreated) ->
-            Just <$> invalidateTimesheetCreation (if wasCreated then "timesheet.suggestion.create" else "timesheet.suggestion.create.idempotent") materializedEntry
+materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (LiveMutationResult TimesheetEntry))
+materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
+    fmap (fmap snd) $
+        withDurableLiveMutationOutcome publicationFor $
+            withTimesheetCalendarMutationLock scope do
+                materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry >>= \case
+                    Nothing -> pure Nothing
+                    Just (materializedEntry, wasCreated) -> do
+                        result <- timesheetCreationResult materializedEntry
+                        let label = if wasCreated then "timesheet.suggestion.create" else "timesheet.suggestion.create.idempotent"
+                        pure (Just (label, result))
+  where
+    publicationFor = fmap (\(label, result) -> (label, result.liveMutationTouchedResources))
 
-materializeAndApproveTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetSuggestion -> TimesheetEntry -> IO (Either Text (Maybe (LiveMutationResult TimesheetEntry)))
-materializeAndApproveTimesheetSuggestionMutation _weekOffset expectedSuggestion timesheetEntry = do
-    approval :: Either IOException (Maybe TimesheetEntry) <- try $ withTransaction do
-        materialization <- materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry
-        case materialization of
-            Nothing -> pure Nothing
-            Just (materializedEntry, _) -> Just <$> approveTimesheetEntryInCurrentTransaction materializedEntry
-    case approval of
-        Left reason -> pure (Left (tshow reason))
-        Right Nothing -> pure (Right Nothing)
-        Right (Just approvedEntry) -> do
-            venueConfig <- fetchVenueConfig
-            result <- invalidateTouchedResources "timesheet.suggestion.approve" (liveMutationResult approvedEntry (timesheetEntryTouchedResources venueConfig [approvedEntry]))
-            pure (Right (Just result))
+materializeAndApproveTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either Text (Maybe (LiveMutationResult TimesheetEntry)))
+materializeAndApproveTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry = do
+    approval :: Either IOException (Maybe (LiveMutationResult TimesheetEntry)) <- try $
+        withDurableLiveMutationOutcome publicationFor $
+            withTimesheetCalendarMutationLock scope do
+                materialization <- materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry
+                case materialization of
+                    Nothing -> pure Nothing
+                    Just (materializedEntry, _) -> do
+                        approvedEntry <- approveTimesheetEntryInCurrentTransaction materializedEntry
+                        venueConfig <- fetchVenueConfig
+                        activeScopes <- activeTimesheetWindowScopes
+                        pure (Just (liveMutationResult approvedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [approvedEntry])))
+    pure (either (Left . tshow) Right approval)
+  where
+    publicationFor = fmap (\result -> ("timesheet.suggestion.approve", result.liveMutationTouchedResources))
 
 materializeTimesheetSuggestionInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (TimesheetEntry, Bool))
 materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry = do
@@ -74,7 +113,9 @@ materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetE
     case existingEntry of
         Just existingEntry
             | existingEntry.staffId == expectedSuggestion.suggestionStaffId
+                && existingEntry.operationalDate == expectedSuggestion.suggestionOperationalDate
                 && existingEntry.startsAt == authoritativeStartsAt expectedSuggestion.suggestionBoundaries
+                && existingEntry.endsAt == authoritativeEndsAt expectedSuggestion.suggestionBoundaries
                 && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries ->
                 pure (Just (existingEntry, False))
             | otherwise -> pure Nothing
@@ -137,83 +178,88 @@ createTimesheetEntryWithVersion timesheetEntry = do
     void $ recordCurrentUserTimesheetEntryVersion (EntryVersionActionEnumCreated) createdEntry versionPayload
     pure createdEntry
 
-invalidateTimesheetCreation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
-invalidateTimesheetCreation eventName entry = do
+timesheetCreationResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+timesheetCreationResult entry = do
     venueConfig <- fetchVenueConfig
-    invalidateTouchedResources eventName (liveMutationResult entry (timesheetEntryTouchedResources venueConfig [entry]))
+    activeScopes <- activeTimesheetWindowScopes
+    pure (liveMutationResult entry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [entry]))
 
-updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> TimesheetEntry -> Bool -> IO (LiveMutationResult TimesheetEntry)
-updateTimesheetEntryMutation _weekOffset existingEntry timesheetEntry shouldResetApproval = do
-    let updateAction = if shouldResetApproval then ApprovalReset else Updated
-    updatedEntry <- withTransaction do
-        updatedEntry <-
-            timesheetEntry
-                |> resetApprovalOnEdit shouldResetApproval
-                |> updateRecord
-        void $
-            recordCurrentUserTimesheetEntryVersion
-                updateAction
-                updatedEntry
-                (Aeson.object
-                    [ "previous" Aeson..= timesheetEntrySnapshot existingEntry
-                    ]
-                )
-        when shouldResetApproval do
+updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> TimesheetEntry -> Bool -> IO (LiveMutationResult TimesheetEntry)
+updateTimesheetEntryMutation scope existingEntry timesheetEntry shouldResetApproval =
+    withDurableLiveMutation "timesheet.update" $
+        withTimesheetCalendarMutationLock scope do
+            let updateAction = if shouldResetApproval then ApprovalReset else Updated
+            updatedEntry <-
+                timesheetEntry
+                    |> resetApprovalOnEdit shouldResetApproval
+                    |> updateRecord
+            void $
+                recordCurrentUserTimesheetEntryVersion
+                    updateAction
+                    updatedEntry
+                    (Aeson.object
+                        [ "previous" Aeson..= timesheetEntrySnapshot existingEntry
+                        ]
+                    )
+            when shouldResetApproval do
+                void $ recordCurrentUserAuditEvent
+                    TimesheetApprovalResetAudit
+                    "timesheet_entries"
+                    (unpackId (get #id timesheetEntry))
+                    (Aeson.object
+                        [ "staffId" Aeson..= timesheetEntry.staffId
+                        , "startsAt" Aeson..= timesheetEntry.startsAt
+                        , "timezone" Aeson..= timesheetEntry.timezone
+                        , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
+                        , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
+                        ]
+                    )
+            venueConfig <- fetchVenueConfig
+            activeScopes <- activeTimesheetWindowScopes
+            pure (liveMutationResult updatedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [existingEntry, updatedEntry]))
+
+deleteTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+deleteTimesheetEntryMutation scope timesheetEntry =
+    withDurableLiveMutation "timesheet.delete" $
+        withTimesheetCalendarMutationLock scope do
+            now <- getCurrentTime
+            softDeletedEntry <-
+                timesheetEntry
+                    |> set #deletedAt (Just now)
+                    |> set #deletedByUserId (Just (unpackId currentUser.id))
+                    |> set #deleteReason (Just "user_deleted")
+                    |> updateRecord
+            void $
+                recordCurrentUserTimesheetEntryVersion
+                    (EntryVersionActionEnumDeleted)
+                    softDeletedEntry
+                    Aeson.Null
             void $ recordCurrentUserAuditEvent
-                TimesheetApprovalResetAudit
+                TimesheetDeletedAudit
                 "timesheet_entries"
                 (unpackId (get #id timesheetEntry))
                 (Aeson.object
                     [ "staffId" Aeson..= timesheetEntry.staffId
                     , "startsAt" Aeson..= timesheetEntry.startsAt
                     , "timezone" Aeson..= timesheetEntry.timezone
-                    , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
-                    , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
+                    , "wasApproved" Aeson..= timesheetEntry.isApproved
+                    , "deletedAt" Aeson..= now
                     ]
                 )
-        pure updatedEntry
-    venueConfig <- fetchVenueConfig
-    invalidateTouchedResources "timesheet.update" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [existingEntry, updatedEntry]))
-
-deleteTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
-deleteTimesheetEntryMutation _weekOffset timesheetEntry = do
-    now <- getCurrentTime
-    softDeletedEntry <- withTransaction do
-        softDeletedEntry <-
-            timesheetEntry
-                |> set #deletedAt (Just now)
-                |> set #deletedByUserId (Just (unpackId currentUser.id))
-                |> set #deleteReason (Just "user_deleted")
-                |> updateRecord
-        void $
-            recordCurrentUserTimesheetEntryVersion
-                (EntryVersionActionEnumDeleted)
-                softDeletedEntry
-                Aeson.Null
-        void $ recordCurrentUserAuditEvent
-            TimesheetDeletedAudit
-            "timesheet_entries"
-            (unpackId (get #id timesheetEntry))
-            (Aeson.object
-                [ "staffId" Aeson..= timesheetEntry.staffId
-                , "startsAt" Aeson..= timesheetEntry.startsAt
-                , "timezone" Aeson..= timesheetEntry.timezone
-                , "wasApproved" Aeson..= timesheetEntry.isApproved
-                , "deletedAt" Aeson..= now
-                ]
-            )
-        pure softDeletedEntry
-    venueConfig <- fetchVenueConfig
-    invalidateTouchedResources "timesheet.delete" (liveMutationResult softDeletedEntry (timesheetEntryTouchedResources venueConfig [timesheetEntry]))
-
-approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (Either Text (LiveMutationResult TimesheetEntry))
-approveTimesheetEntryMutation _weekOffset timesheetEntry = do
-    approval :: Either IOException TimesheetEntry <- try $ withTransaction (approveTimesheetEntryInCurrentTransaction timesheetEntry)
-    case approval of
-        Left reason -> pure (Left (tshow reason))
-        Right updatedEntry -> do
             venueConfig <- fetchVenueConfig
-            Right <$> invalidateTouchedResources "timesheet.approve" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
+            activeScopes <- activeTimesheetWindowScopes
+            pure (liveMutationResult softDeletedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [timesheetEntry]))
+
+approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either Text (LiveMutationResult TimesheetEntry))
+approveTimesheetEntryMutation scope timesheetEntry = do
+    approval :: Either IOException (LiveMutationResult TimesheetEntry) <- try $
+        withDurableLiveMutation "timesheet.approve" $
+            withTimesheetCalendarMutationLock scope do
+                updatedEntry <- approveTimesheetEntryInCurrentTransaction timesheetEntry
+                venueConfig <- fetchVenueConfig
+                activeScopes <- activeTimesheetWindowScopes
+                pure (liveMutationResult updatedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [updatedEntry]))
+    pure (either (Left . tshow) Right approval)
 
 approveTimesheetEntryInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
 approveTimesheetEntryInCurrentTransaction timesheetEntry = do
@@ -272,57 +318,67 @@ approveTimesheetEntryInCurrentTransaction timesheetEntry = do
                 )
             pure activeEntry
 
-unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
-unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
-    updatedEntry <- withTransaction do
-        updatedEntry <-
-            timesheetEntry
-                |> set #isApproved False
-                |> set #activePayCalculationId Nothing
-                |> set #legacyPayBackfillPending False
-                |> set #staffPayVersionId Nothing
-                |> set #shiftTypePayVersionId Nothing
-                |> set #approvedAt Nothing
-                |> set #approvedByUserId Nothing
-                |> updateRecord
-        void $
-            recordCurrentUserTimesheetEntryVersion
-                (Unapproved)
-                updatedEntry
+unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+unapproveTimesheetEntryMutation scope timesheetEntry =
+    withDurableLiveMutation "timesheet.unapprove" $
+        withTimesheetCalendarMutationLock scope do
+            updatedEntry <-
+                timesheetEntry
+                    |> set #isApproved False
+                    |> set #activePayCalculationId Nothing
+                    |> set #legacyPayBackfillPending False
+                    |> set #staffPayVersionId Nothing
+                    |> set #shiftTypePayVersionId Nothing
+                    |> set #approvedAt Nothing
+                    |> set #approvedByUserId Nothing
+                    |> updateRecord
+            void $
+                recordCurrentUserTimesheetEntryVersion
+                    (Unapproved)
+                    updatedEntry
+                    (Aeson.object
+                        [ "previous" Aeson..= timesheetEntrySnapshot timesheetEntry
+                        ]
+                    )
+            void $ recordCurrentUserAuditEvent
+                TimesheetUnapprovedAudit
+                "timesheet_entries"
+                (unpackId (get #id timesheetEntry))
                 (Aeson.object
-                    [ "previous" Aeson..= timesheetEntrySnapshot timesheetEntry
+                    [ "staffId" Aeson..= timesheetEntry.staffId
+                    , "startsAt" Aeson..= timesheetEntry.startsAt
+                    , "timezone" Aeson..= timesheetEntry.timezone
+                    , "wasApproved" Aeson..= timesheetEntry.isApproved
+                    , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
+                    , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
                     ]
                 )
-        void $ recordCurrentUserAuditEvent
-            TimesheetUnapprovedAudit
-            "timesheet_entries"
-            (unpackId (get #id timesheetEntry))
-            (Aeson.object
-                [ "staffId" Aeson..= timesheetEntry.staffId
-                , "startsAt" Aeson..= timesheetEntry.startsAt
-                , "timezone" Aeson..= timesheetEntry.timezone
-                , "wasApproved" Aeson..= timesheetEntry.isApproved
-                , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
-                , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
-                ]
-            )
-        pure updatedEntry
-    venueConfig <- fetchVenueConfig
-    invalidateTouchedResources "timesheet.unapprove" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
+            venueConfig <- fetchVenueConfig
+            activeScopes <- activeTimesheetWindowScopes
+            pure (liveMutationResult updatedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [updatedEntry]))
+
+timesheetEntryTouchedResourcesForScopes :: VenueConfig -> [(UUID, Day, Day, Int)] -> [TimesheetEntry] -> [SurfaceResourceValue]
+timesheetEntryTouchedResourcesForScopes venueConfig activeScopes entries =
+    Set.toList $ Set.fromList $
+        timesheetEntryTouchedResources venueConfig entries
+            <> [ timesheetWeekResource activeVenueId windowStart windowEnd
+               | (activeVenueId, windowStart, windowEnd, _calendarRevision) <- activeScopes
+               , any (entryOverlapsWindow activeVenueId windowStart windowEnd) entries
+               ]
+  where
+    entryOverlapsWindow activeVenueId windowStart windowEnd entry =
+        entry.venueId == activeVenueId
+            && timesheetEntryOperationalDate entry >= windowStart
+            && timesheetEntryOperationalDate entry < windowEnd
 
 timesheetEntryTouchedResources :: VenueConfig -> [TimesheetEntry] -> [SurfaceResourceValue]
 timesheetEntryTouchedResources venueConfig =
     concatMap entryResources
     where
         entryResources entry =
-            let workedOn = timesheetEntryWorkedOn entry
-                weekOffset = venueWeekOffsetForDay venueConfig workedOn
-                dayOffset = timesheetEntryDayOffset venueConfig entry
-             in [ timesheetWeekResource entry.venueId weekOffset
-                , timesheetDayResource entry.venueId weekOffset dayOffset
+            let workedOn = timesheetEntryOperationalDate entry
+                windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn workedOn
+                windowEnd = addDays 7 windowStart
+             in [ timesheetWeekResource entry.venueId windowStart windowEnd
+                , timesheetDayResource entry.venueId workedOn
                 ]
-
-timesheetEntryDayOffset :: VenueConfig -> TimesheetEntry -> Int
-timesheetEntryDayOffset venueConfig entry =
-    let workedOn = timesheetEntryWorkedOn entry
-     in fromIntegral (diffDays workedOn (venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig workedOn)))

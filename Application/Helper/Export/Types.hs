@@ -28,10 +28,9 @@ data FixedExportDefinition = FixedExportDefinition
     deriving (Eq, Show)
 
 data ReportWeekSelection = ReportWeekSelection
-    { weekOffset :: !Int
-    , weekStart  :: !Day
-    , weekEnd    :: !Day
-    , dayLabels  :: ![Text]
+    { weekStart :: !Day
+    , weekEnd   :: !Day
+    , dayLabels :: ![Text]
     }
     deriving (Eq, Show)
 
@@ -69,7 +68,8 @@ data HourlyShiftTypeColumn = HourlyShiftTypeColumn
 data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
     { staffFirstName           :: !Text
     , staffLastName            :: !Text
-    , workDate                 :: !Day
+    , operationalDate          :: !Day
+    , componentDate            :: !Day
     , earningsRateName         :: !Text
     , exactQuantity            :: !Rational
     , quantity                 :: !Rational
@@ -132,7 +132,7 @@ browserDownloadMethod :: Text
 browserDownloadMethod = "browser_download"
 
 exportSchemaVersion :: Int
-exportSchemaVersion = 3
+exportSchemaVersion = 4
 
 exportExpirySeconds :: NominalDiffTime
 exportExpirySeconds = 60 * 60 * 24

@@ -21,6 +21,7 @@ import IHP.ViewPrelude
 data PasskeyLoginControlKind
     = PasskeySignInControl
     | PasskeyStepUpControl
+    | PasskeyStepUpOverlayControl
     deriving (Eq, Show)
 
 data PasskeyLoginControl = PasskeyLoginControl
@@ -68,7 +69,7 @@ data PasskeyRegistrationControl = PasskeyRegistrationControl
 
 renderPasskeyLoginControl :: PasskeyLoginControl -> Html
 renderPasskeyLoginControl control = [hsx|
-    <div {...passkeyLoginAttrs control.passkeyLoginBeginUrl control.passkeyLoginFinishUrl control.passkeyLoginSuccessRedirect}>
+    <div {...passkeyLoginAttrs control.passkeyLoginBeginUrl control.passkeyLoginFinishUrl control.passkeyLoginSuccessRedirect (passkeyLoginAutoStarts control.passkeyLoginControlKind) (passkeyLoginClosesOverlay control.passkeyLoginControlKind)}>
         <div class="d-grid">
             <button type="button"
                     class={passkeyLoginButtonClass control.passkeyLoginControlKind}
@@ -156,7 +157,17 @@ passkeyRegistrationNamePlaceholder PasskeySetupLinkRegistrationControl = "e.g. N
 passkeyLoginButtonClass :: PasskeyLoginControlKind -> Text
 passkeyLoginButtonClass PasskeySignInControl = "btn btn-outline-primary"
 passkeyLoginButtonClass PasskeyStepUpControl = "btn btn-primary"
+passkeyLoginButtonClass PasskeyStepUpOverlayControl = "btn btn-primary"
 
 passkeyLoginButtonLabel :: PasskeyLoginControlKind -> Text
 passkeyLoginButtonLabel PasskeySignInControl = "Sign in with a passkey"
 passkeyLoginButtonLabel PasskeyStepUpControl = "Verify with passkey"
+passkeyLoginButtonLabel PasskeyStepUpOverlayControl = "Verify with passkey"
+
+passkeyLoginAutoStarts :: PasskeyLoginControlKind -> Bool
+passkeyLoginAutoStarts PasskeyStepUpOverlayControl = True
+passkeyLoginAutoStarts _ = False
+
+passkeyLoginClosesOverlay :: PasskeyLoginControlKind -> Bool
+passkeyLoginClosesOverlay PasskeyStepUpOverlayControl = True
+passkeyLoginClosesOverlay _ = False

@@ -19,7 +19,7 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.evaluate(() => (window as Window & { __headerNavMarker?: string }).__headerNavMarker)).resolves.toBeUndefined();
 
         await page.getByRole('link', { name: 'timesheets' }).click();
-        await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
 
         await page.getByRole('link', { name: 'unavailability' }).click();
@@ -33,7 +33,7 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toHaveAttribute('aria-expanded', 'false');
 
         await page.getByRole('banner').getByRole('link', { name: 'roster' }).click();
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });
 

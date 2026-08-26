@@ -31,7 +31,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 applicationStartedAt <- getMonotonicTimeNSec
                 response <- withUserAndCurrentVenue user venue.id do
-                    callAction (ShowRosterWeekAction 0)
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 applicationFinishedAt <- getMonotonicTimeNSec
                 recordDuration "HSPEC_APPLICATION_METRICS_FILE" applicationStartedAt applicationFinishedAt
 

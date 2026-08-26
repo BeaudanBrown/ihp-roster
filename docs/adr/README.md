@@ -28,3 +28,7 @@ Use `docs/templates/adr.md` for new ADRs.
   use compact nominal operation evidence while whole-Surface proofs stay private.
 - `0007-explicit-production-haskell-package-boundary.md` - production source,
   dependency, tooling, and artifact ownership is explicit and fail-closed.
+- `0008-date-native-roster-windows.md` - explicit Operational and Roster days
+  replace offset-based week identity while seven-day windows remain projections.
+- `0009-postgresql-is-live-freshness-authority.md` - atomic outbox/resource
+  versions are authoritative; process-local hubs only route listener delivery.

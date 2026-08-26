@@ -9,10 +9,15 @@ module Application.Xero.Connection
     , xeroClientErrorText
     ) where
 
+import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroConnectionResource)
+import Application.Helper.SurfaceResource (liveMutationResult,
+                                           liveMutationValue)
 import Application.Helper.Xero
+import Control.Monad (void)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
 
 xeroClientErrorText :: XeroClientError -> Text
 xeroClientErrorText (XeroHttpError message) = message
@@ -106,36 +111,40 @@ persistXeroRefreshedTokens ::
 persistXeroRefreshedTokens now xeroConfig connection tokenResponse = do
     encryptedRefreshToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.refreshToken
     encryptedAccessToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.accessToken
-    connection
-        |> set #encryptedRefreshToken encryptedRefreshToken
-        |> set #encryptedAccessToken (Just encryptedAccessToken)
-        |> set #accessTokenExpiresAt (Just (addUTCTime (fromIntegral tokenResponse.expiresIn) now))
-        |> set #lastRefreshedAt (Just now)
-        |> set #connectionStatus "active"
-        |> set #lastError Nothing
-        |> updateRecord
+    liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.connection.token_refresh" do
+        updated <- connection
+            |> set #encryptedRefreshToken encryptedRefreshToken
+            |> set #encryptedAccessToken (Just encryptedAccessToken)
+            |> set #accessTokenExpiresAt (Just (addUTCTime (fromIntegral tokenResponse.expiresIn) now))
+            |> set #lastRefreshedAt (Just now)
+            |> set #connectionStatus "active"
+            |> set #lastError Nothing
+            |> updateRecord
+        pure (liveMutationResult updated [xeroConnectionResource updated.venueId])
 
 markXeroConnectionReauthorizationRequired ::
     (?modelContext :: ModelContext) =>
     XeroConnection ->
     Text ->
     IO ()
-markXeroConnectionReauthorizationRequired connection message = do
-    _ <- connection
-        |> set #connectionStatus "reauthorization_required"
-        |> set #encryptedAccessToken Nothing
-        |> set #lastError (Just message)
-        |> updateRecord
-    pure ()
+markXeroConnectionReauthorizationRequired connection message =
+    void $ withDurableLiveMutationWithoutContext "xero.connection.reauthorization_required" do
+        updated <- connection
+            |> set #connectionStatus "reauthorization_required"
+            |> set #encryptedAccessToken Nothing
+            |> set #lastError (Just message)
+            |> updateRecord
+        pure (liveMutationResult updated [xeroConnectionResource updated.venueId])
 
 markXeroConnectionError ::
     (?modelContext :: ModelContext) =>
     XeroConnection ->
     Text ->
     IO ()
-markXeroConnectionError connection message = do
-    _ <- connection
-        |> set #connectionStatus "error"
-        |> set #lastError (Just message)
-        |> updateRecord
-    pure ()
+markXeroConnectionError connection message =
+    void $ withDurableLiveMutationWithoutContext "xero.connection.error" do
+        updated <- connection
+            |> set #connectionStatus "error"
+            |> set #lastError (Just message)
+            |> updateRecord
+        pure (liveMutationResult updated [xeroConnectionResource updated.venueId])

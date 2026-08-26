@@ -4,7 +4,6 @@ module Web.LeaveRequests.ReadModel
     ( LeaveRequestsReadModel (..)
     , LeaveRequestsFragment (..)
     , LeaveRequestsSectionFragment (..)
-    , affectedRosterWeekInvalidationTargetsForScopes
     , currentLeaveArchiveOpen
     , currentLeaveArchivePage
     , currentLeaveArchivePageResult
@@ -28,7 +27,6 @@ import Application.Helper.Profiling
 import Application.Helper.Staff (isTrialStaff)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
@@ -214,29 +212,6 @@ currentLeaveArchivePageResult
 currentLeaveArchiveOpen :: (?request :: Request) => Bool
 currentLeaveArchiveOpen =
     paramOrDefault @Text "" "openSection" == "archive"
-
-affectedRosterWeekInvalidationTargetsForScopes ::
-    Id Venue ->
-    VenueConfig ->
-    LeaveRequest ->
-    [(UUID.UUID, UUID.UUID, Int)] ->
-    [(Id RosterGroup, Int)]
-affectedRosterWeekInvalidationTargetsForScopes venueId venueConfig leaveRequest activeScopes =
-    Set.toList $
-        Set.fromList
-            [ (Id rosterGroupUuid, weekOffset)
-            | (activeVenueUuid, rosterGroupUuid, weekOffset) <- activeScopes
-            , activeVenueUuid == unpackId venueId
-            , weekOffset `Set.member` affectedOffsets
-            ]
-    where
-        affectedOffsets =
-            Set.fromList $
-                affectedVenueWeekOffsetsForDateRange
-                    venueConfig
-                    leaveRequest.startDate
-                    leaveRequest.endDate
-
 
 currentLeaveRequestsSurface :: (?context :: ControllerContext) => SurfaceImpl Surface.LeaveRequestsSurface
 currentLeaveRequestsSurface =

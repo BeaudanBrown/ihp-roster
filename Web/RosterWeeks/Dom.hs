@@ -26,8 +26,6 @@ module Web.RosterWeeks.Dom
     , rosterStaffPanelTemplatesTabId
     , rosterStaffPanelSettingsPaneId
     , rosterStaffPanelSettingsTabId
-    , rosterStaffPanelTemplatesPaneId
-    , rosterStaffPanelTemplatesTabId
     , rosterSelfServiceQuickToolsPaneId
     , rosterSelfServiceQuickToolsTabId
     , rosterSelfServiceSettingsPaneId

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/stripe.sh
+. "@scriptsRoot@/lib/stripe.sh"
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+# shellcheck source=../lib/stripe-dev.sh
+. "@scriptsRoot@/lib/stripe-dev.sh"
+
+stripe_dev_load_and_validate_config
+STATE_DIR="$(dev-agent-state-dir)"
+STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
+TUNNEL_PID=""
+mkdir -p "$STATE_DIR"
+
+if ! command -v dev-tunnel >/dev/null 2>&1; then
+    echo "ddev requires dev-tunnel from the local nix-dotfiles environment." >&2
+    exit 69
+fi
+if dev-status >/dev/null 2>&1; then
+    echo "devenv is already healthy; run just stop before just ddev." >&2
+    exit 1
+fi
+
+cleanup() {
+    if [ -n "$TUNNEL_PID" ]; then
+        kill -TERM "$TUNNEL_PID" 2>/dev/null || true
+        wait "$TUNNEL_PID" 2>/dev/null || true
+    fi
+    stripe_dev_delete_tunnel_endpoint "$STATE_DIR"
+    stripe_dev_stop_listener "$STRIPE_PID_FILE"
+}
+trap cleanup EXIT INT TERM
+
+export BEPIS_PUBLIC_APP_BASE_URL="https://dev.bepis.lol"
+echo "Starting public development at $BEPIS_PUBLIC_APP_BASE_URL (local app health remains $APP_BASE_URL)." >&2
+dev-tunnel "$PORT" &
+TUNNEL_PID=$!
+sleep 1
+if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+    echo "dev-tunnel exited during startup." >&2
+    exit 1
+fi
+
+# Remove a listener left by the previous ddev implementation before creating
+# the exact-version endpoint used by the public tunnel flow.
+stripe_dev_stop_listener "$STRIPE_PID_FILE"
+stripe_dev_create_tunnel_endpoint "$STATE_DIR" "$BEPIS_PUBLIC_APP_BASE_URL"
+echo "Stripe webhooks target $BEPIS_PUBLIC_APP_BASE_URL/StripeWebhook with pinned contract $IHP_ROSTER_STRIPE_API_VERSION." >&2
+
+# dev-foreground owns the app, frontend watchers, PostgreSQL, and MailHog. Its
+# foreground lifecycle keeps Ctrl-C teardown deterministic; this wrapper owns
+# only the tunnel and Stripe listener.
+dev-foreground

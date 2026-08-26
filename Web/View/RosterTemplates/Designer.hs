@@ -4,6 +4,8 @@ module Web.View.RosterTemplates.Designer where
 
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleLabel)
+import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
+                                          weekdayIndexLabel)
 import Application.RosterTemplates
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -12,10 +14,11 @@ import Web.RosterTemplates.FrontendSurface
 import Web.View.Prelude
 
 data DesignerView = DesignerView
-    { rosterGroup        :: !RosterGroup
-    , draft              :: !RosterTemplateDraft
-    , designerStaff      :: ![Staff]
-    , designerShiftTypes :: ![ShiftType]
+    { rosterGroup          :: !RosterGroup
+    , draft                :: !RosterTemplateDraft
+    , designerStaff        :: ![Staff]
+    , designerShiftTypes   :: ![ShiftType]
+    , designerWeekStartsOn :: !Int
     }
 
 instance View DesignerView where
@@ -59,7 +62,7 @@ instance View DesignerView where
                                     </div>
                                 </section>
                                 <div class="roster-template-design-grid">
-                                    {forEach draft.draftDays (renderDay view)}
+                                    {forEach (orderedTemplateDays designerWeekStartsOn draft) (renderDay view)}
                                 </div>
                             </div>
                         </div>
@@ -110,7 +113,7 @@ renderDay view@DesignerView { draft } day = [hsx|
     <section class="border rounded-3 p-3 mb-3" data-template-day-index={tshow day.dayIndex}>
         <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
             <div>
-                <strong>{dayLabel draft.draftDesign.scale day.dayIndex}</strong>
+                <strong>{dayLabel draft.draftDesign.scale day}</strong>
                 <span class="text-muted ms-2">{day.rowCount} rows</span>
             </div>
             <form class="d-flex align-items-end gap-2" method="POST" action={UpdateRosterTemplateDayAction draft.draftDesign.id day.dayIndex}>
@@ -216,9 +219,18 @@ renderShiftForm DesignerView { .. } day maybeShift = [hsx|
     |]
 
 
-dayLabel :: RosterTemplateScaleEnum -> Int -> Text
+dayLabel :: RosterTemplateScaleEnum -> RosterTemplateDay -> Text
 dayLabel Day _ = "Template day"
-dayLabel Week dayIndex = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] !! dayIndex
+dayLabel Week day = maybe ("Day " <> tshow (day.dayIndex + 1)) weekdayIndexLabel day.weekdayIndex
+
+orderedTemplateDays :: Int -> RosterTemplateDraft -> [RosterTemplateDay]
+orderedTemplateDays weekStartsOn draft =
+    case draft.draftDesign.scale of
+        Day  -> draft.draftDays
+        Week -> sortOn orderIndex draft.draftDays
+  where
+    weekdayOrder = orderedWeekdayIndexes weekStartsOn
+    orderIndex day = maybe 7 (\weekday -> fromMaybe 7 (elemIndex weekday weekdayOrder)) day.weekdayIndex
 
 minuteTime :: Int -> Text
 minuteTime minute = Text.pack (printf "%02d:%02d" hour minuteWithinHour)

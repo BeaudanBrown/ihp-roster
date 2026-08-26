@@ -51,9 +51,10 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            surfaceField,
                                                            surfaceOptionalField,
                                                            (&:))
+import qualified Application.PayRateSelection as Types3
 import Data.Time (Day)
 import qualified Data.UUID as UUID
-import qualified Generated.Types as Types3
+import qualified Generated.Types as Types4
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -108,9 +109,9 @@ type instance ActionFieldSpecs UpdateProfileDetailsActionOperation =
      , 'Field Types1.EmergencyContactNameField 'WireText
      , 'Field Types1.EmergencyContactPhoneField 'WireText
      , 'Field Types1.SectionField ('WireClosed Types1.StaffProfileSectionValue)
-     , 'OptionalField Types1.VenueRoleField ('WireClosed Types3.VenueRoleEnum)
-     , 'OptionalField Types1.EmploymentBasisField ('WireClosed Types3.StaffEmploymentBasisEnum)
-     , 'OptionalField Types1.PayRateSelectionField 'WireText
+     , 'OptionalField Types1.VenueRoleField ('WireClosed Types4.VenueRoleEnum)
+     , 'OptionalField Types1.EmploymentBasisField ('WireClosed Types4.StaffEmploymentBasisEnum)
+     , 'OptionalField Types1.PayRateSelectionField ('WireDomain Types3.StaffPayRateSelection)
      , 'OptionalField Types1.RosterGroupIdsField ('WireList 'WireUUID)
      ]
 
@@ -123,9 +124,9 @@ updateProfileDetailsActionFields ::
     Text ->
     Text ->
     Types1.StaffProfileSectionValue ->
-    Maybe Types3.VenueRoleEnum ->
-    Maybe Types3.StaffEmploymentBasisEnum ->
-    Maybe Text ->
+    Maybe Types4.VenueRoleEnum ->
+    Maybe Types4.StaffEmploymentBasisEnum ->
+    Maybe Types3.StaffPayRateSelection ->
     Maybe [UUID.UUID] ->
     ActionFields UpdateProfileDetailsActionOperation
 updateProfileDetailsActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection rosterGroupIds =
@@ -147,7 +148,7 @@ updateProfileDetailsActionFields firstName lastName preferredName phone idealShi
 
 updateProfileDetailsActionEvidence :: ActionEvidence UpdateProfileDetailsActionOperation
 updateProfileDetailsActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UpdateProfileDetails" "update-profile-details" [SurfaceIR.FieldIR "FirstNameField" "firstName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "LastNameField" "lastName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PreferredNameField" "preferredName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PhoneField" "phone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "IdealShiftsPerWeekField" "idealShiftsPerWeek" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactNameField" "emergencyContactName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactPhoneField" "emergencyContactPhone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SectionField" "section" (SurfaceIR.WireClosedIR "StaffProfileSectionValue" "Application.Helper.FrontendContract.Surface.Profile" "StaffProfileSectionValue") SurfaceIR.RequiredField, SurfaceIR.FieldIR "VenueRoleField" "venueRole" (SurfaceIR.WireClosedIR "VenueRoleEnum" "Generated.Types" "VenueRoleEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "EmploymentBasisField" "employmentBasis" (SurfaceIR.WireClosedIR "StaffEmploymentBasisEnum" "Generated.Types" "StaffEmploymentBasisEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PayRateSelectionField" "payRateSelection" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupIdsField" "rosterGroupIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "staff-profile-section-htmx-attrs" "profile and staff forms provide their concrete section target and swap modifier at the route boundary")])
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateProfileDetails" "update-profile-details" [SurfaceIR.FieldIR "FirstNameField" "firstName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "LastNameField" "lastName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PreferredNameField" "preferredName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PhoneField" "phone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "IdealShiftsPerWeekField" "idealShiftsPerWeek" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactNameField" "emergencyContactName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactPhoneField" "emergencyContactPhone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SectionField" "section" (SurfaceIR.WireClosedIR "StaffProfileSectionValue" "Application.Helper.FrontendContract.Surface.Profile" "StaffProfileSectionValue") SurfaceIR.RequiredField, SurfaceIR.FieldIR "VenueRoleField" "venueRole" (SurfaceIR.WireClosedIR "VenueRoleEnum" "Generated.Types" "VenueRoleEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "EmploymentBasisField" "employmentBasis" (SurfaceIR.WireClosedIR "StaffEmploymentBasisEnum" "Generated.Types" "StaffEmploymentBasisEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PayRateSelectionField" "payRateSelection" (SurfaceIR.WireDomainIR "Application.PayRateSelection" "StaffPayRateSelection") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupIdsField" "rosterGroupIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "staff-profile-section-htmx-attrs" "profile and staff forms provide their concrete section target and swap modifier at the route boundary")])
 
 updateProfileDetailsAction :: ActionFields UpdateProfileDetailsActionOperation -> FrontendSurfaceAction
 updateProfileDetailsAction =
@@ -208,9 +209,9 @@ type instance ActionFieldSpecs UpdateStaffProfileActionOperation =
      , 'Field Types1.EmergencyContactNameField 'WireText
      , 'Field Types1.EmergencyContactPhoneField 'WireText
      , 'Field Types1.SectionField ('WireClosed Types1.StaffProfileSectionValue)
-     , 'OptionalField Types1.VenueRoleField ('WireClosed Types3.VenueRoleEnum)
-     , 'OptionalField Types1.EmploymentBasisField ('WireClosed Types3.StaffEmploymentBasisEnum)
-     , 'OptionalField Types1.PayRateSelectionField 'WireText
+     , 'OptionalField Types1.VenueRoleField ('WireClosed Types4.VenueRoleEnum)
+     , 'OptionalField Types1.EmploymentBasisField ('WireClosed Types4.StaffEmploymentBasisEnum)
+     , 'OptionalField Types1.PayRateSelectionField ('WireDomain Types3.StaffPayRateSelection)
      , 'OptionalField Types1.RosterGroupIdsField ('WireList 'WireUUID)
      ]
 
@@ -223,9 +224,9 @@ updateStaffProfileActionFields ::
     Text ->
     Text ->
     Types1.StaffProfileSectionValue ->
-    Maybe Types3.VenueRoleEnum ->
-    Maybe Types3.StaffEmploymentBasisEnum ->
-    Maybe Text ->
+    Maybe Types4.VenueRoleEnum ->
+    Maybe Types4.StaffEmploymentBasisEnum ->
+    Maybe Types3.StaffPayRateSelection ->
     Maybe [UUID.UUID] ->
     ActionFields UpdateStaffProfileActionOperation
 updateStaffProfileActionFields firstName lastName preferredName phone idealShiftsPerWeek emergencyContactName emergencyContactPhone section venueRole employmentBasis payRateSelection rosterGroupIds =
@@ -247,7 +248,7 @@ updateStaffProfileActionFields firstName lastName preferredName phone idealShift
 
 updateStaffProfileActionEvidence :: ActionEvidence UpdateStaffProfileActionOperation
 updateStaffProfileActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UpdateStaffProfile" "update-staff-profile" [SurfaceIR.FieldIR "FirstNameField" "firstName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "LastNameField" "lastName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PreferredNameField" "preferredName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PhoneField" "phone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "IdealShiftsPerWeekField" "idealShiftsPerWeek" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactNameField" "emergencyContactName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactPhoneField" "emergencyContactPhone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SectionField" "section" (SurfaceIR.WireClosedIR "StaffProfileSectionValue" "Application.Helper.FrontendContract.Surface.Profile" "StaffProfileSectionValue") SurfaceIR.RequiredField, SurfaceIR.FieldIR "VenueRoleField" "venueRole" (SurfaceIR.WireClosedIR "VenueRoleEnum" "Generated.Types" "VenueRoleEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "EmploymentBasisField" "employmentBasis" (SurfaceIR.WireClosedIR "StaffEmploymentBasisEnum" "Generated.Types" "StaffEmploymentBasisEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PayRateSelectionField" "payRateSelection" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupIdsField" "rosterGroupIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "staff-profile-section-htmx-attrs" "profile and staff forms provide their concrete section target and swap modifier at the route boundary")])
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateStaffProfile" "update-staff-profile" [SurfaceIR.FieldIR "FirstNameField" "firstName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "LastNameField" "lastName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PreferredNameField" "preferredName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PhoneField" "phone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "IdealShiftsPerWeekField" "idealShiftsPerWeek" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactNameField" "emergencyContactName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EmergencyContactPhoneField" "emergencyContactPhone" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SectionField" "section" (SurfaceIR.WireClosedIR "StaffProfileSectionValue" "Application.Helper.FrontendContract.Surface.Profile" "StaffProfileSectionValue") SurfaceIR.RequiredField, SurfaceIR.FieldIR "VenueRoleField" "venueRole" (SurfaceIR.WireClosedIR "VenueRoleEnum" "Generated.Types" "VenueRoleEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "EmploymentBasisField" "employmentBasis" (SurfaceIR.WireClosedIR "StaffEmploymentBasisEnum" "Generated.Types" "StaffEmploymentBasisEnum") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PayRateSelectionField" "payRateSelection" (SurfaceIR.WireDomainIR "Application.PayRateSelection" "StaffPayRateSelection") SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupIdsField" "rosterGroupIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "staff-profile-section-htmx-attrs" "profile and staff forms provide their concrete section target and swap modifier at the route boundary")])
 
 updateStaffProfileAction :: ActionFields UpdateStaffProfileActionOperation -> FrontendSurfaceAction
 updateStaffProfileAction =

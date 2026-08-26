@@ -84,6 +84,7 @@ calculateTimesheetPay calculationInput = do
                 { calculatedEntryId = calculationInput.calculationEntryId
                 , calculationVersion = currentWageCalculationVersion
                 , calculationRateBookVersion = Just (validatedRateBookVersion awardRateContext.awardRateBook)
+                , publishedOperationalDate = Nothing
                 , paidTimeSegments = map fst intervalResults <> map fst minimumResults
                 , earningsComponents = map snd intervalResults <> map snd minimumResults <> additionComponents <> missedMealBreakComponents
                 }
@@ -101,6 +102,7 @@ calculateTimesheetPay calculationInput = do
                 { calculatedEntryId = calculationInput.calculationEntryId
                 , calculationVersion = currentWageCalculationVersion
                 , calculationRateBookVersion = Nothing
+                , publishedOperationalDate = Nothing
                 , paidTimeSegments = map (paidSegment condition) intervals
                 , earningsComponents = map (importedHourlyComponent importedPayItem condition) intervals
                 }

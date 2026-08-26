@@ -79,8 +79,8 @@ production application merely to exercise DSL vocabulary.
   subscriptions match mounted scopes.
 
 A contained child surface is still an independent surface: it owns its own scope,
-fragments, request decoration, focused-field protection, and invalidation
-handling. Parent fragments may refresh broad HTML that includes child mounts, so
+fragments, optional generated fragment request-context decoration, focused-field
+protection, and invalidation handling. Parent fragments may refresh broad HTML that includes child mounts, so
 composition-safe runtime code must clean up removed child/grandchild mounts and
 avoid duplicate subscriptions when the same instance remains mounted.
 
@@ -134,18 +134,22 @@ Available primitives include:
   browser token to have a production consumer.
 
 Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
-`WireBool`, `WireUUID`, `WireDay`, `WireClosed`, `WireList`, `WireOptional`,
-`WireNullable`, and `WireRef`. `WireClosed value` must reference a registered
-`ClosedScalar value`; it produces that exact Haskell type in generated builders
-and parsers. Use the generated PostgreSQL enum type when persistence owns the
-domain, never a shadow ADT. Roster template-card browser DTOs therefore carry
-`WireClosed RosterTemplateScaleEnum`, not a handwritten `"day" | "week"`
-projection. A non-persisted app domain may use its own finite ADT beside the
-owning feature. Current request authorities include profile section, venue role,
-employment basis, roster staff scope, leave section, feedback type, shift-type
-colour, and export type. Open tagged reference selections such as Award/Xero pay
-references and provider-owned Xero employee ids are explicitly classified and
-must still obtain their field names from the nominal generated operation.
+`WireBool`, `WireUUID`, `WireDay`, `WireClosed`, `WireDomain`, `WireList`,
+`WireOptional`, `WireNullable`, and `WireRef`. `WireClosed value` must reference
+a registered `ClosedScalar value`; it produces that exact Haskell type in
+generated builders and parsers. Use the generated PostgreSQL enum type when
+persistence owns the domain, never a shadow ADT. Roster template-card browser
+DTOs therefore carry `WireClosed RosterTemplateScaleEnum`, not a handwritten
+`"day" | "week"` projection. A non-persisted app domain may use its own finite
+ADT beside the owning feature.
+
+`WireDomain value` represents an open text protocol with a domain-owned nominal
+Haskell value and `NominalText` codec. TypeScript still receives `string`, while
+generated Haskell builders and parsers retain the exact value type. Use it only
+when values are structurally open but raw `Text` would erase a meaningful domain
+boundary, such as the distinct staff and shift-type pay-rate selections or a
+provider-owned Xero employee selection. The domain module owns parsing and
+rendering; the FrontendContract declaration supplies only the focused wire use.
 Do not serialize arbitrary domain models through surface fields; convert to a
 narrow browser DTO or feature-specific render model first.
 
@@ -1181,10 +1185,12 @@ Server `MountState`, load behavior, and derived resync lists must not be added t
 the browser envelope without a browser consumer. DOM/config surface disagreement
 is an invalid mount and must be reported rather than coerced.
 
-The websocket endpoint, client-id header, and surface config/action/owner DOM
-attribute names come from reflected global constants shared by Haskell and
-TypeScript. Add or change those values in the frontend contract registry, not as
-runtime string literals.
+The websocket endpoint and surface config/action/owner DOM attribute names come
+from reflected global constants shared by Haskell and TypeScript. Add or change
+those values in the frontend contract registry, not as runtime string literals.
+The retired writer-local echo path has no client-id request header or invalidation
+field; duplicate listener/actor refresh is handled idempotently by the generic
+refresh runtime.
 
 Lazy placeholders must use the
 `renderFrontendSurfaceLazyFragmentWithConfig` runtime helper with
@@ -1198,17 +1204,19 @@ may pass root/slot classes in the config; the shared runtime must not infer
 layout geometry. Intent/action forms should use the runtime render helpers so
 HTMX attributes and hidden fields stay Haskell-owned.
 
-Controllers remain normal IHP mutation entrypoints in this epic. They parse and
-authorize params, call feature mutation/read-model code, and render validation
-failures or successful actor extras. Successful migrated `FrontendSurface`
-mutations should report typed `SurfaceResourceValue` touches using the
+Controllers remain normal IHP mutation entrypoints. They parse and authorize
+params, call feature mutation/read-model code, and render validation failures or
+successful actor extras. Every live-visible mutation commits its business and
+domain/audit writes with one durable event through
+`withDurableLiveMutation` (or the outcome/background variant). There is no
+post-commit compatibility publisher or producer-to-process-local broadcast.
+Feature mutations report typed `SurfaceResourceValue` touches using the
 feature-owned smart constructors in `Surface.<Feature>.Resource`, while
 `Application.Helper.SurfaceResource` owns only `LiveMutationResult` and its
-opaque touched-resource set. Mutations then return actor-local semantic
-invalidation instructions plus extras. The actor tab and
-passive viewers both refresh by resolving semantic scope and fragment keys
-through mounted surface metadata and each mount's plain fragment GET URL, so
-successful actor responses must not carry authoritative business OOB HTML.
+opaque touched-resource set. The actor tab and passive viewers both refresh by
+resolving semantic scope and fragment keys through mounted surface metadata and
+each mount's plain fragment GET URL, so successful actor responses must not carry
+authoritative business OOB HTML.
 
 A feature that needs transient mount-local request context may register a
 mechanical fragment-request decorator through
@@ -1221,9 +1229,17 @@ replacement naturally discards it.
 
 ## Live Authorization, Resources, And Fragment Rendering
 
-`FrontendSurface` invalidations are semantic and surface-native:
-transport identifies generated kebab-case surface names, generated scope DTOs,
-and generated fragment names plus typed params. Haskell emits ready-to-use mount
+`FrontendSurface` invalidations are semantic and surface-native. PostgreSQL
+resource versions and ordered outbox events are the freshness authority. Every
+application process runs a reconnecting listener. Its initial connection hydrates
+current versions before subscriptions rely on durable watermarks. On reconnect it
+dispatches that authoritative snapshot before retained replay, then replays
+ordered events through its local subscription/socket hub. Snapshot-first ordering
+prevents a retained event's dedupe sequence from suppressing resources whose
+individual events were already pruned. Duplicate or out-of-order
+local delivery cannot advance freshness twice. Transport identifies generated
+kebab-case surface names, generated scope DTOs, and generated fragment names
+plus typed params. Haskell emits ready-to-use mount
 subscription JSON from `Scope` plus mounted `Fragment ... Live` values;
 composition-only parent surfaces omit `Live` fragments and therefore do not
 subscribe. The emitted subscription contains the typed scope only. The browser
@@ -1269,6 +1285,11 @@ feature modules such as `Surface.Roster.Resource` and
 Mutation/domain code emits only those declared values. The carrier constructor
 is internal, and no free resource-name/field constructor, undeclared sentinel,
 custom dependency hook, or bridge conversion is supported.
+
+Roster staff-bearing fragments depend on `roster-group-staff`, a group-scoped
+cross-process resource emitted for profile, membership, and staff-group changes;
+each listener matches it against its own active week scopes without producer-local
+scope discovery.
 
 Roster template consumers share three generated Roster Surface resources:
 `roster-template-library` is roster-group-scoped, `roster-template` identifies one
@@ -1328,9 +1349,10 @@ Use generated `parseX` at unknown JSON/data boundaries and `encodeX` for outboun
 surface DTOs. If TypeScript switches on a generated closed union, use
 `assertNever` so `frontend-check` fails when Haskell adds a new variant.
 
-Generic browser code may decorate HTMX requests from the closest mounted surface,
-manage disposable sessions/layers, fill generated intent forms, and refetch
-mount-local fragments. It must not infer feature URLs, target ids, canonical
+Generic browser code may apply a declared generated fragment request-context
+decorator from the closest mounted surface, manage disposable sessions/layers,
+fill generated intent forms, and refetch mount-local fragments. This is not the
+retired writer-local client-id header. It must not infer feature URLs, target ids, canonical
 field names, surface names, or mutation endpoints.
 
 ## Authoring Rules

@@ -137,7 +137,7 @@ test.describe('Admin and roster UI polish', () => {
     test('lets venue admins submit staff unavailability from the staff edit page', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 900 });
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
-        await gotoWhenReady(page, `/EditStaff?staffId=${staffId}&weekOffset=0&rosterGroupId=${rosterGroupId}&section=profile`, '#staff-sections');
+        await gotoWhenReady(page, `/EditStaff?staffId=${staffId}&anchorDate=2025-01-06&rosterGroupId=${rosterGroupId}&section=profile`, '#staff-sections');
 
         const roleSelect = page.locator('#staff-edit-form select[name="venueRole"]');
         await expect(roleSelect).toBeVisible({ timeout: E2E_TIMEOUT.assertion });

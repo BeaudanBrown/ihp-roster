@@ -164,6 +164,7 @@ timesheetEntrySnapshot entry =
         , "breakStartsAt" Aeson..= entry.breakStartsAt
         , "breakEndsAt" Aeson..= entry.breakEndsAt
         , "timezone" Aeson..= entry.timezone
+        , "operationalDate" Aeson..= entry.operationalDate
         , "sourceRosterSlotId" Aeson..= entry.sourceRosterSlotId
         , "staffComment" Aeson..= entry.staffComment
         , "managerNote" Aeson..= entry.managerNote

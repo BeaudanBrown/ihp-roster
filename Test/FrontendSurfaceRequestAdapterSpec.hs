@@ -40,21 +40,23 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFields,
                                                            SurfaceFieldBundleOf,
                                                            surfaceFieldValue,
                                                            surfaceFieldsText)
+import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateAward))
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import Data.Time (fromGregorian)
+import Data.Time (addDays, fromGregorian)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
-import Generated.Types (RosterDay, RosterGroup, RosterLayoutModeEnum (..),
+import Generated.Types (AwardLevel, RosterDay, RosterGroup, RosterLayoutModeEnum (..),
                         VenueRoleEnum (..))
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import qualified Network.Wai as Wai
 import qualified System.Directory as Directory
 import Test.Hspec
+import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Action as FixtureAction
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Intent as FixtureIntent
@@ -351,14 +353,14 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 69
+        length actionDeclarations `shouldBe` 70
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 64
+        length generatedActionOperations `shouldBe` 65
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 63
+            `shouldBe` 65
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 63
+            `shouldBe` 65
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
             `shouldBe` 47
         let actionIdentity registration =
@@ -384,6 +386,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             ]
             `shouldBe` List.sort
                 [ ("timesheets", "navigate-timesheet-week")
+                , ("roster", "navigate-roster-week")
                 , ("timesheets", "update-timesheet-filters")
                 , ("roster", "sort-roster-week")
                 , ("roster", "create-roster-week-slot-definition")
@@ -475,7 +478,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                  in RosterAction.navigateRosterWeekActionParamsPresent
         absent `shouldBe` False
         let present =
-                let ?request = requestWithParams [("weekOffset", Just "2")]
+                let ?request = requestWithParams [("anchorDate", Just "2025-01-20")]
                  in RosterAction.navigateRosterWeekActionParamsPresent
         present `shouldBe` True
 
@@ -510,15 +513,15 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 RosterWeekScopeValue
                     { rosterWeekVenueId = venueId
                     , rosterWeekGroupId = rosterGroupId
-                    , rosterWeekWeekOffset = 3
-                    , rosterWeekTimelineDayOffset = Nothing
+                    , rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1
+                    , rosterWeekTimelineDate = Nothing
                     }
         let timelineScope =
                 RosterDayTimelineScopeValue
                     { rosterDayTimelineVenueId = venueId
                     , rosterDayTimelineGroupId = rosterGroupId
-                    , rosterDayTimelineWeekOffset = 3
-                    , rosterDayTimelineDayOffset = 2
+                    , rosterDayTimelineWindowStart = testAnchorForOffset 3, rosterDayTimelineWindowEnd = addDays 7 (testAnchorForOffset 3), rosterDayTimelineCalendarRevision = 1
+                    , rosterDayTimelineOperationalDate = addDays 2 (testAnchorForOffset 3)
                     , rosterDayTimelineDayId = rosterDayId
                     }
         let rosterForms = rosterIntentForms rosterScope True
@@ -535,12 +538,12 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
         let renderedForms = map renderIntentFormText (rosterForms <> timelineForms)
         let expectedFormMetadata =
-                [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 1)
-                , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
-                , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
-                , ("drop-roster-staff", "/DropRosterStaff?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
-                , ("preview-roster-template-application", "/PreviewRosterTemplateDrop?rosterGroupId=00000000-0000-0000-0000-000000000222&amp;weekOffset=3", 11)
-                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 12)
+                [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterCalendarRevision=1", 1)
+                , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
+                , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
+                , ("drop-roster-staff", "/DropRosterStaff?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 12)
+                , ("preview-roster-template-application", "/PreviewRosterTemplateDrop?rosterGroupId=00000000-0000-0000-0000-000000000222&amp;anchorDate=2025-01-27", 11)
+                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayDate=2025-01-29", 13)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
             assertRosterIntentFormMetadata metadata html
@@ -562,7 +565,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
     it "parses every production Roster Intent shape through the canonical facade" do
         let parsedCopyOccurrences =
-                let ?request = requestWithParams [("copyStartOccurrence", Just "second")]
+                let ?request = requestWithParams [("rosterCalendarRevision", Just "1"), ("copyStartOccurrence", Just "second")]
                  in RosterAction.parseCopyRosterWeekActionParams
         case parsedCopyOccurrences of
             Left errors -> expectationFailure (cs (show errors))
@@ -604,10 +607,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         let missingDragIntentChecks =
                 let ?request = requestWithParams []
                  in do
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseMoveRosterShiftToSlotIntentParams
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseDuplicateRosterShiftToDayIntentParams
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseDropRosterStaffIntentParams
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseMoveRosterTimelineShiftIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseMoveRosterShiftToSlotIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseDropRosterStaffIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseMoveRosterTimelineShiftIntentParams
         missingDragIntentChecks
 
         let malformedDragIntentChecks =
@@ -636,6 +639,8 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             `shouldBe`
                 [ ("hx-post", "/profile/preferences")
                 , ("data-bepis-surface-action", "update-profile-shift-preferences")
+                , ("hx-trigger", "change")
+                , ("hx-sync", "this:queue last")
                 , ("hx-push-url", "false")
                 , ("hx-target", "#profile-preferences")
                 , ("hx-swap", "outerHTML show:none")
@@ -656,6 +661,8 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             `shouldBe`
                 [ ("hx-post", "/staff/preferences")
                 , ("data-bepis-surface-action", "update-staff-shift-preferences")
+                , ("hx-trigger", "change")
+                , ("hx-sync", "this:queue last")
                 , ("hx-push-url", "false")
                 , ("hx-target", "#staff-profile-preferences")
                 , ("hx-swap", "outerHTML show:none")
@@ -802,6 +809,7 @@ validRosterDragIntentParams =
     , ("currentClientY", Just "250")
     , ("deltaX", Just "40")
     , ("deltaY", Just "50")
+    , ("rosterCalendarRevision", Just "1")
     , ("unrelated-route-context", Just "ignored")
     ]
 
@@ -812,6 +820,7 @@ invalidRosterDragIntentParams :: [(ByteString.ByteString, Maybe ByteString.ByteS
 invalidRosterDragIntentParams =
     [ ("sourceItemKey", Just invalidUtf8)
     , ("targetDropzoneKey", Just invalidUtf8)
+    , ("rosterCalendarRevision", Just "1")
     ]
 
 assertRosterDragIntentFields ::
@@ -925,7 +934,7 @@ profileDetailsFields =
         StaffProfileDetailsSection
         (Just Manager)
         Nothing
-        (Just "award:level-1")
+        (Just fixtureStaffPayRateSelection)
         (Just [firstRosterGroupId, secondRosterGroupId])
 
 staffProfileDetailsFields :: ActionFields ProfileAction.UpdateStaffProfileActionOperation
@@ -941,7 +950,7 @@ staffProfileDetailsFields =
         StaffProfileDetailsSection
         (Just Manager)
         Nothing
-        (Just "award:level-1")
+        (Just fixtureStaffPayRateSelection)
         (Just [firstRosterGroupId, secondRosterGroupId])
 
 preferenceFields :: ActionFields ProfileAction.UpdateProfileShiftPreferencesActionOperation
@@ -982,7 +991,7 @@ validDetailsParams =
     , ("section", Just "profile")
     , ("venueRole", Just "manager")
     , ("employmentBasis", Just "")
-    , ("payRateSelection", Just "award:level-1")
+    , ("payRateSelection", Just "award:33333333-3333-3333-3333-333333333333")
     , ("isActive", Just "on")
     , ("rosterGroupIds", Just "11111111-1111-1111-1111-111111111111")
     , ("rosterGroupIds", Just "22222222-2222-2222-2222-222222222222")
@@ -1016,6 +1025,9 @@ firstRosterGroupId = fixtureMemberId "11111111-1111-1111-1111-111111111111"
 secondRosterGroupId :: UUID.UUID
 secondRosterGroupId = fixtureMemberId "22222222-2222-2222-2222-222222222222"
 
+fixtureStaffPayRateSelection :: StaffPayRateSelection
+fixtureStaffPayRateSelection = StaffPayRateAward (Id (fixtureMemberId "33333333-3333-3333-3333-333333333333") :: Id AwardLevel)
+
 assertDetailsSubmission :: Text -> Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission -> Expectation
 assertDetailsSubmission family = \case
     Left errors -> expectationFailure (cs (family <> " details parse failed: " <> tshow errors))
@@ -1032,7 +1044,7 @@ assertDetailsSubmission family = \case
         submission.submittedProfileSection `shouldBe` StaffProfileDetailsSection
         submission.submittedVenueRole `shouldBe` Just Manager
         submission.submittedEmploymentBasis `shouldBe` Nothing
-        submission.submittedPayRateSelection `shouldBe` Just "award:level-1"
+        submission.submittedPayRateSelection `shouldBe` Just fixtureStaffPayRateSelection
         submission.submittedRosterGroupIds `shouldBe` Just [firstRosterGroupId, secondRosterGroupId]
 
 assertPreferencesSubmission :: Text -> Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission -> Expectation

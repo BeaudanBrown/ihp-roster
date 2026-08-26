@@ -11,7 +11,7 @@ import Application.Helper.FrontendContract.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
 import Application.Helper.FrontendContract.Surface.Roster (RosterImageExportStyle,
-                                                        RosterStaffScopeValue)
+                                                           RosterStaffScopeValue)
 import Generated.Types (FeedbackTypeEnum, RosterLayoutModeEnum,
                         RosterTemplateScaleEnum, ShiftTypeColourKeyEnum,
                         StaffEmploymentBasisEnum, VenueRoleEnum)

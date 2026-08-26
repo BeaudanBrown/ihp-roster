@@ -19,25 +19,24 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Types
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.HaskellAdapter as Types2
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField, (&:))
+import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
 timesheetDayResource ::
     UUID.UUID ->
-    Int ->
-    Int ->
+    Day ->
     SurfaceResourceValue
-timesheetDayResource venueId weekOffset dayOffset =
+timesheetDayResource venueId operationalDate =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetDay
         ( surfaceField @Types1.VenueId venueId
-            &: surfaceField @Types1.WeekOffset weekOffset
-            &: surfaceField @Types1.DayOffset dayOffset
+            &: surfaceField @Types1.OperationalDate operationalDate
             &: noSurfaceFields
         )
 
-matchTimesheetDayResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, (Int, ())))
+matchTimesheetDayResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Day, ()))
 matchTimesheetDayResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -62,18 +61,20 @@ matchTimesheetWeekBoundaryConfigResource =
 
 timesheetWeekResource ::
     UUID.UUID ->
-    Int ->
+    Day ->
+    Day ->
     SurfaceResourceValue
-timesheetWeekResource venueId weekOffset =
+timesheetWeekResource venueId windowStartDate windowEndDate =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetWeek
         ( surfaceField @Types1.VenueId venueId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
             &: noSurfaceFields
         )
 
-matchTimesheetWeekResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchTimesheetWeekResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Day, (Day, ())))
 matchTimesheetWeekResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)

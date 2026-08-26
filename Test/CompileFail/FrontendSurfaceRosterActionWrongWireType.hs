@@ -12,7 +12,7 @@ import IHP.Prelude
 wrongWire :: ActionFields RosterAction.NavigateRosterWeekActionOperation
 wrongWire =
     actionFields @RosterAction.NavigateRosterWeekActionOperation
-        (surfaceField @Roster.WeekOffset ("two" :: Text))
+        (surfaceField @Roster.AnchorDate ("not-a-date" :: Text))
         ( surfaceField @Roster.RosterGroupId nil
             &: noSurfaceFields
         )

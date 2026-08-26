@@ -110,10 +110,13 @@ issue and, when cross-system design remains unresolved, a new workstream.
   Employees assigned to another calendar or to no calendar are excluded from
   that period rather than sent to Xero's Timesheets API. The modal summary,
   readiness counts, preview, and submission all use this same eligible set.
-  Preparation summary units use locked approved pay facts. Xero request hourly
-  quantities aggregate by employee, managed earning bucket and local day without
-  quarter-hour rounding. Commenced-hour quantities remain whole. Protocol
-  serialization uses 12 decimal places.
+  Preparation summary units use locked approved pay facts. Xero selects entries
+  by Operational date and allocates every component's units to that Operational
+  date in the provider period array while retaining the component-date-derived
+  earnings-rate line. Provider period dates remain submission-range authority;
+  they do not redefine Bepis pay-window ownership. Hourly quantities aggregate
+  without quarter-hour rounding, commenced-hour quantities remain whole, and
+  protocol serialization uses 12 decimal places.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items. Pay-item approval recreates any missing current-run proposal decisions before applying them, so incomplete decision persistence cannot trap the modal on the approval step.
 - Preview/submission consumes every positive sealed earnings component exactly
   once. Managed requirements reserve separate `RATEPERUNIT` evening and
@@ -184,11 +187,20 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.
-- Submission consumes approved, sealed Timesheet/pay facts. Every positive
-  sealed earnings component is consumed exactly once; imported components retain
-  their approval-pinned imported-item identity. Provider availability changes
-  cannot reroute sealed components. Submission source links retain immutable audit
-  snapshots but do not lock Timesheet entries; corrected entries reset approval and
+- Submission consumes approved, sealed Timesheet/pay facts. Approval seals the
+  Operational date, Bepis roster-window boundary/start day, component date,
+  source, exact amount, local earnings bucket, and provider EarningsRateID when
+  an active Xero connection has an available mapping. When approval predates an
+  available mapping, preparation derives the bucket only from those sealed facts
+  and records one append-only, connection-scoped late binding after a verified
+  mapping or managed pay item becomes available. Approval-time routing takes
+  precedence; an existing late binding is never rewritten by later reference or
+  mapping changes. Every positive sealed earnings component is consumed exactly
+  once; imported components retain their approval-pinned imported-item identity.
+  Provider availability changes cannot reroute sealed or late-bound components.
+  Unapproval retains the prior calculation and binding as audit history;
+  reapproval creates independently routed components. Submission source links
+  retain immutable audit snapshots but do not lock Timesheet entries; corrected entries reset approval and
   enter Xero only after reapproval and a fresh preparation.
 - An effective staff-level imported Xero rate maps that staff member's imported
   components to the one approval-pinned Xero earnings rate; an explicit shift
@@ -216,13 +228,16 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   from fresh provider state.
 
 Canonical calculation and bucket behavior lives in `Timesheets/Prepare.hs`,
-`Timesheets/Buckets.hs`, `Timesheets/Preview.hs`, `Timesheets/Submission.hs`, and
+`Timesheets/Buckets.hs`, `Timesheets/LateBindings.hs`, `Timesheets/Preview.hs`,
+`Timesheets/Submission.hs`, and
 their focused/golden tests.
 
 ## Live And Mutation Boundary
 
-- Internal Xero services do not broadcast browser updates.
-- `Web/Admin/Xero/Mutations.hs` is the web-facing invalidation boundary and
+- Internal Xero services do not directly broadcast process-local browser
+  updates. Background credential and reference-sync services atomically publish
+  their typed durable resources; listeners own process-local delivery.
+- `Web/Admin/Xero/Mutations.hs` is the request-facing invalidation boundary and
   returns typed touched-resource results.
 - Background reference-sync requests and jobs publish the dedicated typed
   reference-sync-state resource for queued, progress, retry, skipped, success,

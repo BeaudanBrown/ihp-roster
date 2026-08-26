@@ -21,8 +21,10 @@ tests = describe "Conflict Engine" do
 
     let mockRosterDay = RosterDay
             { id = def
-            , rosterWeekId = def
-            , dayOffset = 0
+            , venueId = def
+            , rosterGroupId = def
+            , operationalDate = mockDate
+            , publicationState = Draft
             , isClosed = False
             , rowCount = 4
             , createdAt = def
@@ -33,9 +35,9 @@ tests = describe "Conflict Engine" do
     let mockSlot = RosterSlot
             { id = def
             , rosterDayId = def
+            , rosterLaneId = def
             , assignmentState = "open"
             , staffId = Nothing
-            , rosterWeekSlotDefinitionId = def
             , slotSortOrder = 0
             , rowIndex = 0
             , startsAt = Nothing
@@ -233,8 +235,8 @@ tests = describe "Conflict Engine" do
         map conflictType conflicts `shouldBe` [DuplicateAssignment, IdealShiftThresholdExceeded]
 
     it "detects late-to-early when start-to-start gap is below threshold" do
-        let day0 = mockRosterDay { id = "00000000-0000-0000-0000-000000000000", dayOffset = 0 }
-        let day1 = mockRosterDay { id = "00000000-0000-0000-0000-000000000001", dayOffset = 1 }
+        let day0 = (mockRosterDay :: RosterDay) { id = "00000000-0000-0000-0000-000000000000", operationalDate = fromGregorian 2025 1 6 }
+        let day1 = (mockRosterDay :: RosterDay) { id = "00000000-0000-0000-0000-000000000001", operationalDate = fromGregorian 2025 1 7 }
         let lateSlot = withStart (fromGregorian 2025 1 6) (TimeOfDay 22 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000010"
                 , rosterDayId = unpackId day0.id
@@ -261,8 +263,8 @@ tests = describe "Conflict Engine" do
         map conflictType conflicts `shouldBe` [LateToEarlyConflict]
 
     it "does not detect late-to-early when gap equals threshold" do
-        let day0 = mockRosterDay { id = "00000000-0000-0000-0000-000000000000", dayOffset = 0 }
-        let day1 = mockRosterDay { id = "00000000-0000-0000-0000-000000000001", dayOffset = 1 }
+        let day0 = (mockRosterDay :: RosterDay) { id = "00000000-0000-0000-0000-000000000000", operationalDate = fromGregorian 2025 1 6 }
+        let day1 = (mockRosterDay :: RosterDay) { id = "00000000-0000-0000-0000-000000000001", operationalDate = fromGregorian 2025 1 7 }
         let lateSlot = withStart (fromGregorian 2025 1 6) (TimeOfDay 22 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000020"
                 , rosterDayId = unpackId day0.id
@@ -289,8 +291,8 @@ tests = describe "Conflict Engine" do
         map conflictType conflicts `shouldBe` []
 
     it "selects duplicate-assignment as primary conflict in multi-rule scenarios" do
-        let day0 = mockRosterDay { id = "00000000-0000-0000-0000-000000000100", dayOffset = 0 }
-        let day1 = mockRosterDay { id = "00000000-0000-0000-0000-000000000101", dayOffset = 1 }
+        let day0 = (mockRosterDay :: RosterDay) { id = "00000000-0000-0000-0000-000000000100", operationalDate = fromGregorian 2025 1 6 }
+        let day1 = (mockRosterDay :: RosterDay) { id = "00000000-0000-0000-0000-000000000101", operationalDate = fromGregorian 2025 1 7 }
         let staffUuid = "00000000-0000-0000-0000-0000000000cc"
         let previousLateSlot = withStart (fromGregorian 2025 1 6) (TimeOfDay 22 0 0) $ mockSlot
                 { id = "00000000-0000-0000-0000-000000000110"

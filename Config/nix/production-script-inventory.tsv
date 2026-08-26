@@ -6,6 +6,7 @@ FwcMapdRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.n
 GenerateBepisArchitectureContracts	development	architecture-generator	Config/nix/scripts/architecture/contracts	Repository architecture generation only; runnable from the development shell
 GenerateFrontendContracts	development	contract-generator	Config/nix/scripts/frontend/contracts	Checked frontend contract generation only; runnable from the development shell
 GenerateFrontendSurfaceAdapters	development	contract-generator	Config/nix/scripts/frontend/surface-adapters	Checked Haskell adapter generation only; runnable from the development shell
+LiveInvalidationOutboxPrune	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed durable live-invalidation outbox pruning timer
 ProfileLiveInvalidation	development	performance-probe	Config/nix/scripts/profile/live-invalidation	Low-rate profiling probe only; runnable from the development shell
 PublicHolidayRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed public-holiday refresh timer
 RsaReminderSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed roster shift acknowledgement reminder timer

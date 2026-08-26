@@ -22,7 +22,6 @@ import Application.Helper.VenueScopedQueries
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
-import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Application.Xero.ReferenceDemand (fetchXeroPayrollEligibleApprovedStaffIds)
 import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (NoMissingPayrollReferenceDemand))
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
@@ -250,6 +249,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhere (#isApproved, True)
             |> filterWhere (#deletedAt, Nothing)
+            |> orderByDesc #operationalDate
             |> orderByDesc #startsAt
             |> fetch
     today <- utctDay <$> getCurrentTime
@@ -271,9 +271,9 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> orderByDesc #updatedAt
             |> fetch
-    let approvedWorkedOnDates = List.nub (map timesheetEntryWorkedOn approvedEntries)
+    let approvedOperationalDates = List.nub (map (.operationalDate) approvedEntries)
         staffCalendarAssignments = staffPayrollCalendarAssignments verifiedMappings mappedEmployees
-        calendarPeriodOptions = concatMap (derivedPeriodOptions today payRuns approvedWorkedOnDates) calendars
+        calendarPeriodOptions = concatMap (derivedPeriodOptions today payRuns approvedOperationalDates) calendars
     pure $
         calendarPeriodOptions
             |> filter (periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments)
@@ -282,13 +282,13 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> List.sortOn (Down . (.periodOptionStart))
 
 derivedPeriodOptions :: Day -> [XeroPayRun] -> [Day] -> XeroPayrollCalendar -> [XeroTimesheetPeriodOption]
-derivedPeriodOptions today payRuns approvedWorkedOnDates calendar =
-    mapMaybe optionForWorkedOn approvedWorkedOnDates
+derivedPeriodOptions today payRuns approvedOperationalDates calendar =
+    mapMaybe optionForOperationalDate approvedOperationalDates
     where
-        optionForWorkedOn workedOn = do
+        optionForOperationalDate operationalDate = do
             (currentStart, currentEnd) <- deriveXeroPayrollCalendarPeriod calendar today
             let periodLength = max 1 (diffDays currentEnd currentStart + 1)
-                offset = diffDays workedOn currentStart `div` periodLength
+                offset = diffDays operationalDate currentStart `div` periodLength
                 periodStart = addDays (offset * periodLength) currentStart
                 periodEnd = addDays (periodLength - 1) periodStart
                 maybePayRun = findPayRun calendar periodStart periodEnd payRuns
@@ -310,8 +310,8 @@ periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments
     where
         periodEntries =
             filter \entry ->
-                let workedOn = timesheetEntryWorkedOn entry
-                 in workedOn >= option.periodOptionStart && workedOn <= option.periodOptionEnd
+                entry.operationalDate >= option.periodOptionStart
+                    && entry.operationalDate <= option.periodOptionEnd
         entryMatches entry =
             case Map.lookup entry.staffId staffCalendarAssignments of
                 Nothing -> True

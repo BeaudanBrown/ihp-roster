@@ -2,7 +2,12 @@
 
 module Web.View.Billing.Index where
 
+import Application.Billing.Checkout (checkoutAllowedForSubscription, venueSubscriptionIsLive)
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
 import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
@@ -55,7 +60,7 @@ instance View BillingView where
     html BillingView { viewModel } =
         renderAppPage AppPageConfig
             { appPageTitle = billingPageTitle viewModel.billingViewer
-            , appPageDescription = billingPageDescription viewModel.billingViewer
+            , appPageDescription = billingPageDescription viewModel
             , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "billing")
             , appPageWidthClass = ""
@@ -82,9 +87,12 @@ billingPageTitle :: BillingViewer -> Text
 billingPageTitle BillingOwnerViewer   = "Billing"
 billingPageTitle BillingFounderViewer = "Billing diagnostics"
 
-billingPageDescription :: BillingViewer -> Maybe Text
-billingPageDescription BillingOwnerViewer = Just "Manage this venue's Bepis subscription through Stripe-hosted payment pages."
-billingPageDescription BillingFounderViewer = Just "Founder support diagnostics for the current venue. Payment administration remains in Stripe."
+billingPageDescription :: BillingViewModel -> Maybe Text
+billingPageDescription BillingViewModel { billingViewer = BillingOwnerViewer, maybeSubscription }
+    | venueSubscriptionIsLive maybeSubscription = Just "Thank you for supporting the development of Bepis."
+    | otherwise = Just "If you like Bepis, please support its development by subscribing."
+billingPageDescription BillingViewModel { billingViewer = BillingFounderViewer } =
+    Just "Founder support diagnostics for the current venue. Payment administration remains in Stripe."
 
 renderBillingResultPage :: Text -> Text -> Html
 renderBillingResultPage title message =
@@ -205,96 +213,78 @@ data OwnerBillingAction
     | OwnerOpenBillingPortal !Text
     deriving (Eq, Show)
 
-data OwnerBillingPresentation = OwnerBillingPresentation
-    { ownerStateLabel      :: !Text
-    , ownerStateBadgeClass :: !Text
-    , ownerStateGuidance   :: !Text
-    , ownerStateAction     :: !OwnerBillingAction
-    }
-
 renderOwnerSubscriptionPanel :: BillingViewModel -> Html
 renderOwnerSubscriptionPanel viewModel@BillingViewModel { maybeSubscription } =
-    let presentation = ownerBillingPresentation maybeSubscription
-     in simpleAppPanel
+    simpleAppPanel
         "Venue subscription"
-        (Just "Bepis costs AUD 100 per venue each month. Payment details stay on Stripe-hosted pages.")
+        Nothing
         [hsx|
-            <div class="d-flex flex-column gap-4">
-                <section aria-label="Subscription status">
-                    <span class={"badge " <> presentation.ownerStateBadgeClass}>{presentation.ownerStateLabel}</span>
-                    <p class="mb-0 mt-2">{presentation.ownerStateGuidance}</p>
-                </section>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <tbody>
-                            <tr>
-                                <th scope="row" class="w-25">Venue</th>
-                                <td>{currentVenueName}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Plan</th>
-                                <td>Bepis venue subscription</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Price</th>
-                                <td>AUD 100/month</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Current period</th>
-                                <td>{renderOwnerBillingPeriod maybeSubscription}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                {renderOwnerCancellationNotice maybeSubscription}
-                <div>
-                    {renderOwnerBillingAction viewModel presentation.ownerStateAction}
-                </div>
+            <div class="d-flex flex-column align-items-start gap-4">
+                {renderOwnerSubscriptionStatus maybeSubscription}
+                <p class="h3 mb-0">$100/month</p>
+                {renderOwnerBillingAction viewModel (ownerBillingAction maybeSubscription)}
             </div>
         |]
 
-ownerBillingPresentation :: Maybe VenueSubscription -> OwnerBillingPresentation
-ownerBillingPresentation Nothing =
-    ownerPresentation
-        "No subscription"
-        "text-bg-secondary"
-        "Start a subscription for this venue at AUD 100 per month. Checkout is hosted securely by Stripe."
-        (OwnerStartSubscription "Start Subscription")
-ownerBillingPresentation (Just subscription)
-    | subscription.status == "canceled" =
-        ownerPresentation
-            "Canceled"
-            "text-bg-secondary"
-            "This venue's subscription has ended. Restart it whenever you are ready."
-            (OwnerStartSubscription "Restart Subscription")
-    | subscription.status == "incomplete_expired" =
-        ownerPresentation
-            "Setup expired"
-            "text-bg-secondary"
-            "The previous payment setup expired before it was completed. You can start again safely."
-            (OwnerStartSubscription "Restart Subscription")
-    | subscription.cancelAtPeriodEnd =
-        ownerPresentation
-            "Cancellation scheduled"
-            "text-bg-warning"
-            "The subscription remains active for the current period but will not renew."
-            (OwnerOpenBillingPortal "Manage Cancellation")
-    | subscription.status `elem` ["past_due", "unpaid", "paused", "incomplete"] =
-        ownerPresentation
-            "Payment needs attention"
-            "text-bg-warning"
-            "Open Stripe to update your payment method and review the payment that needs attention."
-            (OwnerOpenBillingPortal "Resolve Payment")
-    | otherwise =
-        ownerPresentation
-            "Active"
-            "text-bg-success"
-            "Your subscription is active and renews automatically each month."
-            (OwnerOpenBillingPortal "Manage Billing")
+renderOwnerSubscriptionStatus :: Maybe VenueSubscription -> Html
+renderOwnerSubscriptionStatus maybeSubscription =
+    case maybeSubscription of
+        Just subscription
+            | venueSubscriptionIsLive maybeSubscription && subscription.cancelAtPeriodEnd -> [hsx|
+                <section
+                    class="alert alert-warning mb-0 w-100"
+                    role="status"
+                    aria-label="Subscription status"
+                    data-billing-subscription-status="cancellation-scheduled"
+                >
+                    <strong>Cancellation scheduled.</strong>
+                    This subscription remains active until {renderOwnerPeriodEnd subscription.currentPeriodEnd} and will not renew.
+                </section>
+            |]
+            | venueSubscriptionIsLive maybeSubscription -> [hsx|
+                <section
+                    class="alert alert-success mb-0 w-100 text-center"
+                    role="status"
+                    aria-label="Subscription status"
+                    data-billing-subscription-status="active"
+                >
+                    <strong>Subscription Active :-)</strong>
+                </section>
+            |]
+            | otherwise -> renderInactiveSubscriptionStatus
+        Nothing -> renderInactiveSubscriptionStatus
 
-ownerPresentation :: Text -> Text -> Text -> OwnerBillingAction -> OwnerBillingPresentation
-ownerPresentation ownerStateLabel ownerStateBadgeClass ownerStateGuidance ownerStateAction =
-    OwnerBillingPresentation { .. }
+renderInactiveSubscriptionStatus :: Html
+renderInactiveSubscriptionStatus = [hsx|
+    <section
+        class="alert alert-warning mb-0 w-100 text-center"
+        role="status"
+        aria-label="Subscription status"
+        data-billing-subscription-status="inactive"
+    >
+        <strong>Subscription Inactive :-(</strong>
+    </section>
+|]
+
+ownerBillingAction :: Maybe VenueSubscription -> OwnerBillingAction
+ownerBillingAction maybeSubscription =
+    case maybeSubscription of
+        Just subscription | venueSubscriptionIsLive maybeSubscription ->
+            if subscription.cancelAtPeriodEnd
+                then OwnerOpenBillingPortal "Manage Cancellation"
+                else OwnerOpenBillingPortal "Manage Billing"
+        _
+            | checkoutAllowedForSubscription maybeSubscription -> OwnerStartSubscription "Subscribe"
+            | otherwise -> OwnerOpenBillingPortal "Manage subscription"
+
+renderOwnerBillingPeriodRow :: Maybe VenueSubscription -> Html
+renderOwnerBillingPeriodRow maybeSubscription =
+    when (venueSubscriptionIsLive maybeSubscription) [hsx|
+        <tr>
+            <th scope="row">Current period</th>
+            <td>{renderOwnerBillingPeriod maybeSubscription}</td>
+        </tr>
+    |]
 
 renderOwnerBillingPeriod :: Maybe VenueSubscription -> Text
 renderOwnerBillingPeriod Nothing = "Starts after subscription confirmation"
@@ -305,16 +295,6 @@ renderOwnerBillingPeriod (Just subscription) =
         (Nothing, Just periodEnd) -> "Ends " <> formatDateDisplay (utctDay periodEnd)
         (Just periodStart, Nothing) -> "Started " <> formatDateDisplay (utctDay periodStart)
         (Nothing, Nothing) -> "Timing not yet available"
-
-renderOwnerCancellationNotice :: Maybe VenueSubscription -> Html
-renderOwnerCancellationNotice (Just subscription)
-    | subscription.cancelAtPeriodEnd = [hsx|
-        <div class="alert alert-warning mb-0" role="status">
-            <strong>Cancellation scheduled.</strong>
-            This subscription will not renew after {renderOwnerPeriodEnd subscription.currentPeriodEnd}.
-        </div>
-    |]
-renderOwnerCancellationNotice _ = mempty
 
 renderOwnerPeriodEnd :: Maybe UTCTime -> Text
 renderOwnerPeriodEnd =
@@ -337,19 +317,23 @@ renderOwnerBillingAction BillingViewModel { stripePortalAvailable } (OwnerOpenBi
 renderOwnerBillingActionForm :: Text -> Text -> Bool -> Html -> Html
 renderOwnerBillingActionForm actionUrl label available unavailableNotice = [hsx|
     <div class="d-flex flex-column align-items-start gap-2">
-        <form method="POST"
-              action={actionUrl}
-              {...navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."}>
-            <button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>
-        </form>
-        {if available then renderPaymentStepUpNotice else unavailableNotice}
+        {renderPasskeyProtectedBillingForm actionUrl label available}
+        {unless available unavailableNotice}
     </div>
 |]
 
-renderPaymentStepUpNotice :: Html
-renderPaymentStepUpNotice = [hsx|
-    <p class="mb-0 app-muted small">You will verify with your passkey before Stripe opens.</p>
-|]
+renderPasskeyProtectedBillingForm :: Text -> Text -> Bool -> Html
+renderPasskeyProtectedBillingForm actionUrl label available =
+    renderAppShellActionForm
+        (appShellActionByMarker @SubmitPasskeyProtectedAction)
+        AppShellActionRoute
+            { appShellActionRouteUrl = actionUrl
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
+            }
+        [hsx|<button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>|]
 
 renderCheckoutUnavailableNotice :: Html
 renderCheckoutUnavailableNotice = [hsx|
@@ -394,10 +378,7 @@ renderFounderSubscriptionPanel maybeCustomer maybeSubscription =
                             <th scope="row">Provider status</th>
                             <td>{maybe "No local subscription" (.status) maybeSubscription}</td>
                         </tr>
-                        <tr>
-                            <th scope="row">Current period</th>
-                            <td>{renderOwnerBillingPeriod maybeSubscription}</td>
-                        </tr>
+                        {renderOwnerBillingPeriodRow maybeSubscription}
                         <tr>
                             <th scope="row">Cancellation at period end</th>
                             <td>{maybe "Not recorded" (yesNo . (.cancelAtPeriodEnd)) maybeSubscription}</td>

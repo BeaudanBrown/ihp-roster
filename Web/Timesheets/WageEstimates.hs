@@ -8,7 +8,7 @@ module Web.Timesheets.WageEstimates
 
 import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
                                       effectiveVenueRoleOrNothing)
-import Application.VenueTime.Model (timesheetEntryWorkedOn)
+import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Application.WageEngine (FinalEarningsSummary (..), WageCalculation (..),
                                deriveFinalEarnings)
 import Application.WageEvaluation
@@ -68,7 +68,7 @@ evaluateTimesheetWageEstimates entries suggestions = do
   where
     entryItem entry outcome =
         WageEstimateItem
-            { wageEstimateItemDay = timesheetEntryWorkedOn entry
+            { wageEstimateItemDay = timesheetEntryOperationalDate entry
             , wageEstimateItemAmount = calculationAmountFromCalculation <$> eitherToMaybe outcome.outcomeCalculation
             , wageEstimateItemSourceWarning = not entry.isApproved && not (null outcome.outcomeSourceDiagnostics)
             }
@@ -76,7 +76,7 @@ evaluateTimesheetWageEstimates entries suggestions = do
     suggestionItem outcomes suggestion =
         let result = Map.lookup (RosterSlotSubject (unpackId suggestion.suggestionRosterSlotId)) outcomes
          in WageEstimateItem
-                { wageEstimateItemDay = timesheetSuggestionWorkedOn suggestion
+                { wageEstimateItemDay = timesheetSuggestionOperationalDate suggestion
                 , wageEstimateItemAmount = calculationAmount <$> (result >>= eitherToMaybe)
                 , wageEstimateItemSourceWarning = maybe False (either (const False) (not . null . (.evaluatedSourceDiagnostics))) result
                 }
@@ -90,6 +90,7 @@ suggestionSubject suggestion =
         , wageSubjectVenueId = unpackId currentVenueId
         , wageSubjectStaffId = suggestion.suggestionStaffId
         , wageSubjectShiftTypeId = suggestion.suggestionShiftTypeId
+        , wageSubjectOperationalDate = suggestion.suggestionOperationalDate
         , wageSubjectBoundaries = suggestion.suggestionBoundaries
         , wageSubjectStaffPayVersionId = Nothing
         , wageSubjectShiftTypePayVersionId = Nothing

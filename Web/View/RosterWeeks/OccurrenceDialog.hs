@@ -19,8 +19,8 @@ import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..),
                                     occurrenceParamValue)
 import Web.View.Prelude
 
-renderRosterWeekCopyOccurrenceDialog :: Text -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> Html
-renderRosterWeekCopyOccurrenceDialog actionUrl startIsRepeated endIsRepeated selections =
+renderRosterWeekCopyOccurrenceDialog :: Text -> Int -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> Html
+renderRosterWeekCopyOccurrenceDialog actionUrl calendarRevision startIsRepeated endIsRepeated selections =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Choose repeated-time occurrence"
         , dialogOverlayBody = [hsx|
@@ -35,6 +35,7 @@ renderRosterWeekCopyOccurrenceDialog actionUrl startIsRepeated endIsRepeated sel
     formId = "roster-copy-occurrence-form"
     actionFields =
         RosterAction.copyRosterWeekActionFields
+            calendarRevision
             (occurrenceSelectionValue selections.copyShiftStartOccurrence)
             (occurrenceSelectionValue selections.copyShiftEndOccurrence)
     actionRoute = FrontendSurfaceActionRoute

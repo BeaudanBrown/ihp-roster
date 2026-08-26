@@ -192,13 +192,18 @@ calculationSourceValue = \case
     ExternalImportedPayItem -> "external_imported_pay_item"
 
 data EarningsComponent = EarningsComponent
-    { quantity           :: !Rational
-    , unitType           :: !EarningsUnit
-    , ratePerUnit        :: !Scientific
-    , amount             :: !Rational
-    , sourceCondition    :: !SourceCondition
-    , calculationSource  :: !CalculationSource
-    , sourceRateIdentity :: !(Maybe RateSourceIdentity)
+    { quantity                           :: !Rational
+    , unitType                           :: !EarningsUnit
+    , ratePerUnit                        :: !Scientific
+    , amount                             :: !Rational
+    , publishedComponentDate             :: !(Maybe Day)
+    , publishedRateBoundaryDate          :: !(Maybe Day)
+    , publishedXeroLocalBucketKey        :: !(Maybe Text)
+    , publishedXeroEarningsRateId        :: !(Maybe Text)
+    , publishedXeroMappingLegacyFallback :: !Bool
+    , sourceCondition                    :: !SourceCondition
+    , calculationSource                  :: !CalculationSource
+    , sourceRateIdentity                 :: !(Maybe RateSourceIdentity)
     }
     deriving (Eq, Show)
 
@@ -229,6 +234,7 @@ data WageCalculation = WageCalculation
     { calculatedEntryId          :: !CalculationEntryId
     , calculationVersion         :: !WageCalculationVersion
     , calculationRateBookVersion :: !(Maybe RateBookVersion)
+    , publishedOperationalDate   :: !(Maybe Day)
     , paidTimeSegments           :: ![PaidTimeSegment]
     , earningsComponents         :: ![EarningsComponent]
     }

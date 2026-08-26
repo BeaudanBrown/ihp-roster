@@ -4,7 +4,8 @@ import Application.Helper.Audit
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
-import Application.Helper.FrontendContract.Surface.Admin.Live (adminShiftTypesLiveScope)
+import Application.Helper.FrontendContract.Surface.Admin.Live (adminExportsLiveScope,
+                                                               adminShiftTypesLiveScope)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource,
                                                                    xeroConnectionResource)
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
@@ -23,7 +24,7 @@ import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (parseQuarterHourMinuteOfDay)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.WeekBoundaries (weekdayIndexLabel)
+import Application.Helper.WeekBoundaries (startOfWeekFor, weekdayIndexLabel)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
@@ -33,6 +34,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Data.Time.Calendar (addDays)
 import Data.Time.Clock (utctDay)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
@@ -41,7 +43,7 @@ import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 import Web.Staff.Mutations (renewTrialStaffInvitationMutation)
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation)
 import Web.View.Admin.Exports
 import Web.View.Admin.Index
 import Web.View.Admin.Invites
@@ -58,7 +60,8 @@ respondToProfileLiveInvalidation ::
 respondToProfileLiveInvalidation label resources = do
     profilingEnabled <- liftIO isRequestProfilingEnabled
     redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
-    _ <- invalidateTouchedResources ("profile.live." <> label) (liveMutationResult () resources)
+    _ <- withDurableLiveMutation ("profile.live." <> label) $
+        pure (liveMutationResult () resources)
     respondHtml "ok"
 
 respondToVenueSettingsMutation ::
@@ -72,6 +75,14 @@ respondToVenueSettingsMutation =
             awardLevels <- fetchActiveAwardLevels
             awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
             respondHtml (renderVenueSettingsSectionFragmentWithSwap (Just "outerHTML") venueConfig awardLevels awardLevelBaseRates)
+        else redirectToAdminFor (paramOrNothing "rosterGroupId")
+
+respondToRosterWindowStartDayMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondToRosterWindowStartDayMutation =
+    if isHtmxRequest
+        then fetchVenueConfig >>= respondHtml . renderRosterWindowStartDaySettingFragment
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 reportSurfaceRequestErrors ::
@@ -105,8 +116,7 @@ sendStaffPasskeySetupLink staffId purpose successMessage = do
     case maybeTarget of
         Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
-            (_, rawToken) <- issueStaffPasskeySetupLinkMutation staffId purpose targetUser
-            sendPasskeySetupTokenEmail targetUser purpose rawToken
+            void (issueStaffPasskeySetupLinkMutation staffId purpose targetUser)
             setSuccessMessage successMessage
             redirectToPath staffPasskeyReturnPath
 
@@ -119,15 +129,14 @@ sendStaffPasswordResetLink staffId = do
     fetchCurrentVenueStaffUser staffId >>= \case
         Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
-            (_, rawToken) <- issuePasswordResetTokenWith targetUser currentUser.id currentVenueId \_ ->
+            void $ issuePasswordResetTokenWith targetUser currentUser.id currentVenueId \_ ->
                 void $
                     recordCurrentUserAuditEvent
                         StaffPasswordResetRequestedAudit
                         "users"
                         (unpackId targetUser.id)
                         (Aeson.object ["staffId" Aeson..= staffId])
-            sendPasswordResetTokenEmail targetUser rawToken
-            setSuccessMessage "Password reset email sent."
+            setSuccessMessage "Password reset email queued and should arrive shortly."
             redirectToPath staffPasskeyReturnPath
 
 ensureCanSendStaffCredentialLink ::
@@ -151,9 +160,14 @@ staffPasskeyReturnPath =
     case paramOrDefault @Text "admin" "returnTo" of
         "staff" ->
             appendQueryParams
-                (pathTo ShowRosterWeekAction { weekOffset = paramOrDefault @Int 0 "weekOffset" })
+                rosterPath
                 (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow (rosterGroupId :: Id RosterGroup))]) (paramOrNothing "rosterGroupId"))
         _ -> pathTo AdminAction
+  where
+    rosterPath =
+        case paramOrNothing @Text "anchorDate" of
+            Just anchorDate -> pathTo (ShowRosterWindowAction anchorDate)
+            Nothing         -> pathTo RosterWeeksAction
 
 fetchCurrentVenueStaffUser :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe User)
 fetchCurrentVenueStaffUser staffId = do
@@ -220,10 +234,10 @@ instance Controller AdminController where
                 Left errors -> reportSurfaceRequestErrors errors >> pure False
                 Right value -> pure value
             invitations <- profileActionSpan "admin.page.fetch_invitations" fetchCurrentVenueInvitations
-            let maybeExportWeekOffset = paramOrNothing @Int "weekOffset"
+            let maybeExportAnchorDate = paramOrNothing @Day "anchorDate"
             exportWeekSelection <- profileActionSpan "admin.page.export_week_selection" $
-                maybe currentExportWeekSelection exportWeekSelectionForOffset maybeExportWeekOffset
-            let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportWeekOffset
+                maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeExportAnchorDate
+            let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
             currentTime <- getCurrentTime
             let today = utctDay currentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
@@ -243,20 +257,26 @@ instance Controller AdminController where
     action currentAction@ProfileLiveInvalidateXeroAction = runBepis currentAction BepisPageAction $
         respondToProfileLiveInvalidation "xero" [xeroConnectionResource (unpackId currentVenueId)]
 
-    action currentAction@ProfileLiveInvalidateTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction $
-        respondToProfileLiveInvalidation "timesheet_week" [timesheetWeekResource (unpackId currentVenueId) weekOffset]
+    action currentAction@ProfileLiveInvalidateTimesheetWindowAction { anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        venueConfig <- fetchVenueConfig
+        let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
+        respondToProfileLiveInvalidation "timesheet_window" [timesheetWeekResource (unpackId currentVenueId) windowStart (addDays 7 windowStart)]
 
-    action currentAction@ProfileLiveInvalidateRosterWeekAction { rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction $
-        respondToProfileLiveInvalidation "roster_week" [rosterWeekResource (unpackId rosterGroupId) weekOffset]
+    action currentAction@ProfileLiveInvalidateRosterWindowAction { rosterGroupId, anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        venueConfig <- fetchVenueConfig
+        let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
+        respondToProfileLiveInvalidation "roster_window" [rosterWeekResource (unpackId rosterGroupId) windowStart (addDays 7 windowStart)]
 
     action currentAction@ProfileLiveInvalidateLeaveRequestsAction = runBepis currentAction BepisPageAction $
         respondToProfileLiveInvalidation "leave_requests" [pendingLeaveRequestsResource (unpackId currentVenueId)]
 
     action currentAction@SendStaffPasskeySetupEmailAction { staffId } = runBepis currentAction BepisMutationAction do
-        sendStaffPasskeySetupLink staffId StaffNewDevicePasskeySetup "Passkey setup email sent."
+        sendStaffPasskeySetupLink staffId StaffNewDevicePasskeySetup "Passkey setup email queued and should arrive shortly."
 
     action currentAction@SendStaffPasskeyRecoveryEmailAction { staffId } = runBepis currentAction BepisMutationAction do
-        sendStaffPasskeySetupLink staffId StaffPasskeyRecovery "Passkey recovery email sent."
+        sendStaffPasskeySetupLink staffId StaffPasskeyRecovery "Passkey recovery email queued and should arrive shortly."
 
     action currentAction@SendStaffPasswordResetEmailAction { staffId } = runBepis currentAction BepisMutationAction do
         sendStaffPasswordResetLink staffId
@@ -420,15 +440,24 @@ instance Controller AdminController where
         case AdminAction.parseUpdateRosterWeekStartsOnActionParams of
             Left errors -> reportSurfaceRequestErrors errors
             Right fields -> do
-                requestedRosterWeekStartsOn <- validateRosterWeekStartsOn (surfaceFieldValue @Surface.RosterWeekStartsOn fields)
-                forM_ requestedRosterWeekStartsOn \rosterWeekStartsOn -> do
-                    isLocked <- isVenueRosterWeekStartLocked
-                    if isLocked
-                        then setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
-                        else do
-                            _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
-                            setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
-        respondToVenueSettingsMutation
+                requestedStartDay <- validateRosterWeekStartsOn (surfaceFieldValue @Surface.RosterWeekStartsOn fields)
+                case requestedStartDay of
+                    Nothing -> pure ()
+                    Just startDay ->
+                        updateRosterWindowStartDayMutation
+                            (venueConfig |> set #rosterCalendarRevision (surfaceFieldValue @Surface.RosterCalendarRevision fields))
+                            startDay
+                            >>= \case
+                                Left message -> setErrorMessage message
+                                Right mutationResult -> do
+                                    when isHtmxRequest do
+                                        today <- utctDay <$> getCurrentTime
+                                        setActorLiveResourcesRefresh
+                                            (adminExportsLiveScope (unpackId currentVenueId))
+                                            mutationResult.liveMutationTouchedResources
+                                            [AdminSurface.adminExportsFragmentForWindow today]
+                                    setSuccessMessage ("Roster window will start on " <> weekdayIndexLabel startDay <> ".")
+        respondToRosterWindowStartDayMutation
 
     action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.venue_settings_fragment.respond" do
@@ -466,8 +495,9 @@ instance Controller AdminController where
 
     action currentAction@ShowadminExportsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.exports_fragment.respond" do
+            let maybeAnchorDate = paramOrNothing @Day "anchorDate"
             exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
-                maybe currentExportWeekSelection exportWeekSelectionForOffset (paramOrNothing @Int "weekOffset")
+                maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeAnchorDate
             profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
@@ -498,7 +528,7 @@ instance Controller AdminController where
                 case maybeEmail of
                     Just email ->
                         createVenueInvitationMutation email >>= \case
-                            Right _ -> respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
+                            Right _ -> respondToInvitesSectionMutation ("Invitation queued for " <> email <> " and should arrive shortly") currentRosterGroup.id
                             Left message -> respondToInvitesSectionError message currentRosterGroup.id
                     Nothing -> respondToInvitesSectionMutation "" currentRosterGroup.id
 
@@ -529,7 +559,7 @@ instance Controller AdminController where
                                     renewTrialStaffInvitationMutation staff invitation correctedEmail
                             case result of
                                 Left message -> respondToInvitesSectionError message currentRosterGroup.id
-                                Right _ -> respondToInvitesSectionMutation ("Invitation renewed for " <> correctedEmail) currentRosterGroup.id
+                                Right _ -> respondToInvitesSectionMutation ("Renewed invitation queued for " <> correctedEmail <> " and should arrive shortly") currentRosterGroup.id
 
     action currentAction@RevokeVenueInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -617,7 +647,7 @@ instance Controller AdminController where
                 case maybeName of
                     Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
                     Just name -> do
-                        maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
+                        maybePayRateSelection <- parseSubmittedShiftTypePayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
                                 mutationResult <- createShiftTypeMutation name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))
@@ -636,7 +666,7 @@ instance Controller AdminController where
                 case maybeName of
                     Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
                     Just name -> do
-                        maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
+                        maybePayRateSelection <- parseSubmittedShiftTypePayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
                                 mutationResult <- updateShiftTypeMutation shiftType name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))

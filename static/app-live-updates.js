@@ -63,7 +63,7 @@
     return isAdminXeroAdminXeroScopeScope(value);
   }
   function isTimesheetsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && typeof value["params"]["operationalDate"] === "string");
   }
   function isRosterSurfaceFragmentKey(value) {
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["userId"], ["userId"]) && typeof value["params"]["userId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-record" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["templateId"], ["templateId"]) && typeof value["params"]["templateId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-draft" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["userId"], ["userId"]) && typeof value["params"]["userId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
@@ -199,27 +199,25 @@
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
   var liveUpdateSocketPath = "live-updates";
-  var liveUpdateClientIdHeader = "X-Live-Update-Client-Id";
   var surfaceConfigDomAttr = "data-bepis-surface-config";
-  var surfaceActionDomAttr = "data-bepis-surface-action";
   function encodeLiveUpdateCommand(value) {
     return value;
   }
   function isLiveUpdateMessage(value) {
-    return isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && value["type"] === "error" && typeof value["message"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments"], ["type", "scope", "scopeKey", "version", "fragments"]) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) || isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && value["type"] === "error" && typeof value["message"] === "string";
   }
   function parseLiveUpdateMessage(value) {
     if (isLiveUpdateMessage(value)) return value;
     throw new Error("Invalid LiveUpdateMessage");
   }
   function isTimesheetsTimesheetWeekScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"], ["venueId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"]) && typeof value["venueId"] === "string" && typeof value["windowStartDate"] === "string" && typeof value["windowEndDate"] === "string" && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"]));
   }
   function isRosterRosterWeekScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"], ["venueId", "rosterGroupId", "weekOffset"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"], ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && typeof value["windowStartDate"] === "string" && typeof value["windowEndDate"] === "string" && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"]));
   }
   function isRosterDayTimelineRosterDayTimelineScope(value) {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"], ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && typeof value["rosterDayId"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision", "rosterDayId"], ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision", "rosterDayId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && typeof value["windowStartDate"] === "string" && typeof value["windowEndDate"] === "string" && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"])) && typeof value["rosterDayId"] === "string";
   }
   function isRosterTemplateDesignerRosterTemplateDesignerScopeScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "userId"], ["venueId", "rosterGroupId", "userId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && typeof value["userId"] === "string";
@@ -328,34 +326,34 @@
     return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-xero" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
   }
   function isTimesheetsMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "timesheets" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isTimesheetsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("timesheets", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "timesheets" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("timesheets", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "timesheets" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isTimesheetsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("timesheets", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "timesheets" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("timesheets", fragment.fragmentKey.kind)));
   }
   function isRosterMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "roster" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "roster" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster", fragment.fragmentKey.kind)));
   }
   function isRosterDayTimelineMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-day-timeline" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterDayTimelineMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "roster-day-timeline" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-day-timeline" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterDayTimelineMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "roster-day-timeline" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("roster-day-timeline", fragment.fragmentKey.kind)));
   }
   function isRosterTemplateDesignerMountConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-template-designer" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterTemplateDesignerMountedFragmentConfig(fragment)) && value["subscription"] === null;
   }
   function isLeaveRequestsMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "leave-requests" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isLeaveRequestsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("leave-requests", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "leave-requests" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("leave-requests", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "leave-requests" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isLeaveRequestsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("leave-requests", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "leave-requests" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("leave-requests", fragment.fragmentKey.kind)));
   }
   function isSelfServiceLeaveMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "self-service-leave" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSelfServiceLeaveMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("self-service-leave", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "self-service-leave" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("self-service-leave", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "self-service-leave" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSelfServiceLeaveMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("self-service-leave", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "self-service-leave" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("self-service-leave", fragment.fragmentKey.kind)));
   }
   function isBillingMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "billing" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isBillingMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("billing", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "billing" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("billing", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "billing" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isBillingMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("billing", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "billing" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("billing", fragment.fragmentKey.kind)));
   }
   function isSupportMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "support" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSupportMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("support", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "support" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("support", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "support" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSupportMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("support", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "support" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("support", fragment.fragmentKey.kind)));
   }
   function isProfileMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "profile" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isProfileMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("profile", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "profile" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("profile", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "profile" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isProfileMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("profile", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "profile" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("profile", fragment.fragmentKey.kind)));
   }
   function isStaffMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "staff" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isStaffMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("staff", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "staff" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("staff", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "staff" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isStaffMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("staff", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "staff" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("staff", fragment.fragmentKey.kind)));
   }
   function isAdminPageMountConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-page" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminPageMountedFragmentConfig(fragment)) && value["subscription"] === null;
@@ -364,22 +362,22 @@
     return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero-page" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroPageMountedFragmentConfig(fragment)) && value["subscription"] === null;
   }
   function isAdminVenueConfigMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-venue-config" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminVenueConfigMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-venue-config", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-venue-config" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-venue-config", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-venue-config" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminVenueConfigMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-venue-config", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-venue-config" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-venue-config", fragment.fragmentKey.kind)));
   }
   function isAdminInvitesMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-invites" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminInvitesMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-invites", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-invites" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-invites", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-invites" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminInvitesMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-invites", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-invites" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-invites", fragment.fragmentKey.kind)));
   }
   function isAdminExportsMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-exports" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminExportsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-exports" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-exports" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminExportsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-exports" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-exports", fragment.fragmentKey.kind)));
   }
   function isAdminShiftTypesMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-shift-types" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminShiftTypesMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-shift-types" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-shift-types" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminShiftTypesMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-shift-types" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-shift-types", fragment.fragmentKey.kind)));
   }
   function isAdminRosterGroupsMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-roster-groups" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminRosterGroupsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-roster-groups", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-roster-groups" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-roster-groups", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-roster-groups" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminRosterGroupsMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-roster-groups", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-roster-groups" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-roster-groups", fragment.fragmentKey.kind)));
   }
   function isAdminXeroMountConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-xero" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)));
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroMountedFragmentConfig(fragment)) && (value["subscription"] === null && !value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)) || isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope", "renderedDependencyWatermark"]) && isSurfaceScope(value["subscription"].scope) && typeof value["subscription"].renderedDependencyWatermark === "number" && Number.isInteger(value["subscription"].renderedDependencyWatermark) && value["subscription"].renderedDependencyWatermark >= 0 && value["subscription"].scope.surface === "admin-xero" && value["fragments"].some((fragment) => isFrontendSurfaceLiveFragmentName("admin-xero", fragment.fragmentKey.kind)));
   }
   function isFrontendSurfaceMountConfig(value) {
     return isTimesheetsMountConfig(value) || isRosterMountConfig(value) || isRosterDayTimelineMountConfig(value) || isRosterTemplateDesignerMountConfig(value) || isLeaveRequestsMountConfig(value) || isSelfServiceLeaveMountConfig(value) || isBillingMountConfig(value) || isSupportMountConfig(value) || isProfileMountConfig(value) || isStaffMountConfig(value) || isAdminPageMountConfig(value) || isAdminXeroPageMountConfig(value) || isAdminVenueConfigMountConfig(value) || isAdminInvitesMountConfig(value) || isAdminExportsMountConfig(value) || isAdminShiftTypesMountConfig(value) || isAdminRosterGroupsMountConfig(value) || isAdminXeroMountConfig(value);
@@ -729,18 +727,18 @@
   function isRecord2(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
   }
-  function buildSurfaceSubscription(scope, scopeKey, fragments) {
+  function buildSurfaceSubscription(scope, scopeKey, fragments, renderedDependencyWatermark) {
     return {
       scope,
       scopeKey,
-      fragments
+      fragments,
+      renderedDependencyWatermark
     };
   }
-  function buildLiveUpdateSubscribeCommand(subscription, clientId, lastSeenVersion) {
+  function buildLiveUpdateSubscribeCommand(subscription, lastSeenVersion) {
     return encodeLiveUpdateCommand({
       type: "subscribe",
       subscription,
-      clientId,
       lastSeenVersion
     });
   }
@@ -753,9 +751,6 @@
   function liveUpdateFragmentMergeKey(fragment) {
     if (!fragment || !fragment.targetId) return null;
     return `${surfaceFragmentKeyIdentity(fragment.fragmentKey)}:${fragment.targetId}`;
-  }
-  function liveUpdateInvalidationIsOwnEcho(sourceClientId, activeClientId) {
-    return Boolean(sourceClientId && activeClientId && sourceClientId === activeClientId);
   }
   function resolveMountedFragmentsForInvalidation(subscriptions, fragments, scopeKey = null) {
     if (scopeKey === null || scopeKey.length === 0) return [];
@@ -799,7 +794,7 @@
       scopeKey: config.scopeKey,
       socketPath: `/${liveUpdateSocketPath}`,
       resyncFragments,
-      decorateRequestsWithin: resyncFragments.map((fragment) => `#${fragment.targetId}`)
+      renderedDependencyWatermark: config.subscription.renderedDependencyWatermark
     };
   }
   function readFrontendSurfaceMountElement(ownerEl, reportError) {
@@ -871,7 +866,6 @@
 
   // frontend/ts/live-updates/subscription.ts
   var surfaceConfigSelector = `[${surfaceConfigDomAttr}]`;
-  var surfaceOwnedControlSelector = `[${surfaceActionDomAttr}], [${intentFormDomAttr}]`;
   function createSurfaceConfigErrorReporter(targetDocument) {
     return (ownerEl, error) => {
       const detail = {
@@ -893,7 +887,7 @@
       scopeKey: parsed.scopeKey,
       path: parsed.socketPath,
       resyncFragments: parsed.resyncFragments,
-      decorateRequestsWithin: parsed.decorateRequestsWithin,
+      renderedDependencyWatermark: parsed.renderedDependencyWatermark,
       ownerEls: [ownerEl],
       resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh)
     };
@@ -908,26 +902,12 @@
     });
     return desired;
   }
-  function shouldDecorateSurfaceRequest(event, requestRefresh, reportError) {
-    const sourceEl = event.detail?.elt;
-    if (!(sourceEl instanceof HTMLElement)) return false;
-    const ownerEl = sourceEl.closest(surfaceConfigSelector);
-    if (!(ownerEl instanceof HTMLElement)) return false;
-    const subscription = readSurfaceSubscription(ownerEl, requestRefresh, reportError);
-    if (!subscription) return false;
-    if (isSurfaceOwnedHtmxRequest(sourceEl, ownerEl)) return true;
-    if (subscription.decorateRequestsWithin.length === 0) return true;
-    return subscription.decorateRequestsWithin.some((selector) => Boolean(selector && sourceEl.closest(selector)));
-  }
-  function isSurfaceOwnedHtmxRequest(sourceEl, ownerEl) {
-    const control = sourceEl.closest(surfaceOwnedControlSelector);
-    return control instanceof HTMLElement && control.closest(surfaceConfigSelector) === ownerEl;
-  }
   function wireSurfaceSubscription(subscription) {
     return buildSurfaceSubscription(
       subscription.scope,
       subscription.scopeKey,
-      subscription.resyncFragments.map((fragment) => fragment.fragmentKey)
+      subscription.resyncFragments.map((fragment) => fragment.fragmentKey),
+      subscription.renderedDependencyWatermark
     );
   }
   function subscriptionsEquivalent(left, right) {
@@ -935,15 +915,15 @@
   }
   function subscriptionSignature(subscription) {
     const fragments = subscription.resyncFragments.map((fragment) => ({ key: liveUpdateFragmentMergeKey(fragment) || JSON.stringify(fragment.fragmentKey), fragment })).sort((left, right) => left.key.localeCompare(right.key)).map((entry) => entry.fragment);
-    return JSON.stringify({ path: subscription.path, scope: subscription.scope, resyncFragments: fragments });
+    return JSON.stringify({ path: subscription.path, scope: subscription.scope, resyncFragments: fragments, renderedDependencyWatermark: subscription.renderedDependencyWatermark });
   }
   function mergeSubscription(existing, next) {
     if (!existing) return next;
     return {
       ...existing,
       resyncFragments: mergeFragments(existing.resyncFragments, next.resyncFragments),
-      decorateRequestsWithin: mergeStrings(existing.decorateRequestsWithin, next.decorateRequestsWithin),
-      ownerEls: existing.ownerEls.concat(next.ownerEls)
+      ownerEls: existing.ownerEls.concat(next.ownerEls),
+      renderedDependencyWatermark: Math.min(existing.renderedDependencyWatermark, next.renderedDependencyWatermark)
     };
   }
   function mergeFragments(existing, next) {
@@ -957,9 +937,6 @@
     });
     return merged;
   }
-  function mergeStrings(existing, next) {
-    return Array.from(new Set(existing.concat(next).filter(Boolean)));
-  }
 
   // frontend/ts/live-updates/connection.ts
   function createLiveUpdateConnection(options) {
@@ -968,13 +945,6 @@
     let socketPath = null;
     let reconnectTimer = null;
     let reconnectAttempt = 0;
-    let clientId = null;
-    function ensureClientId() {
-      if (!clientId) {
-        clientId = targetWindow.crypto?.randomUUID?.() ?? `live-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      }
-      return clientId;
-    }
     function buildWebSocketUrl(path) {
       const protocol = targetWindow.location.protocol === "https:" ? "wss:" : "ws:";
       return `${protocol}//${targetWindow.location.host}${path}`;
@@ -986,7 +956,6 @@
     function subscribe(subscription) {
       sendCommand(buildLiveUpdateSubscribeCommand(
         wireSurfaceSubscription(subscription),
-        ensureClientId(),
         versions.get(subscription.scopeKey)
       ));
     }
@@ -1051,7 +1020,6 @@
       };
     }
     function sync(desired) {
-      ensureClientId();
       const nextPath = desired.values().next().value?.path ?? null;
       if (desired.size === 0 || !nextPath) {
         activeSubscriptions.forEach((subscription) => versions.clear(subscription.scopeKey));
@@ -1103,7 +1071,7 @@
         });
       }
     }
-    return { ensureClientId, activeClientId: () => clientId, sync, close };
+    return { sync, close };
   }
 
   // frontend/ts/live-updates/diagnostics.ts
@@ -1179,7 +1147,7 @@
 
   // frontend/ts/live-updates/invalidation.ts
   function createLiveUpdateInvalidationRuntime(options) {
-    const { activeSubscriptions, activeClientId, refresher, diagnostics } = options;
+    const { activeSubscriptions, refresher, diagnostics } = options;
     const scopeVersions = /* @__PURE__ */ new Map();
     const versions = {
       get(scopeKey) {
@@ -1201,9 +1169,9 @@
       if (!subscription) return;
       versions.set(scopeKey, message.currentVersion);
       if (message.resync) subscription.resync(subscription);
+      diagnostics.emitDebugEvent("subscription_acknowledged", { scopeKey, resync: message.resync });
     }
     function handleInvalidateMessage(message) {
-      if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId())) return;
       const nextVersion = normalizeLiveUpdateVersion(message.version);
       const perfSpan = diagnostics.beginPerfSpan("live_updates.handle_invalidate", {
         fragmentCount: message.fragments.length,
@@ -1222,13 +1190,6 @@
       }
       const previousVersion = versions.get(scopeKey);
       if (nextVersion !== null) {
-        if (previousVersion !== null && nextVersion > previousVersion + 1) {
-          versions.set(scopeKey, nextVersion);
-          subscription.resync(subscription);
-          diagnostics.emitDebugEvent("resync_version_gap", { scopeKey, previousVersion, nextVersion });
-          diagnostics.endPerfSpan(perfSpan, { outcome: "resync_gap", scopeKey, previousVersion, nextVersion });
-          return;
-        }
         if (previousVersion !== null && nextVersion <= previousVersion) {
           diagnostics.endPerfSpan(perfSpan, { outcome: "stale", scopeKey, previousVersion, nextVersion });
           return;
@@ -1455,6 +1416,11 @@
         credentials: "same-origin",
         headers: { "HX-Request": "true" }
       });
+      if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
+        endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
+        targetWindow.location.reload();
+        return;
+      }
       if (!response.ok) {
         endPerfSpan(perfSpan, { outcome: "http_error", status: response.status });
         throw new Error(`Fragment fetch failed with ${response.status}`);
@@ -1575,20 +1541,6 @@
     return { request, flushInteractionDeferredFragmentsWithoutActiveSessions, flushFocusedFragmentsWithoutActiveInputs, stop };
   }
 
-  // frontend/ts/live-updates/request-decoration.ts
-  function enableLiveUpdateRequestDecoration(options) {
-    const { targetDocument, ensureClientId, requestRefresh, reportSurfaceConfigError } = options;
-    const handleConfigRequest = (event) => {
-      const htmxEvent = event;
-      if (!shouldDecorateSurfaceRequest(htmxEvent, requestRefresh, reportSurfaceConfigError)) return;
-      if (htmxEvent.detail?.headers) {
-        htmxEvent.detail.headers[liveUpdateClientIdHeader] = ensureClientId();
-      }
-    };
-    targetDocument.addEventListener("htmx:configRequest", handleConfigRequest);
-    return () => targetDocument.removeEventListener("htmx:configRequest", handleConfigRequest);
-  }
-
   // frontend/ts/live-updates/runtime.ts
   function enableLiveUpdateRuntime() {
     if (typeof window === "undefined") return;
@@ -1605,7 +1557,6 @@
     let connection = null;
     const invalidation = createLiveUpdateInvalidationRuntime({
       activeSubscriptions,
-      activeClientId: () => connection?.activeClientId() ?? null,
       refresher,
       diagnostics
     });
@@ -1636,12 +1587,6 @@
       handleMessage: invalidation.handleMessage,
       requestSync: syncRuntime,
       diagnostics
-    });
-    enableLiveUpdateRequestDecoration({
-      targetDocument: document,
-      ensureClientId: connection.ensureClientId,
-      requestRefresh: refresher.request,
-      reportSurfaceConfigError
     });
     document.addEventListener(liveFragmentsRefreshEvent, invalidation.handleActorEvent);
     document.addEventListener(interactionSessionEndEvent, () => {

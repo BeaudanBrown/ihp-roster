@@ -14,8 +14,7 @@ import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (civilBoundaryIsRepeated,
                                     resolveBoundaryInstant,
-                                    storedInstantLocalTime,
-                                    timesheetEntryWorkedOn)
+                                    storedInstantLocalTime)
 import Application.WageEngine
 import Control.Monad (foldM, zipWithM)
 import qualified Data.List as List
@@ -43,10 +42,10 @@ buildHourlyReportWindow venueConfig entries =
     configuredEndHour = ceilingHourForMinute configuredEndMinute
 
     entryStartHour entry =
-        localHourFloor (timesheetEntryWorkedOn entry) (storedInstantLocalTime entry.timezone entry.startsAt)
+        localHourFloor entry.operationalDate (storedInstantLocalTime entry.timezone entry.startsAt)
 
     entryEndHour entry =
-        localHourCeiling (timesheetEntryWorkedOn entry) (storedInstantLocalTime entry.timezone entry.endsAt)
+        localHourCeiling entry.operationalDate (storedInstantLocalTime entry.timezone entry.endsAt)
 
 hourlyReportHours :: HourlyReportWindow -> [Int]
 hourlyReportHours window = [window.hourlyWindowStartHour .. window.hourlyWindowEndHour - 1]
@@ -147,7 +146,7 @@ buildHourlyWageCents entries calculationsByEntryId =
         entryCents <- wageCentsForEntry entry calculation
         pure $
             foldl'
-                (\result (hour, cents) -> Map.insertWith (+) (timesheetEntryWorkedOn entry, hour, entry.shiftTypeId) cents result)
+                (\result (hour, cents) -> Map.insertWith (+) (entry.operationalDate, hour, entry.shiftTypeId) cents result)
                 totals
                 (Map.toList entryCents)
 
@@ -267,7 +266,7 @@ splitIntervalShareIntoHours entry share =
     , elapsed > 0
     ]
   where
-    ownershipDate = timesheetEntryWorkedOn entry
+    ownershipDate = entry.operationalDate
     localSegments = storedIntervalLocalHourSegments entry.timezone share.intervalShareStart share.intervalShareEnd
     totalSeconds = toRational (diffUTCTime share.intervalShareEnd share.intervalShareStart)
 
@@ -321,7 +320,7 @@ entryHoursForHourlyWindow :: Int -> UUID -> TimesheetEntry -> Rational
 entryHoursForHourlyWindow hourOfWindow shiftTypeId entry
     | entry.shiftTypeId /= shiftTypeId = 0
     | otherwise =
-        let targetDate = addDays (toInteger (hourOfWindow `div` 24)) (timesheetEntryWorkedOn entry)
+        let targetDate = addDays (toInteger (hourOfWindow `div` 24)) entry.operationalDate
             targetHour = hourOfWindow `mod` 24
             shiftSeconds = intervalSecondsInLocalHour entry.timezone targetDate targetHour entry.startsAt entry.endsAt
             breakSeconds = case (entry.breakStartsAt, entry.breakEndsAt) of

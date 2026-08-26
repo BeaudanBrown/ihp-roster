@@ -63,7 +63,11 @@ so a selected ancestor suppresses its matching descendant while siblings and
 different parameters remain independent.
 
 Broad domain effects expand to concrete resources in the producer or a focused
-feature helper, bounded by active scopes before cold historical queries. The
+feature helper. Cross-process effects must not depend only on the producer's
+active scopes: use a declared broader resource (for example roster-group staff)
+that each listener can match against its own scopes, or emit complete durable
+concrete resources. Bound cold historical queries only after preserving that
+cross-process authority. The
 generic planner contains no feature switches, custom dependencies, bridge
 conversions, or fanout callbacks. Background jobs use the same touched-resource
 boundary without request context.
@@ -78,7 +82,9 @@ shared resource change. Direct raw transport/broadcast helpers remain inside
 Generated TypeScript owns exact scope/key/mount/message parsing and canonical key
 identity. Runtime modules under `frontend/ts/live-updates/` separately own mount
 reconciliation, subscriptions, connection/reconnect, invalidation/version
-routing, request decoration, refetch/swap, focus protection, and diagnostics.
+routing, declared fragment request-context decoration, refetch/swap, focus
+protection, and diagnostics. Request context never restores the retired
+writer-local client-id/echo protocol.
 `app-live-updates.ts` remains orchestration-only.
 
 Incoming keys resolve only against matching local mounted descriptors. There is
@@ -97,13 +103,38 @@ forms, dialogs/pickers/toasts, navigation swaps, autosave controls, and one-off
 HTMX snippets do not become regions without a typed Haskell fragment contract.
 TypeScript does not infer regions from routes, targets, classes, or names.
 
+## Durable Handoff And Retention
+
+PostgreSQL is cross-process freshness authority. Workforce, scheduling, admin,
+billing, integration, export, and support producers commit their business
+writes, domain/audit writes, one ordered outbox event, deduplicated typed
+resource children, monotonic current resource versions, and transactional
+notification in one transaction. Multi-phase provider workflows keep their
+required committed preparation boundaries and attach durable invalidation to
+each local transaction. Outcomes classified by the producer as validation
+failures, stale-lock failures, or no live-visible change commit without an
+event; explicitly convergent idempotent outcomes may retain a focused event.
+Listeners replay durable events into each process-local `LiveBus`. Producers
+never dispatch directly to that bus. Malformed resource children are skipped and
+counted in bounded diagnostics while valid siblings continue; ordered event
+cursors still advance so poison payloads cannot create a reconnect loop.
+
+Event replay history is retained for at least seven days and pruned in bounded,
+oldest-first transactions. Resource children cascade with event deletion, while
+`live_resource_versions` remains indefinitely and its latest event ID is opaque
+provenance rather than a foreign key. Every listener connection rehydrates those
+versions before replay, so an outage longer than retention still detects stale
+rendered dependencies and causes authoritative fragment refetching. See
+`docs/runbooks/live-invalidation-outbox-pruning.md` for deployment and recovery.
+
 ## LiveBus Contract
 
 The `LiveBus` interface exported by `Application.Helper.LiveUpdate.Runtime` owns
-subscriptions, monotonically increasing versions per scope, active-scope
-discovery, and key-only broadcasts.
-The current in-memory implementation may be replaced, but distributed transports
-must preserve those semantics and server-side authorization.
+only process-local subscriptions, active-scope discovery, listener-fed ordered
+version observation/deduplication, and key-only socket delivery. It cannot mint a
+version or accept an unversioned broadcast. PostgreSQL remains the sole freshness
+and version authority; subscription handshakes compare rendered and browser
+watermarks against durable state.
 
 ## Extension Rules
 
@@ -130,6 +161,8 @@ bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "LiveUpdate" --match "SurfaceInvalidation" --match "SurfaceDependency" --match "MutationBoundary"
 bash ./bin/in-env e2e e2e/roster-live-fragments.spec.ts
 bash ./bin/in-env e2e e2e/live-fragment-multiview.spec.ts
+bash ./bin/in-env e2e e2e/billing.spec.ts
+bash ./bin/in-env http-polling-policy-check
 ```
 
 Use profiling commands only for performance diagnosis; their output is evidence,

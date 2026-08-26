@@ -3,6 +3,7 @@ module Application.WagePublication
     , StaffHoursBucketKind (..)
     , StaffHoursContribution (..)
     , datedEarningsComponents
+    , datedEarningsComponentsWithOrdinal
     , derivePublishedEarnings
     , publicationBucketKey
     , staffHoursContributions
@@ -64,8 +65,16 @@ staffHoursContributions calculation =
 -- later local day. Split publication contributions still sum to the unchanged
 -- approved component quantity and amount.
 datedEarningsComponents :: WageCalculation -> [(Day, EarningsComponent)]
-datedEarningsComponents calculation =
-    snd (go initialState calculation.earningsComponents)
+datedEarningsComponents =
+    map (\(_, componentDate, component) -> (componentDate, component))
+        . datedEarningsComponentsWithOrdinal
+
+-- | Retain the immutable ledger ordinal while applying publication date splits.
+-- A source component can contribute on multiple dates, but every contribution
+-- still belongs to the same sealed component and Xero routing decision.
+datedEarningsComponentsWithOrdinal :: WageCalculation -> [(Int, Day, EarningsComponent)]
+datedEarningsComponentsWithOrdinal calculation =
+    snd (go initialState (zip [0 ..] calculation.earningsComponents))
   where
     paidSegments = calculation.paidTimeSegments
     workedSegments = List.sortOn (.paidTimeStart) (filter ((== Worked) . (.paidTimeKind)) paidSegments)
@@ -76,13 +85,18 @@ datedEarningsComponents calculation =
     initialState = (hourlyDates, eveningDates, earlyDates)
 
     go state [] = (state, [])
-    go state (component : rest) =
+    go state ((ordinal, component) : rest) =
         let (nextState, contributions) = dateComponent state component
             (finalState, remainingContributions) = go nextState rest
-         in (finalState, contributions <> remainingContributions)
+            ordinalContributions = map (\(componentDate, contribution) -> (ordinal, componentDate, contribution)) contributions
+         in (finalState, ordinalContributions <> remainingContributions)
 
     dateComponent state@(remainingHourly, remainingEvening, remainingEarly) component =
-        case (component.unitType, component.sourceCondition) of
+        case component.publishedComponentDate of
+            Just componentDate -> (state, [(componentDate, component)])
+            Nothing            -> undatedComponent
+      where
+        undatedComponent = case (component.unitType, component.sourceCondition) of
             (Hours, MissedMealBreakAdditionCondition) ->
                 (state, missedMealBreakContributions component)
             (Hours, _) ->

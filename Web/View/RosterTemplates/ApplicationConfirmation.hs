@@ -8,6 +8,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionFormWithHiddenFields)
 import Application.Helper.View.Overlay
+import Web.RosterWeeks.Paths (rosterTemplateApplicationUrl)
 import Web.RosterWeeks.TemplateApplication
 import Web.View.Prelude
 
@@ -38,12 +39,13 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targe
         }
   where
     formId = "roster-template-application-form"
-    actionUrl = pathTo (ApplyRosterTemplateAction rosterTemplateId rosterGroupId preview.applicationPreviewTargetWeekOffset)
+    actionUrl = rosterTemplateApplicationUrl preview.applicationPreviewTargetWindowStart rosterTemplateId rosterGroupId
     actionFields = RosterAction.applyRosterTemplateApplicationActionFields
         (unpackId rosterTemplateId)
         targetDropzoneKey
         preview.applicationExpectedVersion
         preview.applicationExpectedTargetRevision
+        preview.applicationRosterCalendarRevision
     actionRoute = FrontendSurfaceActionRoute
         { actionRouteUrl = actionUrl
         , actionRouteCustomHtmx = []

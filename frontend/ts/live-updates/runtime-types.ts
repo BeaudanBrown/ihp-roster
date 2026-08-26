@@ -26,7 +26,7 @@ export type SurfaceSubscription = {
     scopeKey: string;
     path: string;
     resyncFragments: LiveUpdateFragmentWithState[];
-    decorateRequestsWithin: string[];
+    renderedDependencyWatermark: number;
     ownerEls: HTMLElement[];
     resync: (subscription: SurfaceSubscription) => void;
 };
@@ -42,9 +42,3 @@ export type FragmentProtectionAdapter = {
 };
 
 export type FocusedFieldProtectionPolicy = Extract<FrontendSurfaceFragmentProtection, { kind: "focused-field" }>;
-export type HtmxConfigRequestEvent = Event & {
-    detail?: {
-        elt?: unknown;
-        headers?: Record<string, string>;
-    };
-};

@@ -7,11 +7,11 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Times
 import Application.Helper.FrontendContract.Surface.Values
 import IHP.Prelude
 
--- WeekOffset is declared WireInt. A Text value must fail at construction.
+-- AnchorDate is declared WireDay. A Text value must fail at construction.
 wrongActionWireType =
     frontendSurfaceAction @Timesheets.TimesheetsSurface @Timesheets.NavigateTimesheetWeek
         ( surfaceActionFields
-            (surfaceField @Timesheets.WeekOffset ("two" :: Text))
+            (surfaceField @Timesheets.AnchorDate ("not-a-date" :: Text))
             ( surfaceOptionalField @Timesheets.StaffFilterId Nothing
                 &: noSurfaceFields
             )

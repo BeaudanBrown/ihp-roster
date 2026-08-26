@@ -9,6 +9,8 @@ import {
     parsePasskeyFlowConfig,
     passkeySetupPromptDomAttr,
     passkeyStatusDomAttr,
+    toastMountDomAttr,
+    toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
 import { localStorageKeyForPasskey } from '../frontend/ts/passkeys/storage';
 import { E2E_TIMEOUT } from './timeouts';
@@ -22,7 +24,6 @@ import {
     registerFirstPasskeyForCurrentUser,
     removeVirtualPasskeyAuthenticator,
     resetE2EUserPasskeySignCount,
-    verifyCurrentUserPasskeyStepUp,
     webauthnBaseURL,
 } from './test-helpers';
 
@@ -194,7 +195,7 @@ test.describe('Venue-admin passkeys', () => {
 
         await passwordLogin(page);
 
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
         await expect(page.locator('#admin-config-sections')).toBeVisible();
@@ -210,21 +211,53 @@ test.describe('Venue-admin passkeys', () => {
         await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toHaveAttribute('aria-expanded', 'false');
     });
 
-    test('password login with an existing passkey keeps passkey settings available in the seeded e2e session', async ({ page }) => {
+    test('password login uses immediate in-place passkey step-up without replaying the protected action', async ({ page }) => {
         await loginAsPrivilegedUserWithFreshPasskey(page);
         await logout(page);
 
         await loginAsWithFreshBrowserSession(page, adminEmail, password);
         await openProfileSecuritySection(page);
+        const profileUrl = page.url();
+        const beginStepUpResponse = page.waitForResponse(
+            (response) => new URL(response.url()).pathname === '/BeginPasskeyStepUpAuthentication',
+            { timeout: E2E_TIMEOUT.passkey },
+        );
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
+        expect((await beginStepUpResponse).status()).toBe(200);
+        await expect(page.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0, { timeout: E2E_TIMEOUT.passkey });
+        expect(page.url()).toBe(profileUrl);
+        const queuedToast = page.locator(`#${toastOverlayMountDomId} [${toastMountDomAttr}]`).filter({ hasText: 'New-device passkey setup email queued.' });
+        await expect(queuedToast).toHaveCount(0);
 
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('body')).toContainText('Verify with your passkey before sending a new-device setup link.');
-        await gotoWhenReady(page, '/PasskeyStepUp', `[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`);
-        await verifyCurrentUserPasskeyStepUp(page);
-        await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
-        await expect(page.locator('body')).toContainText('New-device passkey setup email sent.', { timeout: E2E_TIMEOUT.navigation });
+        await expect(queuedToast).toContainText('New-device passkey setup email queued. It should arrive shortly; open it on the device you want to add.', { timeout: E2E_TIMEOUT.navigation });
+    });
+
+    test('in-place step-up keeps an explicit fallback and cancellation never runs the protected action', async ({ page }) => {
+        await loginAsPrivilegedUserWithFreshPasskey(page);
+        await logout(page);
+
+        await loginAsWithFreshBrowserSession(page, adminEmail, password);
+        await openProfileSecuritySection(page);
+        const profileUrl = page.url();
+        await page.evaluate(() => {
+            Object.defineProperty(window, 'PublicKeyCredential', { configurable: true, value: undefined });
+        });
+
+        await page.getByRole('button', { name: 'Email setup link for another device' }).click();
+        const dialog = page.locator(`[${dialogMountDomAttr}]`);
+        await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        await expect(dialog).toContainText('Passkeys are not supported in this browser.');
+        const fallback = dialog.getByRole('button', { name: 'Verify with passkey' });
+        await expect(fallback).toBeEnabled();
+        await fallback.click();
+        await expect(dialog).toContainText('Passkeys are not supported in this browser.');
+        await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+        await expect(dialog).toHaveCount(0);
+        expect(page.url()).toBe(profileUrl);
+        const queuedToast = page.locator(`#${toastOverlayMountDomId} [${toastMountDomAttr}]`).filter({ hasText: 'New-device passkey setup email queued.' });
+        await expect(queuedToast).toHaveCount(0);
     });
 
     test('passkey login marks venue-admin access as freshly verified', async ({ page }) => {
@@ -234,7 +267,7 @@ test.describe('Venue-admin passkeys', () => {
 
         await gotoWhenReady(page, '/NewSession', '#email');
         await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
@@ -263,22 +296,27 @@ test.describe('Venue-admin passkeys', () => {
         const firstAuthenticator = await enableVirtualPasskeyAuthenticator(page);
 
         await passwordLogin(page);
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await registerFirstPasskeyForCurrentUser(page);
         await logout(page);
 
         await loginAsWithFreshBrowserSession(page, adminEmail, password);
         await openProfileSecuritySection(page);
         await expect(page.getByRole('link', { name: 'Create passkey' })).toHaveCount(0);
+        const profileUrl = page.url();
+        const beginStepUpResponse = page.waitForResponse(
+            (response) => new URL(response.url()).pathname === '/BeginPasskeyStepUpAuthentication',
+            { timeout: E2E_TIMEOUT.passkey },
+        );
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
+        expect((await beginStepUpResponse).status()).toBe(200);
+        await expect(page.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0, { timeout: E2E_TIMEOUT.passkey });
+        expect(page.url()).toBe(profileUrl);
+        const queuedToast = page.locator(`#${toastOverlayMountDomId} [${toastMountDomAttr}]`).filter({ hasText: 'New-device passkey setup email queued.' });
+        await expect(queuedToast).toHaveCount(0);
 
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('body')).toContainText('Verify with your passkey before sending a new-device setup link.');
-        await gotoWhenReady(page, '/PasskeyStepUp', `[${passkeyLoginDomAttr}] [${passkeyActionButtonDomAttr}]`);
-        await verifyCurrentUserPasskeyStepUp(page);
-        await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
-        await expect(page.locator('body')).toContainText('New-device passkey setup email sent.', { timeout: E2E_TIMEOUT.navigation });
+        await expect(queuedToast).toContainText('New-device passkey setup email queued. It should arrive shortly; open it on the device you want to add.', { timeout: E2E_TIMEOUT.navigation });
         await removeVirtualPasskeyAuthenticator(firstAuthenticator);
     });
 });

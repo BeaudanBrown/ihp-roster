@@ -33,18 +33,13 @@ test.beforeEach(() => {
 test.beforeEach(async ({ page }) => {
     resetTemplateDesignerState();
     runSql(`
-        INSERT INTO roster_days (roster_week_id, day_offset)
-        SELECT roster_weeks.id, offsets.day_offset
-        FROM roster_weeks
-        CROSS JOIN generate_series(0, 6) AS offsets(day_offset)
-        WHERE roster_weeks.roster_group_id = '${defaultE2ERosterGroupId}'
-          AND roster_weeks.week_offset = 0
-          AND roster_weeks.archived_at IS NULL
-          AND NOT EXISTS (
-              SELECT 1 FROM roster_days
-              WHERE roster_days.roster_week_id = roster_weeks.id
-                AND roster_days.day_offset = offsets.day_offset
-          );
+        INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+        SELECT
+            'a1000000-0000-0000-0000-000000000001', '${defaultE2ERosterGroupId}',
+            CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + day_index,
+            'draft', FALSE, 2
+        FROM generate_series(0, 6) AS day_index
+        ON CONFLICT (roster_group_id, operational_date) DO NOTHING;
     `);
     await loginAs(page, managerEmail, password);
 });

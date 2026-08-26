@@ -170,6 +170,80 @@ tests = describe "Mutation boundary guard" do
         filter (`Text.isInfixOf` mutationSource) mutationForbiddenTokens `shouldBe` []
         filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
 
+    it "removes sequential publication and process-local version authority APIs" do
+        sources <- mapM Text.readFile
+            [ "Application/Helper/FrontendContract/LiveUpdate.hs"
+            , "Application/Helper/FrontendContract/LiveUpdateValues.hs"
+            , "Application/Helper/LiveUpdate/DurablePublisher.hs"
+            , "Application/Helper/LiveUpdate/Internal.hs"
+            , "Application/Helper/LiveUpdate/Runtime.hs"
+            , "Web/Controller/Admin.hs"
+            , "Web/SurfaceInvalidation.hs"
+            ]
+        let removedApis =
+                [ "invalidateTouchedResources"
+                , "publishDurableInvalidation"
+                , "publishTouchedResourcesWithoutContext"
+                , "broadcastLiveInvalidationDetailed"
+                , "incrementLiveUpdateVersion"
+                , "advanceLiveUpdateVersion ::"
+                , "LiveUpdateClientIdHeader"
+                , "SourceClientId"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) removedApis `shouldBe` []
+        browserProtocol <- Text.readFile "frontend/ts/generated/contracts.ts"
+        filter (`Text.isInfixOf` browserProtocol) ["sourceClientId", "liveUpdateClientIdHeader", "clientId"] `shouldBe` []
+        surfaceInvalidation <- Text.readFile "Web/SurfaceInvalidation.hs"
+        Text.count "broadcastLiveInvalidationAtVersion" surfaceInvalidation `shouldBe` 2
+
+    it "keeps workforce and scheduling producers off sequential live publication" do
+        sources <- mapM Text.readFile
+            [ "Web/Controller/LeaveRequests.hs"
+            , "Web/Controller/Users.hs"
+            , "Web/LeaveRequests/Mutations.hs"
+            , "Web/Profiles/Mutations.hs"
+            , "Web/RosterTemplates/Mutations.hs"
+            , "Web/RosterWeeks/Mutations.hs"
+            , "Web/RosterWeeks/TemplateApplication.hs"
+            , "Web/RosterWeeks/VenueSettings.hs"
+            , "Web/Staff/Mutations.hs"
+            , "Web/StaffDocuments/Mutations.hs"
+            , "Web/Timesheets/Mutations.hs"
+            , "Application/RosterNotification/Email.hs"
+            ]
+        let forbiddenTokens =
+                [ "invalidateTouchedResources"
+                , "publishTouchedResourcesWithoutContext"
+                , "publishDurableInvalidation"
+                , "withDurableLiveMutationOutcomeTransaction"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+
+    it "keeps admin, billing, integration, export, and support producers off sequential live publication" do
+        sources <- mapM Text.readFile
+            [ "Web/Admin/Mutations.hs"
+            , "Web/Admin/RosterWindowStartDay.hs"
+            , "Web/Admin/Xero/Mutations.hs"
+            , "Web/Billing/Mutations.hs"
+            , "Web/Controller/StripeWebhooks.hs"
+            , "Web/Controller/Support.hs"
+            , "Web/Exports/Mutations.hs"
+            , "Application/Billing/Reconciliation.hs"
+            , "Application/EmailDelivery.hs"
+            , "Application/FwcMapd/Job.hs"
+            , "Application/InvitationDelivery/Email.hs"
+            , "Application/PublicHolidays/Job.hs"
+            , "Application/Xero/Keepalive.hs"
+            , "Application/Xero/ReferenceSyncJob.hs"
+            ]
+        let forbiddenTokens =
+                [ "invalidateTouchedResources"
+                , "publishTouchedResourcesWithoutContext"
+                , "publishDurableInvalidation"
+                , "withDurableLiveMutationOutcomeTransaction"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+
     it "keeps admin config writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Admin.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueVenueInvitationDeliveryJob", "ensureShiftTypePayVersionForShiftType", "createVenueRosterGroupWithDefaults", "ensureDefaultRosterSlots", "syncVenueDefaultRosterGroupToTopActive", "reorderActiveRosterGroups", "reorderActiveShiftTypes"]
@@ -213,7 +287,7 @@ tests = describe "Mutation boundary guard" do
         sources <- mapM Text.readFile
             [ "Application/PublicHolidays/Job.hs"
             , "Application/FwcMapd/Job.hs"
-            , "Application/InvitationDelivery/Job.hs"
+            , "Application/InvitationDelivery/Email.hs"
             ]
         let forbiddenTokens = ["broadcastSurfaceFragmentsWithoutContext", "broadcastSurfaceResyncWithoutContext"]
         filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []

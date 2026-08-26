@@ -9,10 +9,12 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 data RosterTemplateApplicationRequest = RosterTemplateApplicationRequest
-    { applicationTemplateId           :: !(Id RosterTemplate)
-    , applicationTargetWeekId         :: !(Id RosterWeek)
-    , applicationTargetDayOffset      :: !(Maybe Int)
-    , applicationOccurrenceSelections :: !ShiftCopyOccurrenceSelections
+    { applicationTemplateId            :: !(Id RosterTemplate)
+    , applicationTargetRosterGroupId   :: !(Id RosterGroup)
+    , applicationTargetWindowStart     :: !Day
+    , applicationTargetWindowEnd       :: !Day
+    , applicationTargetOperationalDate :: !(Maybe Day)
+    , applicationOccurrenceSelections  :: !ShiftCopyOccurrenceSelections
     }
     deriving (Eq, Show)
 
@@ -41,10 +43,12 @@ data RosterTemplateApplicationResolvedShift = RosterTemplateApplicationResolvedS
 data RosterTemplateApplicationPreview = RosterTemplateApplicationPreview
     { applicationPreviewTemplateName     :: !Text
     , applicationPreviewScale            :: !RosterTemplateScaleEnum
-    , applicationPreviewTargetWeekOffset :: !Int
-    , applicationPreviewTargetDayOffset  :: !(Maybe Int)
+    , applicationPreviewTargetWindowStart :: !Day
+    , applicationPreviewTargetWindowEnd   :: !Day
+    , applicationPreviewTargetOperationalDate :: !(Maybe Day)
     , applicationExpectedVersion         :: !Int
     , applicationExpectedTargetRevision  :: !Text
+    , applicationRosterCalendarRevision  :: !Int
     , applicationReplacementShiftCount   :: !Int
     , applicationExistingShiftCount      :: !Int
     , applicationResolvedShifts          :: ![RosterTemplateApplicationResolvedShift]
@@ -54,10 +58,11 @@ data RosterTemplateApplicationPreview = RosterTemplateApplicationPreview
     deriving (Eq, Show)
 
 data RosterTemplateApplicationResult = RosterTemplateApplicationResult
-    { appliedRosterWeek       :: !RosterWeek
-    , appliedTemplateVersion  :: !Int
-    , appliedWarnings         :: ![RosterTemplateApplicationWarning]
-    , appliedTouchedResources :: ![SurfaceResourceValue]
+    { appliedTargetWindowStart :: !Day
+    , appliedTargetWindowEnd   :: !Day
+    , appliedTemplateVersion   :: !Int
+    , appliedWarnings          :: ![RosterTemplateApplicationWarning]
+    , appliedTouchedResources  :: ![SurfaceResourceValue]
     }
     deriving (Eq, Show)
 
@@ -75,6 +80,7 @@ data RosterTemplateApplicationError
     | RosterTemplateApplicationScaleMismatch
     | RosterTemplateApplicationVersionConflict !Int
     | RosterTemplateApplicationTargetConflict
+    | RosterTemplateApplicationCalendarConflict
     | RosterTemplateApplicationInvalidShiftTypes ![Id ShiftType]
     | RosterTemplateApplicationBoundaryError !(Id RosterTemplateShift) !RosterTemplateApplicationBoundary !BoundaryModelError
     | RosterTemplateApplicationInvalidStructure !Text
@@ -82,13 +88,16 @@ data RosterTemplateApplicationError
 
 data PreparedApplication = PreparedApplication
     { preparedSaved             :: !RosterTemplateSaved
-    , preparedTargetWeek        :: !RosterWeek
+    , preparedTargetGroup       :: !RosterGroup
+    , preparedTargetWindowStart :: !Day
+    , preparedTargetWindowEnd   :: !Day
     , preparedTargetDays        :: ![RosterDay]
     , preparedFirstTargetDay    :: !RosterDay
     , preparedShiftPlans        :: ![PreparedShift]
     , preparedExistingSlots     :: ![RosterSlot]
-    , preparedTargetDefinitions :: ![RosterWeekSlotDefinition]
+    , preparedTargetLanes       :: ![RosterLane]
     , preparedTimesheetEntries  :: ![TimesheetEntry]
+    , preparedCalendarRevision  :: !Int
     }
 
 data PreparedShift = PreparedShift

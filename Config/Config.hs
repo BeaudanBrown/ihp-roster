@@ -1,14 +1,15 @@
 module Config where
 
+import Application.Helper.LiveUpdate.DurableListener (startDurableInvalidationListener)
 import Application.Helper.Profiling (profilingMiddleware)
 import Application.Helper.Telemetry (telemetryMiddleware)
 import IHP.Environment
 import IHP.EnvVar
 import IHP.FrameworkConfig
-import IHP.Mail
-import IHP.Mail.Types (SMTPEncryption)
+import IHP.Mail.Types (MailServer (..), SMTPEncryption)
 import IHP.Prelude
 import Network.Socket (PortNumber)
+import Web.SurfaceInvalidation (dispatchDurableInvalidation)
 
 config :: ConfigBuilder
 config = do
@@ -32,5 +33,6 @@ config = do
             , encryption = smtpEncryption
             }
     option $ CustomMiddleware (telemetryMiddleware . profilingMiddleware)
+    addInitializer (startDurableInvalidationListener dispatchDurableInvalidation)
 
     pure ()

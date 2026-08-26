@@ -1,5 +1,6 @@
 module Test.RosterGridSpec where
 
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -7,6 +8,9 @@ import IHP.ControllerPrelude (newRecord, unpackId)
 import IHP.Prelude
 import Test.Hspec
 import Test.Support (setTestEndTime, setTestStartTime)
+import Web.RosterWeeks.DateRange (RosterWindowDay (..), laneForOperationalDate,
+                                  projectRosterWindow, rosterWindowLaneName,
+                                  rosterWindowLanes, rosterWindowProjectedDays)
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
                                    rosterMutationProjectionFragments)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
@@ -17,44 +21,44 @@ import Web.View.RosterWeeks.Grid (compactDayColumnSlots, lastRowIndexForRows,
 tests :: Spec
 tests = describe "Roster grid row grouping" do
     it "sorts day-column slots by start time" do
-        let slotA = newRecord @RosterWeekSlotDefinition
-            slotB = newRecord @RosterWeekSlotDefinition
-            slotC = newRecord @RosterWeekSlotDefinition
+        let slotA = newRecord @RosterLane
+            slotB = newRecord @RosterLane
+            slotC = newRecord @RosterLane
 
             mkSlot daySlot startTime staffId =
                 newRecord @RosterSlot
-                    |> set #rosterWeekSlotDefinitionId (unpackId daySlot.id)
+                    |> set #rosterLaneId (unpackId daySlot.id)
                     |> setTestStartTime startTime
                     |> set #staffId staffId
 
             first = mkSlot slotA (Just $ TimeOfDay 10 0 0) (Just (UUID.nil))
             second = mkSlot slotB (Just $ TimeOfDay 8 0 0) (Just (UUID.nil))
             third = mkSlot slotC (Just $ TimeOfDay 12 0 0) (Just (UUID.nil))
-            sorted = compactDayColumnSlots [slotA, slotB, slotC] [first, second, third]
-        map (get #rosterWeekSlotDefinitionId) sorted `shouldBe`
+            sorted = compactDayColumnSlots [] [first, second, third]
+        map (get #rosterLaneId) sorted `shouldBe`
             [unpackId slotB.id, unpackId slotA.id, unpackId slotC.id]
 
     it "puts untimed visible slots after timed ones" do
-        let slotA = newRecord @RosterWeekSlotDefinition
-            slotB = newRecord @RosterWeekSlotDefinition
+        let slotA = newRecord @RosterLane
+            slotB = newRecord @RosterLane
 
             mkTimedSlot startTime =
                 newRecord @RosterSlot
-                    |> set #rosterWeekSlotDefinitionId (unpackId slotA.id)
+                    |> set #rosterLaneId (unpackId slotA.id)
                     |> setTestStartTime (Just startTime)
                     |> set #staffId (Just UUID.nil)
 
             mkUntimedSlot =
                 newRecord @RosterSlot
-                    |> set #rosterWeekSlotDefinitionId (unpackId slotB.id)
+                    |> set #rosterLaneId (unpackId slotB.id)
                     |> setTestStartTime Nothing
                     |> setTestEndTime (Just $ TimeOfDay 9 0 0)
                     |> set #staffId Nothing
 
             first = mkTimedSlot (TimeOfDay 9 0 0)
             second = mkUntimedSlot
-            sorted = compactDayColumnSlots [slotA, slotB] [second, first]
-        map (get #rosterWeekSlotDefinitionId) sorted `shouldBe`
+            sorted = compactDayColumnSlots [] [second, first]
+        map (get #rosterLaneId) sorted `shouldBe`
             [unpackId slotA.id, unpackId slotB.id]
 
     it "returns two visible rows when an open day has no slots" do
@@ -104,6 +108,38 @@ tests = describe "Roster grid row grouping" do
 
         impactedRowKeysForSlotUpdate (Just staffA) editedSlot relatedSlots
             `shouldMatchList` [(day1, 0), (day2, 1), (day3, 2)]
+
+    it "projects sparse roster days and a deterministic case-insensitive lane union" do
+        let startDate = fromGregorian 2026 8 3
+            day0 = newRecord @RosterDay
+                |> set #id "10000000-0000-0000-0000-000000000001"
+                |> set #operationalDate startDate
+            day2 = newRecord @RosterDay
+                |> set #id "10000000-0000-0000-0000-000000000003"
+                |> set #operationalDate (addDays 2 startDate)
+            lane id day name sortOrder = newRecord @RosterLane
+                |> set #id id
+                |> set #rosterDayId (unpackId day.id)
+                |> set #name name
+                |> set #sortOrder sortOrder
+            lanes =
+                [ lane "20000000-0000-0000-0000-000000000001" day0 " Floor " 1
+                , lane "20000000-0000-0000-0000-000000000002" day0 "Bar" 0
+                , lane "20000000-0000-0000-0000-000000000003" day2 "floor" 0
+                , lane "20000000-0000-0000-0000-000000000004" day2 "Kitchen" 1
+                ]
+            window = projectRosterWindow startDate [day2, day0] lanes
+
+        map (.operationalDate) window.rosterWindowProjectedDays
+            `shouldBe` map (`addDays` startDate) [0 .. 6]
+        map (isJust . (.persistedRosterDay)) window.rosterWindowProjectedDays
+            `shouldBe` [True, False, True, False, False, False, False]
+        map rosterWindowLaneName window.rosterWindowLanes
+            `shouldBe` ["Bar", "Floor", "Kitchen"]
+        fmap (.id) (laneForOperationalDate startDate (window.rosterWindowLanes !! 1))
+            `shouldBe` Just ("20000000-0000-0000-0000-000000000001" :: Id RosterLane)
+        fmap (.id) (laneForOperationalDate (addDays 2 startDate) (window.rosterWindowLanes !! 1))
+            `shouldBe` Just ("20000000-0000-0000-0000-000000000003" :: Id RosterLane)
 
     it "projects roster mutations through the mounted layout" do
         let dayId = UUID.nil

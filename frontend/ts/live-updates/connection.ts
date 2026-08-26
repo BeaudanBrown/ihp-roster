@@ -8,8 +8,6 @@ import { subscriptionsEquivalent, wireSurfaceSubscription } from "./subscription
 type LiveUpdateDiagnostics = ReturnType<typeof createLiveUpdateDiagnostics>;
 
 export type LiveUpdateConnection = {
-    ensureClientId(): string;
-    activeClientId(): string | null;
     sync(desired: Map<string, SurfaceSubscription>): void;
     close(): void;
 };
@@ -27,15 +25,6 @@ export function createLiveUpdateConnection(options: {
     let socketPath: string | null = null;
     let reconnectTimer: ReturnType<typeof targetWindow.setTimeout> | null = null;
     let reconnectAttempt = 0;
-    let clientId: string | null = null;
-
-    function ensureClientId(): string {
-        if (!clientId) {
-            clientId = targetWindow.crypto?.randomUUID?.()
-                ?? `live-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        }
-        return clientId;
-    }
 
     function buildWebSocketUrl(path: string): string {
         const protocol = targetWindow.location.protocol === "https:" ? "wss:" : "ws:";
@@ -50,7 +39,6 @@ export function createLiveUpdateConnection(options: {
     function subscribe(subscription: SurfaceSubscription): void {
         sendCommand(buildLiveUpdateSubscribeCommand(
             wireSurfaceSubscription(subscription),
-            ensureClientId(),
             versions.get(subscription.scopeKey),
         ));
     }
@@ -124,7 +112,6 @@ export function createLiveUpdateConnection(options: {
     }
 
     function sync(desired: Map<string, SurfaceSubscription>): void {
-        ensureClientId();
         const nextPath = desired.values().next().value?.path ?? null;
         if (desired.size === 0 || !nextPath) {
             activeSubscriptions.forEach((subscription) => versions.clear(subscription.scopeKey));
@@ -181,5 +168,5 @@ export function createLiveUpdateConnection(options: {
         }
     }
 
-    return { ensureClientId, activeClientId: () => clientId, sync, close };
+    return { sync, close };
 }

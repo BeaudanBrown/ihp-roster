@@ -1,6 +1,8 @@
 module Application.Helper.View.Toast where
 
+import Application.Helper.ControllerContext (currentImpersonationReturnFallbackVisible)
 import Application.Helper.FrontendContract.Overlay.Runtime
+import Application.Helper.Impersonation (impersonationReturnFallbackMessage)
 import Application.Helper.View.Oob
 import Generated.Types
 import IHP.ViewPrelude
@@ -97,7 +99,10 @@ renderToastCopy toast =
 
 renderFlashOverlayToasts :: (?context :: ControllerContext, ?request :: Request) => Html
 renderFlashOverlayToasts =
-    renderToastOverlayHost ToastBottomCenter (map flashMessageToToast (requestFlashMessages ?request))
+    renderToastOverlayHost ToastBottomCenter
+        ( map flashMessageToToast (requestFlashMessages ?request)
+            <> [errorToast impersonationReturnFallbackMessage | currentImpersonationReturnFallbackVisible]
+        )
 
 flashMessageToToast :: FlashMessage -> ToastOverlayConfig
 flashMessageToToast = \case

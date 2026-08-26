@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+node --test scripts/architecture/email-transport.test.mjs
+node scripts/architecture/email-transport.mjs
