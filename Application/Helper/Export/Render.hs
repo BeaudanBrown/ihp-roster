@@ -51,7 +51,7 @@ renderStaffPayCsv reportWeekSelection records =
         bucketLabels = staffPayBucketLabels reportWeekSelection
         csvHeader =
             Text.intercalate ","
-                (map csvCell (["Employee"] <> bucketLabels))
+                (map (csvCell . spreadsheetText) ("Employee" : bucketLabels))
 
         renderRow record =
             Text.intercalate ","
@@ -204,6 +204,11 @@ addDayHours dayIndex hours existingDayHours =
     [ if index == dayIndex then currentHours + hours else currentHours
     | (index, currentHours) <- zip [0 ..] existingDayHours
     ]
+
+-- CSV carries no cell-type metadata. Google Sheets otherwise imports values such
+-- as "Wed 7-12" as dates, while treating this conventional prefix as text.
+spreadsheetText :: Text -> Text
+spreadsheetText value = "'" <> value
 
 formatStaffPayHours :: Rational -> Text
 formatStaffPayHours = formatRationalDecimal 6

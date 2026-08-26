@@ -167,7 +167,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.fileName `shouldBe` Just "staff_hrs_starting-2025-01-06.csv"
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Employee,Mon Ord,Mon 7-12,Mon 12+"
+                    Text.isInfixOf "'Employee,'Mon Ord,'Mon 7-12,'Mon 12+"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     Text.isInfixOf "\"Worker, Ava LVL 2\",8.000000,0.000000,0.000000"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
