@@ -190,13 +190,17 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 - Submission consumes approved, sealed Timesheet/pay facts. Approval seals the
   Operational date, Bepis roster-window boundary/start day, component date,
   source, exact amount, local earnings bucket, and provider EarningsRateID when
-  an active Xero connection has an available mapping. A missing approval-time
-  mapping remains blocked after later mapping changes until the entry is
-  unapproved and reapproved. Every positive sealed earnings component is consumed
-  exactly once; imported components retain
-  their approval-pinned imported-item identity. Provider availability changes
-  cannot reroute sealed components. Submission source links retain immutable audit
-  snapshots but do not lock Timesheet entries; corrected entries reset approval and
+  an active Xero connection has an available mapping. When approval predates an
+  available mapping, preparation derives the bucket only from those sealed facts
+  and records one append-only, connection-scoped late binding after a verified
+  mapping or managed pay item becomes available. Approval-time routing takes
+  precedence; an existing late binding is never rewritten by later reference or
+  mapping changes. Every positive sealed earnings component is consumed exactly
+  once; imported components retain their approval-pinned imported-item identity.
+  Provider availability changes cannot reroute sealed or late-bound components.
+  Unapproval retains the prior calculation and binding as audit history;
+  reapproval creates independently routed components. Submission source links
+  retain immutable audit snapshots but do not lock Timesheet entries; corrected entries reset approval and
   enter Xero only after reapproval and a fresh preparation.
 - An effective staff-level imported Xero rate maps that staff member's imported
   components to the one approval-pinned Xero earnings rate; an explicit shift
@@ -224,7 +228,8 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   from fresh provider state.
 
 Canonical calculation and bucket behavior lives in `Timesheets/Prepare.hs`,
-`Timesheets/Buckets.hs`, `Timesheets/Preview.hs`, `Timesheets/Submission.hs`, and
+`Timesheets/Buckets.hs`, `Timesheets/LateBindings.hs`, `Timesheets/Preview.hs`,
+`Timesheets/Submission.hs`, and
 their focused/golden tests.
 
 ## Live And Mutation Boundary
