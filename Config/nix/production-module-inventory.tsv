@@ -59,6 +59,7 @@ Application/Helper/Export.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Definitions.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/HourlyBreakdown.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Payloads.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Export/PayrollWorkbook.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/ReadModel.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Export/Render.hs	production	runtime	Main	Reachable from Main

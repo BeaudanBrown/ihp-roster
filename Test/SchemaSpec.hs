@@ -177,7 +177,7 @@ tests = describe "Schema" do
         allVenueRoleValues `shouldBe` ["worker", "supervisor", "manager", "venue_admin", "venue_owner"]
         allPlatformRoleValues `shouldBe` ["super_admin"]
         allLeaveRequestStatusValues `shouldBe` ["pending", "approved", "denied"]
-        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv"]
+        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv", "payroll_workbook_xlsx"]
         allExportJobStatusValues `shouldBe` ["pending", "ready", "expired"]
 
         parseUserRole ("staff" :: Text) `shouldBe` Just StaffRole
@@ -202,6 +202,7 @@ tests = describe "Schema" do
         parseExportJobType "staff_pay_csv" `shouldBe` Just StaffPayCsv
         parseExportJobType "hourly_breakdown_zip" `shouldBe` Just HourlyBreakdownZip
         parseExportJobType "payroll_earnings_csv" `shouldBe` Just PayrollEarningsCsv
+        parseExportJobType "payroll_workbook_xlsx" `shouldBe` Just PayrollWorkbookXlsx
         parseExportJobType "leave_csv" `shouldBe` Nothing
         parseExportJobStatus "pending" `shouldBe` Just ExportPending
         parseExportJobStatus "ready" `shouldBe` Just ExportReady
@@ -225,8 +226,18 @@ tests = describe "Schema" do
         canAssignVenueRole False (Just VenueAdmin) VenueOwner VenueAdmin `shouldBe` False
         canAssignVenueRole False (Just VenueOwner) VenueOwner VenueAdmin `shouldBe` True
         canAssignVenueRole True Nothing VenueOwner VenueAdmin `shouldBe` True
-        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv] `shouldBe` allExportJobTypeValues
+        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] `shouldBe` allExportJobTypeValues
         map exportJobStatusToText [ExportPending, ExportReady, ExportExpired] `shouldBe` allExportJobStatusValues
+
+    it "retains the additive Payroll Workbook XLSX export migration" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788200000-add-payroll-workbook-xlsx-export-contract.sql"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "export_jobs_payroll_workbook_xlsx_contract"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "export_type <> 'payroll_workbook_xlsx'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "file_encoding = 'base64'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
 
     it "avoids IN-based CHECK constraints that pg_dump rewrites into parser-hostile ANY(ARRAY ...)" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"

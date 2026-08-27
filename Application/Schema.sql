@@ -1167,7 +1167,8 @@ CREATE TABLE export_jobs (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (downloaded_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
-    FOREIGN KEY (purged_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (purged_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((export_type <> 'payroll_workbook_xlsx') OR (status <> 'ready') OR ((file_encoding = 'base64') AND (content_type IS NOT NULL) AND (content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') AND (file_name IS NOT NULL) AND (right(file_name, 5) = '.xlsx')))
 );
 
 -- schema-nav: billing

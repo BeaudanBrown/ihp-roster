@@ -1,5 +1,7 @@
 module	package	reason
-Codec.Archive.Zip	zip-archive	Application/Helper/Export/Render.hs via Main
+Codec.Archive.Zip	zip-archive	Application/Helper/Export/PayrollWorkbook.hs via Main
+Codec.Xlsx	xlsx	Application/Helper/Export/PayrollWorkbook.hs via Main
+Codec.Xlsx.Formatted	xlsx	Application/Helper/Export/PayrollWorkbook.hs via Main
 Control.Applicative	base	Application/Helper/Xero.hs via Main
 Control.Category	base	Application/StaffDocuments/RsaExtraction.hs via Main
 Control.Concurrent	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
@@ -158,3 +160,4 @@ Text.Blaze.Html5.Attributes	blaze-html	Application/Helper/FrontendContract/Feedb
 Text.Blaze.Internal	blaze-markup	Application/Helper/FrontendContract/AppShell/Runtime.hs via Main
 Text.Printf	base	Web/View/RosterTemplates/Designer.hs via Main
 Text.Read	base	Application/Billing/Stripe.hs via Main
+Text.XML	xml-conduit	Application/Helper/Export/PayrollWorkbook.hs via Main

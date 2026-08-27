@@ -3,7 +3,7 @@ module Test.Controller.FixedExportGoldenSpec where
 import Application.Fixture.PayrollFixtures
 import Application.Helper.Export
 import Application.WageEngine (AwardClassification (..))
-import qualified Codec.Archive.Zip as Zip
+import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
 import Control.Monad (void)
 import qualified Data.ByteString.Base64 as Base64

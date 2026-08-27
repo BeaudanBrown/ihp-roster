@@ -7,7 +7,7 @@ import Application.Helper.Export
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
-import qualified Codec.Archive.Zip as Zip
+import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
@@ -706,6 +706,45 @@ tests = aroundAll withDatabaseTestContext do
                 updatedExportJob.downloadedByUserId `shouldBe` Just (unpackId admin.id)
                 updatedExportJob.downloadedAt `shouldSatisfy` isJust
 
+                auditEvents <- query @AuditEvent |> orderByAsc #createdAt |> fetch
+                map (.eventType) auditEvents `shouldBe` ["export_generated", "export_downloaded"]
+
+        it "persists and downloads a deterministic Payroll Workbook XLSX" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Payroll Workbook Venue"
+                admin <- createUserRecord "payroll-workbook@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+
+                createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+
+                createResponse `responseStatusShouldBe` status302
+                exportJob <- query @ExportJob |> fetchOne
+                exportJob.exportType `shouldBe` exportJobTypeToText PayrollWorkbookXlsx
+                exportJob.status `shouldBe` exportJobStatusToText ExportReady
+                exportJob.fileName `shouldBe` Just "payroll-workbook-2025-01-06-to-2025-01-12.xlsx"
+                exportJob.contentType `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                exportJob.fileEncoding `shouldBe` "base64"
+                exportJob.fileContents `shouldSatisfy` maybe False (not . Text.null)
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DownloadExportJobAction exportJob.id)
+                        [("token", cs (tshow exportJob.downloadToken))]
+
+                response `responseStatusShouldBe` status200
+                lookup hContentType (responseHeaders response) `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll-workbook-2025-01-06-to-2025-01-12.xlsx\""
+                workbookBytes <- responseBody response
+                LBS.take 2 workbookBytes `shouldBe` "PK"
+                Zip.filesInArchive (Zip.toArchive workbookBytes) `shouldContain` ["xl/worksheets/sheet1.xml"]
+
+                updatedExportJob <- fetch exportJob.id
+                updatedExportJob.downloadedByUserId `shouldBe` Just (unpackId admin.id)
+                updatedExportJob.downloadedAt `shouldSatisfy` isJust
                 auditEvents <- query @AuditEvent |> orderByAsc #createdAt |> fetch
                 map (.eventType) auditEvents `shouldBe` ["export_generated", "export_downloaded"]
 

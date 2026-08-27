@@ -79,6 +79,7 @@ import qualified Test.OverlaySpec
 import qualified Test.PageHelpSpec
 import qualified Test.PasskeySpec
 import qualified Test.PayRateSelectionSpec
+import qualified Test.PayrollWorkbookSpec
 import qualified Test.PaySpec
 import qualified Test.ProfileSeedSpec
 import qualified Test.ProfilingSpec
@@ -452,6 +453,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "RosterInteractionWorkflow", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Rostering, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterInteractionWorkflowSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "UsersController", definitionEstimatedRuntimeSeconds = 1.8, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A1, A2, A3, A4, T7], definitionPartialInvariants = []} Test.Controller.UsersSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "ExportsController", definitionEstimatedRuntimeSeconds = 1.9, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A7, P6], definitionPartialInvariants = []} Test.Controller.ExportsSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "PayrollWorkbook", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [P6], definitionPartialInvariants = []} Test.PayrollWorkbookSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "TimesheetsController", definitionEstimatedRuntimeSeconds = 8.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TimesheetsAndLeave, definitionFixtureCost = LargeFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A6, T1, T2, T5, T6], definitionPartialInvariants = []} Test.Controller.TimesheetsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "VenueTime", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.VenueTimeSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PayHelpers", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PaySpec.tests

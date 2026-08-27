@@ -9,6 +9,7 @@ data ExportJobType
     | HourlyBreakdownZip
     | HourlyWageTotalsZip
     | PayrollEarningsCsv
+    | PayrollWorkbookXlsx
     deriving (Eq, Show, Enum, Bounded)
 
 instance InputValue ExportJobType where
@@ -96,7 +97,7 @@ data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
     deriving (Eq, Show)
 
 allExportJobTypeValues :: [Text]
-allExportJobTypeValues = ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv"]
+allExportJobTypeValues = ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv", "payroll_workbook_xlsx"]
 
 allExportJobStatusValues :: [Text]
 allExportJobStatusValues = ["pending", "ready", "expired"]
@@ -108,6 +109,7 @@ exportJobTypeToText StaffPayCsv           = "staff_pay_csv"
 exportJobTypeToText HourlyBreakdownZip    = "hourly_breakdown_zip"
 exportJobTypeToText HourlyWageTotalsZip   = "hourly_wage_totals_zip"
 exportJobTypeToText PayrollEarningsCsv    = "payroll_earnings_csv"
+exportJobTypeToText PayrollWorkbookXlsx   = "payroll_workbook_xlsx"
 
 parseExportJobType :: Text -> Maybe ExportJobType
 parseExportJobType "approved_timesheets_csv" = Just ApprovedTimesheetsCsv
@@ -115,6 +117,7 @@ parseExportJobType "staff_pay_csv"           = Just StaffPayCsv
 parseExportJobType "hourly_breakdown_zip"    = Just HourlyBreakdownZip
 parseExportJobType "hourly_wage_totals_zip"  = Just HourlyWageTotalsZip
 parseExportJobType "payroll_earnings_csv"    = Just PayrollEarningsCsv
+parseExportJobType "payroll_workbook_xlsx"   = Just PayrollWorkbookXlsx
 parseExportJobType _                         = Nothing
 
 exportJobStatusToText :: ExportJobStatus -> Text

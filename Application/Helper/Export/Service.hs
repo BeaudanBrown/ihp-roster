@@ -4,6 +4,7 @@ import Application.Helper.Controller
 import Application.Helper.Export.Definitions
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Payloads
+import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
@@ -36,6 +37,44 @@ requestFixedExport exportType rangeStart rangeEnd
             HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
             HourlyWageTotalsZip -> requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd
             PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
+            PayrollWorkbookXlsx -> requestPayrollWorkbookXlsxExport rangeStart rangeEnd
+
+requestPayrollWorkbookXlsxExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
+    now <- getCurrentTime
+    let exportType = exportJobTypeToText PayrollWorkbookXlsx
+    let fileName = "payroll-workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
+    let workbookContents = renderPayrollWorkbookBase64 (minimalPayrollWorkbook rangeStart rangeEnd)
+    exportJob <-
+        persistReadyExportJob
+            exportType
+            rangeStart
+            rangeEnd
+            (Aeson.object
+                [ "rangeStart" Aeson..= rangeStart
+                , "rangeEnd" Aeson..= rangeEnd
+                , "format" Aeson..= ("xlsx" :: Text)
+                , "workbookVersion" Aeson..= (1 :: Int)
+                , "dataModel" Aeson..= ("foundation" :: Text)
+                ])
+            fileName
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "base64"
+            workbookContents
+            Nothing
+            (addUTCTime exportExpirySeconds now)
+            (Aeson.object
+                [ "exportType" Aeson..= exportType
+                , "rangeStart" Aeson..= rangeStart
+                , "rangeEnd" Aeson..= rangeEnd
+                , "workbookVersion" Aeson..= (1 :: Int)
+                , "deliveryMethod" Aeson..= browserDownloadMethod
+                ])
+    pure (Right exportJob)
 
 requestFixedStaffPayCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

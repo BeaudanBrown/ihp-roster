@@ -11,6 +11,7 @@ download authorization, and controller-facing orchestration.
 - `Service.hs` — controller-facing generation and download boundary.
 - `Types.hs` and `Definitions.hs` — fixed catalog and date/week rules.
 - `ReadModel.hs` and `Payloads.hs` — authoritative export inputs and payloads.
+- `PayrollWorkbook.hs` — typed XLSX cells, formatting, and worksheet primitives.
 - `Render.hs` — CSV/ZIP formatting and output safety.
 - `Persistence.hs` — job lifecycle, authorization, and audit.
 - `Application/Helper/Export.hs` — compatibility facade only.
