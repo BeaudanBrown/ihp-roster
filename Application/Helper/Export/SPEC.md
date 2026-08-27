@@ -35,6 +35,13 @@ cross-module safety and payroll contracts.
   additions spread across their qualifying worked seconds; missed-break
   additions follow the penalised interval. Per-entry rounded cents are allocated
   deterministically and every visible row, column, and daily total reconciles.
+- Payroll Workbook hourly facts group each employee and Operational date by the
+  approval-pinned Award level or imported pay item, not shift type. One outward-
+  rounded range applies to every date; repeated civil hours retain first/second
+  occurrences and skipped hours remain zero. Net worked time plus minimum top-up
+  is allocated over actual worked seconds, Hours reconcile at six decimals, and
+  Wages reconcile exactly to sealed cents. Empty batches or any included-entry
+  authority/timing/wage failure reject the complete workbook.
 - Aggregation retains exact quantities until the format's final transform.
   Published CSV and Xero precision, units, cent rounding, headers, filenames,
   and schema versions are executable contracts in renderers and golden tests.

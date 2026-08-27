@@ -1,6 +1,7 @@
 module Application.Helper.Export.ReadModel where
 
 import Application.Helper.Controller
+import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Pay (payVersionManifestForEntry)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes)
 import Application.WageEngine (AwardClassification (..),
@@ -100,7 +101,15 @@ fetchVersionManifestsForEntries entries =
 -- shift type. Imported assignments take precedence over Award assignments, and
 -- shift overrides take precedence over staff defaults, matching the wage engine.
 fetchApprovedEntryStaffHoursLabels :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID (Maybe Text))
-fetchApprovedEntryStaffHoursLabels entries = do
+fetchApprovedEntryStaffHoursLabels entries =
+    fmap (fmap (fmap (.payrollPayBucketLabel))) (fetchApprovedEntryPayrollPayBucketSelections entries)
+
+fetchApprovedEntryPayrollPayBuckets :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID PayrollWorkbookPayBucket)
+fetchApprovedEntryPayrollPayBuckets entries =
+    fmap (Map.mapMaybe (\selection -> selection)) (fetchApprovedEntryPayrollPayBucketSelections entries)
+
+fetchApprovedEntryPayrollPayBucketSelections :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID (Maybe PayrollWorkbookPayBucket))
+fetchApprovedEntryPayrollPayBucketSelections entries = do
     let staffVersionIds = List.nub (mapMaybe (.staffPayVersionId) entries)
         shiftVersionIds = List.nub (mapMaybe (.shiftTypePayVersionId) entries)
     staffVersions <- if null staffVersionIds then pure [] else query @StaffPayVersion |> filterWhereIn (#id, map Id staffVersionIds) |> fetch
@@ -112,10 +121,10 @@ fetchApprovedEntryStaffHoursLabels entries = do
         importedPayItemIds = List.nub (mapMaybe (snd . snd) selections)
     awardLevels <- if null awardLevelIds then pure [] else query @AwardLevel |> filterWhereIn (#id, map Id awardLevelIds) |> fetch
     importedPayItems <- if null importedPayItemIds then pure [] else query @XeroImportedPayItem |> filterWhereIn (#id, map Id importedPayItemIds) |> fetch
-    let awardLabelsById = Map.fromList [(unpackId level.id, staffHoursAwardLabel level) | level <- awardLevels]
-        importedLabelsById = Map.fromList [(unpackId item.id, item.name) | item <- importedPayItems]
+    let awardsById = Map.fromList [(unpackId level.id, level) | level <- awardLevels]
+        importedById = Map.fromList [(unpackId item.id, item) | item <- importedPayItems]
     pure $ Map.fromList
-        [ (entryId, resolveSelectionLabel awardLabelsById importedLabelsById selection)
+        [ (entryId, resolveSelection awardsById importedById selection)
         | (entryId, selection) <- selections
         ]
   where
@@ -143,10 +152,24 @@ fetchApprovedEntryStaffHoursLabels entries = do
     staffAwardLevelId :: StaffPayVersion -> Maybe UUID
     staffAwardLevelId version = version.defaultAwardLevelId
 
-    resolveSelectionLabel :: Map.Map UUID Text -> Map.Map UUID Text -> (Maybe UUID, Maybe UUID) -> Maybe Text
-    resolveSelectionLabel awardLabelsById importedLabelsById (awardLevelId, importedPayItemId) =
-        (importedPayItemId >>= (`Map.lookup` importedLabelsById))
-            <|> (awardLevelId >>= (`Map.lookup` awardLabelsById))
+    resolveSelection :: Map.Map UUID AwardLevel -> Map.Map UUID XeroImportedPayItem -> (Maybe UUID, Maybe UUID) -> Maybe PayrollWorkbookPayBucket
+    resolveSelection awardsById importedById (awardLevelId, importedPayItemId) =
+        (do
+            itemId <- importedPayItemId
+            item <- Map.lookup itemId importedById
+            pure PayrollWorkbookPayBucket
+                { payrollPayBucketKey = PayrollWorkbookImportedPayItem itemId
+                , payrollPayBucketLabel = item.name
+                }
+        )
+            <|> (do
+                levelId <- awardLevelId
+                level <- Map.lookup levelId awardsById
+                pure PayrollWorkbookPayBucket
+                    { payrollPayBucketKey = PayrollWorkbookAwardLevel levelId
+                    , payrollPayBucketLabel = staffHoursAwardLabel level
+                    }
+            )
 
 staffHoursAwardLabel :: AwardLevel -> Text
 staffHoursAwardLabel awardLevel =

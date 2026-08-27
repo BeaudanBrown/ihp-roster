@@ -66,6 +66,11 @@ data HourlyShiftTypeColumn = HourlyShiftTypeColumn
     }
     deriving (Eq, Show)
 
+data HourlyOccurrence
+    = FirstHourlyOccurrence
+    | SecondHourlyOccurrence
+    deriving (Eq, Ord, Show)
+
 data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
     { staffFirstName           :: !Text
     , staffLastName            :: !Text

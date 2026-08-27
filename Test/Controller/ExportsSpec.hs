@@ -715,6 +715,41 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "payroll-workbook@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
 
+                emptyResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                emptyResponse `responseStatusShouldBe` status302
+                emptyJobs <- query @ExportJob |> fetch
+                emptyJobs `shouldBe` []
+
+                dayNames <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Workbook Level" 30 2.5 3 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Workbook Shift"
+                secondShiftType <- createShiftTypeRecord venue level "Workbook Kitchen"
+                staffUser <- createUserRecord "payroll-workbook-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Pay" "Roll"
+                trialStaff <- createStaffRecord venue Nothing "Trial" "Excluded"
+                snapshot <- createPayrollSnapshot venue admin [level] [shiftType, secondShiftType] dayNames []
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 18 30 0)
+                    , setTestEndTime (TimeOfDay 20 15 0)
+                    ]
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId secondShiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 10 0 0)
+                    ]
+                _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 10 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
+                    ]
+
                 createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
@@ -730,6 +765,13 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.contentType `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.fileContents `shouldSatisfy` maybe False (not . Text.null)
+                exportJob.payConfigVersionManifest `shouldSatisfy` isJust
+                let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"dataModel\":\"hourly_payroll_v1\""
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"entryCount\":2"
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"rowCount\":1"
+                linkedEntries <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId exportJob.id) |> fetch
+                length linkedEntries `shouldBe` 2
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (DownloadExportJobAction exportJob.id)
@@ -747,6 +789,44 @@ tests = aroundAll withDatabaseTestContext do
                 updatedExportJob.downloadedAt `shouldSatisfy` isJust
                 auditEvents <- query @AuditEvent |> orderByAsc #createdAt |> fetch
                 map (.eventType) auditEvents `shouldBe` ["export_generated", "export_downloaded"]
+
+        it "rejects the complete Payroll Workbook when an imported wage source becomes unavailable" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Blocked Payroll Workbook Venue"
+                admin <- createUserRecord "blocked-payroll-workbook@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                dayNames <- seedWeekDayNames venue
+                level <- createPayLevelRecord venue "Fallback Level"
+                importedItem <- createImportedXeroPayItemRecord venue admin "Pinned Workbook Rate" "pinned-workbook-rate" 52
+                shiftType <- createShiftTypeRecord venue level "Imported Workbook Shift"
+                    >>= updateRecord
+                        . set #payAssignmentMode XeroRate
+                        . set #overrideAwardLevelId Nothing
+                        . set #importedXeroPayItemId (Just importedItem.id)
+                staffUser <- createUserRecord "blocked-payroll-workbook-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Source" "Blocked"
+                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
+                    ]
+                _ <- importedItem
+                    |> set #providerAvailable False
+                    |> set #providerUnavailableAt (Just (addUTCTime 60 approvedAt))
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                exportJobs <- query @ExportJob |> fetch
+                exportJobs `shouldBe` []
 
         it "hides persisted recent export jobs from the simplified export surface" $ withContext do
             withCleanDb do
