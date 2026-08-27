@@ -42,6 +42,13 @@ cross-module safety and payroll contracts.
   is allocated over actual worked seconds, Hours reconcile at six decimals, and
   Wages reconcile exactly to sealed cents. Empty batches or any included-entry
   authority/timing/wage failure reject the complete workbook.
+- Payroll Workbook sheets are ordered Summary, Hours by Operational date, then
+  Wages by Operational date. Daily sheets share hour columns, retain hidden
+  staff/pay-bucket keys, and calculate all totals with formulas. Each roster-week
+  Summary has no title or totals and joins Hours sheets by those stable keys.
+  Weekdays use Ord/7-12/12+ buckets; Saturday and Sunday use Ord/12+, with every
+  next-day hour in 12+. Zero values display blank, Hours display six decimals,
+  and Wages remain numeric AUD dollars at two decimals.
 - Aggregation retains exact quantities until the format's final transform.
   Published CSV and Xero precision, units, cent rounding, headers, filenames,
   and schema versions are executable contracts in renderers and golden tests.

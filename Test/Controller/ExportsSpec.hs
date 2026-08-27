@@ -36,6 +36,12 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Types
 
+archiveEntryText :: FilePath -> Zip.Archive -> IO Text
+archiveEntryText path archive =
+    case Zip.findEntryByPath path archive of
+        Nothing -> expectationFailure ("Missing XLSX archive entry: " <> path) >> pure ""
+        Just entry -> pure (decodeUtf8 (LBS.toStrict (Zip.fromEntry entry)))
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
@@ -782,7 +788,14 @@ tests = aroundAll withDatabaseTestContext do
                 lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll-workbook-2025-01-06-to-2025-01-12.xlsx\""
                 workbookBytes <- responseBody response
                 LBS.take 2 workbookBytes `shouldBe` "PK"
-                Zip.filesInArchive (Zip.toArchive workbookBytes) `shouldContain` ["xl/worksheets/sheet1.xml"]
+                let workbookArchive = Zip.toArchive workbookBytes
+                Zip.filesInArchive workbookArchive `shouldContain` ["xl/worksheets/sheet15.xml"]
+                workbookXml <- workbookArchive |> archiveEntryText "xl/workbook.xml"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Summary 2025-01-06"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Wages Sun 2025-01-12"
+                hoursXml <- workbookArchive |> archiveEntryText "xl/worksheets/sheet2.xml"
+                hoursXml `shouldSatisfy` Text.isInfixOf "SUM("
 
                 updatedExportJob <- fetch exportJob.id
                 updatedExportJob.downloadedByUserId `shouldBe` Just (unpackId admin.id)

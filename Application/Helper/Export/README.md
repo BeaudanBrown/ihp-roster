@@ -11,7 +11,7 @@ download authorization, and controller-facing orchestration.
 - `Service.hs` — controller-facing generation and download boundary.
 - `Types.hs` and `Definitions.hs` — fixed catalog and date/week rules.
 - `ReadModel.hs` and `Payloads.hs` — authoritative export inputs and payloads.
-- `PayrollWorkbook.hs` — typed XLSX cells, formatting, and worksheet primitives.
+- `PayrollWorkbook.hs` — locked Summary/Hours/Wages sheet contract, formulas, typed XLSX cells, formatting, and worksheet primitives.
 - `PayrollWorkbookModel.hs` — authoritative Operational-date employee/pay-bucket hourly facts, DST slots, and exact Hours/Wages reconciliation.
 - `Render.hs` — CSV/ZIP formatting and output safety.
 - `Persistence.hs` — job lifecycle, authorization, and audit.

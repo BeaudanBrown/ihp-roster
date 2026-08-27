@@ -8,11 +8,16 @@ module Application.Helper.Export.PayrollWorkbook
     , PayrollWorkbookSheet (..)
     , defaultPayrollWorkbookCellStyle
     , minimalPayrollWorkbook
+    , payrollWorkbookFromHourlyModel
     , payrollWorkbookColor
     , renderPayrollWorkbook
     , renderPayrollWorkbookBase64
     ) where
 
+import Application.Helper.Export.HourlyBreakdown (formatHourlyWindowRange)
+import Application.Helper.Export.PayrollWorkbookModel
+import Application.Helper.Export.Types (HourlyOccurrence (..))
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Codec.Xlsx
 import Codec.Xlsx.Formatted
@@ -23,7 +28,8 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.ControllerPrelude
 import qualified Text.XML as Xml
 
@@ -122,6 +128,281 @@ minimalPayrollWorkbook rangeStart rangeEnd =
     textCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookText value, style }
     numberCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookNumber value, style }
     formulaCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookFormula value, style }
+
+payrollWorkbookFromHourlyModel :: Int -> PayrollWorkbookHourlyModel -> PayrollWorkbook
+payrollWorkbookFromHourlyModel rosterWeekStartsOn model =
+    PayrollWorkbook
+        { sheets = summarySheets <> hoursSheets <> wagesSheets
+        }
+  where
+    summarySheets = map (summarySheet model) (summaryWeekAnchors rosterWeekStartsOn model)
+    hoursSheets = map (dailySheet model DailyHours) model.payrollModelDays
+    wagesSheets = map (dailySheet model DailyWages) model.payrollModelDays
+
+data DailySheetKind = DailyHours | DailyWages
+
+data SummaryBucketKind = SummaryOrdinary | SummaryEvening | SummaryAfterMidnight
+    deriving (Eq)
+
+data SummaryBucket = SummaryBucket
+    { summaryBucketDate  :: !Day
+    , summaryBucketKind  :: !SummaryBucketKind
+    , summaryBucketLabel :: !Text
+    }
+
+summaryWeekAnchors :: Int -> PayrollWorkbookHourlyModel -> [Day]
+summaryWeekAnchors rosterWeekStartsOn model =
+    takeWhile (<= model.payrollModelRangeEnd) (iterate (addDays 7) firstAnchor)
+  where
+    firstAnchor = startOfWeekFor rosterWeekStartsOn model.payrollModelRangeStart
+
+summarySheet :: PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
+summarySheet model weekAnchor =
+    PayrollWorkbookSheet
+        { name = summarySheetName weekAnchor
+        , cells = headerCells <> rowCells
+        , hiddenColumns = [staffIdColumn, payBucketKeyColumn]
+        , tabColor = Just summaryTabColor
+        , autoFilter = Just (PayrollWorkbookFilter 1 1 (max 1 (length rows + 1)) payBucketKeyColumn)
+        , frozenRows = 1
+        , frozenColumns = 2
+        }
+  where
+    buckets = summaryBuckets weekAnchor
+    rows = summaryRowsForWeek model weekAnchor
+    staffIdColumn = 3 + length buckets
+    payBucketKeyColumn = staffIdColumn + 1
+    headerCells =
+        zipWith (\column label -> textCell 1 column label summaryHeaderStyle)
+            [1 ..]
+            ("Employee" : "Pay level / rate" : map (.summaryBucketLabel) buckets <> ["Staff ID", "Pay bucket key"])
+    rowCells = concat
+        [ [ textCell rowNumber 1 (payrollEmployeeName row) defaultPayrollWorkbookCellStyle
+          , textCell rowNumber 2 row.payrollRowPayBucket.payrollPayBucketLabel defaultPayrollWorkbookCellStyle
+          ]
+            <> zipWith
+                (\column bucket -> formulaCell rowNumber column (summaryBucketFormula model rowNumber staffIdColumn payBucketKeyColumn bucket) hoursStyle)
+                [3 ..]
+                buckets
+            <> [ textCell rowNumber staffIdColumn (tshow row.payrollRowStaffId) defaultPayrollWorkbookCellStyle
+               , textCell rowNumber payBucketKeyColumn (payBucketKeyText row.payrollRowPayBucket.payrollPayBucketKey) defaultPayrollWorkbookCellStyle
+               ]
+        | (rowNumber, row) <- zip [2 ..] rows
+        ]
+
+summaryRowsForWeek :: PayrollWorkbookHourlyModel -> Day -> [PayrollWorkbookRow]
+summaryRowsForWeek model weekAnchor =
+    [ row
+    | (_key, row) <- Map.toAscList rowsByKey
+    ]
+  where
+    weekEnd = addDays 6 weekAnchor
+    rowsByKey = Map.fromList
+        [ (payrollRowKey row, row)
+        | day <- model.payrollModelDays
+        , day.payrollDayDate >= weekAnchor
+        , day.payrollDayDate <= weekEnd
+        , row <- day.payrollDayRows
+        ]
+
+summaryBuckets :: Day -> [SummaryBucket]
+summaryBuckets weekAnchor = concatMap bucketsForDate [weekAnchor .. addDays 6 weekAnchor]
+  where
+    bucketsForDate date =
+        [ SummaryBucket date kind (summaryDayName date <> " " <> suffix)
+        | (kind, suffix) <- case formatTime defaultTimeLocale "%u" date :: String of
+            "6" -> [(SummaryOrdinary, "Ord"), (SummaryAfterMidnight, "12+")]
+            "7" -> [(SummaryOrdinary, "Ord"), (SummaryAfterMidnight, "12+")]
+            _   -> [(SummaryOrdinary, "Ord"), (SummaryEvening, "7-12"), (SummaryAfterMidnight, "12+")]
+        ]
+
+summaryBucketFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> SummaryBucket -> Text
+summaryBucketFormula model summaryRow staffIdColumn payBucketKeyColumn bucket
+    | bucket.summaryBucketDate < model.payrollModelRangeStart = "SUM()"
+    | bucket.summaryBucketDate > model.payrollModelRangeEnd = "SUM()"
+    | null matchingColumns = "SUM()"
+    | otherwise = Text.intercalate "+" (map sumIfFormula matchingColumns)
+  where
+    matchingColumns =
+        [ column
+        | (column, slot) <- zip [3 ..] model.payrollModelHourSlots
+        , summarySlotMatches bucket slot
+        ]
+    sourceSheet = quoteSheetName (dailySheetName DailyHours bucket.summaryBucketDate)
+    sourceStaffIdColumn = 4 + length model.payrollModelHourSlots
+    sourcePayBucketKeyColumn = sourceStaffIdColumn + 1
+    sumIfFormula valueColumn =
+        "SUMIFS("
+            <> sourceSheet <> "!" <> columnName valueColumn <> ":" <> columnName valueColumn
+            <> "," <> sourceSheet <> "!$" <> columnName sourceStaffIdColumn <> ":$" <> columnName sourceStaffIdColumn
+            <> ",$" <> columnName staffIdColumn <> tshow summaryRow
+            <> "," <> sourceSheet <> "!$" <> columnName sourcePayBucketKeyColumn <> ":$" <> columnName sourcePayBucketKeyColumn
+            <> ",$" <> columnName payBucketKeyColumn <> tshow summaryRow
+            <> ")"
+
+summarySlotMatches :: SummaryBucket -> PayrollWorkbookHourSlot -> Bool
+summarySlotMatches bucket slot =
+    case bucket.summaryBucketKind of
+        SummaryOrdinary      -> slot.payrollHourOfWindow < ordinaryEnd
+        SummaryEvening       -> slot.payrollHourOfWindow >= 19 && slot.payrollHourOfWindow < 24
+        SummaryAfterMidnight -> slot.payrollHourOfWindow >= 24
+  where
+    isWeekend = formatTime defaultTimeLocale "%u" bucket.summaryBucketDate `elem` (["6", "7"] :: [String])
+    ordinaryEnd = if isWeekend then 24 else 19
+
+summarySheetName :: Day -> Text
+summarySheetName weekAnchor = "Summary " <> tshow weekAnchor
+
+dailySheet :: PayrollWorkbookHourlyModel -> DailySheetKind -> PayrollWorkbookDay -> PayrollWorkbookSheet
+dailySheet model kind day =
+    PayrollWorkbookSheet
+        { name = dailySheetName kind day.payrollDayDate
+        , cells = headerCells <> dataCells <> totalCells
+        , hiddenColumns = [staffIdColumn, payBucketKeyColumn]
+        , tabColor = Just (dailyTabColor kind)
+        , autoFilter = Just (PayrollWorkbookFilter 1 1 (max 1 (length day.payrollDayRows + 1)) payBucketKeyColumn)
+        , frozenRows = 1
+        , frozenColumns = 2
+        }
+  where
+    hourCount = length model.payrollModelHourSlots
+    totalColumn = 3 + hourCount
+    staffIdColumn = totalColumn + 1
+    payBucketKeyColumn = staffIdColumn + 1
+    headerCells =
+        zipWith (\column label -> textCell 1 column label (dailyHeaderStyle kind))
+            [1 ..]
+            ("Employee" : "Pay level / rate" : map (hourSlotLabel model) model.payrollModelHourSlots <> ["Total", "Staff ID", "Pay bucket key"])
+    dataCells = concat
+        [ dailyRowCells kind model totalColumn staffIdColumn payBucketKeyColumn rowNumber row
+        | (rowNumber, row) <- zip [2 ..] day.payrollDayRows
+        ]
+    totalRow = length day.payrollDayRows + 2
+    totalCells =
+        [ textCell totalRow 1 "Total" defaultPayrollWorkbookCellStyle { bold = True }
+        ]
+            <> [ formulaCell totalRow column (columnTotalFormula column (length day.payrollDayRows)) (dailyNumberStyle kind) { bold = True }
+               | column <- [3 .. totalColumn - 1]
+               ]
+            <> [ formulaCell totalRow totalColumn (sumFormula totalRow 3 (totalColumn - 1)) (dailyNumberStyle kind) { bold = True }
+               ]
+
+dailyRowCells :: DailySheetKind -> PayrollWorkbookHourlyModel -> Int -> Int -> Int -> Int -> PayrollWorkbookRow -> [PayrollWorkbookCell]
+dailyRowCells kind model totalColumn staffIdColumn payBucketKeyColumn rowNumber row =
+    [ textCell rowNumber 1 (payrollEmployeeName row) defaultPayrollWorkbookCellStyle
+    , textCell rowNumber 2 row.payrollRowPayBucket.payrollPayBucketLabel defaultPayrollWorkbookCellStyle
+    ]
+        <> zipWith (\column value -> numberCell rowNumber column value (dailyNumberStyle kind)) [3 ..] values
+        <> [ formulaCell rowNumber totalColumn (sumFormula rowNumber 3 (totalColumn - 1)) (dailyNumberStyle kind)
+           , textCell rowNumber staffIdColumn (tshow row.payrollRowStaffId) defaultPayrollWorkbookCellStyle
+           , textCell rowNumber payBucketKeyColumn (payBucketKeyText row.payrollRowPayBucket.payrollPayBucketKey) defaultPayrollWorkbookCellStyle
+           ]
+  where
+    values = case kind of
+        DailyHours -> map fromRational row.payrollRowHours
+        DailyWages -> map (\cents -> fromIntegral cents / 100) row.payrollRowWageCents
+
+columnTotalFormula :: Int -> Int -> Text
+columnTotalFormula column rowCount
+    | rowCount <= 0 = "SUM()"
+    | otherwise = "SUM(" <> columnName column <> "2:" <> columnName column <> tshow (rowCount + 1) <> ")"
+
+sumFormula :: Int -> Int -> Int -> Text
+sumFormula rowNumber firstColumn lastColumn =
+    "SUM(" <> columnName firstColumn <> tshow rowNumber <> ":" <> columnName lastColumn <> tshow rowNumber <> ")"
+
+hourSlotLabel :: PayrollWorkbookHourlyModel -> PayrollWorkbookHourSlot -> Text
+hourSlotLabel model slot =
+    formatHourlyWindowRange slot.payrollHourOfWindow <> occurrenceSuffix
+  where
+    repeated = any (\candidate -> candidate.payrollHourOfWindow == slot.payrollHourOfWindow && candidate.payrollHourOccurrence == SecondHourlyOccurrence) model.payrollModelHourSlots
+    occurrenceSuffix
+        | not repeated = ""
+        | slot.payrollHourOccurrence == FirstHourlyOccurrence = " (first)"
+        | otherwise = " (second)"
+
+dailySheetName :: DailySheetKind -> Day -> Text
+dailySheetName kind date =
+    kindLabel <> " " <> shortDayName date <> " " <> tshow date
+  where
+    kindLabel = case kind of
+        DailyHours -> "Hours"
+        DailyWages -> "Wages"
+
+shortDayName :: Day -> Text
+shortDayName = Text.pack . formatTime defaultTimeLocale "%a"
+
+summaryDayName :: Day -> Text
+summaryDayName date =
+    case formatTime defaultTimeLocale "%u" date :: String of
+        "2" -> "Tues"
+        "4" -> "Thurs"
+        _   -> shortDayName date
+
+payrollEmployeeName :: PayrollWorkbookRow -> Text
+payrollEmployeeName row = row.payrollRowStaffLastName <> ", " <> row.payrollRowStaffFirstName
+
+payrollRowKey :: PayrollWorkbookRow -> (Text, Text, UUID, PayrollWorkbookPayBucketKey)
+payrollRowKey row =
+    ( row.payrollRowStaffLastName
+    , row.payrollRowStaffFirstName
+    , row.payrollRowStaffId
+    , row.payrollRowPayBucket.payrollPayBucketKey
+    )
+
+payBucketKeyText :: PayrollWorkbookPayBucketKey -> Text
+payBucketKeyText = \case
+    PayrollWorkbookAwardLevel identifier -> "award_level:" <> tshow identifier
+    PayrollWorkbookImportedPayItem identifier -> "imported_pay_item:" <> tshow identifier
+
+quoteSheetName :: Text -> Text
+quoteSheetName name = "'" <> Text.replace "'" "''" name <> "'"
+
+columnName :: Int -> Text
+columnName column
+    | column <= 0 = ""
+    | otherwise = columnName quotient <> Text.singleton (Char.chr (Char.ord 'A' + remainder))
+  where
+    (quotient, remainder) = (column - 1) `divMod` 26
+
+textCell :: Int -> Int -> Text -> PayrollWorkbookCellStyle -> PayrollWorkbookCell
+textCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookText value, style }
+
+numberCell :: Int -> Int -> Double -> PayrollWorkbookCellStyle -> PayrollWorkbookCell
+numberCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookNumber value, style }
+
+formulaCell :: Int -> Int -> Text -> PayrollWorkbookCellStyle -> PayrollWorkbookCell
+formulaCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookFormula value, style }
+
+summaryHeaderStyle :: PayrollWorkbookCellStyle
+summaryHeaderStyle = defaultPayrollWorkbookCellStyle { bold = True, fillColor = Just summaryHeaderColor }
+
+dailyHeaderStyle :: DailySheetKind -> PayrollWorkbookCellStyle
+dailyHeaderStyle kind = defaultPayrollWorkbookCellStyle { bold = True, fillColor = Just (dailyHeaderColor kind) }
+
+hoursStyle :: PayrollWorkbookCellStyle
+hoursStyle = defaultPayrollWorkbookCellStyle { numberFormat = Just "0.000000;-0.000000;;" }
+
+dailyNumberStyle :: DailySheetKind -> PayrollWorkbookCellStyle
+dailyNumberStyle DailyHours = hoursStyle
+dailyNumberStyle DailyWages = defaultPayrollWorkbookCellStyle { numberFormat = Just "$#,##0.00;[Red]-$#,##0.00;;" }
+
+summaryTabColor :: PayrollWorkbookColor
+summaryTabColor = color "FFC000"
+
+summaryHeaderColor :: PayrollWorkbookColor
+summaryHeaderColor = color "FFF2CC"
+
+dailyTabColor :: DailySheetKind -> PayrollWorkbookColor
+dailyTabColor DailyHours = color "4472C4"
+dailyTabColor DailyWages = color "70AD47"
+
+dailyHeaderColor :: DailySheetKind -> PayrollWorkbookColor
+dailyHeaderColor DailyHours = color "D9EAF7"
+dailyHeaderColor DailyWages = color "E2F0D9"
+
+color :: Text -> PayrollWorkbookColor
+color value = either (error . cs) id (payrollWorkbookColor value)
 
 renderPayrollWorkbookBase64 :: PayrollWorkbook -> Text
 renderPayrollWorkbookBase64 = decodeUtf8 . Base64.encode . LBS.toStrict . renderPayrollWorkbook

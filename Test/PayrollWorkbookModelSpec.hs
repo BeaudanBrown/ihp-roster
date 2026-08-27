@@ -1,11 +1,13 @@
 module Test.PayrollWorkbookModelSpec where
 
+import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Types
 import Application.WageEngine
 import qualified Application.WageEngine as WageEngine
 import qualified Data.Map.Strict as Map
 import Data.Ratio ((%))
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Generated.Types
@@ -101,6 +103,23 @@ tests =
             valueAt spring springRow 26 FirstHourlyOccurrence `shouldBe` 0
             valueAt spring springRow 26 SecondHourlyOccurrence `shouldBe` 0
             sum springRow.payrollRowHours `shouldBe` 3
+
+            let autumnWorkbook = payrollWorkbookFromHourlyModel 1 autumn
+            let autumnHoursSheet = autumnWorkbook.sheets !! 1
+            let autumnSummary = fromMaybe (error "expected rendered autumn Summary sheet") (head autumnWorkbook.sheets)
+            let repeatedHeaders =
+                    [ value
+                    | PayrollWorkbookCell { value = PayrollWorkbookText value } <- autumnHoursSheet.cells
+                    , Text.isInfixOf "02:00-03:00+1" value
+                    ]
+            repeatedHeaders `shouldBe` ["02:00-03:00+1 (first)", "02:00-03:00+1 (second)"]
+            let repeatedSummaryFormulas =
+                    [ formula
+                    | PayrollWorkbookCell { value = PayrollWorkbookFormula formula } <- autumnSummary.cells
+                    , Text.isInfixOf "Hours Sat 2026-04-04" formula
+                    , Text.isInfixOf "+" formula
+                    ]
+            repeatedSummaryFormulas `shouldSatisfy` (not . null)
 
         it "fails empty requests and missing payroll authority clearly" do
             buildPayrollWorkbookHourlyModel

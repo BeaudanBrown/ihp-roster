@@ -173,6 +173,27 @@ tests = aroundAll withDatabaseTestContext do
                 secondStaffHours.fileContents `shouldBe` firstStaffHours.fileContents
                 secondWageTotals.fileContents `shouldBe` firstWageTotals.fileContents
 
+        it "renders the canonical Payroll Workbook deterministically through the fixed export lifecycle" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                firstWorkbook <- generatePayrollExportJob fixture.admin fixture.venue PayrollWorkbookXlsx
+                secondWorkbook <- generatePayrollExportJob fixture.admin fixture.venue PayrollWorkbookXlsx
+
+                firstWorkbook.id `shouldNotBe` secondWorkbook.id
+                firstWorkbook.fileContents `shouldBe` secondWorkbook.fileContents
+                let workbookBytes =
+                        firstWorkbook.fileContents
+                            |> fromMaybe (error "expected Payroll Workbook bytes")
+                            |> encodeUtf8
+                            |> Base64.decodeLenient
+                            |> LBS.fromStrict
+                let archive = Zip.toArchive workbookBytes
+                Zip.filesInArchive archive `shouldContain` ["xl/worksheets/sheet15.xml"]
+                let workbookXml = extractArchiveText "xl/workbook.xml" archive
+                workbookXml `shouldSatisfy` Text.isInfixOf "Summary 2025-01-07"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Hours Tue 2025-01-07"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Wages Mon 2025-01-13"
+
         it "keeps repeated CSV and ZIP jobs distinct with deterministic contents" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
@@ -567,6 +588,13 @@ extractZipTextFile filePath exportJob =
                 |> Zip.findEntryByPath filePath
                 |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                 |> fromMaybe (error ("Missing export ZIP file: " <> cs filePath))
+
+extractArchiveText :: FilePath -> Zip.Archive -> Text
+extractArchiveText filePath archive =
+    archive
+        |> Zip.findEntryByPath filePath
+        |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
+        |> fromMaybe (error ("Missing workbook archive file: " <> cs filePath))
 
 readExportFixtureText :: FilePath -> IO Text
 readExportFixtureText fixtureName =
