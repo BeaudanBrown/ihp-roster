@@ -32,7 +32,7 @@ tests = do
             let secondRender = renderPayrollWorkbook workbook
             firstRender `shouldBe` secondRender
             show (hashlazy firstRender :: Digest SHA256)
-                `shouldBe` "36faa7a22e81c63a26546fe5eda735e2c1eb0f16b8c15ce0af6c8f8b8044a784"
+                `shouldBe` "7c7e2494576bded7741bafb96703759148824590448cc635438fae1f57ed6ffa"
             LBS.take 2 firstRender `shouldBe` "PK"
             Xlsx.toXlsxEither firstRender `shouldSatisfy` isRight
 
@@ -102,6 +102,10 @@ tests = do
                 textValues firstSummary `shouldSatisfy` (header `elem`)
             textValues firstSummary `shouldNotContain` ["Total"]
             firstSummary.hiddenColumns `shouldBe` [22, 23]
+            firstSummary.columnWidths `shouldBe` [(1, 24), (2, 18)] <> [(column, 13) | column <- [3 .. 21]]
+            firstSummary.autoFilter `shouldBe` Nothing
+            firstSummary.frozenRows `shouldBe` 0
+            firstSummary.frozenColumns `shouldBe` 0
             formulaValues firstSummary `shouldContain`
                 [ "SUMIFS('Hours Mon 2025-01-06'!C:C,'Hours Mon 2025-01-06'!$G:$G,$V2,'Hours Mon 2025-01-06'!$H:$H,$W2)"
                 , "SUMIFS('Hours Mon 2025-01-06'!D:D,'Hours Mon 2025-01-06'!$G:$G,$V2,'Hours Mon 2025-01-06'!$H:$H,$W2)"
@@ -110,20 +114,25 @@ tests = do
 
             let firstHours = workbook.sheets !! 2
             firstHours.hiddenColumns `shouldBe` [7, 8]
-            firstHours.frozenRows `shouldBe` 1
-            firstHours.frozenColumns `shouldBe` 2
-            firstHours.autoFilter `shouldBe` Just (PayrollWorkbookFilter 1 1 2 8)
+            firstHours.columnWidths `shouldBe` [(1, 24), (2, 18), (3, 22), (4, 22), (5, 22), (6, 14)]
+            firstHours.frozenRows `shouldBe` 0
+            firstHours.frozenColumns `shouldBe` 0
+            firstHours.autoFilter `shouldBe` Nothing
             forM_ ["SUM(C2:E2)", "SUM(C2:C2)", "SUM(C3:E3)"] \formula ->
                 formulaValues firstHours `shouldSatisfy` (formula `elem`)
             numberAt 2 3 firstHours `shouldBe` Just (0, "0.000000;-0.000000;;")
 
             let firstWages = workbook.sheets !! 11
+            firstWages.columnWidths `shouldBe` firstHours.columnWidths
+            firstWages.autoFilter `shouldBe` Nothing
+            firstWages.frozenRows `shouldBe` 0
+            firstWages.frozenColumns `shouldBe` 0
             numberAt 2 4 firstWages `shouldBe` Just (12.34, "$#,##0.00;[Red]-$#,##0.00;;")
 
             let rendered = renderPayrollWorkbook workbook
             rendered `shouldBe` renderPayrollWorkbook workbook
             show (hashlazy rendered :: Digest SHA256)
-                `shouldBe` "f2c25118dfb64c12e848f6b68ff4e666b95d1418374d062451f5edfa8c41df99"
+                `shouldBe` "21f5889aeb24a3e8d04e5b93ad6498b1fca855deb7ba8933c3c8f4f8b8d3c581"
             Xlsx.toXlsxEither rendered `shouldSatisfy` isRight
             let archive = Zip.toArchive rendered
             summaryXml <- archiveText "xl/worksheets/sheet1.xml" archive
@@ -135,7 +144,13 @@ tests = do
             wagesXml `shouldSatisfy` Text.isInfixOf "<tabColor rgb=\"FF70AD47\"/>"
             summaryXml `shouldSatisfy` Text.isInfixOf "SUMIFS"
             summaryXml `shouldSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
+            summaryXml `shouldNotSatisfy` Text.isInfixOf "<autoFilter"
+            summaryXml `shouldNotSatisfy` Text.isInfixOf "state=\"frozen\""
+            summaryXml `shouldSatisfy` Text.isInfixOf "width=\"24"
             hoursXml `shouldSatisfy` Text.isInfixOf "<f>SUM(C2:E2)</f>"
+            hoursXml `shouldNotSatisfy` Text.isInfixOf "<autoFilter"
+            hoursXml `shouldNotSatisfy` Text.isInfixOf "state=\"frozen\""
+            hoursXml `shouldSatisfy` Text.isInfixOf "width=\"22"
             hoursXml `shouldNotSatisfy` Text.isInfixOf "<f>SUM(C2:E2)</f><v>"
             stylesXml `shouldSatisfy` Text.isInfixOf "FFFFF2CC"
             stylesXml `shouldSatisfy` Text.isInfixOf "FFD9EAF7"

@@ -68,6 +68,7 @@ data PayrollWorkbookFilter = PayrollWorkbookFilter
 data PayrollWorkbookSheet = PayrollWorkbookSheet
     { name          :: !Text
     , cells         :: ![PayrollWorkbookCell]
+    , columnWidths  :: ![(Int, Double)]
     , hiddenColumns :: ![Int]
     , tabColor      :: !(Maybe PayrollWorkbookColor)
     , autoFilter    :: !(Maybe PayrollWorkbookFilter)
@@ -111,6 +112,7 @@ minimalPayrollWorkbook rangeStart rangeEnd =
                     , numberCell 2 2 1 defaultPayrollWorkbookCellStyle { numberFormat = Just "0.00" }
                     , formulaCell 3 2 "SUM(B2:B2)" defaultPayrollWorkbookCellStyle { bold = True, numberFormat = Just "0.00" }
                     ]
+                , columnWidths = [(1, 24), (2, 14)]
                 , hiddenColumns = [3]
                 , tabColor = either (const Nothing) Just (payrollWorkbookColor "4472C4")
                 , autoFilter = Just PayrollWorkbookFilter { firstRow = 1, firstColumn = 1, lastRow = 2, lastColumn = 3 }
@@ -161,11 +163,12 @@ summarySheet model weekAnchor =
     PayrollWorkbookSheet
         { name = summarySheetName weekAnchor
         , cells = headerCells <> rowCells
+        , columnWidths = [(1, 24), (2, 18)] <> [(column, 13) | column <- [3 .. staffIdColumn - 1]]
         , hiddenColumns = [staffIdColumn, payBucketKeyColumn]
         , tabColor = Just summaryTabColor
-        , autoFilter = Just (PayrollWorkbookFilter 1 1 (max 1 (length rows + 1)) payBucketKeyColumn)
-        , frozenRows = 1
-        , frozenColumns = 2
+        , autoFilter = Nothing
+        , frozenRows = 0
+        , frozenColumns = 0
         }
   where
     buckets = summaryBuckets weekAnchor
@@ -258,11 +261,12 @@ dailySheet model kind day =
     PayrollWorkbookSheet
         { name = dailySheetName kind day.payrollDayDate
         , cells = headerCells <> dataCells <> totalCells
+        , columnWidths = [(1, 24), (2, 18)] <> [(column, 22) | column <- [3 .. totalColumn - 1]] <> [(totalColumn, 14)]
         , hiddenColumns = [staffIdColumn, payBucketKeyColumn]
         , tabColor = Just (dailyTabColor kind)
-        , autoFilter = Just (PayrollWorkbookFilter 1 1 (max 1 (length day.payrollDayRows + 1)) payBucketKeyColumn)
-        , frozenRows = 1
-        , frozenColumns = 2
+        , autoFilter = Nothing
+        , frozenRows = 0
+        , frozenColumns = 0
         }
   where
     hourCount = length model.payrollModelHourSlots
@@ -470,13 +474,23 @@ renderFill (PayrollWorkbookColor argb) =
 worksheetFrom :: PayrollWorkbookSheet -> Formatted -> Worksheet
 worksheetFrom sheet formattedSheet =
     def
-        { _wsColumnsProperties = map hiddenColumn sheet.hiddenColumns
+        { _wsColumnsProperties = map renderColumnWidth sheet.columnWidths <> map hiddenColumn sheet.hiddenColumns
         , _wsCells = formattedCellMap formattedSheet
         , _wsMerges = formattedMerges formattedSheet
         , _wsSheetViews = freezeSheetViews sheet.frozenRows sheet.frozenColumns
         , _wsAutoFilter = renderAutoFilter <$> sheet.autoFilter
         }
   where
+    renderColumnWidth (column, width) =
+        ColumnsProperties
+            { cpMin = column
+            , cpMax = column
+            , cpWidth = Just width
+            , cpStyle = Nothing
+            , cpHidden = False
+            , cpCollapsed = False
+            , cpBestFit = False
+            }
     hiddenColumn column =
         ColumnsProperties
             { cpMin = column
