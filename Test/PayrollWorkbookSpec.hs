@@ -5,6 +5,7 @@ import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Types
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import qualified Codec.Xlsx as Xlsx
+import Control.Exception (bracket)
 import "crypton" Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isRight)
@@ -13,6 +14,13 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.Time.Calendar (fromGregorian)
 import qualified Data.UUID as UUID
 import IHP.Prelude
+import System.Directory (createDirectoryIfMissing, getTemporaryDirectory,
+                         removeFile)
+import System.Environment (lookupEnv)
+import System.Exit (ExitCode (..))
+import System.FilePath (takeDirectory)
+import System.IO (hClose, hIsClosed, openBinaryTempFile)
+import System.Process (readProcessWithExitCode)
 import Test.Hspec
 
 tests :: Spec
@@ -151,6 +159,74 @@ tests = do
             let partialSummary = fromMaybe (error "expected partial Summary sheet") (head partialWorkbook.sheets)
             take 3 (formulaValues partialSummary) `shouldBe` replicate 3 "SUM()"
 
+            let fullWeekEnd = fromGregorian 2025 1 12
+            let fullWeekModel = PayrollWorkbookHourlyModel rangeStart fullWeekEnd (HourlyReportWindow 18 25) slots
+                    [PayrollWorkbookDay date (if date == rangeStart then [row] else []) | date <- [rangeStart .. fullWeekEnd]]
+            let fullWeekWorkbook = payrollWorkbookFromHourlyModel 1 fullWeekModel
+            length fullWeekWorkbook.sheets `shouldBe` 15
+            map (.name) (take 2 fullWeekWorkbook.sheets)
+                `shouldBe` ["Summary 2025-01-06", "Hours Mon 2025-01-06"]
+            let emptyHoursDay = fullWeekWorkbook.sheets !! 2
+            formulaValues emptyHoursDay `shouldBe` ["SUM()", "SUM()", "SUM()", "SUM(C2:E2)"]
+
+            let fortnightEnd = fromGregorian 2025 1 19
+            let fortnightModel = PayrollWorkbookHourlyModel rangeStart fortnightEnd (HourlyReportWindow 18 25) slots
+                    [PayrollWorkbookDay date (if date `elem` [rangeStart, fortnightEnd] then [row] else []) | date <- [rangeStart .. fortnightEnd]]
+            let fortnightWorkbook = payrollWorkbookFromHourlyModel 1 fortnightModel
+            length fortnightWorkbook.sheets `shouldBe` 30
+            map (.name) (take 2 fortnightWorkbook.sheets)
+                `shouldBe` ["Summary 2025-01-06", "Summary 2025-01-13"]
+            last (map (.name) fortnightWorkbook.sheets) `shouldBe` "Wages Sun 2025-01-19"
+
+        it "recalculates daily and accountant Summary formulas with LibreOffice Calc" do
+            let rangeStart = fromGregorian 2025 1 12
+            let rangeEnd = fromGregorian 2025 1 13
+            let slots = map (`PayrollWorkbookHourSlot` FirstHourlyOccurrence) [18, 19, 24, 25]
+            let firstBucket = workbookRowWith
+                    "10000000-0000-0000-0000-000000000001"
+                    "20000000-0000-0000-0000-000000000001"
+                    "LVL 3"
+            let secondBucket = workbookRowWith
+                    "10000000-0000-0000-0000-000000000001"
+                    "20000000-0000-0000-0000-000000000002"
+                    "LVL 4"
+            let model = PayrollWorkbookHourlyModel rangeStart rangeEnd (HourlyReportWindow 18 26) slots
+                    [ PayrollWorkbookDay rangeStart
+                        [ firstBucket [1, 2, 3, 4] [100, 200, 300, 400]
+                        , secondBucket [5, 6, 7, 8] [500, 600, 700, 800]
+                        ]
+                    , PayrollWorkbookDay rangeEnd
+                        [firstBucket [0.5, 1.25, 2.25, 0] [50, 125, 225, 0]]
+                    ]
+            let expectedFormulaValues =
+                    [ "Summary 2025-01-06\tT2\t3"
+                    , "Summary 2025-01-06\tU2\t7"
+                    , "Summary 2025-01-06\tT3\t11"
+                    , "Summary 2025-01-06\tU3\t15"
+                    , "Summary 2025-01-13\tC2\t0.5"
+                    , "Summary 2025-01-13\tD2\t1.25"
+                    , "Summary 2025-01-13\tE2\t2.25"
+                    , "Hours Sun 2025-01-12\tG2\t10"
+                    , "Hours Sun 2025-01-12\tG3\t26"
+                    , "Hours Sun 2025-01-12\tG4\t36"
+                    , "Wages Sun 2025-01-12\tC4\t6"
+                    , "Wages Sun 2025-01-12\tD4\t8"
+                    , "Wages Sun 2025-01-12\tE4\t10"
+                    , "Wages Sun 2025-01-12\tF4\t12"
+                    , "Wages Sun 2025-01-12\tG4\t36"
+                    , "Hours Mon 2025-01-13\tG2\t4"
+                    , "Hours Mon 2025-01-13\tG3\t4"
+                    , "Wages Mon 2025-01-13\tG2\t4"
+                    , "Wages Mon 2025-01-13\tG3\t4"
+                    ]
+
+            let workbookBytes = renderPayrollWorkbook (payrollWorkbookFromHourlyModel 1 model)
+            maybeArtifactPath <- lookupEnv "PAYROLL_WORKBOOK_COMPATIBILITY_ARTIFACT"
+            forM_ maybeArtifactPath \artifactPath -> do
+                createDirectoryIfMissing True (takeDirectory artifactPath)
+                LBS.writeFile artifactPath workbookBytes
+            assertLibreOfficeFormulaValues workbookBytes expectedFormulaValues
+
         it "names repeated DST hour columns explicitly on both daily sheet families" do
             let day = fromGregorian 2026 4 4
             let slots =
@@ -171,19 +247,48 @@ tests = do
                 )
 
 workbookRow :: [Rational] -> [Integer] -> PayrollWorkbookRow
-workbookRow hours wages =
+workbookRow = workbookRowWith
+    "10000000-0000-0000-0000-000000000001"
+    "20000000-0000-0000-0000-000000000001"
+    "LVL 3"
+
+workbookRowWith :: Text -> Text -> Text -> [Rational] -> [Integer] -> PayrollWorkbookRow
+workbookRowWith staffId payBucketId payBucketLabel hours wages =
     PayrollWorkbookRow
-        { payrollRowStaffId = uuid "10000000-0000-0000-0000-000000000001"
+        { payrollRowStaffId = uuid staffId
         , payrollRowStaffFirstName = "Ada"
         , payrollRowStaffLastName = "Lovelace"
         , payrollRowPayBucket =
             PayrollWorkbookPayBucket
-                (PayrollWorkbookAwardLevel (uuid "20000000-0000-0000-0000-000000000001"))
-                "LVL 3"
+                (PayrollWorkbookAwardLevel (uuid payBucketId))
+                payBucketLabel
         , payrollRowHours = hours
         , payrollRowWageCents = wages
         , payrollRowEntryCount = 1
         }
+
+assertLibreOfficeFormulaValues :: LBS.ByteString -> [String] -> IO ()
+assertLibreOfficeFormulaValues workbookBytes expectedFormulaValues = do
+    temporaryDirectory <- getTemporaryDirectory
+    bracket
+        (openBinaryTempFile temporaryDirectory "bepis-payroll-workbook.xlsx")
+        (\(workbookPath, workbookHandle) -> do
+            handleClosed <- hIsClosed workbookHandle
+            unless handleClosed (hClose workbookHandle)
+            removeFile workbookPath
+        )
+        (\(workbookPath, workbookHandle) -> do
+            LBS.hPut workbookHandle workbookBytes
+            hClose workbookHandle
+            (exitCode, standardOutput, standardError) <-
+                readProcessWithExitCode
+                    "timeout"
+                    (["--kill-after=5s", "40s", "python3", "Config/nix/scripts/payroll-workbook/libreoffice-recalculate.py", workbookPath] <> expectedFormulaValues)
+                    ""
+            case exitCode of
+                ExitSuccess -> standardOutput `shouldContain` "LibreOffice formula reconciliation passed"
+                ExitFailure _ -> expectationFailure (standardOutput <> standardError)
+        )
 
 uuid :: Text -> UUID
 uuid value = fromMaybe (error "invalid test UUID") (UUID.fromText value)

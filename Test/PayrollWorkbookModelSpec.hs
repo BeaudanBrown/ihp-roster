@@ -56,17 +56,17 @@ tests =
             centsAt model row 9 FirstHourlyOccurrence `shouldBe` 4000
             centsAt model row 10 FirstHourlyOccurrence `shouldBe` 5000
 
-        it "owns final-day overnight work by Operational date and emits identical columns for empty dates" do
-            let rangeStart = fromGregorian 2025 1 6
-            let rangeEnd = fromGregorian 2025 1 15
+        it "owns Monday final-day overnight work by Operational date and emits identical columns for empty dates" do
+            let rangeStart = fromGregorian 2025 1 7
+            let rangeEnd = fromGregorian 2025 1 13
             let staff = testStaff testStaffId "Grace" "Hopper"
             let narrowVenueConfig =
                     testVenueConfig
                         |> set #timePickerStartMinuteOfDay (9 * 60 + 15)
                         |> set #timePickerFinalSelectableMinuteOfDay (17 * 60 + 15)
             let bucket = PayrollWorkbookPayBucket (PayrollWorkbookAwardLevel payLevelId) "LVL 2"
-            let entry = testEntry firstEntryId testStaffId firstShiftTypeId rangeEnd (testUtc 2025 1 15 12) (testUtc 2025 1 15 16)
-            let segment = paidSegment Worked rangeEnd (testUtc 2025 1 15 12) (testUtc 2025 1 15 16)
+            let entry = testEntry firstEntryId testStaffId firstShiftTypeId rangeEnd (testUtc 2025 1 13 12) (testUtc 2025 1 13 16)
+            let segment = paidSegment Worked rangeEnd (testUtc 2025 1 13 12) (testUtc 2025 1 13 16)
             model <- buildPayrollWorkbookHourlyModel
                     rangeStart
                     rangeEnd
@@ -79,7 +79,7 @@ tests =
 
             model.payrollModelWindow `shouldBe` HourlyReportWindow 9 27
             map (.payrollDayDate) model.payrollModelDays `shouldBe` [rangeStart .. rangeEnd]
-            map (length . (.payrollDayRows)) model.payrollModelDays `shouldBe` replicate 9 0 <> [1]
+            map (length . (.payrollDayRows)) model.payrollModelDays `shouldBe` replicate 6 0 <> [1]
             let finalDay = fromMaybe (error "expected final payroll day") (last model.payrollModelDays)
             let finalRow = fromMaybe (error "expected final payroll row") (head finalDay.payrollDayRows)
             sum finalRow.payrollRowHours `shouldBe` 4
@@ -162,6 +162,19 @@ tests =
             let negativeComponent = baseComponent { WageEngine.amount = -1 }
             let unreconciledCalculation = calculation firstEntryId day [validSegment] [negativeComponent]
             buildPayrollWorkbookHourlyModel day day testVenueConfig [entry] staffMap bucketMap (Map.singleton firstEntryId unreconciledCalculation)
+                `shouldBe` Left ("Payroll Workbook hourly wages do not reconcile to sealed earnings: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
+
+            let secondEntry = testEntry secondEntryId testStaffId secondShiftTypeId day (testUtc 2025 1 5 23) (testUtc 2025 1 6 0)
+            let secondSegment = paidSegment Worked day secondEntry.startsAt secondEntry.endsAt
+            let secondCalculation = calculation secondEntryId day [secondSegment] [hourlyComponent secondSegment 3000]
+            buildPayrollWorkbookHourlyModel
+                day
+                day
+                testVenueConfig
+                [secondEntry, entry]
+                staffMap
+                (Map.fromList [(secondEntryId, bucket), (firstEntryId, bucket)])
+                (Map.fromList [(secondEntryId, secondCalculation), (firstEntryId, unreconciledCalculation)])
                 `shouldBe` Left ("Payroll Workbook hourly wages do not reconcile to sealed earnings: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
 
 expectRight :: (HasCallStack, Show left) => Either left right -> IO right
