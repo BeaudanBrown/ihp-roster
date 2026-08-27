@@ -408,7 +408,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportsResponse `responseBodyShouldContain` "Export week navigation"
                 exportsResponse `responseBodyShouldContain` "anchorDate="
                 exportsResponse `responseBodyShouldNotContain` "weekOffset="
-                exportsResponse `responseBodyShouldContain` "Recent Exports"
+                exportsResponse `responseBodyShouldNotContain` "Recent Exports"
                 exportsResponse `responseBodyShouldNotContain` "Approved Timesheets CSV"
                 exportsResponse `responseBodyShouldNotContain` "Staff Hours CSV"
                 exportsResponse `responseBodyShouldNotContain` "Hourly Breakdown ZIP"

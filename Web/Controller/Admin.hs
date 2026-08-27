@@ -237,7 +237,6 @@ instance Controller AdminController where
             let maybeExportAnchorDate = paramOrNothing @Day "anchorDate"
             exportWeekSelection <- profileActionSpan "admin.page.export_week_selection" $
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeExportAnchorDate
-            exportJobs <- profileActionSpan "admin.page.fetch_recent_exports" fetchRecentExportJobs
             let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
             currentTime <- getCurrentTime
             let today = utctDay currentTime
@@ -499,9 +498,7 @@ instance Controller AdminController where
             let maybeAnchorDate = paramOrNothing @Day "anchorDate"
             exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeAnchorDate
-            exportJobs <- profileActionSpan "admin.exports_fragment.fetch_recent_exports" fetchRecentExportJobs
-            currentTime <- getCurrentTime
-            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection exportJobs currentTime))
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do

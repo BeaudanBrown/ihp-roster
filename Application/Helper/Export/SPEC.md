@@ -11,9 +11,10 @@ cross-module safety and payroll contracts.
 - Every format uses the shared `export_jobs` persistence, expiry, authorization,
   download, and audit lifecycle. Controllers must not hand-roll export endpoints.
 - The fixed backend catalog is defined in `Types.hs`; the current UI exposes
-  Payroll Workbook and Payroll Earnings CSV for one URL-selected roster week,
-  plus recent venue export history. Legacy Staff Hours/hourly generators remain
-  callable and their historical jobs downloadable, but have no visible generation controls.
+  Payroll Workbook and Payroll Earnings CSV for one URL-selected roster week.
+  Export history is not shown. Legacy Staff Hours/hourly generators remain callable
+  and historical jobs remain downloadable through their authorized direct links,
+  but have no visible generation controls.
   Legacy report-definition tables are not runtime authority.
 - A generation failure or empty Staff Hours result does not persist a misleading
   export. ZIP bytes are base64 only at the text-backed persistence boundary.

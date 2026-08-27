@@ -15,14 +15,6 @@ import Data.Time.Calendar (Day, addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
-fetchRecentExportJobs :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ExportJob]
-fetchRecentExportJobs =
-    query @ExportJob
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> orderByDesc #createdAt
-        |> limit 20
-        |> fetch
-
 fetchCurrentVenueActiveShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueActiveShiftTypes =
     fetchActiveVenueShiftTypes currentVenueId

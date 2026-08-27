@@ -379,10 +379,10 @@ formulaCell :: Int -> Int -> Text -> PayrollWorkbookCellStyle -> PayrollWorkbook
 formulaCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookFormula value, style }
 
 summaryHeaderStyle :: PayrollWorkbookCellStyle
-summaryHeaderStyle = defaultPayrollWorkbookCellStyle { bold = True, fillColor = Just summaryHeaderColor }
+summaryHeaderStyle = defaultPayrollWorkbookCellStyle { bold = True }
 
 dailyHeaderStyle :: DailySheetKind -> PayrollWorkbookCellStyle
-dailyHeaderStyle kind = defaultPayrollWorkbookCellStyle { bold = True, fillColor = Just (dailyHeaderColor kind) }
+dailyHeaderStyle _ = defaultPayrollWorkbookCellStyle { bold = True }
 
 hoursStyle :: PayrollWorkbookCellStyle
 hoursStyle = defaultPayrollWorkbookCellStyle { numberFormat = Just "0.000000;-0.000000;;" }
@@ -394,16 +394,9 @@ dailyNumberStyle DailyWages = defaultPayrollWorkbookCellStyle { numberFormat = J
 summaryTabColor :: PayrollWorkbookColor
 summaryTabColor = color "FFC000"
 
-summaryHeaderColor :: PayrollWorkbookColor
-summaryHeaderColor = color "FFF2CC"
-
 dailyTabColor :: DailySheetKind -> PayrollWorkbookColor
 dailyTabColor DailyHours = color "4472C4"
 dailyTabColor DailyWages = color "70AD47"
-
-dailyHeaderColor :: DailySheetKind -> PayrollWorkbookColor
-dailyHeaderColor DailyHours = color "D9EAF7"
-dailyHeaderColor DailyWages = color "E2F0D9"
 
 color :: Text -> PayrollWorkbookColor
 color value = either (error . cs) id (payrollWorkbookColor value)

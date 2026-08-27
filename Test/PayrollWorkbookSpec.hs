@@ -132,7 +132,7 @@ tests = do
             let rendered = renderPayrollWorkbook workbook
             rendered `shouldBe` renderPayrollWorkbook workbook
             show (hashlazy rendered :: Digest SHA256)
-                `shouldBe` "21f5889aeb24a3e8d04e5b93ad6498b1fca855deb7ba8933c3c8f4f8b8d3c581"
+                `shouldBe` "f3130740aee43578957f7e4ef65db6c7888efee12b4570a961be4ab6b1be469e"
             Xlsx.toXlsxEither rendered `shouldSatisfy` isRight
             let archive = Zip.toArchive rendered
             summaryXml <- archiveText "xl/worksheets/sheet1.xml" archive
@@ -152,9 +152,9 @@ tests = do
             hoursXml `shouldNotSatisfy` Text.isInfixOf "state=\"frozen\""
             hoursXml `shouldSatisfy` Text.isInfixOf "width=\"22"
             hoursXml `shouldNotSatisfy` Text.isInfixOf "<f>SUM(C2:E2)</f><v>"
-            stylesXml `shouldSatisfy` Text.isInfixOf "FFFFF2CC"
-            stylesXml `shouldSatisfy` Text.isInfixOf "FFD9EAF7"
-            stylesXml `shouldSatisfy` Text.isInfixOf "FFE2F0D9"
+            stylesXml `shouldNotSatisfy` Text.isInfixOf "FFFFF2CC"
+            stylesXml `shouldNotSatisfy` Text.isInfixOf "FFD9EAF7"
+            stylesXml `shouldNotSatisfy` Text.isInfixOf "FFE2F0D9"
             stylesXml `shouldSatisfy` Text.isInfixOf "0.000000;-0.000000;;"
             stylesXml `shouldSatisfy` Text.isInfixOf "$#,##0.00;[Red]-$#,##0.00;;"
 

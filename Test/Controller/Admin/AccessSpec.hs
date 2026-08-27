@@ -84,7 +84,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Payroll Workbook"
                 response `responseBodyShouldContain` "Download workbook"
                 response `responseBodyShouldContain` "Payroll Earnings CSV"
-                response `responseBodyShouldContain` "Recent Exports"
+                response `responseBodyShouldNotContain` "Recent Exports"
                 response `responseBodyShouldNotContain` "Staff Hours CSV"
                 response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
                 response `responseBodyShouldNotContain` "admin-slot-names-fragment"

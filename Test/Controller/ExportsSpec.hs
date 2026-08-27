@@ -841,7 +841,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJobs <- query @ExportJob |> fetch
                 exportJobs `shouldBe` []
 
-        it "shows venue-scoped Payroll Workbook history while retaining legacy download compatibility" $ withContext do
+        it "hides export history while retaining direct legacy download compatibility" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -883,12 +883,17 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Payroll Workbook"
                 response `responseBodyShouldContain` "Download workbook"
                 response `responseBodyShouldContain` "Payroll Earnings CSV"
-                response `responseBodyShouldContain` "Recent Exports"
-                response `responseBodyShouldContain` "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
-                response `responseBodyShouldContain` tshow (unpackId exportJobB.id)
+                response `responseBodyShouldNotContain` "Recent Exports"
+                response `responseBodyShouldNotContain` "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
+                response `responseBodyShouldNotContain` tshow (unpackId exportJobB.id)
                 response `responseBodyShouldNotContain` "Staff Hours CSV"
                 response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
                 response `responseBodyShouldNotContain` "venue-a.csv"
+
+                legacyDownload <- withPasskeyVerifiedUserAndCurrentVenue admin venueA.id do
+                    callActionWithParams (DownloadExportJobAction exportJobA.id)
+                        [("token", cs (tshow exportJobA.downloadToken))]
+                legacyDownload `responseStatusShouldBe` status200
 
         it "redirects the legacy export jobs page to the admin exports section" $ withContext do
             withCleanDb do

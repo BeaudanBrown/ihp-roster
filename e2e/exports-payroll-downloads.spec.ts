@@ -2,13 +2,11 @@ import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     currentReportWeek,
-    downloadExport,
     generatePayrollReport,
     gotoExports,
     loginAsPrivilegedUserWithSeededPasskeySession,
     payrollReportCard,
     shiftExportWeek,
-    waitForExportJob,
     webauthnBaseURL,
 } from './test-helpers';
 
@@ -17,7 +15,7 @@ test.use({ baseURL: webauthnBaseURL });
 test.describe('Payroll export downloads', () => {
     test.setTimeout(E2E_TIMEOUT.test);
 
-    test('venue admin generates and redownloads one-week Payroll Workbook', async ({ page }) => {
+    test('venue admin generates a one-week Payroll Workbook', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
@@ -28,7 +26,7 @@ test.describe('Payroll export downloads', () => {
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
         await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(0);
         await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(0);
-        await expect(page.locator('[data-export-history="true"]').getByRole('heading', { name: 'Recent Exports' })).toBeVisible();
+        await expect(page.locator('[data-export-history="true"]')).toHaveCount(0);
         await expect(page.locator('#admin-export-range-start')).toHaveCount(0);
         await expect(page.locator('#admin-export-range-end')).toHaveCount(0);
 
@@ -39,12 +37,5 @@ test.describe('Payroll export downloads', () => {
 
         const fileName = `payroll_workbook-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`;
         const generatedDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download workbook');
-        expect(generatedDownload.suggestedFilename()).toBe(fileName);
-        const historyRow = await waitForExportJob(page, fileName);
-        await expect(historyRow).toContainText('Payroll Workbook');
-        await expect(historyRow.getByRole('link', { name: 'Download workbook' })).toBeVisible();
-
-        const historyDownload = await downloadExport(page, fileName, 'Download workbook');
-        expect(historyDownload.suggestedFilename()).toBe(fileName);
-    });
+        expect(generatedDownload.suggestedFilename()).toBe(fileName);    });
 });

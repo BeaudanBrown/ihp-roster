@@ -1100,58 +1100,6 @@ export async function generatePayrollReport(page: Page, reportName: string, down
     return downloadPromise;
 }
 
-export function exportJobRow(page: Page, fileName: string) {
-    return page.locator(`[data-export-job-row="true"][data-export-job-file="${fileName}"]`);
-}
-
-export function exportJobRows(page: Page, fileName: string) {
-    return page.locator(`[data-export-job-row="true"][data-export-job-file="${fileName}"]`);
-}
-
-export async function waitForExportJob(page: Page, fileName: string) {
-    await ensureExportsSectionOpen(page);
-    const rows = exportJobRows(page, fileName);
-    await expect
-        .poll(async () => rows.count(), {
-            message: `expected at least one export row for ${fileName}`,
-            timeout: E2E_TIMEOUT.assertion,
-        })
-        .toBeGreaterThan(0);
-    const row = rows.last();
-    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-    return row;
-}
-
-export async function downloadExport(page: Page, fileName: string, downloadLabel = 'Download') {
-    const row = await waitForExportJob(page, fileName);
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
-        row.getByRole('link', { name: downloadLabel }).click(),
-    ]);
-
-    return download;
-}
-
-export async function downloadExportAtIndex(page: Page, fileName: string, index: number, downloadLabel = 'Download') {
-    await ensureExportsSectionOpen(page);
-    const rows = exportJobRows(page, fileName);
-    await expect
-        .poll(async () => rows.count(), {
-            message: `expected at least ${index + 1} export rows for ${fileName}`,
-            timeout: E2E_TIMEOUT.assertion,
-        })
-        .toBeGreaterThan(index);
-    const row = rows.nth(index);
-    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
-        row.getByRole('link', { name: downloadLabel }).click(),
-    ]);
-
-    return download;
-}
-
 export async function readDownloadText(download: Download) {
     const filePath = await persistDownload(download);
     return readFile(filePath, 'utf8');
