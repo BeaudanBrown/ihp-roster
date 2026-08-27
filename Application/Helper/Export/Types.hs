@@ -125,6 +125,20 @@ parseExportJobType "payroll_earnings_csv"    = Just PayrollEarningsCsv
 parseExportJobType "payroll_workbook_xlsx"   = Just PayrollWorkbookXlsx
 parseExportJobType _                         = Nothing
 
+exportJobTypeDisplayName :: ExportJobType -> Text
+exportJobTypeDisplayName ApprovedTimesheetsCsv = "Approved Timesheets CSV"
+exportJobTypeDisplayName StaffPayCsv           = "Staff Hours CSV"
+exportJobTypeDisplayName HourlyBreakdownZip    = "Hourly Staff Hours ZIP"
+exportJobTypeDisplayName HourlyWageTotalsZip   = "Hourly Wage Totals ZIP"
+exportJobTypeDisplayName PayrollEarningsCsv    = "Payroll Earnings CSV"
+exportJobTypeDisplayName PayrollWorkbookXlsx   = "Payroll Workbook"
+
+exportJobDownloadLabel :: ExportJobType -> Text
+exportJobDownloadLabel PayrollWorkbookXlsx = "Download workbook"
+exportJobDownloadLabel HourlyBreakdownZip  = "Download ZIP"
+exportJobDownloadLabel HourlyWageTotalsZip = "Download ZIP"
+exportJobDownloadLabel _                   = "Download CSV"
+
 exportJobStatusToText :: ExportJobStatus -> Text
 exportJobStatusToText ExportPending = "pending"
 exportJobStatusToText ExportReady   = "ready"

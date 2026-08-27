@@ -767,7 +767,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- query @ExportJob |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText PayrollWorkbookXlsx
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
-                exportJob.fileName `shouldBe` Just "payroll-workbook-2025-01-06-to-2025-01-12.xlsx"
+                exportJob.fileName `shouldBe` Just "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
                 exportJob.contentType `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.fileContents `shouldSatisfy` maybe False (not . Text.null)
@@ -785,7 +785,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 lookup hContentType (responseHeaders response) `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll-workbook-2025-01-06-to-2025-01-12.xlsx\""
+                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll_workbook-2025-01-06-to-2025-01-12.xlsx\""
                 workbookBytes <- responseBody response
                 LBS.take 2 workbookBytes `shouldBe` "PK"
                 let workbookArchive = Zip.toArchive workbookBytes
@@ -841,7 +841,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJobs <- query @ExportJob |> fetch
                 exportJobs `shouldBe` []
 
-        it "hides persisted recent export jobs from the simplified export surface" $ withContext do
+        it "shows venue-scoped Payroll Workbook history while retaining legacy download compatibility" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -864,14 +864,15 @@ tests = aroundAll withDatabaseTestContext do
                 exportJobB <- newRecord @ExportJob
                     |> set #venueId (unpackId venueB.id)
                     |> set #requestedByUserId (unpackId admin.id)
-                    |> set #exportType (exportJobTypeToText ApprovedTimesheetsCsv)
+                    |> set #exportType (exportJobTypeToText PayrollWorkbookXlsx)
                     |> set #status (exportJobStatusToText ExportReady)
                     |> set #scope (Aeson.object [])
                     |> set #deliveryMethod browserDownloadMethod
                     |> set #destinationMetadata (Aeson.object [])
-                    |> set #fileName (Just "venue-b.csv")
-                    |> set #contentType (Just "text/csv; charset=utf-8")
-                    |> set #fileContents (Just "header")
+                    |> set #fileName (Just "payroll_workbook-2025-01-06-to-2025-01-12.xlsx")
+                    |> set #contentType (Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    |> set #fileEncoding "base64"
+                    |> set #fileContents (Just (decodeUtf8 (Base64.encode "workbook")))
                     |> set #expiresAt (UTCTime (fromGregorian 2030 2 1) (secondsToDiffTime 0))
                     |> createRecord
 
@@ -879,10 +880,14 @@ tests = aroundAll withDatabaseTestContext do
                     callAction ShowadminExportsLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Staff Hours CSV"
-                response `responseBodyShouldContain` "Download CSV"
-                response `responseBodyShouldNotContain` "Recent Exports"
-                response `responseBodyShouldNotContain` "venue-b.csv"
+                response `responseBodyShouldContain` "Payroll Workbook"
+                response `responseBodyShouldContain` "Download workbook"
+                response `responseBodyShouldContain` "Payroll Earnings CSV"
+                response `responseBodyShouldContain` "Recent Exports"
+                response `responseBodyShouldContain` "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
+                response `responseBodyShouldContain` tshow (unpackId exportJobB.id)
+                response `responseBodyShouldNotContain` "Staff Hours CSV"
+                response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
                 response `responseBodyShouldNotContain` "venue-a.csv"
 
         it "redirects the legacy export jobs page to the admin exports section" $ withContext do
@@ -933,6 +938,21 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 exportJobCount <- query @ExportJob |> fetchCount
                 exportJobCount `shouldBe` 0
+
+        it "allows founder support to access the visible Payroll Workbook catalog for a current venue" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Founder Support Export Venue"
+                founder <- createUserRecordWithPlatformRole "exports-founder@example.com" "staff" (Just SuperAdmin) True
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callAction ShowadminExportsLiveFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Payroll Workbook"
+                response `responseBodyShouldContain` "Download workbook"
+                response `responseBodyShouldContain` "Payroll Earnings CSV"
+                response `responseBodyShouldNotContain` "Staff Hours CSV"
+                response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
 
         it "denies managers access to export generation" $ withContext do
             withCleanDb do

@@ -1088,12 +1088,12 @@ export function payrollReportCard(page: Page, reportName: string) {
     });
 }
 
-export async function generatePayrollReport(page: Page, reportName: string) {
+export async function generatePayrollReport(page: Page, reportName: string, downloadLabel = 'Download CSV') {
     await ensureExportsSectionOpen(page);
     const card = payrollReportCard(page, reportName);
     await expect(card).toHaveCount(1, { timeout: E2E_TIMEOUT.action });
     await expect(card).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    const downloadButton = card.getByRole('button', { name: 'Download CSV' });
+    const downloadButton = card.getByRole('button', { name: downloadLabel });
     await expect(downloadButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
     const downloadPromise = page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion });
     await downloadButton.click({ timeout: E2E_TIMEOUT.action });
@@ -1122,17 +1122,17 @@ export async function waitForExportJob(page: Page, fileName: string) {
     return row;
 }
 
-export async function downloadExport(page: Page, fileName: string) {
+export async function downloadExport(page: Page, fileName: string, downloadLabel = 'Download') {
     const row = await waitForExportJob(page, fileName);
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
-        row.getByRole('link', { name: 'Download' }).click(),
+        row.getByRole('link', { name: downloadLabel }).click(),
     ]);
 
     return download;
 }
 
-export async function downloadExportAtIndex(page: Page, fileName: string, index: number) {
+export async function downloadExportAtIndex(page: Page, fileName: string, index: number, downloadLabel = 'Download') {
     await ensureExportsSectionOpen(page);
     const rows = exportJobRows(page, fileName);
     await expect
@@ -1146,7 +1146,7 @@ export async function downloadExportAtIndex(page: Page, fileName: string, index:
 
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
-        row.getByRole('link', { name: 'Download' }).click(),
+        row.getByRole('link', { name: downloadLabel }).click(),
     ]);
 
     return download;

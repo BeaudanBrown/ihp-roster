@@ -65,7 +65,7 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
     persistModel rosterWeekStartsOn includedEntries versionManifestsByEntryId hourlyModel = do
         now <- getCurrentTime
         let exportType = exportJobTypeToText PayrollWorkbookXlsx
-        let fileName = "payroll-workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
+        let fileName = "payroll_workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
         let workbookContents = renderPayrollWorkbookBase64 (payrollWorkbookFromHourlyModel rosterWeekStartsOn hourlyModel)
         let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
         let exportVersionManifest = collapseVersionManifests versionManifests

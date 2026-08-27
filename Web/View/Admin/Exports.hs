@@ -30,31 +30,32 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing    -> error "Admin exports live surface requires a current venue"
 
-renderExportsSectionFragment :: ReportWeekSelection -> Html
+renderExportsSectionFragment :: ReportWeekSelection -> [ExportJob] -> UTCTime -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
-renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> Html
-renderExportsSectionFragmentWithSwap maybeSwapOob selection =
+renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> [ExportJob] -> UTCTime -> Html
+renderExportsSectionFragmentWithSwap maybeSwapOob selection exportJobs currentTime =
     renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderExportsSection selection}
+            {renderExportsSection selection exportJobs currentTime}
         </div>
     |]
 
-renderExportsSection :: ReportWeekSelection -> Html
-renderExportsSection selection =
+renderExportsSection :: ReportWeekSelection -> [ExportJob] -> UTCTime -> Html
+renderExportsSection selection exportJobs currentTime =
     renderConfigSection
         "admin-exports-section"
         [hsx|
             <p class="small app-muted mb-3">
-                Download approved Staff Hours, hourly staff hours or wage totals, or payroll earnings for one roster week. Exports are also retained in the venue's export history.
+                Download one Payroll Workbook with accountant summaries, daily hours, and daily wages, or download detailed Payroll Earnings CSV for the selected roster week. Generated files remain available in Recent Exports until they expire.
             </p>
         |]
         [hsx|
             {renderExportWeekSelector selection}
             {renderExportGenerationForm selection}
+            {renderRecentExports exportJobs currentTime}
         |]
         mempty
 
@@ -102,36 +103,82 @@ exportWeekLabel selection =
 renderExportGenerationForm :: ReportWeekSelection -> Html
 renderExportGenerationForm selection = [hsx|
     <div class="d-grid gap-2">
-        {renderExportCard selection StaffPayCsv "Staff Hours CSV" "Hours grouped by staff member and effective pay level for the selected roster week." "Download CSV" "admin-export-generation-form"}
-        {renderHourlyBreakdownExportCard selection}
+        {renderExportCard selection PayrollWorkbookXlsx "Payroll Workbook" "Accountant Summary sheets plus daily Hours and Wages sheets in one Excel and Google Sheets compatible workbook." "Download workbook" "admin-export-generation-form"}
         {renderExportCard selection PayrollEarningsCsv "Payroll Earnings CSV" "Approved payroll earnings by staff, date, earnings bucket, and tracking code." "Download CSV" "admin-payroll-earnings-export-generation-form"}
     </div>
 |]
 
-renderHourlyBreakdownExportCard :: ReportWeekSelection -> Html
-renderHourlyBreakdownExportCard selection = [hsx|
-    <div class={appSurfaceClasses "p-3"} data-fixed-export-card="true" data-export-type="hourly-breakdown-variants">
+renderRecentExports :: [ExportJob] -> UTCTime -> Html
+renderRecentExports exportJobs currentTime = [hsx|
+    <div class="mt-4" data-export-history="true">
+        <h3 class="h6 mb-2">Recent Exports</h3>
+        {renderExportHistoryRows exportJobs currentTime}
+    </div>
+|]
+
+renderExportHistoryRows :: [ExportJob] -> UTCTime -> Html
+renderExportHistoryRows [] _ = [hsx|<p class="small app-muted mb-0">No exports have been generated for this venue yet.</p>|]
+renderExportHistoryRows exportJobs currentTime = [hsx|<div class="d-grid gap-2">{forEach exportJobs (renderExportHistoryRow currentTime)}</div>|]
+
+renderExportHistoryRow :: UTCTime -> ExportJob -> Html
+renderExportHistoryRow currentTime exportJob = [hsx|
+    <div class={appSurfaceClasses "p-3"}
+         data-export-job-row="true"
+         data-export-job-file={fromMaybe "" exportJob.fileName}>
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div>
-                <div class="fw-semibold">Hourly Breakdown ZIP</div>
-                <div class="small app-muted">Hourly staff hours or wage totals by shift type for each date in the selected roster week.</div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="fw-semibold">{exportHistoryName exportJob}</div>
+                    {renderExportHistoryStatus currentTime exportJob}
+                </div>
+                <div class="small app-muted">{exportHistoryDetails exportJob}</div>
             </div>
-            <div class="d-flex flex-wrap gap-2">
-                {renderHourlyBreakdownButton selection HourlyBreakdownZip "Download staff hours" "admin-hourly-breakdown-export-generation-form"}
-                {renderHourlyBreakdownButton selection HourlyWageTotalsZip "Download wage totals" "admin-hourly-wage-totals-export-generation-form"}
-            </div>
+            {renderExportHistoryAction currentTime exportJob}
         </div>
     </div>
 |]
 
-renderHourlyBreakdownButton :: ReportWeekSelection -> ExportJobType -> Text -> Text -> Html
-renderHourlyBreakdownButton selection exportType downloadLabel formId =
-    renderFrontendSurfaceActionFormWithHiddenFields
-        (AdminAction.createExportJobAction fields)
-        (createExportRoute formId)
-        [hsx|<button class="btn btn-primary" type="submit">{downloadLabel}</button>|]
+renderExportHistoryStatus :: UTCTime -> ExportJob -> Html
+renderExportHistoryStatus currentTime exportJob
+    | exportJobCanDownload currentTime exportJob = [hsx|<span data-export-job-status-badge="ready">{renderAppStatusBadge AppStatusSuccess "Ready"}</span>|]
+    | exportJob.status == exportJobStatusToText ExportPending = [hsx|<span data-export-job-status-badge="pending">{renderAppStatusBadge AppStatusWarning "Pending"}</span>|]
+    | otherwise = [hsx|<span data-export-job-status-badge="expired">{renderAppStatusBadge AppStatusNeutral "Expired"}</span>|]
+
+renderExportHistoryAction :: UTCTime -> ExportJob -> Html
+renderExportHistoryAction currentTime exportJob
+    | exportJobCanDownload currentTime exportJob =
+        [hsx|<a class="btn btn-outline-primary" href={exportHistoryDownloadUrl exportJob}>{exportHistoryDownloadLabel exportJob}</a>|]
+    | exportJob.status == exportJobStatusToText ExportPending = [hsx|<span class="small app-muted">Preparing</span>|]
+    | otherwise = [hsx|<span class="small app-muted">Expired</span>|]
+
+exportHistoryName :: ExportJob -> Text
+exportHistoryName exportJob =
+    maybe exportJob.exportType exportJobTypeDisplayName (parseExportJobType exportJob.exportType)
+
+exportHistoryDownloadLabel :: ExportJob -> Text
+exportHistoryDownloadLabel exportJob =
+    maybe "Download export" exportJobDownloadLabel (parseExportJobType exportJob.exportType)
+
+exportHistoryDetails :: ExportJob -> Text
+exportHistoryDetails exportJob =
+    Text.intercalate " · " (catMaybes [exportJob.fileName, rangeLabel, Just generatedLabel])
   where
-    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd exportType
+    rangeLabel = case (exportJob.rangeStart, exportJob.rangeEnd) of
+        (Just rangeStart, Just rangeEnd) -> Just (tshow rangeStart <> " to " <> tshow rangeEnd)
+        _                               -> Nothing
+    generatedLabel = "Generated " <> Text.pack (formatTime defaultTimeLocale "%-d %b %Y, %-I:%M %p" exportJob.createdAt)
+
+exportJobCanDownload :: UTCTime -> ExportJob -> Bool
+exportJobCanDownload currentTime exportJob =
+    exportJob.status == exportJobStatusToText ExportReady
+        && isJust exportJob.fileContents
+        && exportJob.expiresAt > currentTime
+
+exportHistoryDownloadUrl :: ExportJob -> Text
+exportHistoryDownloadUrl exportJob =
+    appendQueryParams
+        (pathTo (DownloadExportJobAction exportJob.id))
+        [("token", tshow exportJob.downloadToken)]
 
 renderExportCard :: ReportWeekSelection -> ExportJobType -> Text -> Text -> Text -> Text -> Html
 renderExportCard selection exportType label description downloadLabel formId =
