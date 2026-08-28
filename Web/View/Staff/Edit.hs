@@ -2,9 +2,7 @@
 
 module Web.View.Staff.Edit where
 
-import Application.Helper.Controller (currentUserIsImpersonating,
-                                      currentUserIsUnimpersonatedSuperAdmin,
-                                      currentVenueId, hasRole)
+import Application.Helper.Controller (currentVenueId)
 import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationOverlay,
                                                      CreateTrialStaffOverlay,
                                                      OpenStaffRemovalDialog,
@@ -58,7 +56,7 @@ instance View NewView where
             []
             (renderNewStaffBody PageOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds anchorDate maybeRosterGroupId)
 
-data EditView = EditView
+data StaffEditRenderContext = StaffEditRenderContext
     { staff                         :: Staff
     , staffPayConfigurationRequired :: Bool
     , maybeLinkedUserEmail          :: Maybe Text
@@ -68,7 +66,6 @@ data EditView = EditView
     , importedPayItems              :: [XeroImportedPayItem]
     , selectedRosterGroupIds        :: [Id RosterGroup]
     , maybeVenueMembership          :: Maybe VenueMembership
-    , staffRemovalAllowed           :: Bool
     , preferenceWeekdays            :: [PreferenceWeekday]
     , selectedShiftPreferences      :: [ShiftPreferenceSelection]
     , leaveRequest                  :: LeaveRequest
@@ -78,11 +75,22 @@ data EditView = EditView
     , openSection                   :: Text
     }
 
+data StaffEditBodyRenderContext = StaffEditBodyRenderContext
+    { staffEditContext               :: StaffEditRenderContext
+    , staffRemovalAllowed            :: Bool
+    , staffLeaveSectionVisible       :: Bool
+    , staffCredentialControlsAllowed :: Bool
+    }
+
+newtype EditView = EditView
+    { staffEditBodyContext :: StaffEditBodyRenderContext
+    }
+
 instance View EditView where
-    html EditView { .. } =
+    html EditView { staffEditBodyContext } =
         renderStaffEditPageModalWithButtons
             []
-            (renderStaffSurfaceMount staff (renderStaffEditBody PageOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection))
+            (renderStaffSurfaceMount staffEditBodyContext.staffEditContext.staff (renderStaffEditBody PageOverlayForm staffEditBodyContext))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
@@ -161,30 +169,20 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
             values.profileDetailsPayRateSelection
             values.profileDetailsRosterGroupIds
 
-renderStaffEditModalFragment :: Staff -> Bool -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Day -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection =
+renderStaffEditModalFragment :: StaffEditBodyRenderContext -> Html
+renderStaffEditModalFragment staffEditBodyContext =
     renderStaffEditDialogWithButtons
         []
-        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection))
+        (renderStaffSurfaceMount staffEditBodyContext.staffEditContext.staff (renderStaffEditBody HtmxOverlayForm staffEditBodyContext))
 
 renderStaffSurfaceMount :: Staff -> Html -> Html
 renderStaffSurfaceMount staff =
     renderFrontendSurfaceMount (staffSurfaceImpl (ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)))
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Bool -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> Bool -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Day -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditBody formMode staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection =
-    let managementFields =
-            StaffManagementFieldData
-                { managementStaff = staff
-                , managementRosterGroups = rosterGroups
-                , managementAwardLevels = awardLevels
-                , managementAwardLevelBaseRates = awardLevelBaseRates
-                , managementImportedPayItems = importedPayItems
-                , managementSelectedRosterGroupIds = selectedRosterGroupIds
-                , managementVenueMembership = maybeVenueMembership
-                , managementAnchorDate = Just anchorDate
-                , managementRosterGroupId = maybeRosterGroupId
-                }
+renderStaffEditBody :: OverlayFormMode -> StaffEditBodyRenderContext -> Html
+renderStaffEditBody formMode staffEditBodyContext@StaffEditBodyRenderContext { staffEditContext, staffRemovalAllowed, staffLeaveSectionVisible } =
+    let StaffEditRenderContext { .. } = staffEditContext
+        managementFields = staffEditManagementFields staffEditContext
         staffAction = UpdateStaffAction (get #id staff)
         accordionConfig =
             StaffProfileAccordionConfig
@@ -210,7 +208,7 @@ renderStaffEditBody formMode staff staffPayConfigurationRequired maybeLinkedUser
                         , staffProfileSectionId = "staff-profile-security"
                         , staffProfileSectionTitle = "Sign-In Methods"
                         , staffProfileSectionWarning = Nothing
-                        , staffProfileSectionBody = renderStaffLoginAccessPanel staff maybeLinkedUserEmail anchorDate maybeRosterGroupId
+                        , staffProfileSectionBody = renderStaffLoginAccessPanel staffEditBodyContext
                         }
                     ]
                     <> [ StaffProfileAccordionSection
@@ -220,7 +218,7 @@ renderStaffEditBody formMode staff staffPayConfigurationRequired maybeLinkedUser
                             , staffProfileSectionWarning = Nothing
                             , staffProfileSectionBody = renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests
                             }
-                       | currentUserIsManager
+                       | staffLeaveSectionVisible
                        ]
                 }
      in renderStaffProfileAccordion accordionConfig <> renderStaffRemovalPanel staff staffRemovalAllowed anchorDate maybeRosterGroupId
@@ -251,20 +249,24 @@ renderStaffRemovalPanel staff staffRemovalAllowed anchorDate maybeRosterGroupId
         , appShellActionRouteExtraAttrs = []
         }
 
-renderStaffEditSectionFragment :: OverlayFormMode -> Staff -> Bool -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Day -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditSectionFragment formMode staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection =
-    let managementFields =
-            StaffManagementFieldData
-                { managementStaff = staff
-                , managementRosterGroups = rosterGroups
-                , managementAwardLevels = awardLevels
-                , managementAwardLevelBaseRates = awardLevelBaseRates
-                , managementImportedPayItems = importedPayItems
-                , managementSelectedRosterGroupIds = selectedRosterGroupIds
-                , managementVenueMembership = maybeVenueMembership
-                , managementAnchorDate = Just anchorDate
-                , managementRosterGroupId = maybeRosterGroupId
-                }
+staffEditManagementFields :: StaffEditRenderContext -> StaffManagementFieldData
+staffEditManagementFields StaffEditRenderContext { .. } =
+    StaffManagementFieldData
+        { managementStaff = staff
+        , managementRosterGroups = rosterGroups
+        , managementAwardLevels = awardLevels
+        , managementAwardLevelBaseRates = awardLevelBaseRates
+        , managementImportedPayItems = importedPayItems
+        , managementSelectedRosterGroupIds = selectedRosterGroupIds
+        , managementVenueMembership = maybeVenueMembership
+        , managementAnchorDate = Just anchorDate
+        , managementRosterGroupId = maybeRosterGroupId
+        }
+
+renderStaffEditSectionFragment :: OverlayFormMode -> StaffEditRenderContext -> Html
+renderStaffEditSectionFragment formMode staffEditContext =
+    let StaffEditRenderContext { .. } = staffEditContext
+        managementFields = staffEditManagementFields staffEditContext
         staffAction = UpdateStaffAction (get #id staff)
         section = case openSection of
             "preferences" -> StaffProfileAccordionSection
@@ -373,8 +375,8 @@ renderStaffLeaveRequestsListFragment leaveRequests = [hsx|
 |]
 
 
-renderStaffLoginAccessPanel :: Staff -> Maybe Text -> Day -> Maybe (Id RosterGroup) -> Html
-renderStaffLoginAccessPanel staff maybeLinkedUserEmail anchorDate maybeRosterGroupId = [hsx|
+renderStaffLoginAccessPanel :: StaffEditBodyRenderContext -> Html
+renderStaffLoginAccessPanel staffEditBodyContext@StaffEditBodyRenderContext { staffEditContext = StaffEditRenderContext { maybeLinkedUserEmail, .. } } = [hsx|
     <div class="app-panel">
         <div class="app-panel-header">
             <div>
@@ -384,7 +386,7 @@ renderStaffLoginAccessPanel staff maybeLinkedUserEmail anchorDate maybeRosterGro
         </div>
         <div class="app-panel-body">
             {renderLinkedLoginSummary maybeLinkedUserEmail}
-            {renderStaffPasskeySetupControls staff maybeLinkedUserEmail anchorDate maybeRosterGroupId}
+            {renderStaffPasskeySetupControls staffEditBodyContext}
         </div>
     </div>
 |]
@@ -395,10 +397,11 @@ renderLinkedLoginSummary (Just email) = [hsx|
     <p class="mb-2"><span class="app-muted">Linked login:</span> {email}</p>
 |]
 
-renderStaffPasskeySetupControls :: Staff -> Maybe Text -> Day -> Maybe (Id RosterGroup) -> Html
-renderStaffPasskeySetupControls _ Nothing _ _ = mempty
-renderStaffPasskeySetupControls staff (Just _) anchorDate maybeRosterGroupId
-    | currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueAdmin) = [hsx|
+renderStaffPasskeySetupControls :: StaffEditBodyRenderContext -> Html
+renderStaffPasskeySetupControls StaffEditBodyRenderContext
+        { staffEditContext = StaffEditRenderContext { staff, maybeLinkedUserEmail = Just _, anchorDate, maybeRosterGroupId, .. }
+        , staffCredentialControlsAllowed = True
+        } = [hsx|
         <div class="d-flex flex-wrap gap-2">
             <form method="POST" action={SendStaffPasskeySetupEmailAction staff.id} class="d-inline">
                 {renderStaffPasskeyReturnInputs anchorDate maybeRosterGroupId}
@@ -414,7 +417,7 @@ renderStaffPasskeySetupControls staff (Just _) anchorDate maybeRosterGroupId
             </form>
         </div>
     |]
-    | otherwise = mempty
+renderStaffPasskeySetupControls _ = mempty
 
 renderStaffPasskeyReturnInputs :: Day -> Maybe (Id RosterGroup) -> Html
 renderStaffPasskeyReturnInputs anchorDate maybeRosterGroupId = [hsx|

@@ -141,8 +141,12 @@ instance Controller StaffController where
         selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
+        let staffLeaveSectionVisible = hasRole Manager
+        let staffCredentialControlsAllowed = currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueAdmin)
+        let staffEditContext = StaffEditRenderContext { .. }
+        let staffEditBodyContext = StaffEditBodyRenderContext { .. }
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staffEditBodyContext)
             else render EditView { .. }
 
     action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
@@ -164,7 +168,8 @@ instance Controller StaffController where
         staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
+        let staffEditContext = StaffEditRenderContext { .. }
+        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staffEditContext)
 
     action currentAction@UpdateStaffAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -205,13 +210,26 @@ instance Controller StaffController where
                             Right selections -> selections
                             Left _           -> []
                 _ -> fetchStaffShiftPreferenceSelections staff
+        let staffLeaveSectionVisible = hasRole Manager
+        let staffCredentialControlsAllowed = currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueAdmin)
+        let staffEditContext = StaffEditRenderContext { selectedRosterGroupIds = currentSelectedRosterGroupIds, .. }
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
-                if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
-                    else do
-                        let selectedRosterGroupIds = renderedRosterGroupIds
-                        let selectedShiftPreferences = renderedPreferences
-                        render EditView { staff = renderedStaff, .. }
+                let renderedStaffEditContext =
+                        staffEditContext
+                            { staff = renderedStaff
+                            , selectedRosterGroupIds = renderedRosterGroupIds
+                            , selectedShiftPreferences = renderedPreferences
+                            }
+                    staffEditBodyContext =
+                        StaffEditBodyRenderContext
+                            { staffEditContext = renderedStaffEditContext
+                            , staffRemovalAllowed
+                            , staffLeaveSectionVisible
+                            , staffCredentialControlsAllowed
+                            }
+                 in if isHtmxRequest
+                        then respondHtml (renderStaffEditModalFragment staffEditBodyContext)
+                        else render EditView { .. }
         let respondStaffUpdateSuccess mutationResult successMessage =
                 if isHtmxRequest
                     then do
