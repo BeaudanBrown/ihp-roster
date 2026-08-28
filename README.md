@@ -103,9 +103,12 @@ Stripe-test mode: it opens `https://dev.bepis.lol` with `dev-tunnel`, creates a
 temporary webhook endpoint at the application's single pinned Stripe API
 version, and runs the app in the foreground with that public origin for Checkout
 and email links. Epic worktree provisioning links the primary checkout's local
-`.env` when present, without copying its contents or replacing an existing
-worktree `.env`; missing primary configuration does not block provisioning.
-`ddev` deletes the endpoint on exit, requires a valid local Stripe test
+`.ghci` and `.env` when present, without copying their contents or replacing
+existing worktree configuration; missing primary configuration does not block
+provisioning. Routine workspace setup uses validated registry identity resolution
+without expensive process, resource, or HLS inspection; explicit
+`epic-worktree inspect` retains those diagnostics. `ddev` deletes the endpoint
+on exit, requires a valid local Stripe test
 configuration, and exposes the current workspace until Ctrl-C. Managed workspaces
 derive isolated ports, PostgreSQL state, and runtime paths; inspect them with
 `dev-workspace-info --json` rather than assuming addresses. See `AGENTS.md` for

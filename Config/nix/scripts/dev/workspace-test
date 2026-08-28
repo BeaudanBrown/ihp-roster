@@ -32,6 +32,14 @@ git -C "$fixture_repo" worktree add --quiet -b epic-265 "$epic_path" roster
     cd "$epic_path"
     bash "$registry_command" register --epic 265 --target roster --kind epic >/dev/null
 )
+registry_log="$fixture_root/registry.log"
+registry_wrapper="$fixture_root/registry-wrapper"
+cat >"$registry_wrapper" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$BEPIS_TEST_REGISTRY_LOG"
+exec bash "$BEPIS_TEST_REGISTRY_COMMAND" "$@"
+EOF
+chmod +x "$registry_wrapper"
 
 main_json="$(
     BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
@@ -40,9 +48,13 @@ main_json="$(
 )"
 epic_json="$(
     BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
-        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_wrapper" \
+        BEPIS_TEST_REGISTRY_COMMAND="$registry_command" \
+        BEPIS_TEST_REGISTRY_LOG="$registry_log" \
         bash "$info_command" --json
 )"
+[ "$(cat "$registry_log")" = "resolve --path $epic_path --json" ] \
+    || fail "workspace setup did not use lightweight registry resolution"
 
 [ "$(jq -r '.slot' <<<"$main_json")" = "0" ] || fail "primary checkout did not retain slot zero"
 [ "$(jq -r '.appPort' <<<"$main_json")" = "8000" ] || fail "primary app port changed"

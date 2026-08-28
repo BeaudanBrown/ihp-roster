@@ -68,6 +68,18 @@ identity_keys="$(jq -r 'keys | sort | join(",")' "$identity_file")"
 [ "$(jq -r '.version' "$identity_file")" = "1" ] || fail "identity version is not 1"
 [ "$(jq -r '.slot' "$identity_file")" = "1" ] || fail "first slot is not 1"
 
+# Resolve validates registry, Git, and identity state without loading runtime
+# resource helpers. Routine workspace setup must remain independent of process
+# and HLS inspection.
+lightweight_scripts_root="$fixture_root/lightweight-scripts"
+mkdir -p "$lightweight_scripts_root/lib"
+printf '# intentionally empty\n' >"$lightweight_scripts_root/lib/hls-cache.sh"
+printf '# intentionally empty\n' >"$lightweight_scripts_root/lib/workspace-resources.sh"
+resolved_json="$(cd "$fixture_repo" && BEPIS_SCRIPTS_ROOT="$lightweight_scripts_root" bash "$command_path" resolve --json)"
+[ "$(jq -r '.epic' <<<"$resolved_json")" = "266" ] || fail "resolve did not find epic"
+[ "$(jq -r '.status' <<<"$resolved_json")" = "active" ] || fail "resolve did not validate identity"
+[ "$(jq 'has("resources")' <<<"$resolved_json")" = "false" ] || fail "resolve unexpectedly gathered resources"
+
 json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
 [ "$(jq -r '.epic' <<<"$json_output")" = "266" ] || fail "inspect did not find epic"
 [ "$(jq -r '.branch' <<<"$json_output")" = "epic-266-identity" ] || fail "inspect did not report branch"
