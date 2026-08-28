@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { defaultE2ERosterGroupId, E2E_TIMEOUT, ensureRosterLayout, gotoWhenReady, openRoster, querySql, runSql, uniqueE2EValue } from './test-helpers';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { defaultE2ERosterGroupId, E2E_TIMEOUT, ensureRosterLayout, gotoWhenReady, openRoster, querySql, runActionUntilRequestStarts, runSql, uniqueE2EValue } from './test-helpers';
 
 function disconnectDurableInvalidationListeners() {
     const listenerCount = Number(querySql(`
@@ -59,6 +59,20 @@ async function openTemplatesTab(page: Page) {
     await expect(tab).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#roster-staff-panel-templates-pane')).toBeVisible();
     return tab;
+}
+
+async function submitTemplateCardAction(button: Locator, requestPath: string) {
+    const page = button.page();
+    const response = await runActionUntilRequestStarts(page, (request) =>
+        request.method() === 'POST' && request.url().includes(requestPath), async () => {
+        await button.evaluate((element) => {
+            if (!(element instanceof HTMLButtonElement) || !element.isConnected || !element.form?.isConnected) {
+                throw new Error('Expected a connected template action button and form');
+            }
+            element.form.requestSubmit(element);
+        });
+    });
+    expect(response.status(), await response.text()).toBe(200);
 }
 
 test.describe('Roster Week-template modals', () => {
@@ -142,8 +156,9 @@ test.describe('Roster Week-template modals', () => {
                 response.request().method() === 'GET' && response.url().includes('/ShowRosterTemplateLibraryFragment'),
             );
             const applyButton = actorCard.getByRole('button', { name: `Apply ${templateName}` });
-            await applyButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
+            await submitTemplateCardAction(applyButton, '/PreviewRosterTemplateApplication');
             dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
+            await expect(dialog).toBeVisible();
             await dialog.getByRole('button', { name: 'Apply template' }).click();
             expect((await actorApplyRefresh).status()).toBe(200);
             expect((await passiveApplyRefresh).status()).toBe(200);
@@ -155,7 +170,7 @@ test.describe('Roster Week-template modals', () => {
             await expect(actorCard).toBeVisible();
 
             const deleteButton = actorCard.getByRole('button', { name: `Delete ${templateName}` });
-            await deleteButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
+            await submitTemplateCardAction(deleteButton, '/ConfirmDeleteRosterTemplate');
             dialog = page.getByRole('dialog', { name: `Delete ${templateName}` });
             await expect(dialog).toBeVisible();
             const preDisconnectEventSequence = testInfo.project.name === 'desktop-chromium'
@@ -238,14 +253,14 @@ test.describe('Roster Week-template modals', () => {
             const templatesTab = await openTemplatesTab(page);
             const card = page.locator('.roster-template-card').filter({ hasText: templateName });
 
-            await card.getByRole('button', { name: `Apply ${templateName}` }).evaluate((button: HTMLButtonElement) => button.click());
+            await submitTemplateCardAction(card.getByRole('button', { name: `Apply ${templateName}` }), '/PreviewRosterTemplateApplication');
             let dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await expect(dialog).toBeVisible();
             await expect(dialog).toContainText('Publication remains Draft');
             await dialog.getByRole('button', { name: 'Cancel' }).click();
             await expect(dialog).toBeHidden();
 
-            await card.getByRole('button', { name: `Delete ${templateName}` }).evaluate((button: HTMLButtonElement) => button.click());
+            await submitTemplateCardAction(card.getByRole('button', { name: `Delete ${templateName}` }), '/ConfirmDeleteRosterTemplate');
             dialog = page.getByRole('dialog', { name: `Delete ${templateName}` });
             await expect(dialog).toBeVisible();
             const deleteResponsePromise = page.waitForResponse((response) =>
@@ -367,7 +382,7 @@ test.describe('Roster Week-template modals', () => {
             await expect(card).not.toContainText('Week snapshot');
 
             const applyButton = card.getByRole('button', { name: `Apply ${templateName}` });
-            await applyButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
+            await submitTemplateCardAction(applyButton, '/PreviewRosterTemplateApplication');
             dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await expect(dialog).toContainText('entire viewed window’s operational structure');
             await expect(dialog).toContainText('Publication remains Draft');
@@ -386,7 +401,7 @@ test.describe('Roster Week-template modals', () => {
             await expect(card).toBeVisible();
 
             const deleteButton = card.getByRole('button', { name: `Delete ${templateName}` });
-            await deleteButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
+            await submitTemplateCardAction(deleteButton, '/ConfirmDeleteRosterTemplate');
             dialog = page.getByRole('dialog', { name: `Delete ${templateName}` });
             await expect(dialog).toContainText('Existing rosters are unaffected');
             const deleteResponsePromise = page.waitForResponse((response) =>

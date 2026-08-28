@@ -271,7 +271,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(stripeLoadingDialog).toHaveCount(0);
     });
 
-    test('correlates Checkout, refreshes lifecycle state, and separates founder diagnostics', async ({ page, request }) => {
+    test('correlates Checkout, refreshes lifecycle state, and separates founder diagnostics', async ({ browser, page, request }) => {
         test.setTimeout(E2E_TIMEOUT.slowTest * 2);
         const mockBaseUrl = process.env.STRIPE_MOCK_BASE_URL;
         if (!mockBaseUrl) throw new Error('STRIPE_MOCK_BASE_URL is required for billing E2E');
@@ -471,11 +471,16 @@ test.describe('Billing through the strict local Stripe boundary', () => {
             failures: [],
         });
 
-        await page.context().clearCookies();
-        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com');
-        await gotoWhenReady(page, '/Billing', '[data-billing-founder-diagnostics="true"]');
-        await expect(page.getByText('Billing diagnostics', { exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: /Subscribe|Manage subscription|Manage Billing/ })).toHaveCount(0);
-        await expect(page.locator('header a[href="/Billing"]')).toHaveCount(0);
+        const founderContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+        const founderPage = await founderContext.newPage();
+        try {
+            await loginAsPrivilegedUserWithSeededPasskeySession(founderPage, 'e2e-super-admin@example.com');
+            await gotoWhenReady(founderPage, '/Billing', '[data-billing-founder-diagnostics="true"]');
+            await expect(founderPage.getByText('Billing diagnostics', { exact: true })).toBeVisible();
+            await expect(founderPage.getByRole('button', { name: /Subscribe|Manage subscription|Manage Billing/ })).toHaveCount(0);
+            await expect(founderPage.locator('header a[href="/Billing"]')).toHaveCount(0);
+        } finally {
+            await founderContext.close();
+        }
     });
 });

@@ -1,12 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
+    pageReadyEvent,
     parseRosterStaffPanelSortRow,
     rosterStaffHighlightSourceDomAttr,
     rosterStaffPanelSortControlDomAttr,
     rosterStaffPanelSortRowDomAttr,
     type RosterStaffPanelSortRow,
 } from '../frontend/ts/generated/contracts';
-import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './test-helpers';
+import { assignRosterShiftStaff, E2E_TIMEOUT, existingRosterShiftLaunchers, openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });
@@ -29,6 +30,42 @@ function compareText(leftValue: string, rightValue: string) {
 
 function sortControl(page: Page, key: 'name' | 'role' | 'shifts') {
     return page.locator(`button[${rosterStaffPanelSortControlDomAttr}="${key}"]`);
+}
+
+async function armAssignedCountLiveRefresh(page: Page, staffKey: string, assignedShifts: number) {
+    await page.evaluate(({ eventName, highlightAttribute, rowAttribute, staffKeyValue, expectedAssignedShifts }) => {
+        const state = window as Window & { __e2eRosterPanelMutationRefreshes?: number };
+        state.__e2eRosterPanelMutationRefreshes = 0;
+        const listener = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            const target = detail?.target;
+            if (detail?.source !== 'live-fragment-refetch' || !(target instanceof Element)) return;
+            const row = target.querySelector(`[${rowAttribute}][${highlightAttribute}="${staffKeyValue}"]`);
+            const rawRow = row?.getAttribute(rowAttribute);
+            if (!rawRow) return;
+            try {
+                if (JSON.parse(rawRow).assignedShifts !== expectedAssignedShifts) return;
+            } catch {
+                return;
+            }
+            state.__e2eRosterPanelMutationRefreshes = (state.__e2eRosterPanelMutationRefreshes ?? 0) + 1;
+            if (state.__e2eRosterPanelMutationRefreshes >= 2) document.removeEventListener(eventName, listener);
+        };
+        document.addEventListener(eventName, listener);
+    }, {
+        eventName: pageReadyEvent,
+        highlightAttribute: rosterStaffHighlightSourceDomAttr,
+        rowAttribute: rosterStaffPanelSortRowDomAttr,
+        staffKeyValue: staffKey,
+        expectedAssignedShifts: assignedShifts,
+    });
+}
+
+async function waitForAssignedCountLiveRefresh(page: Page) {
+    await expect.poll(
+        () => page.evaluate(() => (window as Window & { __e2eRosterPanelMutationRefreshes?: number }).__e2eRosterPanelMutationRefreshes ?? 0),
+        { timeout: E2E_TIMEOUT.liveUpdate },
+    ).toBeGreaterThanOrEqual(2);
 }
 
 test.describe('Roster staff panel sorting', () => {
@@ -74,7 +111,11 @@ test.describe('Roster staff panel sorting', () => {
         expect(targetRaw).toBeTruthy();
         const targetStaffName = parseRosterStaffPanelSortRow(JSON.parse(targetRaw ?? 'null') as unknown).staffName;
 
+        // The actor path and durable invalidation each replace the authoritative
+        // panel; either replacement resets client-only sort state.
+        await armAssignedCountLiveRefresh(page, targetStaffKey, 1);
         await assignRosterShiftStaff(page, existingRosterShiftLaunchers(page).first(), targetStaffId);
+        await waitForAssignedCountLiveRefresh(page);
 
         await expect
             .poll(async () => {
@@ -82,10 +123,6 @@ test.describe('Roster staff panel sorting', () => {
                 return rows.find((row) => row.staffName === targetStaffName)?.assignedShifts ?? 0;
             })
             .toBe(1);
-        // The actor-local refresh and websocket invalidation may coalesce into
-        // consecutive authoritative panel replacements. Sort only after those
-        // HTMX requests settle; a replacement intentionally resets sort state.
-        await page.waitForLoadState('networkidle');
 
         await sortByShifts.click();
         await expect(sortByShifts).toHaveAttribute('aria-sort', 'ascending');

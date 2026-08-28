@@ -1,11 +1,22 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import {
     dialogOverlayMountDomId,
     timePickerClearDomAttr,
     timePickerTriggerDomAttr,
     toggleInputDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs } from './test-helpers';
+import { E2E_TIMEOUT, gotoWhenReady, loginAs, runActionUntilRequestStarts } from './test-helpers';
+
+async function submitTimesheetDialogWithEnter(page: Page, form: Locator) {
+    const response = await runActionUntilRequestStarts(page, (request) =>
+        request.method() === 'POST' && request.url().includes('/CreateTimesheetEntry'), async () => {
+        const shiftType = form.locator('#shiftTypeId');
+        await shiftType.focus();
+        await expect(shiftType).toBeFocused();
+        await page.keyboard.press('Enter');
+    });
+    expect(response.status(), await response.text()).toBe(200);
+}
 
 test.describe('Workflow dialog keyboard controls', () => {
     test.setTimeout(E2E_TIMEOUT.test);
@@ -54,12 +65,7 @@ test.describe('Workflow dialog keyboard controls', () => {
         await page.keyboard.press('Space');
         await expect(hadBreak).not.toBeChecked();
 
-        const saveResponse = page.waitForResponse((response) =>
-            response.request().method() === 'POST' && response.url().includes('/CreateTimesheetEntry'),
-        );
-        await form.locator('#shiftTypeId').focus();
-        await page.keyboard.press('Enter');
-        expect((await saveResponse).status()).toBe(200);
+        await submitTimesheetDialogWithEnter(page, form);
         await expect(dialogMount).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
     });
 
@@ -75,12 +81,7 @@ test.describe('Workflow dialog keyboard controls', () => {
         await startTrigger.click();
         await page.locator(`[${timePickerClearDomAttr}]`).click();
 
-        const validationResponse = page.waitForResponse((response) =>
-            response.request().method() === 'POST' && response.url().includes('/CreateTimesheetEntry'),
-        );
-        await form.locator('#shiftTypeId').focus();
-        await page.keyboard.press('Enter');
-        expect((await validationResponse).status()).toBe(200);
+        await submitTimesheetDialogWithEnter(page, form);
 
         const invalidStart = dialogMount.locator('#timesheet-entry-create-form').locator(`[${timePickerTriggerDomAttr}]`).first();
         await expect(invalidStart).toHaveAttribute('aria-invalid', 'true');

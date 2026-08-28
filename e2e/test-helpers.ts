@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
+import { APIRequestContext, Download, expect, Locator, Page, Request } from '@playwright/test';
 import {
     dialogMountDomAttr,
     dialogOverlayMountDomId,
@@ -45,6 +45,22 @@ export function uniqueE2EValue(prefix: string) {
     uniqueE2ECounter += 1;
     const runId = (process.env.E2E_RUN_ID ?? `pid-${process.pid}`).replace(/[^a-zA-Z0-9-]/g, '-');
     return `${prefix}-${runId}-${uniqueE2ECounter}`;
+}
+
+export async function runActionUntilRequestStarts(
+    page: Page,
+    isExpectedRequest: (request: Request) => boolean,
+    action: () => Promise<void>,
+) {
+    const responsePromise = page.waitForResponse((response) => isExpectedRequest(response.request()));
+    // Retry only while the browser/runtime declines the action. Once a request
+    // starts, return its one response and never repeat the mutation.
+    await expect(async () => {
+        const requestPromise = page.waitForRequest(isExpectedRequest, { timeout: E2E_TIMEOUT.quick });
+        await action();
+        await requestPromise;
+    }).toPass({ timeout: E2E_TIMEOUT.action });
+    return await responsePromise;
 }
 
 function mailhogBaseUrl() {
@@ -877,26 +893,23 @@ export function firstRosterDayRemoveButton(page: Page) {
 }
 
 async function submitRosterDayAction(button: Locator) {
+    const page = button.page();
     const formAction = await button.locator('xpath=ancestor::form[1]').getAttribute('action');
-    const responsePromise = formAction
-        ? button.page().waitForResponse((response) =>
-            response.request().method() === 'POST' && response.url().endsWith(formAction),
-        )
-        : Promise.resolve(null);
-
-    await Promise.all([
-        responsePromise,
-        button.evaluate((element) => {
-            if (!(element instanceof HTMLElement)) {
-                throw new Error('Expected roster day action button to be an HTMLElement');
+    if (!formAction) throw new Error('Expected roster day action form');
+    const isActionRequest = (request: Request) =>
+        request.method() === 'POST' && request.url().endsWith(formAction);
+    const response = await runActionUntilRequestStarts(page, isActionRequest, async () => {
+        await button.evaluate((element) => {
+            if (!(element instanceof HTMLButtonElement) || !element.isConnected || !element.form?.isConnected) {
+                throw new Error('Expected a connected roster day action button and form');
             }
-
-            element.click();
-        }),
-    ]);
+            element.form.requestSubmit(element);
+        });
+    });
+    expect(response.status(), await response.text()).toBe(200);
     // waitForResponse resolves before HTMX removes its request state. A second
     // day-row mutation in that interval is intentionally dropped by hx-sync.
-    await button.page().waitForFunction(() => document.querySelector('.htmx-request') === null);
+    await page.waitForFunction(() => document.querySelector('.htmx-request') === null);
 }
 
 async function rosterDayIdForSection(section: Locator) {
