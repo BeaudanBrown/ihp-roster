@@ -13,6 +13,11 @@ PROFILE_LOAD_DURATION="${PROFILE_LOAD_DURATION:-30s}"
 PROFILE_LOAD_VUS="${PROFILE_LOAD_VUS:-10}"
 PROFILE_LOAD_MAX_VUS="${PROFILE_LOAD_MAX_VUS:-}"
 PROFILE_LOAD_OTEL="${PROFILE_LOAD_OTEL:-0}"
+PROFILE_LOAD_PROFILING="${PROFILE_LOAD_PROFILING:-1}"
+PROFILE_LOAD_OTEL_SAMPLER="${PROFILE_LOAD_OTEL_SAMPLER:-always_on}"
+PROFILE_LOAD_OTEL_SAMPLER_ARG="${PROFILE_LOAD_OTEL_SAMPLER_ARG:-}"
+PROFILE_LOAD_REQUIRE_OTEL_TRACES="${PROFILE_LOAD_REQUIRE_OTEL_TRACES:-1}"
+PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS="${PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS:-300}"
 PROFILE_K6_ARGS=()
 
 while [ "$#" -gt 0 ]; do
@@ -36,6 +41,11 @@ Options:
   --password=password            Override manifest login password
   --otel                         Run local OTel collector and emit otel-summary artifacts
   --no-otel                      Disable local OTel collector (default)
+  --profiling                    Enable diagnostic profiling (default)
+  --no-profiling                 Disable diagnostic profiling for lightweight/runtime baselines
+  --otel-sampler=name            OTEL_TRACES_SAMPLER for this run (default: always_on)
+  --otel-sampler-arg=value       Optional OTEL_TRACES_SAMPLER_ARG for this run
+  --startup-timeout=N            App startup timeout in seconds (default: 300)
 EOF
             exit 0
             ;;
@@ -95,6 +105,26 @@ EOF
             PROFILE_LOAD_OTEL=0
             shift
             ;;
+        --profiling)
+            PROFILE_LOAD_PROFILING=1
+            shift
+            ;;
+        --no-profiling)
+            PROFILE_LOAD_PROFILING=0
+            shift
+            ;;
+        --otel-sampler=*)
+            PROFILE_LOAD_OTEL_SAMPLER="${1#--otel-sampler=}"
+            shift
+            ;;
+        --otel-sampler-arg=*)
+            PROFILE_LOAD_OTEL_SAMPLER_ARG="${1#--otel-sampler-arg=}"
+            shift
+            ;;
+        --startup-timeout=*)
+            PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS="${1#--startup-timeout=}"
+            shift
+            ;;
         --)
             shift
             PROFILE_K6_ARGS+=("$@")
@@ -106,6 +136,11 @@ EOF
             ;;
     esac
 done
+
+[[ "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "Profile load startup timeout must be a positive integer" >&2
+    exit 64
+}
 
 case "$PROFILE_DATABASE_NAME" in
     app_profile|app_profile_*)
@@ -141,6 +176,9 @@ PROFILE_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/server.pid"
 PROFILE_K6_METRICS="$PROFILE_LOAD_OUTPUT_DIR/k6-metrics.ndjson"
 PROFILE_K6_STDOUT="$PROFILE_LOAD_OUTPUT_DIR/k6.stdout"
 PROFILE_LOAD_METADATA="$PROFILE_LOAD_OUTPUT_DIR/metadata.json"
+PROFILE_RUNTIME_SAMPLES="$PROFILE_LOAD_OUTPUT_DIR/runtime-resources.tsv"
+PROFILE_RUNTIME_SUMMARY="$PROFILE_LOAD_OUTPUT_DIR/runtime-resources.json"
+PROFILE_RUNTIME_SAMPLER_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/runtime-resources.pid"
 PROFILE_OTEL_TRACE_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-traces.json"
 PROFILE_OTEL_LOG="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.log"
 PROFILE_OTEL_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.pid"
@@ -162,6 +200,13 @@ fi
 . "@scriptsRoot@/lib/profile-server.sh"
 
 cleanup_profile_load() {
+    if [ -f "$PROFILE_RUNTIME_SAMPLER_PID_FILE" ]; then
+        local sampler_pid
+        sampler_pid=$(cat "$PROFILE_RUNTIME_SAMPLER_PID_FILE")
+        kill -TERM "$sampler_pid" 2>/dev/null || true
+        wait "$sampler_pid" 2>/dev/null || true
+        rm -f "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+    fi
     cleanup_profile_server
     if [ -f "$PROFILE_OTEL_PID_FILE" ]; then
         local otel_pid
@@ -208,6 +253,10 @@ finalize_profile_otel() {
         rm -f "$PROFILE_OTEL_PID_FILE"
     fi
     if [ ! -s "$PROFILE_OTEL_TRACE_FILE" ]; then
+        if [ "$PROFILE_LOAD_REQUIRE_OTEL_TRACES" = "0" ]; then
+            echo "OpenTelemetry sampler produced no spans; continuing bounded sampled-mode benchmark."
+            return 0
+        fi
         echo "OpenTelemetry collector did not produce $PROFILE_OTEL_TRACE_FILE" >&2
         echo "Collector log: $PROFILE_OTEL_LOG" >&2
         return 1
@@ -218,6 +267,63 @@ finalize_profile_otel() {
         "$PROFILE_LOAD_METADATA"
 }
 
+runtime_session_totals() {
+    local session_id="$1"
+    local stat_file stat_line stat_fields process_session process_id rss_kib
+    local total_rss_kib=0
+    local total_cpu_ticks=0
+    for stat_file in /proc/[0-9]*/stat; do
+        [ -r "$stat_file" ] || continue
+        stat_line=$(cat "$stat_file" 2>/dev/null) || continue
+        stat_fields="${stat_line##*) }"
+        # After removing pid/comm: state, ppid, pgrp, session, ... utime, stime.
+        set -- $stat_fields
+        process_session="${4:-}"
+        [ "$process_session" = "$session_id" ] || continue
+        process_id="${stat_file#/proc/}"
+        process_id="${process_id%/stat}"
+        rss_kib=$(awk '/^VmRSS:/ { print $2; found=1 } END { if (!found) print 0 }' "/proc/$process_id/status" 2>/dev/null || printf 0)
+        total_rss_kib=$((total_rss_kib + rss_kib))
+        total_cpu_ticks=$((total_cpu_ticks + ${12:-0} + ${13:-0}))
+    done
+    printf '%s\t%s\n' "$total_rss_kib" "$total_cpu_ticks"
+}
+
+sample_runtime_resources() {
+    local server_pid="$1"
+    : > "$PROFILE_RUNTIME_SAMPLES"
+    while kill -0 "$server_pid" 2>/dev/null && [ -r "/proc/$server_pid/stat" ]; do
+        local timestamp_ns rss_kib cpu_ticks
+        timestamp_ns=$(date +%s%N)
+        IFS=$'\t' read -r rss_kib cpu_ticks < <(runtime_session_totals "$server_pid")
+        printf '%s\t%s\t%s\n' "$timestamp_ns" "$rss_kib" "$cpu_ticks" >> "$PROFILE_RUNTIME_SAMPLES"
+        sleep 0.25
+    done
+}
+
+finalize_runtime_resources() {
+    local clock_ticks first_timestamp last_timestamp first_ticks last_ticks peak_rss sample_count
+    clock_ticks=$(getconf CLK_TCK)
+    sample_count=$(wc -l < "$PROFILE_RUNTIME_SAMPLES")
+    if [ "$sample_count" -eq 0 ]; then
+        echo "Profile runtime sampler produced no samples" >&2
+        return 1
+    fi
+    first_timestamp=$(awk 'NR == 1 { print $1 }' "$PROFILE_RUNTIME_SAMPLES")
+    last_timestamp=$(awk 'END { print $1 }' "$PROFILE_RUNTIME_SAMPLES")
+    first_ticks=$(awk 'NR == 1 { print $3 }' "$PROFILE_RUNTIME_SAMPLES")
+    last_ticks=$(awk 'END { print $3 }' "$PROFILE_RUNTIME_SAMPLES")
+    peak_rss=$(awk 'BEGIN { peak=0 } $2 > peak { peak=$2 } END { print peak }' "$PROFILE_RUNTIME_SAMPLES")
+    jq -n \
+        --argjson sampleCount "$sample_count" \
+        --argjson peakRssKiB "$peak_rss" \
+        --argjson elapsedNanoseconds "$((last_timestamp - first_timestamp))" \
+        --argjson cpuTicks "$((last_ticks - first_ticks))" \
+        --argjson clockTicksPerSecond "$clock_ticks" \
+        '{sampleCount:$sampleCount,peakRssKiB:$peakRssKiB,elapsedSeconds:($elapsedNanoseconds / 1000000000),cpuSeconds:($cpuTicks / $clockTicksPerSecond)}' \
+        > "$PROFILE_RUNTIME_SUMMARY"
+}
+
 otel_env=()
 if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     otel_env=(
@@ -225,16 +331,32 @@ if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
         OTEL_SERVICE_NAME=ihp-roster-profile
         OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:24318
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:24318/v1/traces
-        OTEL_TRACES_SAMPLER=always_on
+        OTEL_TRACES_SAMPLER="$PROFILE_LOAD_OTEL_SAMPLER"
+        IHP_ROSTER_OTEL_SHUTDOWN_TIMEOUT_MS=2000
+        OTEL_BSP_MAX_QUEUE_SIZE=512
+        OTEL_BSP_MAX_EXPORT_BATCH_SIZE=128
         OTEL_BSP_SCHEDULE_DELAY=200
-        OTEL_BSP_EXPORT_TIMEOUT=5000
+        OTEL_BSP_EXPORT_TIMEOUT=1000
+        OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
+        OTEL_ATTRIBUTE_COUNT_LIMIT=64
+        OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
+        OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=64
+        OTEL_SPAN_EVENT_COUNT_LIMIT=64
+        OTEL_SPAN_LINK_COUNT_LIMIT=16
     )
+    if [ -n "$PROFILE_LOAD_OTEL_SAMPLER_ARG" ]; then
+        otel_env+=(OTEL_TRACES_SAMPLER_ARG="$PROFILE_LOAD_OTEL_SAMPLER_ARG")
+    fi
 fi
 
 (
     export PROFILE_DATABASE_NAME
     export PROFILE_DB_SOCKET
-    export IHP_ROSTER_PROFILING=1
+    if [ "$PROFILE_LOAD_PROFILING" = "1" ]; then
+        export IHP_ROSTER_PROFILING=1
+    else
+        unset IHP_ROSTER_PROFILING
+    fi
     if [ "${#otel_env[@]}" -gt 0 ]; then
         export "${otel_env[@]}"
     fi
@@ -245,7 +367,7 @@ fi
 PROFILE_WRAPPER_PID="$!"
 
 PROFILE_SERVER_PID=""
-for _ in $(seq 1 120); do
+for _ in $(seq 1 "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS"); do
     if [ -f "$PROFILE_PID_FILE" ]; then
         PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
     fi
@@ -269,13 +391,20 @@ for _ in $(seq 1 120); do
             --arg maxVus "${PROFILE_LOAD_MAX_VUS:-}" \
             --arg database "$PROFILE_DATABASE_NAME" \
             --arg baseUrl "$PROFILE_BASE_URL" \
+            --arg otel "$PROFILE_LOAD_OTEL" \
+            --arg profiling "$PROFILE_LOAD_PROFILING" \
+            --arg otelSampler "$PROFILE_LOAD_OTEL_SAMPLER" \
+            --arg otelSamplerArg "$PROFILE_LOAD_OTEL_SAMPLER_ARG" \
             --slurpfile manifest "$PROFILE_SEED_OUTPUT_DIR/manifest.json" \
-            '{runId:$runId, scenario:$scenario, rate:$rate, duration:$duration, vus:$vus, maxVus:$maxVus, database:$database, baseUrl:$baseUrl, seed:$manifest[0].options}' \
+            '{runId:$runId, scenario:$scenario, rate:$rate, duration:$duration, vus:$vus, maxVus:$maxVus, database:$database, baseUrl:$baseUrl, telemetry:{otel:($otel == "1"), profiling:($profiling == "1"), sampler:$otelSampler, samplerArg:$otelSamplerArg}, seed:$manifest[0].options}' \
             > "$PROFILE_LOAD_METADATA"
 
         echo "Profile load server ready at $PROFILE_BASE_URL"
         echo "Profile load database: $PROFILE_DATABASE_NAME"
         echo "Profile load scenario: $PROFILE_LOAD_SCENARIO rate=$PROFILE_LOAD_RATE duration=$PROFILE_LOAD_DURATION vus=$PROFILE_LOAD_VUS"
+
+        sample_runtime_resources "$PROFILE_SERVER_PID" &
+        echo "$!" > "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
 
         k6 run \
             --out "json=$PROFILE_K6_METRICS" \
@@ -283,11 +412,18 @@ for _ in $(seq 1 120); do
             ./e2e/profile-load.js \
             | tee "$PROFILE_K6_STDOUT"
 
+        sampler_pid=$(cat "$PROFILE_RUNTIME_SAMPLER_PID_FILE")
+        kill -TERM "$sampler_pid" 2>/dev/null || true
+        wait "$sampler_pid" 2>/dev/null || true
+        rm -f "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+        finalize_runtime_resources
+
         node ./e2e/profile-load-report.mjs \
             "$PROFILE_K6_METRICS" \
             "$PROFILE_LOAD_OUTPUT_DIR" \
             "$PROFILE_LOAD_METADATA"
         finalize_profile_otel
+        mkdir -p "$PWD/output/profile-load"
         ln -sfn "$PROFILE_LOAD_OUTPUT_DIR" "$PWD/output/profile-load/latest"
         echo "Profile load artifacts: $PROFILE_LOAD_OUTPUT_DIR"
         exit 0

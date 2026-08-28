@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUN_ID="${OTEL_RUNTIME_BENCHMARK_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+OUTPUT_ROOT="${OTEL_RUNTIME_BENCHMARK_OUTPUT_DIR:-$PWD/output/otel-runtime-benchmark/$RUN_ID}"
+DATABASE_NAME="${OTEL_RUNTIME_BENCHMARK_DATABASE_NAME:-app_profile_otel_runtime_$RUN_ID}"
+REUSE_DATABASE="${OTEL_RUNTIME_BENCHMARK_REUSE_DB:-0}"
+REUSE_SEED_DIR="${OTEL_RUNTIME_BENCHMARK_SEED_DIR:-}"
+COMMON_ARGS=("$@")
+
+case "$DATABASE_NAME" in
+    app_profile|app_profile_*) ;;
+    *)
+        echo "Unsupported benchmark database: $DATABASE_NAME" >&2
+        exit 1
+        ;;
+esac
+
+mkdir -p "$OUTPUT_ROOT"
+seed_mode=(--seed)
+if [ "$REUSE_DATABASE" = "1" ]; then
+    seed_mode=(--reuse-db)
+    [ -f "$REUSE_SEED_DIR/manifest.json" ] || {
+        echo "Reusable benchmark seed manifest is missing: $REUSE_SEED_DIR/manifest.json" >&2
+        exit 1
+    }
+    for mode in disabled sampled always-on diagnostic; do
+        mkdir -p "$OUTPUT_ROOT/$mode/seed"
+        cp "$REUSE_SEED_DIR/manifest.json" "$OUTPUT_ROOT/$mode/seed/manifest.json"
+    done
+fi
+
+echo "[1/4] disabled telemetry"
+PROFILE_RUN_ID="$RUN_ID-disabled" profile-load \
+    --db="$DATABASE_NAME" --output-dir="$OUTPUT_ROOT/disabled" "${seed_mode[@]}" \
+    --no-otel --no-profiling "${COMMON_ARGS[@]}"
+sleep 5
+
+echo "[2/4] sampled lightweight telemetry (1%)"
+PROFILE_LOAD_REQUIRE_OTEL_TRACES=0 PROFILE_RUN_ID="$RUN_ID-sampled" profile-load \
+    --db="$DATABASE_NAME" --output-dir="$OUTPUT_ROOT/sampled" --reuse-db \
+    --otel --no-profiling --otel-sampler=parentbased_traceidratio --otel-sampler-arg=0.01 \
+    "${COMMON_ARGS[@]}"
+sleep 5
+
+echo "[3/4] always-on lightweight telemetry"
+PROFILE_RUN_ID="$RUN_ID-always-on" profile-load \
+    --db="$DATABASE_NAME" --output-dir="$OUTPUT_ROOT/always-on" --reuse-db \
+    --otel --no-profiling --otel-sampler=always_on "${COMMON_ARGS[@]}"
+sleep 5
+
+echo "[4/4] always-on diagnostic telemetry"
+PROFILE_RUN_ID="$RUN_ID-diagnostic" profile-load \
+    --db="$DATABASE_NAME" --output-dir="$OUTPUT_ROOT/diagnostic" --reuse-db \
+    --otel --profiling --otel-sampler=always_on "${COMMON_ARGS[@]}"
+
+jq -n \
+    --arg runId "$RUN_ID" \
+    --arg database "$DATABASE_NAME" \
+    --slurpfile disabled "$OUTPUT_ROOT/disabled/load-profile.json" \
+    --slurpfile sampled "$OUTPUT_ROOT/sampled/load-profile.json" \
+    --slurpfile alwaysOn "$OUTPUT_ROOT/always-on/load-profile.json" \
+    --slurpfile diagnostic "$OUTPUT_ROOT/diagnostic/load-profile.json" \
+    --slurpfile disabledRuntime "$OUTPUT_ROOT/disabled/runtime-resources.json" \
+    --slurpfile sampledRuntime "$OUTPUT_ROOT/sampled/runtime-resources.json" \
+    --slurpfile alwaysOnRuntime "$OUTPUT_ROOT/always-on/runtime-resources.json" \
+    --slurpfile diagnosticRuntime "$OUTPUT_ROOT/diagnostic/runtime-resources.json" \
+    '{runId:$runId,database:$database,modes:{disabled:{load:$disabled[0],runtime:$disabledRuntime[0]},sampled:{load:$sampled[0],runtime:$sampledRuntime[0]},alwaysOn:{load:$alwaysOn[0],runtime:$alwaysOnRuntime[0]},diagnostic:{load:$diagnostic[0],runtime:$diagnosticRuntime[0]}}}' \
+    > "$OUTPUT_ROOT/benchmark.json"
+
+ln -sfn "$OUTPUT_ROOT" "$PWD/output/otel-runtime-benchmark/latest"
+echo "OpenTelemetry runtime benchmark artifacts: $OUTPUT_ROOT"

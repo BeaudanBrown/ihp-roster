@@ -107,6 +107,7 @@ import qualified Test.SurfaceDependencySpec
 import qualified Test.SurfaceGuardSpec
 import qualified Test.SurfaceInvalidationSpec
 import qualified Test.SurfaceResourceSpec
+import qualified Test.TelemetrySpec
 import qualified Test.TimePickerSpec
 import qualified Test.TimesheetApprovalSpec
 import qualified Test.ToggleButtonSpec
@@ -482,6 +483,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "ProfileSeed", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Observability, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.ProfileSeedSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "OperatorScript", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = TestInfrastructure, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.OperatorScriptSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "Profiling", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Observability, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.ProfilingSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "Telemetry", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Observability, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.TelemetrySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PublicHolidaySync.Policy", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PublicHolidaySyncSpec.pureTests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "PublicHolidaySync.Persistence", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P2, P3], definitionPartialInvariants = []} Test.PublicHolidaySyncSpec.databaseTests
     , pureSuite SuiteDefinition{definitionLabel = "FwcMapdSync.Curation", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.FwcMapdSyncSpec.pureTests

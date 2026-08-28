@@ -15,7 +15,8 @@ module Web.RosterWeeks.TemplateApplication
     , previewRosterTemplateApplication
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
@@ -60,11 +61,10 @@ applyRosterTemplateApplicationMutation ::
     Text ->
     Int ->
     IO (Either RosterTemplateApplicationError (LiveMutationResult RosterTemplateApplicationResult))
-applyRosterTemplateApplicationMutation actor request expectedTargetRevision expectedCalendarRevision = do
-    applied <- withDurableLiveMutationOutcome publicationFor do
+applyRosterTemplateApplicationMutation actor request expectedTargetRevision expectedCalendarRevision =
+    withDurableLiveMutationOutcome publicationFor do
         fmap (fmap (\result -> liveMutationResult result result.appliedTouchedResources)) $
             applyRosterTemplateApplicationInCurrentTransaction actor request expectedTargetRevision expectedCalendarRevision
-    pure applied
   where
     publicationFor = either (const Nothing) (\result -> Just ("roster.template.apply", result.liveMutationTouchedResources))
 

@@ -119,6 +119,8 @@ tests = do
             loadLines !! 1
                 `shouldBe` "\\copy venues (id, name, status) FROM '/tmp/profile seed''s/venues.csv' WITH (FORMAT csv, NULL '\\N')"
             loadLines `shouldContain` ["CREATE TEMP TABLE profile_seed_timesheet_entries (LIKE timesheet_entries INCLUDING DEFAULTS);"]
+            loadLines `shouldSatisfy` any (Text.isInfixOf "operational_date, roster_window_start, roster_week_starts_on")
+            loadLines `shouldSatisfy` any (Text.isInfixOf "JOIN venue_config config ON config.venue_id = staged.venue_id")
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_pay_calculations calculation SET sealed_at")
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_entries entry SET active_pay_calculation_id")
             drop 33 loadLines `shouldBe` ["COMMIT;", "ANALYZE;"]

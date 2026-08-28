@@ -21,6 +21,32 @@ render diagnostics. Production configuration belongs in the
 `services.ihpRoster.observability` NixOS module rather than ad hoc environment
 files.
 
+## Runtime Contract
+
+`withTelemetryRuntime` owns provider initialization, bounded flush, and bounded
+shutdown for the app, worker, and generated operational-script entrypoints.
+Middleware only creates request spans; it is not a lifecycle owner. The disabled
+path is a cached boolean branch and creates no provider, exporter, thread, or
+timer. Initialization, flush, shutdown, exporter, and Collector failures report
+a bounded operational message and fail open without replacing application work.
+
+Enabled deployments use a 512-span queue, 128-span export batches, a one-second
+export timeout, 256-character attribute values, 64 attributes/events per span,
+and 16 links per span. Process flush and shutdown each have a two-second bound.
+These are safety ceilings, not capacity targets. Resource data includes service
+name/version and commit, deployment environment/slot, and host/instance; local
+workspaces additionally identify their workspace kind and slot.
+
+For a matched low-rate `roster-wide` profile-load run (`rate=2`, `duration=20s`,
+`vus=2`), sampled lightweight mode (1%) must remain within all of these budgets
+relative to disabled mode: no more than 5% throughput loss, 10% HTTP p95 latency
+increase, 10% CPU-time-per-completed-iteration increase, 10% peak-RSS increase
+with an absolute 32 MiB allowance, and one percentage point additional dropped
+iterations. Compare repeated runs
+on the same host and seeded database; a single noisy shared-host sample is not
+a release conclusion. Always-on and diagnostic modes are diagnosis/capacity
+evidence and are not approved ordinary-production modes.
+
 ## Trace And Data Boundary
 
 WAI owns request-root spans; Bepis action helpers add low-cardinality action and

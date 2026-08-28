@@ -35,6 +35,8 @@
                     pkgs.stripe-cli
                 ];
 
+                files.".ghci".source = ../../../Config/ghci;
+
                 env = {
                     IHP_TELEMETRY_DISABLED = "1";
                     IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH = "false";

@@ -3,7 +3,8 @@
 module Web.Controller.RosterTemplates where
 
 import Application.Bepis.Controller
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
                                       ensureManagerRole, ensureProfileCompleted,
                                       ensureVenueWritable, fetchVenueConfig)
@@ -15,9 +16,11 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom,
                                                            surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.Telemetry (annotateTelemetryAction)
 import Application.RosterTemplates
 import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..))
 import Control.Monad (guard)
+import Data.Either (fromRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.UUID (UUID)
@@ -54,6 +57,7 @@ rosterTemplateWindowScopeForSubmittedAnchor rosterGroup anchorDate = do
 
 instance Controller RosterTemplatesController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
@@ -225,7 +229,7 @@ resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope submittedAn
 
 applicationShiftTypeMappingsFromValues :: Maybe [UUID] -> Maybe [UUID] -> Map.Map (Id ShiftType) (Id ShiftType)
 applicationShiftTypeMappingsFromValues maybeStaleIds maybeMappedIds =
-    either (const invalidMapping) (\mappings -> mappings) (parseCaptureShiftTypeMappings (fromMaybe [] maybeStaleIds) (fromMaybe [] maybeMappedIds))
+    fromRight invalidMapping (parseCaptureShiftTypeMappings (fromMaybe [] maybeStaleIds) (fromMaybe [] maybeMappedIds))
   where
     invalidMapping = Map.singleton (Id UUID.nil) (Id UUID.nil)
 

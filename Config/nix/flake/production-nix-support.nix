@@ -57,6 +57,10 @@ let
     sharedAppLibraryEnd = "        }) {}\n    ));\n\n    allHaskellPackagesWithAppLib";
     staticOnlyAppLibraryEnd = "        }) {}\n    )));\n\n    allHaskellPackagesWithAppLib";
     executableGhcOptions = "                    $(make print-ghc-options)";
+    runJobsMain = "                main :: IO ()\n                main = runScript Config.config (runJobWorkers (workers RootApplication))";
+    telemetryRunJobsMain = "                import qualified Application.Helper.Telemetry\n                main :: IO ()\n                main = Application.Helper.Telemetry.withTelemetryRuntime (runScript Config.config (runJobWorkers (workers RootApplication)))";
+    scriptMain = "                main = runScript Config.config run";
+    telemetryScriptMain = "                import qualified Application.Helper.Telemetry\n                main = Application.Helper.Telemetry.withTelemetryRuntime (runScript Config.config run)";
     # Production executables consume static app-lib object interfaces. Remove
     # IHP's development byte-code mode and isolate any Template Haskell loading
     # in the external interpreter instead of requesting app-lib's dynamic way.
@@ -67,10 +71,13 @@ let
     sharedStartReplacements = builtins.length (lib.splitString sharedAppLibraryStart source) - 1;
     sharedEndReplacements = builtins.length (lib.splitString sharedAppLibraryEnd source) - 1;
     executableOptionReplacements = builtins.length (lib.splitString executableGhcOptions source) - 1;
+    runJobsMainReplacements = builtins.length (lib.splitString runJobsMain source) - 1;
+    scriptMainReplacements = builtins.length (lib.splitString scriptMain source) - 1;
 in
 if commandReplacements != 1 || commentReplacements != 1 || loopCommentReplacements != 1
     || sharedStartReplacements != 1 || sharedEndReplacements != 1 || executableOptionReplacements != 3
-then throw "IHP NixSupport production seam changed; expected exact dependency, shared-library, and three executable option markers"
+    || runJobsMainReplacements != 1 || scriptMainReplacements != 1
+then throw "IHP NixSupport production seam changed; expected exact dependency, shared-library, executable option, and telemetry lifecycle markers"
 else builtins.toFile "ihp-production-nix-support.nix" (
     builtins.replaceStrings
         [
@@ -80,6 +87,8 @@ else builtins.toFile "ihp-production-nix-support.nix" (
             sharedAppLibraryStart
             sharedAppLibraryEnd
             executableGhcOptions
+            runJobsMain
+            scriptMain
         ]
         [
             productionPackageInventoryComment
@@ -88,6 +97,8 @@ else builtins.toFile "ihp-production-nix-support.nix" (
             staticOnlyAppLibraryStart
             staticOnlyAppLibraryEnd
             staticExecutableGhcOptions
+            telemetryRunJobsMain
+            telemetryScriptMain
         ]
         source
 )

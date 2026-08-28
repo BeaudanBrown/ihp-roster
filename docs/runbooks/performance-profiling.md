@@ -22,6 +22,11 @@ When enabled, response middleware emits `Server-Timing` and `X-Request-Id` heade
 
 The shared `renderProfiled` and `respondHtmlProfiled` helpers add coarse `render.ihp_view` and `render.respond_html` spans when profiling is enabled. `respondHtmlProfiled` also emits `X-Profile-Response-Bytes` for rendered HTML payload size. Use these helpers for profiled routes and add narrower manual spans only when a route-level render span still leaves a large attribution gap.
 
+Local trace-run and trace-step request headers accept at most 96 UTF-8 bytes and
+only ASCII letters, digits, `-`, `_`, `.`, `:`, and `/`. Invalid values are
+discarded. They remain trusted-local correlation inputs, not customer-facing or
+production metadata.
+
 Profiling counters are available for high-volume render paths via `profileCounter` in IO code and `profileRenderCounter` in pure view code. Counters are emitted in `X-Profile-Counters` and summarized alongside timings. Use counters sparingly for repeated structures such as roster rows, slot blocks, grid cells, launchers, hidden inputs, picker options, and panel entries.
 
 Manual spans are added with helpers from `Application.Helper.Profiling`, for example:
@@ -101,7 +106,9 @@ output/profile-load/<run-id>/seed/manifest.json
 ```
 
 Add `--otel` to start a Nix-provided local OpenTelemetry Collector and export
-agent-readable trace artifacts beside the k6 report:
+agent-readable trace artifacts beside the k6 report. Use `--no-profiling` for a
+lightweight OTel run and `--otel-sampler`/`--otel-sampler-arg` to select the
+runtime sampler:
 
 ```bash
 bash ./bin/in-env profile-load --scenario=roster-wide --rate=2 --duration=15s --vus=2 --otel
@@ -115,6 +122,25 @@ output/profile-load/<run-id>/otel-traces.json
 output/profile-load/<run-id>/otel-summary.json
 output/profile-load/<run-id>/otel-summary.md
 ```
+
+## Runtime Mode Benchmark
+
+Use the four-mode runner to compare disabled, 1% sampled, always-on lightweight,
+and always-on diagnostic behavior against one seeded database:
+
+```bash
+bash ./bin/in-env otel-runtime-benchmark \
+  --scenario=roster-wide --rate=2 --duration=20s --vus=2
+```
+
+Artifacts are retained under `output/otel-runtime-benchmark/<run-id>/`, with one
+subdirectory per mode, sampled server CPU/RSS evidence in
+`runtime-resources.json`, and an aggregate `benchmark.json`. Repeat the matrix on
+the same idle host before drawing a release conclusion. The sampled-mode budget
+and queue/memory ceilings are defined in `docs/architecture/observability.md`.
+Exporter/Collector outage checks should point the app at a closed localhost
+port and confirm application checks complete while export failures remain
+bounded by the one-second exporter timeout.
 
 ## Live Dev Trace Frontend
 

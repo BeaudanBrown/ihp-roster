@@ -90,13 +90,38 @@ let
   tempoCfg = cfg.observability.tempo;
   lokiCfg = cfg.observability.loki;
   profilingCfg = cfg.observability.profiling;
+  serviceRevision =
+    if self ? rev then self.rev
+    else if self ? dirtyRev then self.dirtyRev
+    else "unknown";
+  serviceVersion = builtins.substring 0 (builtins.min 12 (builtins.stringLength serviceRevision)) serviceRevision;
+  otelResourceAttributes = lib.concatStringsSep "," [
+    "deployment.environment.name=${otelCfg.deploymentEnvironment}"
+    "service.version=${serviceVersion}"
+    "service.instance.id=${config.networking.hostName}"
+    "host.name=${config.networking.hostName}"
+    "bepis.deployment.slot=${otelCfg.deploymentSlot}"
+    "vcs.ref.head.revision=${serviceRevision}"
+  ];
   observabilityEnv =
     optionalAttrs otelCfg.enable {
       IHP_ROSTER_OTEL = "1";
+      IHP_ROSTER_OTEL_SHUTDOWN_TIMEOUT_MS = "2000";
       OTEL_SERVICE_NAME = otelCfg.serviceName;
+      OTEL_RESOURCE_ATTRIBUTES = otelResourceAttributes;
       OTEL_EXPORTER_OTLP_ENDPOINT = otelCfg.endpoint;
       OTEL_TRACES_SAMPLER = otelCfg.sampler;
       OTEL_TRACES_SAMPLER_ARG = otelCfg.samplerArg;
+      OTEL_BSP_MAX_QUEUE_SIZE = "512";
+      OTEL_BSP_MAX_EXPORT_BATCH_SIZE = "128";
+      OTEL_BSP_SCHEDULE_DELAY = "1000";
+      OTEL_BSP_EXPORT_TIMEOUT = "1000";
+      OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT = "256";
+      OTEL_ATTRIBUTE_COUNT_LIMIT = "64";
+      OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT = "256";
+      OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT = "64";
+      OTEL_SPAN_EVENT_COUNT_LIMIT = "64";
+      OTEL_SPAN_LINK_COUNT_LIMIT = "16";
     }
     // optionalAttrs profilingCfg.enable {
       IHP_ROSTER_PROFILING = "1";
@@ -364,6 +389,18 @@ in
           type = types.str;
           default = "0.01";
           description = "OTEL_TRACES_SAMPLER_ARG used with the configured sampler.";
+        };
+
+        deploymentEnvironment = mkOption {
+          type = types.str;
+          default = if cfg.production then "production" else "development";
+          description = "Low-cardinality deployment.environment.name resource value.";
+        };
+
+        deploymentSlot = mkOption {
+          type = types.str;
+          default = if cfg.production then "production" else "development";
+          description = "Low-cardinality Bepis deployment slot resource value.";
         };
       };
 
