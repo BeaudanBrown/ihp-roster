@@ -29,13 +29,13 @@ export function writeJson(relPath, value) {
   return writeText(relPath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-export function fileHash(relPath) {
-  const full = path.join(repoRoot, relPath);
+export function fileHash(relPath, root = repoRoot) {
+  const full = path.join(root, relPath);
   if (!fs.existsSync(full)) return null;
   return createHash("sha256").update(fs.readFileSync(full)).digest("hex");
 }
 
-export function listFiles(dirs, predicate = () => true) {
+export function listFiles(dirs, predicate = () => true, root = repoRoot) {
   const out = [];
   const ignored = new Set([".git", ".direnv", "dist", "dist-newstyle", "node_modules", "result", "output", "build"]);
   const walk = (dir) => {
@@ -44,10 +44,10 @@ export function listFiles(dirs, predicate = () => true) {
       if (ignored.has(entry.name)) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.isFile() && predicate(full)) out.push(path.relative(repoRoot, full));
+      else if (entry.isFile() && predicate(full)) out.push(path.relative(root, full));
     }
   };
-  for (const dir of dirs) walk(path.join(repoRoot, dir));
+  for (const dir of dirs) walk(path.join(root, dir));
   return out.sort();
 }
 

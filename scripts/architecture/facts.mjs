@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { architectureFactFingerprint } from "./facts-currency.mjs";
 import { fileHash, listFiles, outputDir, readText, repoRoot, writeJson } from "./shared.mjs";
 import { parseLayoutPolicy } from "./layout-policy.mjs";
 import { wiringRegistryPolicy } from "./wiring-policy.mjs";
@@ -401,6 +402,7 @@ const facts = {
   version: 3,
   generatedBy: "scripts/architecture/facts.mjs",
   model: "source-scanned entities/relationships with generated typed Bepis contracts, provenance, and heuristic confidence",
+  inputFingerprint: architectureFactFingerprint(),
   sources: Object.fromEntries([...sourceFiles, ...controllerFiles, ...viewFiles, ...moduleFiles, ...frontendFiles].sort().map((file) => [file, fileHash(file)])),
   schema,
   web: {

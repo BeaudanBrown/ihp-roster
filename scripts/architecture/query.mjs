@@ -1,13 +1,18 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { assertArchitectureFactsCurrent } from "./facts-currency.mjs";
 import { architectureResult, dotId, dotQuote, ensureDir, queryDir, readJsonFile, readStdinJson, renderDot, repoRoot, slug, writeText } from "./shared.mjs";
 
 function ensureFacts() {
   const factsPath = path.join(repoRoot, "output/architecture/facts.json");
-  if (fs.existsSync(factsPath)) return;
-  const result = spawnSync("bash", ["Config/nix/scripts/architecture/facts"], { cwd: repoRoot, encoding: "utf8" });
-  if (result.status !== 0) throw new Error(`failed to generate facts: ${result.stderr || result.stdout}`);
+  if (!fs.existsSync(factsPath)) {
+    const result = spawnSync("bash", ["Config/nix/scripts/architecture/facts"], { cwd: repoRoot, encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`failed to generate facts: ${result.stderr || result.stdout}`);
+  }
+  const facts = readJsonFile("output/architecture/facts.json");
+  assertArchitectureFactsCurrent(facts);
+  return facts;
 }
 
 function unique(values) {
@@ -684,8 +689,7 @@ function moduleQuery(facts, args) {
 
 const payload = readStdinJson();
 const args = payload.args || {};
-ensureFacts();
-const facts = readJsonFile("output/architecture/facts.json");
+const facts = ensureFacts();
 
 switch (payload.name) {
   case "component":

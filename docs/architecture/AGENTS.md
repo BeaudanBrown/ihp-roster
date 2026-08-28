@@ -8,6 +8,8 @@ Project-local architecture commands are declared in `.pi/architecture.json` and 
 
 Whole-project generated outputs are written under `output/architecture/`, which is gitignored initially. Focused query outputs are written under `.pi/tmp/architecture-query/` or `.pi/tmp/architecture-trace/`.
 
+Focused queries share one fact-currency boundary. Facts record a SHA-256 fingerprint of every scanned Haskell/frontend file, generated Bepis contract input, and fact-parser/policy source. A missing facts artifact is generated automatically; an existing artifact is queried only when its complete fingerprint is current. Stale or legacy facts fail closed with the recovery command `bash ./bin/in-env architecture-facts`; current facts are read without regeneration.
+
 Use these wrappers from the project environment:
 
 ```bash
