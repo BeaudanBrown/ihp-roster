@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+# shellcheck source=../lib/dev-db-maintenance.sh
+. "$repo_root/Config/nix/scripts/lib/dev-db-maintenance.sh"
+fixture_root="$(mktemp -d)"
+holder_pid=""
+cleanup() {
+    if [ -n "$holder_pid" ]; then
+        kill "$holder_pid" 2>/dev/null || true
+        wait "$holder_pid" 2>/dev/null || true
+    fi
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "dev-db-maintenance-test: $*" >&2
+    exit 1
+}
+
+export DEVENV_AGENT_STATE_DIR="$fixture_root/state"
+export PORT=65431
+mkdir -p "$DEVENV_AGENT_STATE_DIR"
+(
+    . "$repo_root/Config/nix/scripts/lib/dev-db-maintenance.sh"
+    bepis_dev_db_acquire_maintenance_lock
+    touch "$fixture_root/lock-ready"
+    sleep 30
+) &
+holder_pid=$!
+for _ in $(seq 1 50); do
+    [ -f "$fixture_root/lock-ready" ] && break
+    sleep 0.02
+done
+[ -f "$fixture_root/lock-ready" ] || fail "lock holder did not start"
+set +e
+lock_output="$(bepis_dev_db_acquire_maintenance_lock 2>&1)"
+lock_status=$?
+set -e
+[ "$lock_status" -eq 75 ] || fail "concurrent maintenance returned $lock_status"
+[[ "$lock_output" == *"already running"* ]] || fail "concurrent maintenance was not diagnosed"
+kill "$holder_pid"
+wait "$holder_pid" 2>/dev/null || true
+holder_pid=""
+
+fake_bin="$fixture_root/bin"
+mkdir -p "$fake_bin"
+cat >"$fake_bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+exit "${BEPIS_TEST_LSOF_STATUS:-1}"
+EOF
+chmod +x "$fake_bin/lsof"
+PATH="$fake_bin:$PATH"
+export PATH
+BEPIS_TEST_LSOF_STATUS=1 bepis_dev_db_require_app_stopped
+set +e
+app_output="$(BEPIS_TEST_LSOF_STATUS=0 bepis_dev_db_require_app_stopped 2>&1)"
+app_status=$?
+set -e
+[ "$app_status" -eq 75 ] || fail "active app returned $app_status"
+[[ "$app_output" == *"refusing to reset"* ]] || fail "active app was not diagnosed"
+
+[ "$(just --dry-run db 2>&1)" = "dev-db-reset" ] || fail "just db bypasses managed reset"
+echo "dev-db-maintenance-test: ok"

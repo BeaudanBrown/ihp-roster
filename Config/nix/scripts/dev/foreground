@@ -47,16 +47,24 @@ else
     MAILHOG_STARTED=1
 fi
 
+stop_process_group() {
+    local pid="$1"
+    [ -n "$pid" ] || return 0
+    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+        kill -0 -- "-$pid" 2>/dev/null || break
+        sleep 0.1
+    done
+    if kill -0 -- "-$pid" 2>/dev/null; then
+        kill -KILL -- "-$pid" 2>/dev/null || true
+    fi
+    wait "$pid" 2>/dev/null || true
+}
+
 cleanup() {
-    if [ -n "$APP_PID" ]; then
-        kill "$APP_PID" 2>/dev/null || true
-    fi
-    if [ -n "$FRONTEND_WATCH_PID" ]; then
-        kill "$FRONTEND_WATCH_PID" 2>/dev/null || true
-    fi
-    if [ -n "$FRONTEND_GENERATED_WATCH_PID" ]; then
-        kill "$FRONTEND_GENERATED_WATCH_PID" 2>/dev/null || true
-    fi
+    stop_process_group "$APP_PID"
+    stop_process_group "$FRONTEND_WATCH_PID"
+    stop_process_group "$FRONTEND_GENERATED_WATCH_PID"
     if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
         kill "$MAILHOG_PID" 2>/dev/null || true
     fi
@@ -88,9 +96,9 @@ export OTEL_TRACES_SAMPLER="${OTEL_TRACES_SAMPLER:-always_on}"
 export OTEL_BSP_SCHEDULE_DELAY="${OTEL_BSP_SCHEDULE_DELAY:-1000}"
 export OTEL_BSP_EXPORT_TIMEOUT="${OTEL_BSP_EXPORT_TIMEOUT:-5000}"
 
-frontend-generated-watch &
+setsid frontend-generated-watch &
 FRONTEND_GENERATED_WATCH_PID=$!
-frontend-watch &
+setsid frontend-watch &
 FRONTEND_WATCH_PID=$!
 
 if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
@@ -118,7 +126,7 @@ else
         echo "Tracing env: OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
         echo "Grafana Explore: http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
     fi
-    start &
+    setsid start &
     APP_PID=$!
     wait "$APP_PID"
 fi

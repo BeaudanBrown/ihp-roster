@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+# shellcheck source=../lib/dev-db-maintenance.sh
+. "@scriptsRoot@/lib/dev-db-maintenance.sh"
+
+bepis_workspace_configure
+bepis_dev_db_acquire_maintenance_lock
+bepis_dev_db_require_app_stopped
+dev-ensure-postgres >/dev/null
+
+if ! connection_output="$(psql -X -h "$PGHOST" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then
+    echo "dev-db-reset: PostgreSQL connection failed at $PGHOST" >&2
+    echo "$connection_output" >&2
+    exit 1
+fi
+
+make db

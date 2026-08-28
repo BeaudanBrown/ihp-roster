@@ -9,7 +9,8 @@ import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
                                                    encodeDurableResource)
 import Application.Helper.LiveUpdate.DurableListener (hydrateDurableStateFromConnection,
                                                       readDurableEventsAfter,
-                                                      runDurableInvalidationListenerConnection)
+                                                      runDurableInvalidationListenerConnection,
+                                                      startDurableInvalidationListener)
 import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
                                                        withDurableLiveMutationOutcomeTransaction)
 import Application.Helper.LiveUpdate.DurableState (currentDurableCursor,
@@ -24,8 +25,11 @@ import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..),
                                               surfaceScopeKey)
 import Application.Helper.SurfaceResource (SurfaceResourceValue,
                                            liveMutationResult)
-import Control.Concurrent.Async (concurrently, withAsync)
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (async, cancel, concurrently, waitCatch,
+                                 withAsync)
 import Control.Concurrent.Chan (newChan, readChan, writeChan)
+import Control.Monad (replicateM_)
 import qualified Control.Exception as Exception
 import qualified Data.ByteString as ByteString
 import qualified Data.Set as Set
@@ -357,6 +361,16 @@ tests =
                     versionCount `shouldBe` 1
                     eventCount `shouldBe` 0
 
+            it "retains exactly one PostgreSQL listener across repeated initializer cancellation" $ withContext do
+                withCleanDb do
+                    databaseUrl <- getEnv "DATABASE_URL"
+                    replicateM_ 3 do
+                        listener <- async (startDurableInvalidationListener (\_ _ -> pure ()))
+                        waitForDurableListenerCount databaseUrl 1
+                        cancel listener
+                        _ <- waitCatch listener
+                        waitForDurableListenerCount databaseUrl 0
+
             it "dispatches current authority after reconnect when missed events were pruned" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
@@ -422,6 +436,19 @@ tests =
                     let unsafeBatch = defaultLiveInvalidationOutboxPruneConfig { batchSize = 1001 }
                     pruneExpiredLiveInvalidationOutboxAt pruningTestNow unsafeRetention `shouldThrow` anyException
                     pruneExpiredLiveInvalidationOutboxAt pruningTestNow unsafeBatch `shouldThrow` anyException
+
+waitForDurableListenerCount :: String -> Int -> IO ()
+waitForDurableListenerCount databaseUrl expected = go (40 :: Int)
+  where
+    go remaining = do
+        actual <- Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
+            [Only count] <- PG.query connection "SELECT COUNT(*)::INT FROM pg_stat_activity WHERE application_name = 'bepis-live-invalidation-listener'" ()
+            pure count
+        if actual == expected
+            then pure ()
+            else if remaining <= 0
+                then expectationFailure (cs ("expected durable listener connection count " <> tshow expected <> ", got " <> tshow actual))
+                else threadDelay 50000 >> go (remaining - 1)
 
 pruningTestNow :: UTCTime
 pruningTestNow = UTCTime (fromGregorian 2026 8 18) 0

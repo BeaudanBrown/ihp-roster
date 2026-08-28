@@ -94,6 +94,7 @@ bash ./bin/in-env dev-start
 bash ./bin/in-env dev-wait
 bash ./bin/in-env dev-workspace-info
 bash ./bin/in-env dev-stop
+bash ./bin/in-env dev-db-reset
 bash ./bin/in-env seed-dev app
 bash ./bin/in-env psql -d app
 ```
@@ -111,7 +112,11 @@ without expensive process, resource, or HLS inspection; explicit
 on exit, requires a valid local Stripe test
 configuration, and exposes the current workspace until Ctrl-C. Foreground
 development does not open a browser by default; set `IHP_BROWSER` to an explicit
-browser command to opt in. Managed workspaces
+browser command to opt in. `just db` ensures and resets the workspace database;
+`just seed-dev` performs that reset itself before loading complete development
+fixtures, so do not combine or background the two commands. Both refuse to run
+while the workspace app is active and serialize concurrent maintenance.
+Managed workspaces
 derive isolated ports, PostgreSQL state, and runtime paths; inspect them with
 `dev-workspace-info --json` rather than assuming addresses. See `AGENTS.md` for
 epic-worktree delegation and approval boundaries.

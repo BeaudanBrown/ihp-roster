@@ -27,5 +27,8 @@ node --test scripts/architecture/email-transport.test.mjs
 node --test scripts/architecture/fixture-reset-manifest.test.mjs
 stripe-sandbox-contract-parity --self-test
 
+echo "verify-tooling: development database maintenance harness"
+dev-db-maintenance-test
+
 echo "verify-tooling: E2E PostgreSQL lifecycle harness"
 e2e-postgres-lifecycle-test
