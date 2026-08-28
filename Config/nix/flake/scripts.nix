@@ -102,6 +102,7 @@ in
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
         frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
         frontend-generated-ensure = script ../scripts/frontend/generated-ensure;
+        frontend-generated-state-test = script ../scripts/frontend/generated-state-test;
         frontend-generated-sync = script ../scripts/frontend/generated-sync;
         frontend-generated-watch = script ../scripts/frontend/generated-watch;
         frontend-drift-check = script ../scripts/frontend/drift-check;
@@ -146,6 +147,8 @@ in
         weeder-check = script ../scripts/haskell/weeder-check;
         weeder-policy-test = script ../scripts/haskell/weeder-policy-test;
         regen-types = script ../scripts/haskell/regen-types;
+        haskell-generated-ensure = script ../scripts/haskell/generated-ensure;
+        haskell-generated-ensure-test = script ../scripts/haskell/generated-ensure-test;
         generated-code-sync = script ../scripts/haskell/generated-code-sync;
         hie-bios-test = script ../scripts/haskell/hie-bios-test;
         hls-lsp = script ../scripts/haskell/hls-lsp;

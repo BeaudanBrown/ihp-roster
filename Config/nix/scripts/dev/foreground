@@ -2,13 +2,20 @@
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
+# shellcheck source=../lib/workspace-resources.sh
+. "@scriptsRoot@/lib/workspace-resources.sh"
 bepis_workspace_configure
+bepis_workspace_resource_reexec_dev "$(command -v dev-foreground)" "$@"
+bash "@scriptsRoot@/haskell/generated-ensure"
 
 # Foreground development does not assume access to a desktop session. Callers
 # can still opt in to automatic launch with an explicit browser command.
 export IHP_BROWSER="${IHP_BROWSER:-true}"
 
 STATE_DIR="$(dev-agent-state-dir)"
+PID_FILE="$STATE_DIR/devenv.pid"
+FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
+FRONTEND_GENERATED_WATCH_PID_FILE="$STATE_DIR/frontend-generated-watch.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
 DB_SOCKET="$PGHOST"
 APP_HEALTH_URL="$APP_BASE_URL"
@@ -31,6 +38,14 @@ OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
 OBSERVABILITY_ENABLED="${IHP_ROSTER_DEV_OBSERVABILITY:-0}"
 
 mkdir -p "$STATE_DIR"
+if [ -f "$PID_FILE" ]; then
+    existing_pid="$(cat "$PID_FILE")"
+    if [ "$existing_pid" != "$BASHPID" ] && kill -0 "$existing_pid" 2>/dev/null; then
+        echo "Foreground development already owns this workspace (pid=$existing_pid)." >&2
+        exit 75
+    fi
+fi
+printf '%s\n' "$BASHPID" >"$PID_FILE"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
 mkdir -p "$XDG_CACHE_HOME"
 
@@ -61,10 +76,19 @@ stop_process_group() {
     wait "$pid" 2>/dev/null || true
 }
 
+remove_owned_pid_file() {
+    local file="$1"
+    local expected="$2"
+    [ -f "$file" ] && [ "$(cat "$file")" = "$expected" ] && rm -f "$file"
+}
+
 cleanup() {
     stop_process_group "$APP_PID"
     stop_process_group "$FRONTEND_WATCH_PID"
     stop_process_group "$FRONTEND_GENERATED_WATCH_PID"
+    remove_owned_pid_file "$FRONTEND_WATCH_PID_FILE" "$FRONTEND_WATCH_PID"
+    remove_owned_pid_file "$FRONTEND_GENERATED_WATCH_PID_FILE" "$FRONTEND_GENERATED_WATCH_PID"
+    remove_owned_pid_file "$PID_FILE" "$BASHPID"
     if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
         kill "$MAILHOG_PID" 2>/dev/null || true
     fi
@@ -98,8 +122,17 @@ export OTEL_BSP_EXPORT_TIMEOUT="${OTEL_BSP_EXPORT_TIMEOUT:-5000}"
 
 setsid frontend-generated-watch &
 FRONTEND_GENERATED_WATCH_PID=$!
+printf '%s\n' "$FRONTEND_GENERATED_WATCH_PID" >"$FRONTEND_GENERATED_WATCH_PID_FILE"
 setsid frontend-watch &
 FRONTEND_WATCH_PID=$!
+printf '%s\n' "$FRONTEND_WATCH_PID" >"$FRONTEND_WATCH_PID_FILE"
+sleep 0.1
+for watcher_pid in "$FRONTEND_GENERATED_WATCH_PID" "$FRONTEND_WATCH_PID"; do
+    if ! kill -0 "$watcher_pid" 2>/dev/null; then
+        echo "A frontend watcher failed to start; another development process may own this workspace." >&2
+        exit 75
+    fi
+done
 
 if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
     dev-ensure-postgres

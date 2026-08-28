@@ -7,6 +7,8 @@ set -euo pipefail
 # shellcheck source=../lib/dev-db-maintenance.sh
 . "@scriptsRoot@/lib/dev-db-maintenance.sh"
 
+bash "@scriptsRoot@/haskell/generated-ensure"
+
 DB_NAME="app"
 RESET_MODE=""
 SCRIPT_ARGS=()
@@ -44,7 +46,7 @@ case "$DB_NAME" in
         bepis_workspace_configure
         DB_SOCKET="$PGHOST"
         bepis_dev_db_acquire_maintenance_lock
-        bepis_dev_db_require_app_stopped
+        bepis_dev_db_capture_app_state
         dev-ensure-postgres >/dev/null
         if ! connection_output="$(psql -X -h "$DB_SOCKET" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then
             echo "Dev fixture seeding could not connect to PostgreSQL at $DB_SOCKET" >&2
@@ -122,4 +124,8 @@ if [ -f "$DEV_XERO_SEED_FILE" ]; then
     psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f "$DEV_XERO_SEED_FILE"
     echo "Loading dev Xero pay item mappings"
     psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Fixture/Seed/DevXeroPayItemMappings.sql
+fi
+
+if [ "$DB_NAME" = app ]; then
+    bepis_dev_db_wait_for_app_recovery
 fi

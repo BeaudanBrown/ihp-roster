@@ -63,10 +63,12 @@ cat >"$fake_bin/dev-status" <<'EOF'
 #!/usr/bin/env bash
 exit 1
 EOF
-cat >"$fake_bin/frontend-generated-ensure" <<'EOF'
+for ensure in frontend-generated-ensure haskell-generated-ensure; do
+    cat >"$fake_bin/$ensure" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
+done
 cat >"$fake_bin/dev-ensure-postgres" <<'EOF'
 #!/usr/bin/env bash
 exit 0
@@ -110,6 +112,25 @@ cat >"$fake_bin/lsof" <<'EOF'
 #!/usr/bin/env bash
 exit 1
 EOF
+cat >"$fake_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "${1:-}" = --user ] && shift
+printf 'systemctl|%s\n' "$*" >>"$DEV_RESOURCE_TEST_LOG"
+case "${1:-}" in
+    is-system-running|start|set-property) exit 0 ;;
+esac
+exit 0
+EOF
+cat >"$fake_bin/systemd-run" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'systemd-run|%s\n' "$*" >>"$DEV_RESOURCE_TEST_LOG"
+while [ "$#" -gt 0 ] && [ "$1" != -- ]; do shift; done
+[ "${1:-}" = -- ] && shift
+export BEPIS_DEV_RESOURCE_CONTAINED=1
+exec "$@"
+EOF
 chmod +x "$fake_bin"/*
 
 run_for() {
@@ -125,9 +146,28 @@ run_for() {
             BEPIS_WORKSPACE_REPO_ROOT="$root" \
             BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
             BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
+            BEPIS_DEV_RESOURCE_CONTAINED=1 \
             "$@"
     )
 }
+
+resource_log="$fixture_root/dev-resource.log"
+contained_probe="$( (
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        DEVENV_AGENT_STATE_DIR="$fixture_root/state" \
+        DEV_POSTGRES_ROOT="$fixture_root/postgres-contained" \
+        BEPIS_WORKSPACE_REPO_ROOT="$fixture_repo" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
+        BEPIS_SYSTEMCTL_COMMAND="$fake_bin/systemctl" \
+        BEPIS_SYSTEMD_RUN_COMMAND="$fake_bin/systemd-run" \
+        DEV_RESOURCE_TEST_LOG="$resource_log" \
+        "$dev_app_command" --probe
+) )"
+assert_contains "$contained_probe" "PORT=8000 APP_BASE_URL=http://127.0.0.1:8000"
+assert_contains "$(cat "$resource_log")" "systemd-run|--user --scope --quiet --collect --slice=bepis-"
+assert_contains "$(cat "$resource_log")" "-primary.slice"
 
 app_probe="$(run_for "$epic_path" "$dev_app_command" --probe)"
 assert_contains "$app_probe" "PORT=8003 APP_BASE_URL=http://127.0.0.1:8003 SMTP_PORT=1026"
@@ -224,6 +264,7 @@ rm -f "$epic_state/runtime.env" "$epic_state/start-child.pid"
         BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
         BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
         BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
+        BEPIS_DEV_RESOURCE_CONTAINED=1 \
         "$dev_foreground_command"
 ) >/dev/null 2>&1 &
 foreground_pid=$!

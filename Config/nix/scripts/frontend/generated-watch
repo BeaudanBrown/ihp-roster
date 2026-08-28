@@ -17,6 +17,10 @@ manifest="$state_dir/frontend-contracts.manifest"
 interval="${FRONTEND_GENERATED_WATCH_INTERVAL:-${FRONTEND_CONTRACTS_WATCH_INTERVAL:-2}}"
 build_root="${FRONTEND_GENERATED_WATCH_BUILD_DIR:-$state_dir/watch-build}"
 mkdir -p "$state_dir" "$build_root"
+if ! frontend_generated_watch_lock; then
+    echo "frontend-generated-watch: another watcher already owns this workspace" >&2
+    exit 75
+fi
 
 regenerate() (
     frontend_generation_lock

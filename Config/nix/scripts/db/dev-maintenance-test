@@ -51,16 +51,28 @@ cat >"$fake_bin/lsof" <<'EOF'
 #!/usr/bin/env bash
 exit "${BEPIS_TEST_LSOF_STATUS:-1}"
 EOF
-chmod +x "$fake_bin/lsof"
+cat >"$fake_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+exit "${BEPIS_TEST_CURL_STATUS:-0}"
+EOF
+cat >"$fake_bin/psql" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "${BEPIS_TEST_LISTENER_COUNT:-1}"
+EOF
+chmod +x "$fake_bin"/*
 PATH="$fake_bin:$PATH"
 export PATH
-BEPIS_TEST_LSOF_STATUS=1 bepis_dev_db_require_app_stopped
+BEPIS_TEST_LSOF_STATUS=1 bepis_dev_db_capture_app_state
+[ "$BEPIS_DEV_DB_APP_WAS_RUNNING" = 0 ] || fail "stopped app was reported running"
+BEPIS_TEST_LSOF_STATUS=0 bepis_dev_db_capture_app_state
+[ "$BEPIS_DEV_DB_APP_WAS_RUNNING" = 1 ] || fail "running app was not captured"
+BEPIS_TEST_CURL_STATUS=0 BEPIS_TEST_LISTENER_COUNT=1 bepis_dev_db_wait_for_app_recovery >/dev/null
 set +e
-app_output="$(BEPIS_TEST_LSOF_STATUS=0 bepis_dev_db_require_app_stopped 2>&1)"
-app_status=$?
+recovery_output="$(BEPIS_DEV_DB_RECOVERY_ATTEMPTS=1 BEPIS_TEST_CURL_STATUS=0 BEPIS_TEST_LISTENER_COUNT=2 bepis_dev_db_wait_for_app_recovery 2>&1)"
+recovery_status=$?
 set -e
-[ "$app_status" -eq 75 ] || fail "active app returned $app_status"
-[[ "$app_output" == *"refusing to reset"* ]] || fail "active app was not diagnosed"
+[ "$recovery_status" -eq 75 ] || fail "duplicate listener recovery returned $recovery_status"
+[[ "$recovery_output" == *"did not recover"* ]] || fail "duplicate listener was not diagnosed"
 
 [ "$(just --dry-run db 2>&1)" = "dev-db-reset" ] || fail "just db bypasses managed reset"
 echo "dev-db-maintenance-test: ok"

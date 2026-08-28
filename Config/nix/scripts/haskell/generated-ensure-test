@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+fixture_root="$(mktemp -d)"
+trap 'rm -rf "$fixture_root"' EXIT
+fail() { echo "haskell-generated-ensure-test: $*" >&2; exit 1; }
+
+fixture_repo="$fixture_root/repo"
+fake_bin="$fixture_root/bin"
+mkdir -p "$fixture_repo/Application" "$fixture_repo/Config/nix/scripts/haskell" "$fixture_repo/build" "$fake_bin" "$fixture_root/ihp"
+cp "$repo_root/Config/nix/scripts/haskell/generated-state-lib" "$fixture_repo/Config/nix/scripts/haskell/generated-state-lib"
+cp "$repo_root/Config/nix/scripts/haskell/generated-ensure" "$fixture_repo/Config/nix/scripts/haskell/generated-ensure"
+printf 'CREATE TABLE alpha ();\n' >"$fixture_repo/Application/Schema.sql"
+printf 'CREATE TABLE ihp_jobs ();\n' >"$fixture_root/ihp/IHPSchema.sql"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$fake_bin/build-generated-code"
+cat >"$fake_bin/dev-agent-state-dir" <<EOF
+#!/usr/bin/env bash
+printf '%s\\n' '$fixture_root/state'
+EOF
+cat >"$fake_bin/regen-fixture" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+count_file="$HASKELL_GENERATED_TEST_COUNT"
+count=0
+[ ! -f "$count_file" ] || count="$(cat "$count_file")"
+printf '%s\n' "$((count + 1))" >"$count_file"
+rm -rf build/Generated
+mkdir -p build/Generated
+printf 'generated from: %s\n' "$(cat Application/Schema.sql)" >build/Generated/Types.hs
+EOF
+chmod +x "$fake_bin"/*
+
+run_ensure() {
+    (
+        cd "$fixture_repo"
+        export PATH="$fake_bin:$PATH"
+        export IHP_LIB="$fixture_root/ihp"
+        export HASKELL_GENERATED_REPO_ROOT="$fixture_repo"
+        export HASKELL_REGEN_TYPES_COMMAND="$fake_bin/regen-fixture"
+        export HASKELL_GENERATED_TEST_COUNT="$fixture_root/count"
+        export BEPIS_SCRIPTS_ROOT="$fixture_repo/Config/nix/scripts"
+        sed "s|@scriptsRoot@|$fixture_repo/Config/nix/scripts|g" Config/nix/scripts/haskell/generated-ensure | bash
+    )
+}
+
+run_ensure >/dev/null
+[ "$(cat "$fixture_root/count")" = 1 ] || fail "cold ensure did not regenerate once"
+run_ensure >/dev/null
+[ "$(cat "$fixture_root/count")" = 1 ] || fail "warm ensure regenerated"
+
+# Content, not mtime, owns provenance across branch switches.
+printf 'CREATE TABLE beta ();\n' >"$fixture_repo/Application/Schema.sql"
+touch -d '2000-01-01 UTC' "$fixture_repo/Application/Schema.sql"
+run_ensure >/dev/null
+[ "$(cat "$fixture_root/count")" = 2 ] || fail "older schema content did not invalidate generated types"
+grep -q 'beta' "$fixture_repo/build/Generated/Types.hs" || fail "new schema was not generated"
+
+printf '# changed generator identity\n' >>"$fake_bin/build-generated-code"
+run_ensure >/dev/null
+[ "$(cat "$fixture_root/count")" = 3 ] || fail "generator identity did not invalidate generated types"
+
+# Working-tree entry wrappers can outlive newly registered devenv commands.
+# Nested callers must resolve this script through the templated scripts root,
+# rather than assuming the command already exists on a stale shell's PATH.
+if grep -R -n -E '^[[:space:]]*haskell-generated-ensure([[:space:]]|$)' \
+    "$repo_root/Config/nix/scripts" \
+    --exclude=generated-ensure-test; then
+    fail "nested generated ensure relies on the caller PATH"
+fi
+
+echo "haskell-generated-ensure-test: ok"

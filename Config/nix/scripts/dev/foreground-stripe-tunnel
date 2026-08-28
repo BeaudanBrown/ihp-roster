@@ -4,9 +4,13 @@ set -euo pipefail
 . "@scriptsRoot@/lib/stripe.sh"
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
+# shellcheck source=../lib/workspace-resources.sh
+. "@scriptsRoot@/lib/workspace-resources.sh"
 # shellcheck source=../lib/stripe-dev.sh
 . "@scriptsRoot@/lib/stripe-dev.sh"
 
+bepis_workspace_configure
+bepis_workspace_resource_reexec_dev "$(command -v dev-foreground-stripe-tunnel)" "$@"
 stripe_dev_load_and_validate_config
 STATE_DIR="$(dev-agent-state-dir)"
 STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"

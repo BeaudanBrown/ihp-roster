@@ -2,5 +2,6 @@
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "@scriptsRoot@/lib/ghc.sh"
+bash "@scriptsRoot@/haskell/generated-ensure"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
 exec ghci $GHC_OPTS Main.hs "$@"

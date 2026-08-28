@@ -85,6 +85,21 @@ bepis_workspace_resource_exec() {
         --slice="$BEPIS_WORKSPACE_RESOURCE_SLICE" -- "$@"
 }
 
+# Re-exec one outer development command into the same equal-weight workspace
+# slice used by Pi. Descendants inherit containment; the marker prevents nested
+# dev wrappers from creating one scope per layer.
+bepis_workspace_resource_reexec_dev() {
+    [ "${BEPIS_DEV_RESOURCE_CONTAINED:-0}" != 1 ] || return 0
+    local command="$1"
+    shift
+    local common_dir
+    common_dir="$(git -C "$BEPIS_WORKSPACE_REPO_ROOT" rev-parse --path-format=absolute --git-common-dir)"
+    export BEPIS_DEV_RESOURCE_CONTAINED=1
+    bepis_workspace_resource_exec \
+        "$common_dir" "$BEPIS_WORKSPACE_KIND" "$BEPIS_WORKSPACE_SLOT" \
+        "$command" "$@"
+}
+
 bepis_workspace_resource_status() {
     local common_dir="$1"
     local kind="$2"

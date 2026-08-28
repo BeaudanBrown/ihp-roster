@@ -27,6 +27,10 @@ node --test scripts/architecture/email-transport.test.mjs
 node --test scripts/architecture/fixture-reset-manifest.test.mjs
 stripe-sandbox-contract-parity --self-test
 
+echo "verify-tooling: generated-code provenance and watcher ownership"
+bash "@scriptsRoot@/haskell/generated-ensure-test"
+bash "@scriptsRoot@/frontend/generated-state-test"
+
 echo "verify-tooling: development database maintenance harness"
 dev-db-maintenance-test
 

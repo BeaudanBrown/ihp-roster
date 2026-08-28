@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(git rev-parse --show-toplevel)"
+fixture_root="$(mktemp -d)"
+holder_pid=""
+cleanup() {
+    [ -z "$holder_pid" ] || { kill "$holder_pid" 2>/dev/null || true; wait "$holder_pid" 2>/dev/null || true; }
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+fail() { echo "frontend-generated-state-test: $*" >&2; exit 1; }
+
+for name in a b; do
+    mkdir -p "$fixture_root/$name"
+    cat >"$fixture_root/$name/ghc" <<'EOF'
+#!/usr/bin/env bash
+[ "${1:-}" = "--numeric-version" ] && { echo 9.10.3; exit 0; }
+exit 1
+EOF
+    chmod +x "$fixture_root/$name/ghc"
+done
+cat >"$fixture_root/dev-agent-state-dir" <<EOF
+#!/usr/bin/env bash
+printf '%s\\n' '$fixture_root/state'
+EOF
+chmod +x "$fixture_root/dev-agent-state-dir"
+
+cd "$repo_root"
+# shellcheck source=generated-state-lib
+. Config/nix/scripts/frontend/generated-state-lib
+hash_a="$(PATH="$fixture_root/a:$fixture_root:$PATH" frontend_contract_input_hash)"
+hash_b="$(PATH="$fixture_root/b:$fixture_root:$PATH" frontend_contract_input_hash)"
+[ "$hash_a" = "$hash_b" ] || fail "equivalent GHC installations produced different fingerprints"
+
+PATH="$fixture_root:$PATH"
+export PATH
+(
+    # shellcheck source=generated-state-lib
+    . Config/nix/scripts/frontend/generated-state-lib
+    frontend_generated_watch_lock
+    touch "$fixture_root/locked"
+    sleep 30
+) &
+holder_pid=$!
+for _ in $(seq 1 50); do [ -f "$fixture_root/locked" ] && break; sleep 0.02; done
+[ -f "$fixture_root/locked" ] || fail "watch lock holder did not start"
+if (frontend_generated_watch_lock); then
+    fail "second generated watcher acquired the lifetime lock"
+fi
+kill "$holder_pid"
+wait "$holder_pid" 2>/dev/null || true
+holder_pid=""
+frontend_generated_watch_lock
+
+echo "frontend-generated-state-test: ok"

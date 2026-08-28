@@ -7,7 +7,8 @@ set -euo pipefail
 
 bepis_workspace_configure
 bepis_dev_db_acquire_maintenance_lock
-bepis_dev_db_require_app_stopped
+bepis_dev_db_capture_app_state
+bash "@scriptsRoot@/haskell/generated-ensure"
 dev-ensure-postgres >/dev/null
 
 if ! connection_output="$(psql -X -h "$PGHOST" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then
@@ -17,3 +18,4 @@ if ! connection_output="$(psql -X -h "$PGHOST" -d postgres -At -v ON_ERROR_STOP=
 fi
 
 make db
+bepis_dev_db_wait_for_app_recovery
