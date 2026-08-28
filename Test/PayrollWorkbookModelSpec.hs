@@ -1,5 +1,6 @@
 module Test.PayrollWorkbookModelSpec where
 
+import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Types
@@ -22,7 +23,10 @@ tests =
             let day = fromGregorian 2025 1 6
             let staff = testStaff testStaffId "Ada" "Lovelace"
             let bucket = PayrollWorkbookPayBucket (PayrollWorkbookAwardLevel payLevelId) "LVL 3"
-            let firstEntry = testEntry firstEntryId testStaffId firstShiftTypeId day (testUtc 2025 1 5 22) (testUtc 2025 1 6 0)
+            let firstEntry =
+                    testEntry firstEntryId testStaffId firstShiftTypeId day (testUtc 2025 1 5 22) (testUtc 2025 1 6 0)
+                        |> set #breakStartsAt (Just (testUtc 2025 1 5 23))
+                        |> set #breakEndsAt (Just (testUtcMinute 2025 1 5 23 30))
             let secondEntry = testEntry secondEntryId testStaffId secondShiftTypeId day (testUtc 2025 1 5 23) (testUtc 2025 1 6 0)
             let firstWorked = paidSegment Worked day (testUtc 2025 1 5 22) (testUtc 2025 1 5 23)
             let firstWorkedAfterBreak = paidSegment Worked day (testUtcMinute 2025 1 5 23 30) (testUtc 2025 1 6 0)
@@ -43,6 +47,9 @@ tests =
                     (Map.singleton testStaffId staff)
                     (Map.fromList [(firstEntryId, bucket), (secondEntryId, bucket)])
                     (Map.fromList [(firstEntryId, "Bar"), (secondEntryId, "Kitchen")])
+                    [ HourlyShiftTypeColumn firstShiftTypeId "Bar"
+                    , HourlyShiftTypeColumn secondShiftTypeId "Kitchen"
+                    ]
                     (Map.fromList [(firstEntryId, firstCalculation), (secondEntryId, secondCalculation)])
 
             factModel <- expectRight result
@@ -56,6 +63,30 @@ tests =
             sum (map (.payrollFactWageCents) firstEntryFacts) `shouldBe` 6000
             map (.payrollFactCalculationVersion) firstEntryFacts
                 `shouldSatisfy` all (== "hospitality-award-v1")
+            forM_ (hourlyReportHours factModel.payrollFactModelWindow) \hour -> do
+                let factHours entryId shiftTypeId =
+                        sum
+                            [ fact.payrollFactWorkedHours
+                            | fact <- factModel.payrollFactModelFacts
+                            , fact.payrollFactEntryId == entryId
+                            , fact.payrollFactShiftTypeId == shiftTypeId
+                            , fact.payrollFactHourSlot.payrollHourOfWindow == hour
+                            ]
+                factHours firstEntryId firstShiftTypeId
+                    `shouldBe` entryHoursForHourlyWindow hour firstShiftTypeId firstEntry
+                factHours secondEntryId secondShiftTypeId
+                    `shouldBe` entryHoursForHourlyWindow hour secondShiftTypeId secondEntry
+            legacyWageCents <- expectRight (buildHourlyWageCents [firstEntry, secondEntry] (Map.fromList [(firstEntryId, firstCalculation), (secondEntryId, secondCalculation)]))
+            forM_ factModel.payrollFactModelShiftTypeColumns \column ->
+                forM_ (hourlyReportHours factModel.payrollFactModelWindow) \hour ->
+                    sum
+                        [ fact.payrollFactWageCents
+                        | fact <- factModel.payrollFactModelFacts
+                        , fact.payrollFactOperationalDate == day
+                        , fact.payrollFactShiftTypeId == column.hourlyShiftTypeId
+                        , fact.payrollFactHourSlot.payrollHourOfWindow == hour
+                        ]
+                        `shouldBe` Map.findWithDefault 0 (day, hour, column.hourlyShiftTypeId) legacyWageCents
             let rows = concatMap (.payrollDayRows) model.payrollModelDays
             length rows `shouldBe` 1
             let row = fromMaybe (error "expected payroll row") (head rows)

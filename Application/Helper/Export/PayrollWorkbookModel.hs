@@ -69,11 +69,12 @@ data PayrollWorkbookFact = PayrollWorkbookFact
     deriving (Eq, Show)
 
 data PayrollWorkbookFactModel = PayrollWorkbookFactModel
-    { payrollFactModelRangeStart :: !Day
-    , payrollFactModelRangeEnd   :: !Day
-    , payrollFactModelWindow     :: !HourlyReportWindow
-    , payrollFactModelHourSlots  :: ![PayrollWorkbookHourSlot]
-    , payrollFactModelFacts      :: ![PayrollWorkbookFact]
+    { payrollFactModelRangeStart       :: !Day
+    , payrollFactModelRangeEnd         :: !Day
+    , payrollFactModelWindow           :: !HourlyReportWindow
+    , payrollFactModelHourSlots        :: ![PayrollWorkbookHourSlot]
+    , payrollFactModelShiftTypeColumns :: ![HourlyShiftTypeColumn]
+    , payrollFactModelFacts            :: ![PayrollWorkbookFact]
     }
     deriving (Eq, Show)
 
@@ -131,6 +132,7 @@ buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffByI
             staffById
             payBucketsByEntryId
             fallbackShiftLabels
+            fallbackShiftTypeColumns
             calculationsByEntryId
   where
     fallbackShiftLabels =
@@ -138,6 +140,15 @@ buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffByI
             [ (unpackId entry.id, tshow entry.shiftTypeId)
             | entry <- entries
             ]
+    fallbackShiftTypeColumns =
+        Map.fromList
+            [ ( entry.shiftTypeId
+              , HourlyShiftTypeColumn entry.shiftTypeId (Map.findWithDefault (tshow entry.shiftTypeId) (unpackId entry.id) fallbackShiftLabels)
+              )
+            | entry <- entries
+            ]
+            |> Map.elems
+            |> List.sortOn (\column -> (column.hourlyShiftTypeLabel, column.hourlyShiftTypeId))
 
 buildPayrollWorkbookFactModel ::
     Day ->
@@ -147,9 +158,10 @@ buildPayrollWorkbookFactModel ::
     Map.Map UUID Staff ->
     Map.Map UUID PayrollWorkbookPayBucket ->
     Map.Map UUID Text ->
+    [HourlyShiftTypeColumn] ->
     Map.Map UUID WageCalculation ->
     Either Text PayrollWorkbookFactModel
-buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig entries staffById payBucketsByEntryId shiftLabelsByEntryId calculationsByEntryId = do
+buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig entries staffById payBucketsByEntryId shiftLabelsByEntryId shiftTypeColumns calculationsByEntryId = do
     when (rangeStart > rangeEnd) $
         Left "Choose a valid start and end date for the Payroll Workbook range."
     when (null entries) $
@@ -161,6 +173,7 @@ buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig entries staffById 
             , payrollFactModelRangeEnd = rangeEnd
             , payrollFactModelWindow = window
             , payrollFactModelHourSlots = hourSlots
+            , payrollFactModelShiftTypeColumns = shiftTypeColumns
             , payrollFactModelFacts = facts
             }
   where

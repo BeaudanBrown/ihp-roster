@@ -57,9 +57,12 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
                 venueConfig <- fetchVenueConfig
                 payBucketsByEntryId <- fetchApprovedEntryPayrollPayBuckets includedEntries
                 shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels includedEntries
+                activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
+                reportShiftTypes <- fetchReportShiftTypes includedEntries
                 versionManifestsByEntryId <- fetchVersionManifestsForEntries includedEntries
+                let shiftTypeColumns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes includedEntries shiftLabelsByEntryId
                 let calculationsByEntryId = calculationMap includedEntries calculations
-                case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId calculationsByEntryId of
+                case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId shiftTypeColumns calculationsByEntryId of
                     Left message -> pure (Left message)
                     Right factModel ->
                         let definition = defaultPayrollWorkbookDefinition

@@ -521,19 +521,32 @@ tests = aroundAll withDatabaseTestContext do
                 map (.hourlyShiftTypeLabel) duplicateColumns `shouldBe` ["Bar (1)", "Bar (2)"]
                 let reservedColumns = buildHourlyShiftTypeColumns [barShift |> set #name "Time", floorShift |> set #name "Total"] [] [] Map.empty
                 map (.hourlyShiftTypeLabel) reservedColumns `shouldBe` ["Time (1)", "Total (1)"]
-                staff <- createStaffRecord venue Nothing "Nia" "Night"
+                staffUser <- createUserRecord "hourly-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Nia" "Night"
                 snapshot <- createPayrollSnapshot venue admin [barLevel, floorLevel] [barShift, floorShift] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                barEntry <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 8 0 0)
                     , setTestEndTime (TimeOfDay 10 30 0)
                     ]
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                floorEntry <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId floorShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 11 0 0)
                     ]
+                archivedFloorShift <-
+                    floorShift
+                        |> set #name "Renamed archived Floor"
+                        |> set #isActive False
+                        |> updateRecord
+                let historicalColumns =
+                        buildHourlyShiftTypeColumns
+                            [barShift]
+                            [archivedFloorShift]
+                            [barEntry, floorEntry]
+                            (Map.fromList [(unpackId barEntry.id, "Bar"), (unpackId floorEntry.id, "Floor")])
+                map (.hourlyShiftTypeLabel) historicalColumns `shouldBe` ["Bar", "Floor"]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -600,6 +613,33 @@ tests = aroundAll withDatabaseTestContext do
                 mondayWages `shouldSatisfy` Text.isInfixOf "09:00-10:00,37.50,37.50,75.00"
                 mondayWages `shouldSatisfy` Text.isInfixOf "10:00-11:00,18.75,37.50,56.25"
                 mondayWages `shouldSatisfy` Text.isInfixOf "Total,93.75,75.00,168.75"
+
+                workbookResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                            , ("rangeStart", "2025-01-06")
+                            , ("rangeEnd", "2025-01-12")
+                            ]
+                workbookBody <- responseBody workbookResponse
+                workbookBody `shouldBe` ""
+                workbookExportJob <-
+                    query @ExportJob
+                        |> filterWhere (#exportType, exportJobTypeToText PayrollWorkbookXlsx)
+                        |> fetchOne
+                let workbookArchive =
+                        workbookExportJob.fileContents
+                            |> fromMaybe ""
+                            |> encodeUtf8
+                            |> Base64.decodeLenient
+                            |> LBS.fromStrict
+                            |> Zip.toArchive
+                sharedStrings <- workbookArchive |> archiveEntryText "xl/sharedStrings.xml"
+                sharedStrings `shouldSatisfy` Text.isInfixOf "Floor"
+                sharedStrings `shouldNotSatisfy` Text.isInfixOf "Renamed archived Floor"
+                workbookXml <- workbookArchive |> archiveEntryText "xl/workbook.xml"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Hours Mon 2025-01-06"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Wages Mon 2025-01-06"
 
         it "spreads minimum top-ups and commenced-hour additions across worked wage buckets" $ withContext do
             withCleanDb do
@@ -776,7 +816,7 @@ tests = aroundAll withDatabaseTestContext do
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"dataModel\":\"normalized_hourly_facts_v2\""
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"definitionKey\":\"builtin-default\""
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"definitionVersion\":1"
-                encodedScope `shouldSatisfy` Text.isInfixOf "\"sheetFamilies\":[\"summary\",\"employee-pay-bucket-hours\",\"employee-pay-bucket-wages\"]"
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"sheetFamilies\":[\"summary\",\"employee-pay-bucket-hours\",\"shift-type-hours\",\"employee-pay-bucket-wages\",\"shift-type-wages\"]"
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"entryCount\":2"
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"factCount\":48"
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"rowCount\":1"
@@ -793,12 +833,14 @@ tests = aroundAll withDatabaseTestContext do
                 workbookBytes <- responseBody response
                 LBS.take 2 workbookBytes `shouldBe` "PK"
                 let workbookArchive = Zip.toArchive workbookBytes
-                forM_ ["xl/worksheets/sheet15.xml", "xl/worksheets/sheet16.xml"] \path ->
+                forM_ ["xl/worksheets/sheet15.xml", "xl/worksheets/sheet30.xml"] \path ->
                     Zip.filesInArchive workbookArchive `shouldSatisfy` (path `elem`)
                 workbookXml <- workbookArchive |> archiveEntryText "xl/workbook.xml"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Summary 2025-01-06"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Hours Mon 2025-01-06"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Wages Sun 2025-01-12"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Wages Sun 2025-01-12"
                 workbookXml `shouldSatisfy` Text.isInfixOf "name=\"Data\""
                 workbookXml `shouldSatisfy` Text.isInfixOf "state=\"hidden\""
                 hoursXml <- workbookArchive |> archiveEntryText "xl/worksheets/sheet2.xml"

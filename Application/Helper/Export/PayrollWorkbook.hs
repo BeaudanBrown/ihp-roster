@@ -21,9 +21,12 @@ module Application.Helper.Export.PayrollWorkbook
     , renderPayrollWorkbookBase64
     ) where
 
-import Application.Helper.Export.HourlyBreakdown (formatHourlyWindowRange)
+import Application.Helper.Export.HourlyBreakdown (formatHourlyWindowRange,
+                                                  hourlyReportHours,
+                                                  roundRationalAt)
 import Application.Helper.Export.PayrollWorkbookModel
-import Application.Helper.Export.Types (HourlyOccurrence (..))
+import Application.Helper.Export.Types (HourlyOccurrence (..),
+                                        HourlyShiftTypeColumn (..))
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Codec.Xlsx
@@ -116,13 +119,13 @@ defaultPayrollWorkbookDefinition =
 currentPayrollWorkbookDefinitionVersion :: Int
 currentPayrollWorkbookDefinitionVersion = 1
 
--- Shift-type families have stable persisted keys but remain unavailable until
--- their presentation implementation is installed.
 availablePayrollWorkbookSheetFamilies :: [PayrollWorkbookSheetFamily]
 availablePayrollWorkbookSheetFamilies =
     [ PayrollWorkbookSummary
     , PayrollWorkbookEmployeePayBucketHours
+    , PayrollWorkbookShiftTypeHours
     , PayrollWorkbookEmployeePayBucketWages
+    , PayrollWorkbookShiftTypeWages
     ]
 
 payrollWorkbookSheetFamilyKey :: PayrollWorkbookSheetFamily -> Text
@@ -218,10 +221,13 @@ payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
             map (summarySheet projected) (summaryWeekAnchors rosterWeekStartsOn projected)
         PayrollWorkbookEmployeePayBucketHours ->
             map (dailySheet projected DailyHours) projected.payrollModelDays
+        PayrollWorkbookShiftTypeHours ->
+            map (shiftTypeSheet factModel shiftTypeModel ShiftTypeHours) [factModel.payrollFactModelRangeStart .. factModel.payrollFactModelRangeEnd]
         PayrollWorkbookEmployeePayBucketWages ->
             map (dailySheet projected DailyWages) projected.payrollModelDays
-        PayrollWorkbookShiftTypeHours -> []
-        PayrollWorkbookShiftTypeWages -> []
+        PayrollWorkbookShiftTypeWages ->
+            map (shiftTypeSheet factModel shiftTypeModel ShiftTypeWages) [factModel.payrollFactModelRangeStart .. factModel.payrollFactModelRangeEnd]
+    shiftTypeModel = shiftTypeModelFromFacts factModel.payrollFactModelFacts
 
 payrollWorkbookFromFactModel :: Int -> PayrollWorkbookFactModel -> PayrollWorkbook
 payrollWorkbookFromFactModel = payrollWorkbookFromValidatedDefinition defaultPayrollWorkbookDefinition
@@ -480,6 +486,104 @@ dailySheet model kind day =
             <> [ formulaCell totalRow totalColumn (sumFormula totalRow 3 (totalColumn - 1)) (dailyNumberStyle kind) { bold = True }
                ]
 
+data ShiftTypeSheetKind = ShiftTypeHours | ShiftTypeWages
+
+data ShiftTypeModel = ShiftTypeModel
+    { shiftTypeHoursByCell     :: !(Map.Map (Day, Int, UUID) Rational)
+    , shiftTypeWageCentsByCell :: !(Map.Map (Day, Int, UUID) Integer)
+    }
+
+shiftTypeModelFromFacts :: [PayrollWorkbookFact] -> ShiftTypeModel
+shiftTypeModelFromFacts = foldl' accumulate emptyModel
+  where
+    emptyModel = ShiftTypeModel Map.empty Map.empty
+    accumulate model fact =
+        let key =
+                ( fact.payrollFactOperationalDate
+                , fact.payrollFactHourSlot.payrollHourOfWindow
+                , fact.payrollFactShiftTypeId
+                )
+         in ShiftTypeModel
+                { shiftTypeHoursByCell = Map.insertWith (+) key fact.payrollFactWorkedHours model.shiftTypeHoursByCell
+                , shiftTypeWageCentsByCell = Map.insertWith (+) key fact.payrollFactWageCents model.shiftTypeWageCentsByCell
+                }
+
+shiftTypeSheet :: PayrollWorkbookFactModel -> ShiftTypeModel -> ShiftTypeSheetKind -> Day -> PayrollWorkbookSheet
+shiftTypeSheet factModel shiftTypeModel kind date =
+    PayrollWorkbookSheet
+        { name = shiftTypeSheetName kind date
+        , hidden = False
+        , cells = headerCells <> detailCells <> totalCells
+        , columnWidths = [(1, 22)] <> [(column, 18) | column <- [2 .. totalColumn - 1]] <> [(totalColumn, 14)]
+        , hiddenColumns = []
+        , tabColor = Just (shiftTypeTabColor kind)
+        , autoFilter = Nothing
+        , frozenRows = 1
+        , frozenColumns = 1
+        }
+  where
+    columns = factModel.payrollFactModelShiftTypeColumns
+    reportHours = hourlyReportHours factModel.payrollFactModelWindow
+    totalColumn = length columns + 2
+    totalRow = length reportHours + 2
+    numberStyle = shiftTypeNumberStyle kind
+    totalNumberStyle = shiftTypeTotalNumberStyle kind
+    headerCells =
+        zipWith (\column label -> textCell 1 column label defaultPayrollWorkbookCellStyle { bold = True })
+            [1 ..]
+            ("Time" : map (.hourlyShiftTypeLabel) columns <> ["Total"])
+    detailCells = concat
+        [ [textCell rowNumber 1 (formatHourlyWindowRange hour) defaultPayrollWorkbookCellStyle]
+            <> concat
+                [ maybeToList (numberCell rowNumber columnIndex <$> detailValue hour column <*> pure numberStyle)
+                | (columnIndex, column) <- zip [2 ..] columns
+                ]
+            <> [ formulaCell rowNumber totalColumn (rowTotalFormula rowNumber) totalNumberStyle
+               ]
+        | (rowNumber, hour) <- zip [2 ..] reportHours
+        ]
+    totalCells =
+        [textCell totalRow 1 "Total" defaultPayrollWorkbookCellStyle { bold = True }]
+            <> [ formulaCell totalRow column (columnTotalFormula column (length reportHours)) totalNumberStyle { bold = True }
+               | column <- [2 .. totalColumn - 1]
+               ]
+            <> [formulaCell totalRow totalColumn (rowTotalFormula totalRow) totalNumberStyle { bold = True }]
+
+    rowTotalFormula rowNumber
+        | null columns = "SUM()"
+        | otherwise = sumFormula rowNumber 2 (totalColumn - 1)
+
+    detailValue hour column =
+        case kind of
+            ShiftTypeHours ->
+                let hours =
+                        Map.findWithDefault 0 (date, hour, column.hourlyShiftTypeId) shiftTypeModel.shiftTypeHoursByCell
+                            |> roundRationalAt 1000000
+                 in if hours > 0 then Just (fromRational hours) else Nothing
+            ShiftTypeWages ->
+                let cents = Map.findWithDefault 0 (date, hour, column.hourlyShiftTypeId) shiftTypeModel.shiftTypeWageCentsByCell
+                 in if cents > 0 then Just (fromIntegral cents / 100) else Nothing
+
+shiftTypeSheetName :: ShiftTypeSheetKind -> Day -> Text
+shiftTypeSheetName kind date =
+    kindLabel <> " " <> shortDayName date <> " " <> tshow date
+  where
+    kindLabel = case kind of
+        ShiftTypeHours -> "Shift Type Hours"
+        ShiftTypeWages -> "Shift Type Wages"
+
+shiftTypeNumberStyle :: ShiftTypeSheetKind -> PayrollWorkbookCellStyle
+shiftTypeNumberStyle ShiftTypeHours = hoursStyle
+shiftTypeNumberStyle ShiftTypeWages = dailyNumberStyle DailyWages
+
+shiftTypeTotalNumberStyle :: ShiftTypeSheetKind -> PayrollWorkbookCellStyle
+shiftTypeTotalNumberStyle ShiftTypeHours = defaultPayrollWorkbookCellStyle { numberFormat = Just "0.000000" }
+shiftTypeTotalNumberStyle ShiftTypeWages = defaultPayrollWorkbookCellStyle { numberFormat = Just "$#,##0.00;[Red]-$#,##0.00;$0.00;" }
+
+shiftTypeTabColor :: ShiftTypeSheetKind -> PayrollWorkbookColor
+shiftTypeTabColor ShiftTypeHours = color "5B9BD5"
+shiftTypeTabColor ShiftTypeWages = color "A5A5A5"
+
 dailyRowCells :: DailySheetKind -> PayrollWorkbookHourlyModel -> Int -> Int -> Int -> Int -> PayrollWorkbookRow -> [PayrollWorkbookCell]
 dailyRowCells kind model totalColumn staffIdColumn payBucketKeyColumn rowNumber row =
     [ textCell rowNumber 1 (payrollEmployeeName row) defaultPayrollWorkbookCellStyle
@@ -595,7 +699,7 @@ renderPayrollWorkbookBase64 = decodeUtf8 . Base64.encode . LBS.toStrict . render
 
 renderPayrollWorkbook :: PayrollWorkbook -> LBS.ByteString
 renderPayrollWorkbook workbook =
-    applySheetVisibility workbook (applyTabColors workbook (fromXlsx 0 xlsx))
+    applyTabColors workbook (fromXlsx 0 xlsx)
   where
     (finalStyleSheet, renderedSheets) =
         List.mapAccumL renderSheet minimalStyleSheet workbook.sheets
@@ -661,6 +765,7 @@ worksheetFrom sheet formattedSheet =
         , _wsMerges = formattedMerges formattedSheet
         , _wsSheetViews = freezeSheetViews sheet.frozenRows sheet.frozenColumns
         , _wsAutoFilter = renderAutoFilter <$> sheet.autoFilter
+        , _wsState = if sheet.hidden then Hidden else Visible
         }
   where
     renderColumnWidth (column, width) =
@@ -720,46 +825,6 @@ freezeSheetViews frozenRows frozenColumns
     positiveDouble value
         | value > 0 = Just (fromIntegral value)
         | otherwise = Nothing
-
-applySheetVisibility :: PayrollWorkbook -> LBS.ByteString -> LBS.ByteString
-applySheetVisibility workbook bytes
-    | null hiddenSheetNames = bytes
-    | otherwise =
-        case Zip.findEntryByPath workbookPath archive of
-            Nothing -> bytes
-            Just entry ->
-                let updatedEntry = Zip.toEntry workbookPath 0 (setHiddenSheetNames hiddenSheetNames (Zip.fromEntry entry))
-                 in Zip.fromArchive (Zip.addEntryToArchive updatedEntry (Zip.deleteEntryFromArchive workbookPath archive))
-  where
-    workbookPath = "xl/workbook.xml"
-    archive = Zip.toArchive bytes
-    hiddenSheetNames = [sheet.name | sheet <- workbook.sheets, sheet.hidden]
-
-setHiddenSheetNames :: [Text] -> LBS.ByteString -> LBS.ByteString
-setHiddenSheetNames hiddenSheetNames xml =
-    Xml.renderLBS Xml.def (mapDocumentRoot hideSheets (Xml.parseLBS_ Xml.def xml))
-  where
-    hideSheets (Xml.Element elementName elementAttributes elementNodes)
-        | Xml.nameLocalName elementName == "sheet"
-        , Just sheetName <- attributeValue "name" elementAttributes
-        , sheetName `elem` hiddenSheetNames =
-            Xml.Element
-                elementName
-                (Map.insert (Xml.Name "state" Nothing Nothing) "hidden" elementAttributes)
-                (map hideNode elementNodes)
-        | otherwise = Xml.Element elementName elementAttributes (map hideNode elementNodes)
-    hideNode (Xml.NodeElement element) = Xml.NodeElement (hideSheets element)
-    hideNode node                      = node
-    attributeValue localName attributes =
-        listToMaybe
-            [ value
-            | (name, value) <- Map.toList attributes
-            , Xml.nameLocalName name == localName
-            ]
-
-mapDocumentRoot :: (Xml.Element -> Xml.Element) -> Xml.Document -> Xml.Document
-mapDocumentRoot transform (Xml.Document prologue root epilogue) =
-    Xml.Document prologue (transform root) epilogue
 
 applyTabColors :: PayrollWorkbook -> LBS.ByteString -> LBS.ByteString
 applyTabColors workbook bytes =

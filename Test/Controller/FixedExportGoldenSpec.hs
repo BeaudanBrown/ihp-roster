@@ -188,11 +188,16 @@ tests = aroundAll withDatabaseTestContext do
                             |> Base64.decodeLenient
                             |> LBS.fromStrict
                 let archive = Zip.toArchive workbookBytes
-                Zip.filesInArchive archive `shouldContain` ["xl/worksheets/sheet15.xml"]
+                forM_ ["xl/worksheets/sheet15.xml", "xl/worksheets/sheet30.xml"] \path ->
+                    Zip.filesInArchive archive `shouldSatisfy` (path `elem`)
                 let workbookXml = extractArchiveText "xl/workbook.xml" archive
                 workbookXml `shouldSatisfy` Text.isInfixOf "Summary 2025-01-07"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Hours Tue 2025-01-07"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Hours Tue 2025-01-07"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Wages Mon 2025-01-13"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Wages Mon 2025-01-13"
+                workbookXml `shouldSatisfy` Text.isInfixOf "name=\"Data\""
+                workbookXml `shouldSatisfy` Text.isInfixOf "state=\"hidden\""
 
         it "keeps repeated CSV and ZIP jobs distinct with deterministic contents" $ withContext do
             withCleanDb do

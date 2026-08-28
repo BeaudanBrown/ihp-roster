@@ -9,6 +9,7 @@ import Control.Exception (bracket)
 import "crypton" Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isRight)
+import Data.Ratio ((%))
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time.Calendar (Day, fromGregorian)
@@ -61,7 +62,14 @@ tests = do
             let (day, factModel) = oneHourFactModel
             let workbook = payrollWorkbookFromFactModel 1 factModel
             map (.name) workbook.sheets
-                `shouldBe` ["Summary 2025-01-06", "Hours Mon 2025-01-06", "Wages Mon 2025-01-06", "Data"]
+                `shouldBe`
+                    [ "Summary 2025-01-06"
+                    , "Hours Mon 2025-01-06"
+                    , "Shift Type Hours Mon 2025-01-06"
+                    , "Wages Mon 2025-01-06"
+                    , "Shift Type Wages Mon 2025-01-06"
+                    , "Data"
+                    ]
             let factsSheet = fromMaybe (error "expected Data sheet") (last workbook.sheets)
             factsSheet.frozenRows `shouldBe` 1
             factsSheet.autoFilter `shouldBe` Just (PayrollWorkbookFilter 1 1 2 20)
@@ -88,16 +96,16 @@ tests = do
                     { payrollWorkbookDefinitionKey = "wages-first"
                     , payrollWorkbookDefinitionVersion = 1
                     , payrollWorkbookDefinitionSheetFamilies =
-                        [ PayrollWorkbookEmployeePayBucketWages
+                        [ PayrollWorkbookShiftTypeWages
                         , PayrollWorkbookSummary
                         ]
                     }
             workbook <- expectRight (payrollWorkbookFromDefinition definition 1 factModel)
             map (.name) workbook.sheets
-                `shouldBe` ["Wages Mon 2025-01-06", "Summary 2025-01-06", "Data"]
+                `shouldBe` ["Shift Type Wages Mon 2025-01-06", "Summary 2025-01-06", "Data"]
             map (.hidden) workbook.sheets `shouldBe` [False, False, True]
 
-        it "rejects duplicate, empty, unavailable, unknown, and unsupported-version definitions" do
+        it "rejects duplicate, empty, unknown, and unsupported-version definitions" do
             let (_, factModel) = oneHourFactModel
             let definition families = PayrollWorkbookDefinition "custom" 1 families
             payrollWorkbookFromDefinition (definition []) 1 factModel
@@ -107,11 +115,6 @@ tests = do
                 1
                 factModel
                 `shouldBe` Left "Payroll Workbook definitions cannot contain duplicate sheet families: summary."
-            payrollWorkbookFromDefinition
-                (definition [PayrollWorkbookShiftTypeHours])
-                1
-                factModel
-                `shouldBe` Left "Payroll Workbook sheet family is not available in definition version 1: shift-type-hours."
             payrollWorkbookFromDefinition
                 (PayrollWorkbookDefinition "custom" 2 [PayrollWorkbookSummary])
                 1
@@ -130,12 +133,75 @@ tests = do
                     , payrollWorkbookDefinitionSheetFamilies =
                         [ PayrollWorkbookSummary
                         , PayrollWorkbookEmployeePayBucketHours
+                        , PayrollWorkbookShiftTypeHours
                         , PayrollWorkbookEmployeePayBucketWages
+                        , PayrollWorkbookShiftTypeWages
                         ]
                     }
             let (_, factModel) = oneHourFactModel
             payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel
                 `shouldBe` Right (payrollWorkbookFromFactModel 1 factModel)
+
+        it "renders shift-type Hours and Wages from shared facts with blank zero details and formula totals" do
+            let (_, factModel) = oneHourFactModel
+            workbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel)
+            let shiftHours = workbook.sheets !! 2
+            let shiftWages = workbook.sheets !! 4
+            textValues shiftHours `shouldContain` ["Time", "Bar", "Total", "18:00-19:00", "Total"]
+            numberAt 2 2 shiftHours `shouldBe` Just (1, "0.000000;-0.000000;;")
+            formulaValues shiftHours `shouldContain` ["SUM(B2:B2)", "SUM(B2:B2)", "SUM(B3:B3)"]
+            textValues shiftWages `shouldContain` ["Time", "Bar", "Total", "18:00-19:00", "Total"]
+            numberAt 2 2 shiftWages `shouldBe` Just (45, "$#,##0.00;[Red]-$#,##0.00;;")
+            formulaValues shiftWages `shouldContain` ["SUM(B2:B2)", "SUM(B2:B2)", "SUM(B3:B3)"]
+            assertLibreOfficeFormulaValues
+                (renderPayrollWorkbook workbook)
+                [ "Shift Type Hours Mon 2025-01-06\tC2\t1"
+                , "Shift Type Hours Mon 2025-01-06\tB3\t1"
+                , "Shift Type Hours Mon 2025-01-06\tC3\t1"
+                , "Shift Type Wages Mon 2025-01-06\tC2\t45"
+                , "Shift Type Wages Mon 2025-01-06\tB3\t45"
+                , "Shift Type Wages Mon 2025-01-06\tC3\t45"
+                ]
+
+        it "aggregates repeated civil-hour occurrences at legacy precision and leaves skipped detail blank" do
+            let (day, oneHourModel) = oneHourFactModel
+            let firstSlot = PayrollWorkbookHourSlot 18 FirstHourlyOccurrence
+            let secondSlot = PayrollWorkbookHourSlot 18 SecondHourlyOccurrence
+            let skippedSlot = PayrollWorkbookHourSlot 19 FirstHourlyOccurrence
+            let firstFact = (workbookFact day firstSlot) { payrollFactWorkedHours = 1 % 3 }
+            let secondFact =
+                    (workbookFact day secondSlot)
+                        { payrollFactWorkedHours = 1 % 3
+                        , payrollFactWageCents = 123
+                        }
+            let skippedFact =
+                    (workbookFact day skippedSlot)
+                        { payrollFactWorkedHours = 0
+                        , payrollFactPaidHours = 0
+                        , payrollFactWageCents = 0
+                        }
+            let factModel =
+                    oneHourModel
+                        { payrollFactModelWindow = HourlyReportWindow 18 20
+                        , payrollFactModelHourSlots = [firstSlot, secondSlot, skippedSlot]
+                        , payrollFactModelShiftTypeColumns =
+                            oneHourModel.payrollFactModelShiftTypeColumns
+                                <> [HourlyShiftTypeColumn (uuid "40000000-0000-0000-0000-000000000002") "Kitchen"]
+                        , payrollFactModelFacts = [firstFact, secondFact, skippedFact]
+                        }
+            workbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel)
+            let shiftHours = workbook.sheets !! 2
+            let shiftWages = workbook.sheets !! 4
+            numberAt 2 2 shiftHours `shouldBe` Just (0.666667, "0.000000;-0.000000;;")
+            numberAt 3 2 shiftHours `shouldBe` Nothing
+            numberAt 2 3 shiftHours `shouldBe` Nothing
+            numberAt 2 2 shiftWages `shouldBe` Just (46.23, "$#,##0.00;[Red]-$#,##0.00;;")
+            numberAt 3 2 shiftWages `shouldBe` Nothing
+            numberAt 2 3 shiftWages `shouldBe` Nothing
+            formulaAt 3 4 shiftHours `shouldBe` Just ("SUM(B3:C3)", "0.000000")
+            formulaAt 3 4 shiftWages `shouldBe` Just ("SUM(B3:C3)", "$#,##0.00;[Red]-$#,##0.00;$0.00;")
+            forM_ ["Kitchen", "19:00-20:00"] \value ->
+                textValues shiftHours `shouldSatisfy` (value `elem`)
 
     describe "Payroll Workbook locked rendering contract" do
         it "orders partial and multi-week sheets and emits exact daily and stable-key Summary formulas" do
@@ -356,6 +422,8 @@ oneHourFactModel =
             , payrollFactModelRangeEnd = day
             , payrollFactModelWindow = HourlyReportWindow 18 19
             , payrollFactModelHourSlots = [slot]
+            , payrollFactModelShiftTypeColumns =
+                [HourlyShiftTypeColumn (uuid "40000000-0000-0000-0000-000000000001") "Bar"]
             , payrollFactModelFacts = [workbookFact day slot]
             }
         )
@@ -436,6 +504,15 @@ textValues sheet = [value | PayrollWorkbookCell { value = PayrollWorkbookText va
 
 formulaValues :: PayrollWorkbookSheet -> [Text]
 formulaValues sheet = [value | PayrollWorkbookCell { value = PayrollWorkbookFormula value } <- sheet.cells]
+
+formulaAt :: Int -> Int -> PayrollWorkbookSheet -> Maybe (Text, Text)
+formulaAt row column sheet =
+    listToMaybe
+        [ (value, fromMaybe "" style.numberFormat)
+        | PayrollWorkbookCell { row = cellRow, column = cellColumn, value = PayrollWorkbookFormula value, style } <- sheet.cells
+        , cellRow == row
+        , cellColumn == column
+        ]
 
 numberAt :: Int -> Int -> PayrollWorkbookSheet -> Maybe (Double, Text)
 numberAt row column sheet =

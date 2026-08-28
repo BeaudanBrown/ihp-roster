@@ -50,10 +50,9 @@ cross-module safety and payroll contracts.
   the complete workbook.
 - Payroll Workbook presentation is selected by a versioned definition with a
   stable key and an ordered, duplicate-free, non-empty list of available sheet
-  families. Version 1 supports Summary, employee/pay-bucket Hours, and
-  employee/pay-bucket Wages; shift-type Hours/Wages keys are reserved and reject
-  generation until their presentations are implemented. The built-in default
-  contains every currently available family in that order. Export jobs retain
+  families. Version 1 supports Summary, employee/pay-bucket Hours, shift-type
+  Hours, employee/pay-bucket Wages, and shift-type Wages. The built-in default
+  contains every supported family in that order. Export jobs retain
   the definition key, version, and ordered family snapshot independently of
   future configuration changes.
 - Every valid definition automatically appends the deterministic typed Data
@@ -63,8 +62,11 @@ cross-module safety and payroll contracts.
   staff/pay-bucket keys, and calculate all totals with formulas. Each roster-week
   Summary has no title or totals and joins Hours sheets by those stable keys.
   Weekdays use Ord/7-12/12+ buckets; Saturday and Sunday use Ord/12+, with every
-  next-day hour in 12+. Zero values display blank, Hours display six decimals,
-  and Wages remain numeric AUD dollars at two decimals.
+  next-day hour in 12+. Shift-type sheets transpose hourly facts into ordered
+  approval-pinned shift-type columns, aggregate repeated civil-hour occurrences,
+  preserve skipped hours as visible zero totals, leave zero detail cells blank,
+  and use formulas for row, column, and day totals. Hours display six decimals;
+  Wages remain numeric AUD dollars at two decimals.
 - Aggregation retains exact quantities until the format's final transform.
   Published CSV and Xero precision, units, cent rounding, headers, filenames,
   and schema versions are executable contracts in renderers and golden tests.
