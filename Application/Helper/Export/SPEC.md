@@ -52,9 +52,17 @@ cross-module safety and payroll contracts.
   stable key and an ordered, duplicate-free, non-empty list of available sheet
   families. Version 1 supports Summary, employee/pay-bucket Hours, shift-type
   Hours, employee/pay-bucket Wages, and shift-type Wages. The built-in default
-  contains every supported family in that order. Export jobs retain
-  the definition key, version, and ordered family snapshot independently of
-  future configuration changes.
+  contains every supported family in that order and remains available without a
+  persisted row.
+- Venues may persist named definitions with whitespace-normalized, non-empty,
+  case-insensitively unique names and contiguous ordered family selections.
+  Persistence accepts only supported definition versions and family keys and at
+  least one presentation family. Admins, owners, and unimpersonated founder
+  support with a real current venue may create, list, read, and delete saved
+  definitions; managers and cross-venue identifiers are denied. Deletion
+  cascades only to the saved family rows. Export jobs retain the stable
+  definition key, version, and ordered family snapshot independently of future
+  configuration changes or deletion.
 - Every valid definition automatically appends the deterministic typed Data
   worksheet. Data is implementation-owned, hidden by default, and cannot be
   selected or omitted as a presentation family. Daily sheets share hour columns,

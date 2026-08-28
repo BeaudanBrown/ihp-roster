@@ -19,6 +19,7 @@ module Application.Helper.Export.PayrollWorkbook
     , payrollWorkbookSheetFamilyKey
     , renderPayrollWorkbook
     , renderPayrollWorkbookBase64
+    , validatePayrollWorkbookDefinition
     ) where
 
 import Application.Helper.Export.HourlyBreakdown (formatHourlyWindowRange,

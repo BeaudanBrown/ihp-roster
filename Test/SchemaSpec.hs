@@ -239,6 +239,21 @@ tests = describe "Schema" do
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
 
+    it "retains additive venue-scoped Payroll Workbook configuration persistence" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788200100-add-payroll-workbook-configurations.sql"
+        forM_
+            [ "CREATE TABLE payroll_workbook_configurations"
+            , "CREATE TABLE payroll_workbook_configuration_families"
+            , "ON DELETE CASCADE"
+            , "definition_version = 1"
+            , "payroll_workbook_configurations_venue_name_idx"
+            ]
+            (\requiredSql -> migrationSqlText `shouldSatisfy` Text.isInfixOf requiredSql)
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "export_jobs"
+
     it "avoids IN-based CHECK constraints that pg_dump rewrites into parser-hostile ANY(ARRAY ...)" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         let riskyCheckLines =

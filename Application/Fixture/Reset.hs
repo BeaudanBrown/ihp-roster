@@ -65,6 +65,8 @@ applicationTableNames =
     , "unavailability_blackouts"
     , "audit_events"
     , "user_feedback_items"
+    , "payroll_workbook_configurations"
+    , "payroll_workbook_configuration_families"
     , "export_jobs"
     , "venue_billing_customers"
     , "billing_checkout_attempts"

@@ -4,6 +4,7 @@ module Application.Helper.Export
     , module Application.Helper.Export.Payloads
     , module Application.Helper.Export.PayrollWorkbook
     , module Application.Helper.Export.PayrollWorkbookModel
+    , module Application.Helper.Export.PayrollWorkbookConfiguration
     , module Application.Helper.Export.Persistence
     , module Application.Helper.Export.ReadModel
     , module Application.Helper.Export.Render
@@ -15,6 +16,7 @@ import Application.Helper.Export.Definitions
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Payloads
 import Application.Helper.Export.PayrollWorkbook
+import Application.Helper.Export.PayrollWorkbookConfiguration
 import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
