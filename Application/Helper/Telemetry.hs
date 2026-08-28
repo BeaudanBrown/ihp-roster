@@ -1,19 +1,30 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Application.Helper.Telemetry
-    ( addTelemetryAttributes
+    ( addJobRetryExhaustedTelemetryEvent
+    , addJobRetryScheduledTelemetryEvent
+    , addProviderTelemetryStatusClass
+    , addTelemetryAttributes
     , addTelemetryEvent
     , annotateTelemetryAction
     , diagnosticHeaderValue
     , flushTelemetry
     , telemetryMiddleware
+    , withExportTelemetrySpan
+    , withJobTelemetrySpan
+    , withLiveUpdateTelemetrySpan
+    , withProviderTelemetrySpan
     , withTelemetryRuntime
     , withTelemetrySpan
     , withTelemetrySpanAttributes
     ) where
 
+import Application.Helper.Telemetry.Semantic (JobRetryState (..),
+                                              boundedAttempt,
+                                              boundedRetryNumber, jobRetryState)
 import Control.Exception (SomeException, bracket, try)
 import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as SafeException
 import Control.Monad (guard)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
@@ -21,6 +32,7 @@ import qualified Data.CaseInsensitive as CaseInsensitive
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import Data.Data (Data, toConstr)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import IHP.Controller.Response (ResponseException)
@@ -58,7 +70,7 @@ telemetryMiddleware
 -- constructor name, e.g. ShowRosterWindowAction. This avoids path ids and query
 -- strings while still making traces navigable.
 annotateTelemetryAction :: forall action. (Data action, ?theAction :: action, ?request :: Wai.Request) => IO ()
-annotateTelemetryAction = whenTelemetryEnabled do
+annotateTelemetryAction = runTelemetryAnnotation do
     case OtelWai.requestContext ?request >>= OtelContext.lookupSpan of
         Nothing -> pure ()
         Just span' -> do
@@ -69,14 +81,35 @@ annotateTelemetryAction = whenTelemetryEnabled do
                 ]
             Otel.updateName span' actionName
 
+addJobRetryScheduledTelemetryEvent :: Text -> Int -> IO ()
+addJobRetryScheduledTelemetryEvent jobKind retryNumber =
+    addJobRetryTelemetryEvent "bepis.job.retry_scheduled" jobKind retryNumber "retry_scheduled"
+
+addJobRetryExhaustedTelemetryEvent :: Text -> Int -> IO ()
+addJobRetryExhaustedTelemetryEvent jobKind retryNumber =
+    addJobRetryTelemetryEvent "bepis.job.retry_exhausted" jobKind retryNumber "failed"
+
+addJobRetryTelemetryEvent :: Text -> Text -> Int -> Text -> IO ()
+addJobRetryTelemetryEvent eventName jobKind retryNumber outcome =
+    addTelemetryEvent
+        eventName
+        [ ("bepis.job.kind", toAttribute jobKind)
+        , ("bepis.job.retry_number", toAttribute (boundedRetryNumber retryNumber))
+        , ("bepis.outcome", toAttribute outcome)
+        ]
+
+addProviderTelemetryStatusClass :: Text -> IO ()
+addProviderTelemetryStatusClass statusClass =
+    addTelemetryAttributes [("bepis.provider.status_class", toAttribute statusClass)]
+
 addTelemetryAttributes :: [(Text, Attribute)] -> IO ()
-addTelemetryAttributes attributes = whenTelemetryEnabled do
+addTelemetryAttributes attributes = runTelemetryAnnotation do
     context <- OtelContextThreadLocal.getContext
     forEach (OtelContext.lookupSpan context) \span' ->
         Otel.addAttributes span' (HashMap.fromList attributes)
 
 addTelemetryEvent :: Text -> [(Text, Attribute)] -> IO ()
-addTelemetryEvent name attributes = whenTelemetryEnabled do
+addTelemetryEvent name attributes = runTelemetryAnnotation do
     context <- OtelContextThreadLocal.getContext
     forEach (OtelContext.lookupSpan context) \span' ->
         Otel.addEvent span' Otel.NewEvent
@@ -85,8 +118,115 @@ addTelemetryEvent name attributes = whenTelemetryEnabled do
             , Otel.newEventTimestamp = Nothing
             }
 
+runTelemetryAnnotation :: IO () -> IO ()
+runTelemetryAnnotation action = whenTelemetryEnabled do
+    Exception.try action >>= \case
+        Left exception
+            | SafeException.isAsyncException exception -> Exception.throwIO (exception :: SomeException)
+            | otherwise -> putStrLn "otel_annotation_failure"
+        Right () -> pure ()
+
 withTelemetrySpan :: Text -> IO a -> IO a
 withTelemetrySpan name = withTelemetrySpanAttributes name []
+
+-- | One root-capable span per application job execution. Job kinds supplied by
+-- callers must already be projected onto their closed registry. Attempts are
+-- bounded by the worker policy and no job or customer identity is attached.
+withJobTelemetrySpan :: Text -> Int -> Int -> IO a -> IO a
+withJobTelemetrySpan jobKind attempt maximumAttempts =
+    withClassifiedTelemetrySpan
+        Otel.Internal
+        "bepis.job.run"
+        [ ("bepis.job.kind", toAttribute jobKind)
+        , ("bepis.job.attempt", toAttribute boundedCurrentAttempt)
+        , ("bepis.job.max_attempts", toAttribute boundedMaximumAttempts)
+        , ("bepis.job.retry_state", toAttribute retryState)
+        ]
+        (const True)
+  where
+    boundedMaximumAttempts = max 1 maximumAttempts
+    boundedCurrentAttempt = boundedAttempt boundedMaximumAttempts attempt
+    retryState = case jobRetryState boundedMaximumAttempts boundedCurrentAttempt of
+        RetryPossible -> "retry_possible" :: Text
+        FinalAttempt  -> "final_attempt"
+
+-- | A selected external boundary. Provider, operation, and method are closed
+-- constants; the result classifier records only success/failure. Callers may
+-- attach a status class or bounded count while the span is current.
+withProviderTelemetrySpan :: Text -> Text -> Text -> (a -> Bool) -> IO a -> IO a
+withProviderTelemetrySpan provider operation method succeeded action =
+    withClassifiedTelemetrySpan
+        Otel.Client
+        ("provider." <> provider <> "." <> operation)
+        [ ("bepis.provider", toAttribute provider)
+        , ("bepis.provider.operation", toAttribute operation)
+        , ("bepis.provider.method", toAttribute method)
+        ]
+        succeeded
+        providerAction
+  where
+    providerAction = do
+        actionResult <- Exception.try action
+        case actionResult of
+            Left exception
+                | SafeException.isAsyncException exception -> Exception.throwIO (exception :: SomeException)
+                | otherwise -> do
+                    addProviderTelemetryStatusClass "unavailable"
+                    Exception.throwIO (exception :: SomeException)
+            Right value -> do
+                -- The SDK keeps the first value for an attribute key. Provider
+                -- response/SMTP code records its specific class inside the
+                -- action; this later fallback fills only the no-response case.
+                addProviderTelemetryStatusClass (if succeeded value then "success" else "unavailable")
+                pure value
+
+withLiveUpdateTelemetrySpan :: Text -> IO a -> IO a
+withLiveUpdateTelemetrySpan command =
+    withClassifiedTelemetrySpan
+        Otel.Internal
+        "bepis.live_update.process"
+        [("bepis.live_update.command", toAttribute command)]
+        (const True)
+
+withExportTelemetrySpan :: Text -> (a -> Bool) -> IO a -> IO a
+withExportTelemetrySpan exportKind =
+    withClassifiedTelemetrySpan
+        Otel.Internal
+        "bepis.export.generate"
+        [("bepis.export.kind", toAttribute exportKind)]
+
+withClassifiedTelemetrySpan :: forall a. Otel.SpanKind -> Text -> [(Text, Attribute)] -> (a -> Bool) -> IO a -> IO a
+withClassifiedTelemetrySpan spanKind name attributes succeeded action
+    | not telemetryEnabledFlag = action
+    | otherwise = do
+        actionResultRef <- IORef.newIORef Nothing
+        spanResult <- Exception.try do
+            tracerProvider <- Otel.getGlobalTracerProvider
+            let tracer = Otel.makeTracer tracerProvider "ihp-roster" Otel.tracerOptions
+            Otel.inSpan tracer name arguments do
+                actionResult <- Exception.try action :: IO (Either SomeException a)
+                IORef.writeIORef actionResultRef (Just actionResult)
+                case actionResult of
+                    Left exception
+                        | SafeException.isAsyncException exception -> pure ()
+                        | otherwise -> recordOutcome False
+                    Right value -> recordOutcome (succeeded value)
+                pure actionResult
+        case spanResult of
+            Right actionResult -> resolveActionResult actionResult
+            Left exception
+                | SafeException.isAsyncException exception -> Exception.throwIO (exception :: SomeException)
+                | otherwise -> do
+                    putStrLn "otel_span_failure"
+                    IORef.readIORef actionResultRef >>= maybe action resolveActionResult
+  where
+    arguments = (spanArguments attributes) { Otel.kind = spanKind }
+    resolveActionResult = either Exception.throwIO pure
+    recordOutcome successful = do
+        addTelemetryAttributes [("bepis.outcome", toAttribute (if successful then ("succeeded" :: Text) else "failed"))]
+        unless successful do
+            context <- OtelContextThreadLocal.getContext
+            forEach (OtelContext.lookupSpan context) \span' -> Otel.setStatus span' (Otel.Error "operation failed")
 
 withTelemetrySpanAttributes :: forall a. Text -> [(Text, Attribute)] -> IO a -> IO a
 withTelemetrySpanAttributes name attributes action =

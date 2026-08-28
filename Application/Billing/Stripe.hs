@@ -47,6 +47,10 @@ module Application.Billing.Stripe
 where
 
 import Application.Error.Parser (parserFailure)
+import Application.Helper.Telemetry (addTelemetryAttributes,
+                                     withProviderTelemetrySpan)
+import Application.Helper.Telemetry.Semantic (httpStatusClass,
+                                              telemetryHttpMethod)
 import qualified Control.Exception as Exception
 import qualified Control.Exception.Safe as SafeException
 import qualified "crypton" Crypto.Hash as Hash
@@ -57,6 +61,7 @@ import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
+import Data.Either (isRight)
 import qualified Data.IORef as IORef
 import qualified Data.List as List
 import qualified Data.Text as Text hiding (show)
@@ -68,6 +73,7 @@ import qualified Network.HTTP.Client as Http
 import Network.HTTP.Simple
 import Network.HTTP.Types.Header (HeaderName)
 import qualified Network.HTTP.Types.URI as URI
+import OpenTelemetry.Attributes (toAttribute)
 import System.Environment (lookupEnv)
 import qualified System.IO.Error as IOError
 import System.IO.Unsafe (unsafePerformIO)
@@ -726,11 +732,26 @@ validateVenueMonthlyPrice price = do
     pure price
 
 sendStripeJsonRequestWith :: Aeson.FromJSON value => (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)) -> Text -> StripeHttpRequest -> IO (Either StripeClientError value)
-sendStripeJsonRequestWith transport _label stripeRequest = do
-    rawResult <- transport stripeRequest
-    pure case rawResult of
-        Left err   -> Left err
-        Right body -> decodeBodyPure body
+sendStripeJsonRequestWith transport label stripeRequest =
+    withProviderTelemetrySpan "stripe" (stripeTelemetryOperation label) (telemetryHttpMethod stripeRequest.stripeRequestMethod) isRight do
+        rawResult <- transport stripeRequest
+        pure case rawResult of
+            Left err   -> Left err
+            Right body -> decodeBodyPure body
+
+stripeTelemetryOperation :: Text -> Text
+stripeTelemetryOperation label =
+    fromMaybe "unknown" (lookup label knownOperations)
+  where
+    knownOperations =
+        [ ("Stripe price lookup", "price_lookup")
+        , ("Stripe price retrieve", "price_retrieve")
+        , ("Stripe customer create", "customer_create")
+        , ("Stripe checkout session create", "checkout_create")
+        , ("Stripe checkout session retrieve", "checkout_retrieve")
+        , ("Stripe portal session create", "portal_create")
+        , ("Stripe subscription retrieve", "subscription_retrieve")
+        ]
 
 sendStripeRawRequest :: StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)
 sendStripeRawRequest stripeRequest =
@@ -740,7 +761,13 @@ sendStripeRawRequest stripeRequest =
             requestWithHeaders <- toHttpRequest transportRequest
             Timeout.timeout transportRequest.stripeRequestTimeoutMicroseconds (httpLBS requestWithHeaders) >>= \case
                 Nothing -> pure (Left (StripeHttpError "Stripe request timed out"))
-                Just response -> decodeStripeRawResponse "Stripe request" response
+                Just response -> do
+                    let statusCode = getResponseStatusCode response
+                    addTelemetryAttributes
+                        [ ("http.response.status_code", toAttribute statusCode)
+                        , ("bepis.provider.status_class", toAttribute (httpStatusClass statusCode))
+                        ]
+                    decodeStripeRawResponse "Stripe request" response
 
 resolveStripeTransportRequest :: StripeHttpRequest -> IO (Either StripeClientError StripeHttpRequest)
 resolveStripeTransportRequest stripeRequest = do

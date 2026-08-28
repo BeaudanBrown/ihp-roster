@@ -10,12 +10,14 @@ import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
+import Application.Helper.Telemetry (withExportTelemetrySpan)
 import Application.VenueTime.Model (decodeTimesheetTiming)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
+import Data.Either (isRight)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -31,16 +33,17 @@ requestFixedExport ::
     Day ->
     Day ->
     IO (Either Text ExportJob)
-requestFixedExport exportType rangeStart rangeEnd
-    | rangeStart > rangeEnd = pure (Left "Choose a valid start and end date for the export range.")
-    | otherwise =
-        case exportType of
-            ApprovedTimesheetsCsv -> requestApprovedTimesheetsCsvExport rangeStart rangeEnd
-            StaffPayCsv -> requestFixedStaffPayCsvExport rangeStart rangeEnd
-            HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
-            HourlyWageTotalsZip -> requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd
-            PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
-            PayrollWorkbookXlsx -> requestPayrollWorkbookXlsxExport rangeStart rangeEnd
+requestFixedExport exportType rangeStart rangeEnd =
+    withExportTelemetrySpan (exportJobTypeToText exportType) isRight $
+        if rangeStart > rangeEnd
+            then pure (Left "Choose a valid start and end date for the export range.")
+            else case exportType of
+                ApprovedTimesheetsCsv -> requestApprovedTimesheetsCsvExport rangeStart rangeEnd
+                StaffPayCsv -> requestFixedStaffPayCsvExport rangeStart rangeEnd
+                HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
+                HourlyWageTotalsZip -> requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd
+                PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
+                PayrollWorkbookXlsx -> requestPayrollWorkbookXlsxExport rangeStart rangeEnd
 
 requestPayrollWorkbookXlsxExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

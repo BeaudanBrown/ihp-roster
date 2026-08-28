@@ -4,10 +4,12 @@ module Application.Async.Registry
 
 import Application.Async.Boundary (runAppJobBoundary, throwAppJobError)
 import Application.Async.Error (AppJobError (JobUnknownKind))
+import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.Notifications
 import Application.Billing.Reconciliation
 import Application.EmailDelivery
 import Application.FwcMapd.Job
+import Application.Helper.Telemetry (withJobTelemetrySpan)
 import Application.PublicHolidays.Job
 import Application.WageSourceAlert.Job
 import Application.Xero.Keepalive
@@ -25,12 +27,38 @@ dispatchAppJob ::
     AppJob ->
     IO ()
 dispatchAppJob appJob =
-    runAppJobBoundary $
-        dispatchAppJobByKind appJob
+    withJobTelemetrySpan
+        (registeredJobKindForTelemetry appJob.jobKind)
+        appJob.attemptsCount
+        (jobMaximumAttempts appJob.jobKind)
+        $ runAppJobBoundary
+        $ dispatchAppJobByKind appJob
             `Exception.onException` do
                 when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
                 when (isWageSourceRefreshJob appJob) (void (handleWageSourceRefreshFailureAfterFinalAttempt appJob))
                 handleEmailDeliveryFailureAfterFinalAttempt appJob
+
+registeredJobKindForTelemetry :: Text -> Text
+registeredJobKindForTelemetry kind
+    | kind `elem` registeredJobKinds = kind
+    | otherwise = "unknown"
+
+jobMaximumAttempts :: Text -> Int
+jobMaximumAttempts kind
+    | kind == xeroReferenceSyncJobKind = 1
+    | otherwise = appJobMaxAttempts
+
+registeredJobKinds :: [Text]
+registeredJobKinds =
+    [ emailDeliveryJobKind
+    , fwcMapdRefreshJobKind
+    , publicHolidayRefreshJobKind
+    , wageSourceHealthCheckJobKind
+    , retiredRosterTimesheetCreationJobKind
+    , xeroConnectionKeepaliveJobKind
+    , xeroReferenceSyncJobKind
+    , billingReconciliationJobKind
+    ]
 
 dispatchAppJobByKind ::
     (?modelContext :: ModelContext, ?context :: FrameworkConfig) =>

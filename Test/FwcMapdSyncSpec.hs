@@ -2,7 +2,8 @@ module Test.FwcMapdSyncSpec where
 
 import Application.FwcMapd.Client (MapdPageMeta (..), MapdResultsPage (..),
                                    assembleCanonicalClassificationValues,
-                                   assemblePagedResults)
+                                   assemblePagedResults,
+                                   mapdPageCountWithinLimit)
 import Application.FwcMapd.Error (MapdSyncError (MapdSnapshotInvalid))
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind,
                                 performFwcMapdRefreshJobWith)
@@ -143,6 +144,12 @@ pureTests = do
 
             assemblePagedResults [firstPage, repeatedFirstPage]
                 `shouldBe` Left "FWC MAPD paging inconsistent: requested page 2 reported current_page 1"
+
+        it "bounds provider-declared page counts before issuing more requests" do
+            mapdPageCountWithinLimit 1 `shouldBe` True
+            mapdPageCountWithinLimit 1000 `shouldBe` True
+            mapdPageCountWithinLimit 0 `shouldBe` False
+            mapdPageCountWithinLimit 1001 `shouldBe` False
 
         it "normalizes identical source duplicates and rejects conflicting duplicates independent of response order" do
             fixture <- loadFwcMapdFixture

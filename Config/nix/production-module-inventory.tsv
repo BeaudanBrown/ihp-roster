@@ -275,6 +275,7 @@ Application/Helper/Staff.hs	production	runtime	Main	Reachable from Main
 Application/Helper/StaffShiftPreferences.hs	production	runtime	Main	Reachable from Main
 Application/Helper/SurfaceResource.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Telemetry.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Telemetry/Semantic.hs	production	runtime	Main	Reachable from Main
 Application/Helper/TimeRules.hs	production	runtime	Main	Reachable from Main
 Application/Helper/TimesheetPayLedger.hs	production	runtime	Main	Reachable from Main
 Application/Helper/UiRegion.hs	production	runtime	Main	Reachable from Main

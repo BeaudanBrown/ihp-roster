@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+run_id="${TELEMETRY_BOUNDARY_PROBE_RUN_ID:-$(date +%s)-$$}"
+output_dir="${TELEMETRY_BOUNDARY_PROBE_OUTPUT_DIR:-$PWD/output/telemetry-boundary-probe/$run_id}"
+trace_file="$output_dir/otel.json"
+collector_log="$output_dir/collector.log"
+probe_log="$output_dir/probe.log"
+collector_pid=""
+
+cleanup() {
+    if [ -n "$collector_pid" ]; then
+        kill "$collector_pid" 2>/dev/null || true
+        wait "$collector_pid" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT INT TERM
+
+mkdir -p "$output_dir"
+rm -f "$trace_file"
+OTEL_FILE_EXPORTER_PATH="$trace_file" \
+    otelcol-contrib --config ./Config/otel/profile-file-collector.yaml >"$collector_log" 2>&1 &
+collector_pid=$!
+for _ in $(seq 1 100); do
+    kill -0 "$collector_pid" 2>/dev/null || {
+        echo "Telemetry boundary probe collector failed" >&2
+        exit 1
+    }
+    grep -q "Everything is ready" "$collector_log" && break
+    sleep 0.1
+done
+grep -q "Everything is ready" "$collector_log" || {
+    echo "Telemetry boundary probe collector did not become ready" >&2
+    exit 1
+}
+
+probe_iterations=25
+expression='Application.Helper.Telemetry.withTelemetryRuntime $ forM_ [1..'"$probe_iterations"'] $ \(_ :: Int) -> do { Application.Helper.Telemetry.withJobTelemetrySpan "email_delivery" 2 10 (do { Application.Helper.Telemetry.withProviderTelemetrySpan "email" "send" "SMTP" (const True) (Application.Helper.Telemetry.addProviderTelemetryStatusClass "accepted"); Application.Helper.Telemetry.addJobRetryScheduledTelemetryEvent "email_delivery" 3; Application.Helper.Telemetry.addJobRetryExhaustedTelemetryEvent "email_delivery" 10 }); Application.Helper.Telemetry.withLiveUpdateTelemetrySpan "subscribe" (pure ()); _ <- Application.Helper.Telemetry.withExportTelemetrySpan "staff_pay_csv" Data.Either.isRight (pure (Left "expected" :: Either Text ())); pure () }'
+IHP_ROSTER_OTEL=1 \
+OTEL_SERVICE_NAME=ihp-roster-boundary-probe \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:24318 \
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \
+OTEL_TRACES_SAMPLER=always_on \
+OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=64 \
+OTEL_SPAN_EVENT_COUNT_LIMIT=64 \
+    ghci-app -e "$expression" >"$probe_log" 2>&1
+
+sleep 2
+cleanup
+collector_pid=""
+
+[ -s "$trace_file" ] || {
+    echo "Telemetry boundary probe produced no trace file" >&2
+    exit 1
+}
+all_spans_have_attribute() {
+    local span_name="$1" attribute_name="$2" attribute_value="$3" matching_count
+    matching_count=$(jq -s --arg span "$span_name" --arg key "$attribute_name" --arg value "$attribute_value" \
+        '[.. | objects | select(.name? == $span) | select(any(.attributes[]?; .key == $key and .value.stringValue == $value))] | length' \
+        "$trace_file")
+    [ "$matching_count" -eq "$probe_iterations" ] \
+        || { echo "Missing $attribute_name=$attribute_value on $span_name spans: $matching_count/$probe_iterations" >&2; exit 1; }
+}
+
+all_spans_have_int_attribute() {
+    local span_name="$1" attribute_name="$2" attribute_value="$3" matching_count
+    matching_count=$(jq -s --arg span "$span_name" --arg key "$attribute_name" --arg value "$attribute_value" \
+        '[.. | objects | select(.name? == $span) | select(any(.attributes[]?; .key == $key and .value.intValue == $value))] | length' \
+        "$trace_file")
+    [ "$matching_count" -eq "$probe_iterations" ] \
+        || { echo "Missing $attribute_name=$attribute_value on $span_name spans: $matching_count/$probe_iterations" >&2; exit 1; }
+}
+
+for span_name in bepis.job.run provider.email.send bepis.live_update.process bepis.export.generate; do
+    span_count=$(jq -s --arg name "$span_name" '[.. | objects | select(.name? == $name)] | length' "$trace_file")
+    [ "$span_count" -eq "$probe_iterations" ] \
+        || { echo "Unexpected semantic span volume for $span_name: $span_count" >&2; exit 1; }
+done
+all_spans_have_attribute bepis.job.run bepis.job.kind email_delivery
+all_spans_have_int_attribute bepis.job.run bepis.job.attempt 2
+all_spans_have_int_attribute bepis.job.run bepis.job.max_attempts 10
+all_spans_have_attribute bepis.job.run bepis.job.retry_state retry_possible
+all_spans_have_attribute bepis.job.run bepis.outcome succeeded
+all_spans_have_attribute provider.email.send bepis.provider email
+all_spans_have_attribute provider.email.send bepis.provider.operation send
+all_spans_have_attribute provider.email.send bepis.provider.method SMTP
+all_spans_have_attribute provider.email.send bepis.provider.status_class accepted
+all_spans_have_attribute provider.email.send bepis.outcome succeeded
+all_spans_have_attribute bepis.live_update.process bepis.live_update.command subscribe
+all_spans_have_attribute bepis.export.generate bepis.export.kind staff_pay_csv
+all_spans_have_attribute bepis.export.generate bepis.outcome failed
+retry_event_count=$(jq -s '[.. | objects | select(.name? == "bepis.job.retry_scheduled")] | length' "$trace_file")
+[ "$retry_event_count" -eq "$probe_iterations" ] \
+    || { echo "Unexpected retry event volume: $retry_event_count/$probe_iterations" >&2; exit 1; }
+retry_event_attribute_count=$(jq -s '
+    [.. | objects | select(.name? == "bepis.job.retry_scheduled")
+     | select(any(.attributes[]?; .key == "bepis.job.kind" and .value.stringValue == "email_delivery"))
+     | select(any(.attributes[]?; .key == "bepis.job.retry_number" and .value.intValue == "3"))
+     | select(any(.attributes[]?; .key == "bepis.outcome" and .value.stringValue == "retry_scheduled"))]
+    | length' "$trace_file")
+[ "$retry_event_attribute_count" -eq "$probe_iterations" ] \
+    || { echo "Retry event attributes incomplete: $retry_event_attribute_count/$probe_iterations" >&2; exit 1; }
+retry_exhausted_event_count=$(jq -s '
+    [.. | objects | select(.name? == "bepis.job.retry_exhausted")
+     | select(any(.attributes[]?; .key == "bepis.job.kind" and .value.stringValue == "email_delivery"))
+     | select(any(.attributes[]?; .key == "bepis.job.retry_number" and .value.intValue == "10"))
+     | select(any(.attributes[]?; .key == "bepis.outcome" and .value.stringValue == "failed"))]
+    | length' "$trace_file")
+[ "$retry_exhausted_event_count" -eq "$probe_iterations" ] \
+    || { echo "Retry exhausted event attributes incomplete: $retry_exhausted_event_count/$probe_iterations" >&2; exit 1; }
+
+prohibited_attribute_count=$(jq -s '
+    [.. | objects
+     | select(.name? as $name | ["bepis.job.run", "provider.email.send", "bepis.live_update.process", "bepis.export.generate"] | index($name))
+     | ((.attributes[]?.key), (.events[]?.attributes[]?.key))
+     | select(test("(^|\\.)(query|query_string|target|url|body|payload|statement|email|address|customer|account_id|user_id|venue_id|job_id|dedupe_key|credential|token|secret|password|exception|parameter|param|name)(\\.|$)"; "i"))]
+    | length' "$trace_file")
+[ "$prohibited_attribute_count" -eq 0 ] || {
+    echo "Telemetry boundary probe found $prohibited_attribute_count prohibited attributes" >&2
+    exit 1
+}
+unknown_bepis_attribute_count=$(jq -s '
+    [.. | objects
+     | select(.name? as $name | ["bepis.job.run", "provider.email.send", "bepis.live_update.process", "bepis.export.generate"] | index($name))
+     | ((.attributes[]?.key), (.events[]?.attributes[]?.key))
+     | select(startswith("bepis."))
+     | select(. as $key | [
+         "bepis.job.kind", "bepis.job.attempt", "bepis.job.max_attempts", "bepis.job.retry_state", "bepis.job.retry_number",
+         "bepis.provider", "bepis.provider.operation", "bepis.provider.method", "bepis.provider.status_class",
+         "bepis.live_update.command", "bepis.export.kind", "bepis.outcome"
+       ] | index($key) | not)]
+    | length' "$trace_file")
+[ "$unknown_bepis_attribute_count" -eq 0 ] || {
+    echo "Telemetry boundary probe found $unknown_bepis_attribute_count non-contract Bepis attributes" >&2
+    exit 1
+}
+
+require_wiring() {
+    local file="$1" call="$2"
+    rg -Fq "$call" "$file" || { echo "Missing production telemetry wiring: $file -> $call" >&2; exit 1; }
+}
+require_wiring Application/Async/Registry.hs withJobTelemetrySpan
+require_wiring Application/Billing/Stripe.hs withProviderTelemetrySpan
+require_wiring Application/EmailDelivery.hs withProviderTelemetrySpan
+require_wiring Application/FwcMapd/Client.hs withProviderTelemetrySpan
+require_wiring Application/Helper/Xero.hs withProviderTelemetrySpan
+require_wiring Application/Helper/Export/Service.hs withExportTelemetrySpan
+require_wiring Web/Controller/LiveUpdates.hs withLiveUpdateTelemetrySpan
+
+jq -n --argjson iterations "$probe_iterations" \
+    '{iterations: $iterations, semanticSpanCount: ($iterations * 4), spansPerIteration: 4, prohibitedAttributes: 0}' \
+    >"$output_dir/summary.json"
+
+ln -sfn "$output_dir" "$PWD/output/telemetry-boundary-probe/latest"
+echo "Telemetry boundary probe passed: $output_dir"

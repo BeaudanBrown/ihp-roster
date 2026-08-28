@@ -4,6 +4,9 @@ import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.FwcMapd.Config
 import Application.FwcMapd.Error
 import Application.FwcMapd.Validation (expectedCoreClassificationFixedIds)
+import Application.Helper.Telemetry (addTelemetryAttributes,
+                                     withProviderTelemetrySpan)
+import Application.Helper.Telemetry.Semantic (httpStatusClass)
 import qualified Control.Exception as Exception
 import Control.Monad (foldM)
 import qualified Data.Aeson as Aeson
@@ -14,6 +17,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import IHP.Prelude
 import Network.HTTP.Simple
+import OpenTelemetry.Attributes (toAttribute)
 
 data MapdPageMeta = MapdPageMeta
     { pageCount   :: !Int
@@ -103,13 +107,30 @@ fetchPenaltyRateValuesForBasePayRateId config awardFixedId basePayRateId =
         [("base_pay_rate_id", Just (cs basePayRateId))]
 
 fetchPagedEndpoint :: MapdConfig -> Text -> [(ByteString.ByteString, Maybe ByteString.ByteString)] -> IO [Aeson.Value]
-fetchPagedEndpoint config path extraQueryParams = do
-    firstPage <- fetchPage config path 1 extraQueryParams
-    remainingPages <- forM [2 .. firstPage.meta.pageCount] \pageNumber ->
-        fetchPage config path pageNumber extraQueryParams
-    case assemblePagedResults (firstPage : remainingPages) of
-        Left _       -> throwExternalRuntime MapdResponseMalformed
-        Right values -> pure values
+fetchPagedEndpoint config path extraQueryParams =
+    withProviderTelemetrySpan "fwc_mapd" "fetch_paged" "GET" (const True) do
+        firstPage <- fetchPage config path 1 extraQueryParams
+        unless (mapdPageCountWithinLimit firstPage.meta.pageCount) do
+            throwExternalRuntime MapdResponseMalformed
+        remainingPages <- forM [2 .. firstPage.meta.pageCount] \pageNumber ->
+            fetchPage config path pageNumber extraQueryParams
+        case assemblePagedResults (firstPage : remainingPages) of
+            Left _ -> throwExternalRuntime MapdResponseMalformed
+            Right values -> do
+                addTelemetryAttributes
+                    [ ("bepis.provider.page_count", toAttribute (max 1 firstPage.meta.pageCount))
+                    , ("bepis.provider.result_count", toAttribute (min mapdResultCountLimit (length values)))
+                    ]
+                pure values
+
+mapdPageLimit :: Int
+mapdPageLimit = 1000
+
+mapdPageCountWithinLimit :: Int -> Bool
+mapdPageCountWithinLimit pageCount = pageCount >= 1 && pageCount <= mapdPageLimit
+
+mapdResultCountLimit :: Int
+mapdResultCountLimit = 100000
 
 assemblePagedResults :: [MapdResultsPage] -> Either Text [Aeson.Value]
 assemblePagedResults [] = Left "FWC MAPD paging incomplete: no pages returned"
@@ -131,6 +152,10 @@ fetchPage config path pageNumber extraQueryParams = do
     request <- buildRequest config path pageNumber extraQueryParams
     response <- httpLBS request
     let statusCode = getResponseStatusCode response
+    addTelemetryAttributes
+        [ ("http.response.status_code", toAttribute statusCode)
+        , ("bepis.provider.status_class", toAttribute (httpStatusClass statusCode))
+        ]
     when (statusCode < 200 || statusCode >= 300) do
         throwExternalRuntime MapdProviderUnavailable
     case Aeson.eitherDecode (getResponseBody response) of

@@ -62,6 +62,34 @@ exception requires a ticket with explicit privacy and cardinality justification.
 Diagnostic headers used by local browser tooling are trusted-local inputs only
 and are not a production contract.
 
+Outside WAI, the application emits these bounded semantic spans:
+
+- one `bepis.job.run` root-capable span per claimed `app_jobs` attempt, carrying
+  only registered job kind, bounded attempt/max-attempt facts, retry state, and
+  outcome; explicit Xero continuations add retry-scheduled/exhausted events;
+- one client span per selected Stripe, Xero, FWC MAPD, or SMTP operation,
+  carrying only closed provider/operation/method, status class, and outcome;
+- one `bepis.live_update.process` span per decoded subscribe/unsubscribe command;
+- one `bepis.export.generate` span per fixed export request.
+
+The wrappers catch failures inside the SDK span, record only `failed`, and
+rethrow after closing it. The SDK therefore cannot copy raw exception payloads
+into these semantic spans. Unknown job kinds and provider operations collapse to
+`unknown`; URLs, ids, payloads, dedupe keys, addresses, and exception text are
+never attributes. Span volume is bounded by `job attempts + selected provider
+calls + decoded websocket commands + export requests`; FWC MAPD paging is one
+logical span with a 1,000-page safety ceiling, and Xero period-timesheet paging
+stops before page 101. The retained issue-453 measurement used a 25-iteration
+`telemetry-boundary-probe` and exported exactly 100 semantic spans (four per
+iteration) with zero prohibited attributes. A matched 20-second `roster-wide`
+profile emitted 2,124 existing request/domain spans across 44 requests and zero
+new semantic spans, as expected because that scenario performed no jobs,
+provider calls, websocket commands, or exports. Trace context is not
+persisted in `app_jobs`: worker attempts intentionally start a new root because
+persisting request trace state would couple durable retries to customer-request
+sampling and retention. In-process child operations still inherit the active
+job or request context normally.
+
 ## Topologies
 
 Local repeatable profiling remains agent-first and artifact-based:
@@ -97,6 +125,8 @@ must not be publicly exposed.
 
 - `docs/runbooks/performance-profiling.md`: exact local commands, artifacts,
   comparison, and diagnosis.
+- `bash ./bin/in-env telemetry-boundary-probe`: exporter-backed semantic job,
+  provider, websocket, export, outcome, and prohibited-attribute contract.
 - `docs/workstreams/opentelemetry-observability.md`: unresolved production
   intent and issue links.
 - `Application/Helper/Telemetry.hs`: app telemetry implementation.

@@ -112,6 +112,12 @@ tests =
             xeroEarningsRatesMaxPagesFromEnvironment (Just "0") `shouldSatisfy` isLeft
             xeroEarningsRatesMaxPagesFromEnvironment (Just "not-a-number") `shouldSatisfy` isLeft
 
+        it "bounds period-timesheet pages before issuing more provider requests" do
+            xeroTimesheetPageWithinLimit 1 `shouldBe` True
+            xeroTimesheetPageWithinLimit 100 `shouldBe` True
+            xeroTimesheetPageWithinLimit 0 `shouldBe` False
+            xeroTimesheetPageWithinLimit 101 `shouldBe` False
+
         it "constructs paginated Payroll AU v2 earnings-rate reads" do
             XeroMock.assertSpecServer earningsRatesSpec XeroMock.xeroPayrollV2Server
             XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "get"

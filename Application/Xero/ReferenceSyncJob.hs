@@ -23,6 +23,11 @@ import Application.Error.Runtime (ExternalRuntimeCategory (CheckedConfigurationI
                                   throwExternalRuntimeMessage)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroReferenceSyncStateResource)
 import Application.Helper.SurfaceResource
+import Application.Helper.Telemetry (addJobRetryExhaustedTelemetryEvent,
+                                     addJobRetryScheduledTelemetryEvent)
+import Application.Helper.Telemetry.Semantic (boundedRetryNumber,
+                                              nextBoundedRetryNumber,
+                                              retryNumberAtLimit)
 import Application.Helper.Xero
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Admin.ReferenceSyncPolicy
@@ -418,8 +423,17 @@ handleReferenceSyncFailure runtime appJob payload connection maybeSyncRun failur
     now <- runtime.currentReferenceSyncTime
     jitterSeconds <- runtime.referenceSyncJitterSeconds
     case xeroReferenceSyncRetryDecision payload.requestedAt now payload.retryNumber jitterSeconds failure.cause of
-        RetryXeroReferenceSyncAt retryAt -> scheduleReferenceSyncRetry runtime appJob connection payload retryAt failure.phaseName message
-        FailXeroReferenceSync -> throwAppJobError (xeroReferenceJobError failure.cause)
+        RetryXeroReferenceSyncAt retryAt
+            | retryNumberAtLimit payload.retryNumber -> throwFinalReferenceSyncFailure payload failure
+            | otherwise -> do
+                addJobRetryScheduledTelemetryEvent xeroReferenceSyncJobKind (nextBoundedRetryNumber payload.retryNumber)
+                scheduleReferenceSyncRetry runtime appJob connection payload retryAt failure.phaseName message
+        FailXeroReferenceSync -> throwFinalReferenceSyncFailure payload failure
+
+throwFinalReferenceSyncFailure :: XeroReferenceSyncJobPayload -> XeroReferencePhaseFailure -> IO value
+throwFinalReferenceSyncFailure payload failure = do
+    addJobRetryExhaustedTelemetryEvent xeroReferenceSyncJobKind (boundedRetryNumber payload.retryNumber)
+    throwAppJobError (xeroReferenceJobError failure.cause)
 
 xeroReferenceJobError :: XeroClientError -> AppJobError
 xeroReferenceJobError = \case
@@ -505,7 +519,7 @@ scheduleReferenceSyncRetry runtime appJob connection payload retryAt failedPhase
                 (Id <$> appJob.requestedByUserId)
                 connection
                 payload.requestedAt
-                (payload.retryNumber + 1)
+                (nextBoundedRetryNumber payload.retryNumber)
                 (Just retryAt)
                 payload.requestedCategories
                 payload.completesFullSnapshot

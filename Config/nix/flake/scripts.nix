@@ -201,6 +201,7 @@ in
         otel-browser = script ../scripts/profile/otel-browser;
         otel-summary = script ../scripts/profile/otel-summary;
         otel-runtime-benchmark = script ../scripts/profile/otel-runtime-benchmark;
+        telemetry-boundary-probe = script ../scripts/profile/telemetry-boundary-probe;
         profile-compare = script ../scripts/profile/compare;
         production-build-profile = script ../scripts/profile/production-build;
         production-build-profile-test = script ../scripts/profile/production-build-test;

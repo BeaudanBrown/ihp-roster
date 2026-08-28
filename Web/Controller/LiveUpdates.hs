@@ -4,6 +4,7 @@ import Application.Helper.Controller
 import Application.Helper.FrontendContract.Surface.Authorization (validateFrontendSurfaceLiveSubscription)
 import Application.Helper.LiveUpdate.DurableState (fetchDurableDependencyWatermark)
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.Telemetry (withLiveUpdateTelemetrySpan)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.UUID as UUID
@@ -43,6 +44,7 @@ handleCommand ::
     LiveUpdateCommand ->
     IO ()
 handleCommand command =
+    withLiveUpdateTelemetrySpan (liveUpdateCommandForTelemetry command) $
     case command of
         SubscribeLiveUpdates { subscription = liveSubscription, lastSeenVersion } -> do
             let scope = liveSubscription.subscriptionScope
@@ -73,6 +75,10 @@ handleCommand command =
                             }
         UnsubscribeLiveUpdates { subscription = liveSubscription } ->
             unregisterScopeSubscription liveSubscription.subscriptionScope
+
+liveUpdateCommandForTelemetry :: LiveUpdateCommand -> Text
+liveUpdateCommandForTelemetry SubscribeLiveUpdates {}   = "subscribe"
+liveUpdateCommandForTelemetry UnsubscribeLiveUpdates {} = "unsubscribe"
 
 unregisterScopeSubscription ::
     (?state :: IORef LiveUpdatesWSApp) =>

@@ -27,6 +27,8 @@ import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.Mail
 import Application.Helper.SurfaceResource (liveMutationResult)
+import Application.Helper.Telemetry (addProviderTelemetryStatusClass,
+                                     withProviderTelemetrySpan)
 import Application.InvitationDelivery.Email
 import Application.InvitationDelivery.Types
 import Application.RosterNotification.Email
@@ -38,6 +40,7 @@ import Application.WageSourceNotification.Email
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import Data.Either (isRight)
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
@@ -106,9 +109,14 @@ handleAccountSecurityCipherError = \case
 -- transport classification reaches IHP.
 deliverJobMail :: BuildMail mail => (forall value. BuildMail value => value -> IO ()) -> mail -> IO ()
 deliverJobMail deliver mail =
-    trySynchronousAppJobAction (deliver mail) >>= \case
-        Left _ -> throwAppJobError JobTransportUnavailable
+    withProviderTelemetrySpan "email" "send" "SMTP" isRight deliveryAttempt >>= \case
+        Left _   -> throwAppJobError JobTransportUnavailable
         Right () -> pure ()
+  where
+    deliveryAttempt = do
+        result <- trySynchronousAppJobAction (deliver mail)
+        addProviderTelemetryStatusClass (if isRight result then "accepted" else "unavailable")
+        pure result
 
 performPayload ::
     (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>
