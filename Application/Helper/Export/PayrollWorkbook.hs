@@ -4,13 +4,19 @@ module Application.Helper.Export.PayrollWorkbook
     , PayrollWorkbookCellStyle (..)
     , PayrollWorkbookCellValue (..)
     , PayrollWorkbookColor
+    , PayrollWorkbookDefinition (..)
     , PayrollWorkbookFilter (..)
     , PayrollWorkbookSheet (..)
+    , PayrollWorkbookSheetFamily (..)
     , defaultPayrollWorkbookCellStyle
+    , defaultPayrollWorkbookDefinition
     , minimalPayrollWorkbook
+    , payrollWorkbookFromDefinition
     , payrollWorkbookFromFactModel
     , payrollWorkbookFromHourlyModel
     , payrollWorkbookColor
+    , payrollWorkbookSheetFamilyFromText
+    , payrollWorkbookSheetFamilyKey
     , renderPayrollWorkbook
     , renderPayrollWorkbookBase64
     ) where
@@ -68,6 +74,7 @@ data PayrollWorkbookFilter = PayrollWorkbookFilter
 
 data PayrollWorkbookSheet = PayrollWorkbookSheet
     { name          :: !Text
+    , hidden        :: !Bool
     , cells         :: ![PayrollWorkbookCell]
     , columnWidths  :: ![(Int, Double)]
     , hiddenColumns :: ![Int]
@@ -82,6 +89,59 @@ newtype PayrollWorkbook = PayrollWorkbook
     { sheets :: [PayrollWorkbookSheet]
     }
     deriving (Eq, Show)
+
+data PayrollWorkbookSheetFamily
+    = PayrollWorkbookSummary
+    | PayrollWorkbookEmployeePayBucketHours
+    | PayrollWorkbookShiftTypeHours
+    | PayrollWorkbookEmployeePayBucketWages
+    | PayrollWorkbookShiftTypeWages
+    deriving (Eq, Ord, Show)
+
+data PayrollWorkbookDefinition = PayrollWorkbookDefinition
+    { payrollWorkbookDefinitionKey           :: !Text
+    , payrollWorkbookDefinitionVersion       :: !Int
+    , payrollWorkbookDefinitionSheetFamilies :: ![PayrollWorkbookSheetFamily]
+    }
+    deriving (Eq, Show)
+
+defaultPayrollWorkbookDefinition :: PayrollWorkbookDefinition
+defaultPayrollWorkbookDefinition =
+    PayrollWorkbookDefinition
+        { payrollWorkbookDefinitionKey = "builtin-default"
+        , payrollWorkbookDefinitionVersion = currentPayrollWorkbookDefinitionVersion
+        , payrollWorkbookDefinitionSheetFamilies = availablePayrollWorkbookSheetFamilies
+        }
+
+currentPayrollWorkbookDefinitionVersion :: Int
+currentPayrollWorkbookDefinitionVersion = 1
+
+-- Shift-type families have stable persisted keys but remain unavailable until
+-- their presentation implementation is installed.
+availablePayrollWorkbookSheetFamilies :: [PayrollWorkbookSheetFamily]
+availablePayrollWorkbookSheetFamilies =
+    [ PayrollWorkbookSummary
+    , PayrollWorkbookEmployeePayBucketHours
+    , PayrollWorkbookEmployeePayBucketWages
+    ]
+
+payrollWorkbookSheetFamilyKey :: PayrollWorkbookSheetFamily -> Text
+payrollWorkbookSheetFamilyKey = \case
+    PayrollWorkbookSummary                -> "summary"
+    PayrollWorkbookEmployeePayBucketHours -> "employee-pay-bucket-hours"
+    PayrollWorkbookShiftTypeHours         -> "shift-type-hours"
+    PayrollWorkbookEmployeePayBucketWages -> "employee-pay-bucket-wages"
+    PayrollWorkbookShiftTypeWages         -> "shift-type-wages"
+
+payrollWorkbookSheetFamilyFromText :: Text -> Either Text PayrollWorkbookSheetFamily
+payrollWorkbookSheetFamilyFromText value =
+    case Text.strip value of
+        "summary"                   -> Right PayrollWorkbookSummary
+        "employee-pay-bucket-hours" -> Right PayrollWorkbookEmployeePayBucketHours
+        "shift-type-hours"          -> Right PayrollWorkbookShiftTypeHours
+        "employee-pay-bucket-wages" -> Right PayrollWorkbookEmployeePayBucketWages
+        "shift-type-wages"          -> Right PayrollWorkbookShiftTypeWages
+        unsupported                 -> Left ("Unsupported Payroll Workbook sheet family: " <> unsupported <> ".")
 
 defaultPayrollWorkbookCellStyle :: PayrollWorkbookCellStyle
 defaultPayrollWorkbookCellStyle =
@@ -105,6 +165,7 @@ minimalPayrollWorkbook rangeStart rangeEnd =
         { sheets =
             [ PayrollWorkbookSheet
                 { name = "Payroll Workbook"
+                , hidden = False
                 , cells =
                     [ textCell 1 1 "Payroll Workbook" headerStyle
                     , textCell 1 2 "Value" headerStyle
@@ -132,11 +193,59 @@ minimalPayrollWorkbook rangeStart rangeEnd =
     numberCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookNumber value, style }
     formulaCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookFormula value, style }
 
-payrollWorkbookFromFactModel :: Int -> PayrollWorkbookFactModel -> PayrollWorkbook
-payrollWorkbookFromFactModel rosterWeekStartsOn factModel =
+payrollWorkbookFromDefinition ::
+    PayrollWorkbookDefinition ->
+    Int ->
+    PayrollWorkbookFactModel ->
+    Either Text PayrollWorkbook
+payrollWorkbookFromDefinition definition rosterWeekStartsOn factModel = do
+    validatePayrollWorkbookDefinition definition
+    pure (payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel)
+
+payrollWorkbookFromValidatedDefinition ::
+    PayrollWorkbookDefinition ->
+    Int ->
+    PayrollWorkbookFactModel ->
+    PayrollWorkbook
+payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
     let projected = payrollWorkbookHourlyModelFromFacts factModel
-        PayrollWorkbook presentationSheets = payrollWorkbookFromHourlyModel rosterWeekStartsOn projected
-     in PayrollWorkbook { sheets = presentationSheets <> [dataSheet factModel] }
+     in PayrollWorkbook
+            { sheets = concatMap (familySheets projected) definition.payrollWorkbookDefinitionSheetFamilies <> [dataSheet factModel]
+            }
+  where
+    familySheets projected = \case
+        PayrollWorkbookSummary ->
+            map (summarySheet projected) (summaryWeekAnchors rosterWeekStartsOn projected)
+        PayrollWorkbookEmployeePayBucketHours ->
+            map (dailySheet projected DailyHours) projected.payrollModelDays
+        PayrollWorkbookEmployeePayBucketWages ->
+            map (dailySheet projected DailyWages) projected.payrollModelDays
+        PayrollWorkbookShiftTypeHours -> []
+        PayrollWorkbookShiftTypeWages -> []
+
+payrollWorkbookFromFactModel :: Int -> PayrollWorkbookFactModel -> PayrollWorkbook
+payrollWorkbookFromFactModel = payrollWorkbookFromValidatedDefinition defaultPayrollWorkbookDefinition
+
+validatePayrollWorkbookDefinition :: PayrollWorkbookDefinition -> Either Text ()
+validatePayrollWorkbookDefinition definition
+    | Text.null (Text.strip definition.payrollWorkbookDefinitionKey) =
+        Left "Payroll Workbook definitions require a stable non-empty key."
+    | definition.payrollWorkbookDefinitionVersion /= currentPayrollWorkbookDefinitionVersion =
+        Left ("Unsupported Payroll Workbook definition version: " <> tshow definition.payrollWorkbookDefinitionVersion <> ".")
+    | null families =
+        Left "Payroll Workbook definitions require at least one presentation sheet family."
+    | duplicate : _ <- duplicateFamilies =
+        Left ("Payroll Workbook definitions cannot contain duplicate sheet families: " <> payrollWorkbookSheetFamilyKey duplicate <> ".")
+    | unavailable : _ <- filter (`notElem` availablePayrollWorkbookSheetFamilies) families =
+        Left
+            ( "Payroll Workbook sheet family is not available in definition version 1: "
+                <> payrollWorkbookSheetFamilyKey unavailable
+                <> "."
+            )
+    | otherwise = Right ()
+  where
+    families = definition.payrollWorkbookDefinitionSheetFamilies
+    duplicateFamilies = families List.\\ List.nub families
 
 payrollWorkbookFromHourlyModel :: Int -> PayrollWorkbookHourlyModel -> PayrollWorkbook
 payrollWorkbookFromHourlyModel rosterWeekStartsOn model =
@@ -152,6 +261,7 @@ dataSheet :: PayrollWorkbookFactModel -> PayrollWorkbookSheet
 dataSheet factModel =
     PayrollWorkbookSheet
         { name = "Data"
+        , hidden = True
         , cells = headerCells <> concat (zipWith factCells [2 ..] factModel.payrollFactModelFacts)
         , columnWidths =
             [ (1, 16), (2, 38), (3, 38), (4, 24), (5, 38), (6, 20)
@@ -239,6 +349,7 @@ summarySheet :: PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
 summarySheet model weekAnchor =
     PayrollWorkbookSheet
         { name = summarySheetName weekAnchor
+        , hidden = False
         , cells = headerCells <> rowCells
         , columnWidths = [(1, 24), (2, 18)] <> [(column, 13) | column <- [3 .. staffIdColumn - 1]]
         , hiddenColumns = [staffIdColumn, payBucketKeyColumn]
@@ -337,6 +448,7 @@ dailySheet :: PayrollWorkbookHourlyModel -> DailySheetKind -> PayrollWorkbookDay
 dailySheet model kind day =
     PayrollWorkbookSheet
         { name = dailySheetName kind day.payrollDayDate
+        , hidden = False
         , cells = headerCells <> dataCells <> totalCells
         , columnWidths = [(1, 24), (2, 18)] <> [(column, 22) | column <- [3 .. totalColumn - 1]] <> [(totalColumn, 14)]
         , hiddenColumns = [staffIdColumn, payBucketKeyColumn]
@@ -483,7 +595,7 @@ renderPayrollWorkbookBase64 = decodeUtf8 . Base64.encode . LBS.toStrict . render
 
 renderPayrollWorkbook :: PayrollWorkbook -> LBS.ByteString
 renderPayrollWorkbook workbook =
-    applyTabColors workbook (fromXlsx 0 xlsx)
+    applySheetVisibility workbook (applyTabColors workbook (fromXlsx 0 xlsx))
   where
     (finalStyleSheet, renderedSheets) =
         List.mapAccumL renderSheet minimalStyleSheet workbook.sheets
@@ -608,6 +720,46 @@ freezeSheetViews frozenRows frozenColumns
     positiveDouble value
         | value > 0 = Just (fromIntegral value)
         | otherwise = Nothing
+
+applySheetVisibility :: PayrollWorkbook -> LBS.ByteString -> LBS.ByteString
+applySheetVisibility workbook bytes
+    | null hiddenSheetNames = bytes
+    | otherwise =
+        case Zip.findEntryByPath workbookPath archive of
+            Nothing -> bytes
+            Just entry ->
+                let updatedEntry = Zip.toEntry workbookPath 0 (setHiddenSheetNames hiddenSheetNames (Zip.fromEntry entry))
+                 in Zip.fromArchive (Zip.addEntryToArchive updatedEntry (Zip.deleteEntryFromArchive workbookPath archive))
+  where
+    workbookPath = "xl/workbook.xml"
+    archive = Zip.toArchive bytes
+    hiddenSheetNames = [sheet.name | sheet <- workbook.sheets, sheet.hidden]
+
+setHiddenSheetNames :: [Text] -> LBS.ByteString -> LBS.ByteString
+setHiddenSheetNames hiddenSheetNames xml =
+    Xml.renderLBS Xml.def (mapDocumentRoot hideSheets (Xml.parseLBS_ Xml.def xml))
+  where
+    hideSheets (Xml.Element elementName elementAttributes elementNodes)
+        | Xml.nameLocalName elementName == "sheet"
+        , Just sheetName <- attributeValue "name" elementAttributes
+        , sheetName `elem` hiddenSheetNames =
+            Xml.Element
+                elementName
+                (Map.insert (Xml.Name "state" Nothing Nothing) "hidden" elementAttributes)
+                (map hideNode elementNodes)
+        | otherwise = Xml.Element elementName elementAttributes (map hideNode elementNodes)
+    hideNode (Xml.NodeElement element) = Xml.NodeElement (hideSheets element)
+    hideNode node                      = node
+    attributeValue localName attributes =
+        listToMaybe
+            [ value
+            | (name, value) <- Map.toList attributes
+            , Xml.nameLocalName name == localName
+            ]
+
+mapDocumentRoot :: (Xml.Element -> Xml.Element) -> Xml.Document -> Xml.Document
+mapDocumentRoot transform (Xml.Document prologue root epilogue) =
+    Xml.Document prologue (transform root) epilogue
 
 applyTabColors :: PayrollWorkbook -> LBS.ByteString -> LBS.ByteString
 applyTabColors workbook bytes =

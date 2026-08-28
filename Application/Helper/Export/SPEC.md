@@ -48,9 +48,18 @@ cross-module safety and payroll contracts.
   seconds, Hours reconcile at six decimals, and Wages reconcile exactly to sealed
   cents. Empty batches or any included-entry authority/timing/wage failure reject
   the complete workbook.
-- Payroll Workbook sheets are ordered Summary, Hours by Operational date, Wages
-  by Operational date, then the deterministic typed Data worksheet. Daily sheets
-  share hour columns, retain hidden
+- Payroll Workbook presentation is selected by a versioned definition with a
+  stable key and an ordered, duplicate-free, non-empty list of available sheet
+  families. Version 1 supports Summary, employee/pay-bucket Hours, and
+  employee/pay-bucket Wages; shift-type Hours/Wages keys are reserved and reject
+  generation until their presentations are implemented. The built-in default
+  contains every currently available family in that order. Export jobs retain
+  the definition key, version, and ordered family snapshot independently of
+  future configuration changes.
+- Every valid definition automatically appends the deterministic typed Data
+  worksheet. Data is implementation-owned, hidden by default, and cannot be
+  selected or omitted as a presentation family. Daily sheets share hour columns,
+  retain hidden
   staff/pay-bucket keys, and calculate all totals with formulas. Each roster-week
   Summary has no title or totals and joins Hours sheets by those stable keys.
   Weekdays use Ord/7-12/12+ buckets; Saturday and Sunday use Ord/12+, with every

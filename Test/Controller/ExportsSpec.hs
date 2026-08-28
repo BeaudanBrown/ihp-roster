@@ -774,6 +774,9 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"dataModel\":\"normalized_hourly_facts_v2\""
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"definitionKey\":\"builtin-default\""
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"definitionVersion\":1"
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"sheetFamilies\":[\"summary\",\"employee-pay-bucket-hours\",\"employee-pay-bucket-wages\"]"
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"entryCount\":2"
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"factCount\":48"
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"rowCount\":1"
@@ -796,7 +799,8 @@ tests = aroundAll withDatabaseTestContext do
                 workbookXml `shouldSatisfy` Text.isInfixOf "Summary 2025-01-06"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Wages Sun 2025-01-12"
-                workbookXml `shouldSatisfy` Text.isInfixOf "Data"
+                workbookXml `shouldSatisfy` Text.isInfixOf "name=\"Data\""
+                workbookXml `shouldSatisfy` Text.isInfixOf "state=\"hidden\""
                 hoursXml <- workbookArchive |> archiveEntryText "xl/worksheets/sheet2.xml"
                 hoursXml `shouldSatisfy` Text.isInfixOf "SUM("
 

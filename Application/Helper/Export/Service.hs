@@ -61,14 +61,19 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
                 let calculationsByEntryId = calculationMap includedEntries calculations
                 case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId calculationsByEntryId of
                     Left message -> pure (Left message)
-                    Right factModel -> persistModel venueConfig.rosterWeekStartsOn includedEntries versionManifestsByEntryId factModel
+                    Right factModel ->
+                        let definition = defaultPayrollWorkbookDefinition
+                         in case payrollWorkbookFromDefinition definition venueConfig.rosterWeekStartsOn factModel of
+                                Left message -> pure (Left message)
+                                Right workbook -> persistModel definition includedEntries versionManifestsByEntryId factModel workbook
   where
-    persistModel rosterWeekStartsOn includedEntries versionManifestsByEntryId factModel = do
+    persistModel definition includedEntries versionManifestsByEntryId factModel workbook = do
         now <- getCurrentTime
         let exportType = exportJobTypeToText PayrollWorkbookXlsx
         let fileName = "payroll_workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
         let hourlyModel = payrollWorkbookHourlyModelFromFacts factModel
-        let workbookContents = renderPayrollWorkbookBase64 (payrollWorkbookFromFactModel rosterWeekStartsOn factModel)
+        let workbookContents = renderPayrollWorkbookBase64 workbook
+        let definitionSnapshot = map payrollWorkbookSheetFamilyKey definition.payrollWorkbookDefinitionSheetFamilies
         let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
         let exportVersionManifest = collapseVersionManifests versionManifests
         let rowCount = sum (map (length . (.payrollDayRows)) hourlyModel.payrollModelDays)
@@ -84,6 +89,9 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
                     , "format" Aeson..= ("xlsx" :: Text)
                     , "workbookVersion" Aeson..= (2 :: Int)
                     , "dataModel" Aeson..= ("normalized_hourly_facts_v2" :: Text)
+                    , "definitionKey" Aeson..= definition.payrollWorkbookDefinitionKey
+                    , "definitionVersion" Aeson..= definition.payrollWorkbookDefinitionVersion
+                    , "sheetFamilies" Aeson..= definitionSnapshot
                     , "entryCount" Aeson..= length includedEntries
                     , "factCount" Aeson..= length factModel.payrollFactModelFacts
                     , "rowCount" Aeson..= rowCount
@@ -105,6 +113,9 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
                     , "entryCount" Aeson..= length includedEntries
                     , "rowCount" Aeson..= rowCount
                     , "workbookVersion" Aeson..= (1 :: Int)
+                    , "definitionKey" Aeson..= definition.payrollWorkbookDefinitionKey
+                    , "definitionVersion" Aeson..= definition.payrollWorkbookDefinitionVersion
+                    , "sheetFamilies" Aeson..= definitionSnapshot
                     , "payConfigVersionManifest" Aeson..= exportVersionManifest
                     , "deliveryMethod" Aeson..= browserDownloadMethod
                     ])

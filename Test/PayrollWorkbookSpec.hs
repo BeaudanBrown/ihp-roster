@@ -58,15 +58,7 @@ tests = do
             payrollWorkbookColor "blue" `shouldBe` Left "Workbook colours must be six-digit RGB or eight-digit ARGB hexadecimal values."
 
         it "publishes deterministic normalized facts as a typed Data worksheet" do
-            let day = fromGregorian 2025 1 6
-            let slot = PayrollWorkbookHourSlot 18 FirstHourlyOccurrence
-            let factModel = PayrollWorkbookFactModel
-                    { payrollFactModelRangeStart = day
-                    , payrollFactModelRangeEnd = day
-                    , payrollFactModelWindow = HourlyReportWindow 18 19
-                    , payrollFactModelHourSlots = [slot]
-                    , payrollFactModelFacts = [workbookFact day slot]
-                    }
+            let (day, factModel) = oneHourFactModel
             let workbook = payrollWorkbookFromFactModel 1 factModel
             map (.name) workbook.sheets
                 `shouldBe` ["Summary 2025-01-06", "Hours Mon 2025-01-06", "Wages Mon 2025-01-06", "Data"]
@@ -82,7 +74,68 @@ tests = do
             numberAt 2 13 factsSheet `shouldBe` Just (1.5, "0.000000;-0.000000;;")
             numberAt 2 14 factsSheet `shouldBe` Just (4500, "0")
             numberAt 2 15 factsSheet `shouldBe` Just (45, "$#,##0.00;[Red]-$#,##0.00;;")
-            renderPayrollWorkbook workbook `shouldBe` renderPayrollWorkbook workbook
+            let rendered = renderPayrollWorkbook workbook
+            rendered `shouldBe` renderPayrollWorkbook workbook
+            Xlsx.toXlsxEither rendered `shouldSatisfy` isRight
+            workbookXml <- archiveText "xl/workbook.xml" (Zip.toArchive rendered)
+            workbookXml `shouldSatisfy` Text.isInfixOf "name=\"Data\""
+            workbookXml `shouldSatisfy` Text.isInfixOf "state=\"hidden\""
+
+    describe "Payroll Workbook composable definitions" do
+        it "expands valid presentation families in declared order and always appends hidden Data" do
+            let (_, factModel) = oneHourFactModel
+            let definition = PayrollWorkbookDefinition
+                    { payrollWorkbookDefinitionKey = "wages-first"
+                    , payrollWorkbookDefinitionVersion = 1
+                    , payrollWorkbookDefinitionSheetFamilies =
+                        [ PayrollWorkbookEmployeePayBucketWages
+                        , PayrollWorkbookSummary
+                        ]
+                    }
+            workbook <- expectRight (payrollWorkbookFromDefinition definition 1 factModel)
+            map (.name) workbook.sheets
+                `shouldBe` ["Wages Mon 2025-01-06", "Summary 2025-01-06", "Data"]
+            map (.hidden) workbook.sheets `shouldBe` [False, False, True]
+
+        it "rejects duplicate, empty, unavailable, unknown, and unsupported-version definitions" do
+            let (_, factModel) = oneHourFactModel
+            let definition families = PayrollWorkbookDefinition "custom" 1 families
+            payrollWorkbookFromDefinition (definition []) 1 factModel
+                `shouldBe` Left "Payroll Workbook definitions require at least one presentation sheet family."
+            payrollWorkbookFromDefinition
+                (definition [PayrollWorkbookSummary, PayrollWorkbookSummary])
+                1
+                factModel
+                `shouldBe` Left "Payroll Workbook definitions cannot contain duplicate sheet families: summary."
+            payrollWorkbookFromDefinition
+                (definition [PayrollWorkbookShiftTypeHours])
+                1
+                factModel
+                `shouldBe` Left "Payroll Workbook sheet family is not available in definition version 1: shift-type-hours."
+            payrollWorkbookFromDefinition
+                (PayrollWorkbookDefinition "custom" 2 [PayrollWorkbookSummary])
+                1
+                factModel
+                `shouldBe` Left "Unsupported Payroll Workbook definition version: 2."
+            payrollWorkbookSheetFamilyFromText "shift-type-wages"
+                `shouldBe` Right PayrollWorkbookShiftTypeWages
+            payrollWorkbookSheetFamilyFromText "arbitrary-formula"
+                `shouldBe` Left "Unsupported Payroll Workbook sheet family: arbitrary-formula."
+
+        it "keeps the built-in definition versioned, ordered, and behavior-compatible" do
+            defaultPayrollWorkbookDefinition
+                `shouldBe` PayrollWorkbookDefinition
+                    { payrollWorkbookDefinitionKey = "builtin-default"
+                    , payrollWorkbookDefinitionVersion = 1
+                    , payrollWorkbookDefinitionSheetFamilies =
+                        [ PayrollWorkbookSummary
+                        , PayrollWorkbookEmployeePayBucketHours
+                        , PayrollWorkbookEmployeePayBucketWages
+                        ]
+                    }
+            let (_, factModel) = oneHourFactModel
+            payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel
+                `shouldBe` Right (payrollWorkbookFromFactModel 1 factModel)
 
     describe "Payroll Workbook locked rendering contract" do
         it "orders partial and multi-week sheets and emits exact daily and stable-key Summary formulas" do
@@ -287,6 +340,25 @@ tests = do
                     && Text.isInfixOf "'Hours Sat 2026-04-04'!D:D" formula
                     && Text.isInfixOf "+" formula
                 )
+
+expectRight :: Either Text value -> IO value
+expectRight = \case
+    Left message -> expectationFailure (cs message) >> fail "expected Right"
+    Right value  -> pure value
+
+oneHourFactModel :: (Day, PayrollWorkbookFactModel)
+oneHourFactModel =
+    let day = fromGregorian 2025 1 6
+        slot = PayrollWorkbookHourSlot 18 FirstHourlyOccurrence
+     in ( day
+        , PayrollWorkbookFactModel
+            { payrollFactModelRangeStart = day
+            , payrollFactModelRangeEnd = day
+            , payrollFactModelWindow = HourlyReportWindow 18 19
+            , payrollFactModelHourSlots = [slot]
+            , payrollFactModelFacts = [workbookFact day slot]
+            }
+        )
 
 workbookFact :: Day -> PayrollWorkbookHourSlot -> PayrollWorkbookFact
 workbookFact day slot =
