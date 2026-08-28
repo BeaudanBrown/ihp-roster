@@ -11,41 +11,45 @@ import Web.Timesheets.Paths (timesheetWindowStateQueryParams,
                              timesheetWindowUrl)
 import Web.View.Prelude
 
-data EditView = EditView
-    { timesheetEntry        :: TimesheetEntry
-    , staffMembers          :: [Staff]
-    , shiftTypes            :: [ShiftType]
-    , calendarRevision      :: Int
-    , selectedStaffFilterId :: Maybe UUID
-    , currentViewerStaffId  :: Maybe UUID
-    , pickerStart           :: Text
-    , pickerEnd             :: Text
-    , pickerStep            :: Int
+newtype EditView = EditView
+    { timesheetFormInputs :: TimesheetFormInputs
     }
 
 instance View EditView where
-    html EditView { .. } =
+    html EditView { timesheetFormInputs } =
         renderTimesheetEntryModalWithStartButtons
-            (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
-            (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
+            (timesheetModalTitle operationalDate)
+            (timesheetWindowUrl operationalDate timesheetFormInputs.selectedStaffFilterId)
             editTimesheetFormId
-            (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
-            (deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId)
+            (renderTimesheetForm (editTimesheetFormRenderModel PageOverlayForm timesheetFormInputs))
+            (deleteButtonsFor timesheetFormInputs.timesheetEntry timesheetFormInputs.calendarRevision timesheetFormInputs.selectedStaffFilterId)
       where
-        formOrigin = timesheetEntryFormOrigin timesheetEntry
+        operationalDate = timesheetEntryOperationalDate timesheetFormInputs.timesheetEntry
 
 editTimesheetFormId :: Text
 editTimesheetFormId = "timesheet-entry-edit-form"
 
-renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
-renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderEditTimesheetDialog :: TimesheetFormInputs -> Html
+renderEditTimesheetDialog timesheetFormInputs =
     renderTimesheetEntryDialogWithStartButtons
-        (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
+        (timesheetModalTitle (timesheetEntryOperationalDate timesheetFormInputs.timesheetEntry))
         editTimesheetFormId
-        (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
-        (deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId)
-  where
-    formOrigin = timesheetEntryFormOrigin timesheetEntry
+        (renderTimesheetForm (editTimesheetFormRenderModel HtmxOverlayForm timesheetFormInputs))
+        (deleteButtonsFor timesheetFormInputs.timesheetEntry timesheetFormInputs.calendarRevision timesheetFormInputs.selectedStaffFilterId)
+
+editTimesheetFormRenderModel :: OverlayFormMode -> TimesheetFormInputs -> TimesheetFormRenderModel
+editTimesheetFormRenderModel formMode timesheetFormInputs =
+    TimesheetFormRenderModel
+        { timesheetFormInputs
+        , timesheetFormPresentation =
+            TimesheetFormPresentation
+                { appShellAction = appShellActionByMarker @UpdateTimesheetEntryOverlay
+                , formOrigin = timesheetEntryFormOrigin timesheetFormInputs.timesheetEntry
+                , actionUrl = pathTo (UpdateTimesheetEntryAction (get #id timesheetFormInputs.timesheetEntry))
+                , formId = editTimesheetFormId
+                , formMode
+                }
+        }
 
 timesheetEntryFormOrigin :: TimesheetEntry -> TimesheetFormOrigin
 timesheetEntryFormOrigin timesheetEntry

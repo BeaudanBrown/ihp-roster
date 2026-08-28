@@ -15,6 +15,7 @@ import Application.Helper.TimeRules (calendarDayForOperationalClock,
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
                                            upsertCurrentUserTimesheetShowSuggestions,
                                            upsertCurrentUserTimesheetShowWageEstimates)
+import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime.Model
 import Network.HTTP.Types.Status (status409)
@@ -301,8 +302,11 @@ instance Controller TimesheetsController where
                                     |> set #venueId (unpackId currentVenueId)
                                     |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
                                     |> set #shiftTypeId (unpackId (get #id defaultShiftType))
+                        let viewerIsManager = hasRole Manager
+                        let timesheetFormInputs = TimesheetFormInputs { .. }
+                        let newTimesheetRenderModel = NewTimesheetRenderModel { .. }
                         if isHtmxRequest
-                            then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                            then respondHtml (renderNewTimesheetDialog newTimesheetRenderModel)
                             else render NewView { .. }
 
     action currentAction@CreateTimesheetEntryAction = runBepis currentAction BepisMutationAction do
@@ -335,8 +339,11 @@ instance Controller TimesheetsController where
                 timesheetEntryRecord
                     |> ifValid \case
                         Left timesheetEntry -> do
+                            let viewerIsManager = hasRole Manager
+                            let timesheetFormInputs = TimesheetFormInputs { .. }
+                            let newTimesheetRenderModel = NewTimesheetRenderModel { .. }
                             if isHtmxRequest
-                                then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                                then respondHtml (renderNewTimesheetDialog newTimesheetRenderModel)
                                 else render NewView { .. }
                         Right timesheetEntry -> do
                             ensureStaffAssignmentAllowed timesheetEntry.staffId
@@ -372,8 +379,11 @@ instance Controller TimesheetsController where
                 let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
                 let pickerStep = venueShiftTimeIntervalMinutes venueConfig
                 let timesheetEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
+                let viewerIsManager = hasRole Manager
+                let timesheetFormInputs = TimesheetFormInputs { .. }
+                let suggestedTimesheetRenderModel = SuggestedTimesheetRenderModel { .. }
                 if isHtmxRequest
-                    then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                    then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
                     else render SuggestedNewView { .. }
 
     action currentAction@CreateTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
@@ -406,8 +416,11 @@ instance Controller TimesheetsController where
                     |> ifValid \case
                         Left invalidEntry -> do
                             let timesheetEntry = invalidEntry
+                            let viewerIsManager = hasRole Manager
+                            let timesheetFormInputs = TimesheetFormInputs { .. }
+                            let suggestedTimesheetRenderModel = SuggestedTimesheetRenderModel { .. }
                             if isHtmxRequest
-                                then respondHtml (renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                                then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
                                 else render SuggestedNewView { .. }
                         Right validEntry -> do
                             accessDeniedUnless (validEntry.staffId == suggestion.suggestionStaffId)
@@ -462,8 +475,10 @@ instance Controller TimesheetsController where
         let pickerStart = venueTimePickerStartTimeText venueConfig
         let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
         let pickerStep = venueShiftTimeIntervalMinutes venueConfig
+        let viewerIsManager = hasRole Manager
+        let timesheetFormInputs = TimesheetFormInputs { .. }
         if isHtmxRequest
-            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+            then respondHtml (renderEditTimesheetDialog timesheetFormInputs)
             else render EditView { .. }
 
     action currentAction@UpdateTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
@@ -491,8 +506,10 @@ instance Controller TimesheetsController where
             |> buildTimesheetEntry venueConfig currentViewerStaffId
             |> ifValid \case
                 Left timesheetEntry -> do
+                    let viewerIsManager = hasRole Manager
+                    let timesheetFormInputs = TimesheetFormInputs { .. }
                     if isHtmxRequest
-                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                        then respondHtml (renderEditTimesheetDialog timesheetFormInputs)
                         else render EditView { .. }
                 Right timesheetEntry -> do
                     ensureRosterDerivedIdentityUnchanged existingEntry timesheetEntry
