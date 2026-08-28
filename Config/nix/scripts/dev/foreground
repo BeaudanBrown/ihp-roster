@@ -4,6 +4,10 @@ set -euo pipefail
 . "@scriptsRoot@/lib/workspace.sh"
 bepis_workspace_configure
 
+# Foreground development does not assume access to a desktop session. Callers
+# can still opt in to automatic launch with an explicit browser command.
+export IHP_BROWSER="${IHP_BROWSER:-true}"
+
 STATE_DIR="$(dev-agent-state-dir)"
 LOG_FILE="$STATE_DIR/devenv.log"
 DB_SOCKET="$PGHOST"

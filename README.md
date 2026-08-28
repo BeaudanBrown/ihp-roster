@@ -109,7 +109,9 @@ provisioning. Routine workspace setup uses validated registry identity resolutio
 without expensive process, resource, or HLS inspection; explicit
 `epic-worktree inspect` retains those diagnostics. `ddev` deletes the endpoint
 on exit, requires a valid local Stripe test
-configuration, and exposes the current workspace until Ctrl-C. Managed workspaces
+configuration, and exposes the current workspace until Ctrl-C. Foreground
+development does not open a browser by default; set `IHP_BROWSER` to an explicit
+browser command to opt in. Managed workspaces
 derive isolated ports, PostgreSQL state, and runtime paths; inspect them with
 `dev-workspace-info --json` rather than assuming addresses. See `AGENTS.md` for
 epic-worktree delegation and approval boundaries.
