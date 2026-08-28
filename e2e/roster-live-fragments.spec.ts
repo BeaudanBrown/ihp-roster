@@ -6,7 +6,7 @@ import {
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, resetCanonicalRosterAssignedShiftFixture, runSql, saveRosterShiftDialog } from './test-helpers';
+import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterShiftDialog, resetCanonicalRosterAssignedShiftFixture, runSql, saveRosterShiftDialog } from './test-helpers';
 
 type OpenShiftLiveWindow = Window & { __openShiftRosterSubscriptions?: string[] };
 
@@ -135,18 +135,6 @@ async function changeShiftToAlternateStaffKey(page: Page, groupKey: string): Pro
         .poll(() => shiftGroupStaffKey(page, groupKey), { timeout: E2E_TIMEOUT.liveUpdate })
         .not.toBe(previousStaffKey);
     return await shiftGroupStaffKey(page, groupKey);
-}
-
-async function assignedShiftCount(page: Page): Promise<number> {
-    return page
-        .locator(`[hx-get*="EditRosterSlotDialog"][${rosterShiftGroupHighlightMemberDomAttr}][${rosterStaffHighlightMemberDomAttr}]`)
-        .evaluateAll((elements, groupAttr) => {
-            return new Set(elements.map((element) => element.getAttribute(groupAttr) ?? '')).size;
-        }, rosterShiftGroupHighlightMemberDomAttr);
-}
-
-async function expectAssignedShiftCount(page: Page, count: number) {
-    await expect.poll(() => assignedShiftCount(page), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(count);
 }
 
 async function expectShiftGroupStaffKey(page: Page, groupKey: string, staffKey: string) {

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+fixture="Config/nix/fixtures/e2e-typecheck/invalid-assignment.ts"
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
+
+if e2e-typecheck --fixture "$fixture" >"$log" 2>&1; then
+    echo "e2e-typecheck-test: expected synthetic type error to fail" >&2
+    exit 1
+fi
+if ! grep -Fq "Type 'string' is not assignable to type 'number'" "$log"; then
+    echo "e2e-typecheck-test: expected assignment diagnostic was absent" >&2
+    cat "$log" >&2
+    exit 1
+fi
+
+echo "e2e-typecheck-test: synthetic type error rejected"

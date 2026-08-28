@@ -225,6 +225,8 @@ in
         e2e-runtime = script ../scripts/e2e/runtime;
         e2e = script ../scripts/e2e/e2e;
         e2e-fast = script ../scripts/e2e/e2e-fast;
+        e2e-typecheck = script ../scripts/e2e/typecheck;
+        e2e-typecheck-test = script ../scripts/e2e/typecheck-test;
         screenshot = script ../scripts/e2e/screenshot;
         pwcli = script ../scripts/e2e/pwcli;
         pwcli-auth-save = script ../scripts/e2e/pwcli-auth-save;

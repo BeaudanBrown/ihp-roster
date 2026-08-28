@@ -8,6 +8,8 @@ state. Do not use bare `npx playwright`.
 ```bash
 bash ./bin/in-env e2e
 bash ./bin/in-env e2e-fast
+bash ./bin/in-env e2e-typecheck
+bash ./bin/in-env e2e-typecheck-test
 bash ./bin/in-env e2e e2e/auth.spec.ts
 bash ./bin/in-env env PLAYWRIGHT_RETRIES=0 e2e e2e/auth.spec.ts
 bash ./bin/in-env e2e-report
@@ -15,7 +17,9 @@ bash ./bin/in-env screenshot-page /RosterWeeks output/check.png --selector '#ros
 bash ./bin/in-env pwcli --help
 ```
 
-`e2e` is the complete gate; `e2e-fast` runs each source behavior on desktop and
+`e2e-typecheck` strictly checks the config, helpers, and specs with pinned Nix
+TypeScript, Playwright, and Node declarations; its synthetic checker fixture is
+owned by `e2e-typecheck-test`. `e2e` is the complete gate; `e2e-fast` runs each source behavior on desktop and
 the canonical Pixel profile. Focused/interactive runs default to one shard;
 complete runs use isolated app/database shards. Do not treat a focused or fast
 run as complete evidence.

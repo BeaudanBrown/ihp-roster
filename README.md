@@ -36,6 +36,7 @@ bash ./bin/in-env verify-all
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test
 bash ./bin/in-env e2e
+bash ./bin/in-env e2e-typecheck
 bash ./bin/in-env lint
 bash ./bin/in-env format
 bash ./bin/in-env ./bin/doc-drift-check
@@ -64,8 +65,10 @@ gate; `verify-all` runs both tiers serially. `verify-full` orders cheap authorit
 production inspection/billing/deployment, then complete eight-shard Playwright.
 Local subsystem docs list narrower commands and test-selection rules.
 
-`frontend-check` runs contract drift, strict TypeScript validation including
-unused-code checks, frontend unit/DOM tests, and generated JS drift. `verify-full`
+`frontend-check` runs contract drift, strict frontend and Playwright TypeScript
+validation including unused-code checks, frontend unit/DOM tests, and generated
+JS drift. `e2e-typecheck` is the focused static Playwright authority; browser
+execution remains owned by `e2e`. `verify-full`
 generates frontend contracts once through its isolated tooling package; later
 architecture checks consume that current output. Fingerprinted per-worktree
 verification caches retain successful compilation dependencies but never omit a

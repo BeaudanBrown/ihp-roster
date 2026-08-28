@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+
+if [[ "${1:-}" == "--help" ]]; then
+    cat <<'EOF'
+Usage: e2e-typecheck [--fixture TYPESCRIPT_FILE]
+
+Strictly typechecks the Playwright config, helpers, and specs with the pinned
+Nix TypeScript, Playwright, and Node declarations. --fixture is reserved for
+synthetic checker tests and checks only the supplied file.
+EOF
+    exit 0
+fi
+
+fixture=""
+if [[ "${1:-}" == "--fixture" && -n "${2:-}" && -z "${3:-}" ]]; then
+    fixture="$2"
+elif (($# > 0)); then
+    echo "e2e-typecheck: expected no arguments or --fixture TYPESCRIPT_FILE" >&2
+    exit 2
+fi
+
+: "${E2E_TYPESCRIPT_NODE_MODULES:?e2e-typecheck requires the project Nix environment}"
+playwright_package_json="$(node -p 'require.resolve("@playwright/test/package.json")')"
+playwright_node_modules="$(dirname "$(dirname "$(dirname "$playwright_package_json")")")"
+node_types="$E2E_TYPESCRIPT_NODE_MODULES/@types"
+
+if [[ ! -f "$playwright_node_modules/@playwright/test/index.d.ts" ]]; then
+    echo "e2e-typecheck: pinned Playwright declarations are unavailable" >&2
+    exit 2
+fi
+if [[ ! -f "$node_types/node/index.d.ts" ]]; then
+    echo "e2e-typecheck: pinned Node declarations are unavailable" >&2
+    exit 2
+fi
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+config="$tmp_dir/tsconfig.json"
+
+node - "$repo_root" "$playwright_node_modules" "$node_types" "$fixture" >"$config" <<'EOF'
+const [repoRoot, playwrightNodeModules, nodeTypes, fixture] = process.argv.slice(2);
+const config = {
+    extends: `${repoRoot}/tsconfig.e2e.json`,
+    compilerOptions: {
+        baseUrl: repoRoot,
+        paths: {
+            '@playwright/test': [`${playwrightNodeModules}/@playwright/test/index.d.ts`],
+            '@playwright/test/*': [`${playwrightNodeModules}/@playwright/test/*`],
+        },
+        typeRoots: [nodeTypes],
+    },
+};
+if (fixture) {
+    config.include = [fixture.startsWith('/') ? fixture : `${repoRoot}/${fixture}`];
+}
+process.stdout.write(`${JSON.stringify(config, null, 2)}\n`);
+EOF
+
+tsc --project "$config" --noEmit

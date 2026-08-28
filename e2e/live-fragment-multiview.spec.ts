@@ -200,10 +200,8 @@ test.describe('Live fragment multi-view coverage', () => {
 
     test('leave approval exposes the new roster conflict state after viewer refresh', async ({ browser }) => {
         const actorContext = await browser.newContext();
-        const requesterContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
-        const requesterPage = await requesterContext.newPage();
         const viewerPage = await viewerContext.newPage();
         const note = 'Alpha leave request';
 
@@ -275,7 +273,6 @@ test.describe('Live fragment multi-view coverage', () => {
         await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
 
         await actorContext.close();
-        await requesterContext.close();
         await viewerContext.close();
     });
 

@@ -11,7 +11,6 @@ import {
     expectNoHorizontalViewportOverflow,
     firstRosterDayAddButton,
     firstRosterDayRemoveButton,
-    defaultE2ERosterGroupId,
     openRoster,
     openRosterSettings,
     runSql,

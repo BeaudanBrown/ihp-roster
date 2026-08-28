@@ -162,29 +162,6 @@ function invoicePaymentFailedEvent(eventId: string) {
     return event;
 }
 
-function checkoutEvent(eventId: string, type: string, checkoutSessionId: string, checkoutSubscriptionId: string) {
-    return {
-        id: eventId,
-        object: 'event',
-        api_version: apiVersion,
-        created: nextProviderCreatedAt(),
-        livemode: false,
-        type,
-        data: {
-            object: {
-                id: checkoutSessionId,
-                object: 'checkout.session',
-                client_reference_id: venueId,
-                customer: customerId,
-                livemode: false,
-                metadata: { venue_id: venueId },
-                status: 'complete',
-                subscription: checkoutSubscriptionId,
-            },
-        },
-    };
-}
-
 async function deliverSignedWebhook(page: import('@playwright/test').Page, payload: object) {
     const body = JSON.stringify(payload);
     execFileSync('python3', ['scripts/check-stripe-openapi-contract', '--validate-webhook-stdin'], {

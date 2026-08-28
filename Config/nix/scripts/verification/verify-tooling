@@ -30,6 +30,7 @@ bash Config/nix/scripts/architecture/wiring-registry-test
 node --test scripts/architecture/enum-authority.test.mjs
 node --test scripts/architecture/layout-policy.test.mjs
 node --test scripts/architecture/query.test.mjs
+e2e-typecheck-test
 
 # These two mixed standalone checkers retain their real repository scans below;
 # their fixture halves live here.

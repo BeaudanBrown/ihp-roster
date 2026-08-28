@@ -3,6 +3,7 @@ set -euo pipefail
 
 bash Config/nix/scripts/frontend/surface-guardrails
 tsc --project tsconfig.json --noEmit
+e2e-typecheck
 bash Config/nix/scripts/frontend/no-ts-nocheck
 bash Config/nix/scripts/frontend/no-broad-switch-defaults
 bash Config/nix/scripts/frontend/test

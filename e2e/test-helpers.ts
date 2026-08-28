@@ -501,13 +501,6 @@ export async function setFlatpickrDate(page: Page, selector: string, value: stri
     }, value);
 }
 
-export async function verifyCurrentUserPasskeyStepUp(page: Page) {
-    await expect(page).toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.navigation });
-    await expect(page.getByRole('button', { name: 'Verify with passkey' })).toBeVisible();
-    await page.getByRole('button', { name: 'Verify with passkey' }).click();
-    await expect(page).not.toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.passkey });
-}
-
 async function setCurrentSessionPasskeyVerification(page: Page, verified: boolean) {
     const token = process.env.E2E_TEST_TOKEN;
     if (!token) {
@@ -578,11 +571,6 @@ export async function loginAsPrivilegedUserWithFreshPasskey(
     }
 
     await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
-}
-
-export async function openAdminWithFreshPasskey(page: Page) {
-    await loginAsPrivilegedUserWithFreshPasskey(page);
-    await gotoWhenReady(page, '/Admin', '#admin-config-sections');
 }
 
 export async function openNewLeaveRequestDialog(page: Page) {
@@ -771,24 +759,12 @@ export function rosterDaySections(scope: Page | Locator) {
     return scope.locator('[data-roster-day-section]');
 }
 
-export function firstRosterDaySection(scope: Page | Locator) {
-    return rosterDaySections(scope).first();
-}
-
 export function editableRosterDaySections(scope: Page | Locator) {
     return scope.locator('[data-roster-day-section]:has([data-roster-shift-launcher="true"])');
 }
 
 export function firstEditableRosterDaySection(scope: Page | Locator) {
     return editableRosterDaySections(scope).first();
-}
-
-export function removableRosterDaySections(scope: Page | Locator) {
-    return scope.locator('[data-roster-day-section]:has(button[data-roster-day-remove="true"]:not([disabled]))');
-}
-
-export function firstRemovableRosterDaySection(scope: Page | Locator) {
-    return removableRosterDaySections(scope).first();
 }
 
 export function editableRosterRows(scope: Page | Locator) {
@@ -801,10 +777,6 @@ export function rosterShiftLaunchers(scope: Page | Locator) {
 
 export function existingRosterShiftLaunchers(scope: Page | Locator) {
     return scope.locator('[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]');
-}
-
-export function rosterShiftLaunchersForDaySection(daySection: Locator) {
-    return rosterShiftLaunchers(daySection);
 }
 
 export async function openRosterShiftDialog(page: Page, launcher: Locator) {
@@ -955,10 +927,6 @@ export async function addRowToFirstRosterDay(page: Page) {
 
 export async function removeRowFromRosterDay(scope: Page | Locator) {
     await submitRosterDayAction(await rosterDayActionButton(scope, 'remove'));
-}
-
-export async function removeRowFromFirstRosterDay(page: Page) {
-    await removeRowFromRosterDay(page);
 }
 
 export async function openAuthenticatedNavIfCollapsed(page: Page) {
@@ -1119,20 +1087,6 @@ export async function generatePayrollReport(page: Page, reportName: string, down
 export async function readDownloadText(download: Download) {
     const filePath = await persistDownload(download);
     return readFile(filePath, 'utf8');
-}
-
-export async function listZipEntries(download: Download) {
-    const filePath = await persistDownload(download);
-    const output = execFileSync('unzip', ['-Z1', filePath], { encoding: 'utf8' });
-    return output
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-}
-
-export async function readZipEntryText(download: Download, entryName: string) {
-    const filePath = await persistDownload(download);
-    return execFileSync('unzip', ['-p', filePath, entryName], { encoding: 'utf8' });
 }
 
 export function parseCsv(text: string): string[][] {

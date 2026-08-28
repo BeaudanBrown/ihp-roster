@@ -10,6 +10,7 @@ bash Config/nix/scripts/frontend/surface-guardrails
 bash Config/nix/scripts/frontend/surface-adapter-publication-test
 bash Config/nix/scripts/frontend/surface-compile-fail-check
 tsc --project tsconfig.json --noEmit
+e2e-typecheck
 bash Config/nix/scripts/frontend/no-ts-nocheck
 bash Config/nix/scripts/frontend/no-broad-switch-defaults
 bash Config/nix/scripts/frontend/test
