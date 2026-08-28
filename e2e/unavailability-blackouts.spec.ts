@@ -1,12 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
-import {
-    E2E_TIMEOUT,
-    gotoWhenReady,
-    loginAs,
-    openAdminWithSeededPasskeySession,
-    runSql,
-    setFlatpickrDate,
-} from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openAdminWithSeededPasskeySession } from './support/passkeys';
+import { runSql } from './support/database';
+import { setFlatpickrDate } from './support/profile';
 
 type LiveSubscriptionWindow = Window & { __blackoutSubscriptionKeys?: string[] };
 

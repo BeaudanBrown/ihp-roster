@@ -4,12 +4,11 @@ import {
     currentReportWeek,
     generatePayrollReport,
     gotoExports,
-    loginAsPrivilegedUserWithSeededPasskeySession,
     payrollReportCard,
     readZipEntryText,
     shiftExportWeek,
-    webauthnBaseURL,
-} from './test-helpers';
+} from './support/exports';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 

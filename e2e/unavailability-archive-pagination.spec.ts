@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { runSql } from './support/database';
 
 test.describe('unavailability archive pagination', () => {
     test('updates archive rows without closing the archive accordion or reloading the page', async ({ page }) => {

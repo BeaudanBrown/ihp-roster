@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { dialogMountDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, querySql, runSql, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
+import { querySql, runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 

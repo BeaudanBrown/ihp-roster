@@ -7,7 +7,9 @@ import {
     rosterSidePanelToggleDomAttr,
     rosterSelfServicePanelTabDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster } from './support/roster';
 import { E2E_TIMEOUT } from './timeouts';
 
 test.describe('Roster side-panel toggle', () => {

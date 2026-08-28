@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { rosterStaffPanelSortRowDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, runSql } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { runSql } from './support/database';
 
 async function login(page: Page) {
     await gotoWhenReady(page, '/NewSession', '#email');

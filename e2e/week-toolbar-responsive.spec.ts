@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openRoster, openRosterSettings, resetTimesheetDisplayPreferences, runSql } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster, openRosterSettings } from './support/roster';
+import { resetTimesheetDisplayPreferences } from './support/timesheets';
+import { runSql } from './support/database';
 
 type ToolbarMetrics = {
     quickTop: number;

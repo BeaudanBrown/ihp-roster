@@ -7,7 +7,8 @@ import {
     rosterStaffPanelSortRowDomAttr,
     type RosterStaffPanelSortRow,
 } from '../frontend/ts/generated/contracts';
-import { assignRosterShiftStaff, E2E_TIMEOUT, existingRosterShiftLaunchers, openRoster } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './support/roster';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });

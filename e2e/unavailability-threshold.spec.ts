@@ -1,11 +1,9 @@
 import { expect, Page, test } from '@playwright/test';
-import {
-    E2E_TIMEOUT,
-    gotoWhenReady,
-    loginAs,
-    openAdminWithSeededPasskeySession,
-    runSql,
-} from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openAdminWithSeededPasskeySession } from './support/passkeys';
+import { runSql } from './support/database';
 
 type LiveSubscriptionWindow = Window & { __thresholdSubscriptionKeys?: string[] };
 

@@ -7,14 +7,13 @@ import {
 import { E2E_TIMEOUT } from './timeouts';
 import {
     ensureRosterLayout,
-    expectContainerToManageHorizontalOverflow,
-    expectNoHorizontalViewportOverflow,
     firstRosterDayAddButton,
     firstRosterDayRemoveButton,
     openRoster,
     openRosterSettings,
-    runSql,
-} from './test-helpers';
+} from './support/roster';
+import { expectContainerToManageHorizontalOverflow, expectNoHorizontalViewportOverflow } from './support/responsive';
+import { runSql } from './support/database';
 
 async function ensureAtLeastTwoRosterColumns(page: Page) {
     const frame = page.locator(`[${rosterColumnEditorDomAttr}="true"]`).first();

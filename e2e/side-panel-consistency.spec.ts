@@ -5,7 +5,9 @@ import {
     FrontendSurfaceTabSetRegistry,
     type FrontendSurfaceName,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
 
 type SidePanelPage = {
     surface: Extract<FrontendSurfaceName, 'roster' | 'timesheets' | 'leave-requests'>;

@@ -14,7 +14,9 @@ import {
     parseOrderedRangeConfig,
     parseOrderedRangeState,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster } from './support/roster';
 import { E2E_TIMEOUT } from './timeouts';
 
 async function expectLocalStylesheet(page: Page, path: string) {

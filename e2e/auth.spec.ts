@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { dismissOptionalPasskeySetupPrompt, gotoWhenReady } from './test-helpers';
+import { dismissOptionalPasskeySetupPrompt } from './support/session';
+import { gotoWhenReady } from './support/runtime';
 
 test.describe('Authentication', () => {
     test('login page does not expose public request access', async ({ page }) => {

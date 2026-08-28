@@ -7,7 +7,12 @@ import {
     rosterStaffHighlightMemberDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openProfileLeaveSection, setFlatpickrDate } from './support/profile';
+import { openRoster } from './support/roster';
+import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { runSql } from './support/database';
 
 const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 

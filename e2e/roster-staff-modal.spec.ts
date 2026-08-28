@@ -8,7 +8,9 @@ import {
     rosterStaffPanelSortRowDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, openRoster, runSql, uniqueE2EValue, waitForLiveRecovery } from './test-helpers';
+import { gotoWhenReady, uniqueE2EValue, waitForLiveRecovery } from './support/runtime';
+import { openRoster } from './support/roster';
+import { runSql } from './support/database';
 import { E2E_TIMEOUT } from './timeouts';
 
 async function loginAndOpenRoster(page: Page) {

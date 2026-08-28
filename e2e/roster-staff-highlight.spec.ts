@@ -11,7 +11,11 @@ import {
     toggleInputDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, ensureRosterLayout, gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, openRoster, resetCanonicalRosterAssignedShiftFixture, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { ensureRosterLayout, openRoster, resetCanonicalRosterAssignedShiftFixture } from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession } from './support/passkeys';
+import { runSql } from './support/database';
 
 type GridSlotMetrics = {
     slotCellCount: number;

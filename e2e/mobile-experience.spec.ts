@@ -1,21 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import {
-    expectContainerToManageHorizontalOverflow,
-    expectDialogToFitViewport,
-    expectNoHorizontalViewportOverflow,
-    ensureRosterLayout,
-    gotoWhenReady,
-    loginAs,
-    openNewLeaveRequestDialog,
-    loginAsPrivilegedUserWithSeededPasskeySession,
-    openAuthenticatedNavIfCollapsed,
-    openRoster,
-    openTimesheetSettings,
-    resetTimesheetDisplayPreferences,
-    webauthnBaseURL,
-} from './test-helpers';
+import { expectContainerToManageHorizontalOverflow, expectDialogToFitViewport, expectNoHorizontalViewportOverflow, openAuthenticatedNavIfCollapsed } from './support/responsive';
+import { ensureRosterLayout, openRoster } from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openNewLeaveRequestDialog } from './support/profile';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
+import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 
 test.use({ baseURL: webauthnBaseURL });
 

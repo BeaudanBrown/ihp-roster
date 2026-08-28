@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
-import { openRoster } from './test-helpers';
+import { openRoster } from './support/roster';
 
 type RosterLayoutMetrics = {
     viewportWidth: number;

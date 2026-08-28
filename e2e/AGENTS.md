@@ -10,6 +10,7 @@ bash ./bin/in-env e2e
 bash ./bin/in-env e2e-fast
 bash ./bin/in-env e2e-typecheck
 bash ./bin/in-env e2e-typecheck-test
+bash ./bin/in-env e2e-support-import-check
 bash ./bin/in-env e2e e2e/auth.spec.ts
 bash ./bin/in-env env PLAYWRIGHT_RETRIES=0 e2e e2e/auth.spec.ts
 bash ./bin/in-env e2e-report
@@ -19,8 +20,10 @@ bash ./bin/in-env pwcli --help
 
 `e2e-typecheck` strictly checks the config, helpers, and specs with pinned Nix
 TypeScript, Playwright, and Node declarations; its synthetic checker fixture is
-owned by `e2e-typecheck-test`. `e2e` is the complete gate; `e2e-fast` runs each source behavior on desktop and
-the canonical Pixel profile. Focused/interactive runs default to one shard;
+owned by `e2e-typecheck-test`. The typecheck also enforces focused support-module
+imports through `e2e-support-import-check`. `e2e` is the complete gate;
+`e2e-fast` runs each source behavior on desktop and the canonical Pixel profile.
+Focused/interactive runs default to one shard;
 complete runs use isolated app/database shards. Do not treat a focused or fast
 run as complete evidence.
 
@@ -32,14 +35,21 @@ refuses destructive lifecycle operations. Failure artifacts are copied under
 
 ## Writing Tests
 
-Put `*.spec.ts` under `e2e/`. Use helpers from `e2e/test-helpers.ts`:
+Put `*.spec.ts` under `e2e/`. Import the narrowest owner under `e2e/support/`:
 
-- `gotoWhenReady` for cold compile/startup transitions
-- `loginAs` for reusable ordinary sessions
-- fresh-session/passkey helpers when authentication, passkeys, or step-up is the
-  behavior under test
-- `openRoster` for canonical roster-grid setup
-- export helpers for report navigation/download assertions
+- `runtime.ts` — unique values, startup navigation, and live recovery
+- `session.ts` — cached and fresh ordinary login sessions
+- `database.ts` — generic SQL execution only
+- `mail.ts` — recipient-scoped MailHog matching and message parsing
+- `passkeys.ts` — virtual authenticators, registration, and privileged sessions
+- `roster.ts` — roster setup, fixture reset, dialogs, rows, and shifts
+- `timesheets.ts` and `profile.ts` — their focused settings/profile workflows
+- `responsive.ts` — navigation and viewport geometry assertions
+- `exports.ts` — report navigation, downloads, and CSV parsing
+
+Shared session state belongs only to `session.ts`; live recovery belongs only to
+`runtime.ts`. Import modules directly—never add an index, compatibility facade,
+or cross-domain helper collection.
 
 Wait for the destination shell as well as the URL. Assert concrete outcomes,
 not sleeps: never use `page.waitForTimeout` to settle normal flows. Prefer stable

@@ -3,14 +3,10 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 declare const process: { env: Record<string, string | undefined> };
-import {
-    E2E_TIMEOUT,
-    gotoWhenReady,
-    loginAsPrivilegedUserWithSeededPasskeySession,
-    querySql,
-    runSql,
-    markCurrentSessionPasskeyVerified,
-} from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession, markCurrentSessionPasskeyVerified } from './support/passkeys';
+import { querySql, runSql } from './support/database';
 
 const apiVersion = '2026-06-24.dahlia';
 const venueId = 'a1000000-0000-0000-0000-000000000001';

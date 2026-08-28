@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoExports, loginAs, loginAsPrivilegedUserWithSeededPasskeySession, payrollReportCard, webauthnBaseURL } from './test-helpers';
+import { gotoExports, payrollReportCard } from './support/exports';
+import { loginAs } from './support/session';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 

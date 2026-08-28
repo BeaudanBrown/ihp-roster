@@ -6,7 +6,15 @@ import {
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterShiftDialog, resetCanonicalRosterAssignedShiftFixture, runSql, saveRosterShiftDialog } from './test-helpers';
+import {
+    ensureRosterLayout,
+    fillRosterShiftDialogDefaults,
+    openRoster,
+    openRosterShiftDialog,
+    resetCanonicalRosterAssignedShiftFixture,
+    saveRosterShiftDialog,
+} from './support/roster';
+import { runSql } from './support/database';
 
 type OpenShiftLiveWindow = Window & { __openShiftRosterSubscriptions?: string[] };
 

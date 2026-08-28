@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { timesheetsTimesheetSidePanelTabDomAttr } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster, openTimesheetSettings, waitForRosterWeekShell } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster, waitForRosterWeekShell } from './support/roster';
+import { openTimesheetSettings } from './support/timesheets';
 
 type WeekNavigationWindow = Window & {
     __rosterWeekNavMarker?: string;

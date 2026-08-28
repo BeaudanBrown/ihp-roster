@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { E2E_TIMEOUT, openAdminWithSeededPasskeySession } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { openAdminWithSeededPasskeySession } from './support/passkeys';
 
 type LiveSubscriptionWindow = Window & { __liveSubscriptionKeys?: string[] };
 

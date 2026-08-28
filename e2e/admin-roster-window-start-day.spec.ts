@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { E2E_TIMEOUT, gotoWhenReady, openAdminWithSeededPasskeySession, querySql, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { openAdminWithSeededPasskeySession } from './support/passkeys';
+import { querySql, runSql } from './support/database';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
 const fixtureGroupId = 'd2000000-0000-0000-0000-000000000001';

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { rosterStaffPanelSortRowDomAttr } from '../frontend/ts/generated/contracts';
-import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './test-helpers';
+import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './support/roster';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });

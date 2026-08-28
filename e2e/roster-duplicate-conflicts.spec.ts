@@ -15,7 +15,7 @@ import {
     openRosterShiftDialog,
     rosterShiftDialogStaffOptionValues,
     saveRosterShiftDialog,
-} from './test-helpers';
+} from './support/roster';
 
 const actorDuplicateConflictWeekOffset = 137;
 const multiviewDuplicateConflictWeekOffset = 138;

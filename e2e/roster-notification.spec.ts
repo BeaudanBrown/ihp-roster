@@ -3,18 +3,11 @@ import { test, expect } from '@playwright/test';
 import {
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
-import {
-    defaultE2ERosterGroupId,
-    E2E_TIMEOUT,
-    openRoster,
-    mailhogMessageSubject,
-    mailhogMessageText,
-    openRosterSettings,
-    querySql,
-    runSql,
-    uniqueE2EValue,
-    waitForMailhogMessages,
-} from './test-helpers';
+import { defaultE2ERosterGroupId, openRoster, openRosterSettings } from './support/roster';
+import { E2E_TIMEOUT } from './timeouts';
+import { mailhogMessageSubject, mailhogMessageText, waitForMailhogMessages } from './support/mail';
+import { querySql, runSql } from './support/database';
+import { uniqueE2EValue } from './support/runtime';
 
 test.describe('Roster notification workflow', () => {
     test('adds and removes Email roster live for actor and passive manager tabs', async ({ browser, page }, testInfo) => {

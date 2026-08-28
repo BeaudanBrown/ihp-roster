@@ -10,7 +10,10 @@ import {
     rosterWeekOverviewPanelDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster, openRosterSettings } from './support/roster';
+import { runSql } from './support/database';
 
 const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 

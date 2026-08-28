@@ -13,7 +13,12 @@ import {
     timePickerModalDomId,
     timePickerTriggerDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, openRoster, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster } from './support/roster';
+import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { runSql } from './support/database';
 
 async function uniqueToggleIds(page: Page) {
     const ids = await page.locator(`[${toggleInputDomAttr}]`).evaluateAll((inputs) =>

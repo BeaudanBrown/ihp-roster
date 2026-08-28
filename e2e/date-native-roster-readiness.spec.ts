@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { querySql, runSql } from './test-helpers';
+import { querySql, runSql } from './support/database';
 
 test.describe('Date-native Roster production readiness', () => {
     test('captures a bounded zero-violation read-only reconciliation', async ({}, testInfo) => {

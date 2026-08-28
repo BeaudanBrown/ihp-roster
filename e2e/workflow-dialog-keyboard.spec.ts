@@ -5,7 +5,9 @@ import {
     timePickerTriggerDomAttr,
     toggleInputDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, runActionUntilRequestStarts } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady, runActionUntilRequestStarts } from './support/runtime';
+import { loginAs } from './support/session';
 
 async function submitTimesheetDialogWithEnter(page: Page, form: Locator) {
     const response = await runActionUntilRequestStarts(page, (request) =>

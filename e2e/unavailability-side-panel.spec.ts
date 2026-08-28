@@ -12,7 +12,9 @@ import {
     leaveRequestsLeaveStaffPanelSortControlDomAttr,
     leaveRequestsLeaveStaffPanelSortRowDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
 
 async function openManagerUnavailability(page: Parameters<typeof loginAs>[0]) {
     await loginAs(page, 'e2e-test@example.com', 'test-password-123');

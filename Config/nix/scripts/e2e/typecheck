@@ -23,6 +23,10 @@ elif (($# > 0)); then
     exit 2
 fi
 
+if [[ -z "$fixture" ]]; then
+    e2e-support-import-check
+fi
+
 : "${E2E_TYPESCRIPT_NODE_MODULES:?e2e-typecheck requires the project Nix environment}"
 playwright_package_json="$(node -p 'require.resolve("@playwright/test/package.json")')"
 playwright_node_modules="$(dirname "$(dirname "$(dirname "$playwright_package_json")")")"

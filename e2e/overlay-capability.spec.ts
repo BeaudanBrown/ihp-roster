@@ -11,7 +11,9 @@ import {
     toastMountDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, uniqueE2EValue } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady, uniqueE2EValue } from './support/runtime';
+import { loginAs } from './support/session';
 
 const dialogHostSelector = `#${dialogOverlayMountDomId}`;
 const dialogSelector = `${dialogHostSelector} [${dialogMountDomAttr}]`;

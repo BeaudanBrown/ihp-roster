@@ -13,7 +13,14 @@ import {
     timePickerValueDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { addRowToRosterDay, editableRosterRows, fillRosterShiftDialogDefaults, firstEditableRosterDaySection, openRoster, openRosterShiftDialog } from './test-helpers';
+import {
+    addRowToRosterDay,
+    editableRosterRows,
+    fillRosterShiftDialogDefaults,
+    firstEditableRosterDaySection,
+    openRoster,
+    openRosterShiftDialog,
+} from './support/roster';
 
 const modalSelector = `#${timePickerModalDomId}`;
 

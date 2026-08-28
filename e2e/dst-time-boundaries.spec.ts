@@ -8,7 +8,7 @@ import {
     openRosterShiftDialog,
     rosterDaySections,
     saveRosterShiftDialog,
-} from './test-helpers';
+} from './support/roster';
 
 const dialogSelector = `#${dialogOverlayMountDomId}`;
 const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;

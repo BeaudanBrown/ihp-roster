@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, waitForLiveRecovery, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady, waitForLiveRecovery } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
+import { runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 

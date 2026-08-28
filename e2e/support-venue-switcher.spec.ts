@@ -8,15 +8,14 @@ import { E2E_TIMEOUT } from './timeouts';
 import {
     clearCurrentSessionPasskeyVerification,
     clearE2EUserPasskeys,
-    defaultE2ERosterGroupId,
     enableVirtualPasskeyAuthenticator,
-    gotoWhenReady,
     loginAsPrivilegedUserWithSeededPasskeySession,
-    loginAsWithFreshBrowserSession,
-    openRoster,
     registerFirstSupportPasskeyForCurrentUser,
     webauthnBaseURL,
-} from './test-helpers';
+} from './support/passkeys';
+import { defaultE2ERosterGroupId, openRoster } from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsWithFreshBrowserSession } from './support/session';
 
 test.use({ baseURL: webauthnBaseURL });
 

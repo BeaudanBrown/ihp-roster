@@ -1,11 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { dialogOverlayMountDomId, timePickerTriggerDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import {
-    gotoWhenReady,
-    loginAs,
-    webauthnBaseURL,
-} from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 

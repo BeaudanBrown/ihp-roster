@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession } from './support/passkeys';
+import { runSql } from './support/database';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
 const adminUserId = 'a0000000-0000-0000-0000-000000000003';
