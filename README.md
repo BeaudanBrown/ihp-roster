@@ -102,8 +102,11 @@ bash ./bin/in-env psql -d app
 Stripe-test mode: it opens `https://dev.bepis.lol` with `dev-tunnel`, creates a
 temporary webhook endpoint at the application's single pinned Stripe API
 version, and runs the app in the foreground with that public origin for Checkout
-and email links. It deletes the endpoint on exit, requires a valid local Stripe
-test configuration, and exposes the primary workspace until Ctrl-C. Managed workspaces
+and email links. Epic worktree provisioning links the primary checkout's local
+`.env` when present, without copying its contents or replacing an existing
+worktree `.env`; missing primary configuration does not block provisioning.
+`ddev` deletes the endpoint on exit, requires a valid local Stripe test
+configuration, and exposes the current workspace until Ctrl-C. Managed workspaces
 derive isolated ports, PostgreSQL state, and runtime paths; inspect them with
 `dev-workspace-info --json` rather than assuming addresses. See `AGENTS.md` for
 epic-worktree delegation and approval boundaries.

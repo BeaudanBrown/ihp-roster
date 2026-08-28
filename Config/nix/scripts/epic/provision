@@ -158,6 +158,16 @@ if [ "$existing_status" -ne 0 ]; then
     fi
 fi
 
+# Share opt-in local configuration without copying or inspecting secret contents.
+# Existing worktree configuration always wins, and a missing primary .env does
+# not prevent provisioning.
+primary_env="$primary_root/.env"
+worktree_env="$path/.env"
+if [ -f "$primary_env" ] && [ ! -e "$worktree_env" ] && [ ! -L "$worktree_env" ]; then
+    ln -s "$primary_env" "$worktree_env" \
+        || die 73 "failed to link primary .env into worktree: $path"
+fi
+
 set +e
 direnv allow "$path" >/dev/null
 allow_status=$?
