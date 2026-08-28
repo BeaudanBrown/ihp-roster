@@ -1,11 +1,15 @@
 module Application.Helper.Export.PayrollWorkbookModel
     ( PayrollWorkbookDay (..)
+    , PayrollWorkbookFact (..)
+    , PayrollWorkbookFactModel (..)
     , PayrollWorkbookHourSlot (..)
     , PayrollWorkbookHourlyModel (..)
     , PayrollWorkbookPayBucket (..)
     , PayrollWorkbookPayBucketKey (..)
     , PayrollWorkbookRow (..)
+    , buildPayrollWorkbookFactModel
     , buildPayrollWorkbookHourlyModel
+    , payrollWorkbookHourlyModelFromFacts
     ) where
 
 import Application.Helper.Export.HourlyBreakdown
@@ -41,6 +45,38 @@ data PayrollWorkbookHourSlot = PayrollWorkbookHourSlot
     }
     deriving (Eq, Ord, Show)
 
+-- | One immutable workbook fact per approved entry and report-window hour
+-- occurrence. Presentations aggregate these facts; they never recalculate pay.
+data PayrollWorkbookFact = PayrollWorkbookFact
+    { payrollFactOperationalDate       :: !Day
+    , payrollFactEntryId               :: !UUID
+    , payrollFactStaffId               :: !UUID
+    , payrollFactStaffFirstName        :: !Text
+    , payrollFactStaffLastName         :: !Text
+    , payrollFactShiftTypeId           :: !UUID
+    , payrollFactShiftTypeLabel        :: !Text
+    , payrollFactPayBucket             :: !PayrollWorkbookPayBucket
+    , payrollFactHourSlot              :: !PayrollWorkbookHourSlot
+    , payrollFactWorkedHours           :: !Rational
+    , payrollFactPaidHours             :: !Rational
+    , payrollFactWageCents             :: !Integer
+    , payrollFactActiveCalculationId   :: !(Maybe UUID)
+    , payrollFactStaffPayVersionId     :: !(Maybe UUID)
+    , payrollFactShiftTypePayVersionId :: !(Maybe UUID)
+    , payrollFactCalculationVersion    :: !Text
+    , payrollFactRateBookVersion       :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+data PayrollWorkbookFactModel = PayrollWorkbookFactModel
+    { payrollFactModelRangeStart :: !Day
+    , payrollFactModelRangeEnd   :: !Day
+    , payrollFactModelWindow     :: !HourlyReportWindow
+    , payrollFactModelHourSlots  :: ![PayrollWorkbookHourSlot]
+    , payrollFactModelFacts      :: ![PayrollWorkbookFact]
+    }
+    deriving (Eq, Show)
+
 data PayrollWorkbookRow = PayrollWorkbookRow
     { payrollRowStaffId        :: !UUID
     , payrollRowStaffFirstName :: !Text
@@ -68,11 +104,12 @@ data PayrollWorkbookHourlyModel = PayrollWorkbookHourlyModel
     deriving (Eq, Show)
 
 data AccumulatedRow = AccumulatedRow
-    { accumulatedStaff      :: !Staff
-    , accumulatedPayBucket  :: !PayrollWorkbookPayBucket
-    , accumulatedHours      :: !(Map.Map PayrollWorkbookHourSlot Rational)
-    , accumulatedWageCents  :: !(Map.Map PayrollWorkbookHourSlot Integer)
-    , accumulatedEntryCount :: !Int
+    { accumulatedStaffFirstName :: !Text
+    , accumulatedStaffLastName  :: !Text
+    , accumulatedPayBucket      :: !PayrollWorkbookPayBucket
+    , accumulatedHours          :: !(Map.Map PayrollWorkbookHourSlot Rational)
+    , accumulatedWageCents      :: !(Map.Map PayrollWorkbookHourSlot Integer)
+    , accumulatedEntryIds       :: !(Set.Set UUID)
     }
 
 buildPayrollWorkbookHourlyModel ::
@@ -84,19 +121,47 @@ buildPayrollWorkbookHourlyModel ::
     Map.Map UUID PayrollWorkbookPayBucket ->
     Map.Map UUID WageCalculation ->
     Either Text PayrollWorkbookHourlyModel
-buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffById payBucketsByEntryId calculationsByEntryId = do
+buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffById payBucketsByEntryId calculationsByEntryId =
+    payrollWorkbookHourlyModelFromFacts
+        <$> buildPayrollWorkbookFactModel
+            rangeStart
+            rangeEnd
+            venueConfig
+            entries
+            staffById
+            payBucketsByEntryId
+            fallbackShiftLabels
+            calculationsByEntryId
+  where
+    fallbackShiftLabels =
+        Map.fromList
+            [ (unpackId entry.id, tshow entry.shiftTypeId)
+            | entry <- entries
+            ]
+
+buildPayrollWorkbookFactModel ::
+    Day ->
+    Day ->
+    VenueConfig ->
+    [TimesheetEntry] ->
+    Map.Map UUID Staff ->
+    Map.Map UUID PayrollWorkbookPayBucket ->
+    Map.Map UUID Text ->
+    Map.Map UUID WageCalculation ->
+    Either Text PayrollWorkbookFactModel
+buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig entries staffById payBucketsByEntryId shiftLabelsByEntryId calculationsByEntryId = do
     when (rangeStart > rangeEnd) $
         Left "Choose a valid start and end date for the Payroll Workbook range."
     when (null entries) $
         Left "No approved payroll entries were found for the Payroll Workbook range."
-    accumulatedRows <- foldM accumulateEntry Map.empty (List.sortOn entryOrder entries)
+    facts <- concat <$> mapM factsForEntry (List.sortOn entryOrder entries)
     pure
-        PayrollWorkbookHourlyModel
-            { payrollModelRangeStart = rangeStart
-            , payrollModelRangeEnd = rangeEnd
-            , payrollModelWindow = window
-            , payrollModelHourSlots = hourSlots
-            , payrollModelDays = map (buildDay accumulatedRows) dates
+        PayrollWorkbookFactModel
+            { payrollFactModelRangeStart = rangeStart
+            , payrollFactModelRangeEnd = rangeEnd
+            , payrollFactModelWindow = window
+            , payrollFactModelHourSlots = hourSlots
+            , payrollFactModelFacts = facts
             }
   where
     dates = [rangeStart .. rangeEnd]
@@ -111,7 +176,7 @@ buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffByI
 
     entryOrder entry = (entry.operationalDate, entry.staffId, entry.startsAt, unpackId entry.id)
 
-    accumulateEntry rows entry = do
+    factsForEntry entry = do
         when (entry.operationalDate < rangeStart || entry.operationalDate > rangeEnd) $
             Left ("Payroll Workbook entry falls outside its requested Operational-date range: " <> tshow entry.id)
         staff <- maybe
@@ -119,9 +184,11 @@ buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffByI
             Right
             (Map.lookup entry.staffId staffById)
         payBucket <- requireForEntry "approval-pinned pay bucket" entry payBucketsByEntryId
+        shiftLabel <- requireForEntry "approval-pinned shift-type label" entry shiftLabelsByEntryId
         calculation <- requireForEntry "sealed wage calculation" entry calculationsByEntryId
         validateCalculationTiming entry calculation
-        entryHours <- hoursForEntry entry calculation
+        entryWorkedHours <- workedHoursForEntry entry calculation
+        entryPaidHours <- hoursForEntry entry calculation
         entryWageCents <- wageCentsForEntryBySlot entry calculation
         let publishedWageCents =
                 deriveFinalEarnings calculation.earningsComponents
@@ -130,33 +197,74 @@ buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffByI
                     |> sum
         when (sum (Map.elems entryWageCents) /= publishedWageCents) $
             Left ("Payroll Workbook hourly wages do not reconcile to sealed earnings: " <> tshow entry.id)
-        let keyedHours = Map.fromListWith (+)
-                [ (PayrollWorkbookHourSlot hour occurrence, value)
-                | ((hour, occurrence), value) <- Map.toList entryHours
-                ]
-        let keyedWages = Map.fromListWith (+)
-                [ (PayrollWorkbookHourSlot hour occurrence, value)
-                | ((hour, occurrence), value) <- Map.toList entryWageCents
-                ]
+        let keyedWorkedHours = keyedBySlot entryWorkedHours
+        let keyedPaidHours = keyedBySlot entryPaidHours
+        let keyedWages = keyedBySlot entryWageCents
         let allowedSlots = Set.fromList hourSlots
-        let outsideWindowSlots =
-                Set.difference
-                    (Set.union (Map.keysSet keyedHours) (Map.keysSet keyedWages))
-                    allowedSlots
-        unless (Set.null outsideWindowSlots) $
+        let publishedSlots =
+                Set.unions
+                    [ Map.keysSet keyedWorkedHours
+                    , Map.keysSet keyedPaidHours
+                    , Map.keysSet keyedWages
+                    ]
+        unless (Set.isSubsetOf publishedSlots allowedSlots) $
             Left ("Payroll Workbook hourly facts fall outside the shared report window: " <> tshow entry.id)
-        let rowKey = (entry.operationalDate, entry.staffId, payBucket.payrollPayBucketKey)
-        let newRow =
-                AccumulatedRow
-                    { accumulatedStaff = staff
-                    , accumulatedPayBucket = payBucket
-                    , accumulatedHours = keyedHours
-                    , accumulatedWageCents = keyedWages
-                    , accumulatedEntryCount = 1
-                    }
-        pure (Map.insertWith combineRows rowKey newRow rows)
+        pure
+            [ PayrollWorkbookFact
+                { payrollFactOperationalDate = entry.operationalDate
+                , payrollFactEntryId = unpackId entry.id
+                , payrollFactStaffId = entry.staffId
+                , payrollFactStaffFirstName = staff.firstName
+                , payrollFactStaffLastName = staff.lastName
+                , payrollFactShiftTypeId = entry.shiftTypeId
+                , payrollFactShiftTypeLabel = shiftLabel
+                , payrollFactPayBucket = payBucket
+                , payrollFactHourSlot = slot
+                , payrollFactWorkedHours = Map.findWithDefault 0 slot keyedWorkedHours
+                , payrollFactPaidHours = Map.findWithDefault 0 slot keyedPaidHours
+                , payrollFactWageCents = Map.findWithDefault 0 slot keyedWages
+                , payrollFactActiveCalculationId = fmap unpackId entry.activePayCalculationId
+                , payrollFactStaffPayVersionId = entry.staffPayVersionId
+                , payrollFactShiftTypePayVersionId = entry.shiftTypePayVersionId
+                , payrollFactCalculationVersion = calculationVersionText calculation.calculationVersion
+                , payrollFactRateBookVersion = rateBookVersionText <$> calculation.calculationRateBookVersion
+                }
+            | slot <- hourSlots
+            ]
 
-    buildDay accumulatedRows date =
+    keyedBySlot values =
+        Map.fromListWith (+)
+            [ (PayrollWorkbookHourSlot hour occurrence, value)
+            | ((hour, occurrence), value) <- Map.toList values
+            ]
+
+payrollWorkbookHourlyModelFromFacts :: PayrollWorkbookFactModel -> PayrollWorkbookHourlyModel
+payrollWorkbookHourlyModelFromFacts factModel =
+    PayrollWorkbookHourlyModel
+        { payrollModelRangeStart = factModel.payrollFactModelRangeStart
+        , payrollModelRangeEnd = factModel.payrollFactModelRangeEnd
+        , payrollModelWindow = factModel.payrollFactModelWindow
+        , payrollModelHourSlots = factModel.payrollFactModelHourSlots
+        , payrollModelDays = map buildDay [factModel.payrollFactModelRangeStart .. factModel.payrollFactModelRangeEnd]
+        }
+  where
+    accumulatedRows = foldl' accumulateFact Map.empty factModel.payrollFactModelFacts
+
+    accumulateFact rows fact =
+        Map.insertWith combineRows rowKey newRow rows
+      where
+        rowKey = (fact.payrollFactOperationalDate, fact.payrollFactStaffId, fact.payrollFactPayBucket.payrollPayBucketKey)
+        newRow =
+            AccumulatedRow
+                { accumulatedStaffFirstName = fact.payrollFactStaffFirstName
+                , accumulatedStaffLastName = fact.payrollFactStaffLastName
+                , accumulatedPayBucket = fact.payrollFactPayBucket
+                , accumulatedHours = Map.singleton fact.payrollFactHourSlot fact.payrollFactPaidHours
+                , accumulatedWageCents = Map.singleton fact.payrollFactHourSlot fact.payrollFactWageCents
+                , accumulatedEntryIds = Set.singleton fact.payrollFactEntryId
+                }
+
+    buildDay date =
         PayrollWorkbookDay
             { payrollDayDate = date
             , payrollDayRows =
@@ -169,16 +277,16 @@ buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffByI
     rowForDate date ((rowDate, staffId, _payBucketKey), accumulated)
         | rowDate /= date = Nothing
         | otherwise =
-            let exactHours = map (\slot -> Map.findWithDefault 0 slot accumulated.accumulatedHours) hourSlots
+            let exactHours = map (\slot -> Map.findWithDefault 0 slot accumulated.accumulatedHours) factModel.payrollFactModelHourSlots
              in Just
                     PayrollWorkbookRow
                         { payrollRowStaffId = staffId
-                        , payrollRowStaffFirstName = accumulated.accumulatedStaff.firstName
-                        , payrollRowStaffLastName = accumulated.accumulatedStaff.lastName
+                        , payrollRowStaffFirstName = accumulated.accumulatedStaffFirstName
+                        , payrollRowStaffLastName = accumulated.accumulatedStaffLastName
                         , payrollRowPayBucket = accumulated.accumulatedPayBucket
                         , payrollRowHours = roundHoursWithResidual exactHours
-                        , payrollRowWageCents = map (\slot -> Map.findWithDefault 0 slot accumulated.accumulatedWageCents) hourSlots
-                        , payrollRowEntryCount = accumulated.accumulatedEntryCount
+                        , payrollRowWageCents = map (\slot -> Map.findWithDefault 0 slot accumulated.accumulatedWageCents) factModel.payrollFactModelHourSlots
+                        , payrollRowEntryCount = Set.size accumulated.accumulatedEntryIds
                         }
 
     rowOrder row =
@@ -188,6 +296,12 @@ buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffByI
         , row.payrollRowPayBucket.payrollPayBucketLabel
         , row.payrollRowPayBucket.payrollPayBucketKey
         )
+
+calculationVersionText :: WageCalculationVersion -> Text
+calculationVersionText (WageCalculationVersion value) = value
+
+rateBookVersionText :: RateBookVersion -> Text
+rateBookVersionText (RateBookVersion value) = value
 
 requireForEntry :: Text -> TimesheetEntry -> Map.Map UUID value -> Either Text value
 requireForEntry authority entry values =
@@ -216,8 +330,18 @@ combineRows new existing =
     existing
         { accumulatedHours = Map.unionWith (+) existing.accumulatedHours new.accumulatedHours
         , accumulatedWageCents = Map.unionWith (+) existing.accumulatedWageCents new.accumulatedWageCents
-        , accumulatedEntryCount = existing.accumulatedEntryCount + new.accumulatedEntryCount
+        , accumulatedEntryIds = Set.union existing.accumulatedEntryIds new.accumulatedEntryIds
         }
+
+workedHoursForEntry :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map (Int, HourlyOccurrence) Rational)
+workedHoursForEntry entry calculation = do
+    let workedSegments = filter ((== Worked) . (.paidTimeKind)) calculation.paidTimeSegments
+    when (null workedSegments) $
+        Left ("Payroll Workbook entry has no positive actual worked time: " <> tshow entry.id)
+    pure
+        ( Map.fromListWith (+) (concatMap (segmentSecondsBySlot entry) workedSegments)
+            |> Map.map (/ 3600)
+        )
 
 hoursForEntry :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map (Int, HourlyOccurrence) Rational)
 hoursForEntry entry calculation = do

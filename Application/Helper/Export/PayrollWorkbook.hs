@@ -8,6 +8,7 @@ module Application.Helper.Export.PayrollWorkbook
     , PayrollWorkbookSheet (..)
     , defaultPayrollWorkbookCellStyle
     , minimalPayrollWorkbook
+    , payrollWorkbookFromFactModel
     , payrollWorkbookFromHourlyModel
     , payrollWorkbookColor
     , renderPayrollWorkbook
@@ -131,6 +132,12 @@ minimalPayrollWorkbook rangeStart rangeEnd =
     numberCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookNumber value, style }
     formulaCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookFormula value, style }
 
+payrollWorkbookFromFactModel :: Int -> PayrollWorkbookFactModel -> PayrollWorkbook
+payrollWorkbookFromFactModel rosterWeekStartsOn factModel =
+    let projected = payrollWorkbookHourlyModelFromFacts factModel
+        PayrollWorkbook presentationSheets = payrollWorkbookFromHourlyModel rosterWeekStartsOn projected
+     in PayrollWorkbook { sheets = presentationSheets <> [dataSheet factModel] }
+
 payrollWorkbookFromHourlyModel :: Int -> PayrollWorkbookHourlyModel -> PayrollWorkbook
 payrollWorkbookFromHourlyModel rosterWeekStartsOn model =
     PayrollWorkbook
@@ -140,6 +147,76 @@ payrollWorkbookFromHourlyModel rosterWeekStartsOn model =
     summarySheets = map (summarySheet model) (summaryWeekAnchors rosterWeekStartsOn model)
     hoursSheets = map (dailySheet model DailyHours) model.payrollModelDays
     wagesSheets = map (dailySheet model DailyWages) model.payrollModelDays
+
+dataSheet :: PayrollWorkbookFactModel -> PayrollWorkbookSheet
+dataSheet factModel =
+    PayrollWorkbookSheet
+        { name = "Data"
+        , cells = headerCells <> concat (zipWith factCells [2 ..] factModel.payrollFactModelFacts)
+        , columnWidths =
+            [ (1, 16), (2, 38), (3, 38), (4, 24), (5, 38), (6, 20)
+            , (7, 18), (8, 38), (9, 20), (10, 16), (11, 16), (12, 16)
+            , (13, 16), (14, 14), (15, 14), (16, 38), (17, 38), (18, 38)
+            , (19, 28), (20, 24)
+            ]
+        , hiddenColumns = []
+        , tabColor = Just (color "A5A5A5")
+        , autoFilter = Just PayrollWorkbookFilter
+            { firstRow = 1
+            , firstColumn = 1
+            , lastRow = max 1 (length factModel.payrollFactModelFacts + 1)
+            , lastColumn = length dataHeaders
+            }
+        , frozenRows = 1
+        , frozenColumns = 0
+        }
+  where
+    dataHeaders =
+        [ "Operational Date", "Entry ID", "Staff ID", "Employee"
+        , "Shift Type ID", "Shift Type", "Pay Bucket Type", "Pay Bucket ID"
+        , "Pay Bucket", "Hour of Window", "Hour Occurrence", "Worked Hours"
+        , "Paid Hours", "Wage Cents", "Wage Amount", "Pay Calculation ID"
+        , "Staff Pay Version ID", "Shift Type Pay Version ID"
+        , "Calculation Version", "Rate Book Version"
+        ]
+    headerCells =
+        [ textCell 1 column header dataHeaderStyle
+        | (column, header) <- zip [1 ..] dataHeaders
+        ]
+    factCells rowNumber fact =
+        let (payBucketType, payBucketId) = payBucketIdentity fact.payrollFactPayBucket.payrollPayBucketKey
+         in [ textCell rowNumber 1 (tshow fact.payrollFactOperationalDate) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 2 (tshow fact.payrollFactEntryId) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 3 (tshow fact.payrollFactStaffId) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 4 (fact.payrollFactStaffFirstName <> " " <> fact.payrollFactStaffLastName) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 5 (tshow fact.payrollFactShiftTypeId) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 6 fact.payrollFactShiftTypeLabel defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 7 payBucketType defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 8 (tshow payBucketId) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 9 fact.payrollFactPayBucket.payrollPayBucketLabel defaultPayrollWorkbookCellStyle
+            , numberCell rowNumber 10 (fromIntegral fact.payrollFactHourSlot.payrollHourOfWindow) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 11 (hourOccurrenceText fact.payrollFactHourSlot.payrollHourOccurrence) defaultPayrollWorkbookCellStyle
+            , numberCell rowNumber 12 (fromRational fact.payrollFactWorkedHours) hoursStyle
+            , numberCell rowNumber 13 (fromRational fact.payrollFactPaidHours) hoursStyle
+            , numberCell rowNumber 14 (fromIntegral fact.payrollFactWageCents) defaultPayrollWorkbookCellStyle { numberFormat = Just "0" }
+            , numberCell rowNumber 15 (fromIntegral fact.payrollFactWageCents / 100) (dailyNumberStyle DailyWages)
+            , textCell rowNumber 16 (maybe "" tshow fact.payrollFactActiveCalculationId) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 17 (maybe "" tshow fact.payrollFactStaffPayVersionId) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 18 (maybe "" tshow fact.payrollFactShiftTypePayVersionId) defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 19 fact.payrollFactCalculationVersion defaultPayrollWorkbookCellStyle
+            , textCell rowNumber 20 (fromMaybe "" fact.payrollFactRateBookVersion) defaultPayrollWorkbookCellStyle
+            ]
+
+    dataHeaderStyle = defaultPayrollWorkbookCellStyle { bold = True, fillColor = Just (color "D9E1F2") }
+
+payBucketIdentity :: PayrollWorkbookPayBucketKey -> (Text, UUID)
+payBucketIdentity = \case
+    PayrollWorkbookAwardLevel identifier     -> ("award_level", identifier)
+    PayrollWorkbookImportedPayItem identifier -> ("imported_pay_item", identifier)
+
+hourOccurrenceText :: HourlyOccurrence -> Text
+hourOccurrenceText FirstHourlyOccurrence  = "first"
+hourOccurrenceText SecondHourlyOccurrence = "second"
 
 data DailySheetKind = DailyHours | DailyWages
 

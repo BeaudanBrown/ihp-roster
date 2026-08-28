@@ -35,16 +35,27 @@ tests =
                     ]
             let secondWorked = paidSegment Worked day (testUtc 2025 1 5 23) (testUtc 2025 1 6 0)
             let secondCalculation = calculation secondEntryId day [secondWorked] [hourlyComponent secondWorked 3000]
-            let result = buildPayrollWorkbookHourlyModel
+            let result = buildPayrollWorkbookFactModel
                     day
                     day
                     testVenueConfig
                     [firstEntry, secondEntry]
                     (Map.singleton testStaffId staff)
                     (Map.fromList [(firstEntryId, bucket), (secondEntryId, bucket)])
+                    (Map.fromList [(firstEntryId, "Bar"), (secondEntryId, "Kitchen")])
                     (Map.fromList [(firstEntryId, firstCalculation), (secondEntryId, secondCalculation)])
 
-            model <- expectRight result
+            factModel <- expectRight result
+            let model = payrollWorkbookHourlyModelFromFacts factModel
+            length factModel.payrollFactModelFacts
+                `shouldBe` 2 * length factModel.payrollFactModelHourSlots
+            let firstEntryFacts = filter ((== firstEntryId) . (.payrollFactEntryId)) factModel.payrollFactModelFacts
+            map (.payrollFactShiftTypeLabel) firstEntryFacts `shouldSatisfy` all (== "Bar")
+            sum (map (.payrollFactWorkedHours) firstEntryFacts) `shouldBe` 3 % 2
+            sum (map (.payrollFactPaidHours) firstEntryFacts) `shouldBe` 2
+            sum (map (.payrollFactWageCents) firstEntryFacts) `shouldBe` 6000
+            map (.payrollFactCalculationVersion) firstEntryFacts
+                `shouldSatisfy` all (== "hospitality-award-v1")
             let rows = concatMap (.payrollDayRows) model.payrollModelDays
             length rows `shouldBe` 1
             let row = fromMaybe (error "expected payroll row") (head rows)

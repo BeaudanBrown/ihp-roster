@@ -11,7 +11,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isRight)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (Day, fromGregorian)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import System.Directory (createDirectoryIfMissing, getTemporaryDirectory,
@@ -56,6 +56,33 @@ tests = do
         it "normalizes RGB colours and rejects malformed colours" do
             payrollWorkbookColor "4472c4" `shouldBe` payrollWorkbookColor "FF4472C4"
             payrollWorkbookColor "blue" `shouldBe` Left "Workbook colours must be six-digit RGB or eight-digit ARGB hexadecimal values."
+
+        it "publishes deterministic normalized facts as a typed Data worksheet" do
+            let day = fromGregorian 2025 1 6
+            let slot = PayrollWorkbookHourSlot 18 FirstHourlyOccurrence
+            let factModel = PayrollWorkbookFactModel
+                    { payrollFactModelRangeStart = day
+                    , payrollFactModelRangeEnd = day
+                    , payrollFactModelWindow = HourlyReportWindow 18 19
+                    , payrollFactModelHourSlots = [slot]
+                    , payrollFactModelFacts = [workbookFact day slot]
+                    }
+            let workbook = payrollWorkbookFromFactModel 1 factModel
+            map (.name) workbook.sheets
+                `shouldBe` ["Summary 2025-01-06", "Hours Mon 2025-01-06", "Wages Mon 2025-01-06", "Data"]
+            let factsSheet = fromMaybe (error "expected Data sheet") (last workbook.sheets)
+            factsSheet.frozenRows `shouldBe` 1
+            factsSheet.autoFilter `shouldBe` Just (PayrollWorkbookFilter 1 1 2 20)
+            forM_
+                [ "Operational Date", "Entry ID", "Shift Type", "Bar"
+                , "Pay Bucket Type", "award_level", "Calculation Version"
+                , "hospitality-award-v1"
+                ] \value -> textValues factsSheet `shouldSatisfy` (value `elem`)
+            numberAt 2 12 factsSheet `shouldBe` Just (1, "0.000000;-0.000000;;")
+            numberAt 2 13 factsSheet `shouldBe` Just (1.5, "0.000000;-0.000000;;")
+            numberAt 2 14 factsSheet `shouldBe` Just (4500, "0")
+            numberAt 2 15 factsSheet `shouldBe` Just (45, "$#,##0.00;[Red]-$#,##0.00;;")
+            renderPayrollWorkbook workbook `shouldBe` renderPayrollWorkbook workbook
 
     describe "Payroll Workbook locked rendering contract" do
         it "orders partial and multi-week sheets and emits exact daily and stable-key Summary formulas" do
@@ -260,6 +287,30 @@ tests = do
                     && Text.isInfixOf "'Hours Sat 2026-04-04'!D:D" formula
                     && Text.isInfixOf "+" formula
                 )
+
+workbookFact :: Day -> PayrollWorkbookHourSlot -> PayrollWorkbookFact
+workbookFact day slot =
+    PayrollWorkbookFact
+        { payrollFactOperationalDate = day
+        , payrollFactEntryId = uuid "30000000-0000-0000-0000-000000000001"
+        , payrollFactStaffId = uuid "10000000-0000-0000-0000-000000000001"
+        , payrollFactStaffFirstName = "Ada"
+        , payrollFactStaffLastName = "Lovelace"
+        , payrollFactShiftTypeId = uuid "40000000-0000-0000-0000-000000000001"
+        , payrollFactShiftTypeLabel = "Bar"
+        , payrollFactPayBucket = PayrollWorkbookPayBucket
+            (PayrollWorkbookAwardLevel (uuid "20000000-0000-0000-0000-000000000001"))
+            "LVL 3"
+        , payrollFactHourSlot = slot
+        , payrollFactWorkedHours = 1
+        , payrollFactPaidHours = 1.5
+        , payrollFactWageCents = 4500
+        , payrollFactActiveCalculationId = Just (uuid "50000000-0000-0000-0000-000000000001")
+        , payrollFactStaffPayVersionId = Just (uuid "60000000-0000-0000-0000-000000000001")
+        , payrollFactShiftTypePayVersionId = Just (uuid "70000000-0000-0000-0000-000000000001")
+        , payrollFactCalculationVersion = "hospitality-award-v1"
+        , payrollFactRateBookVersion = Just "fwc-mapd-2025-07"
+        }
 
 workbookRow :: [Rational] -> [Integer] -> PayrollWorkbookRow
 workbookRow = workbookRowWith

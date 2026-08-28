@@ -56,17 +56,19 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
             Right calculations -> do
                 venueConfig <- fetchVenueConfig
                 payBucketsByEntryId <- fetchApprovedEntryPayrollPayBuckets includedEntries
+                shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels includedEntries
                 versionManifestsByEntryId <- fetchVersionManifestsForEntries includedEntries
                 let calculationsByEntryId = calculationMap includedEntries calculations
-                case buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId calculationsByEntryId of
+                case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId calculationsByEntryId of
                     Left message -> pure (Left message)
-                    Right hourlyModel -> persistModel venueConfig.rosterWeekStartsOn includedEntries versionManifestsByEntryId hourlyModel
+                    Right factModel -> persistModel venueConfig.rosterWeekStartsOn includedEntries versionManifestsByEntryId factModel
   where
-    persistModel rosterWeekStartsOn includedEntries versionManifestsByEntryId hourlyModel = do
+    persistModel rosterWeekStartsOn includedEntries versionManifestsByEntryId factModel = do
         now <- getCurrentTime
         let exportType = exportJobTypeToText PayrollWorkbookXlsx
         let fileName = "payroll_workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
-        let workbookContents = renderPayrollWorkbookBase64 (payrollWorkbookFromHourlyModel rosterWeekStartsOn hourlyModel)
+        let hourlyModel = payrollWorkbookHourlyModelFromFacts factModel
+        let workbookContents = renderPayrollWorkbookBase64 (payrollWorkbookFromFactModel rosterWeekStartsOn factModel)
         let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
         let exportVersionManifest = collapseVersionManifests versionManifests
         let rowCount = sum (map (length . (.payrollDayRows)) hourlyModel.payrollModelDays)
@@ -80,9 +82,10 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
                     [ "rangeStart" Aeson..= rangeStart
                     , "rangeEnd" Aeson..= rangeEnd
                     , "format" Aeson..= ("xlsx" :: Text)
-                    , "workbookVersion" Aeson..= (1 :: Int)
-                    , "dataModel" Aeson..= ("hourly_payroll_v1" :: Text)
+                    , "workbookVersion" Aeson..= (2 :: Int)
+                    , "dataModel" Aeson..= ("normalized_hourly_facts_v2" :: Text)
                     , "entryCount" Aeson..= length includedEntries
+                    , "factCount" Aeson..= length factModel.payrollFactModelFacts
                     , "rowCount" Aeson..= rowCount
                     , "hourColumnCount" Aeson..= length hourlyModel.payrollModelHourSlots
                     , "effectiveWindowStartHour" Aeson..= hourlyModel.payrollModelWindow.hourlyWindowStartHour

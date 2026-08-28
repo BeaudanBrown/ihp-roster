@@ -773,8 +773,9 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.fileContents `shouldSatisfy` maybe False (not . Text.null)
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))
-                encodedScope `shouldSatisfy` Text.isInfixOf "\"dataModel\":\"hourly_payroll_v1\""
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"dataModel\":\"normalized_hourly_facts_v2\""
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"entryCount\":2"
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"factCount\":48"
                 encodedScope `shouldSatisfy` Text.isInfixOf "\"rowCount\":1"
                 linkedEntries <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId exportJob.id) |> fetch
                 length linkedEntries `shouldBe` 2
@@ -789,11 +790,13 @@ tests = aroundAll withDatabaseTestContext do
                 workbookBytes <- responseBody response
                 LBS.take 2 workbookBytes `shouldBe` "PK"
                 let workbookArchive = Zip.toArchive workbookBytes
-                Zip.filesInArchive workbookArchive `shouldContain` ["xl/worksheets/sheet15.xml"]
+                forM_ ["xl/worksheets/sheet15.xml", "xl/worksheets/sheet16.xml"] \path ->
+                    Zip.filesInArchive workbookArchive `shouldSatisfy` (path `elem`)
                 workbookXml <- workbookArchive |> archiveEntryText "xl/workbook.xml"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Summary 2025-01-06"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Wages Sun 2025-01-12"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Data"
                 hoursXml <- workbookArchive |> archiveEntryText "xl/worksheets/sheet2.xml"
                 hoursXml `shouldSatisfy` Text.isInfixOf "SUM("
 

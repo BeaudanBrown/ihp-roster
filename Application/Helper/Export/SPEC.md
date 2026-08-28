@@ -37,15 +37,20 @@ cross-module safety and payroll contracts.
   additions spread across their qualifying worked seconds; missed-break
   additions follow the penalised interval. Per-entry rounded cents are allocated
   deterministically and every visible row, column, and daily total reconciles.
-- Payroll Workbook hourly facts group each employee and Operational date by the
-  approval-pinned Award level or imported pay item, not shift type. One outward-
-  rounded range applies to every date; repeated civil hours retain first/second
-  occurrences and skipped hours remain zero. Net worked time plus minimum top-up
-  is allocated over actual worked seconds, Hours reconcile at six decimals, and
-  Wages reconcile exactly to sealed cents. Empty batches or any included-entry
-  authority/timing/wage failure reject the complete workbook.
-- Payroll Workbook sheets are ordered Summary, Hours by Operational date, then
-  Wages by Operational date. Daily sheets share hour columns, retain hidden
+- Payroll Workbook authority is one normalized fact per approved entry,
+  Operational date, and report-window hourly occurrence. Facts retain stable
+  entry, staff, shift-type, pay-bucket, pay-version, and calculation identities,
+  actual worked hours, allocated paid hours, and server-sealed wage cents.
+  Employee/pay-bucket presentations are projections of those facts, never a
+  second payroll calculation. One outward-rounded range applies to every date;
+  repeated civil hours retain first/second occurrences and skipped hours remain
+  zero. Net worked time plus minimum top-up is allocated over actual worked
+  seconds, Hours reconcile at six decimals, and Wages reconcile exactly to sealed
+  cents. Empty batches or any included-entry authority/timing/wage failure reject
+  the complete workbook.
+- Payroll Workbook sheets are ordered Summary, Hours by Operational date, Wages
+  by Operational date, then the deterministic typed Data worksheet. Daily sheets
+  share hour columns, retain hidden
   staff/pay-bucket keys, and calculate all totals with formulas. Each roster-week
   Summary has no title or totals and joins Hours sheets by those stable keys.
   Weekdays use Ord/7-12/12+ buckets; Saturday and Sunday use Ord/12+, with every
