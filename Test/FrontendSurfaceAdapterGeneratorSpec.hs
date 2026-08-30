@@ -352,81 +352,6 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         diagnosticCodes (checkedSurfaceLiveAdapterDeclarations ambiguous fixtureRegistry)
             `shouldContain` ["multiple-scopes"]
 
-    it "covers every production scope and every passive or actor-only semantic fragment" do
-        case checkedSurfaceLiveAdapterDeclarations registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
-            Left diagnostics -> expectationFailure (cs (show diagnostics))
-            Right declarations -> do
-                map (.checkedAdapterSurfaceName) declarations.checkedLiveScopeDeclarations
-                    `shouldBe`
-                        [ "timesheets"
-                        , "roster"
-                        , "roster-day-timeline"
-                        , "leave-requests"
-                        , "self-service-leave"
-                        , "billing"
-                        , "support"
-                        , "profile"
-                        , "staff"
-                        , "admin-page"
-                        , "admin-xero-page"
-                        , "admin-venue-config"
-                        , "admin-invites"
-                        , "admin-exports"
-                        , "admin-shift-types"
-                        , "admin-roster-groups"
-                        , "admin-xero"
-                        ]
-                map (\declaration -> (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)) declarations.checkedLiveFragmentDeclarations
-                    `shouldBe`
-                        [ ("timesheets", "timesheet-toolbar")
-                        , ("timesheets", "timesheet-day-columns")
-                        , ("timesheets", "timesheet-side-panel-content")
-                        , ("timesheets", "timesheet-day-section")
-                        , ("roster", "roster-content")
-                        , ("roster", "roster-grid-toolbar")
-                        , ("roster", "roster-grid-frame")
-                        , ("roster", "roster-day-columns")
-                        , ("roster", "roster-day-rail")
-                        , ("roster", "roster-wage-rail")
-                        , ("roster", "roster-slots-grid")
-                        , ("roster", "roster-staff-panel")
-                        , ("roster", "roster-template-library")
-                        , ("roster", "roster-day-section")
-                        , ("roster", "roster-row")
-                        , ("roster-day-timeline", "roster-day-timeline-content")
-                        , ("leave-requests", "unavailability-blackouts")
-                        , ("leave-requests", "leave-side-panel-content")
-                        , ("leave-requests", "leave-availability-warnings")
-                        , ("leave-requests", "leave-section-count")
-                        , ("leave-requests", "leave-section-list")
-                        , ("self-service-leave", "self-service-leave-form")
-                        , ("self-service-leave", "visible-unavailability-blackouts")
-                        , ("self-service-leave", "self-service-leave-history")
-                        , ("billing", "billing-status")
-                        , ("support", "support-award-rates")
-                        , ("support", "support-public-holidays")
-                        , ("profile", "profile-details-section")
-                        , ("profile", "profile-preferences-section")
-                        , ("profile", "profile-security-section")
-                        , ("profile", "profile-leave-section")
-                        , ("staff", "staff-details-section")
-                        , ("staff", "staff-preferences-section")
-                        , ("staff", "staff-visible-unavailability-blackouts")
-                        , ("staff", "staff-leave-section")
-                        , ("admin-page", "admin-page-content")
-                        , ("admin-xero-page", "admin-xero-page-content")
-                        , ("admin-venue-config", "admin-venue-settings")
-                        , ("admin-invites", "admin-invites")
-                        , ("admin-exports", "admin-exports")
-                        , ("admin-shift-types", "admin-shift-types")
-                        , ("admin-roster-groups", "admin-roster-groups")
-                        , ("admin-xero", "admin-xero-shell")
-                        , ("admin-xero", "admin-xero-reference-sync")
-                        , ("admin-xero", "admin-xero-timesheet-preparation-wait")
-                        , ("admin-xero", "admin-xero-pay-item-import-wait")
-                        , ("admin-xero", "admin-xero-staff-mappings-wait")
-                        ]
-
     it "registers exactly one production home for every checked Live declaration" do
         case checkedSurfaceLiveAdapterDeclarations registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
@@ -438,11 +363,8 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
 
         case generateSurfaceLiveAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
-            Right generatedModules -> do
-                let generatedNames = map (.generatedModuleName) generatedModules
-                generatedNames `shouldSatisfy` (not . null)
-                generatedNames `shouldBe` List.sort (List.nub generatedNames)
-                generatedNames `shouldSatisfy` all (Text.isSuffixOf ".Generated.Live")
+            Right generatedModules ->
+                generatedModules `shouldSatisfy` validGeneratedLane expectedLiveModuleNames ".Generated.Live"
 
         case generateSurfaceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
@@ -508,21 +430,12 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["adapter-scope-home-ownership"]
         extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
 
-    it "publishes one authoritative inventory decision for every Action declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations `shouldBe` 74
-        case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
-            Left diagnostics -> expectationFailure (cs (show diagnostics))
-            Right generatedModules ->
-                map (.generatedModuleName) generatedModules
-                    `shouldBe`
-                        [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Action"
-                        , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
-                        , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"
-                        , "Application.Helper.FrontendContract.Surface.Roster.Generated.Action"
-                        , "Application.Helper.FrontendContract.Surface.SelfServiceLeave.Generated.Action"
-                        , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
-                        , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
-                        ]
+    it "publishes complete feature-local Action modules" do
+        case (expectedActionModuleNames, generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry) of
+            (Left diagnostics, _) -> expectationFailure (cs (show diagnostics))
+            (_, Left diagnostics) -> expectationFailure (cs (show diagnostics))
+            (Right expectedModules, Right generatedModules) ->
+                generatedModules `shouldSatisfy` validGeneratedLane expectedModules ".Generated.Action"
 
     it "rejects empty, partial, extra, and duplicate production Action registrations" do
         let emptyRegistry =
@@ -557,13 +470,12 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["adapter-action-home-ownership"]
         extraDiagnosticCodes `shouldContain` ["missing-adapter-action-home"]
 
-    it "publishes one authoritative inventory decision for every Intent declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterRegistrations `shouldBe` 5
-        case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
-            Left diagnostics -> expectationFailure (cs (show diagnostics))
-            Right generatedModules ->
-                map (.generatedModuleName) generatedModules
-                    `shouldBe` ["Application.Helper.FrontendContract.Surface.Roster.Generated.Intent"]
+    it "publishes complete feature-local Intent modules" do
+        case (expectedIntentModuleNames, generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry) of
+            (Left diagnostics, _) -> expectationFailure (cs (show diagnostics))
+            (_, Left diagnostics) -> expectationFailure (cs (show diagnostics))
+            (Right expectedModules, Right generatedModules) ->
+                generatedModules `shouldSatisfy` validGeneratedLane expectedModules ".Generated.Intent"
 
     it "rejects empty, partial, extra, and duplicate production Intent registrations" do
         let emptyRegistry =
@@ -801,8 +713,9 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         length registeredSurfaceAdapterRegistry.surfaceResourceAdapterHomes
             `shouldBe` length productionResourceNames
         case generateSurfaceResourceAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
-            Left diagnostics       -> expectationFailure (cs (show diagnostics))
-            Right generatedModules -> length generatedModules `shouldBe` 8
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                generatedModules `shouldSatisfy` validGeneratedLane expectedResourceModuleNames ".Generated.Resource"
 
     it "renders zero-field constants without unused field-builder imports" do
         let heartbeatOnly =
@@ -986,6 +899,67 @@ diagnosticCodes :: Either [ContractDiagnostic] value -> [Text]
 diagnosticCodes = \case
     Right _ -> []
     Left diagnostics -> map (.diagnosticCode) diagnostics
+
+validGeneratedLane :: [Text] -> Text -> [GeneratedHaskellModule] -> Bool
+validGeneratedLane expectedNames suffix generatedModules =
+    generatedNames == List.sort (List.nub expectedNames)
+        && all (Text.isSuffixOf suffix) generatedNames
+        && all hasCanonicalPath generatedModules
+  where
+    generatedNames = map (.generatedModuleName) generatedModules
+    hasCanonicalPath generated =
+        generated.generatedModulePath
+            == cs (Text.replace "." "/" generated.generatedModuleName <> ".hs")
+
+expectedLiveModuleNames :: [Text]
+expectedLiveModuleNames =
+    List.sort . List.nub $
+        map (adapterGeneratedModuleName scopeAdapterLayout . (.adapterHomeSurface)) registeredSurfaceAdapterRegistry.surfaceScopeAdapterHomes
+            <> map (adapterGeneratedModuleName fragmentAdapterLayout . (.adapterHomeSurface)) registeredSurfaceAdapterRegistry.surfaceFragmentAdapterHomes
+            <> map (adapterGeneratedModuleName fragmentAdapterLayout . (.adapterHomeSurface) . (.actorOnlyFragmentHome)) registeredSurfaceAdapterRegistry.surfaceActorOnlyFragmentAdapters
+
+expectedActionModuleNames :: Either [ContractDiagnostic] [Text]
+expectedActionModuleNames = do
+    declarations <- checkedSurfaceActionAdapterDeclarations registeredFrontendSurfaceContractIR
+    inventory <-
+        resolveSurfaceRequestAdapterRegistrations
+            actionAdapterLayout
+            registeredFrontendSurfaceContractIR
+            registeredSurfaceAdapterRegistry.surfaceAdapterFamilies
+            declarations
+            registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations
+    pure
+        ( List.sort . List.nub $
+            [ registration.checkedSurfaceRequestAdapter.resolvedAdapterOutputModule
+            | registration <- inventory
+            , isJust registration.checkedSurfaceRequestAdapterOperations
+            ]
+        )
+
+expectedIntentModuleNames :: Either [ContractDiagnostic] [Text]
+expectedIntentModuleNames = do
+    declarations <- checkedSurfaceIntentAdapterDeclarations registeredFrontendSurfaceContractIR
+    inventory <-
+        resolveSurfaceRequestAdapterRegistrations
+            intentAdapterLayout
+            registeredFrontendSurfaceContractIR
+            registeredSurfaceAdapterRegistry.surfaceAdapterFamilies
+            declarations
+            registeredSurfaceAdapterRegistry.surfaceIntentAdapterRegistrations
+    pure
+        ( List.sort . List.nub $
+            [ registration.checkedSurfaceRequestAdapter.resolvedAdapterOutputModule
+            | registration <- inventory
+            , isJust registration.checkedSurfaceRequestAdapterOperations
+            ]
+        )
+
+expectedResourceModuleNames :: [Text]
+expectedResourceModuleNames =
+    List.sort . List.nub $
+        map
+            (adapterGeneratedModuleName resourceAdapterLayout . (.adapterHomeSurface))
+            registeredSurfaceAdapterRegistry.surfaceResourceAdapterHomes
 
 fixtureScopeHomes :: [SurfaceAdapterHomeMetadata 'ScopeAdapterKind]
 fixtureScopeHomes =

@@ -30,7 +30,7 @@ data PageHelpAudience
     | HelpSupportOnly
     | HelpUnimpersonatedOnly
     | HelpFounderOnly
-    deriving (Eq, Show)
+    deriving (Bounded, Enum, Eq, Show)
 
 data PageHelpContext = PageHelpContext
     { pageHelpCanManage       :: !Bool

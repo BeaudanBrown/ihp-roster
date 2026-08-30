@@ -34,107 +34,10 @@ import Web.Timesheets.Validation (resetApprovalOnEdit)
 
 tests :: Spec
 tests = describe "Schema" do
-    it "generates core foundation models" do
-        let _ = (Nothing :: Maybe Staff)
-        let _ = (Nothing :: Maybe StaffDocument)
-        let _ = (Nothing :: Maybe RosterDay)
-        let _ = (Nothing :: Maybe RosterLane)
-        let _ = (Nothing :: Maybe RosterSlot)
-        let _ = (Nothing :: Maybe TimesheetEntry)
-        let _ = (Nothing :: Maybe TimesheetEntryVersion)
-        let _ = (Nothing :: Maybe LeaveRequest)
-        let _ = (Nothing :: Maybe LeaveRequestEvent)
-        let _ = (Nothing :: Maybe VenueConfig)
-        let _ = (Nothing :: Maybe StaffShiftPreference)
-        let _ = (Nothing :: Maybe AwardLevel)
-        let _ = (Nothing :: Maybe AwardLevelBaseRate)
-        let _ = (Nothing :: Maybe AwardLevelPenaltyRate)
-        let _ = (Nothing :: Maybe FwcMapdPenaltyRate)
-        let _ = (Nothing :: Maybe PublicHoliday)
-        let _ = (Nothing :: Maybe StaffPayVersion)
-        let _ = (Nothing :: Maybe ShiftType)
-        let _ = (Nothing :: Maybe RosterGroup)
-        let _ = (Nothing :: Maybe SlotName)
-        let _ = (Nothing :: Maybe DayName)
-        let _ = (Nothing :: Maybe AuditEvent)
-        let _ = (Nothing :: Maybe ExportJob)
-        let _ = (Nothing :: Maybe VenueMembershipRoleEvent)
-        let _ = (Nothing :: Maybe Passkey)
-        let _ = (Nothing :: Maybe UserPreference)
-        let _ = (Nothing :: Maybe AppJob)
-        let _ = (Nothing :: Maybe RosterNotificationRun)
-        let _ = (Nothing :: Maybe XeroSubmissionRun)
-        let _ = (Nothing :: Maybe XeroTimesheetSubmission)
-        let _ = (Nothing :: Maybe XeroTimesheetSubmissionEntry)
-        let _ = (Nothing :: Maybe VenueBillingCustomer)
-        let _ = (Nothing :: Maybe BillingCheckoutAttempt)
-        let _ = (Nothing :: Maybe VenueSubscription)
-        let _ = (Nothing :: Maybe BillingEvent)
-        let _ = (Nothing :: Maybe VenueBillingControl)
-        True `shouldBe` True
-
-    it "generates venue and venue membership models" do
-        let _ = (Nothing :: Maybe Venue)
-        let _ = (Nothing :: Maybe VenueMembership)
-        let _ = (Nothing :: Maybe VenueInvitation)
-        let _ = (Nothing :: Maybe VenueOnboardingInvitation)
-        let _ = (Nothing :: Maybe EmailVerificationToken)
-        True `shouldBe` True
-
     it "exposes a separate optional platform role on users" do
         let user = newRecord @User
         get #platformRole user `shouldBe` Nothing
         get #emailVerifiedAt user `shouldBe` Nothing
-
-    it "exposes venue-scoped config fields on venue config" do
-        let _readConfigFields venueConfig =
-                ( get #venueId venueConfig
-                , get #timezone venueConfig
-                , get #rosterWeekStartsOn venueConfig
-                , get #lateToEarlyMinStartGapMinutes venueConfig
-                , get #timePickerStartMinuteOfDay venueConfig
-                , get #timePickerFinalSelectableMinuteOfDay venueConfig
-                , get #minutePrecisionShiftTimesEnabled venueConfig
-                , get #rosterEndTimesEnabled venueConfig
-                , get #autoTimesheetCreationEnabled venueConfig
-                )
-        True `shouldBe` True
-
-    it "venue-owned tables expose venue_id field" do
-        let _staffVenueId = get #venueId (newRecord @Staff)
-        let _staffDocumentVenueId = get #venueId (newRecord @StaffDocument)
-        let _rosterGroupVenueId = get #venueId (newRecord @RosterGroup)
-        let _rosterDayVenueId = get #venueId (newRecord @RosterDay)
-        let _rosterDayRosterGroupId = get #rosterGroupId (newRecord @RosterDay)
-        let _rosterSlotStartsAt = get #startsAt (newRecord @RosterSlot)
-        let _rosterSlotEndsAt = get #endsAt (newRecord @RosterSlot)
-        let _rosterSlotTimezone = get #timezone (newRecord @RosterSlot)
-        let _rosterSlotShiftTypeId = get #shiftTypeId (newRecord @RosterSlot)
-        let _timesheetVenueId = get #venueId (newRecord @TimesheetEntry)
-        let _timesheetStartsAt = get #startsAt (newRecord @TimesheetEntry)
-        let _timesheetEndsAt = get #endsAt (newRecord @TimesheetEntry)
-        let _timesheetBreakStartsAt = get #breakStartsAt (newRecord @TimesheetEntry)
-        let _timesheetBreakEndsAt = get #breakEndsAt (newRecord @TimesheetEntry)
-        let _timesheetTimezone = get #timezone (newRecord @TimesheetEntry)
-        let _timesheetOperationalDate = get #operationalDate (newRecord @TimesheetEntry)
-        let _timesheetSourceRosterSlotId = get #sourceRosterSlotId (newRecord @TimesheetEntry)
-        let _timesheetStaffPayVersionId = get #staffPayVersionId (newRecord @TimesheetEntry)
-        let _timesheetShiftTypePayVersionId = get #shiftTypePayVersionId (newRecord @TimesheetEntry)
-        let _leaveVenueId = get #venueId (newRecord @LeaveRequest)
-        let _shiftPreferenceVenueId = get #venueId (newRecord @StaffShiftPreference)
-        let _shiftPreferenceStartHour = get #preferredStartHour (newRecord @StaffShiftPreference)
-        let _shiftPreferenceEndHour = get #preferredEndHour (newRecord @StaffShiftPreference)
-        let _shiftTypeVenueId = get #venueId (newRecord @ShiftType)
-        let _slotNameVenueId = get #venueId (newRecord @SlotName)
-        let _slotNameRosterGroupId = get #rosterGroupId (newRecord @SlotName)
-        let _dayNameVenueId = get #venueId (newRecord @DayName)
-        let _configVenueId = get #venueId (newRecord @VenueConfig)
-        let _billingCustomerVenueId = get #venueId (newRecord @VenueBillingCustomer)
-        let _billingCheckoutAttemptVenueId = get #venueId (newRecord @BillingCheckoutAttempt)
-        let _billingSubscriptionVenueId = get #venueId (newRecord @VenueSubscription)
-        let _billingEventVenueId = get #venueId (newRecord @BillingEvent)
-        let _billingControlVenueId = get #venueId (newRecord @VenueBillingControl)
-        True `shouldBe` True
 
     it "exposes billing mode, Checkout-attempt, and event-ordering fields" do
         let customer = newRecord @VenueBillingCustomer

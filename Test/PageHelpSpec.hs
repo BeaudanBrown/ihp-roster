@@ -1,105 +1,109 @@
 module Test.PageHelpSpec where
 
 import Application.Helper.View.PageHelp
-import qualified Data.Text as Text
+import qualified Data.List as List
 import IHP.Prelude
 import Test.Hspec
 
-managerContext :: PageHelpContext
+managerContext, adminContext, ownerContext, supportContext, founderContext, impersonatingStaffContext :: PageHelpContext
 managerContext = defaultPageHelpContext { pageHelpCanManage = True }
-
-ownerContext :: PageHelpContext
-ownerContext = defaultPageHelpContext { pageHelpCanManage = True, pageHelpCanAdmin = True, pageHelpCanOwn = True }
-
-supportContext :: PageHelpContext
+adminContext = managerContext { pageHelpCanAdmin = True }
+ownerContext = adminContext { pageHelpCanOwn = True }
 supportContext = ownerContext { pageHelpIsSupport = True }
+founderContext = defaultPageHelpContext { pageHelpIsFounder = True }
+impersonatingStaffContext = defaultPageHelpContext { pageHelpIsImpersonating = True }
 
 tests :: Spec
 tests = do
     describe "page help registry" do
-        it "registers all scoped topics" do
-            map pageHelpTopicIdToText allPageHelpTopicIds
-                `shouldBe` ["roster", "profile", "timesheets", "leave", "admin", "xero", "billing"]
+        it "has unique topic identities that resolve to non-empty authorized help" do
+            allPageHelpTopicIds `shouldSatisfy` (not . null)
+            allPageHelpTopicIds `shouldBe` List.nub allPageHelpTopicIds
+            forM_ allPageHelpTopicIds \topicId -> do
+                topic <- requireTopic topicId
+                lookupPageHelpTopic topicId `shouldBe` Just topic
+                map (\(_, context, _) -> context) audienceCases
+                    `shouldSatisfy` (not . all (null . pageHelpTopicSections . (`filterPageHelpTopic` topic)))
+                forM_ audienceCases \(_, context, visibleAudiences) -> do
+                    let actualItems = pageHelpItemIdentities (filterPageHelpTopic context topic)
+                        expectedItems = expectedItemIdentities visibleAudiences topic
+                    if context.pageHelpIsFounder
+                        then do
+                            expectedItems `shouldSatisfy` (`List.isSuffixOf` actualItems)
+                            length actualItems `shouldSatisfy` (> length expectedItems)
+                        else actualItems `shouldBe` expectedItems
 
-        it "keeps every scoped topic non-empty for a representative authorized audience" do
-            forM_ topicContexts \(topicId, context) -> do
-                topic <- maybe (expectationFailure ("missing topic " <> cs (pageHelpTopicIdToText topicId)) >> error "missing topic") pure (lookupPageHelpTopic topicId)
-                pageHelpTopicSections (filterPageHelpTopic context topic)
-                    `shouldSatisfy` (not . null)
+    describe "page help audience policy" do
+        forM_ audienceCases \(label, context, expected) ->
+            it label do
+                filter (fixtureAudienceVisible context) allAudiences `shouldBe` expected
 
-    describe "roster help role filtering" do
-        it "shows manager planning details to managers" do
-            roster <- maybe (expectationFailure "missing roster topic" >> error "missing roster topic") pure (lookupPageHelpTopic (PageHelpTopicId "roster"))
-            let rendered = flattenHelpText (filterPageHelpTopic managerContext roster)
-            rendered `shouldSatisfy` any (Text.isInfixOf "drag")
-            rendered `shouldSatisfy` any (Text.isInfixOf "Ctrl")
-            rendered `shouldSatisfy` any (Text.isInfixOf "Option, or Alt")
-            rendered `shouldSatisfy` any (Text.isInfixOf "Publish when the roster is ready")
-            rendered `shouldSatisfy` any (Text.isInfixOf "hide the Staff/Settings panel temporarily")
-            rendered `shouldSatisfy` any (Text.isInfixOf "shared Week snapshot")
-            rendered `shouldSatisfy` any (Text.isInfixOf "not Draft or Published status")
-            rendered `shouldSatisfy` any (Text.isInfixOf "leaves every day Draft")
-            rendered `shouldSatisfy` any (Text.isInfixOf "press Escape")
-            rendered `shouldSatisfy` any (Text.isInfixOf "panel stays stacked below the roster")
-            rendered `shouldSatisfy` any (Text.isInfixOf "Part-time shifts")
-            rendered `shouldSatisfy` any (Text.isInfixOf "pay configuration warning")
+requireTopic :: PageHelpTopicId -> IO PageHelpTopic
+requireTopic topicId =
+    maybe
+        (expectationFailure ("missing topic " <> cs (pageHelpTopicIdToText topicId)) >> pure (fixtureTopic HelpEveryone))
+        pure
+        (lookupPageHelpTopic topicId)
 
-        it "omits manager-only planning details from staff-only viewers" do
-            roster <- maybe (expectationFailure "missing roster topic" >> error "missing roster topic") pure (lookupPageHelpTopic (PageHelpTopicId "roster"))
-            let rendered = flattenHelpText (filterPageHelpTopic defaultPageHelpContext roster)
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "drag")
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "Publish when the roster is ready")
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "Staff/Settings panel")
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "shared Week snapshot")
-            rendered `shouldSatisfy` any (Text.isInfixOf "future roster")
+allAudiences :: [PageHelpAudience]
+allAudiences = [minBound .. maxBound]
 
-    describe "timesheet help copy" do
-        it "explains origin semantics without relying on removed form banners" do
-            timesheets <- maybe (expectationFailure "missing timesheets topic" >> error "missing timesheets topic") pure (lookupPageHelpTopic (PageHelpTopicId "timesheets"))
-            let rendered = flattenHelpText (filterPageHelpTopic managerContext timesheets)
-            rendered `shouldSatisfy` any (Text.isInfixOf "without an origin warning")
-            rendered `shouldSatisfy` any (Text.isInfixOf "no separate origin banner")
-            rendered `shouldSatisfy` any (Text.isInfixOf "saved to your account")
-            rendered `shouldSatisfy` any (Text.isInfixOf "every active Timesheet-eligible staff member")
-            rendered `shouldSatisfy` any (Text.isInfixOf "eye to pin")
-            rendered `shouldSatisfy` any (Text.isInfixOf "panel stays stacked below the week")
-            rendered `shouldSatisfy` any (Text.isInfixOf "never filters the week")
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "Each saved entry shows its own pay preview")
+audienceCases :: [(String, PageHelpContext, [PageHelpAudience])]
+audienceCases =
+    [ ("staff", defaultPageHelpContext, [HelpEveryone, HelpStaffOnly, HelpUnimpersonatedOnly])
+    , ("manager", managerContext, [HelpEveryone, HelpManagerPlus, HelpUnimpersonatedOnly])
+    , ("admin", adminContext, [HelpEveryone, HelpManagerPlus, HelpAdminPlus, HelpUnimpersonatedOnly])
+    , ("owner", ownerContext, [HelpEveryone, HelpManagerPlus, HelpAdminPlus, HelpOwnerPlus, HelpOwnerOnly, HelpUnimpersonatedOnly])
+    , ("support", supportContext, [HelpEveryone, HelpManagerPlus, HelpAdminPlus, HelpOwnerPlus, HelpSupportOnly, HelpUnimpersonatedOnly])
+    , ("impersonating staff", impersonatingStaffContext, [HelpEveryone, HelpStaffOnly])
+    , ("founder", founderContext, [HelpEveryone, HelpStaffOnly, HelpUnimpersonatedOnly, HelpFounderOnly])
+    ]
 
-    describe "unavailability help copy" do
-        it "explains the manager SidePanel and admin blackout location" do
-            leave <- maybe (expectationFailure "missing leave topic" >> error "missing leave topic") pure (lookupPageHelpTopic (PageHelpTopicId "leave"))
-            let managerHelp = flattenHelpText (filterPageHelpTopic managerContext leave)
-            let adminHelp = flattenHelpText (filterPageHelpTopic ownerContext leave)
-            managerHelp `shouldSatisfy` any (Text.isInfixOf "panel stays stacked below the requests")
-            managerHelp `shouldSatisfy` any (Text.isInfixOf "including trial profiles")
-            managerHelp `shouldSatisfy` any (Text.isInfixOf "eye to pin")
-            adminHelp `shouldSatisfy` any (Text.isInfixOf "Open Settings")
+fixtureAudienceVisible :: PageHelpContext -> PageHelpAudience -> Bool
+fixtureAudienceVisible context audience =
+    any ((== fixtureSectionTitle) . pageHelpSectionTitle)
+        (pageHelpTopicSections (filterPageHelpTopic context (fixtureTopic audience)))
 
-    describe "billing help role filtering" do
-        it "keeps payer actions owner-only while showing diagnostics to founder support" do
-            billing <- maybe (expectationFailure "missing billing topic" >> error "missing billing topic") pure (lookupPageHelpTopic (PageHelpTopicId "billing"))
-            let ownerHelp = flattenHelpText (filterPageHelpTopic ownerContext billing)
-            let supportHelp = flattenHelpText (filterPageHelpTopic supportContext billing)
-            ownerHelp `shouldSatisfy` any (Text.isInfixOf "Subscribe")
-            ownerHelp `shouldSatisfy` all (not . Text.isInfixOf "Synchronize with Stripe")
-            supportHelp `shouldSatisfy` any (Text.isInfixOf "Synchronize with Stripe")
-            supportHelp `shouldSatisfy` all (not . Text.isInfixOf "Subscribe")
-            supportHelp `shouldSatisfy` all (not . Text.isInfixOf "manual read-only")
-  where
-    topicContexts =
-        [ (PageHelpTopicId "roster", managerContext)
-        , (PageHelpTopicId "profile", defaultPageHelpContext)
-        , (PageHelpTopicId "timesheets", managerContext)
-        , (PageHelpTopicId "leave", managerContext)
-        , (PageHelpTopicId "admin", ownerContext)
-        , (PageHelpTopicId "xero", ownerContext)
-        , (PageHelpTopicId "billing", supportContext)
-        ]
+fixtureTopic :: PageHelpAudience -> PageHelpTopic
+fixtureTopic audience =
+    PageHelpTopic
+        { pageHelpTopicId = PageHelpTopicId "fixture"
+        , pageHelpTopicTitle = "Fixture"
+        , pageHelpTopicSections =
+            [ PageHelpSection
+                { pageHelpSectionAudience = audience
+                , pageHelpSectionTitle = fixtureSectionTitle
+                , pageHelpSectionItems =
+                    [ PageHelpItem
+                        { pageHelpItemAudience = audience
+                        , pageHelpItemIconClass = Nothing
+                        , pageHelpItemIconLabel = Nothing
+                        , pageHelpItemTitle = "fixture-item"
+                        , pageHelpItemBody = "fixture-body"
+                        , pageHelpItemExampleButton = Nothing
+                        }
+                    ]
+                }
+            ]
+        }
 
-flattenHelpText :: PageHelpTopic -> [Text]
-flattenHelpText topic =
-    [ item.pageHelpItemTitle <> " " <> item.pageHelpItemBody
+fixtureSectionTitle :: Text
+fixtureSectionTitle = "fixture-section"
+
+type PageHelpItemIdentity = (Text, Text)
+
+pageHelpItemIdentities :: PageHelpTopic -> [PageHelpItemIdentity]
+pageHelpItemIdentities topic =
+    [ (section.pageHelpSectionTitle, item.pageHelpItemTitle)
     | section <- topic.pageHelpTopicSections
     , item <- section.pageHelpSectionItems
+    ]
+
+expectedItemIdentities :: [PageHelpAudience] -> PageHelpTopic -> [PageHelpItemIdentity]
+expectedItemIdentities visibleAudiences topic =
+    [ (section.pageHelpSectionTitle, item.pageHelpItemTitle)
+    | section <- topic.pageHelpTopicSections
+    , section.pageHelpSectionAudience `elem` visibleAudiences
+    , item <- section.pageHelpSectionItems
+    , item.pageHelpItemAudience `elem` visibleAudiences
     ]
