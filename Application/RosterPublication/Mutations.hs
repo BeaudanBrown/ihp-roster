@@ -1,6 +1,5 @@
 module Application.RosterPublication.Mutations
     ( normalizePublishedRosterWindows
-    , withRosterCalendarLock
     , withRosterCalendarLockInCurrentTransaction
     , withRosterWindowDateLock
     , withRosterWindowDateLockInCurrentTransaction
@@ -32,10 +31,6 @@ normalizePublishedRosterWindows venueId rosterWeekStartsOn =
         \WHERE roster_days.id = published_groups.id \
         \AND published_groups.published_day_count < 7"
         (rosterWeekStartsOn, unpackId venueId)
-
-withRosterCalendarLock :: (?modelContext :: ModelContext) => Id Venue -> IO value -> IO value
-withRosterCalendarLock venueId action =
-    withTransaction (withRosterCalendarLockInCurrentTransaction venueId action)
 
 withRosterCalendarLockInCurrentTransaction :: (?modelContext :: ModelContext) => Id Venue -> IO value -> IO value
 withRosterCalendarLockInCurrentTransaction venueId action = do
