@@ -5,6 +5,8 @@ bash ./Config/nix/scripts/architecture/wiring-registry-test >/dev/null
 node --test scripts/architecture/email-transport.test.mjs >/dev/null
 node --test scripts/architecture/fixture-reset-manifest.test.mjs >/dev/null
 node --test scripts/architecture/enum-authority.test.mjs >/dev/null
+node --test scripts/architecture/facts-currency.test.mjs >/dev/null
 node --test scripts/architecture/layout-policy.test.mjs >/dev/null
 node --test scripts/architecture/query.test.mjs >/dev/null
+node --test scripts/architecture/whole-graph.test.mjs >/dev/null
 bash ./Config/nix/scripts/architecture/repository-check

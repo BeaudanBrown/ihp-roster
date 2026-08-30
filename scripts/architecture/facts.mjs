@@ -391,7 +391,7 @@ const sourceFiles = ["Application/Schema.sql", "Web/Types.hs", "Web/Routes.hs", 
 const controllerFiles = listFiles(["Web/Controller"], (file) => file.endsWith(".hs"));
 const viewFiles = listFiles(["Web/View"], (file) => file.endsWith(".hs"));
 const moduleFiles = listFiles(["Application", "Web", "Test"], (file) => file.endsWith(".hs"));
-const frontendFiles = listFiles(["frontend/ts", "static"], (file) => /\.(ts|js|hs|tsx|jsx)$/.test(file));
+const frontendFiles = listFiles(["frontend/ts"], (file) => /\.(ts|js|hs|tsx|jsx)$/.test(file));
 const schema = parseSchema(readText("Application/Schema.sql"));
 const controllers = parseControllers(readText("Web/Types.hs"));
 const actionNames = controllers.flatMap((controller) => controller.actions.map((action) => action.name));

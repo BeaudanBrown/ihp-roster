@@ -27,7 +27,7 @@ function unique(values) {
 export function architectureFactInputFiles(root = repoRoot) {
   const haskellFiles = listFiles(["Application", "Web", "Test"], (file) => file.endsWith(".hs"), root);
   const frontendFiles = listFiles(
-    ["frontend/ts", "static"],
+    ["frontend/ts"],
     (file) => /\.(ts|js|hs|tsx|jsx)$/.test(file),
     root,
   );
