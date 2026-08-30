@@ -94,10 +94,9 @@ becoming an isolated zoom system.
   `components/admin.css`/`components/admin-responsive.css`; if the same control
   appears outside admin, extract a shared component primitive first.
 - A form field spacing rule used by roster and admin belongs in a shared forms
-  component module. Roster dense cells compose `app-dense-control`,
-  `app-dense-select-plain`, `app-dense-static`, and `app-dense-time-value` for
-  reusable transparent dense controls while keeping roster sizing and states in
-  roster modules.
+  component module. Roster dense cells compose `app-dense-control` and
+  `app-dense-static` for reusable transparent dense controls while keeping
+  roster sizing and states in roster modules.
 - Button, table, badge/status, menu, navigation, and accordion rules that apply
   across pages belong in shared component modules. Compact icon/actions compose
   `app-icon-button` or `app-compact-action-button`; feature styles may compose

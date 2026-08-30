@@ -29,16 +29,3 @@ export function closestHTMLElement(target: unknown, selector: string): HTMLEleme
     const element = target.closest(selector);
     return isHTMLElement(element) ? element : null;
 }
-
-export function queryHTMLElement(root: DomRoot, selector: string): HTMLElement | null {
-    const element = root.querySelector(selector);
-    return isHTMLElement(element) ? element : null;
-}
-
-export function queryHTMLElements(root: DomRoot, selector: string): HTMLElement[] {
-    return Array.from(root.querySelectorAll(selector)).filter(isHTMLElement);
-}
-
-export function datasetFlag(element: HTMLElement, key: string): boolean {
-    return element.dataset[key] === "true";
-}

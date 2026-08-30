@@ -59,8 +59,8 @@ module Application.Helper.Xero
     )
 where
 
-import Application.Error.ExternalRuntime (throwExternalRuntimeMessage)
-import Application.Error.Runtime (ExternalRuntimeCategory (..))
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  throwExternalRuntimeMessage)
 import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withProviderTelemetrySpan)
 import Application.Helper.Telemetry.Semantic (httpStatusClass,

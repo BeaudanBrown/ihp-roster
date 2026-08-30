@@ -6,7 +6,7 @@ module Application.AccountSecurityEmail.TokenCipher
     , encryptAccountSecurityDeliveryToken
     ) where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (throwExternalRuntime)
 import qualified Control.Exception as Exception
 import qualified "crypton" Crypto.Cipher.AES as AES
 import qualified "crypton" Crypto.Cipher.Types as Cipher

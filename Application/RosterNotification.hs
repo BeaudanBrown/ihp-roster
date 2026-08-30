@@ -22,9 +22,10 @@ module Application.RosterNotification
 
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.EmailDelivery.Enqueue
-import Application.Error.ExternalRuntime (throwExternalRuntimeMessage)
 import Application.Error.Parser (parserFailure)
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure,
+                                  throwExternalRuntimeMessage)
 import qualified Application.RosterNotification.Mutations as Mutations
 import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterPublication.Mutations (withRosterWindowDateLock)

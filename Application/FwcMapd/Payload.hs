@@ -1,7 +1,7 @@
 module Application.FwcMapd.Payload where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.Error.Parser (parserFailure)
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.FwcMapd.Error
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson

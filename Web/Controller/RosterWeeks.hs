@@ -6,7 +6,8 @@
 
 module Web.Controller.RosterWeeks where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.AppShell (AnchorDateField,
                                                      ConfirmDeleteRosterSlotOverlay,
@@ -104,8 +105,15 @@ import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterDeleteSlotUrl,
                               rosterTimelineWindowUrl, rosterWindowUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
-import qualified Web.RosterWeeks.Responses as RosterResponses
-import Web.RosterWeeks.Responses (respondWithRosterToast)
+import Web.RosterWeeks.Responses (respondWithRosterContent,
+                                  respondWithRosterContentError,
+                                  respondWithRosterContentUpdate,
+                                  respondWithRosterDialogOverlay,
+                                  respondWithRosterFragments,
+                                  respondWithRosterFragmentsUpdate,
+                                  respondWithRosterOwnHighlightPreferenceUpdate,
+                                  respondWithRosterResourceInvalidation,
+                                  respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.ShiftWorkflow
@@ -122,27 +130,6 @@ import Web.View.RosterWeeks.Show (renderNoRosterGroupShell,
                                   renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
-
-respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
-respondWithRosterContentError = RosterResponses.respondWithRosterContentError
-
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Text -> IO ()
-respondWithRosterContentUpdate = RosterResponses.respondWithRosterContentUpdate
-
-respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Blaze.Html -> IO ()
-respondWithRosterDialogOverlay = RosterResponses.respondWithRosterDialogOverlay
-
-respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterFragments = RosterResponses.respondWithRosterFragments
-
-respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
-respondWithRosterFragmentsUpdate = RosterResponses.respondWithRosterFragmentsUpdate
-
-respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> ToastOverlayConfig -> IO ()
-respondWithRosterOwnHighlightPreferenceUpdate = RosterResponses.respondWithRosterOwnHighlightPreferenceUpdate
-
-respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterResourceInvalidation = RosterResponses.respondWithRosterResourceInvalidation
 
 rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
 rosterSurfaceRequestErrorMessage errors =
@@ -310,7 +297,7 @@ instance Controller RosterWeeksController where
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
-        RosterResponses.respondWithRosterContent scope
+        respondWithRosterContent scope
 
     action currentAction@ShowRosterWeekGridToolbarFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam

@@ -145,7 +145,7 @@ refreshXeroTimesheetPreparation runId = do
                             _ <- markPreparationFailed run message
                             loadXeroTimesheetPreparationView runId
                         Right config ->
-                            refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
+                            refreshXeroConnectionAccess config connection >>= \case
                                 Left message -> do
                                     _ <-
                                         run
@@ -408,7 +408,7 @@ ensurePreparationPayItemsReady run maybeAccountCode = do
                     readXeroConfig >>= \case
                         Left message -> pure (Left message)
                         Right config ->
-                            refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
+                            refreshXeroConnectionAccess config connection >>= \case
                                 Left message -> pure (Left message)
                                 Right (refreshedConnection, accessToken) -> do
                                     xeroClient <- currentXeroClient

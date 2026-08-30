@@ -12,7 +12,6 @@ module Application.WageEngine.RateBook
     , RateSourceIdentity (..)
     , ProjectionRateSource (..)
     , projectionRateSourceIdentity
-    , rateSourceIdentityReferencesProjection
     , projectionRateSourceFromIdentity
     , RateSourceOwner (..)
     , EffectivePeriod (..)
@@ -123,26 +122,6 @@ projectionRateSourceIdentity source =
   where
     render projectionTable projectionId sourceTable sourceId =
         "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
-
--- | Matches the immutable projection-row part of a sealed source identity.
--- MAPD refreshes append raw source rows and may repoint the projection row;
--- approved ledgers retain the original raw source UUID and rate.
-rateSourceIdentityReferencesProjection :: ProjectionRateSource -> RateSourceIdentity -> Bool
-rateSourceIdentityReferencesProjection source (RateSourceIdentity identity) =
-    case Text.stripPrefix expectedPrefix identity of
-        Just sourceId -> isJust (UUID.fromText sourceId)
-        Nothing       -> False
-  where
-    expectedPrefix = case source of
-        AwardLevelBaseRateSource projectionId _ ->
-            prefix "award_level_base_rates" projectionId "fwc_mapd_pay_rates"
-        AwardLevelPenaltyRateSource projectionId _ ->
-            prefix "award_level_penalty_rates" projectionId "fwc_mapd_penalty_rates"
-        AwardTimePenaltyAllowanceSource projectionId _ ->
-            prefix "award_time_penalty_allowances" projectionId "fwc_mapd_wage_allowances"
-
-    prefix projectionTable projectionId sourceTable =
-        "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":"
 
 projectionRateSourceFromIdentity :: RateSourceIdentity -> Maybe ProjectionRateSource
 projectionRateSourceFromIdentity (RateSourceIdentity value) = do

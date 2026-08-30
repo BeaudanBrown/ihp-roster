@@ -11,7 +11,7 @@ module Application.TimesheetApproval
     ) where
 
 import Application.Error.Domain (projectDomainError)
-import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.Error.Types (AppResult)
 import Application.Helper.Audit (recordAuditEvent, recordTimesheetEntryVersion,
                                  timesheetEntrySnapshot)

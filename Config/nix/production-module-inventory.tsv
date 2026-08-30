@@ -26,10 +26,8 @@ Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
-Application/Error.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Error/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Error/Domain.hs	production	runtime	Main	Reachable from Main
-Application/Error/ExternalRuntime.hs	production	runtime	Main	Reachable from Main
 Application/Error/Foundation.hs	production	runtime	Main	Reachable from Main
 Application/Error/Parser.hs	production	runtime	Main	Reachable from Main
 Application/Error/Runtime.hs	production	runtime	Main	Reachable from Main

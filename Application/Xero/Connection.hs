@@ -5,7 +5,6 @@ module Application.Xero.Connection
     , persistXeroRefreshedTokens
     , forceRefreshXeroConnectionAccess
     , refreshXeroConnectionAccess
-    , refreshXeroConnectionAccessWithoutBroadcast
     , durableXeroClientErrorText
     , xeroClientErrorText
     ) where
@@ -93,14 +92,6 @@ reusableXeroAccessToken now xeroConfig connection =
 
 xeroAccessTokenReuseMargin :: NominalDiffTime
 xeroAccessTokenReuseMargin = 5 * 60
-
-refreshXeroConnectionAccessWithoutBroadcast ::
-    (?modelContext :: ModelContext) =>
-    XeroConfig ->
-    XeroConnection ->
-    IO (Either Text (XeroConnection, Text))
-refreshXeroConnectionAccessWithoutBroadcast xeroConfig connection =
-    refreshXeroConnectionAccess xeroConfig connection
 
 persistXeroRefreshedTokens ::
     (?modelContext :: ModelContext) =>

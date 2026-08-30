@@ -12,7 +12,6 @@ module Application.WageEngine
     , RateSourceIdentity (..)
     , ProjectionRateSource (..)
     , projectionRateSourceIdentity
-    , rateSourceIdentityReferencesProjection
     , projectionRateSourceFromIdentity
     , RateSourceOwner (..)
     , EffectivePeriod (..)

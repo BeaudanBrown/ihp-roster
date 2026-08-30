@@ -9,7 +9,7 @@ module Application.FwcMapd.Sync
     , runMapdSyncWith
     ) where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.FwcMapd.Config
 import Application.FwcMapd.Curation
 import Application.FwcMapd.Error

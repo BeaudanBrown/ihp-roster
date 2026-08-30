@@ -77,20 +77,6 @@ h5,
     opacity: 0.55;
 }
 
-.app-dense-select-plain {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: none !important;
-    cursor: pointer;
-    text-align-last: center;
-}
-
-.app-dense-select-plain option {
-    color: var(--app-text);
-    background-color: var(--app-surface);
-}
-
 .app-dense-static {
     display: flex;
     align-items: center;
@@ -103,10 +89,6 @@ h5,
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.app-dense-time-value {
-    font-variant-numeric: tabular-nums;
 }
 
 .app-muted {

@@ -1,10 +1,11 @@
 module Test.TypedErrorCategorySpec (tests) where
 
 import Application.Error.Boundary (withSynchronousAppErrorFallback)
-import Application.Error.ExternalRuntime (externalRuntimeExceptionCategory,
-                                          throwExternalRuntimeMessage)
 import Application.Error.Parser (parserFailure)
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeExceptionCategory,
+                                  externalRuntimeInvariantFailure,
+                                  throwExternalRuntimeMessage)
 import Application.Error.Startup (startupInvariantFailure)
 import Application.Error.Types (appErrorSafeMessage)
 import qualified Control.Exception as Exception

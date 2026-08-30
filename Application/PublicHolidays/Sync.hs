@@ -13,7 +13,7 @@ module Application.PublicHolidays.Sync
     , runDataVicPublicHolidaySyncForYears
     ) where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy

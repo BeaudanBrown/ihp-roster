@@ -6,8 +6,9 @@ module Application.Helper.LiveUpdate.OutboxPruning
     , pruneExpiredLiveInvalidationOutboxAt
     ) where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure,
+                                  throwExternalRuntime)
 import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
 import Data.Int (Int64)

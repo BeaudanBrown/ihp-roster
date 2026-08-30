@@ -95,11 +95,3 @@ export function resolveMountedFragmentsForInvalidation(
 
     return resolved;
 }
-
-export function liveUpdateInvalidationShouldResync(_previousVersion: number | null, _nextVersion: number | null, fragmentCount: number): "gap" | "empty" | null {
-    // Durable versions are global event sequences, so gaps can represent
-    // unrelated scopes. Reconnect freshness is decided by the server against
-    // the dependency watermark; a connected WebSocket remains ordered.
-    if (fragmentCount === 0) return "empty";
-    return null;
-}

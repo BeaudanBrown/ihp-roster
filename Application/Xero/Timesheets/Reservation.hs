@@ -10,8 +10,9 @@ module Application.Xero.Timesheets.Reservation
     , reviewXeroTimesheetReservations
     ) where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure,
+                                  throwExternalRuntime)
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation

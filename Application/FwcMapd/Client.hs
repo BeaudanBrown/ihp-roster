@@ -1,6 +1,6 @@
 module Application.FwcMapd.Client where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.FwcMapd.Config
 import Application.FwcMapd.Error
 import Application.FwcMapd.Validation (expectedCoreClassificationFixedIds)

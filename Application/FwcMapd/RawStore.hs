@@ -1,6 +1,6 @@
 module Application.FwcMapd.RawStore where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.FwcMapd.Client
 import Application.FwcMapd.Config
 import Application.FwcMapd.Curation

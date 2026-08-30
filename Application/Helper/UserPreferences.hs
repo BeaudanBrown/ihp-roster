@@ -22,7 +22,7 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserTimesheetShowWageEstimates
     ) where
 
-import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
                                       hasRole)
 import qualified Control.Exception as Exception

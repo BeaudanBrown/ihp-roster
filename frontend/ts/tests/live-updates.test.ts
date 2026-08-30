@@ -8,7 +8,6 @@ import {
     buildSurfaceSubscription,
     buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
-    liveUpdateInvalidationShouldResync,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
     resolveMountedFragmentsForInvalidation,
@@ -86,9 +85,16 @@ test("modular invalidation owner tolerates duplicate listener and actor refreshe
     runtime.handleActorEvent(new CustomEvent("actor-refresh", {
         detail: { scope, scopeKey: subscription.scopeKey, fragments: [fragment.fragmentKey] },
     }));
+    runtime.handleMessage({
+        type: "invalidate",
+        scope,
+        scopeKey: subscription.scopeKey,
+        version: 3,
+        fragments: [],
+    });
 
     assertDeepEqual(requested, [fragment, fragment, fragment]);
-    assertEqual(resyncCount, 0);
+    assertEqual(resyncCount, 1);
 });
 
 test("Admin Xero reconnect refetches while unrelated global version gaps do not", () => {
@@ -255,13 +261,6 @@ test("live update fragment merge key includes structural fragment key and target
         '["timesheets","timesheet-day-section",{"operationalDate":"2025-01-07"}]:timesheet-day-2025-01-07'
     );
     assertEqual(liveUpdateFragmentMergeKey({ ...fragment, targetId: "" }), null);
-});
-
-test("live update invalidations request resync on version gaps and empty payloads", () => {
-    assertEqual(liveUpdateInvalidationShouldResync(2, 4, 1), null);
-    assertEqual(liveUpdateInvalidationShouldResync(2, 3, 0), "empty");
-    assertEqual(liveUpdateInvalidationShouldResync(null, 10, 1), null);
-    assertEqual(liveUpdateInvalidationShouldResync(3, 3, 1), null);
 });
 
 test("semantic invalidation keys resolve only through descriptors on local mounts", () => {

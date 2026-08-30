@@ -98,7 +98,7 @@ disconnectXeroConnection connection = do
         Left _message ->
             completeLocalXeroDisconnect connection connection.xeroConnectionRemoteId "skipped_not_configured"
         Right xeroConfig -> do
-            refreshResult <- refreshXeroConnectionAccessWithoutBroadcast xeroConfig connection
+            refreshResult <- refreshXeroConnectionAccess xeroConfig connection
             case refreshResult of
                 Left message -> do
                     latestConnection <- fetch connection.id
