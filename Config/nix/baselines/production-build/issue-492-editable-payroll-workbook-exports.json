@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "issue": 492,
+  "objective": "Reconcile stable production output ceilings after replacing fixed Payroll Workbook selectors with the editable configuration dialog",
+  "observed_by": "bash ./bin/in-env production-package-smoke && bash ./bin/in-env production-build-profile --output-dir .pi/tmp/production-build-issue-492 --no-rebuild",
+  "observed_revision": "2018b0498905786300417bc4bdf0b0fc9ac1c5db",
+  "observed_dirty": false,
+  "app_library": {
+    "self_size_bytes": 780914573,
+    "module_count": 530,
+    "artifacts": {
+      ".hi": { "count": 530, "bytes": 616775313 },
+      ".a": { "count": 1, "bytes": 164110790 },
+      ".conf": { "count": 1, "bytes": 26984 },
+      "[no extension]": { "count": 1, "bytes": 1486 },
+      ".dyn_hi": { "count": 0 },
+      ".so": { "count": 0 }
+    }
+  },
+  "production_inventory": {
+    "module_rows": 531,
+    "dependency_packages": 44,
+    "executable_rows": 10,
+    "inventory_check": "passed",
+    "package_smoke": "passed"
+  },
+  "reconciliation": {
+    "module_count_delta": 1,
+    "hi_count_delta": 1,
+    "module_rows_delta": 1,
+    "dependency_packages_delta": 0,
+    "reason": "Issue #492 adds one production Haskell module, Web/View/Admin/PayrollWorkbookConfigurationDialog.hs. The browser editor is a checked static asset and adds no Haskell package. Existing XLSX/XML dependencies remain unchanged. Self-size and aggregate interface bytes remain below their existing ceilings, and no development, test, fixture, profiling, or tooling-only module entered production."
+  },
+  "verification": "Production inventory and all ten packaged executable smoke checks passed at the clean implementation commit; final verify-full is required after this exact-count reconciliation.",
+  "budget_authority": "Config/nix/baselines/production-build/final-regression-budget.json"
+}
