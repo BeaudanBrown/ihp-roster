@@ -212,7 +212,7 @@ fetchSavedPayrollWorkbookConfigurationsForAdmin =
     listSavedPayrollWorkbookConfigurations >>= \case
         Right configurations -> pure configurations
         Left _ -> do
-            setErrorMessage "Saved Payroll Workbook configurations are temporarily unavailable."
+            setErrorMessage "Payroll Workbook export configurations are temporarily unavailable."
             pure []
 
 instance Controller AdminController where

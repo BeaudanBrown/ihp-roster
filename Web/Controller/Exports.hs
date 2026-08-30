@@ -1,6 +1,8 @@
 module Web.Controller.Exports where
 
 import Application.Helper.Export
+import qualified Application.Helper.FrontendContract.AppShell as AppShell
+import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminExportsLiveScope)
@@ -10,7 +12,8 @@ import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
-                                errorToast, renderToastOob, successToast)
+                                dialogOverlayMountId, errorToast,
+                                renderToastOob, successToast)
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -23,7 +26,9 @@ import Web.Exports.Mutations (createPayrollWorkbookConfigurationMutation,
                               deletePayrollWorkbookConfigurationMutation,
                               recordExportDownloadMutation,
                               requestFixedExportMutation,
-                              requestFixedExportWithPayrollWorkbookDefinitionMutation)
+                              requestFixedExportWithPayrollWorkbookDefinitionMutation,
+                              updatePayrollWorkbookConfigurationMutation)
+import Web.View.Admin.PayrollWorkbookConfigurationDialog
 
 exportDownloadUrl :: ExportJob -> Text
 exportDownloadUrl exportJob =
@@ -63,6 +68,7 @@ payrollWorkbookConfigurationErrorMessage = \case
     PayrollWorkbookConfigurationInvalidDefinition message -> message
     PayrollWorkbookConfigurationNameConflict name -> "A Payroll Workbook configuration named “" <> name <> "” already exists."
     PayrollWorkbookConfigurationNotFound -> "That Payroll Workbook configuration no longer exists."
+    PayrollWorkbookConfigurationStale -> "This export changed after you opened it. Close the editor and try again."
     PayrollWorkbookConfigurationStoredDefinitionInvalid _ -> "That Payroll Workbook configuration is no longer valid."
 
 respondWithPayrollWorkbookConfigurationError ::
@@ -93,9 +99,25 @@ respondWithPayrollWorkbookConfigurationMutation anchorDate message mutationResul
                 (adminExportsLiveScope (unpackId currentVenueId))
                 mutationResult.liveMutationTouchedResources
                 [AdminSurface.adminExportsFragmentForWindow anchorDate]
-            respondHtml (renderToastOob ToastBottomCenter (successToast message))
+            respondHtml [hsx|
+                <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                {renderToastOob ToastBottomCenter (successToast message)}
+            |]
         else do
             setSuccessMessage message
+            redirectToPath (adminExportsPath anchorDate)
+
+respondWithPayrollWorkbookConfigurationEditorError ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Day ->
+    PayrollWorkbookConfigurationDraft ->
+    Text ->
+    IO ()
+respondWithPayrollWorkbookConfigurationEditorError anchorDate draft message =
+    if isHtmxRequest
+        then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft { payrollWorkbookConfigurationDraftError = Just message })
+        else do
+            setErrorMessage message
             redirectToPath (adminExportsPath anchorDate)
 
 adminExportsPath :: Day -> Text
@@ -140,47 +162,115 @@ instance Controller ExportsController where
                         requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
                             Left message -> respondWithExportGenerationError message
                             Right result -> respondWithGeneratedExportDownload result.liveMutationValue
-                    (_, Just _) -> respondWithExportGenerationError "Saved Payroll Workbook configurations can only generate Payroll Workbooks."
+                    (_, Just _) -> respondWithExportGenerationError "Payroll Workbook export configurations can only generate Payroll Workbooks."
                     (_, Nothing) ->
                         requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
                             Left message -> respondWithExportGenerationError message
                             Right result -> respondWithGeneratedExportDownload result.liveMutationValue
 
+    action currentAction@NewPayrollWorkbookConfigurationAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        if isHtmxRequest
+            then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate newPayrollWorkbookConfigurationDraft)
+            else redirectToPath (adminExportsPath anchorDate)
+
+    action currentAction@EditPayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId, anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        fetchSavedPayrollWorkbookConfiguration payrollWorkbookConfigurationId >>= \case
+            Left configurationError -> respondWithPayrollWorkbookConfigurationError anchorDate (payrollWorkbookConfigurationErrorMessage configurationError)
+            Right configuration ->
+                if isHtmxRequest
+                    then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate (savedPayrollWorkbookConfigurationDraft configuration))
+                    else redirectToPath (adminExportsPath anchorDate)
+
     action currentAction@CreatePayrollWorkbookConfigurationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        case AdminAction.parseCreatePayrollWorkbookConfigurationActionParams of
+        case parseAppShellActionParams @AppShell.CreatePayrollWorkbookConfigurationOverlay of
             Left errors -> do
                 fallbackSelection <- currentExportWeekSelection
-                respondWithPayrollWorkbookConfigurationError
+                respondWithPayrollWorkbookConfigurationEditorError
                     fallbackSelection.weekStart
-                    ("Check the saved configuration fields. " <> surfaceRequestFieldErrorsMessage errors)
+                    newPayrollWorkbookConfigurationDraft
+                    ("Check the export fields. " <> surfaceRequestFieldErrorsMessage errors)
             Right fields -> do
-                let anchorDate = surfaceFieldValue @Surface.RangeStart fields
-                let familyKeys =
-                        filter (not . Text.null) $
-                            catMaybes
-                                [ Just (surfaceFieldValue @Surface.PayrollWorkbookSheetFamily1 fields)
-                                , surfaceFieldValue @Surface.PayrollWorkbookSheetFamily2 fields
-                                , surfaceFieldValue @Surface.PayrollWorkbookSheetFamily3 fields
-                                , surfaceFieldValue @Surface.PayrollWorkbookSheetFamily4 fields
-                                , surfaceFieldValue @Surface.PayrollWorkbookSheetFamily5 fields
-                                ]
-                let input =
-                        NewPayrollWorkbookConfiguration
-                            { newPayrollWorkbookConfigurationName = surfaceFieldValue @Surface.PayrollWorkbookConfigurationName fields
-                            , newPayrollWorkbookConfigurationDefinitionVersion = 1
-                            , newPayrollWorkbookConfigurationFamilyKeys = familyKeys
-                            }
-                createPayrollWorkbookConfigurationMutation input >>= \case
-                    Left configurationError -> respondWithPayrollWorkbookConfigurationError anchorDate (payrollWorkbookConfigurationErrorMessage configurationError)
-                    Right result -> respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook configuration saved." result
+                let anchorDate = surfaceFieldValue @AppShell.ExportAnchorDateField fields
+                let familyKeys = surfaceFieldValue @AppShell.PayrollWorkbookSheetFamiliesField fields
+                case mapM payrollWorkbookSheetFamilyFromText familyKeys of
+                    Left message ->
+                        respondWithPayrollWorkbookConfigurationEditorError anchorDate newPayrollWorkbookConfigurationDraft message
+                    Right families -> do
+                        let draft =
+                                newPayrollWorkbookConfigurationDraft
+                                    { payrollWorkbookConfigurationDraftName = surfaceFieldValue @AppShell.PayrollWorkbookConfigurationNameField fields
+                                    , payrollWorkbookConfigurationDraftFamilies = families
+                                    }
+                        let input =
+                                NewPayrollWorkbookConfiguration
+                                    { newPayrollWorkbookConfigurationName = draft.payrollWorkbookConfigurationDraftName
+                                    , newPayrollWorkbookConfigurationDefinitionVersion = currentPayrollWorkbookDefinitionVersion
+                                    , newPayrollWorkbookConfigurationFamilyKeys = familyKeys
+                                    }
+                        createPayrollWorkbookConfigurationMutation input >>= \case
+                            Left configurationError -> respondWithPayrollWorkbookConfigurationEditorError anchorDate draft (payrollWorkbookConfigurationErrorMessage configurationError)
+                            Right result -> respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook export saved." result
+
+    action currentAction@UpdatePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        case parseAppShellActionParams @AppShell.UpdatePayrollWorkbookConfigurationOverlay of
+            Left errors -> do
+                fallbackSelection <- currentExportWeekSelection
+                respondWithPayrollWorkbookConfigurationEditorError
+                    fallbackSelection.weekStart
+                    newPayrollWorkbookConfigurationDraft { payrollWorkbookConfigurationDraftId = Just payrollWorkbookConfigurationId }
+                    ("Check the export fields. " <> surfaceRequestFieldErrorsMessage errors)
+            Right fields -> do
+                let anchorDate = surfaceFieldValue @AppShell.ExportAnchorDateField fields
+                let familyKeys = surfaceFieldValue @AppShell.PayrollWorkbookSheetFamiliesField fields
+                let expectedRevision = surfaceFieldValue @AppShell.PayrollWorkbookConfigurationRevisionField fields
+                case mapM payrollWorkbookSheetFamilyFromText familyKeys of
+                    Left message ->
+                        respondWithPayrollWorkbookConfigurationEditorError
+                            anchorDate
+                            newPayrollWorkbookConfigurationDraft
+                                { payrollWorkbookConfigurationDraftId = Just payrollWorkbookConfigurationId
+                                , payrollWorkbookConfigurationDraftRevision = expectedRevision
+                                }
+                            message
+                    Right families -> do
+                        let draft =
+                                PayrollWorkbookConfigurationDraft
+                                    { payrollWorkbookConfigurationDraftId = Just payrollWorkbookConfigurationId
+                                    , payrollWorkbookConfigurationDraftName = surfaceFieldValue @AppShell.PayrollWorkbookConfigurationNameField fields
+                                    , payrollWorkbookConfigurationDraftFamilies = families
+                                    , payrollWorkbookConfigurationDraftRevision = expectedRevision
+                                    , payrollWorkbookConfigurationDraftError = Nothing
+                                    }
+                        let input =
+                                UpdatePayrollWorkbookConfiguration
+                                    { updatePayrollWorkbookConfigurationName = draft.payrollWorkbookConfigurationDraftName
+                                    , updatePayrollWorkbookConfigurationDefinitionVersion = currentPayrollWorkbookDefinitionVersion
+                                    , updatePayrollWorkbookConfigurationFamilyKeys = familyKeys
+                                    , updatePayrollWorkbookConfigurationExpectedRevision = expectedRevision
+                                    }
+                        updatePayrollWorkbookConfigurationMutation payrollWorkbookConfigurationId input >>= \case
+                            Left configurationError -> respondWithPayrollWorkbookConfigurationEditorError anchorDate draft (payrollWorkbookConfigurationErrorMessage configurationError)
+                            Right result -> respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook export updated." result
+
+    action currentAction@ConfirmDeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId, anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        fetchSavedPayrollWorkbookConfiguration payrollWorkbookConfigurationId >>= \case
+            Left configurationError -> respondWithPayrollWorkbookConfigurationError anchorDate (payrollWorkbookConfigurationErrorMessage configurationError)
+            Right configuration ->
+                if isHtmxRequest
+                    then respondHtml (renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration)
+                    else redirectToPath (adminExportsPath anchorDate)
 
     action currentAction@DeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId, anchorDate = anchorDateParam } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         deletePayrollWorkbookConfigurationMutation payrollWorkbookConfigurationId >>= \case
             Left configurationError -> respondWithPayrollWorkbookConfigurationError anchorDate (payrollWorkbookConfigurationErrorMessage configurationError)
-            Right result -> respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook configuration deleted." result
+            Right result -> respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook export deleted." result
 
     action currentAction@DownloadExportJobAction { exportJobId } = runBepis currentAction BepisExportAction do
         let downloadToken = param @UUID "token"

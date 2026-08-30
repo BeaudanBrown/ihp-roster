@@ -30,6 +30,15 @@ newConfiguration name version familyKeys =
         , newPayrollWorkbookConfigurationFamilyKeys = familyKeys
         }
 
+updateConfiguration :: Text -> Int -> [Text] -> Int -> UpdatePayrollWorkbookConfiguration
+updateConfiguration name version familyKeys expectedRevision =
+    UpdatePayrollWorkbookConfiguration
+        { updatePayrollWorkbookConfigurationName = name
+        , updatePayrollWorkbookConfigurationDefinitionVersion = version
+        , updatePayrollWorkbookConfigurationFamilyKeys = familyKeys
+        , updatePayrollWorkbookConfigurationExpectedRevision = expectedRevision
+        }
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Payroll Workbook saved configurations" do
@@ -72,6 +81,54 @@ tests = aroundAll withDatabaseTestContext do
                 map (.position) positions `shouldBe` [0, 1, 2]
                 map (.familyKey) positions
                     `shouldBe` ["shift-type-wages", "summary", "employee-pay-bucket-hours"]
+
+        it "materializes the standard definition as an ordinary editable and deletable venue configuration" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Standard Workbook Venue"
+                admin <- createUserRecord "standard-workbook-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin VenueOwner
+
+                standard <- createStandardPayrollWorkbookConfigurationInCurrentTransaction venue admin
+                standard.savedPayrollWorkbookConfigurationRecord.name `shouldBe` "Payroll Workbook"
+                standard.savedPayrollWorkbookConfigurationRecord.revision `shouldBe` 0
+                standard.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies
+                    `shouldBe` availablePayrollWorkbookSheetFamilies
+
+                asCurrentVenueUser admin venue.id (deleteSavedPayrollWorkbookConfiguration standard.savedPayrollWorkbookConfigurationRecord.id)
+                    `shouldReturn` Right ()
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
+                asCurrentVenueUser admin venue.id listSavedPayrollWorkbookConfigurations
+                    `shouldReturn` Right []
+
+        it "atomically renames, reorders, and rejects stale saved-configuration edits" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Editable Workbook Venue"
+                admin <- createUserRecord "editable-workbook-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                created <- asCurrentVenueUser admin venue.id do
+                    createSavedPayrollWorkbookConfiguration (newConfiguration "Original" 1 ["summary", "shift-type-wages"])
+                saved <- expectRight created
+                let configurationId = saved.savedPayrollWorkbookConfigurationRecord.id
+
+                updated <- asCurrentVenueUser admin venue.id do
+                    withTransaction do
+                        updateSavedPayrollWorkbookConfigurationInCurrentTransaction
+                            configurationId
+                            (updateConfiguration " Renamed " 1 ["employee-pay-bucket-hours", "summary", "shift-type-wages"] 0)
+                updatedConfiguration <- expectRight updated
+                updatedConfiguration.savedPayrollWorkbookConfigurationRecord.name `shouldBe` "Renamed"
+                updatedConfiguration.savedPayrollWorkbookConfigurationRecord.revision `shouldBe` 1
+                updatedConfiguration.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies
+                    `shouldBe` [PayrollWorkbookEmployeePayBucketHours, PayrollWorkbookSummary, PayrollWorkbookShiftTypeWages]
+
+                stale <- asCurrentVenueUser admin venue.id do
+                    withTransaction do
+                        updateSavedPayrollWorkbookConfigurationInCurrentTransaction
+                            configurationId
+                            (updateConfiguration "Stale" 1 ["summary"] 0)
+                stale `shouldBe` Left PayrollWorkbookConfigurationStale
+                retained <- asCurrentVenueUser admin venue.id (fetchSavedPayrollWorkbookConfiguration configurationId)
+                retained `shouldBe` Right updatedConfiguration
 
         it "rejects invalid names, versions, families, duplicates, and venue-local name conflicts" $ withContext do
             withCleanDb do
@@ -206,10 +263,37 @@ tests = aroundAll withDatabaseTestContext do
                     createdTables `shouldSatisfy` all (isJust . fromOnly)
                     sqlExecDiscardResult "DROP SCHEMA payroll_workbook_config_migration_acceptance CASCADE" ()
 
-        it "enforces normalized names, supported versions and families, and deterministic unique positions in PostgreSQL" $ withContext do
+        it "upgrades existing venues to ordinary standard configurations without a fixed family ceiling" $ withContext do
+            withCleanDb do
+                migrationSql <- TextIO.readFile "Application/Migration/1788300000-make-payroll-workbook-configurations-editable.sql"
+                withTransaction do
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Editable Payroll Workbook migration acceptance requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner $ HasqlSession.script "CREATE SCHEMA payroll_workbook_edit_migration_acceptance; CREATE TYPE payroll_workbook_edit_migration_acceptance.venue_role_enum AS ENUM ('worker', 'supervisor', 'manager', 'venue_admin', 'venue_owner'); CREATE TABLE payroll_workbook_edit_migration_acceptance.venues (id UUID PRIMARY KEY, marker TEXT NOT NULL); CREATE TABLE payroll_workbook_edit_migration_acceptance.users (id UUID PRIMARY KEY, marker TEXT NOT NULL); CREATE TABLE payroll_workbook_edit_migration_acceptance.venue_memberships (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY, venue_id UUID NOT NULL, user_id UUID NOT NULL, venue_role payroll_workbook_edit_migration_acceptance.venue_role_enum NOT NULL, is_active BOOLEAN NOT NULL, archived_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL); CREATE TABLE payroll_workbook_edit_migration_acceptance.payroll_workbook_configurations (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY, venue_id UUID NOT NULL, name TEXT NOT NULL, definition_version INT DEFAULT 1 NOT NULL, created_by_user_id UUID NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL, CHECK (definition_version = 1)); CREATE UNIQUE INDEX payroll_workbook_configurations_venue_name_idx ON payroll_workbook_edit_migration_acceptance.payroll_workbook_configurations (venue_id, lower(name)); CREATE TABLE payroll_workbook_edit_migration_acceptance.payroll_workbook_configuration_families (id UUID DEFAULT uuid_generate_v4() PRIMARY KEY, configuration_id UUID NOT NULL, family_key TEXT NOT NULL, position INT NOT NULL, UNIQUE(configuration_id, position), UNIQUE(configuration_id, family_key), CHECK ((family_key = 'summary') OR (family_key = 'employee-pay-bucket-hours') OR (family_key = 'shift-type-hours') OR (family_key = 'employee-pay-bucket-wages') OR (family_key = 'shift-type-wages')), CHECK ((position >= 0) AND (position < 5))); INSERT INTO payroll_workbook_edit_migration_acceptance.venues VALUES ('10000000-0000-0000-0000-000000000001', 'venue-retained'); INSERT INTO payroll_workbook_edit_migration_acceptance.users VALUES ('20000000-0000-0000-0000-000000000001', 'user-retained'); INSERT INTO payroll_workbook_edit_migration_acceptance.venue_memberships (venue_id, user_id, venue_role, is_active) VALUES ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'venue_owner', TRUE); SET LOCAL search_path TO payroll_workbook_edit_migration_acceptance, public;"
+                            runInTransaction runner (HasqlSession.script migrationSql)
+                    standardRows :: [(Text, Int)] <- sqlQuery
+                        "SELECT name, revision FROM payroll_workbook_edit_migration_acceptance.payroll_workbook_configurations"
+                        ()
+                    familyKeys :: [Only Text] <- sqlQuery
+                        "SELECT family_key FROM payroll_workbook_edit_migration_acceptance.payroll_workbook_configuration_families ORDER BY position"
+                        ()
+                    standardRows `shouldBe` [("Payroll Workbook", 0)]
+                    map fromOnly familyKeys
+                        `shouldBe` map payrollWorkbookSheetFamilyKey availablePayrollWorkbookSheetFamilies
+                    expandablePosition <- try
+                        (sqlExecDiscardResult
+                            "INSERT INTO payroll_workbook_edit_migration_acceptance.payroll_workbook_configuration_families (configuration_id, family_key, position) SELECT id, 'future-family', 25 FROM payroll_workbook_edit_migration_acceptance.payroll_workbook_configurations"
+                            ())
+                        :: IO (Either SomeException ())
+                    expandablePosition `shouldSatisfy` isRight
+                    sqlExecDiscardResult "DROP SCHEMA payroll_workbook_edit_migration_acceptance CASCADE" ()
+
+        it "enforces normalized names, versions, revisions, non-negative positions, and uniqueness while leaving catalog growth to application validation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Saved Workbook Constraint Venue"
                 admin <- createUserRecord "saved-workbook-constraint@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 invalidName <- try
                     (sqlExecDiscardResult
                         "INSERT INTO payroll_workbook_configurations (venue_id, name, definition_version, created_by_user_id) VALUES (?, ' padded ', 1, ?)"
@@ -233,14 +317,19 @@ tests = aroundAll withDatabaseTestContext do
                         "INSERT INTO payroll_workbook_configurations (venue_id, name, definition_version, created_by_user_id) VALUES (?, 'valid', 1, ?)"
                         (unpackId venue.id, unpackId admin.id))
                     :: IO (Either SomeException ())
-                invalidFamily <- try
+                invalidRevision <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO payroll_workbook_configuration_families (configuration_id, family_key, position) VALUES (?, 'uploaded-template', 0)"
+                        "UPDATE payroll_workbook_configurations SET revision = -1 WHERE id = ?"
                         (Only configurationId))
                     :: IO (Either SomeException ())
                 invalidPosition <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO payroll_workbook_configuration_families (configuration_id, family_key, position) VALUES (?, 'summary', 5)"
+                        "INSERT INTO payroll_workbook_configuration_families (configuration_id, family_key, position) VALUES (?, 'summary', -1)"
+                        (Only configurationId))
+                    :: IO (Either SomeException ())
+                expandablePosition <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO payroll_workbook_configuration_families (configuration_id, family_key, position) VALUES (?, 'future-catalog-family', 25)"
                         (Only configurationId))
                     :: IO (Either SomeException ())
                 sqlExecDiscardResult
@@ -256,8 +345,11 @@ tests = aroundAll withDatabaseTestContext do
                         "INSERT INTO payroll_workbook_configuration_families (configuration_id, family_key, position) VALUES (?, 'summary', 1)"
                         (Only configurationId))
                     :: IO (Either SomeException ())
-                map isLeft [invalidName, invalidWhitespace, invalidVersion, duplicateName, invalidFamily, invalidPosition, duplicatePosition, duplicateFamily]
+                map isLeft [invalidName, invalidWhitespace, invalidVersion, duplicateName, invalidRevision, invalidPosition, duplicatePosition, duplicateFamily]
                     `shouldBe` replicate 8 True
+                expandablePosition `shouldSatisfy` isRight
+                asCurrentVenueUser admin venue.id (fetchSavedPayrollWorkbookConfiguration (Id configurationId))
+                    `shouldReturn` Left (PayrollWorkbookConfigurationStoredDefinitionInvalid "Saved sheet-family positions are not contiguous.")
 
 asCurrentVenueUser ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>

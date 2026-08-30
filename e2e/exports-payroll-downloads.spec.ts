@@ -16,32 +16,50 @@ test.use({ baseURL: webauthnBaseURL });
 test.describe('Payroll export downloads', () => {
     test.setTimeout(E2E_TIMEOUT.test);
 
-    test('venue admin generates the default and manages an ordered saved Payroll Workbook configuration', async ({ page }) => {
+    test('venue admin creates, edits, generates, and deletes ordered Payroll Workbook exports', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
-        const workbookCard = payrollReportCard(page, 'Payroll Workbook');
-        await expect(workbookCard).toHaveCount(1);
-        await expect(workbookCard.getByRole('button', { name: 'Download workbook' })).toHaveCount(1);
-        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(1);
+        const standardCard = payrollReportCard(page, 'Payroll Workbook');
+        await expect(standardCard).toHaveCount(1);
+        await expect(standardCard).toContainText('Summary → Employee / Pay Bucket Hours → Shift Type Hours → Employee / Pay Bucket Wages → Shift Type Wages');
+        await expect(standardCard.getByRole('button', { name: 'Download workbook' })).toHaveCount(1);
+        await expect(standardCard.getByRole('button', { name: 'Edit' })).toHaveCount(1);
+        await expect(standardCard.getByRole('button', { name: 'Delete' })).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(0);
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
-        await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(0);
-        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(0);
         await expect(page.locator('[data-export-history="true"]')).toHaveCount(0);
-        await expect(page.locator('#admin-export-range-start')).toHaveCount(0);
-        await expect(page.locator('#admin-export-range-end')).toHaveCount(0);
 
         const currentWeek = await currentReportWeek(page);
         await shiftExportWeek(page, 'Previous');
         const resetWeek = await shiftExportWeek(page, 'Current');
         expect(resetWeek).toEqual(currentWeek);
-
         const fileName = `payroll_workbook-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`;
 
-        await page.locator('#payroll-workbook-configuration-name').fill('Wages then Summary');
-        await page.locator('#payroll-workbook-family-1').selectOption('shift-type-wages');
-        await page.locator('#payroll-workbook-family-2').selectOption('summary');
-        await page.getByRole('button', { name: 'Save configuration' }).click();
+        const standardDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download workbook');
+        expect(standardDownload.suggestedFilename()).toBe(fileName);
+
+        await gotoExports(page);
+        await page.getByRole('button', { name: 'Add export' }).click();
+        const addDialog = page.getByRole('dialog', { name: 'Add export' });
+        await expect(addDialog).toBeVisible();
+        await expect(addDialog.getByText('No sheet families included yet.')).toBeVisible();
+        await expect(addDialog.locator('#payroll-workbook-configuration-name')).toHaveValue('');
+        await addDialog.locator('#payroll-workbook-configuration-name').fill('Empty export');
+        await addDialog.getByRole('button', { name: 'Save' }).click();
+        await expect(addDialog.getByRole('alert')).toContainText('at least one presentation sheet family');
+
+        await addDialog.locator('#payroll-workbook-configuration-name').fill('Wages then Summary');
+        const picker = addDialog.locator('#payroll-workbook-family-picker');
+        await picker.selectOption('summary');
+        await addDialog.getByRole('button', { name: 'Add sheet' }).click();
+        await expect(picker.locator('option[value="summary"]')).toBeDisabled();
+        await picker.selectOption('shift-type-wages');
+        await addDialog.getByRole('button', { name: 'Add sheet' }).click();
+        const summaryFamily = addDialog.locator('[draggable="true"]').filter({ hasText: 'Summary' });
+        const shiftWagesFamily = addDialog.locator('[draggable="true"]').filter({ hasText: 'Shift Type Wages' });
+        await shiftWagesFamily.dragTo(summaryFamily);
+        await addDialog.getByRole('button', { name: 'Save' }).click();
 
         const configurationRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Wages then Summary' });
         await expect(configurationRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
@@ -58,13 +76,45 @@ test.describe('Payroll export downloads', () => {
         expect(workbookXml).toContain('name="Data"');
 
         await gotoExports(page);
-        await expect(configurationRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
-        await configurationRow.getByText('Delete', { exact: true }).click();
-        await configurationRow.getByRole('button', { name: 'Confirm delete Wages then Summary' }).click();
-        await expect(configurationRow).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
-        await expect(payrollReportCard(page, 'Payroll Workbook')).toHaveCount(1);
+        await configurationRow.getByRole('button', { name: 'Edit' }).click();
+        const editDialog = page.getByRole('dialog', { name: 'Edit export' });
+        await expect(editDialog).toBeVisible();
+        await editDialog.locator('#payroll-workbook-configuration-name').fill('Hours then Wages');
+        await editDialog.getByRole('button', { name: 'Remove Summary' }).click();
+        await editDialog.locator('#payroll-workbook-family-picker').selectOption('employee-pay-bucket-hours');
+        await editDialog.getByRole('button', { name: 'Add sheet' }).click();
+        await editDialog.getByRole('button', { name: 'Move Employee / Pay Bucket Hours up' }).click();
+        await editDialog.getByRole('button', { name: 'Save' }).click();
 
-        const generatedDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download workbook');
-        expect(generatedDownload.suggestedFilename()).toBe(fileName);
+        const editedRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Hours then Wages' });
+        await expect(editedRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
+        await expect(editedRow).toContainText('Employee / Pay Bucket Hours → Shift Type Wages');
+        await expect(configurationRow).toHaveCount(0);
+
+        await editedRow.getByRole('button', { name: 'Delete' }).click();
+        const deleteEditedDialog = page.getByRole('dialog', { name: 'Delete export' });
+        await expect(deleteEditedDialog).toContainText('Hours then Wages');
+        const deleteEditedForm = deleteEditedDialog.locator('form');
+        await expect(deleteEditedForm).toHaveCount(1);
+        await expect(deleteEditedForm).toHaveAttribute('action', /DeletePayrollWorkbookConfiguration/);
+        const editedDeleteRedirect = page.waitForResponse((response) => response.request().isNavigationRequest() && response.url().includes('/Admin?showExports=true'), { timeout: E2E_TIMEOUT.assertion });
+        await deleteEditedDialog.getByRole('button', { name: 'Delete' }).click();
+        await editedDeleteRedirect;
+        await gotoExports(page);
+        await expect(editedRow).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
+
+        const refreshedStandardCard = payrollReportCard(page, 'Payroll Workbook');
+        await refreshedStandardCard.getByRole('button', { name: 'Delete' }).click();
+        const deleteStandardDialog = page.getByRole('dialog', { name: 'Delete export' });
+        await expect(deleteStandardDialog).toContainText('Payroll Workbook');
+        const standardDeleteRedirect = page.waitForResponse((response) => response.request().isNavigationRequest() && response.url().includes('/Admin?showExports=true'), { timeout: E2E_TIMEOUT.assertion });
+        await deleteStandardDialog.getByRole('button', { name: 'Delete' }).click();
+        await standardDeleteRedirect;
+        const exportsToggle = page.getByRole('button', { name: 'Exports' });
+        if ((await exportsToggle.getAttribute('aria-expanded')) !== 'true') await exportsToggle.click();
+        await expect(page.locator('#exports-collapse')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        await expect(page.locator('[data-payroll-workbook-configuration]')).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.getByText('No Payroll Workbook exports configured.')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Add export' })).toBeVisible();
     });
 });

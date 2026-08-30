@@ -1053,8 +1053,8 @@ async function ensureExportsSectionOpen(page: Page) {
     }
     await expect(exportsToggle).toHaveAttribute('aria-expanded', 'true', { timeout: E2E_TIMEOUT.action });
     await expect(page.locator('#exports-collapse')).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await expect(page.locator('#admin-export-generation-form')).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await expect(page.locator('[data-fixed-export-card="true"]').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('[data-payroll-workbook-configuration]').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('[data-payroll-workbook-configuration] form').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
 export async function gotoExports(page: Page) {
@@ -1063,7 +1063,7 @@ export async function gotoExports(page: Page) {
 }
 
 export async function currentReportWeek(page: Page) {
-    const form = page.locator('#admin-export-generation-form');
+    const form = page.locator('[data-payroll-workbook-configuration] form').first();
     const weekStart = await form.locator('input[name="rangeStart"]').inputValue();
     const weekEnd = await form.locator('input[name="rangeEnd"]').inputValue();
     return { weekStart, weekEnd };

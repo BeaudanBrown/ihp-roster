@@ -501,6 +501,7 @@ Web/View/Admin/Common.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Exports.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Invites.hs	production	runtime	Main	Reachable from Main
+Web/View/Admin/PayrollWorkbookConfigurationDialog.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/RosterGroups.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/ShiftTypes.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/VenueSettings.hs	production	runtime	Main	Reachable from Main

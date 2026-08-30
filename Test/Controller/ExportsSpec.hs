@@ -875,13 +875,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 createConfigurationResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreatePayrollWorkbookConfigurationAction
-                        [ ("rangeStart", "2025-01-06")
+                        [ ("exportAnchorDate", "2025-01-06")
                         , ("payrollWorkbookConfigurationName", "  Wages then Summary  ")
-                        , ("payrollWorkbookSheetFamily1", "shift-type-wages")
-                        , ("payrollWorkbookSheetFamily2", "summary")
-                        , ("payrollWorkbookSheetFamily3", "")
-                        , ("payrollWorkbookSheetFamily4", "")
-                        , ("payrollWorkbookSheetFamily5", "")
+                        , ("payrollWorkbookSheetFamilies", "[\"shift-type-wages\",\"summary\"]")
                         ]
                 createConfigurationResponse `responseStatusShouldBe` status302
                 configuration <- query @PayrollWorkbookConfiguration |> fetchOne
@@ -892,10 +888,46 @@ tests = aroundAll withDatabaseTestContext do
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams ShowadminExportsLiveFragmentAction [("anchorDate", "2025-01-06")]
                 fragmentResponse `responseStatusShouldBe` status200
-                fragmentResponse `responseBodyShouldContain` "Saved Payroll Workbook configurations"
+                fragmentResponse `responseBodyShouldContain` "Payroll Workbook exports"
                 fragmentResponse `responseBodyShouldContain` "Wages then Summary"
-                fragmentResponse `responseBodyShouldContain` "Shift Type Wages"
-                fragmentResponse `responseBodyShouldContain` "Confirm delete Wages then Summary"
+                fragmentResponse `responseBodyShouldContain` "Shift Type Wages → Summary"
+                fragmentResponse `responseBodyShouldContain` "Edit"
+                fragmentResponse `responseBodyShouldContain` "Delete"
+                fragmentResponse `responseBodyShouldNotContain` "Payroll Earnings CSV"
+
+                editDialogResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (EditPayrollWorkbookConfigurationAction configuration.id "2025-01-06")
+                editDialogResponse `responseStatusShouldBe` status200
+                editDialogResponse `responseBodyShouldContain` "Edit export"
+                editDialogResponse `responseBodyShouldContain` "Wages then Summary"
+                editDialogResponse `responseBodyShouldContain` "Shift Type Wages"
+
+                updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdatePayrollWorkbookConfigurationAction configuration.id)
+                        [ ("exportAnchorDate", "2025-01-06")
+                        , ("payrollWorkbookConfigurationName", "Summary then Wages")
+                        , ("payrollWorkbookSheetFamilies", "[\"summary\",\"shift-type-wages\"]")
+                        , ("payrollWorkbookConfigurationRevision", "0")
+                        ]
+                updateResponse `responseStatusShouldBe` status302
+                updatedConfiguration <- fetch configuration.id
+                updatedConfiguration.name `shouldBe` "Summary then Wages"
+                updatedConfiguration.revision `shouldBe` 1
+                updatedFamilyRows <- query @PayrollWorkbookConfigurationFamily |> orderByAsc #position |> fetch
+                map (.familyKey) updatedFamilyRows `shouldBe` ["summary", "shift-type-wages"]
+
+                staleUpdateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdatePayrollWorkbookConfigurationAction configuration.id)
+                        [ ("exportAnchorDate", "2025-01-06")
+                        , ("payrollWorkbookConfigurationName", "Stale overwrite")
+                        , ("payrollWorkbookSheetFamilies", "[\"employee-pay-bucket-hours\"]")
+                        , ("payrollWorkbookConfigurationRevision", "0")
+                        ]
+                staleUpdateResponse `responseStatusShouldBe` status302
+                configurationAfterStaleUpdate <- fetch configuration.id
+                configurationAfterStaleUpdate.name `shouldBe` "Summary then Wages"
+                configurationAfterStaleUpdate.revision `shouldBe` 1
 
                 generateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -910,7 +942,7 @@ tests = aroundAll withDatabaseTestContext do
                 map (.eventType) auditEventsAfterGeneration `shouldBe` ["export_generated"]
                 let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))
                 encodedScope `shouldSatisfy` Text.isInfixOf ("\"definitionKey\":\"saved-" <> tshow configuration.id <> "\"")
-                encodedScope `shouldSatisfy` Text.isInfixOf "\"sheetFamilies\":[\"shift-type-wages\",\"summary\"]"
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"sheetFamilies\":[\"summary\",\"shift-type-wages\"]"
                 let workbookArchive = Zip.toArchive . LBS.fromStrict . Base64.decodeLenient . encodeUtf8 . fromMaybe "" $ exportJob.fileContents
                 workbookXml <- workbookArchive |> archiveEntryText "xl/workbook.xml"
                 workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Wages Mon 2025-01-06"
@@ -930,9 +962,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 foreignCreateResponse <- withPasskeyVerifiedUserAndCurrentVenue otherAdmin otherVenue.id do
                     callActionWithParams CreatePayrollWorkbookConfigurationAction
-                        [ ("rangeStart", "2025-01-06")
+                        [ ("exportAnchorDate", "2025-01-06")
                         , ("payrollWorkbookConfigurationName", "Other Venue Configuration")
-                        , ("payrollWorkbookSheetFamily1", "summary")
+                        , ("payrollWorkbookSheetFamilies", "[\"summary\"]")
                         ]
                 foreignCreateResponse `responseStatusShouldBe` status302
                 foreignConfiguration <-
@@ -1026,9 +1058,9 @@ tests = aroundAll withDatabaseTestContext do
                     callAction ShowadminExportsLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Payroll Workbook"
-                response `responseBodyShouldContain` "Download workbook"
-                response `responseBodyShouldContain` "Payroll Earnings CSV"
+                response `responseBodyShouldContain` "Payroll Workbook exports"
+                response `responseBodyShouldContain` "Add export"
+                response `responseBodyShouldNotContain` "Payroll Earnings CSV"
                 response `responseBodyShouldNotContain` "Recent Exports"
                 response `responseBodyShouldNotContain` "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
                 response `responseBodyShouldNotContain` tshow (unpackId exportJobB.id)
@@ -1099,17 +1131,17 @@ tests = aroundAll withDatabaseTestContext do
                     callAction ShowadminExportsLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Payroll Workbook"
-                response `responseBodyShouldContain` "Download workbook"
-                response `responseBodyShouldContain` "Payroll Earnings CSV"
+                response `responseBodyShouldContain` "Payroll Workbook exports"
+                response `responseBodyShouldContain` "Add export"
+                response `responseBodyShouldNotContain` "Payroll Earnings CSV"
                 response `responseBodyShouldNotContain` "Staff Hours CSV"
                 response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
 
                 createConfigurationResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     callActionWithParams CreatePayrollWorkbookConfigurationAction
-                        [ ("rangeStart", "2025-01-06")
+                        [ ("exportAnchorDate", "2025-01-06")
                         , ("payrollWorkbookConfigurationName", "Founder Configuration")
-                        , ("payrollWorkbookSheetFamily1", "summary")
+                        , ("payrollWorkbookSheetFamilies", "[\"summary\"]")
                         ]
                 createConfigurationResponse `responseStatusShouldBe` status302
                 founderConfiguration <- query @PayrollWorkbookConfiguration |> fetchOne
@@ -1153,9 +1185,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 createConfigurationResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreatePayrollWorkbookConfigurationAction
-                        [ ("rangeStart", "2025-01-06")
+                        [ ("exportAnchorDate", "2025-01-06")
                         , ("payrollWorkbookConfigurationName", "Denied Configuration")
-                        , ("payrollWorkbookSheetFamily1", "summary")
+                        , ("payrollWorkbookSheetFamilies", "[\"summary\"]")
                         ]
                 createConfigurationResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders createConfigurationResponse) `shouldBe` Just "http://localhost/RosterWeeks"

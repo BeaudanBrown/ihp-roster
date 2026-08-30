@@ -9,6 +9,7 @@ module Application.Helper.Export.PayrollWorkbook
     , PayrollWorkbookSheet (..)
     , PayrollWorkbookSheetFamily (..)
     , availablePayrollWorkbookSheetFamilies
+    , currentPayrollWorkbookDefinitionVersion
     , defaultPayrollWorkbookCellStyle
     , defaultPayrollWorkbookDefinition
     , minimalPayrollWorkbook
@@ -102,7 +103,10 @@ data PayrollWorkbookSheetFamily
     | PayrollWorkbookShiftTypeHours
     | PayrollWorkbookEmployeePayBucketWages
     | PayrollWorkbookShiftTypeWages
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Enum, Bounded)
+
+instance InputValue PayrollWorkbookSheetFamily where
+    inputValue = payrollWorkbookSheetFamilyKey
 
 data PayrollWorkbookDefinition = PayrollWorkbookDefinition
     { payrollWorkbookDefinitionKey           :: !Text

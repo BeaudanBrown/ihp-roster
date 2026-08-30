@@ -13,7 +13,7 @@ download authorization, and controller-facing orchestration.
 - `ReadModel.hs` and `Payloads.hs` — authoritative export inputs and payloads.
 - `PayrollWorkbook.hs` — versioned ordered definitions for Summary, employee/pay-bucket Hours/Wages, and shift-type Hours/Wages families; the implementation-owned hidden Data worksheet; formulas, typed XLSX cells, formatting, and worksheet primitives.
 - `PayrollWorkbookModel.hs` — authoritative entry × Operational-date × hourly-occurrence facts, presentation projection, DST slots, approval-pinned identities, and exact Hours/Wages reconciliation.
-- `PayrollWorkbookConfiguration.hs` — venue-scoped named definition persistence, ordered family hydration, validation, authorization, and venue-safe deletion. The Admin exports surface creates, lists, generates from, and explicitly deletes these definitions while keeping the built-in default as the primary row-free download.
+- `PayrollWorkbookConfiguration.hs` — venue-scoped named definition persistence, ordered family hydration, optimistic edits, validation, authorization, and venue-safe deletion. The Admin exports surface presents one unified list and uses the same scalable ordered-family dialog for creation and editing. The former built-in default is provisioned as an ordinary editable and deletable venue configuration.
 - `Render.hs` — CSV/ZIP formatting and output safety.
 - `Persistence.hs` — job lifecycle, authorization, and audit.
 - `Application/Helper/Export.hs` — compatibility facade only.

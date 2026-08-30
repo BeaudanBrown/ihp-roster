@@ -8,6 +8,14 @@ module Application.Helper.FrontendContract.AppShell
     , PartialNavigationHtmxAttrs
     , OpenFeedbackDialog
     , OpenPageHelpDialog
+    , OpenPayrollWorkbookConfigurationDialog
+    , OpenPayrollWorkbookConfigurationDeleteDialog
+    , CreatePayrollWorkbookConfigurationOverlay
+    , UpdatePayrollWorkbookConfigurationOverlay
+    , ExportAnchorDateField
+    , PayrollWorkbookConfigurationNameField
+    , PayrollWorkbookSheetFamiliesField
+    , PayrollWorkbookConfigurationRevisionField
     , SubmitFeedback
     , FeedbackTypeField
     , ContentField
@@ -103,6 +111,14 @@ data PartialNavigationHtmxAttrs
 
 data OpenFeedbackDialog
 data OpenPageHelpDialog
+data OpenPayrollWorkbookConfigurationDialog
+data OpenPayrollWorkbookConfigurationDeleteDialog
+data CreatePayrollWorkbookConfigurationOverlay
+data UpdatePayrollWorkbookConfigurationOverlay
+data ExportAnchorDateField
+data PayrollWorkbookConfigurationNameField
+data PayrollWorkbookSheetFamiliesField
+data PayrollWorkbookConfigurationRevisionField
 data SubmitFeedback
 data FeedbackTypeField
 data ContentField
@@ -202,6 +218,21 @@ type AppShellContract =
          , AppShellAction OpenPageHelpDialog
             '[]
             DialogLauncherOptions
+         , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions
+         , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
+         , AppShellAction CreatePayrollWorkbookConfigurationOverlay
+            '[ Field ExportAnchorDateField 'WireDay
+             , Field PayrollWorkbookConfigurationNameField 'WireText
+             , Field PayrollWorkbookSheetFamiliesField ('WireList 'WireText)
+             ]
+            DialogSubmitOptions
+         , AppShellAction UpdatePayrollWorkbookConfigurationOverlay
+            '[ Field ExportAnchorDateField 'WireDay
+             , Field PayrollWorkbookConfigurationNameField 'WireText
+             , Field PayrollWorkbookSheetFamiliesField ('WireList 'WireText)
+             , Field PayrollWorkbookConfigurationRevisionField 'WireInt
+             ]
+            DialogSubmitOptions
          , AppShellAction SubmitFeedback
             '[ Field FeedbackTypeField ('WireClosed FeedbackTypeEnum)
              , Field ContentField 'WireText

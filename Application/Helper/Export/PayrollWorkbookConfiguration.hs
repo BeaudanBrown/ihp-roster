@@ -3,10 +3,13 @@
 
 module Application.Helper.Export.PayrollWorkbookConfiguration
     ( NewPayrollWorkbookConfiguration (..)
+    , UpdatePayrollWorkbookConfiguration (..)
     , SavedPayrollWorkbookConfiguration (..)
     , PayrollWorkbookConfigurationError (..)
     , createSavedPayrollWorkbookConfiguration
     , createSavedPayrollWorkbookConfigurationInCurrentTransaction
+    , createStandardPayrollWorkbookConfigurationInCurrentTransaction
+    , updateSavedPayrollWorkbookConfigurationInCurrentTransaction
     , deleteSavedPayrollWorkbookConfiguration
     , fetchSavedPayrollWorkbookConfiguration
     , listSavedPayrollWorkbookConfigurations
@@ -20,6 +23,7 @@ import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenueOrNothing)
 import Application.Helper.Export.PayrollWorkbook
 import qualified Control.Exception as Exception
+import Control.Monad (void)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -38,6 +42,14 @@ data NewPayrollWorkbookConfiguration = NewPayrollWorkbookConfiguration
     }
     deriving (Eq, Show)
 
+data UpdatePayrollWorkbookConfiguration = UpdatePayrollWorkbookConfiguration
+    { updatePayrollWorkbookConfigurationName              :: !Text
+    , updatePayrollWorkbookConfigurationDefinitionVersion :: !Int
+    , updatePayrollWorkbookConfigurationFamilyKeys        :: ![Text]
+    , updatePayrollWorkbookConfigurationExpectedRevision  :: !Int
+    }
+    deriving (Eq, Show)
+
 data SavedPayrollWorkbookConfiguration = SavedPayrollWorkbookConfiguration
     { savedPayrollWorkbookConfigurationRecord     :: !Types.PayrollWorkbookConfiguration
     , savedPayrollWorkbookConfigurationDefinition :: !PayrollWorkbookDefinition
@@ -50,6 +62,7 @@ data PayrollWorkbookConfigurationError
     | PayrollWorkbookConfigurationInvalidDefinition !Text
     | PayrollWorkbookConfigurationNameConflict !Text
     | PayrollWorkbookConfigurationNotFound
+    | PayrollWorkbookConfigurationStale
     | PayrollWorkbookConfigurationStoredDefinitionInvalid !Text
     deriving (Eq, Show)
 
@@ -98,16 +111,10 @@ createSavedPayrollWorkbookConfigurationWithPersistence persist input
                     Nothing -> persistDefinition definition
   where
     normalizedName = normalizePayrollWorkbookConfigurationName input.newPayrollWorkbookConfigurationName
-    requestedDefinition = do
-        families <- traverse payrollWorkbookSheetFamilyFromText input.newPayrollWorkbookConfigurationFamilyKeys
-        let definition =
-                PayrollWorkbookDefinition
-                    { payrollWorkbookDefinitionKey = "saved-pending"
-                    , payrollWorkbookDefinitionVersion = input.newPayrollWorkbookConfigurationDefinitionVersion
-                    , payrollWorkbookDefinitionSheetFamilies = families
-                    }
-        validatePayrollWorkbookDefinition definition
-        pure definition
+    requestedDefinition =
+        validateConfigurationDefinition
+            input.newPayrollWorkbookConfigurationDefinitionVersion
+            input.newPayrollWorkbookConfigurationFamilyKeys
 
     persistDefinition definition = do
         result <-
@@ -141,6 +148,111 @@ createSavedPayrollWorkbookConfigurationWithPersistence persist input
                 case payrollWorkbookConfigurationPersistenceError normalizedName sessionError of
                     Just configurationError -> pure (Left configurationError)
                     Nothing                 -> Exception.throwIO sessionError
+
+createStandardPayrollWorkbookConfigurationInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    Types.Venue ->
+    Types.User ->
+    IO SavedPayrollWorkbookConfiguration
+createStandardPayrollWorkbookConfigurationInCurrentTransaction venue user = do
+    configuration <-
+        newRecord @Types.PayrollWorkbookConfiguration
+            |> set #venueId (unpackId venue.id)
+            |> set #name "Payroll Workbook"
+            |> set #definitionVersion currentPayrollWorkbookDefinitionVersion
+            |> set #revision 0
+            |> set #createdByUserId (unpackId user.id)
+            |> createRecord
+    createConfigurationFamilyRecords configuration defaultPayrollWorkbookDefinition.payrollWorkbookDefinitionSheetFamilies
+    pure
+        SavedPayrollWorkbookConfiguration
+            { savedPayrollWorkbookConfigurationRecord = configuration
+            , savedPayrollWorkbookConfigurationDefinition =
+                savedDefinition configuration defaultPayrollWorkbookDefinition.payrollWorkbookDefinitionSheetFamilies
+            }
+
+updateSavedPayrollWorkbookConfigurationInCurrentTransaction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Id Types.PayrollWorkbookConfiguration ->
+    UpdatePayrollWorkbookConfiguration ->
+    IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
+updateSavedPayrollWorkbookConfigurationInCurrentTransaction configurationId input
+    | not canManagePayrollWorkbookConfigurations = pure (Left PayrollWorkbookConfigurationAccessDenied)
+    | Text.null normalizedName = pure (Left (PayrollWorkbookConfigurationInvalidName "Configuration names cannot be empty."))
+    | Text.length normalizedName > 100 = pure (Left (PayrollWorkbookConfigurationInvalidName "Configuration names cannot exceed 100 characters."))
+    | otherwise =
+        case requestedDefinition of
+            Left message -> pure (Left (PayrollWorkbookConfigurationInvalidDefinition message))
+            Right definition -> do
+                maybeConfiguration <-
+                    query @Types.PayrollWorkbookConfiguration
+                        |> filterWhere (#id, configurationId)
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> fetchOneOrNothing
+                case maybeConfiguration of
+                    Nothing -> pure (Left PayrollWorkbookConfigurationNotFound)
+                    Just configuration
+                        | configuration.revision /= input.updatePayrollWorkbookConfigurationExpectedRevision ->
+                            pure (Left PayrollWorkbookConfigurationStale)
+                        | otherwise -> do
+                            now <- getCurrentTime
+                            updatedConfiguration <-
+                                configuration
+                                    |> set #name normalizedName
+                                    |> set #definitionVersion definition.payrollWorkbookDefinitionVersion
+                                    |> set #revision (configuration.revision + 1)
+                                    |> set #updatedAt now
+                                    |> updateRecord
+                            existingFamilies <-
+                                query @Types.PayrollWorkbookConfigurationFamily
+                                    |> filterWhere (#configurationId, unpackId configuration.id)
+                                    |> fetch
+                            mapM_ deleteRecord existingFamilies
+                            createConfigurationFamilyRecords updatedConfiguration definition.payrollWorkbookDefinitionSheetFamilies
+                            pure
+                                (Right
+                                    SavedPayrollWorkbookConfiguration
+                                        { savedPayrollWorkbookConfigurationRecord = updatedConfiguration
+                                        , savedPayrollWorkbookConfigurationDefinition =
+                                            savedDefinition updatedConfiguration definition.payrollWorkbookDefinitionSheetFamilies
+                                        }
+                                )
+  where
+    normalizedName = normalizePayrollWorkbookConfigurationName input.updatePayrollWorkbookConfigurationName
+    requestedDefinition =
+        validateConfigurationDefinition
+            input.updatePayrollWorkbookConfigurationDefinitionVersion
+            input.updatePayrollWorkbookConfigurationFamilyKeys
+
+validateConfigurationDefinition :: Int -> [Text] -> Either Text PayrollWorkbookDefinition
+validateConfigurationDefinition definitionVersion familyKeys = do
+    families <- traverse payrollWorkbookSheetFamilyFromText familyKeys
+    let definition =
+            PayrollWorkbookDefinition
+                { payrollWorkbookDefinitionKey = "saved-pending"
+                , payrollWorkbookDefinitionVersion = definitionVersion
+                , payrollWorkbookDefinitionSheetFamilies = families
+                }
+    validatePayrollWorkbookDefinition definition
+    pure definition
+
+createConfigurationFamilyRecords ::
+    (?modelContext :: ModelContext) =>
+    Types.PayrollWorkbookConfiguration ->
+    [PayrollWorkbookSheetFamily] ->
+    IO ()
+createConfigurationFamilyRecords configuration families = do
+    let familyRecords =
+            zipWith
+                (\position family ->
+                    newRecord @Types.PayrollWorkbookConfigurationFamily
+                        |> set #configurationId (unpackId configuration.id)
+                        |> set #familyKey (payrollWorkbookSheetFamilyKey family)
+                        |> set #position position
+                )
+                [0 ..]
+                families
+    void (mapM createRecord familyRecords)
 
 payrollWorkbookConfigurationPersistenceError :: Text -> HasqlSessionError -> Maybe PayrollWorkbookConfigurationError
 payrollWorkbookConfigurationPersistenceError normalizedName sessionError

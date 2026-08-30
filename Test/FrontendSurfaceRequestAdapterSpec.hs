@@ -353,16 +353,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 71
+        length actionDeclarations `shouldBe` 69
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 66
+        length generatedActionOperations `shouldBe` 64
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 66
+            `shouldBe` 64
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 66
+            `shouldBe` 64
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 47
+            `shouldBe` 46
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -385,8 +385,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             , not (surfaceAdapterOperationIsGenerated operations.surfaceAdapterRequestParserOperation)
             ]
             `shouldBe` List.sort
-                [ ("admin-exports", "delete-payroll-workbook-configuration")
-                , ("timesheets", "navigate-timesheet-week")
+                [ ("timesheets", "navigate-timesheet-week")
                 , ("roster", "navigate-roster-week")
                 , ("timesheets", "update-timesheet-filters")
                 , ("roster", "sort-roster-week")

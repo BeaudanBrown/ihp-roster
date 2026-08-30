@@ -1,5 +1,6 @@
 module Web.Exports.Mutations
     ( createPayrollWorkbookConfigurationMutation
+    , updatePayrollWorkbookConfigurationMutation
     , deletePayrollWorkbookConfigurationMutation
     , exportJobTouchedResources
     , recordExportDownloadMutation
@@ -52,6 +53,29 @@ createPayrollWorkbookConfigurationMutation input = do
     publicationFor = \case
         Left _ -> Nothing
         Right _ -> Just ("payroll_workbook_configuration.create", Set.singleton (adminExportsResource (unpackId currentVenueId)))
+
+updatePayrollWorkbookConfigurationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id PayrollWorkbookConfiguration -> UpdatePayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError (LiveMutationResult SavedPayrollWorkbookConfiguration))
+updatePayrollWorkbookConfigurationMutation configurationId input = do
+    transactionResult :: Either HasqlSessionError (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration) <-
+        Exception.try $
+            withDurableLiveMutationOutcome publicationFor do
+                lockedRows :: [Only UUID] <- sqlQuery
+                    "SELECT id FROM payroll_workbook_configurations WHERE id = ? AND venue_id = ? FOR UPDATE"
+                    (unpackId configurationId, unpackId currentVenueId)
+                if null lockedRows
+                    then pure (Left PayrollWorkbookConfigurationNotFound)
+                    else updateSavedPayrollWorkbookConfigurationInCurrentTransaction configurationId input
+    case transactionResult of
+        Right outcome -> pure (fmap (\configuration -> liveMutationResult configuration [adminExportsResource (unpackId currentVenueId)]) outcome)
+        Left sessionError ->
+            case payrollWorkbookConfigurationPersistenceError normalizedName sessionError of
+                Just configurationError -> pure (Left configurationError)
+                Nothing                 -> Exception.throwIO sessionError
+  where
+    normalizedName = normalizePayrollWorkbookConfigurationName input.updatePayrollWorkbookConfigurationName
+    publicationFor = \case
+        Left _ -> Nothing
+        Right _ -> Just ("payroll_workbook_configuration.update", Set.singleton (adminExportsResource (unpackId currentVenueId)))
 
 deletePayrollWorkbookConfigurationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id PayrollWorkbookConfiguration -> IO (Either PayrollWorkbookConfigurationError (LiveMutationResult ()))
 deletePayrollWorkbookConfigurationMutation configurationId = do

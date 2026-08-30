@@ -260,6 +260,45 @@ ON CONFLICT (id) DO UPDATE SET
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at;
 
+INSERT INTO payroll_workbook_configurations (
+    id,
+    venue_id,
+    name,
+    definition_version,
+    revision,
+    created_by_user_id,
+    created_at,
+    updated_at
+)
+VALUES (
+    'a1000000-0000-0000-0000-000000000801',
+    'a1000000-0000-0000-0000-000000000001',
+    'Payroll Workbook',
+    1,
+    0,
+    'a0000000-0000-0000-0000-000000000003',
+    '2025-01-04 00:00:00+00',
+    '2025-01-04 00:00:00+00'
+)
+ON CONFLICT (id) DO UPDATE SET
+    venue_id = EXCLUDED.venue_id,
+    name = EXCLUDED.name,
+    definition_version = EXCLUDED.definition_version,
+    revision = EXCLUDED.revision,
+    created_by_user_id = EXCLUDED.created_by_user_id,
+    updated_at = EXCLUDED.updated_at;
+
+DELETE FROM payroll_workbook_configuration_families
+WHERE configuration_id = 'a1000000-0000-0000-0000-000000000801';
+
+INSERT INTO payroll_workbook_configuration_families (id, configuration_id, family_key, position)
+VALUES
+    ('a1000000-0000-0000-0000-000000000811', 'a1000000-0000-0000-0000-000000000801', 'summary', 0),
+    ('a1000000-0000-0000-0000-000000000812', 'a1000000-0000-0000-0000-000000000801', 'employee-pay-bucket-hours', 1),
+    ('a1000000-0000-0000-0000-000000000813', 'a1000000-0000-0000-0000-000000000801', 'shift-type-hours', 2),
+    ('a1000000-0000-0000-0000-000000000814', 'a1000000-0000-0000-0000-000000000801', 'employee-pay-bucket-wages', 3),
+    ('a1000000-0000-0000-0000-000000000815', 'a1000000-0000-0000-0000-000000000801', 'shift-type-wages', 4);
+
 INSERT INTO fwc_mapd_sync_runs (
     id,
     status,

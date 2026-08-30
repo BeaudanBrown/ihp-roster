@@ -254,6 +254,21 @@ tests = describe "Schema" do
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "export_jobs"
 
+    it "makes Payroll Workbook configurations editable and catalog-scalable without replacing customer rows" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788300000-make-payroll-workbook-configurations-editable.sql"
+        forM_
+            [ "ADD COLUMN revision"
+            , "DROP CONSTRAINT payroll_workbook_configuration_families_family_key_check"
+            , "DROP CONSTRAINT payroll_workbook_configuration_families_position_check"
+            , "ADD CHECK (position >= 0)"
+            , "'Payroll Workbook'"
+            , "ON CONFLICT (venue_id, lower(name)) DO NOTHING"
+            ]
+            (\requiredSql -> migrationSqlText `shouldSatisfy` Text.isInfixOf requiredSql)
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+
     it "avoids IN-based CHECK constraints that pg_dump rewrites into parser-hostile ANY(ARRAY ...)" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         let riskyCheckLines =

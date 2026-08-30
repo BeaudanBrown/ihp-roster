@@ -11,8 +11,9 @@ cross-module safety and payroll contracts.
 - Every format uses the shared `export_jobs` persistence, expiry, authorization,
   download, and audit lifecycle. Controllers must not hand-roll export endpoints.
 - The fixed backend catalog is defined in `Types.hs`; the current UI exposes
-  Payroll Workbook and Payroll Earnings CSV for one URL-selected roster week.
-  Export history is not shown. Legacy Staff Hours/hourly generators remain callable
+  configured Payroll Workbooks for one URL-selected roster week. Payroll Earnings
+  CSV generation is hidden pending a later retirement decision. Export history is
+  not shown. Legacy Staff Hours/hourly generators remain callable
   and historical jobs remain downloadable through their authorized direct links,
   but have no visible generation controls.
   Legacy report-definition tables are not runtime authority.
@@ -51,9 +52,9 @@ cross-module safety and payroll contracts.
 - Payroll Workbook presentation is selected by a versioned definition with a
   stable key and an ordered, duplicate-free, non-empty list of available sheet
   families. Version 1 supports Summary, employee/pay-bucket Hours, shift-type
-  Hours, employee/pay-bucket Wages, and shift-type Wages. The built-in default
-  contains every supported family in that order and remains available without a
-  persisted row.
+  Hours, employee/pay-bucket Wages, and shift-type Wages. The standard Payroll
+  Workbook contains every supported family in that order but is persisted as an
+  ordinary venue configuration that users may edit or delete.
 - Venues may persist named definitions with whitespace-normalized, non-empty,
   case-insensitively unique names and contiguous ordered family selections.
   Persistence accepts only supported definition versions and family keys and at
@@ -62,9 +63,13 @@ cross-module safety and payroll contracts.
   definitions; managers and cross-venue identifiers are denied. The Admin
   exports surface provides ordered family selectors, included-sheet summaries,
   per-definition download actions, and an explicit two-step delete confirmation;
-  stale or foreign identifiers produce controlled errors. The built-in default
-  remains the simplest download and Payroll Earnings CSV remains separate.
-  Deletion cascades only to the saved family rows. Export jobs retain the stable
+  stale or foreign identifiers produce controlled errors. Creation and editing
+  share one catalog-driven ordered-list dialog with no storage-level family-count
+  ceiling; revisions reject stale overwrites. All configurations appear once in
+  the normal exports list and may be deleted, including the venue's final one.
+  Payroll Earnings CSV generation is hidden while its backend and historical
+  downloads remain available pending a later retirement decision. Deletion
+  cascades only to the saved family rows. Export jobs retain the stable
   definition key, version, and ordered family snapshot independently of future
   configuration changes or deletion.
 - Every valid definition automatically appends the deterministic typed Data
