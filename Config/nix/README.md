@@ -30,13 +30,19 @@ package, checks its exact `bin/` set, enters every binary through the non-mutati
 GHC RTS boundary. `deployment-module-check` separately owns all deployment-module evaluations.
 
 `project-source.nix` is the production-only source seam passed through IHP's
-`projectPath` option. It excludes the complete `Test/` tree from production
-source and derivation hashes; the working tree and devenv remain unfiltered, so
-Hspec still discovers all tests and fixtures. `production-source-boundary-check`
-mutates a tracked test fixture and proves both app derivations remain identical,
-then mutates `Main.hs` and proves both change. It also rejects any `Test/` leak
-and requires all tracked schema, migration, static, and deployment-module inputs
-to remain in the filtered source.
+`projectPath` option. It admits only inventoried production Haskell, the complete
+checked-in static authority, schema and migration/cutover history, deployment
+modules, `Makefile`, and the reviewed package dependency inventory. Tests,
+top-level documentation and specs, E2E, authored frontend source, API fixtures,
+and development tooling stay in the working tree and devenv without perturbing
+production derivations. The schema package is
+separately closed over `Application/Schema.sql` instead of IHP's broader default
+`projectPath` source. `production-source-boundary-check` proves excluded edits
+remain stable and that runtime, schema, migration, static, deployment, and
+package-input edits invalidate their exact retained owners. At issue #491's
+implementation boundary, this reduced the realized source from 1,283 files and
+12,824,532 bytes to 688 files and 7,118,848 bytes: 595 files and 5,705,684 bytes
+removed. These are measured store-tree sizes, not filter estimates.
 
 The same managed IHP seam disables app-lib's unused shared way while retaining
 vanilla `.hi` interfaces and its static `.a` archive. Production entry points

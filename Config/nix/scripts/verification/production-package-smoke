@@ -40,7 +40,10 @@ while IFS= read -r -d '' required_path; do
         echo "production-package-smoke: required production input omitted: $required_path" >&2
         exit 1
     fi
-done < <(git ls-files -z -- Application/Schema.sql Application/Migration static Config/nix/hosts Config/nix/modules)
+done < <(git ls-files -z -- \
+    Application/Schema.sql Application/Migration Application/Deployment static \
+    Config/nix/hosts Config/nix/modules \
+    Config/nix/production-package-dependency-inventory.tsv Makefile)
 while IFS=$'\t' read -r module_path packaging _; do
     [ "$module_path" = "path" ] && continue
     [ -z "$module_path" ] && continue
@@ -136,6 +139,8 @@ fi
 # packaged binary launches without running database- or network-mutating main.
 while IFS= read -r executable; do
     wrapper="$output/bin/$executable"
+    # $0 belongs to the generated wrapper pattern.
+    # shellcheck disable=SC2016
     real_binary="$(sed -n 's/^exec \(-a "\$0" \)\?"\([^"]*\)".*$/\2/p' "$wrapper")"
     if [ -z "$real_binary" ]; then
         real_binary="$wrapper"

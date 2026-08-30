@@ -86,6 +86,13 @@
 
             packages.optimized-prod-server = lib.mkForce (productionApp true);
             packages.unoptimized-prod-server = lib.mkForce (productionApp false);
+            # IHP's default schema derivation takes the complete projectPath as
+            # src even though it installs only Schema.sql. Keep schema cache
+            # ownership on the authoritative file itself.
+            packages.schema = lib.mkForce (pkgs.runCommand "schema" { } ''
+                mkdir "$out"
+                cp ${../../../Application/Schema.sql} "$out/Schema.sql"
+            '');
 
             packages.frontend-contract-tools = pkgs.stdenv.mkDerivation {
                 name = "bepis-frontend-contract-tools";
