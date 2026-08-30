@@ -1,11 +1,11 @@
 # App CSS Architecture
 
 App-owned CSS is split into directly linked stylesheets. `Web/View/Layout.hs`
-loads each stylesheet with `assetPath`, and `Makefile` mirrors the same files in
-`CSS_FILES` so style-audit can keep Layout assets complete and ordered. IHP's
-optional `prod.js`/`prod.css` concatenation is disabled for this app; production
-serves the split static assets directly. Do not use app-owned CSS `@import`, do
-not add a bundler, and do not edit third-party CSS (`static/vendor/**`).
+is the sole ordered stylesheet inventory and loads every asset with `assetPath`;
+style-audit checks it for missing, duplicate, and unlinked app CSS. IHP's optional
+`prod.js`/`prod.css` concatenation is disabled for this app; production serves
+the split static assets directly. Do not use app-owned CSS `@import`, do not add
+a bundler, and do not edit third-party CSS (`static/vendor/**`).
 
 ## Cascade order
 
@@ -23,8 +23,7 @@ feature styles load later:
 
 When adding, moving, or splitting files, preserve selector order unless the
 ticket explicitly calls for a semantic refactor. Add every new linked stylesheet
-to both `Web/View/Layout.hs` and `Makefile` `CSS_FILES` in the same cascade
-position.
+to `Web/View/Layout.hs` in the intended cascade position.
 
 ## Display density
 
@@ -107,24 +106,21 @@ becoming an isolated zoom system.
 ## Audit commands
 
 - `bash ./bin/in-env ./bin/style-audit` is the hard gate. It fails on
-  undefined CSS variables, Layout/Makefile stylesheet sync problems, app-owned
-  CSS files that are not linked/mirrored, app-owned CSS `@import`, files over
-  the `CSS_LINE_BUDGET` budget, raw colour literals outside token/palette/bridge
-  modules, and unexpected app/global/Bootstrap selectors in feature modules.
-  The remaining light Bootstrap utility and inline-style sections are review
-  output only. Inline styles that only set CSS custom properties through named
-  helper functions are allowed so dynamic geometry stays in CSS-owned rules.
+  undefined CSS variables; missing, duplicate, or unlinked Layout stylesheet
+  assets; app-owned CSS `@import`; files over the `CSS_LINE_BUDGET` budget; raw
+  colour literals outside token/palette/bridge modules; and unexpected
+  app/global/Bootstrap selectors in feature modules. The remaining light
+  Bootstrap utility and inline-style sections are review output only. Inline
+  styles that only set CSS custom properties through named helper functions are
+  allowed so dynamic geometry stays in CSS-owned rules.
 - Intentional exceptions must stay rare and explicit. Prefer moving CSS to the
   correct shared module or adding a token first; if an exception is genuinely
   durable, add the narrowest path/selector allowlist entry in `bin/style-audit`
   with a nearby comment or ticket note explaining ownership.
-- `bash ./bin/in-env ./bin/css-inventory` is warning-only. It reports app-owned
-  CSS line counts, files over the current size budget, raw colours outside
-  token/palette/bridge modules, feature stylesheets that mention app/global/Bootstrap
-  selectors, simple stale-selector candidates with no HS/JS mention, and the
-  Layout/Makefile asset-sync summary. It may include style-audit-allowlisted
-  selectors so agents can keep pressure on cleanup without blocking the hard
-  gate.
+- `bash ./bin/in-env ./bin/style-audit --report` runs the same hard gate and
+  additionally prints Layout's runtime order, all app-owned CSS line counts, and
+  the reviewed app/global/Bootstrap-like feature selectors. Use it before and
+  after CSS architecture work when the compact debt report is useful.
 
 ## Before adding CSS
 
@@ -144,5 +140,5 @@ becoming an isolated zoom system.
    stylesheet; new app-owned CSS modules should normally stay well under 1,000
    lines, with existing oversize files treated as refactor debt.
 8. Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link, token, or
-   architecture changes, and `bash ./bin/in-env ./bin/css-inventory` when you
-   need the warning-only architecture report.
+   architecture changes; add `--report` when you need the ordered inventory and
+   compact architecture report.
