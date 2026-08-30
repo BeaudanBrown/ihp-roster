@@ -23,14 +23,6 @@
     --bepis-dropzone-highlight-elevation: 0 0.75rem 1.4rem var(--app-shadow-md-raw);
 }
 
-.roster-grid .day-row.day-alt-dark {
-    background-color: var(--roster-day-a);
-}
-
-.roster-grid .day-row.day-alt-light {
-    background-color: var(--roster-day-b);
-}
-
 .roster-day-rail-section.day-alt-dark,
 .roster-grid .day-row.day-alt-dark {
     background-color: var(--roster-day-a);
@@ -105,30 +97,6 @@
     }
 }
 
-.roster-shift-card-field.conflict-critical {
-    --roster-conflict-bg: var(--roster-danger);
-    --roster-conflict-bg-start: color-mix(in srgb, var(--roster-danger) 76%, var(--app-white-alpha-08));
-    --roster-conflict-bg-hover: color-mix(in srgb, var(--roster-danger) 86%, var(--app-white-alpha-08));
-    --roster-conflict-bg-hover-end: color-mix(in srgb, var(--roster-danger) 92%, var(--app-surface));
-    --roster-conflict-text: var(--app-text);
-}
-
-.roster-shift-card-field.conflict-preference {
-    --roster-conflict-bg: var(--app-warning-conflict-bg);
-    --roster-conflict-bg-start: color-mix(in srgb, var(--app-warning-conflict-bg) 78%, var(--app-warning));
-    --roster-conflict-bg-hover: color-mix(in srgb, var(--app-warning-conflict-bg) 68%, var(--app-warning));
-    --roster-conflict-bg-hover-end: color-mix(in srgb, var(--app-warning-conflict-bg) 90%, var(--app-surface));
-    --roster-conflict-text: var(--app-warning-conflict-text);
-}
-
-.roster-shift-card-field.conflict-ideal {
-    --roster-conflict-bg: var(--app-info-conflict-bg);
-    --roster-conflict-bg-start: color-mix(in srgb, var(--app-info-conflict-bg) 78%, var(--app-info));
-    --roster-conflict-bg-hover: color-mix(in srgb, var(--app-info-conflict-bg) 68%, var(--app-info));
-    --roster-conflict-bg-hover-end: color-mix(in srgb, var(--app-info-conflict-bg) 90%, var(--app-surface));
-    --roster-conflict-text: var(--app-info-conflict-text);
-}
-
 .roster-shift-card-field.conflict-critical,
 .roster-shift-card-field.conflict-preference,
 .roster-shift-card-field.conflict-ideal {
@@ -178,13 +146,6 @@
 .roster-shift-card-field.conflict-ideal .slot-cell-static {
     background-color: inherit !important;
     color: inherit !important;
-}
-
-.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member .roster-shift-card-field,
-.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-first .roster-shift-card-field,
-.roster-shift-card[data-bepis-roster-staff-highlight-member].is-linked-highlight-member-last .roster-shift-card-field {
-    background-color: transparent !important;
-    color: var(--app-text) !important;
 }
 
 .roster-grid .roster-shift-unit[data-roster-shift-colour^="palette-"] {
@@ -271,11 +232,7 @@
     text-align: center;
 }
 
-.roster-grid .slot-empty-cell {
-    height: var(--roster-grid-row-height);
-    min-height: var(--roster-grid-row-height);
-}
-
+.roster-grid .slot-empty-cell,
 .roster-grid .slot-closed-cell {
     height: var(--roster-grid-row-height);
     min-height: var(--roster-grid-row-height);
