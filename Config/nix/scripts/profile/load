@@ -259,7 +259,7 @@ finalize_profile_otel() {
     node ./e2e/otel-profile-summary.mjs \
         "$PROFILE_OTEL_TRACE_FILE" \
         "$PROFILE_LOAD_OUTPUT_DIR" \
-        "$PROFILE_LOAD_METADATA"
+        "$PROFILE_LOAD_OUTPUT_DIR/load-profile.json"
 }
 
 otel_env=()

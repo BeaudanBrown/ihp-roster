@@ -1,93 +1,32 @@
 import fs from "node:fs";
 import path from "node:path";
 import { architectureResult, dotId, dotQuote, ensureDir, readStdinJson, renderDot, repoRoot, slug, traceDir, writeText } from "./shared.mjs";
+import { OTEL_ARTIFACT_SCHEMA, resolveAllowedArtifact } from "../../e2e/otel-artifact.mjs";
 
-function parsePossiblyConcatenatedJson(content) {
-  const trimmed = content.trim();
-  if (!trimmed) return [];
-  try {
-    const parsed = JSON.parse(trimmed);
-    return Array.isArray(parsed) ? parsed : [parsed];
-  } catch (_error) {
-    return trimmed.split("\n").filter(Boolean).map((line) => JSON.parse(line));
-  }
-}
-
-function otelValue(value = {}) {
-  if ("stringValue" in value) return value.stringValue;
-  if ("intValue" in value) return Number(value.intValue);
-  if ("doubleValue" in value) return Number(value.doubleValue);
-  if ("boolValue" in value) return Boolean(value.boolValue);
-  if ("arrayValue" in value) return value.arrayValue.values?.map(otelValue) || [];
-  return null;
-}
-
-function attrsToObject(attributes = []) {
-  if (!Array.isArray(attributes)) return attributes || {};
-  return Object.fromEntries(attributes.map((attr) => [attr.key, otelValue(attr.value || {})]));
-}
-
-function flattenTraces(value, spans = [], inherited = {}) {
-  if (Array.isArray(value)) {
-    for (const item of value) flattenTraces(item, spans, inherited);
-    return spans;
-  }
-  if (!value || typeof value !== "object") return spans;
-
-  const resource = value.resource?.attributes ? { ...(inherited.resource || {}), ...attrsToObject(value.resource.attributes) } : inherited.resource;
-  const scope = value.scope ? { ...(inherited.scope || {}), name: value.scope.name || "", version: value.scope.version || "" } : inherited.scope;
-  const nextInherited = { resource, scope };
-
-  if (value.traceId || value.trace_id || value.spanId || value.span_id) {
-    spans.push({ ...value, resource: resource || value.resource || {}, scope: scope || value.scope || {} });
-  }
-  for (const key of ["spans", "resourceSpans", "scopeSpans", "instrumentationLibrarySpans"]) {
-    if (value[key]) flattenTraces(value[key], spans, nextInherited);
-  }
-  return spans;
-}
-
-function spanAttributes(span) {
-  return attrsToObject(span.attributes || {});
-}
-
-function spanAttr(span, name) {
-  const attrs = spanAttributes(span);
-  if (name in attrs) return attrs[name];
-  const resourceAttrs = attrsToObject(span.resource?.attributes || span.resource || {});
-  return resourceAttrs[name];
-}
-
-function traceIdOf(span) {
-  return span.traceId || span.trace_id;
-}
-function spanIdOf(span) {
-  return span.spanId || span.span_id || span.id;
-}
-function parentIdOf(span) {
-  return span.parentSpanId || span.parent_span_id || span.parentId;
-}
-function durationMs(span) {
-  if (typeof span.durationMs === "number") return span.durationMs;
-  const start = Number(span.startTimeUnixNano || span.start_time_unix_nano || 0);
-  const end = Number(span.endTimeUnixNano || span.end_time_unix_nano || 0);
-  if (start && end) return Math.round((end - start) / 1_000_000);
-  return undefined;
-}
+const spanIdOf = (span) => span.spanId;
+const parentIdOf = (span) => span.parentSpanId;
+const durationMs = (span) => span.durationMs;
 
 const payload = readStdinJson();
 const args = payload.args || {};
 const runDir = args.runDir || "output/profile-load/latest";
 const traceId = args.traceId;
 const limit = Number(args.limit ?? 80);
-const tracesPath = path.join(repoRoot, runDir, "otel-traces.json");
 if (!traceId) throw new Error("traceId is required");
-if (!fs.existsSync(tracesPath)) throw new Error(`Missing OpenTelemetry traces: ${tracesPath}`);
-const documents = parsePossiblyConcatenatedJson(fs.readFileSync(tracesPath, "utf8"));
-const allTraceSpans = flattenTraces(documents).filter((span) => traceIdOf(span) === traceId);
+if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error("limit must be an integer from 1 to 200");
+const summaryPath = resolveAllowedArtifact(path.join(runDir, "otel-summary.json"), { root: repoRoot });
+if (!fs.existsSync(summaryPath)) throw new Error(`Missing common OpenTelemetry summary: ${summaryPath}; run otel-profile-summary first`);
+const stat = fs.statSync(summaryPath);
+if (stat.size > 64 * 1024 * 1024) throw new Error(`OpenTelemetry summary exceeds 67108864 byte limit (${stat.size} bytes)`);
+let report;
+try { report = JSON.parse(fs.readFileSync(summaryPath, "utf8")); }
+catch (error) { throw new Error(`Malformed OpenTelemetry summary JSON: ${error.message}`); }
+if (report.schemaVersion !== OTEL_ARTIFACT_SCHEMA) throw new Error(`Unsupported OpenTelemetry summary schema: ${report.schemaVersion || "missing"}`);
+const traceView = (report.traceViews || []).find((trace) => trace.traceId === traceId);
+const allTraceSpans = traceView?.spans || [];
 const spans = allTraceSpans.slice(0, limit);
-if (spans.length === 0) throw new Error(`No spans found for traceId ${traceId} in ${tracesPath}`);
-const bepisSpans = spans.filter((span) => spanAttr(span, "bepis.action") || spanAttr(span, "bepis.ihp.action") || spanAttr(span, "bepis.action.kind"));
+if (spans.length === 0) throw new Error(`No spans found for traceId ${traceId} in ${summaryPath}`);
+const bepisSpans = spans.filter((span) => span.action);
 const stem = `trace-${slug(traceId)}`;
 const dotRel = `.pi/tmp/architecture-trace/${stem}.dot`;
 const svgRel = `.pi/tmp/architecture-trace/${stem}.svg`;
@@ -104,9 +43,9 @@ for (const span of spans) {
   const id = dotId(`span_${spanIdOf(span)}`);
   const name = span.name || span.spanName || spanAttr(span, "code.function") || "span";
   const duration = durationMs(span);
-  const route = spanAttr(span, "http.route") || spanAttr(span, "url.path") || spanAttr(span, "http.target") || "";
-  const bepisAction = spanAttr(span, "bepis.action");
-  const bepisKind = spanAttr(span, "bepis.action.kind");
+  const route = span.route || "";
+  const bepisAction = span.action || "";
+  const bepisKind = span.category || "";
   const label = [
     name,
     duration !== undefined ? `${duration}ms` : "",
@@ -138,13 +77,11 @@ architectureResult(`Generated trace diagram for ${traceId} with ${bepisSpans.len
       rows: bepisSpans.map((span) => ({
         span: span.name || "span",
         durationMs: durationMs(span),
-        ihpAction: spanAttr(span, "bepis.ihp.action") || "",
-        bepisAction: spanAttr(span, "bepis.action") || "",
-        kind: spanAttr(span, "bepis.action.kind") || "",
-        responseKinds: spanAttr(span, "bepis.response.kinds") || "",
-        auditPolicy: spanAttr(span, "bepis.mutation.audit_policy") || "",
-        realtimePolicy: spanAttr(span, "bepis.mutation.realtime_policy") || "",
-        scopePolicy: spanAttr(span, "bepis.mutation.scope_policy") || "",
+        ihpAction: span.action || "",
+        bepisAction: span.action || "",
+        kind: span.category || "",
+        status: span.status || "",
+        exclusiveMs: span.exclusiveMs,
       })),
     },
   ],

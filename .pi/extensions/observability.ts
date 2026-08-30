@@ -3,6 +3,9 @@ import { Type } from "typebox";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+// The project-owned ESM module is bundled into this extension by the tooling gate.
+// @ts-ignore no standalone declaration file is needed for the local script module.
+import { compareOtelProfiles } from "../../e2e/profile-compare.mjs";
 
 const DEFAULT_SUMMARY_BYTES = 12_000;
 const DEFAULT_TRACE_SPAN_LIMIT = 80;
@@ -19,22 +22,50 @@ function resolveArtifactPath(input: string): string {
   const allowedRoots = [
     path.resolve(root, "output/profile-load"),
     path.resolve(root, "output/profile-load-suite"),
+    path.resolve(root, "output/otel-browser"),
+    path.resolve(root, "output/otel-summary"),
     path.resolve(root, "build/otel"),
   ];
   if (!allowedRoots.some((allowed) => resolved === allowed || resolved.startsWith(`${allowed}${path.sep}`))) {
     throw new Error(`Refusing to read outside profile artifact roots: ${input}`);
   }
+  if (fs.existsSync(resolved)) {
+    const canonical = fs.realpathSync(resolved);
+    const canonicalRoots = allowedRoots.filter(fs.existsSync).map((allowed) => fs.realpathSync(allowed));
+    if (!canonicalRoots.some((allowed) => canonical === allowed || canonical.startsWith(`${allowed}${path.sep}`))) {
+      throw new Error(`Refusing artifact symlink outside profile roots: ${input}`);
+    }
+    return canonical;
+  }
   return resolved;
 }
 
-function readBounded(filePath: string, maxBytes = DEFAULT_SUMMARY_BYTES): string {
-  const content = fs.readFileSync(filePath, "utf8");
-  if (content.length <= maxBytes) return content;
-  return `${content.slice(0, maxBytes)}\n\n[truncated ${content.length - maxBytes} bytes]`;
+function readBounded(filePath: string, requestedBytes = DEFAULT_SUMMARY_BYTES): string {
+  const requested = Number.isFinite(requestedBytes) ? requestedBytes : DEFAULT_SUMMARY_BYTES;
+  const maxBytes = Math.min(64_000, Math.max(1_000, Math.floor(requested)));
+  const stat = fs.statSync(filePath);
+  const length = Math.min(stat.size, maxBytes);
+  const buffer = Buffer.alloc(length);
+  const descriptor = fs.openSync(filePath, "r");
+  try { fs.readSync(descriptor, buffer, 0, length, 0); } finally { fs.closeSync(descriptor); }
+  const content = buffer.toString("utf8");
+  return stat.size <= maxBytes ? content : `${content}\n\n[truncated ${stat.size - maxBytes} bytes]`;
 }
 
 function readJson(filePath: string): JsonObject {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) throw new Error(`Artifact is not a regular file: ${filePath}`);
+  if (stat.size > 64 * 1024 * 1024) throw new Error(`Artifact exceeds 67108864 byte limit (${stat.size} bytes)`);
+  try { return JSON.parse(fs.readFileSync(filePath, "utf8")); }
+  catch (error: any) { throw new Error(`Malformed artifact JSON: ${error.message}`); }
+}
+
+function commonSummary(runDir: string, allowSuite = false): JsonObject {
+  const summaryPath = resolveArtifactPath(path.join(runDir, "otel-summary.json"));
+  const report = readJson(summaryPath);
+  const allowedSchemas = allowSuite ? ["bepis.otel.profile.v2", "bepis.otel.suite.v2"] : ["bepis.otel.profile.v2"];
+  if (!allowedSchemas.includes(report.schemaVersion)) throw new Error(`Unsupported OpenTelemetry summary schema: ${report.schemaVersion || "missing"}`);
+  return report;
 }
 
 function findRunDir(input?: string): string {
@@ -65,60 +96,6 @@ function runCommand(command: string, args: string[], timeoutMs: number): Promise
       resolve({ code, output });
     });
   });
-}
-
-function otelValue(value: JsonObject = {}) {
-  if ("stringValue" in value) return value.stringValue;
-  if ("intValue" in value) return Number(value.intValue);
-  if ("doubleValue" in value) return Number(value.doubleValue);
-  if ("boolValue" in value) return Boolean(value.boolValue);
-  if ("arrayValue" in value) return (value.arrayValue.values || []).map(otelValue);
-  return null;
-}
-
-function attrsToObject(attributes: JsonObject[] = []): JsonObject {
-  return Object.fromEntries(attributes.map((attr) => [attr.key, otelValue(attr.value || {})]));
-}
-
-function spanDurationMs(span: JsonObject): number {
-  const start = BigInt(span.startTimeUnixNano || 0);
-  const end = BigInt(span.endTimeUnixNano || 0);
-  if (end <= start) return 0;
-  return Math.round(Number(end - start) / 100_000) / 10;
-}
-
-function parseTraceDocuments(filePath: string): JsonObject[] {
-  const content = fs.readFileSync(filePath, "utf8").trim();
-  if (!content) return [];
-  try {
-    const parsed = JSON.parse(content);
-    return Array.isArray(parsed) ? parsed : [parsed];
-  } catch (_error) {
-    return content.split("\n").filter(Boolean).map((line) => JSON.parse(line));
-  }
-}
-
-function flattenSpans(filePath: string): JsonObject[] {
-  const spans: JsonObject[] = [];
-  for (const document of parseTraceDocuments(filePath)) {
-    for (const resourceSpan of document.resourceSpans || []) {
-      const resource = attrsToObject(resourceSpan.resource?.attributes || []);
-      for (const scopeSpan of resourceSpan.scopeSpans || []) {
-        for (const span of scopeSpan.spans || []) {
-          spans.push({
-            traceId: span.traceId,
-            spanId: span.spanId,
-            parentSpanId: span.parentSpanId || "",
-            name: span.name,
-            durationMs: spanDurationMs(span),
-            attributes: attrsToObject(span.attributes || []),
-            resource,
-          });
-        }
-      }
-    }
-  }
-  return spans;
 }
 
 export default function observabilityExtension(pi: ExtensionAPI) {
@@ -175,12 +152,15 @@ export default function observabilityExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params) {
       const runDir = findRunDir(params.runDir);
-      const summary = readJson(path.join(runDir, "otel-summary.json"));
-      const limit = params.limit || 20;
+      const summary = commonSummary(runDir);
+      const limit = Math.min(100, Math.max(1, params.limit || 20));
       return text(JSON.stringify({
         summary: summary.summary,
+        spanGroups: (summary.spanGroups || []).slice(0, limit),
+        categories: (summary.categories || []).slice(0, limit),
         slowestSpans: (summary.slowestSpans || []).slice(0, limit),
         largestComponents: (summary.largestComponents || []).slice(0, limit),
+        responseSizes: (summary.responseSizes || []).slice(0, limit),
         renderCounters: (summary.renderCounters || []).slice(0, limit),
       }, null, 2), { runDir });
     },
@@ -189,26 +169,26 @@ export default function observabilityExtension(pi: ExtensionAPI) {
   pi.registerTool({
     name: "otel_trace_get",
     label: "Inspect OTel trace",
-    description: "Inspect a representative trace from otel-traces.json with bounded spans.",
+    description: "Inspect a representative safe trace view from the common otel-summary.json model.",
     parameters: Type.Object({
-      runDir: Type.Optional(Type.String({ description: "artifact directory containing otel-traces.json" })),
+      runDir: Type.Optional(Type.String({ description: "artifact directory containing otel-summary.json" })),
       traceId: Type.String({ description: "trace id" }),
       spanLimit: Type.Optional(Type.Number({ default: DEFAULT_TRACE_SPAN_LIMIT })),
     }),
     async execute(_toolCallId, params) {
       const runDir = findRunDir(params.runDir);
-      const spans = flattenSpans(path.join(runDir, "otel-traces.json"))
-        .filter((span) => span.traceId === params.traceId)
-        .sort((a, b) => b.durationMs - a.durationMs)
-        .slice(0, params.spanLimit || DEFAULT_TRACE_SPAN_LIMIT);
-      return text(JSON.stringify({ traceId: params.traceId, spanCount: spans.length, spans }, null, 2), { runDir });
+      const report = commonSummary(runDir);
+      const limit = Math.min(200, Math.max(1, params.spanLimit || DEFAULT_TRACE_SPAN_LIMIT));
+      const trace = (report.traceViews || []).find((row: JsonObject) => row.traceId === params.traceId);
+      const spans = (trace?.spans || []).slice(0, limit);
+      return text(JSON.stringify({ traceId: params.traceId, spanCount: spans.length, totalSpanCount: trace?.spanCount || 0, spans }, null, 2), { runDir });
     },
   });
 
   pi.registerTool({
     name: "otel_compare_runs",
     label: "Compare OTel runs",
-    description: "Compare two otel-summary.json artifacts with bounded slow span/component/counter deltas.",
+    description: "Compare matched route/span groups from two common OpenTelemetry summaries with bounded deltas and context.",
     parameters: Type.Object({
       beforeDir: Type.String({ description: "baseline artifact directory" }),
       afterDir: Type.String({ description: "candidate artifact directory" }),
@@ -217,15 +197,15 @@ export default function observabilityExtension(pi: ExtensionAPI) {
     async execute(_toolCallId, params) {
       const beforeDir = resolveArtifactPath(params.beforeDir);
       const afterDir = resolveArtifactPath(params.afterDir);
-      const before = readJson(path.join(beforeDir, "otel-summary.json"));
-      const after = readJson(path.join(afterDir, "otel-summary.json"));
-      const limit = params.limit || 20;
+      const before = commonSummary(beforeDir, true);
+      const after = commonSummary(afterDir, true);
+      const limit = Math.min(100, Math.max(1, params.limit || 20));
+      const comparison = compareOtelProfiles(before, after);
       const report = {
-        before: before.summary,
-        after: after.summary,
-        afterSlowestSpans: (after.slowestSpans || []).slice(0, limit),
-        afterLargestComponents: (after.largestComponents || []).slice(0, limit),
-        afterLargestCounters: (after.renderCounters || []).slice(0, limit),
+        ...comparison,
+        context: { ...comparison.context, returnedSpanGroups: Math.min(limit, comparison.spans.length) },
+        spans: comparison.spans.slice(0, limit),
+        routes: comparison.routes.slice(0, limit),
       };
       return text(JSON.stringify(report, null, 2), { beforeDir, afterDir });
     },

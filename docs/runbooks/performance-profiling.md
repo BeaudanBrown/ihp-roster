@@ -292,6 +292,11 @@ Useful fields:
 - Dropped iterations: arrival-rate pressure, often useful as regression signal.
 - VU saturation: whether k6 had to use most of the configured virtual-user ceiling.
 - Status counts and failed checks: correctness under load.
+- `otel-summary.json`: the versioned `bepis.otel.profile.v2` model shared by
+  load and browser runs. It includes matched route/action/span groups, sample
+  counts, overlap-safe exclusive time, repeated spans, categories, sizes,
+  counters, safe trace views, load pressure when available, and separate real
+  failures from IHP response exits.
 
 ## Before And After Workflow
 
@@ -307,9 +312,19 @@ Compare the two suite artifacts with:
 
 ```bash
 bash ./bin/in-env profile-compare \
-  output/profile-load-suite/<before>/suite-summary.json \
-  output/profile-load-suite/<after>/suite-summary.json \
+  output/profile-load-suite/<before>/otel-summary.json \
+  output/profile-load-suite/<after>/otel-summary.json \
   output/profile-load-suite/<after>/comparison.md
 ```
 
-The comparison report ranks request/span latency deltas plus dropped-iteration and VU-saturation changes.
+Each scenario report uses `bepis.otel.profile.v2`; the suite is a
+`bepis.otel.suite.v2` wrapper. The comparison writes both Markdown and
+`comparison.json` (`bepis.otel.comparison.v2`). It reports only matched
+scenario/route/action/span deltas, before/after sample counts, descriptive
+confidence, median/P95/exclusive-P95 changes, dropped iterations, VU saturation,
+and failure classification. Low sample confidence is context, not a statistical
+significance claim.
+
+Artifact readers reject malformed JSON, unsafe architecture paths, files above
+64 MiB, more than 100,000 spans, and oversized trace/group views. Tempo queries
+are limited to 500 traces and 30-second per-request timeouts; defaults are lower.

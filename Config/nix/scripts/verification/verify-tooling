@@ -19,6 +19,10 @@ node --test scripts/documentation/check.test.mjs
 node --test scripts/migration-enum-commit-boundary.test.mjs
 node --test scripts/migration-rehearsal-ci.test.mjs
 node --test scripts/profiling/diagnostic-profile-report.test.mjs
+node --test scripts/profiling/otel-artifact.test.mjs
+esbuild .pi/extensions/observability.ts --bundle --platform=node --format=esm \
+    --external:@earendil-works/pi-coding-agent --external:typebox \
+    --outfile=/tmp/bepis-observability-extension-check.mjs >/dev/null
 migration-enum-commit-boundary-real-runner-test
 migration-rehearsal-test
 bash Config/nix/scripts/architecture/wiring-registry-test

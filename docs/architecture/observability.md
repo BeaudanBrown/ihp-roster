@@ -137,6 +137,26 @@ dev app -> local collector -> local Tempo -> local Grafana
 Use the runbook and command `--help` output rather than copying scenario or
 option inventories here.
 
+Every Collector file-export and Tempo-materialized run is normalized to
+`bepis.otel.profile.v2` in `otel-summary.json`. The common model owns route and
+IHP action identity (closed `*Action` names only; all other values are
+privacy-hashed), overlap-safe exclusive time, repeated span groups, explicit
+sample counts, response/component sizes, render counters, provider/database/
+runtime/live categories, load pressure, and separate real-error versus IHP
+response-exit counts. Browser and load tooling therefore expose the same schema;
+suite files are bounded `bepis.otel.suite.v2` wrappers around those reports.
+Architecture trace diagrams consume only the bounded safe `traceViews` in that
+summary, not arbitrary raw span attributes. Output-facing trace identifiers are
+stable 128-bit SHA-256 references rather than raw exporter trace IDs.
+
+Comparison output is `bepis.otel.comparison.v2`: only matched scenario/route/
+action/span groups are compared, with before/after samples, descriptive
+confidence, median/P95/exclusive-P95 deltas, dropped iterations, and VU
+saturation. Parsers reject malformed input, files above 64 MiB, more than
+100,000 spans, unsafe architecture artifact paths, and oversized trace/group
+views with bounded messages. Tempo reads additionally cap search results and
+apply per-request timeouts.
+
 The unresolved production target is intentionally documented only at the
 workstream level:
 

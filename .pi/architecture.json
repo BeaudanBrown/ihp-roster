@@ -166,8 +166,8 @@
       }
     },
     "trace": {
-      "description": "Generate a focused timing/request diagram from OpenTelemetry trace artifacts.",
-      "intent": "Explain an observed runtime request from trace artifacts without treating runtime traces as the full static architecture.",
+      "description": "Generate a focused timing/request diagram from the bounded common OpenTelemetry summary model.",
+      "intent": "Explain an observed runtime request from a versioned safe trace view without treating runtime traces as the full static architecture.",
       "capabilities": ["runtime-trace", "timing", "provenance", "diagram"],
       "command": ["bash", "./bin/in-env", "architecture-trace-diagram"],
       "parameters": {
