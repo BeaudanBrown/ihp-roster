@@ -114,6 +114,7 @@ Application/Helper/FrontendContract/Passkey/Runtime.hs	production	runtime	Main	R
 Application/Helper/FrontendContract/PwaInstall.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/PwaInstall/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Reflect.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Reflect/Core.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Registry.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Admin.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Admin/Action.hs	production	runtime	Main	Reachable from Main

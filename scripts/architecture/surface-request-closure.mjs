@@ -19,6 +19,7 @@ const sharedRequestRuntimeClosure = [
   "Application.Helper.FrontendContract.DSL",
   "Application.Helper.FrontendContract.Interaction",
   "Application.Helper.FrontendContract.Naming",
+  "Application.Helper.FrontendContract.Reflect.Core",
   "Application.Helper.FrontendContract.Surface.ContractIR",
   "Application.Helper.FrontendContract.Surface.Diagnostics",
   "Application.Helper.FrontendContract.Surface.DSL",

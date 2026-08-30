@@ -9,14 +9,9 @@
 
 module Application.Helper.FrontendContract.Reflect
     ( ReflectAppShellActionPrimitive (..)
-    , ReflectBrowserReachability (..)
-    , ReflectField (..)
-    , ReflectFieldList (..)
     , ReflectFrontendContractRegistry (..)
     , ReflectFrontendContractSpec (..)
-    , ReflectWire (..)
     , reflectFrontendContracts
-    , reflectedFieldWith
     ) where
 
 import Application.Error.Domain (DomainError, domainErrorCodes)
@@ -31,6 +26,7 @@ import Application.Helper.FrontendContract.Naming (deriveDomAttributeName,
                                                    deriveJsonFieldName,
                                                    nameToKebab)
 import qualified Application.Helper.FrontendContract.Naming as Naming
+import Application.Helper.FrontendContract.Reflect.Core
 import Data.Kind (Type)
 import Data.Typeable (tyConModule, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
@@ -86,16 +82,6 @@ instance (ReflectBrowserReachability reachability, ReflectSchemaPrimitive schema
 
 instance (ReflectBrowserReachability reachability, Typeable marker, ReflectFieldList fields) => ReflectGlobalPrimitive ('Event reachability marker fields) where
     reflectGlobalPrimitive = GlobalEventIR (reflectBrowserReachability @reachability) (typeMarker @marker) (deriveEventName "bepis" (typeMarker @marker)) (reflectFieldList @_ @fields)
-
-class ReflectBrowserReachability (reachability :: BrowserReachability) where
-    reflectBrowserReachability :: BrowserReachabilityIR
-
-instance ReflectBrowserReachability 'BrowserUnreachable where reflectBrowserReachability = BrowserUnreachableIR
-instance ReflectBrowserReachability 'BrowserTypeOnly where reflectBrowserReachability = BrowserTypeOnlyIR
-instance ReflectBrowserReachability 'BrowserGuard where reflectBrowserReachability = BrowserGuardIR
-instance ReflectBrowserReachability 'BrowserInbound where reflectBrowserReachability = BrowserInboundIR
-instance ReflectBrowserReachability 'BrowserOutbound where reflectBrowserReachability = BrowserOutboundIR
-instance ReflectBrowserReachability 'BrowserBidirectional where reflectBrowserReachability = BrowserBidirectionalIR
 
 instance Typeable marker => ReflectGlobalPrimitive ('DomId marker) where
     reflectGlobalPrimitive = GlobalDomIdIR (typeMarker @marker) (nameToKebab (typeMarker @marker))
@@ -267,18 +253,6 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectUnionCase ('Case m
         , unionCaseFields = reflectFieldList @_ @fields
         }
 
-class ReflectFieldList (fields :: [fieldKind]) where
-    reflectFieldList :: [FieldIR]
-
-instance ReflectFieldList '[] where
-    reflectFieldList = []
-
-instance (ReflectField field, ReflectFieldList rest) => ReflectFieldList (field ': rest) where
-    reflectFieldList = reflectField @_ @field : reflectFieldList @_ @rest
-
-class ReflectField (field :: fieldKind) where
-    reflectField :: FieldIR
-
 instance (Typeable marker, ReflectWire wire) => ReflectField ('Field marker wire) where
     reflectField = reflectedFieldWith @marker @wire deriveJsonFieldName RequiredField
 
@@ -287,9 +261,6 @@ instance (Typeable marker, ReflectWire wire) => ReflectField ('OptionalField mar
 
 instance (Typeable marker, ReflectWire wire) => ReflectField ('NullableField marker wire) where
     reflectField = reflectedFieldWith @marker @wire deriveJsonFieldName NullableFieldPresence
-
-class ReflectWire (wire :: wireKind) where
-    reflectWire :: WireIR
 
 instance ReflectWire 'WireText where reflectWire = WireTextIR
 instance ReflectWire 'WireInt where reflectWire = WireIntIR
@@ -305,16 +276,6 @@ instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWir
 instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (typeMarker @marker)
 instance ReflectWire 'WireSurfaceScope where reflectWire = WireSurfaceScopeIR
 instance ReflectWire 'WireSurfaceFragmentKey where reflectWire = WireSurfaceFragmentKeyIR
-
-reflectedFieldWith :: forall marker wire. (Typeable marker, ReflectWire wire) => (Text -> Text) -> FieldPresence -> FieldIR
-reflectedFieldWith fieldNameFor presence = FieldIR
-    { fieldMarker = marker
-    , fieldName = fieldNameFor marker
-    , fieldWire = reflectWire @_ @wire
-    , fieldPresence = presence
-    }
-  where
-    marker = typeMarker @marker
 
 class ReflectTypeList (markers :: [Type]) where
     reflectTypeListKebab :: [Text]

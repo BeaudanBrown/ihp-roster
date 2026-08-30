@@ -34,11 +34,7 @@ import Application.Helper.FrontendContract.ClosedScalar (closedScalarSourceModul
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (..),
                                                    deriveFrontendSurfaceName,
                                                    deriveSurfaceBrowserAttributeName)
-import Application.Helper.FrontendContract.Reflect (ReflectBrowserReachability (..),
-                                                    ReflectField (..),
-                                                    ReflectFieldList (..),
-                                                    ReflectWire (..),
-                                                    reflectedFieldWith)
+import Application.Helper.FrontendContract.Reflect.Core
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Data.List as List
