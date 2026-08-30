@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "issue": 465,
+  "objective": "Reconcile stable production output ceilings after certifying the complete composable Payroll Workbook epic",
+  "observed_by": "bash ./bin/in-env production-package-smoke && bash ./bin/in-env production-build-profile --output-dir .pi/tmp/production-build-epic-444 --no-rebuild",
+  "observed_revision": "04fda3d46ae3d63ebab3bdb7042e2c2741d7db84",
+  "observed_dirty": false,
+  "app_library": {
+    "self_size_bytes": 777590523,
+    "module_count": 529,
+    "artifacts": {
+      ".hi": { "count": 529, "bytes": 614049087 },
+      ".a": { "count": 1, "bytes": 163513020 },
+      ".conf": { "count": 1, "bytes": 26930 },
+      "[no extension]": { "count": 1, "bytes": 1486 },
+      ".dyn_hi": { "count": 0 },
+      ".so": { "count": 0 }
+    }
+  },
+  "production_inventory": {
+    "module_rows": 530,
+    "dependency_packages": 44,
+    "executable_rows": 10,
+    "inventory_check": "passed",
+    "package_smoke": "passed"
+  },
+  "reconciliation": {
+    "module_count_delta": 4,
+    "hi_count_delta": 4,
+    "module_rows_delta": 4,
+    "dependency_packages_delta": 2,
+    "reason": "The reviewed production closure added PayrollWorkbook, PayrollWorkbookModel, and PayrollWorkbookConfiguration for epic #444 plus Xero Timesheets LateBindings from the advanced roster target. The two new direct packages are xlsx and xml-conduit, required only by the server-side XLSX renderer. zip-archive was already declared. No development, test, fixture, LibreOffice, profiling, or tooling-only dependency entered production. Self-size and aggregate interface bytes remain below their existing ceilings."
+  },
+  "spreadsheet_runtime_boundary": "LibreOffice remains a dev-shell verification dependency and is absent from all ten packaged production executables.",
+  "verification": "Production inventory, package smoke, typecheck, and the no-baseline-addition Weeder gate passed before budget reconciliation; final verify-full is required after this update.",
+  "budget_authority": "Config/nix/baselines/production-build/final-regression-budget.json"
+}

@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "issue": 374,
-  "authority": "Stable production app-library and inventory regression ceilings measured after the date-native roster compatibility retirement, shared email, durable live-listener cutovers, and nominal frontend wire domains; measured memory is opt-in and builder-specific",
-  "measurement_profile": "Config/nix/baselines/production-build/epic-364-post-staging-rebase.json",
+  "issue": 465,
+  "authority": "Stable production app-library and inventory regression ceilings measured after the composable Payroll Workbook epic, including authoritative fact/model/configuration modules and reviewed XLSX/XML dependencies; measured memory is opt-in and builder-specific",
+  "measurement_profile": "Config/nix/baselines/production-build/issue-465-payroll-workbook-variants.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 525,
+    "module_count_max": 529,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -70,7 +70,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 525, "bytes_max": 629145600 },
+      ".hi": { "count": 529, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -79,8 +79,8 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 526,
-    "dependency_packages_max": 42,
+    "module_rows_max": 530,
+    "dependency_packages_max": 44,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
     "dependency_inventory": "../../production-package-dependency-inventory.tsv",
