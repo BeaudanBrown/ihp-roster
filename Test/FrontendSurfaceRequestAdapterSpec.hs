@@ -49,8 +49,8 @@ import qualified Data.Text.IO as Text
 import Data.Time (addDays, fromGregorian)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
-import Generated.Types (AwardLevel, RosterDay, RosterGroup, RosterLayoutModeEnum (..),
-                        VenueRoleEnum (..))
+import Generated.Types (AwardLevel, RosterDay, RosterGroup,
+                        RosterLayoutModeEnum (..), VenueRoleEnum (..))
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -353,16 +353,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 69
+        length actionDeclarations `shouldBe` 71
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 64
+        length generatedActionOperations `shouldBe` 66
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 64
+            `shouldBe` 66
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 64
+            `shouldBe` 66
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 46
+            `shouldBe` 47
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -385,7 +385,8 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             , not (surfaceAdapterOperationIsGenerated operations.surfaceAdapterRequestParserOperation)
             ]
             `shouldBe` List.sort
-                [ ("timesheets", "navigate-timesheet-week")
+                [ ("admin-exports", "delete-payroll-workbook-configuration")
+                , ("timesheets", "navigate-timesheet-week")
                 , ("roster", "navigate-roster-week")
                 , ("timesheets", "update-timesheet-filters")
                 , ("roster", "sort-roster-week")

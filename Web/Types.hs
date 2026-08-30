@@ -105,6 +105,8 @@ data LeaveRequestsController
 data ExportsController
     = ExportJobsAction
     | CreateExportJobAction
+    | CreatePayrollWorkbookConfigurationAction
+    | DeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | DownloadExportJobAction { exportJobId :: !(Id ExportJob) }
     deriving (Eq, Show, Data)
 

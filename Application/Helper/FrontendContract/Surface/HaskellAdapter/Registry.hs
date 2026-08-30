@@ -254,6 +254,9 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The zero-field revoke endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.RenewVenueInvitation allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminExportsAdapterFamily @Admin.CreateExportJob allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminExportsAdapterFamily @Admin.CreatePayrollWorkbookConfiguration allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminExportsAdapterFamily @Admin.DeletePayrollWorkbookConfiguration
+        (requestAdapterOperationsWithoutParser "The zero-field delete endpoint consumes its route configuration id and anchor date and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.CreateShiftType allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.UpdateShiftType allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.MoveShiftTypeUp allRequestAdapterOperations

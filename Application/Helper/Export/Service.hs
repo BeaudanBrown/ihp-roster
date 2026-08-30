@@ -45,7 +45,16 @@ requestPayrollWorkbookXlsxExport ::
     Day ->
     Day ->
     IO (Either Text ExportJob)
-requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
+requestPayrollWorkbookXlsxExport =
+    requestPayrollWorkbookXlsxExportWithDefinition defaultPayrollWorkbookDefinition
+
+requestPayrollWorkbookXlsxExportWithDefinition ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    PayrollWorkbookDefinition ->
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     staffById <- fetchStaffMap entries
     let includedEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
@@ -65,10 +74,9 @@ requestPayrollWorkbookXlsxExport rangeStart rangeEnd = do
                 case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId shiftTypeColumns calculationsByEntryId of
                     Left message -> pure (Left message)
                     Right factModel ->
-                        let definition = defaultPayrollWorkbookDefinition
-                         in case payrollWorkbookFromDefinition definition venueConfig.rosterWeekStartsOn factModel of
-                                Left message -> pure (Left message)
-                                Right workbook -> persistModel definition includedEntries versionManifestsByEntryId factModel workbook
+                        case payrollWorkbookFromDefinition definition venueConfig.rosterWeekStartsOn factModel of
+                            Left message -> pure (Left message)
+                            Right workbook -> persistModel definition includedEntries versionManifestsByEntryId factModel workbook
   where
     persistModel definition includedEntries versionManifestsByEntryId factModel workbook = do
         now <- getCurrentTime

@@ -1459,6 +1459,7 @@ export type RosterDayId = FrontendContractUuid;
 export type StaffId = FrontendContractUuid;
 export type RosterGroupIdsField = FrontendContractUuid;
 export type DefaultStaffAwardLevelId = FrontendContractUuid;
+export type PayrollWorkbookConfigurationId = FrontendContractUuid;
 export type EditStaffId = FrontendContractUuid;
 
 export const timesheetWeekShellDomToken = "timesheet-week-shell" as const;

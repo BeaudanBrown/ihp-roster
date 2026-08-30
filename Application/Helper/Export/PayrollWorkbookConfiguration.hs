@@ -6,10 +6,12 @@ module Application.Helper.Export.PayrollWorkbookConfiguration
     , SavedPayrollWorkbookConfiguration (..)
     , PayrollWorkbookConfigurationError (..)
     , createSavedPayrollWorkbookConfiguration
+    , createSavedPayrollWorkbookConfigurationInCurrentTransaction
     , deleteSavedPayrollWorkbookConfiguration
     , fetchSavedPayrollWorkbookConfiguration
     , listSavedPayrollWorkbookConfigurations
     , normalizePayrollWorkbookConfigurationName
+    , payrollWorkbookConfigurationPersistenceError
     ) where
 
 import Application.Helper.ControllerAccess (hasRole)
@@ -58,7 +60,27 @@ createSavedPayrollWorkbookConfiguration ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     NewPayrollWorkbookConfiguration ->
     IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
-createSavedPayrollWorkbookConfiguration input
+createSavedPayrollWorkbookConfiguration input =
+    createSavedPayrollWorkbookConfigurationWithPersistence
+        (\action -> Exception.try (withTransaction action))
+        input
+
+-- | Used only by an owner that already provides the atomic transaction (for
+-- example durable live mutation publication). Persistence errors deliberately
+-- escape so that owner can roll back before mapping them to a friendly result.
+createSavedPayrollWorkbookConfigurationInCurrentTransaction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    NewPayrollWorkbookConfiguration ->
+    IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
+createSavedPayrollWorkbookConfigurationInCurrentTransaction input =
+    createSavedPayrollWorkbookConfigurationWithPersistence (fmap Right) input
+
+createSavedPayrollWorkbookConfigurationWithPersistence ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (IO SavedPayrollWorkbookConfiguration -> IO (Either HasqlSessionError SavedPayrollWorkbookConfiguration)) ->
+    NewPayrollWorkbookConfiguration ->
+    IO (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration)
+createSavedPayrollWorkbookConfigurationWithPersistence persist input
     | not canManagePayrollWorkbookConfigurations = pure (Left PayrollWorkbookConfigurationAccessDenied)
     | Text.null normalizedName = pure (Left (PayrollWorkbookConfigurationInvalidName "Configuration names cannot be empty."))
     | Text.length normalizedName > 100 = pure (Left (PayrollWorkbookConfigurationInvalidName "Configuration names cannot exceed 100 characters."))
@@ -88,8 +110,8 @@ createSavedPayrollWorkbookConfiguration input
         pure definition
 
     persistDefinition definition = do
-        result :: Either HasqlSessionError SavedPayrollWorkbookConfiguration <-
-            Exception.try $ withTransaction do
+        result <-
+            persist do
                 configuration <-
                     newRecord @Types.PayrollWorkbookConfiguration
                         |> set #venueId (unpackId currentVenueId)
@@ -115,9 +137,15 @@ createSavedPayrollWorkbookConfiguration input
                         }
         case result of
             Right configuration -> pure (Right configuration)
-            Left sessionError
-                | isUniqueViolation sessionError -> pure (Left (PayrollWorkbookConfigurationNameConflict normalizedName))
-                | otherwise -> Exception.throwIO sessionError
+            Left sessionError ->
+                case payrollWorkbookConfigurationPersistenceError normalizedName sessionError of
+                    Just configurationError -> pure (Left configurationError)
+                    Nothing                 -> Exception.throwIO sessionError
+
+payrollWorkbookConfigurationPersistenceError :: Text -> HasqlSessionError -> Maybe PayrollWorkbookConfigurationError
+payrollWorkbookConfigurationPersistenceError normalizedName sessionError
+    | isUniqueViolation sessionError = Just (PayrollWorkbookConfigurationNameConflict normalizedName)
+    | otherwise = Nothing
 
 listSavedPayrollWorkbookConfigurations ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

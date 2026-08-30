@@ -43,9 +43,9 @@ import IHP.ControllerPrelude
 import IHP.ControllerSupport (Respond)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import qualified IHP.Log as Log
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.LoginSupport.Middleware (initAuthentication)
-import qualified IHP.Log as Log
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
@@ -706,12 +706,13 @@ withPasskeyVerifiedUserAndCurrentVenue user venueId callback = do
 
 ensureTestUserHasPasskey :: (?modelContext :: ModelContext) => User -> IO ()
 ensureTestUserHasPasskey user = do
-    hasPasskey <-
-        query @Passkey
-            |> filterWhere (#userId, unpackId user.id)
-            |> fetchExists
-    unless hasPasskey do
-        void (createTestPasskeyRecord user "Test passkey")
+    let passkeyName = "Test passkey"
+    let credentialId = Binary (cs ("test-credential-id-" <> inputValue user.id <> "-" <> passkeyName) :: ByteString.ByteString)
+    -- One idempotent statement keeps concurrent controller requests from
+    -- racing the test-only passkey precondition.
+    sqlExecDiscardResult
+        "INSERT INTO passkeys (user_id, credential_id, public_key, name) VALUES (?, ?, ?, ?) ON CONFLICT (credential_id) DO NOTHING"
+        (unpackId user.id, credentialId, Binary ("test-public-key" :: ByteString.ByteString), passkeyName)
 
 withSessionValues ::
     forall result.

@@ -852,6 +852,103 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvents <- query @AuditEvent |> orderByAsc #createdAt |> fetch
                 map (.eventType) auditEvents `shouldBe` ["export_generated", "export_downloaded"]
 
+        it "saves, renders, generates, and safely deletes ordered Payroll Workbook configurations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Configured Payroll Workbook Venue"
+                otherVenue <- createVenueWithConfig "Configured Payroll Workbook Other Venue"
+                admin <- createUserRecord "configured-payroll-workbook@example.com" "staff" True
+                otherAdmin <- createUserRecord "configured-payroll-workbook-other@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord otherVenue otherAdmin VenueAdmin
+                dayNames <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Configured Workbook Level" 30 2.5 3 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Configured Workbook Shift"
+                staffUser <- createUserRecord "configured-payroll-workbook-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Configured" "Staff"
+                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 12 0 0)
+                    ]
+
+                createConfigurationResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [ ("rangeStart", "2025-01-06")
+                        , ("payrollWorkbookConfigurationName", "  Wages then Summary  ")
+                        , ("payrollWorkbookSheetFamily1", "shift-type-wages")
+                        , ("payrollWorkbookSheetFamily2", "summary")
+                        , ("payrollWorkbookSheetFamily3", "")
+                        , ("payrollWorkbookSheetFamily4", "")
+                        , ("payrollWorkbookSheetFamily5", "")
+                        ]
+                createConfigurationResponse `responseStatusShouldBe` status302
+                configuration <- query @PayrollWorkbookConfiguration |> fetchOne
+                configuration.name `shouldBe` "Wages then Summary"
+                familyRows <- query @PayrollWorkbookConfigurationFamily |> orderByAsc #position |> fetch
+                map (.familyKey) familyRows `shouldBe` ["shift-type-wages", "summary"]
+
+                fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowadminExportsLiveFragmentAction [("anchorDate", "2025-01-06")]
+                fragmentResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseBodyShouldContain` "Saved Payroll Workbook configurations"
+                fragmentResponse `responseBodyShouldContain` "Wages then Summary"
+                fragmentResponse `responseBodyShouldContain` "Shift Type Wages"
+                fragmentResponse `responseBodyShouldContain` "Confirm delete Wages then Summary"
+
+                generateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        , ("payrollWorkbookConfigurationId", cs (tshow configuration.id))
+                        ]
+                generateResponse `responseStatusShouldBe` status302
+                exportJob <- query @ExportJob |> fetchOne
+                auditEventsAfterGeneration <- query @AuditEvent |> fetch
+                map (.eventType) auditEventsAfterGeneration `shouldBe` ["export_generated"]
+                let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))
+                encodedScope `shouldSatisfy` Text.isInfixOf ("\"definitionKey\":\"saved-" <> tshow configuration.id <> "\"")
+                encodedScope `shouldSatisfy` Text.isInfixOf "\"sheetFamilies\":[\"shift-type-wages\",\"summary\"]"
+                let workbookArchive = Zip.toArchive . LBS.fromStrict . Base64.decodeLenient . encodeUtf8 . fromMaybe "" $ exportJob.fileContents
+                workbookXml <- workbookArchive |> archiveEntryText "xl/workbook.xml"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Shift Type Wages Mon 2025-01-06"
+                workbookXml `shouldSatisfy` Text.isInfixOf "Summary 2025-01-06"
+                workbookXml `shouldNotSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
+
+                deleteResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (DeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06")
+                deleteResponse `responseStatusShouldBe` status302
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
+                retainedExport <- fetch exportJob.id
+                retainedExport.scope `shouldBe` exportJob.scope
+
+                staleDeleteResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (DeletePayrollWorkbookConfigurationAction configuration.id "2025-01-06")
+                staleDeleteResponse `responseStatusShouldBe` status302
+
+                foreignCreateResponse <- withPasskeyVerifiedUserAndCurrentVenue otherAdmin otherVenue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [ ("rangeStart", "2025-01-06")
+                        , ("payrollWorkbookConfigurationName", "Other Venue Configuration")
+                        , ("payrollWorkbookSheetFamily1", "summary")
+                        ]
+                foreignCreateResponse `responseStatusShouldBe` status302
+                foreignConfiguration <-
+                    query @PayrollWorkbookConfiguration
+                        |> filterWhere (#venueId, unpackId otherVenue.id)
+                        |> fetchOne
+                foreignGenerateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        , ("payrollWorkbookConfigurationId", cs (tshow foreignConfiguration.id))
+                        ]
+                foreignGenerateResponse `responseStatusShouldBe` status302
+                query @ExportJob |> fetchCount `shouldReturn` 1
+
         it "rejects the complete Payroll Workbook when an imported wage source becomes unavailable" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Blocked Payroll Workbook Venue"
@@ -1008,6 +1105,19 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "Staff Hours CSV"
                 response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
 
+                createConfigurationResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [ ("rangeStart", "2025-01-06")
+                        , ("payrollWorkbookConfigurationName", "Founder Configuration")
+                        , ("payrollWorkbookSheetFamily1", "summary")
+                        ]
+                createConfigurationResponse `responseStatusShouldBe` status302
+                founderConfiguration <- query @PayrollWorkbookConfiguration |> fetchOne
+                deleteConfigurationResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callAction (DeletePayrollWorkbookConfigurationAction founderConfiguration.id "2025-01-06")
+                deleteConfigurationResponse `responseStatusShouldBe` status302
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
+
         it "denies managers access to export generation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Manager Venue"
@@ -1040,6 +1150,16 @@ tests = aroundAll withDatabaseTestContext do
 
                 createExportResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders createExportResponse) `shouldBe` Just "http://localhost/RosterWeeks"
+
+                createConfigurationResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [ ("rangeStart", "2025-01-06")
+                        , ("payrollWorkbookConfigurationName", "Denied Configuration")
+                        , ("payrollWorkbookSheetFamily1", "summary")
+                        ]
+                createConfigurationResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders createConfigurationResponse) `shouldBe` Just "http://localhost/RosterWeeks"
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
 
         it "denies downloading another venue's export job" $ withContext do
             withCleanDb do

@@ -11,6 +11,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , autosaveShiftTypeSelectionActionFields
     , createExportJobAction
     , createExportJobActionFields
+    , createPayrollWorkbookConfigurationAction
+    , createPayrollWorkbookConfigurationActionFields
     , createRosterGroupAction
     , createRosterGroupActionFields
     , createShiftTypeAction
@@ -25,7 +27,10 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , moveShiftTypeDownActionFields
     , moveShiftTypeUpAction
     , moveShiftTypeUpActionFields
+    , deletePayrollWorkbookConfigurationAction
+    , deletePayrollWorkbookConfigurationActionFields
     , parseCreateExportJobActionParams
+    , parseCreatePayrollWorkbookConfigurationActionParams
     , parseCreateRosterGroupActionParams
     , parseCreateShiftTypeActionParams
     , parseCreateVenueInvitationActionParams
@@ -89,12 +94,16 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            autosaveShiftTypeSelectionActionFields,
                                                                            createExportJobAction,
                                                                            createExportJobActionFields,
+                                                                           createPayrollWorkbookConfigurationAction,
+                                                                           createPayrollWorkbookConfigurationActionFields,
                                                                            createRosterGroupAction,
                                                                            createRosterGroupActionFields,
                                                                            createShiftTypeAction,
                                                                            createShiftTypeActionFields,
                                                                            createVenueInvitationAction,
                                                                            createVenueInvitationActionFields,
+                                                                           deletePayrollWorkbookConfigurationAction,
+                                                                           deletePayrollWorkbookConfigurationActionFields,
                                                                            moveRosterGroupDownAction,
                                                                            moveRosterGroupDownActionFields,
                                                                            moveRosterGroupUpAction,
@@ -104,6 +113,7 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            moveShiftTypeUpAction,
                                                                            moveShiftTypeUpActionFields,
                                                                            parseCreateExportJobActionParams,
+                                                                           parseCreatePayrollWorkbookConfigurationActionParams,
                                                                            parseCreateRosterGroupActionParams,
                                                                            parseCreateShiftTypeActionParams,
                                                                            parseCreateVenueInvitationActionParams,

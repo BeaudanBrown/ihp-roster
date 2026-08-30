@@ -10,9 +10,11 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     ( AutosaveShiftTypeNameActionOperation
     , AutosaveShiftTypeSelectionActionOperation
     , CreateExportJobActionOperation
+    , CreatePayrollWorkbookConfigurationActionOperation
     , CreateRosterGroupActionOperation
     , CreateShiftTypeActionOperation
     , CreateVenueInvitationActionOperation
+    , DeletePayrollWorkbookConfigurationActionOperation
     , MoveRosterGroupDownActionOperation
     , MoveRosterGroupUpActionOperation
     , MoveShiftTypeDownActionOperation
@@ -37,12 +39,16 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , autosaveShiftTypeSelectionActionFields
     , createExportJobAction
     , createExportJobActionFields
+    , createPayrollWorkbookConfigurationAction
+    , createPayrollWorkbookConfigurationActionFields
     , createRosterGroupAction
     , createRosterGroupActionFields
     , createShiftTypeAction
     , createShiftTypeActionFields
     , createVenueInvitationAction
     , createVenueInvitationActionFields
+    , deletePayrollWorkbookConfigurationAction
+    , deletePayrollWorkbookConfigurationActionFields
     , moveRosterGroupDownAction
     , moveRosterGroupDownActionFields
     , moveRosterGroupUpAction
@@ -52,6 +58,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , moveShiftTypeUpAction
     , moveShiftTypeUpActionFields
     , parseCreateExportJobActionParams
+    , parseCreatePayrollWorkbookConfigurationActionParams
     , parseCreateRosterGroupActionParams
     , parseCreateShiftTypeActionParams
     , parseCreateVenueInvitationActionParams
@@ -218,24 +225,27 @@ type instance ActionFieldSpecs CreateExportJobActionOperation =
     '[ 'Field Types2.RangeStart 'WireDay
      , 'Field Types2.RangeEnd 'WireDay
      , 'Field Types2.ExportType ('WireClosed Types1.ExportJobType)
+     , 'OptionalField Types2.PayrollWorkbookConfigurationId 'WireUUID
      ]
 
 createExportJobActionFields ::
     Day ->
     Day ->
     Types1.ExportJobType ->
+    Maybe UUID.UUID ->
     ActionFields CreateExportJobActionOperation
-createExportJobActionFields rangeStart rangeEnd exportType =
+createExportJobActionFields rangeStart rangeEnd exportType payrollWorkbookConfigurationId =
     actionFields
         (surfaceField @Types2.RangeStart rangeStart)
         ( surfaceField @Types2.RangeEnd rangeEnd
             &: surfaceField @Types2.ExportType exportType
+            &: surfaceOptionalField @Types2.PayrollWorkbookConfigurationId payrollWorkbookConfigurationId
             &: noSurfaceFields
         )
 
 createExportJobActionEvidence :: ActionEvidence CreateExportJobActionOperation
 createExportJobActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateExportJob" "create-export-job" [SurfaceIR.FieldIR "RangeStart" "rangeStart" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RangeEnd" "rangeEnd" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExportType" "exportType" (SurfaceIR.WireClosedIR "ExportJobType" "Application.Helper.Export.Types" "ExportJobType") SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-exports-fragment" ["admin-exports-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateExportJob" "create-export-job" [SurfaceIR.FieldIR "RangeStart" "rangeStart" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RangeEnd" "rangeEnd" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExportType" "exportType" (SurfaceIR.WireClosedIR "ExportJobType" "Application.Helper.Export.Types" "ExportJobType") SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayrollWorkbookConfigurationId" "payrollWorkbookConfigurationId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-exports-fragment" ["admin-exports-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 createExportJobAction :: ActionFields CreateExportJobActionOperation -> FrontendSurfaceAction
 createExportJobAction =
@@ -247,6 +257,56 @@ parseCreateExportJobActionParams ::
 parseCreateExportJobActionParams =
     parseActionParams
         @CreateExportJobActionOperation
+
+data CreatePayrollWorkbookConfigurationActionOperation
+
+type instance ActionSurface CreatePayrollWorkbookConfigurationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.AdminExportsAdapterFamily)
+type instance ActionMarker CreatePayrollWorkbookConfigurationActionOperation = Types2.CreatePayrollWorkbookConfiguration
+type instance ActionFieldSpecs CreatePayrollWorkbookConfigurationActionOperation =
+    '[ 'Field Types2.RangeStart 'WireDay
+     , 'Field Types2.PayrollWorkbookConfigurationName 'WireText
+     , 'Field Types2.PayrollWorkbookSheetFamily1 'WireText
+     , 'OptionalField Types2.PayrollWorkbookSheetFamily2 'WireText
+     , 'OptionalField Types2.PayrollWorkbookSheetFamily3 'WireText
+     , 'OptionalField Types2.PayrollWorkbookSheetFamily4 'WireText
+     , 'OptionalField Types2.PayrollWorkbookSheetFamily5 'WireText
+     ]
+
+createPayrollWorkbookConfigurationActionFields ::
+    Day ->
+    Text ->
+    Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    ActionFields CreatePayrollWorkbookConfigurationActionOperation
+createPayrollWorkbookConfigurationActionFields rangeStart payrollWorkbookConfigurationName payrollWorkbookSheetFamily1 payrollWorkbookSheetFamily2 payrollWorkbookSheetFamily3 payrollWorkbookSheetFamily4 payrollWorkbookSheetFamily5 =
+    actionFields
+        (surfaceField @Types2.RangeStart rangeStart)
+        ( surfaceField @Types2.PayrollWorkbookConfigurationName payrollWorkbookConfigurationName
+            &: surfaceField @Types2.PayrollWorkbookSheetFamily1 payrollWorkbookSheetFamily1
+            &: surfaceOptionalField @Types2.PayrollWorkbookSheetFamily2 payrollWorkbookSheetFamily2
+            &: surfaceOptionalField @Types2.PayrollWorkbookSheetFamily3 payrollWorkbookSheetFamily3
+            &: surfaceOptionalField @Types2.PayrollWorkbookSheetFamily4 payrollWorkbookSheetFamily4
+            &: surfaceOptionalField @Types2.PayrollWorkbookSheetFamily5 payrollWorkbookSheetFamily5
+            &: noSurfaceFields
+        )
+
+createPayrollWorkbookConfigurationActionEvidence :: ActionEvidence CreatePayrollWorkbookConfigurationActionOperation
+createPayrollWorkbookConfigurationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "CreatePayrollWorkbookConfiguration" "create-payroll-workbook-configuration" [SurfaceIR.FieldIR "RangeStart" "rangeStart" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayrollWorkbookConfigurationName" "payrollWorkbookConfigurationName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayrollWorkbookSheetFamily1" "payrollWorkbookSheetFamily1" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayrollWorkbookSheetFamily2" "payrollWorkbookSheetFamily2" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PayrollWorkbookSheetFamily3" "payrollWorkbookSheetFamily3" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PayrollWorkbookSheetFamily4" "payrollWorkbookSheetFamily4" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PayrollWorkbookSheetFamily5" "payrollWorkbookSheetFamily5" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-exports-fragment" ["admin-exports-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+createPayrollWorkbookConfigurationAction :: ActionFields CreatePayrollWorkbookConfigurationActionOperation -> FrontendSurfaceAction
+createPayrollWorkbookConfigurationAction =
+    frontendSurfaceActionFromEvidence createPayrollWorkbookConfigurationActionEvidence
+
+parseCreatePayrollWorkbookConfigurationActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields CreatePayrollWorkbookConfigurationActionOperation)
+parseCreatePayrollWorkbookConfigurationActionParams =
+    parseActionParams
+        @CreatePayrollWorkbookConfigurationActionOperation
 
 data CreateRosterGroupActionOperation
 
@@ -360,6 +420,25 @@ parseCreateVenueInvitationActionParams ::
 parseCreateVenueInvitationActionParams =
     parseActionParams
         @CreateVenueInvitationActionOperation
+
+data DeletePayrollWorkbookConfigurationActionOperation
+
+type instance ActionSurface DeletePayrollWorkbookConfigurationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.AdminExportsAdapterFamily)
+type instance ActionMarker DeletePayrollWorkbookConfigurationActionOperation = Types2.DeletePayrollWorkbookConfiguration
+type instance ActionFieldSpecs DeletePayrollWorkbookConfigurationActionOperation =
+    '[]
+
+deletePayrollWorkbookConfigurationActionFields :: ActionFields DeletePayrollWorkbookConfigurationActionOperation
+deletePayrollWorkbookConfigurationActionFields =
+    noActionFields
+
+deletePayrollWorkbookConfigurationActionEvidence :: ActionEvidence DeletePayrollWorkbookConfigurationActionOperation
+deletePayrollWorkbookConfigurationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "DeletePayrollWorkbookConfiguration" "delete-payroll-workbook-configuration" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxDeleteIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-exports-fragment" ["admin-exports-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+deletePayrollWorkbookConfigurationAction :: ActionFields DeletePayrollWorkbookConfigurationActionOperation -> FrontendSurfaceAction
+deletePayrollWorkbookConfigurationAction =
+    frontendSurfaceActionFromEvidence deletePayrollWorkbookConfigurationActionEvidence
 
 data MoveRosterGroupDownActionOperation
 

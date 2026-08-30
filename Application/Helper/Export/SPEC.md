@@ -59,8 +59,12 @@ cross-module safety and payroll contracts.
   Persistence accepts only supported definition versions and family keys and at
   least one presentation family. Admins, owners, and unimpersonated founder
   support with a real current venue may create, list, read, and delete saved
-  definitions; managers and cross-venue identifiers are denied. Deletion
-  cascades only to the saved family rows. Export jobs retain the stable
+  definitions; managers and cross-venue identifiers are denied. The Admin
+  exports surface provides ordered family selectors, included-sheet summaries,
+  per-definition download actions, and an explicit two-step delete confirmation;
+  stale or foreign identifiers produce controlled errors. The built-in default
+  remains the simplest download and Payroll Earnings CSV remains separate.
+  Deletion cascades only to the saved family rows. Export jobs retain the stable
   definition key, version, and ordered family snapshot independently of future
   configuration changes or deletion.
 - Every valid definition automatically appends the deterministic typed Data

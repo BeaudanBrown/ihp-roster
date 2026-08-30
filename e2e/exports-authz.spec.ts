@@ -27,11 +27,12 @@ test.describe('Export authorization and negative cases', () => {
         await expect(page.locator('[data-fixed-export-card="true"]')).toHaveCount(0);
     });
 
-    test('venue admin sees the fixed export catalog without report-definition management', async ({ page }) => {
+    test('venue admin sees the fixed export catalog and saved Payroll Workbook management', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
-        await expect(page.locator('#report-definition-management')).toHaveCount(0);
+        await expect(page.locator('#payroll-workbook-configuration-management')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Save configuration' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Exports' })).toBeVisible();
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
         await expect(payrollReportCard(page, 'Payroll Workbook')).toHaveCount(1);

@@ -54,6 +54,8 @@ module Application.Helper.FrontendContract.Surface.Admin
     , RevokeVenueInvitation
     , RenewVenueInvitation
     , CreateExportJob
+    , CreatePayrollWorkbookConfiguration
+    , DeletePayrollWorkbookConfiguration
     , CreateShiftType
     , UpdateShiftType
     , MoveShiftTypeUp
@@ -74,6 +76,13 @@ module Application.Helper.FrontendContract.Surface.Admin
     , RangeStart
     , RangeEnd
     , ExportType
+    , PayrollWorkbookConfigurationId
+    , PayrollWorkbookConfigurationName
+    , PayrollWorkbookSheetFamily1
+    , PayrollWorkbookSheetFamily2
+    , PayrollWorkbookSheetFamily3
+    , PayrollWorkbookSheetFamily4
+    , PayrollWorkbookSheetFamily5
     , ShowInactiveRosterGroups
     , ShowInactiveShiftTypes
     , Name
@@ -138,6 +147,8 @@ data CreateVenueInvitation
 data RevokeVenueInvitation
 data RenewVenueInvitation
 data CreateExportJob
+data CreatePayrollWorkbookConfiguration
+data DeletePayrollWorkbookConfiguration
 data CreateShiftType
 data UpdateShiftType
 data MoveShiftTypeUp
@@ -158,6 +169,13 @@ data Email
 data RangeStart
 data RangeEnd
 data ExportType
+data PayrollWorkbookConfigurationId
+data PayrollWorkbookConfigurationName
+data PayrollWorkbookSheetFamily1
+data PayrollWorkbookSheetFamily2
+data PayrollWorkbookSheetFamily3
+data PayrollWorkbookSheetFamily4
+data PayrollWorkbookSheetFamily5
 data ShowInactiveRosterGroups
 data ShowInactiveShiftTypes
 data Name
@@ -305,8 +323,30 @@ type AdminExportsSurface =
             '[ Field RangeStart 'WireDay
              , Field RangeEnd 'WireDay
              , Field ExportType ('WireClosed ExportJobType)
+             , OptionalField PayrollWorkbookConfigurationId 'WireUUID
              ]
             '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId AdminExportsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action CreatePayrollWorkbookConfiguration
+            '[ Field RangeStart 'WireDay
+             , Field PayrollWorkbookConfigurationName 'WireText
+             , Field PayrollWorkbookSheetFamily1 'WireText
+             , OptionalField PayrollWorkbookSheetFamily2 'WireText
+             , OptionalField PayrollWorkbookSheetFamily3 'WireText
+             , OptionalField PayrollWorkbookSheetFamily4 'WireText
+             , OptionalField PayrollWorkbookSheetFamily5 'WireText
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId AdminExportsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action DeletePayrollWorkbookConfiguration
+            '[]
+            '[ 'HtmxMethod 'HtmxDelete
              , 'HtmxTarget ('HtmxId AdminExportsFragment)
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
