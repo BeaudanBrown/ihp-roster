@@ -198,7 +198,7 @@ if [ ! -f "$PROFILE_SEED_OUTPUT_DIR/manifest.json" ]; then
 fi
 
 # shellcheck source=../lib/profile-server.sh
-. "@scriptsRoot@/lib/profile-server.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/profile-server.sh"
 
 cleanup_profile_load() {
     stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"

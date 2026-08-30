@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 # shellcheck source=../lib/workspace-resources.sh
-. "@scriptsRoot@/lib/workspace-resources.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace-resources.sh"
 bepis_workspace_configure
 bepis_workspace_resource_reexec_dev "$(command -v dev-start)" "$@"
-bash "@scriptsRoot@/haskell/generated-ensure"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"

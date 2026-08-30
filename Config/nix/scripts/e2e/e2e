@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 # shellcheck source=../lib/common.sh
-. "@scriptsRoot@/lib/common.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/common.sh"
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
 if ! command -v playwright >/dev/null 2>&1; then
     echo "e2e: pinned Playwright executable is unavailable" >&2
@@ -241,7 +241,7 @@ export SMTP_HOST=127.0.0.1
 export SMTP_PORT="$MAILHOG_SMTP_PORT"
 export MAILHOG_BASE_URL="http://127.0.0.1:$MAILHOG_PORT"
 MAILHOG_LOG="$STATE_DIR/mailhog.log"
-@mailhog@/bin/MailHog \
+${BEPIS_MAILHOG_ROOT:?}/bin/MailHog \
     -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
     -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
     -api-bind-addr "127.0.0.1:$MAILHOG_PORT" \

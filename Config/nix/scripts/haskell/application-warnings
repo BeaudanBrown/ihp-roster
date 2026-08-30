@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 
 build_dir="${APPLICATION_WARNINGS_BUILD_DIR:-$(ihp_roster_verification_build_dir)/application-warnings}"
 base_ghc_opts="$(ihp_roster_ghc_opts)"

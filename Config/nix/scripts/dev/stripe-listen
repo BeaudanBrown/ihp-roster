@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/stripe.sh
-. "@scriptsRoot@/lib/stripe.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/stripe.sh"
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 if [ -f "$PWD/.env" ]; then
     set -a
     # shellcheck disable=SC1091

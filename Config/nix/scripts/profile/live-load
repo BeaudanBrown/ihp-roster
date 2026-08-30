@@ -151,7 +151,7 @@ fi
 PROFILE_MANIFEST="$(realpath -m "$PROFILE_MANIFEST")"
 
 # shellcheck source=../lib/profile-server.sh
-. "@scriptsRoot@/lib/profile-server.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/profile-server.sh"
 cleanup_profile_live_load() {
     stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
     cleanup_profile_server

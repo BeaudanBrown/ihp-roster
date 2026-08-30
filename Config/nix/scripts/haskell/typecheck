@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 ihp_roster_configure_compiler_tmpdir
 bash "@scriptsRoot@/haskell/generated-ensure"
 TARGET="${1:-Main.hs}"
@@ -14,11 +14,7 @@ TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$(ihp_roster_verification_build_dir)}"
 if [ "$TARGET" = "Main.hs" ]; then
     node scripts/production-inventory.mjs --check
 fi
-if [ -f "@scriptsRoot@/haskell/module-name-check" ]; then
-    bash "@scriptsRoot@/haskell/module-name-check"
-else
-    bash Config/nix/scripts/haskell/module-name-check
-fi
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/module-name-check"
 ihp_roster_prepare_ghc_build_dir "$TYPECHECK_DIR" "$GHC_OPTS"
 exec ghc -no-link $GHC_OPTS "$TARGET" \
     -odir "$TYPECHECK_DIR/obj" \

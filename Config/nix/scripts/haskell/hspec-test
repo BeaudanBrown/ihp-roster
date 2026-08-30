@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 ihp_roster_configure_compiler_tmpdir
 bash "@scriptsRoot@/haskell/generated-ensure"
 # shellcheck source=../lib/common.sh
-. "@scriptsRoot@/lib/common.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test}"
 TEST_LANE="${TEST_LANE:-all}"
 TEST_FEEDBACK_LANE="${TEST_FEEDBACK_LANE:-all}"

@@ -4,13 +4,8 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-if [ -f "@scriptsRoot@/frontend/generated-state-lib" ]; then
-    # shellcheck source=Config/nix/scripts/frontend/generated-state-lib
-    . "@scriptsRoot@/frontend/generated-state-lib"
-else
-    # shellcheck source=Config/nix/scripts/frontend/generated-state-lib
-    . "Config/nix/scripts/frontend/generated-state-lib"
-fi
+# shellcheck source=Config/nix/scripts/frontend/generated-state-lib
+. "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
 
 state_dir="$(frontend_generated_state_dir)"
 mkdir -p "$state_dir"

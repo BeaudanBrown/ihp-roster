@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/stripe.sh
-. "@scriptsRoot@/lib/stripe.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/stripe.sh"
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 # shellcheck source=../lib/workspace-resources.sh
-. "@scriptsRoot@/lib/workspace-resources.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace-resources.sh"
 # shellcheck source=../lib/stripe-dev.sh
-. "@scriptsRoot@/lib/stripe-dev.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/stripe-dev.sh"
 
 bepis_workspace_configure
 bepis_workspace_resource_reexec_dev "$(command -v dev-foreground-stripe-tunnel)" "$@"

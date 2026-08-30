@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 # shellcheck source=../lib/workspace-resources.sh
-. "@scriptsRoot@/lib/workspace-resources.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace-resources.sh"
 bepis_workspace_configure
 bepis_workspace_resource_reexec_dev "$(command -v dev-foreground)" "$@"
-bash "@scriptsRoot@/haskell/generated-ensure"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 
 # Foreground development does not assume access to a desktop session. Callers
 # can still opt in to automatic launch with an explicit browser command.

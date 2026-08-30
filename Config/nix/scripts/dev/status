@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
@@ -36,7 +36,7 @@ DB_BLOCKED=false
 DB_ERR=""
 if DB_ERR=$(psql -h "$DB_SOCKET" -d app -c "select 1" 2>&1); then
     DB_OK=true
-elif echo "$DB_ERR" | @ripgrep@/bin/rg -qi "operation not permitted|permission denied"; then
+elif echo "$DB_ERR" | ${BEPIS_RIPGREP_ROOT:?}/bin/rg -qi "operation not permitted|permission denied"; then
     DB_BLOCKED=true
 fi
 
@@ -45,7 +45,7 @@ HTTP_BLOCKED=false
 HTTP_ERR=""
 if HTTP_ERR=$(curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" 2>&1); then
     HTTP_OK=true
-elif echo "$HTTP_ERR" | @ripgrep@/bin/rg -qi "operation not permitted|permission denied"; then
+elif echo "$HTTP_ERR" | ${BEPIS_RIPGREP_ROOT:?}/bin/rg -qi "operation not permitted|permission denied"; then
     HTTP_BLOCKED=true
 fi
 
@@ -82,7 +82,7 @@ MAILHOG_BLOCKED=false
 MAILHOG_ERR=""
 if MAILHOG_ERR=$(curl --connect-timeout 1 --max-time 2 -fsS "$MAILHOG_BASE_URL/api/v2/messages" 2>&1); then
     MAILHOG_OK=true
-elif echo "$MAILHOG_ERR" | @ripgrep@/bin/rg -qi "operation not permitted|permission denied"; then
+elif echo "$MAILHOG_ERR" | ${BEPIS_RIPGREP_ROOT:?}/bin/rg -qi "operation not permitted|permission denied"; then
     MAILHOG_BLOCKED=true
 fi
 

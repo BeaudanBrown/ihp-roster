@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/stripe.sh
-. "@scriptsRoot@/lib/stripe.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/stripe.sh"
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 # shellcheck source=../lib/stripe-dev.sh
-. "@scriptsRoot@/lib/stripe-dev.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/stripe-dev.sh"
 
 stripe_dev_load_and_validate_config
 STATE_DIR="$(dev-agent-state-dir)"
@@ -63,7 +63,7 @@ setsid nohup bash -c '
     . "$2"
     bepis_workspace_configure
     exec start
-' bash "$STRIPE_GENERATED_ENV" "@scriptsRoot@/lib/workspace.sh" </dev/null >>"$LOG_FILE" 2>&1 &
+' bash "$STRIPE_GENERATED_ENV" "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh" </dev/null >>"$LOG_FILE" 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"
 disown "$PID" 2>/dev/null || true

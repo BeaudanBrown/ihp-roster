@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
-bash "@scriptsRoot@/haskell/generated-ensure"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 
 weeder_build_dir="${WEEDER_BUILD_DIR:-$(ihp_roster_verification_build_dir)/weeder}"
 hie_dir="${WEEDER_HIE_DIR:-$weeder_build_dir/hie}"
@@ -84,7 +84,7 @@ if [[ "${WEEDER_PRINT_CANDIDATES:-0}" == "1" ]]; then
     grep '^main: ' "$output_file" || true
 fi
 
-"@scriptsRoot@/haskell/weeder-policy" \
+"${BEPIS_SCRIPTS_ROOT:?}/haskell/weeder-policy" \
     "$output_file" \
     "Config/nix/weeder-baseline.tsv"
 echo "weeder-check: ok (fresh HIE graph; evidence: $output_file)"

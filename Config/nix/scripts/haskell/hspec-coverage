@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 ihp_roster_configure_compiler_tmpdir
 # shellcheck source=../lib/common.sh
-. "@scriptsRoot@/lib/common.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test_coverage}"
 ihp_roster_configure_test_postgres
 ihp_roster_report_test_postgres
