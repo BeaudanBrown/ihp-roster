@@ -337,7 +337,7 @@ function renderMarkdown(metadata, summary) {
         '',
         `- Scenario \`${metadata.scenario ?? ''}\`, subscribers \`${metadata.subscribers ?? ''}\`, mutators \`${metadata.mutators ?? ''}\`, venues \`${metadata.venues ?? ''}\`, weeks \`${metadata.weeks ?? ''}\`.`,
         `- Checks failed \`${summary.checks.failed}/${summary.checks.total}\`; mutations \`${summary.rates.mutationCount}\` at burst \`${summary.rates.mutationBurstRatePerSec}/s\`; invalidations \`${summary.rates.invalidationCount}\` at delivery-window \`${summary.rates.invalidationDeliveryRatePerSec}/s\`.`,
-        `- Own invalidations \`${summary.rates.ownInvalidationCount}/${summary.rates.mutationCount}\`; failed mutations \`${summary.counters.profile_live_failed_mutations ?? 0}\`; missed own invalidations \`${summary.counters.profile_live_missed_own_invalidations ?? 0}\`.`,
+        `- Own invalidations \`${summary.rates.ownInvalidationCount}/${summary.rates.mutationCount}\`; delivered fragments \`${summary.counters.profile_live_fragments ?? 0}\`; failed mutations \`${summary.counters.profile_live_failed_mutations ?? 0}\`; missed own invalidations \`${summary.counters.profile_live_missed_own_invalidations ?? 0}\`.`,
         `- Own latency p95 \`${summary.trends.profile_live_own_invalidation_latency?.p95Ms ?? 0}ms\`; mutation p95 \`${summary.trends.profile_live_mutation_duration?.p95Ms ?? 0}ms\`.`,
         `- Slowest server labels: ${compactLabels(summary.serverInvalidation.slowestLabels, 'p95TotalMs')}.`,
         `- Highest fanout labels: ${compactLabels(summary.serverInvalidation.highestFanoutLabels, 'maxSubscribers')}.`,

@@ -152,6 +152,7 @@ tests = do
             let manifestLines = Text.lines (renderProfileSeedManifest smallPlan)
             let expectedLines =
                     [ "    \"primaryManager\": { \"email\": \"profile-staff-01-01@example.com\", \"password\": \"password123\", \"venueId\": \"000f4241-0000-4000-8001-000006052340\", \"staffId\": \"004c4b41-0001-4000-8002-00001ddcab28\" },"
+                    , "    \"primaryStaff\": { \"email\": \"profile-staff-01-02@example.com\", \"password\": \"password123\", \"venueId\": \"000f4241-0000-4000-8001-000006052340\", \"staffId\": \"004c4b41-0002-4000-8003-00001ddcaf10\" },"
                     , "    \"venueAdmin\": { \"email\": \"profile-manager-01@example.com\", \"password\": \"password123\", \"venueId\": \"000f4241-0000-4000-8001-000006052340\" },"
                     , "    \"support\": { \"email\": \"profile-support@example.com\", \"password\": \"password123\" }"
                     , "    \"leaveRequests\": \"/LeaveRequests\","

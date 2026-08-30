@@ -58,6 +58,10 @@ mkdir -p "$PROFILE_OUTPUT_DIR"
 PROFILE_SEED_OUTPUT_DIR="$PROFILE_OUTPUT_DIR/seed"
 PROFILE_LOG="$PROFILE_OUTPUT_DIR/server.log"
 PROFILE_PID_FILE="$PROFILE_OUTPUT_DIR/server.pid"
+PROFILE_RUNTIME_SAMPLES="$PROFILE_OUTPUT_DIR/runtime-resources.tsv"
+PROFILE_RUNTIME_SUMMARY="$PROFILE_OUTPUT_DIR/runtime-resources.json"
+PROFILE_RUNTIME_SAMPLER_PID_FILE="$PROFILE_OUTPUT_DIR/runtime-resources.pid"
+: > "$PROFILE_LOG"
 
 if [ "$PROFILE_SHOULD_SEED" = "1" ]; then
     seed-profile "$PROFILE_DATABASE_NAME" --output-dir="$PROFILE_SEED_OUTPUT_DIR" "${PROFILE_SEED_ARGS[@]}"
@@ -74,12 +78,17 @@ fi
 
 # shellcheck source=../lib/profile-server.sh
 . "@scriptsRoot@/lib/profile-server.sh"
-trap cleanup_profile_server EXIT INT TERM
+cleanup_profile_app() {
+    stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+    cleanup_profile_server
+}
+trap cleanup_profile_app EXIT INT TERM
 
 (
     export PROFILE_DATABASE_NAME
     export PROFILE_DB_SOCKET
     export IHP_ROSTER_PROFILING=1
+    export GHCRTS="${GHCRTS:+$GHCRTS }-T"
     setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
     echo "$!" > "$PROFILE_PID_FILE"
     wait "$!"
@@ -95,11 +104,16 @@ for _ in $(seq 1 120); do
         export PROFILE_BASE_URL
         echo "Profile app server ready at $PROFILE_BASE_URL"
         echo "Profile database: $PROFILE_DATABASE_NAME"
+        sample_profile_runtime_resources "$PROFILE_SERVER_PID" "$PROFILE_RUNTIME_SAMPLES" 1 "$PROFILE_DB_SOCKET" "$PROFILE_DATABASE_NAME" &
+        echo "$!" > "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
         node ./e2e/profile-app.mjs \
             --base-url "$PROFILE_BASE_URL" \
             --output-dir "$PROFILE_OUTPUT_DIR" \
             --manifest "$PROFILE_SEED_OUTPUT_DIR/manifest.json" \
             "${PROFILE_NODE_ARGS[@]}"
+        stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+        finalize_profile_runtime_resources "$PROFILE_RUNTIME_SAMPLES" "$PROFILE_RUNTIME_SUMMARY"
+        node ./e2e/diagnostic-profile-report.mjs "$PROFILE_OUTPUT_DIR" "${HASQL_POOL_SIZE:-20}"
         ln -sfn "$PROFILE_OUTPUT_DIR" "$PWD/output/profile/latest"
         echo "Profile artifacts: $PROFILE_OUTPUT_DIR"
         exit 0

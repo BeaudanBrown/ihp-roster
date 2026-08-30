@@ -4,9 +4,9 @@ Codec.Xlsx	xlsx	Application/Helper/Export/PayrollWorkbook.hs via Main
 Codec.Xlsx.Formatted	xlsx	Application/Helper/Export/PayrollWorkbook.hs via Main
 Control.Applicative	base	Application/Helper/Xero.hs via Main
 Control.Category	base	Application/StaffDocuments/RsaExtraction.hs via Main
-Control.Concurrent	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
+Control.Concurrent	base	Application/Helper/Profiling/Runtime.hs via Main
 Control.Concurrent.MVar	base	Application/Bepis/Fact.hs via Main
-Control.Exception	base	Application/Helper/Telemetry.hs via Main
+Control.Exception	base	Application/Helper/Profiling/Runtime.hs via Main
 Control.Exception.Safe	safe-exceptions	Application/Helper/Telemetry.hs via Main
 Control.Monad	base	Application/Helper/Telemetry.hs via Main
 Control.Monad.Trans.Class	transformers	Web/RosterWeeks/Service.hs via Main
@@ -26,7 +26,7 @@ Crypto.WebAuthn.Model.Types	webauthn	Web/Controller/Auth.hs via Main
 Crypto.WebAuthn.Operation.Authentication	webauthn	Web/Controller/Auth.hs via Main
 Crypto.WebAuthn.Operation.CredentialEntry	webauthn	Web/Controller/Auth.hs via Main
 Crypto.WebAuthn.Operation.Registration	webauthn	Web/Controller/Auth.hs via Main
-Data.Aeson	aeson	Application/Helper/LiveUpdate/DurableListener.hs via Main
+Data.Aeson	aeson	Application/Helper/Profiling/Runtime.hs via Main
 Data.Aeson.Key	aeson	Application/Helper/LiveUpdate/DurableCodec.hs via Main
 Data.Aeson.KeyMap	aeson	Application/Helper/LiveUpdate/DurableCodec.hs via Main
 Data.Aeson.Types	aeson	Application/Billing/Stripe.hs via Main
@@ -35,8 +35,8 @@ Data.ByteArray	memory	Application/Billing/Stripe.hs via Main
 Data.ByteString	bytestring	Application/Helper/Telemetry.hs via Main
 Data.ByteString.Base64	base64-bytestring	Web/Controller/Exports.hs via Main
 Data.ByteString.Base64.URL	base64-bytestring	Application/Helper/FrontendContract/Wire/Passkey.hs via Main
-Data.ByteString.Char8	bytestring	Application/Helper/Passkeys.hs via Main
-Data.ByteString.Lazy	bytestring	Application/Helper/Profiling.hs via Main
+Data.ByteString.Char8	bytestring	Application/Helper/Profiling/Runtime.hs via Main
+Data.ByteString.Lazy	bytestring	Application/Helper/Profiling/Runtime.hs via Main
 Data.CaseInsensitive	case-insensitive	Application/Helper/Telemetry.hs via Main
 Data.Char	base	Application/Helper/Telemetry.hs via Main
 Data.Coerce	base	Web/Controller/Feedback.hs via Main
@@ -76,7 +76,7 @@ Data.Time.Zones.All	tz	Application/VenueTime.hs via Main
 Data.Traversable	base	Application/VenueTime/Model.hs via Main
 Data.Tuple.Only	Only	Application/Billing/Persistence.hs via Main
 Data.Typeable	base	Web/Controller/Prelude.hs via Main
-Data.UUID	uuid	Application/Helper/LiveUpdate/DurableListener.hs via Main
+Data.UUID	uuid	Application/Helper/Profiling.hs via Main
 Data.UUID.V4	uuid	Application/Helper/Profiling.hs via Main
 Data.Validation	validation	Web/Controller/Auth.hs via Main
 Data.Vault.Lazy	vault	Application/Helper/Profiling.hs via Main
@@ -88,6 +88,7 @@ Database.PostgreSQL.Simple.Types	postgresql-simple	Web/Controller/Auth.hs via Ma
 GHC.Clock	base	Application/Helper/Profiling.hs via Main
 GHC.Generics	base	Application/Bepis/Fact.hs via Main
 GHC.Records	base	Application/Helper/Pay.hs via Main
+GHC.Stats	base	Application/Helper/Profiling/Runtime.hs via Main
 GHC.TypeLits	base	Application/Helper/FrontendContract/DSL.hs via Main
 Generated.Enums	app-models	Application/FwcMapd/Validation.hs via Main
 Generated.Types	app-models	Web/Types.hs via Main
@@ -149,7 +150,7 @@ Prelude	base	Application/Error/Startup.hs via Main
 System.Directory	directory	Web/Controller/StaffDocuments.hs via Main
 System.Environment	base	Application/Helper/Telemetry.hs via Main
 System.Exit	base	Application/Helper/FrontendContract/Registry.hs via Main
-System.IO	base	Application/Helper/FrontendContract/Registry.hs via Main
+System.IO	base	Application/Helper/Profiling/Runtime.hs via Main
 System.IO.Error	base	Application/Billing/Stripe.hs via Main
 System.IO.Unsafe	base	Application/Helper/Telemetry.hs via Main
 System.Process	process	Application/StaffDocuments/RsaExtraction.hs via Main

@@ -265,6 +265,7 @@ Application/Helper/PasswordResetTokens.hs	production	runtime	Main	Reachable from
 Application/Helper/Pay.hs	production	runtime	Main	Reachable from Main
 Application/Helper/ProfileLeave.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Profiling.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Profiling/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterAwardDuration.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterGroups.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterTimesheetBoundaries.hs	production	runtime	Main	Reachable from Main

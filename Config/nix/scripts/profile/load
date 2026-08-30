@@ -32,7 +32,7 @@ Options:
   --db=app_profile_*             Profile database name
   --output-dir=path              Artifact directory
   --seed-arg=arg                 Forward an option to seed-profile
-  --scenario=name                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app
+  --scenario=name                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|staff|support|billing|auth|mixed-app
   --rate=N                       Target iterations per second (default: 10)
   --duration=30s                 k6 scenario duration (default: 30s)
   --vus=N                        Preallocated k6 virtual users (default: 10)
@@ -153,11 +153,11 @@ case "$PROFILE_DATABASE_NAME" in
 esac
 
 case "$PROFILE_LOAD_SCENARIO" in
-    roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app)
+    roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|staff|support|billing|auth|mixed-app)
         ;;
     *)
         echo "Unsupported load profiling scenario: $PROFILE_LOAD_SCENARIO" >&2
-        echo "Use roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, or mixed-app." >&2
+        echo "Use roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, staff, support, billing, auth, or mixed-app." >&2
         exit 1
         ;;
 esac
@@ -173,6 +173,7 @@ mkdir -p "$PROFILE_LOAD_OUTPUT_DIR"
 PROFILE_SEED_OUTPUT_DIR="$PROFILE_LOAD_OUTPUT_DIR/seed"
 PROFILE_LOG="$PROFILE_LOAD_OUTPUT_DIR/server.log"
 PROFILE_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/server.pid"
+: > "$PROFILE_LOG"
 PROFILE_K6_METRICS="$PROFILE_LOAD_OUTPUT_DIR/k6-metrics.ndjson"
 PROFILE_K6_STDOUT="$PROFILE_LOAD_OUTPUT_DIR/k6.stdout"
 PROFILE_LOAD_METADATA="$PROFILE_LOAD_OUTPUT_DIR/metadata.json"
@@ -200,13 +201,7 @@ fi
 . "@scriptsRoot@/lib/profile-server.sh"
 
 cleanup_profile_load() {
-    if [ -f "$PROFILE_RUNTIME_SAMPLER_PID_FILE" ]; then
-        local sampler_pid
-        sampler_pid=$(cat "$PROFILE_RUNTIME_SAMPLER_PID_FILE")
-        kill -TERM "$sampler_pid" 2>/dev/null || true
-        wait "$sampler_pid" 2>/dev/null || true
-        rm -f "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
-    fi
+    stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
     cleanup_profile_server
     if [ -f "$PROFILE_OTEL_PID_FILE" ]; then
         local otel_pid
@@ -267,63 +262,6 @@ finalize_profile_otel() {
         "$PROFILE_LOAD_METADATA"
 }
 
-runtime_session_totals() {
-    local session_id="$1"
-    local stat_file stat_line stat_fields process_session process_id rss_kib
-    local total_rss_kib=0
-    local total_cpu_ticks=0
-    for stat_file in /proc/[0-9]*/stat; do
-        [ -r "$stat_file" ] || continue
-        stat_line=$(cat "$stat_file" 2>/dev/null) || continue
-        stat_fields="${stat_line##*) }"
-        # After removing pid/comm: state, ppid, pgrp, session, ... utime, stime.
-        set -- $stat_fields
-        process_session="${4:-}"
-        [ "$process_session" = "$session_id" ] || continue
-        process_id="${stat_file#/proc/}"
-        process_id="${process_id%/stat}"
-        rss_kib=$(awk '/^VmRSS:/ { print $2; found=1 } END { if (!found) print 0 }' "/proc/$process_id/status" 2>/dev/null || printf 0)
-        total_rss_kib=$((total_rss_kib + rss_kib))
-        total_cpu_ticks=$((total_cpu_ticks + ${12:-0} + ${13:-0}))
-    done
-    printf '%s\t%s\n' "$total_rss_kib" "$total_cpu_ticks"
-}
-
-sample_runtime_resources() {
-    local server_pid="$1"
-    : > "$PROFILE_RUNTIME_SAMPLES"
-    while kill -0 "$server_pid" 2>/dev/null && [ -r "/proc/$server_pid/stat" ]; do
-        local timestamp_ns rss_kib cpu_ticks
-        timestamp_ns=$(date +%s%N)
-        IFS=$'\t' read -r rss_kib cpu_ticks < <(runtime_session_totals "$server_pid")
-        printf '%s\t%s\t%s\n' "$timestamp_ns" "$rss_kib" "$cpu_ticks" >> "$PROFILE_RUNTIME_SAMPLES"
-        sleep 0.25
-    done
-}
-
-finalize_runtime_resources() {
-    local clock_ticks first_timestamp last_timestamp first_ticks last_ticks peak_rss sample_count
-    clock_ticks=$(getconf CLK_TCK)
-    sample_count=$(wc -l < "$PROFILE_RUNTIME_SAMPLES")
-    if [ "$sample_count" -eq 0 ]; then
-        echo "Profile runtime sampler produced no samples" >&2
-        return 1
-    fi
-    first_timestamp=$(awk 'NR == 1 { print $1 }' "$PROFILE_RUNTIME_SAMPLES")
-    last_timestamp=$(awk 'END { print $1 }' "$PROFILE_RUNTIME_SAMPLES")
-    first_ticks=$(awk 'NR == 1 { print $3 }' "$PROFILE_RUNTIME_SAMPLES")
-    last_ticks=$(awk 'END { print $3 }' "$PROFILE_RUNTIME_SAMPLES")
-    peak_rss=$(awk 'BEGIN { peak=0 } $2 > peak { peak=$2 } END { print peak }' "$PROFILE_RUNTIME_SAMPLES")
-    jq -n \
-        --argjson sampleCount "$sample_count" \
-        --argjson peakRssKiB "$peak_rss" \
-        --argjson elapsedNanoseconds "$((last_timestamp - first_timestamp))" \
-        --argjson cpuTicks "$((last_ticks - first_ticks))" \
-        --argjson clockTicksPerSecond "$clock_ticks" \
-        '{sampleCount:$sampleCount,peakRssKiB:$peakRssKiB,elapsedSeconds:($elapsedNanoseconds / 1000000000),cpuSeconds:($cpuTicks / $clockTicksPerSecond)}' \
-        > "$PROFILE_RUNTIME_SUMMARY"
-}
-
 otel_env=()
 if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     otel_env=(
@@ -354,6 +292,7 @@ fi
     export PROFILE_DB_SOCKET
     if [ "$PROFILE_LOAD_PROFILING" = "1" ]; then
         export IHP_ROSTER_PROFILING=1
+        export GHCRTS="${GHCRTS:+$GHCRTS }-T"
     else
         unset IHP_ROSTER_PROFILING
     fi
@@ -403,7 +342,7 @@ for _ in $(seq 1 "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS"); do
         echo "Profile load database: $PROFILE_DATABASE_NAME"
         echo "Profile load scenario: $PROFILE_LOAD_SCENARIO rate=$PROFILE_LOAD_RATE duration=$PROFILE_LOAD_DURATION vus=$PROFILE_LOAD_VUS"
 
-        sample_runtime_resources "$PROFILE_SERVER_PID" &
+        sample_profile_runtime_resources "$PROFILE_SERVER_PID" "$PROFILE_RUNTIME_SAMPLES" "$PROFILE_LOAD_PROFILING" "$PROFILE_DB_SOCKET" "$PROFILE_DATABASE_NAME" &
         echo "$!" > "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
 
         k6 run \
@@ -412,17 +351,19 @@ for _ in $(seq 1 "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS"); do
             ./e2e/profile-load.js \
             | tee "$PROFILE_K6_STDOUT"
 
-        sampler_pid=$(cat "$PROFILE_RUNTIME_SAMPLER_PID_FILE")
-        kill -TERM "$sampler_pid" 2>/dev/null || true
-        wait "$sampler_pid" 2>/dev/null || true
-        rm -f "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
-        finalize_runtime_resources
+        stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+        finalize_profile_runtime_resources "$PROFILE_RUNTIME_SAMPLES" "$PROFILE_RUNTIME_SUMMARY"
 
         node ./e2e/profile-load-report.mjs \
             "$PROFILE_K6_METRICS" \
             "$PROFILE_LOAD_OUTPUT_DIR" \
             "$PROFILE_LOAD_METADATA"
         finalize_profile_otel
+        if [ "$PROFILE_LOAD_PROFILING" = "1" ]; then
+            node ./e2e/diagnostic-profile-report.mjs \
+                "$PROFILE_LOAD_OUTPUT_DIR" \
+                "${HASQL_POOL_SIZE:-20}"
+        fi
         mkdir -p "$PWD/output/profile-load"
         ln -sfn "$PROFILE_LOAD_OUTPUT_DIR" "$PWD/output/profile-load/latest"
         echo "Profile load artifacts: $PROFILE_LOAD_OUTPUT_DIR"

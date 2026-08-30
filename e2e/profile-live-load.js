@@ -15,11 +15,22 @@ const warmupMs = Number(__ENV.PROFILE_LIVE_WARMUP_MS || '2000');
 const holdMs = Number(__ENV.PROFILE_LIVE_HOLD_MS || '8000');
 const maxDuration = __ENV.PROFILE_LIVE_MAX_DURATION || '20s';
 
+if (!Number.isInteger(mutators) || mutators < 1 || mutators > subscribers) {
+    throw new Error('PROFILE_LIVE_MUTATORS must be between 1 and PROFILE_LIVE_SUBSCRIBERS');
+}
+if (scenarioName === 'support' && mutators > 1) {
+    throw new Error('support live profiling allows one mutator so delivery attribution remains causal');
+}
+if (scenarioName === 'mixed-live' && mutators > 5) {
+    throw new Error('mixed-live profiling allows at most five mutators with distinct scopes');
+}
+
 const liveSubscribed = new Counter('profile_live_subscribed');
 const liveMutations = new Counter('profile_live_mutations');
 const liveSuccessfulMutations = new Counter('profile_live_successful_mutations');
 const liveFailedMutations = new Counter('profile_live_failed_mutations');
 const liveInvalidations = new Counter('profile_live_invalidations');
+const liveFragments = new Counter('profile_live_fragments');
 const liveOwnInvalidations = new Counter('profile_live_own_invalidations');
 const liveMissedOwnInvalidations = new Counter('profile_live_missed_own_invalidations');
 const liveErrors = new Counter('profile_live_errors');
@@ -68,8 +79,12 @@ export default function () {
         socket.on('open', () => {
             socket.send(JSON.stringify({
                 type: 'subscribe',
-                scope: currentPlan.scope,
-                clientId,
+                subscription: {
+                    scope: currentPlan.scope,
+                    scopeKey: currentPlan.scopeKey,
+                    fragments: currentPlan.fragments,
+                    renderedDependencyWatermark: 0,
+                },
                 lastSeenVersion: null,
             }));
         });
@@ -102,12 +117,11 @@ export default function () {
                                 type: 'profile_live_mutation_failure',
                                 scenario: scenarioName,
                                 surface: mutationPlan.surface,
-                                scope: mutationPlan.scope.kind,
+                                scope: mutationPlan.scope.surface,
                                 venue: mutationPlan.venue?.id || 'platform',
                                 route: mutationPlan.mutationRoute,
                                 status: mutationResponse.status,
-                                clientId,
-                                body: String(mutationResponse.body || '').slice(0, 500),
+                                errorClass: 'unexpected_http_status',
                             }));
                         }
                     }, warmupMs);
@@ -116,7 +130,11 @@ export default function () {
             } else if (message.type === 'invalidate') {
                 invalidationCount += 1;
                 liveInvalidations.add(1, metricTags(currentPlan));
-                if (message.sourceClientId === clientId && mutationStartedAt !== null && !ownInvalidationReceived) {
+                liveFragments.add(Array.isArray(message.fragments) ? message.fragments.length : 0, metricTags(currentPlan));
+                // The runner caps mutators to one per distinct scope. Any
+                // invalidation on this socket after its mutation is therefore
+                // causally attributable without carrying an actor identifier.
+                if (mutationStartedAt !== null && !ownInvalidationReceived) {
                     ownInvalidationReceived = true;
                     liveOwnInvalidations.add(1, metricTags(currentPlan));
                     liveOwnInvalidationLatency.add(Date.now() - mutationStartedAt, metricTags(currentPlan));
@@ -126,8 +144,14 @@ export default function () {
             }
         });
 
-        socket.on('error', () => {
+        socket.on('error', (error) => {
             liveErrors.add(1, metricTags(currentPlan));
+            console.error(JSON.stringify({
+                type: 'profile_live_socket_error',
+                scenario: scenarioName,
+                surface: currentPlan.surface,
+                message: String(error?.error || error?.message || error || 'unknown').slice(0, 300),
+            }));
         });
     });
 
@@ -180,7 +204,9 @@ function supportPlan() {
     return {
         surface: 'support',
         account: manifest.accounts?.support,
-        scope: { kind: 'support_platform' },
+        scope: { surface: 'support', scope: {} },
+        scopeKey: 'support',
+        fragments: [surfaceFragment('support', 'support-award-rates')],
         mutationPath: '/CreateFwcMapdRefreshJob',
         mutationRoute: 'live.support_mutation',
     };
@@ -188,17 +214,17 @@ function supportPlan() {
 
 function billingPlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('billing', venue, { kind: 'billing', venueId: venue.id }, '/ProfileLiveInvalidateBilling');
+    return venuePlan('billing', venue, { surface: 'billing', scope: { venueId: venue.id } }, `billing:${venue.id}`, surfaceFragment('billing', 'billing-status'), '/ProfileLiveInvalidateBilling');
 }
 
 function adminInvitesPlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('admin-invites', venue, { kind: 'admin_invites', venueId: venue.id }, '/ProfileLiveInvalidateAdminInvites');
+    return venuePlan('admin-invites', venue, { surface: 'admin-invites', scope: { venueId: venue.id } }, `admin-invites:${venue.id}`, surfaceFragment('admin-invites', 'admin-invites'), '/ProfileLiveInvalidateAdminInvites');
 }
 
 function xeroPlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('xero', venue, { kind: 'admin_xero', venueId: venue.id }, '/ProfileLiveInvalidateXero');
+    return venuePlan('xero', venue, { surface: 'admin-xero', scope: { venueId: venue.id } }, `admin-xero:${venue.id}`, surfaceFragment('admin-xero', 'admin-xero-shell'), '/ProfileLiveInvalidateXero');
 }
 
 function timesheetPlan(seed = 0) {
@@ -208,7 +234,9 @@ function timesheetPlan(seed = 0) {
     return venuePlan(
         'timesheet',
         venue,
-        { kind: 'timesheet_week', venueId: venue.id, windowStartDate, windowEndDate, rosterCalendarRevision: 1 },
+        { surface: 'timesheets', scope: { venueId: venue.id, windowStartDate, windowEndDate, rosterCalendarRevision: 1 } },
+        `timesheets:${venue.id}:${windowStartDate}:${windowEndDate}:1`,
+        surfaceFragment('timesheets', 'timesheet-toolbar'),
         profileMutationPath('ProfileLiveInvalidateTimesheetWindow', { anchorDate: windowStartDate }),
     );
 }
@@ -221,22 +249,30 @@ function rosterPlan(seed = 0) {
     return venuePlan(
         'roster',
         venue,
-        { kind: 'roster_week', venueId: venue.id, rosterGroupId: rosterGroup.id, windowStartDate, windowEndDate, rosterCalendarRevision: 1 },
+        { surface: 'roster', scope: { venueId: venue.id, rosterGroupId: rosterGroup.id, windowStartDate, windowEndDate, rosterCalendarRevision: 1 } },
+        `roster:${venue.id}:${rosterGroup.id}:${windowStartDate}:${windowEndDate}:1`,
+        surfaceFragment('roster', 'roster-day-columns'),
         profileMutationPath('ProfileLiveInvalidateRosterWindow', { anchorDate: windowStartDate, rosterGroupId: rosterGroup.id }),
     );
 }
 
 function leavePlan(seed = 0) {
     const venue = venueFor(seed);
-    return venuePlan('leave', venue, { kind: 'leave_requests', venueId: venue.id }, '/ProfileLiveInvalidateLeaveRequests');
+    return venuePlan('leave', venue, { surface: 'leave-requests', scope: { venueId: venue.id } }, `leave-requests:${venue.id}`, surfaceFragment('leave-requests', 'leave-section-list', { leaveSection: 'pending' }), '/ProfileLiveInvalidateLeaveRequests');
 }
 
-function venuePlan(surface, venue, scope, mutationPath) {
+function surfaceFragment(surface, kind, params = null) {
+    return { surface, kind, params };
+}
+
+function venuePlan(surface, venue, scope, scopeKey, fragment, mutationPath) {
     return {
         surface,
         venue,
         account: { email: venue.adminEmail, password: manifest.accounts?.venueAdmin?.password || 'password123' },
         scope,
+        scopeKey,
+        fragments: [fragment],
         mutationPath,
         mutationRoute: `live.${surface}_mutation`,
     };
@@ -308,7 +344,7 @@ function metricTags(plan, extra = {}) {
     return {
         scenario: scenarioName,
         surface: plan.surface,
-        scope: plan.scope.kind,
+        scope: plan.scope.surface,
         venue: plan.venue?.id || 'platform',
         ...extra,
     };

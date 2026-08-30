@@ -18,6 +18,7 @@ http-polling-policy-test
 node --test scripts/documentation/check.test.mjs
 node --test scripts/migration-enum-commit-boundary.test.mjs
 node --test scripts/migration-rehearsal-ci.test.mjs
+node --test scripts/profiling/diagnostic-profile-report.test.mjs
 migration-enum-commit-boundary-real-runner-test
 migration-rehearsal-test
 bash Config/nix/scripts/architecture/wiring-registry-test

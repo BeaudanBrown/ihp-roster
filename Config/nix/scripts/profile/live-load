@@ -8,6 +8,8 @@ PROFILE_DATABASE_NAME="${PROFILE_DATABASE_NAME:-app_profile_live_load_$PROFILE_L
 PROFILE_SHOULD_SEED=1
 PROFILE_SEED_ARGS=()
 PROFILE_BASE_URL="${PROFILE_BASE_URL:-}"
+PROFILE_SERVER_PGID="${PROFILE_SERVER_PGID:-}"
+PROFILE_SERVER_LOG="${PROFILE_SERVER_LOG:-}"
 PROFILE_MANIFEST="${PROFILE_MANIFEST:-}"
 PROFILE_LIVE_SCENARIO="${PROFILE_LIVE_SCENARIO:-support}"
 PROFILE_LIVE_SUBSCRIBERS="${PROFILE_LIVE_SUBSCRIBERS:-20}"
@@ -32,6 +34,8 @@ Options:
   --output-dir=path              Artifact directory
   --seed-arg=arg                 Forward an option to seed-profile
   --base-url=url                 Use an already-running app server instead of starting one
+  --server-pgid=N                Process group required with --base-url for runtime sampling
+  --server-log=path              Server log required with --base-url for query/GHC evidence
   --manifest=path                Profile seed manifest for --base-url or --reuse-db runs
   --scenario=support|mixed-live  Live profile scenario (default: support)
   --subscribers=N                WebSocket subscriber VUs (default: 20)
@@ -56,6 +60,8 @@ EOF
         --output-dir=*) PROFILE_LIVE_OUTPUT_DIR="${1#--output-dir=}"; shift ;;
         --seed-arg=*) PROFILE_SEED_ARGS+=("${1#--seed-arg=}"); shift ;;
         --base-url=*) PROFILE_BASE_URL="${1#--base-url=}"; shift ;;
+        --server-pgid=*) PROFILE_SERVER_PGID="${1#--server-pgid=}"; shift ;;
+        --server-log=*) PROFILE_SERVER_LOG="${1#--server-log=}"; shift ;;
         --manifest=*) PROFILE_MANIFEST="${1#--manifest=}"; shift ;;
         --scenario=*) PROFILE_LIVE_SCENARIO="${1#--scenario=}"; shift ;;
         --subscribers=*) PROFILE_LIVE_SUBSCRIBERS="${1#--subscribers=}"; shift ;;
@@ -87,6 +93,19 @@ case "$PROFILE_DATABASE_NAME" in
         ;;
 esac
 
+[[ "$PROFILE_LIVE_SUBSCRIBERS" =~ ^[1-9][0-9]*$ ]] || { echo "--subscribers must be positive" >&2; exit 64; }
+[[ "$PROFILE_LIVE_MUTATORS" =~ ^[1-9][0-9]*$ ]] || { echo "--mutators must be positive" >&2; exit 64; }
+[ "$PROFILE_LIVE_MUTATORS" -le "$PROFILE_LIVE_SUBSCRIBERS" ] || { echo "--mutators cannot exceed --subscribers" >&2; exit 64; }
+case "$PROFILE_LIVE_SCENARIO" in
+    support)
+        [ "$PROFILE_LIVE_MUTATORS" -le 1 ] || { echo "support allows one mutator for causal delivery attribution" >&2; exit 64; }
+        ;;
+    mixed-live)
+        [ "$PROFILE_LIVE_MUTATORS" -le 5 ] || { echo "mixed-live allows at most five distinct-scope mutators" >&2; exit 64; }
+        ;;
+    *) echo "Unsupported live profile scenario: $PROFILE_LIVE_SCENARIO" >&2; exit 64 ;;
+esac
+
 if ! psql -h "$PROFILE_DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
     echo "Live load profiling requires the local postgres socket at $PROFILE_DB_SOCKET" >&2
     echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
@@ -98,6 +117,15 @@ mkdir -p "$PROFILE_LIVE_OUTPUT_DIR"
 PROFILE_SEED_OUTPUT_DIR="$PROFILE_LIVE_OUTPUT_DIR/seed"
 PROFILE_LOG="$PROFILE_LIVE_OUTPUT_DIR/server.log"
 PROFILE_PID_FILE="$PROFILE_LIVE_OUTPUT_DIR/server.pid"
+PROFILE_RUNTIME_SAMPLES="$PROFILE_LIVE_OUTPUT_DIR/runtime-resources.tsv"
+PROFILE_RUNTIME_SUMMARY="$PROFILE_LIVE_OUTPUT_DIR/runtime-resources.json"
+PROFILE_RUNTIME_SAMPLER_PID_FILE="$PROFILE_LIVE_OUTPUT_DIR/runtime-resources.pid"
+PROFILE_SERVER_LOG_START_BYTES=0
+if [ -n "$PROFILE_SERVER_LOG" ] && [ "$(realpath -m "$PROFILE_SERVER_LOG")" = "$PROFILE_LOG" ]; then
+    echo "--server-log must differ from the generated output server.log" >&2
+    exit 64
+fi
+: > "$PROFILE_LOG"
 PROFILE_K6_METRICS="$PROFILE_LIVE_OUTPUT_DIR/k6-metrics.ndjson"
 PROFILE_K6_STDOUT="$PROFILE_LIVE_OUTPUT_DIR/k6.stdout"
 PROFILE_LIVE_METADATA="$PROFILE_LIVE_OUTPUT_DIR/metadata.json"
@@ -124,14 +152,27 @@ PROFILE_MANIFEST="$(realpath -m "$PROFILE_MANIFEST")"
 
 # shellcheck source=../lib/profile-server.sh
 . "@scriptsRoot@/lib/profile-server.sh"
-trap cleanup_profile_server EXIT INT TERM
+cleanup_profile_live_load() {
+    stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+    cleanup_profile_server
+}
+trap cleanup_profile_live_load EXIT INT TERM
 
-if [ -z "$PROFILE_BASE_URL" ]; then
+PROFILE_SERVER_PID=""
+if [ -n "$PROFILE_BASE_URL" ]; then
+    [[ "$PROFILE_SERVER_PGID" =~ ^[1-9][0-9]*$ ]] || { echo "--base-url requires --server-pgid for diagnostic CPU/RSS and pool evidence" >&2; exit 64; }
+    kill -0 "$PROFILE_SERVER_PGID" 2>/dev/null || { echo "--server-pgid is not running: $PROFILE_SERVER_PGID" >&2; exit 69; }
+    [ -r "$PROFILE_SERVER_LOG" ] || { echo "--base-url requires readable --server-log for query/GHC evidence" >&2; exit 64; }
+    PROFILE_SERVER_LOG=$(realpath "$PROFILE_SERVER_LOG")
+    PROFILE_SERVER_LOG_START_BYTES=$(stat -c %s "$PROFILE_SERVER_LOG")
+    PROFILE_SERVER_PID="$PROFILE_SERVER_PGID"
+else
     (
         export PROFILE_DATABASE_NAME
         export PROFILE_DB_SOCKET
         export IHP_ROSTER_PROFILING=1
         export LIVE_INVALIDATION_PROFILING="${LIVE_INVALIDATION_PROFILING:-1}"
+        export GHCRTS="${GHCRTS:+$GHCRTS }-T"
         setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
         echo "$!" > "$PROFILE_PID_FILE"
         wait "$!"
@@ -187,6 +228,11 @@ echo "Profile live load server ready at $PROFILE_BASE_URL"
 echo "Profile live load database: $PROFILE_DATABASE_NAME"
 echo "Profile live load scenario=$PROFILE_LIVE_SCENARIO subscribers=$PROFILE_LIVE_SUBSCRIBERS mutators=$PROFILE_LIVE_MUTATORS"
 
+if [ -n "$PROFILE_SERVER_PID" ]; then
+    sample_profile_runtime_resources "$PROFILE_SERVER_PID" "$PROFILE_RUNTIME_SAMPLES" 1 "$PROFILE_DB_SOCKET" "$PROFILE_DATABASE_NAME" &
+    echo "$!" > "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+fi
+
 set +e
 k6 run \
     --out "json=$PROFILE_K6_METRICS" \
@@ -195,11 +241,19 @@ k6 run \
     | tee "$PROFILE_K6_STDOUT"
 K6_STATUS="${PIPESTATUS[0]}"
 set -e
+if [ -n "$PROFILE_SERVER_PID" ]; then
+    stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+    finalize_profile_runtime_resources "$PROFILE_RUNTIME_SAMPLES" "$PROFILE_RUNTIME_SUMMARY"
+fi
+if [ -n "$PROFILE_SERVER_LOG" ]; then
+    tail -c "+$((PROFILE_SERVER_LOG_START_BYTES + 1))" "$PROFILE_SERVER_LOG" > "$PROFILE_LOG"
+fi
 
 node ./e2e/profile-live-load-report.mjs \
     "$PROFILE_K6_METRICS" \
     "$PROFILE_LIVE_OUTPUT_DIR" \
     "$PROFILE_LIVE_METADATA"
+node ./e2e/diagnostic-profile-report.mjs "$PROFILE_LIVE_OUTPUT_DIR" "${HASQL_POOL_SIZE:-20}"
 ln -sfn "$PROFILE_LIVE_OUTPUT_DIR" "$PWD/output/profile-live-load/latest"
 echo "Live load profile artifacts: $PROFILE_LIVE_OUTPUT_DIR"
 exit "$K6_STATUS"

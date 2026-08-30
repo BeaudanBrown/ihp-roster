@@ -196,6 +196,7 @@ renderProfileSeedManifest plan =
         , "  },"
         , "  \"accounts\": {"
         , "    \"primaryManager\": { \"email\": " <> jsonString (staffEmail 1 1) <> ", \"password\": \"password123\", \"venueId\": " <> jsonString (venueId 1) <> ", \"staffId\": " <> jsonString (staffId 1 1) <> " },"
+        , "    \"primaryStaff\": { \"email\": " <> jsonString (staffEmail 1 primaryStaffIndex) <> ", \"password\": \"password123\", \"venueId\": " <> jsonString (venueId 1) <> ", \"staffId\": " <> jsonString (staffId 1 primaryStaffIndex) <> " },"
         , "    \"venueAdmin\": { \"email\": " <> jsonString (adminEmail 1) <> ", \"password\": \"password123\", \"venueId\": " <> jsonString (venueId 1) <> " },"
         , "    \"support\": { \"email\": \"profile-support@example.com\", \"password\": \"password123\" }"
         , "  },"
@@ -234,6 +235,7 @@ renderProfileSeedManifest plan =
         , "}"
         ]
     where
+        primaryStaffIndex = min (staffPerVenue plan.options) (managerPerVenue plan.options + 1)
         currentWeekStart = plan.currentWindowStart
         currentWeekEnd = addDays 6 currentWeekStart
         historicalWindowStart =

@@ -269,7 +269,9 @@ function unquote(value) {
 }
 
 function accountForScenario(name) {
-    if (['admin', 'mixed-app'].includes(name)) {
+    if (name === 'support') return manifest.accounts?.support;
+    if (name === 'staff') return manifest.accounts?.primaryStaff;
+    if (['admin', 'billing', 'mixed-app'].includes(name)) {
         return manifest.accounts?.venueAdmin || manifest.accounts?.primaryManager;
     }
     return manifest.accounts?.primaryManager;

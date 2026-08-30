@@ -36,6 +36,22 @@
       { "kind": "visit", "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security", "readySelector": "#profile-content-fragment" },
       { "kind": "visit", "name": "profile.leave.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave", "readySelector": "#profile-leave" }
     ],
+    "staff": [
+      { "kind": "visit", "name": "staff.roster", "routeKey": "rosterCurrent", "readySelector": "#roster-week-shell" },
+      { "kind": "visit", "name": "staff.timesheets", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets", "readySelector": "#timesheet-week-shell" },
+      { "kind": "visit", "name": "staff.profile", "routeKey": "editProfile", "fallbackPath": "/EditProfile", "readySelector": "#profile-content-fragment" }
+    ],
+    "support": [
+      { "kind": "visit", "name": "support.full", "fallbackPath": "/Support", "readySelector": "#support-shell" },
+      { "kind": "jobEnqueue", "name": "support.jobs.fwc_mapd" }
+    ],
+    "billing": [
+      { "kind": "visit", "name": "billing.full", "fallbackPath": "/Billing", "readySelector": "#billing-live-surface" }
+    ],
+    "auth": [
+      { "kind": "passwordLogin", "name": "auth.password_login" },
+      { "kind": "passkeyRegistration", "name": "auth.passkey_registration" }
+    ],
     "writes": [
       { "kind": "exportGeneration", "name": "exports.generate.approved_timesheets" }
     ]
@@ -94,6 +110,20 @@
       { "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile" },
       { "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security" },
       { "name": "profile.leave.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave" }
+    ],
+    "staff": [
+      { "name": "staff.roster", "routeKey": "rosterCurrent" },
+      { "name": "staff.timesheets", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets" },
+      { "name": "staff.profile", "routeKey": "editProfile", "fallbackPath": "/EditProfile" }
+    ],
+    "support": [
+      { "name": "support.full", "fallbackPath": "/Support" }
+    ],
+    "billing": [
+      { "name": "billing.full", "fallbackPath": "/Billing" }
+    ],
+    "auth": [
+      { "name": "auth.new_session", "fallbackPath": "/NewSession", "expectedStatuses": [200, 302, 303] }
     ],
     "mixed-app": [
       { "include": "roster-wide" },

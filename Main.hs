@@ -1,6 +1,7 @@
 module Main where
 import IHP.Prelude
 
+import Application.Helper.Profiling.Runtime (withDiagnosticProfilingRuntime)
 import Application.Helper.Telemetry (withTelemetryRuntime)
 import Config
 import IHP.FrameworkConfig
@@ -20,4 +21,4 @@ instance Worker RootApplication where
     workers _ = workers WebApplication
 
 main :: IO ()
-main = withTelemetryRuntime (IHP.Server.run config)
+main = withDiagnosticProfilingRuntime (withTelemetryRuntime (IHP.Server.run config))

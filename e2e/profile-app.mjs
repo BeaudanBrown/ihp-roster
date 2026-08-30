@@ -2,7 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { chromium } = require('@playwright/test');
 
 const DEFAULT_BASE_URL = process.env.PROFILE_BASE_URL || process.env.E2E_BASE_URL || 'http://127.0.0.1:8000';
 const DEFAULT_OUTPUT_DIR = process.env.PROFILE_OUTPUT_DIR || 'output/profile/manual';
@@ -20,7 +23,7 @@ Options:
   --base-url <url>       Running app URL (default: ${DEFAULT_BASE_URL})
   --output-dir <path>    Artifact directory (default: ${DEFAULT_OUTPUT_DIR})
   --manifest <path>      Profile seed manifest (default: ${DEFAULT_MANIFEST})
-  --scenario <name>      full|roster|timesheets|leave|xero|admin|profile|writes (default: full)
+  --scenario <name>      full|roster|timesheets|leave|xero|admin|profile|staff|support|billing|auth|writes (default: full)
   --scenario-catalog <path>
                          Shared scenario catalog (default: ${DEFAULT_SCENARIO_CATALOG})
   --runs <n>             Measured iterations per scenario (default: ${DEFAULT_RUNS})
@@ -100,7 +103,7 @@ function parseArgs(argv) {
     if (!options.baseUrl) throw new Error('--base-url is required');
     if (!options.outputDir) throw new Error('--output-dir is required');
     if (!options.manifestPath) throw new Error('--manifest is required');
-    if (!['full', 'roster', 'timesheets', 'leave', 'xero', 'admin', 'profile', 'writes'].includes(options.scenario)) {
+    if (!['full', 'roster', 'timesheets', 'leave', 'xero', 'admin', 'profile', 'staff', 'support', 'billing', 'auth', 'writes'].includes(options.scenario)) {
         throw new Error(`Unsupported --scenario: ${options.scenario}`);
     }
     if (!Number.isFinite(options.runs) || options.runs < 1) throw new Error('--runs must be a positive number');
@@ -184,17 +187,27 @@ async function ensurePrivilegedPasskeyReady(page, options) {
     await page.locator('#profile-content-fragment').waitFor({ state: 'visible', timeout: options.timeoutMs });
     const securityToggle = page.getByRole('button', { name: 'Sign-In Methods' });
     if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
-        await securityToggle.click();
+        await securityToggle.click({ force: true });
     }
-    const addButton = page.getByRole('button', { name: 'Add passkey' });
-    await addButton.waitFor({ state: 'visible', timeout: options.timeoutMs });
+    let createButton = page.locator('[data-bepis-passkey-registration] [data-bepis-passkey-action-button]').first();
+    if (!(await createButton.isVisible().catch(() => false))) {
+        const setupLinks = page.getByRole('link', { name: 'Create passkey' });
+        let setupLink = null;
+        for (let index = 0; index < await setupLinks.count(); index += 1) {
+            if (await setupLinks.nth(index).isVisible()) { setupLink = setupLinks.nth(index); break; }
+        }
+        if (!setupLink) throw new Error('No visible passkey setup link');
+        await setupLink.click();
+        createButton = page.locator('[data-bepis-passkey-registration] [data-bepis-passkey-action-button]').first();
+    }
+    await createButton.waitFor({ state: 'visible', timeout: options.timeoutMs });
     const finishRegistration = page.waitForResponse((response) =>
         response.request().method() === 'POST'
         && new URL(response.url()).pathname.includes('FinishPasskeyRegistration')
         && response.status() >= 200
         && response.status() < 300
     );
-    await addButton.click();
+    await createButton.click({ force: true });
     await finishRegistration;
 }
 
@@ -203,7 +216,7 @@ function scenarioDefinitions(manifest, catalog) {
     return Object.fromEntries(Object.entries(catalog.browserScenarios || {}).map(([scenarioName, entries]) => [
         scenarioName,
         entries.map((entry) => {
-            if (entry.kind === 'exportGeneration') return { kind: 'exportGeneration', name: entry.name };
+            if (entry.kind !== 'visit') return { kind: entry.kind, name: entry.name };
             return {
                 kind: 'visit',
                 name: entry.name,
@@ -222,7 +235,9 @@ function selectedScenarios(options, manifest, catalog) {
 
 function accountForScenario(options, manifest) {
     if (options.email || options.password) return manifest.accounts?.primaryManager;
-    if (['xero', 'admin', 'writes'].includes(options.scenario)) return manifest.accounts?.venueAdmin;
+    if (options.scenario === 'support') return manifest.accounts?.support;
+    if (options.scenario === 'staff') return manifest.accounts?.primaryStaff;
+    if (['xero', 'admin', 'billing', 'writes'].includes(options.scenario)) return manifest.accounts?.venueAdmin;
     return manifest.accounts?.primaryManager;
 }
 
@@ -513,6 +528,40 @@ function renderMarkdown(options, manifest, summary) {
     return `${lines.join('\n')}\n`;
 }
 
+async function runJobEnqueueScenario(page, options, scenario, records, iteration, warmup) {
+    await gotoReady(page, options.baseUrl, '/Support', '#support-shell', options.timeoutMs);
+    const form = page.getByRole('button', { name: 'Refresh award rates' }).locator('xpath=ancestor::form');
+    const action = await form.getAttribute('action');
+    if (!action) throw new Error('Support job form is missing its action');
+    const startedAt = performance.now();
+    const response = await page.request.post(absoluteUrl(options.baseUrl, action), { maxRedirects: 0 });
+    const responseHeaders = response.headers();
+    records.push({
+        scenario: scenario.name,
+        iteration,
+        warmup,
+        url: absoluteUrl(options.baseUrl, action),
+        method: 'POST',
+        status: response.status(),
+        serverTiming: responseHeaders['server-timing'] ? parseServerTiming(responseHeaders['server-timing']) : [],
+        profileCounters: parseProfileCounters(responseHeaders['x-profile-counters']),
+        responseBytes: responseBytesFromHeaders(responseHeaders),
+        wallMs: round(performance.now() - startedAt),
+    });
+}
+
+async function runPasswordLoginScenario(page, options, account) {
+    const logoutButtons = page.getByRole('button', { name: 'Logout' });
+    let logoutButton = null;
+    for (let index = 0; index < await logoutButtons.count(); index += 1) {
+        if (await logoutButtons.nth(index).isVisible()) { logoutButton = logoutButtons.nth(index); break; }
+    }
+    if (!logoutButton) throw new Error('No visible logout button');
+    await logoutButton.evaluate((button) => button.form?.requestSubmit());
+    await page.locator('#email').waitFor({ state: 'visible', timeout: options.timeoutMs });
+    await login(page, options, account);
+}
+
 async function runExportGenerationScenario(page, options, manifest, scenario, records, iteration, warmup) {
     const routes = manifest.routes || {};
     await gotoReady(page, options.baseUrl, routes.adminExports || routes.admin || '/Admin#exports', '#exports', options.timeoutMs);
@@ -545,7 +594,7 @@ async function runExportGenerationScenario(page, options, manifest, scenario, re
 
 async function main() {
     const options = parseArgs(process.argv.slice(2));
-    if (options.scenario === 'xero') {
+    if (['xero', 'auth'].includes(options.scenario)) {
         options.baseUrl = options.baseUrl.replace('127.0.0.1', 'localhost');
     }
     const manifest = readManifest(options.manifestPath);
@@ -562,7 +611,7 @@ async function main() {
     const browser = await chromium.launch({ headless: !options.headed });
     const context = await browser.newContext({ viewport: { width: 1900, height: 1200 } });
     const page = await context.newPage();
-    if (options.scenario === 'xero') {
+    if (['xero', 'auth'].includes(options.scenario)) {
         await enableVirtualPasskeyAuthenticator(page);
     }
 
@@ -593,7 +642,7 @@ async function main() {
             await ensurePrivilegedPasskeyReady(page, options);
         }
         for (const scenario of scenarios) {
-            if (!scenario.target && scenario.kind !== 'exportGeneration') continue;
+            if (scenario.kind === 'visit' && !scenario.target) continue;
             const totalIterations = options.warmupRuns + options.runs;
             for (let index = 0; index < totalIterations; index += 1) {
                 activeScenario = scenario.name;
@@ -601,6 +650,17 @@ async function main() {
                 activeWarmup = index < options.warmupRuns;
                 if (scenario.kind === 'exportGeneration') {
                     await runExportGenerationScenario(page, options, manifest, scenario, records, activeIteration, activeWarmup);
+                } else if (scenario.kind === 'jobEnqueue') {
+                    if (!activeWarmup && activeIteration === 1) {
+                        await runJobEnqueueScenario(page, options, scenario, records, activeIteration, activeWarmup);
+                    } else {
+                        await gotoReady(page, options.baseUrl, '/Support', '#support-shell', options.timeoutMs);
+                    }
+                } else if (scenario.kind === 'passwordLogin') {
+                    await runPasswordLoginScenario(page, options, account);
+                } else if (scenario.kind === 'passkeyRegistration') {
+                    await gotoReady(page, options.baseUrl, manifest.routes?.profileSecurity || '/EditProfile?section=security', '#profile-content-fragment', options.timeoutMs);
+                    if (!activeWarmup && activeIteration === 1) await ensurePrivilegedPasskeyReady(page, options);
                 } else {
                     const wallMs = await gotoReady(page, options.baseUrl, scenario.target, scenario.readySelector, options.timeoutMs);
                     const lastRecord = [...records].reverse().find((record) =>

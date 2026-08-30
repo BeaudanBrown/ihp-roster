@@ -35,7 +35,7 @@ Options:
   --no-otel                      Disable local OTel collectors (default)
 
 Default scenarios:
-  roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, mixed-app
+  roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, staff, support, billing, auth, mixed-app
 EOF
             exit 0
             ;;
@@ -112,7 +112,7 @@ fi
 
 supported_scenario() {
     case "$1" in
-        roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app)
+        roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|staff|support|billing|auth|mixed-app)
             return 0
             ;;
         *)
@@ -147,6 +147,10 @@ if [ "${#PROFILE_SUITE_SCENARIOS[@]}" -eq 0 ]; then
         leave
         admin
         profile
+        staff
+        support
+        billing
+        auth
         mixed-app
     )
 fi

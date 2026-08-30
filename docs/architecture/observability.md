@@ -90,6 +90,35 @@ persisting request trace state would couple durable retries to customer-request
 sampling and retention. In-process child operations still inherit the active
 job or request context normally.
 
+## Diagnostic Profiling Evidence
+
+`IHP_ROSTER_PROFILING=1` additionally enables run-boundary evidence; it does not
+add query, GC, heap, pool, or fanout work to ordinary traffic. Diagnostic runs
+write `diagnostic-profile.json` and `.md` with explicit sample counts and five
+separate pressure groups: database, runtime, render, external provider, and
+live update.
+
+Database evidence aggregates IHP's parameterized debug-query timings. Reports
+retain only operation, count, duration, and a 16-hex SHA-256 fingerprint of a
+normalized statement; SQL text, parameters, routes, and customer identifiers
+are omitted. The twenty retained slow fingerprints are bounded. Connection-pool
+wait evidence is necessarily a run-level proxy because Hasql does not expose
+acquisition wait duration: the report samples active/open database connections,
+pool saturation, server waiters, and acquisition timeouts and states that
+limitation explicitly.
+
+GHC allocation, copied-byte, collection, heap, mutator CPU, and GC CPU deltas
+are sampled once per second by the process-owned diagnostic runtime. External
+process sampling supplies CPU and peak RSS. Live-load reports aggregate
+subscribers, fanout, target fragments, broadcasts, delivery, and drops by closed
+surface/label; diagnostic output retains at most 64 labels with weighted overflow
+aggregation and never emits evidence per subscriber or message.
+
+Stable regression budgets currently cover evidence presence, request
+correctness, clean-run drops, pool acquisition timeouts, and live drops/errors.
+Host-sensitive latency requires a matched baseline. The separate sampled-mode
+production overhead budget above remains authoritative.
+
 ## Topologies
 
 Local repeatable profiling remains agent-first and artifact-based:

@@ -78,13 +78,21 @@ Scenarios:
 - `xero`
 - `admin`
 - `profile`
+- `staff`
+- `support`
+- `billing`
+- `auth`
 - `writes`
 
 This is the right tool when checking browser navigation, HTMX follow-up requests, and route-level app spans for realistic user journeys.
 
 Use `xero` when checking the owner-only Xero connection shell and its server-rendered shell fragment. Guided timesheet preparation and pay-item import remain focused browser flows rather than synthetic autosave profiling targets.
 
-Use `writes` for deterministic mutation profiling. It currently exercises export generation against the isolated profile database and records the POST timing separately from read-only journeys.
+Use `staff` for an ordinary worker account, `support` for the platform support
+shell plus bounded FWC MAPD job enqueue, `billing` for the venue billing shell,
+and `auth` for measured password-login and virtual-passkey registration flows.
+Use `writes` for deterministic export-generation mutation profiling. All use
+isolated profile seed data; profile passkey credentials are synthetic.
 
 ## Request Volume Profiling
 
@@ -113,6 +121,22 @@ runtime sampler:
 ```bash
 bash ./bin/in-env profile-load --scenario=roster-wide --rate=2 --duration=15s --vus=2 --otel
 ```
+
+Diagnostic mode also writes:
+
+```text
+output/profile-load/<run-id>/diagnostic-profile.json
+output/profile-load/<run-id>/diagnostic-profile.md
+output/profile-load/<run-id>/runtime-resources.json
+output/profile-load/<run-id>/runtime-resources.tsv
+```
+
+The diagnostic report separates database, runtime, render, external-provider,
+and live-update pressure. It includes sample counts, aggregate query timing,
+bounded normalized query fingerprints, pool saturation/wait proxies, GHC
+allocation/GC/heap/CPU, and process CPU/RSS. It never includes SQL text,
+parameters, or customer identifiers. `server.log` is a local diagnostic input
+and can contain framework debug SQL structure; do not publish it.
 
 Additional OTel outputs:
 
@@ -186,9 +210,25 @@ Available scenarios:
 - `leave`: manager leave and profile leave pages.
 - `admin`: admin landing and exports section.
 - `profile`: profile and security sections.
+- `staff`: ordinary-worker roster, timesheet, and profile paths.
+- `support`: platform-support shell.
+- `billing`: venue billing shell.
+- `auth`: login route plus the per-VU measured login setup.
 - `mixed-app`: broad read-only mix across roster, timesheets, leave, admin, and profile.
 
 The shared scenario catalog lives at `e2e/profile-scenarios.json`; update it when adding or retiring profile coverage so Playwright and k6 stay aligned.
+Representative export mutations run through browser scenario `writes`; roster,
+timesheet, leave, admin, and support job mutations plus websocket fanout run
+through `profile-live-load --scenario=mixed-live` and `--scenario=support`.
+
+Stable evidence/correctness budgets live in
+`e2e/profile-regression-budgets.json`. Diagnostic runners write the report and
+fail when required query, GHC, process, or pool samples are absent, or when a
+stable correctness budget fails. Compare latency only against a matched seed,
+scenario, rate, and host baseline. External `profile-live-load --base-url` runs
+must also pass `--server-pgid` for bounded process-group sampling and
+`--server-log` so the runner can retain only query/GHC evidence appended during
+the run.
 
 `profile-load` uses k6's constant-arrival-rate model. `--rate=10 --duration=30s` means it tries to start 10 iterations per second for 30 seconds. Dropped iterations mean the test could not keep the requested arrival schedule; they are useful regression signal even when requests still pass. Reports classify runs as `clean` (<1% dropped), `strained` (1–10%), or `overloaded` (>10%). Use clean/strained runs for latency comparisons and overloaded runs for stress/capacity comparisons.
 
@@ -245,6 +285,9 @@ Useful fields:
 - Largest responses: response byte sizes when the server provides `Content-Length` or `X-Profile-Response-Bytes`; missing byte records usually mean chunked/streamed responses and are reported separately.
 - Profile counters: high-volume render counts per route/request, useful for finding multiplicative markup such as slot cells, grid cells, launchers, forms, and panel entries.
 - Span category p95/p99: grouped costs such as `read_model`, `projection`, `domain`, `render`, `external`, and `live_update`.
+- Diagnostic pressure groups: DB query count/duration, safe slow fingerprints,
+  pool pressure, GHC allocation/GC/heap, CPU/RSS, render, external, and
+  live-update aggregate evidence with explicit sample counts.
 - Span p95/p99: specific code paths worth optimizing.
 - Dropped iterations: arrival-rate pressure, often useful as regression signal.
 - VU saturation: whether k6 had to use most of the configured virtual-user ceiling.
