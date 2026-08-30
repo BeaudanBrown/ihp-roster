@@ -7,6 +7,13 @@ import test from 'node:test';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 
+test('primary profile reporters do not consume retired X-Profile headers', () => {
+  for (const relativePath of ['e2e/profile-app.mjs', 'e2e/profile-load.js', 'e2e/profile-load-report.mjs', 'e2e/profile-load-suite-report.mjs']) {
+    const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
+    assert.doesNotMatch(source, /x-profile-(?:counters|response-bytes)|profile_counter_value/i, relativePath);
+  }
+});
+
 test('profile scenario catalog covers diagnostic roles and operations', () => {
   const catalog = JSON.parse(fs.readFileSync(path.join(repoRoot, 'e2e/profile-scenarios.json'), 'utf8'));
   for (const name of ['staff', 'support', 'billing', 'auth', 'writes']) {

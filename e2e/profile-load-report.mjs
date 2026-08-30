@@ -86,7 +86,6 @@ function parseMetrics(filePath) {
     const spanGroups = new Map();
     const spanCategoryGroups = new Map();
     const componentByteGroups = new Map();
-    const counterGroups = new Map();
     let requestCount = 0;
     let failedCount = 0;
     let droppedIterations = 0;
@@ -170,17 +169,6 @@ function parseMetrics(filePath) {
                 span: tags.span || '',
                 samples: [],
             }));
-            group.samples.push(value);
-        } else if (event.metric === 'profile_counter_value') {
-            const key = groupKey(tags, ['scenario', 'route', 'counter']);
-            const group = ensureGroup(counterGroups, key, () => ({
-                scenario: tags.scenario || '',
-                route: tags.route || '',
-                counter: tags.counter || '',
-                total: 0,
-                samples: [],
-            }));
-            group.total += value;
             group.samples.push(value);
         } else if (event.metric === 'profile_span_duration') {
             const key = groupKey(tags, ['scenario', 'route', 'span']);
@@ -271,14 +259,6 @@ function parseMetrics(filePath) {
         ...summarizeSamples(group.samples, 'Bytes'),
     })).sort((a, b) => b.p95Bytes - a.p95Bytes);
 
-    const counters = [...counterGroups.values()].map((group) => ({
-        scenario: group.scenario,
-        route: group.route,
-        counter: group.counter,
-        total: group.total,
-        ...summarizeSamples(group.samples, 'Count'),
-    })).sort((a, b) => b.p95Count - a.p95Count || b.total - a.total);
-
     const missingServerTiming = [...httpGroups.values()]
         .map((group) => {
             const key = groupKey({ scenario: group.scenario, route: group.route }, ['scenario', 'route']);
@@ -339,7 +319,6 @@ function parseMetrics(filePath) {
         spans,
         spanCategories,
         componentBytes,
-        counters,
         missingServerTiming,
         missingResponseBytes,
     };
@@ -447,14 +426,6 @@ function renderMarkdown(summary, metadata) {
         '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
         ...summary.componentBytes.slice(0, 40).map((row) =>
             `| ${row.scenario} | \`${row.route}\` | \`${row.span}\` | ${row.count} | ${formatBytes(row.medianBytes)} | ${formatBytes(row.p95Bytes)} | ${formatBytes(row.p99Bytes)} | ${formatBytes(row.maxBytes)} |`
-        ),
-        '',
-        '## Profile Counters',
-        '',
-        '| Scenario | Route | Counter | Samples | Total | Median/request | P95/request | Max/request |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
-        ...summary.counters.slice(0, 40).map((row) =>
-            `| ${row.scenario} | \`${row.route}\` | \`${row.counter}\` | ${row.count} | ${row.total} | ${row.medianCount} | ${row.p95Count} | ${row.maxCount} |`
         ),
         '',
         '## Slowest Span Categories',

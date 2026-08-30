@@ -241,14 +241,6 @@ function accountForScenario(options, manifest) {
     return manifest.accounts?.primaryManager;
 }
 
-function parseProfileCounters(header) {
-    if (!header) return [];
-    return splitHeader(header).map((item) => {
-        const [name, value] = item.split('=');
-        return { name: name || '', value: Number(value) };
-    }).filter((counter) => counter.name && Number.isFinite(counter.value));
-}
-
 function parseServerTiming(header) {
     return splitHeader(header).map((metric) => {
         const parts = metric.split(';').map((part) => part.trim()).filter(Boolean);
@@ -299,22 +291,6 @@ function summarize(records) {
             return { ...record, totalMs, namedTotalMs, unattributedMs: Math.max(0, totalMs - namedTotalMs) };
         });
     const spanGroups = new Map();
-    const counterGroups = new Map();
-    for (const record of measured) {
-        for (const counter of record.profileCounters || []) {
-            const key = `${record.scenario}::${new URL(record.url).pathname}::${counter.name}`;
-            const group = counterGroups.get(key) || {
-                scenario: record.scenario,
-                path: new URL(record.url).pathname + new URL(record.url).search,
-                counter: counter.name,
-                total: 0,
-                samples: [],
-            };
-            group.total += counter.value;
-            group.samples.push(counter.value);
-            counterGroups.set(key, group);
-        }
-    }
     for (const record of requests) {
         for (const metric of record.serverTiming) {
             if (metric.name === 'app_total' || metric.durationMs === null) continue;
@@ -349,19 +325,6 @@ function summarize(records) {
                 namedTotalMs: round(record.namedTotalMs),
                 unattributedMs: round(record.unattributedMs),
             })),
-        counters: [...counterGroups.values()]
-            .map((group) => ({
-                scenario: group.scenario,
-                path: group.path,
-                counter: group.counter,
-                total: group.total,
-                count: group.samples.length,
-                medianCount: round(percentile(group.samples, 0.5)),
-                p95Count: round(percentile(group.samples, 0.95)),
-                maxCount: round(Math.max(...group.samples)),
-            }))
-            .sort((a, b) => b.p95Count - a.p95Count || b.total - a.total)
-            .slice(0, 50),
         largestResponses: measured
             .filter((record) => Number.isFinite(record.responseBytes))
             .sort((a, b) => b.responseBytes - a.responseBytes)
@@ -450,8 +413,6 @@ function round(value) {
 }
 
 function responseBytesFromHeaders(headers) {
-    const profiledValue = Number(headers['x-profile-response-bytes']);
-    if (Number.isFinite(profiledValue) && profiledValue >= 0) return profiledValue;
     const value = Number(headers['content-length']);
     return Number.isFinite(value) && value >= 0 ? value : null;
 }
@@ -508,14 +469,6 @@ function renderMarkdown(options, manifest, summary) {
             `| ${request.scenario} | ${request.method} | ${request.status} | ${formatBytes(request.responseBytes)} | \`${request.path}\` |`
         ),
         '',
-        '## Profile Counters',
-        '',
-        '| Scenario | Path | Counter | Samples | Total | Median/request | P95/request | Max/request |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
-        ...summary.counters.map((counter) =>
-            `| ${counter.scenario} | \`${counter.path}\` | \`${counter.counter}\` | ${counter.count} | ${counter.total} | ${counter.medianCount} | ${counter.p95Count} | ${counter.maxCount} |`
-        ),
-        '',
         '## Slowest Spans',
         '',
         '| Scenario | Span | Count | Median ms | P95 ms | Max ms | Detail |',
@@ -544,7 +497,6 @@ async function runJobEnqueueScenario(page, options, scenario, records, iteration
         method: 'POST',
         status: response.status(),
         serverTiming: responseHeaders['server-timing'] ? parseServerTiming(responseHeaders['server-timing']) : [],
-        profileCounters: parseProfileCounters(responseHeaders['x-profile-counters']),
         responseBytes: responseBytesFromHeaders(responseHeaders),
         wallMs: round(performance.now() - startedAt),
     });
@@ -586,7 +538,6 @@ async function runExportGenerationScenario(page, options, manifest, scenario, re
         method: 'POST',
         status: exportResponse.status(),
         serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
-        profileCounters: parseProfileCounters(exportResponseHeaders['x-profile-counters']),
         responseBytes: responseBytesFromHeaders(exportResponseHeaders),
         wallMs: round(wallMs),
     });
@@ -630,7 +581,6 @@ async function main() {
             method: request.method(),
             status: response.status(),
             serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
-            profileCounters: parseProfileCounters(responseHeaders['x-profile-counters']),
             responseBytes: responseBytesFromHeaders(responseHeaders),
             wallMs: 0,
         });

@@ -18,16 +18,29 @@ Profiling is enabled only when the profiling server sets:
 IHP_ROSTER_PROFILING=1
 ```
 
-When enabled, response middleware emits `Server-Timing` and `X-Request-Id` headers for normal app responses, including HTML, JSON, redirects, and downloads. Controllers should not add render wrappers just to emit profiling headers. The app does not keep an unbounded in-memory profile store; the runners collect timings from response headers.
+When enabled, response middleware retains `Server-Timing` and `X-Request-Id`
+for compatibility diagnostics in browser developer tools and older local reports.
+They are not the primary profiling artifact. `otel-summary.json` and the bounded
+agent tools own span, size, counter, and comparison evidence. Controllers should
+not add render wrappers only to emit headers.
 
-The shared `renderProfiled` and `respondHtmlProfiled` helpers add coarse `render.ihp_view` and `render.respond_html` spans when profiling is enabled. `respondHtmlProfiled` also emits `X-Profile-Response-Bytes` for rendered HTML payload size. Use these helpers for profiled routes and add narrower manual spans only when a route-level render span still leaves a large attribution gap.
+The shared `renderProfiled` and `respondHtmlProfiled` helpers add coarse
+`render.ihp_view` and `render.respond_html` OpenTelemetry spans when profiling is
+enabled. Rendered byte sizes are recorded as diagnostic-only `html.bytes` span
+attributes. The retired `X-Profile-Response-Bytes` header is no longer emitted;
+compatibility reports may use ordinary `Content-Length` when available.
 
 Local trace-run and trace-step request headers accept at most 96 UTF-8 bytes and
 only ASCII letters, digits, `-`, `_`, `.`, `:`, and `/`. Invalid values are
 discarded. They remain trusted-local correlation inputs, not customer-facing or
 production metadata.
 
-Profiling counters are available for high-volume render paths via `profileCounter` in IO code and `profileRenderCounter` in pure view code. Counters are emitted in `X-Profile-Counters` and summarized alongside timings. Use counters sparingly for repeated structures such as roster rows, slot blocks, grid cells, launchers, hidden inputs, picker options, and panel entries.
+Profiling counters remain available for high-volume render paths via
+`profileRenderCounter`. They are attached to the enclosing diagnostic render
+span and `bepis.render.counters` event. The legacy `X-Profile-Counters` header
+and its request-global accumulation are retired. Use counters sparingly for
+repeated structures such as roster rows, slot blocks, grid cells, launchers,
+hidden inputs, picker options, and panel entries.
 
 Manual spans are added with helpers from `Application.Helper.Profiling`, for example:
 
@@ -36,11 +49,11 @@ profileActionSpan "roster.build_month_overview" do
     buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate
 ```
 
-Use span names that identify the app area and operation. Prefer category-style prefixes such as `read_model.*`, `projection.*`, `domain.*`, `render.*`, `external.*`, and `live_update.*` for new spans. Existing legacy spans are still accepted and are grouped heuristically by the load reports. The emitted `Server-Timing` token sanitizes dots to underscores, so `roster.build_month_overview` appears as `roster_build_month_overview` in reports.
+Use span names that identify the app area and operation. Prefer category-style prefixes such as `read_model.*`, `projection.*`, `domain.*`, `render.*`, `external.*`, and `live_update.*` for new spans. The common OpenTelemetry model owns primary grouping. For compatibility only, emitted `Server-Timing` tokens sanitize dots to underscores, so `roster.build_month_overview` appears as `roster_build_month_overview` in older reports.
 
 When `IHP_ROSTER_PROFILING` is unset, profiling is default-off. Span helpers first check for an active request profile and avoid monotonic clock reads or cache-stat snapshots when no profile exists. Production deployments must leave profiling disabled unless an operator intentionally starts an isolated profiling run or enables it briefly for a controlled diagnostic window.
 
-`Server-Timing` exposes internal span names. Do not enable profiling headers for ordinary public traffic. Prefer the isolated `profile-app`, `profile-load`, and `profile-load-suite` commands, which set `IHP_ROSTER_PROFILING=1` only for dedicated profile servers backed by `app_profile*` databases.
+`Server-Timing` exposes internal span names. Do not enable profiling headers for ordinary public traffic. Prefer isolated profile commands backed by `app_profile*` databases. For new diagnosis use `--otel`, `otel-browser`, `otel-summary`, `otel_trace_search`, `otel_trace_get`, and `otel_compare_runs`; treat header-derived timing sections as compatibility context only.
 
 ## Profile Seed Database
 
@@ -275,15 +288,15 @@ bash ./bin/in-env profile-load-suite \
 
 ## Interpreting Reports
 
-Prefer app-side `Server-Timing` numbers for code optimization. HTTP latency includes transfer, local scheduling, and login setup.
+Prefer matched `otel-summary.json` route/span groups and exclusive-time evidence for code optimization. `Server-Timing` is compatibility context only; HTTP latency also includes transfer, local scheduling, and login setup.
 
 Useful fields:
 
 - HTTP p95/p99 by route: user-visible request latency.
 - App total p95/p99 by route: server-side request work.
 - Attribution gaps: `app_total - named spans`; large gaps mean add spans around rendering/serialization or another uninstrumented boundary before guessing at a refactor.
-- Largest responses: response byte sizes when the server provides `Content-Length` or `X-Profile-Response-Bytes`; missing byte records usually mean chunked/streamed responses and are reported separately.
-- Profile counters: high-volume render counts per route/request, useful for finding multiplicative markup such as slot cells, grid cells, launchers, forms, and panel entries.
+- Largest responses: OpenTelemetry `html.bytes`/response-size attributes are authoritative; compatibility HTTP reports use `Content-Length` when available.
+- Render counters: diagnostic OpenTelemetry span attributes/events expose high-volume render counts useful for finding multiplicative markup such as slot cells, grid cells, launchers, forms, and panel entries.
 - Span category p95/p99: grouped costs such as `read_model`, `projection`, `domain`, `render`, `external`, and `live_update`.
 - Diagnostic pressure groups: DB query count/duration, safe slow fingerprints,
   pool pressure, GHC allocation/GC/heap, CPU/RSS, render, external, and

@@ -149,6 +149,10 @@ tests = aroundAll withDatabaseTestContext do
                         triggerHeader `shouldContainBS` "bepis:live-fragments-refresh"
                     serverTiming mutationResponse `shouldContainBS` "app_total;dur="
                     serverTiming passiveRefetch `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
+                    serverTiming mutationResponse `shouldNotContainBS` "bytes="
+                    serverTiming passiveRefetch `shouldNotContainBS` "bytes="
+                    lookup "X-Profile-Counters" (responseHeaders mutationResponse) `shouldBe` Nothing
+                    lookup "X-Profile-Response-Bytes" (responseHeaders passiveRefetch) `shouldBe` Nothing
                     dumpBaselineTimings [("slot-mutation", mutationResponse), ("passive-row-refetch", passiveRefetch)]
 
 data BaselineRoster = BaselineRoster

@@ -46,7 +46,6 @@ data RequestProfile = RequestProfile
     { requestProfileId :: !Text
     , startedAtNs      :: !Word64
     , spansRef         :: !(IORef [RequestProfileSpan])
-    , countersRef      :: !(IORef (Map Text Int))
     , nextSpanOrderRef :: !(IORef Int)
     , emittedRef       :: !(IORef Bool)
     }
@@ -98,8 +97,7 @@ profileActionSpan name action =
 profileCounter :: (?context :: ControllerContext) => Text -> Int -> IO ()
 profileCounter name amount = do
     maybeProfile :: Maybe RequestProfile <- maybeFromContext
-    forEach maybeProfile \profile -> do
-        appendRequestProfileCounter profile name amount
+    forEach maybeProfile \_ ->
         appendActiveRenderCounter name amount
 
 profileRenderCounter :: (?context :: ControllerContext) => Text -> Int -> Blaze.Html
@@ -133,7 +131,7 @@ profileHtmlComponent name html =
                                 { spanOrder = 0
                                 , spanName = name
                                 , durationMs = durationBetweenMs startedAtNs completedAtNs
-                                , detail = Just ("bytes=" <> tshow byteCount)
+                                , detail = Nothing
                                 }
                         pure (Blaze.preEscapedToHtml (LazyTextEncoding.decodeUtf8 htmlBytes))
 {-# NOINLINE profileHtmlComponent #-}
@@ -162,7 +160,7 @@ respondHtmlProfiled html =
                                 { spanOrder = 0
                                 , spanName = "render.respond_html"
                                 , durationMs = durationBetweenMs startedAtNs completedAtNs
-                                , detail = Just ("bytes=" <> tshow byteCount)
+                                , detail = Nothing
                                 }
                         pure (htmlBytes, byteCount)
                 respondAndExitWithHeaders $
@@ -170,7 +168,6 @@ respondHtmlProfiled html =
                         status200
                         [ (hContentType, "text/html; charset=utf-8")
                         , (hConnection, "keep-alive")
-                        , ("X-Profile-Response-Bytes", cs (tshow byteCount))
                         ]
                         htmlBytes
     where
@@ -215,12 +212,6 @@ appendRequestProfileSpan profile span = do
     atomicModifyIORef' profile.spansRef \spans ->
         (span { spanOrder } : spans, ())
 
-appendRequestProfileCounter :: RequestProfile -> Text -> Int -> IO ()
-appendRequestProfileCounter profile name amount =
-    when (amount /= 0) do
-        atomicModifyIORef' profile.countersRef \counters ->
-            (Map.insertWith (+) name amount counters, ())
-
 appendActiveRenderCounter :: Text -> Int -> IO ()
 appendActiveRenderCounter name amount =
     when (amount /= 0) do
@@ -264,7 +255,6 @@ newRequestProfile = do
     startedAtNs <- getMonotonicTimeNSec
     requestProfileId <- UUID.toText <$> UUIDv4.nextRandom
     spansRef <- newIORef []
-    countersRef <- newIORef Map.empty
     nextSpanOrderRef <- newIORef 0
     emittedRef <- newIORef False
     pure
@@ -272,7 +262,6 @@ newRequestProfile = do
             { requestProfileId
             , startedAtNs
             , spansRef
-            , countersRef
             , nextSpanOrderRef
             , emittedRef
             }
@@ -304,16 +293,11 @@ finalizeRequestProfile request profile = do
             writeIORef profile.emittedRef True
             completedAtNs <- getMonotonicTimeNSec
             spans <- List.sortOn spanOrder <$> readIORef profile.spansRef
-            counters <- readIORef profile.countersRef
             let totalDurationMs = durationBetweenMs profile.startedAtNs completedAtNs
-            let counterHeaders =
-                    [ ("X-Profile-Counters", cs (renderProfileCounters counters))
-                    | not (Map.null counters)
-                    ]
             let headers =
                     [ ("X-Request-Id", cs profile.requestProfileId)
                     , ("Server-Timing", cs (renderServerTiming totalDurationMs spans))
-                    ] <> counterHeaders
+                    ]
             pure (Just headers)
 
 durationBetweenMs :: Word64 -> Word64 -> Double
@@ -326,12 +310,6 @@ renderServerTiming totalDurationMs spans =
     where
         renderSpan RequestProfileSpan { spanName, durationMs, detail } =
             renderTimingMetric (sanitizeTimingToken spanName) durationMs detail
-
-renderProfileCounters :: Map Text Int -> Text
-renderProfileCounters counters =
-    Text.intercalate "," (map renderCounter (Map.toAscList counters))
-    where
-        renderCounter (name, amount) = sanitizeTimingToken name <> "=" <> tshow amount
 
 renderTimingMetric :: Text -> Double -> Maybe Text -> Text
 renderTimingMetric metricName durationMs detail =

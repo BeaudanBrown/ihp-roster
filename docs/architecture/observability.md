@@ -17,7 +17,10 @@ Observability modes are deliberately separate:
   render-counter evidence for isolated profile runs or controlled diagnosis.
 
 Ordinary production traffic must not receive profiling headers or expensive
-render diagnostics. Production configuration belongs in the
+render diagnostics. `Server-Timing` remains a profile-gated browser-devtools
+compatibility surface. `X-Profile-Counters` and `X-Profile-Response-Bytes` are
+retired; diagnostic counters and sizes live only in bounded OpenTelemetry
+attributes/events and the common artifact model. Production configuration belongs in the
 `services.ihpRoster.observability` NixOS module rather than ad hoc environment
 files.
 

@@ -60,4 +60,6 @@ Bepis app
 - Grafana can inspect production traces/logs through provisioned data sources.
 - Dashboards and correlation conventions support incident diagnosis.
 - Security, PII/cardinality, retention, and rollback procedures are reviewed.
-- Legacy profiling headers are explicitly retained or retired after parity.
+- `Server-Timing` is retained only as profile-gated compatibility; legacy
+  `X-Profile-Counters` and `X-Profile-Response-Bytes` are retired after local
+  OpenTelemetry artifact parity.

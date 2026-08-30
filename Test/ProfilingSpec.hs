@@ -27,6 +27,8 @@ tests =
 
                 lookup "X-Request-Id" (simpleHeaders response) `shouldSatisfy` maybe False (not . null)
                 lookup "Server-Timing" (simpleHeaders response) `shouldSatisfy` maybe False (ByteString.isInfixOf "app_total;dur=")
+                simpleHeaders response `shouldNotSatisfy` hasHeader "X-Profile-Counters"
+                simpleHeaders response `shouldNotSatisfy` hasHeader "X-Profile-Response-Bytes"
 
         it "emits profiling headers for non-HTML response shapes" do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do

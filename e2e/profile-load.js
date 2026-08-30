@@ -22,7 +22,6 @@ const responseBytes = new Trend('profile_response_bytes', true);
 const componentBytes = new Trend('profile_component_bytes', true);
 const spanDuration = new Trend('profile_span_duration', true);
 const timingRecordCount = new Counter('profile_timing_records');
-const profileCounterValue = new Counter('profile_counter_value');
 let loggedIn = false;
 let sessionCookie = null;
 
@@ -63,7 +62,6 @@ export default function () {
     });
 
     recordResponseBytes(route, response);
-    recordProfileCounters(route, response);
     recordServerTiming(route, response);
 }
 
@@ -166,26 +164,12 @@ function url(path) {
 }
 
 function recordResponseBytes(route, response) {
-    const profiledBytes = Number(headerValue(response.headers, 'x-profile-response-bytes'));
-    const contentLength = Number(headerValue(response.headers, 'content-length'));
-    const byteCount = Number.isFinite(profiledBytes) && profiledBytes >= 0 ? profiledBytes : contentLength;
+    const byteCount = Number(headerValue(response.headers, 'content-length'));
     if (!Number.isFinite(byteCount) || byteCount < 0) return;
     responseBytes.add(byteCount, {
         route: route.name,
         scenario: scenarioName,
     });
-}
-
-function recordProfileCounters(route, response) {
-    const header = headerValue(response.headers, 'x-profile-counters');
-    if (!header) return;
-    for (const counter of parseProfileCounters(header)) {
-        profileCounterValue.add(counter.value, {
-            route: route.name,
-            scenario: scenarioName,
-            counter: counter.name,
-        });
-    }
 }
 
 function recordServerTiming(route, response) {
@@ -231,13 +215,6 @@ function headerValue(headers, wantedName) {
         if (name.toLowerCase() === wanted) return headers[name];
     }
     return null;
-}
-
-function parseProfileCounters(header) {
-    return splitHeader(header).map((item) => {
-        const [name, value] = item.split('=');
-        return { name: name || '', value: Number(value) };
-    }).filter((counter) => counter.name && Number.isFinite(counter.value));
 }
 
 function parseServerTiming(header) {
