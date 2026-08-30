@@ -142,6 +142,73 @@ tests = do
             payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel
                 `shouldBe` Right (payrollWorkbookFromFactModel 1 factModel)
 
+        it "locks every individual family and representative ordered subsets to deterministic XLSX goldens" do
+            let (_, factModel) = oneHourFactModel
+            let variants =
+                    [ ("summary", [PayrollWorkbookSummary], ["Summary 2025-01-06", "Data"])
+                    , ("employee-hours", [PayrollWorkbookEmployeePayBucketHours], ["Hours Mon 2025-01-06", "Data"])
+                    , ("shift-hours", [PayrollWorkbookShiftTypeHours], ["Shift Type Hours Mon 2025-01-06", "Data"])
+                    , ("employee-wages", [PayrollWorkbookEmployeePayBucketWages], ["Wages Mon 2025-01-06", "Data"])
+                    , ("shift-wages", [PayrollWorkbookShiftTypeWages], ["Shift Type Wages Mon 2025-01-06", "Data"])
+                    , ("wages-summary", [PayrollWorkbookShiftTypeWages, PayrollWorkbookSummary], ["Shift Type Wages Mon 2025-01-06", "Summary 2025-01-06", "Data"])
+                    , ("hours-pair", [PayrollWorkbookEmployeePayBucketHours, PayrollWorkbookShiftTypeHours], ["Hours Mon 2025-01-06", "Shift Type Hours Mon 2025-01-06", "Data"])
+                    ]
+            renderedVariants <- forM variants \(key, families, expectedSheets) -> do
+                workbook <- expectRight (payrollWorkbookFromDefinition (PayrollWorkbookDefinition key 1 families) 1 factModel)
+                map (.name) workbook.sheets `shouldBe` expectedSheets
+                map (.hidden) workbook.sheets `shouldBe` replicate (length expectedSheets - 1) False <> [True]
+                let rendered = renderPayrollWorkbook workbook
+                rendered `shouldBe` renderPayrollWorkbook workbook
+                Xlsx.toXlsxEither rendered `shouldSatisfy` isRight
+                pure (key, show (hashlazy rendered :: Digest SHA256))
+            renderedVariants `shouldBe`
+                [ ("summary", "687a14792cfb7e288c72cc51c6255988b11ce378fa887f4b8ffdd93ae10d090b")
+                , ("employee-hours", "47f36e4b6c19c69261d8c62e5c9889a498a677d7c69c28be805fdefaa854bafc")
+                , ("shift-hours", "4335e83f30e873c13d2bd34e88afec938d8ecdc23c8e1c26c4ed96616ff15cec")
+                , ("employee-wages", "926ea0a971aeebfb0185d05fe66b08f22cccfd08ee96809c24c558ce664d4cc8")
+                , ("shift-wages", "415ce75be3337448123055b81dff322923405235ff8025415ec5e35807b54b87")
+                , ("wages-summary", "cb9dd95dff26e171b54d8bedd6cd6f779bfd0af4ba83375ea5003390af286d53")
+                , ("hours-pair", "cf14ae9a5e4823a8f3a3146babd8f8566c128c65cc9f84a6968837416374aaac")
+                ]
+
+        it "recalculates default and representative configured variants directly from authoritative Data facts" do
+            let (_, factModel) = oneHourFactModel
+            defaultWorkbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel)
+            configuredWorkbook <- expectRight
+                (payrollWorkbookFromDefinition
+                    (PayrollWorkbookDefinition "wages-summary" 1 [PayrollWorkbookShiftTypeWages, PayrollWorkbookSummary])
+                    1
+                    factModel
+                )
+            let defaultBytes = renderPayrollWorkbook defaultWorkbook
+            let configuredBytes = renderPayrollWorkbook configuredWorkbook
+            maybeArtifactDirectory <- lookupEnv "PAYROLL_WORKBOOK_COMPATIBILITY_DIRECTORY"
+            forM_ maybeArtifactDirectory \artifactDirectory -> do
+                createDirectoryIfMissing True artifactDirectory
+                LBS.writeFile (artifactDirectory <> "/payroll_workbook-default.xlsx") defaultBytes
+                LBS.writeFile (artifactDirectory <> "/payroll_workbook-wages-summary.xlsx") configuredBytes
+            assertLibreOfficeFormulaValues defaultBytes
+                [ "Summary 2025-01-06\tC2\t1.5"
+                , "Hours Mon 2025-01-06\tD2\t1.5"
+                , "Hours Mon 2025-01-06\tC3\t1.5"
+                , "Hours Mon 2025-01-06\tD3\t1.5"
+                , "Shift Type Hours Mon 2025-01-06\tC2\t1"
+                , "Shift Type Hours Mon 2025-01-06\tB3\t1"
+                , "Shift Type Hours Mon 2025-01-06\tC3\t1"
+                , "Wages Mon 2025-01-06\tD2\t45"
+                , "Wages Mon 2025-01-06\tC3\t45"
+                , "Wages Mon 2025-01-06\tD3\t45"
+                , "Shift Type Wages Mon 2025-01-06\tC2\t45"
+                , "Shift Type Wages Mon 2025-01-06\tB3\t45"
+                , "Shift Type Wages Mon 2025-01-06\tC3\t45"
+                ]
+            assertLibreOfficeFormulaValues configuredBytes
+                [ "Shift Type Wages Mon 2025-01-06\tC2\t45"
+                , "Shift Type Wages Mon 2025-01-06\tB3\t45"
+                , "Shift Type Wages Mon 2025-01-06\tC3\t45"
+                , "Summary 2025-01-06\tC2\t1.5"
+                ]
+
         it "renders shift-type Hours and Wages from shared facts with blank zero details and formula totals" do
             let (_, factModel) = oneHourFactModel
             workbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel)
@@ -190,8 +257,11 @@ tests = do
                         , payrollFactModelFacts = [firstFact, secondFact, skippedFact]
                         }
             workbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel)
+            let summary = fromMaybe (error "expected Summary sheet") (head workbook.sheets)
             let shiftHours = workbook.sheets !! 2
             let shiftWages = workbook.sheets !! 4
+            formulaValues summary `shouldSatisfy` any (Text.isInfixOf "'Data'!$K:$K,\"first\"")
+            formulaValues summary `shouldSatisfy` any (Text.isInfixOf "'Data'!$K:$K,\"second\"")
             numberAt 2 2 shiftHours `shouldBe` Just (0.666667, "0.000000;-0.000000;;")
             numberAt 3 2 shiftHours `shouldBe` Nothing
             numberAt 2 3 shiftHours `shouldBe` Nothing

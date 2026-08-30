@@ -70,9 +70,11 @@ cross-module safety and payroll contracts.
 - Every valid definition automatically appends the deterministic typed Data
   worksheet. Data is implementation-owned, hidden by default, and cannot be
   selected or omitted as a presentation family. Daily sheets share hour columns,
-  retain hidden
-  staff/pay-bucket keys, and calculate all totals with formulas. Each roster-week
-  Summary has no title or totals and joins Hours sheets by those stable keys.
+  retain hidden staff/pay-bucket keys, and calculate all totals with formulas.
+  Each roster-week Summary has no title or totals. In definition-based workbooks
+  its formulas aggregate paid-hour Data facts directly, so Summary remains valid
+  when the employee/pay-bucket Hours family is omitted; the legacy compatibility
+  renderer continues to join Hours sheets by stable keys.
   Weekdays use Ord/7-12/12+ buckets; Saturday and Sunday use Ord/12+, with every
   next-day hour in 12+. Shift-type sheets transpose hourly facts into ordered
   approval-pinned shift-type columns, aggregate repeated civil-hour occurrences,

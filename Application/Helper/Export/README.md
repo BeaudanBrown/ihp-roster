@@ -29,15 +29,17 @@ For the required Google Sheets smoke test, materialize the reviewed formula
 fixture, then import it with **File → Import → Upload**:
 
 ```bash
-PAYROLL_WORKBOOK_COMPATIBILITY_ARTIFACT=.pi/tmp/payroll-workbook-compatibility/payroll_workbook-sheets-smoke.xlsx \
-    bash ./bin/in-env hspec-pure --match "recalculates daily and accountant Summary formulas"
+PAYROLL_WORKBOOK_COMPATIBILITY_DIRECTORY=.pi/tmp/payroll-workbook-compatibility \
+    bash ./bin/in-env hspec-pure --match "recalculates default and representative configured variants"
 ```
 
-Confirm that Summary and daily Total formula cells display numeric values without
-an import or formula error, including a non-zero `Sun 12+` Summary value.
-Formatting need not be pixel-identical. Record the import date, Google Sheets
-result, and any caveat on the implementing GitHub issue; do not commit transient
-verification reports.
+Import both `payroll_workbook-default.xlsx` and
+`payroll_workbook-wages-summary.xlsx`. Confirm that Summary and daily Total
+formula cells display numeric values without an import or formula error; the
+configured workbook proves Summary remains valid without an employee Hours
+presentation sheet. Formatting need not be pixel-identical. Record the import
+date, Google Sheets result, and any caveat on the implementing GitHub issue; do
+not commit transient verification reports.
 
 ## Related Docs
 

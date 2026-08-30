@@ -93,6 +93,10 @@ tests =
             row.payrollRowEntryCount `shouldBe` 2
             sum row.payrollRowHours `shouldBe` 3
             sum row.payrollRowWageCents `shouldBe` 9000
+            sum (map (.payrollFactPaidHours) factModel.payrollFactModelFacts)
+                `shouldBe` sum (concatMap (.payrollRowHours) rows)
+            sum (map (.payrollFactWageCents) factModel.payrollFactModelFacts)
+                `shouldBe` sum (concatMap (.payrollRowWageCents) rows)
             valueAt model row 9 FirstHourlyOccurrence `shouldBe` roundSix (4 % 3)
             valueAt model row 10 FirstHourlyOccurrence `shouldBe` roundSix (5 % 3)
             centsAt model row 9 FirstHourlyOccurrence `shouldBe` 4000

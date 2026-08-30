@@ -229,7 +229,7 @@ payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
   where
     familySheets projected = \case
         PayrollWorkbookSummary ->
-            map (summarySheet projected) (summaryWeekAnchors rosterWeekStartsOn projected)
+            map (summarySheetFromFacts projected) (summaryWeekAnchors rosterWeekStartsOn projected)
         PayrollWorkbookEmployeePayBucketHours ->
             map (dailySheet projected DailyHours) projected.payrollModelDays
         PayrollWorkbookShiftTypeHours ->
@@ -363,7 +363,16 @@ summaryWeekAnchors rosterWeekStartsOn model =
     firstAnchor = startOfWeekFor rosterWeekStartsOn model.payrollModelRangeStart
 
 summarySheet :: PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
-summarySheet model weekAnchor =
+summarySheet = summarySheetWith summaryBucketFormula
+
+-- Definition-based workbooks always include Data, so Summary formulas use that
+-- implementation-owned authority rather than depending on an optional Hours
+-- presentation family.
+summarySheetFromFacts :: PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
+summarySheetFromFacts = summarySheetWith summaryBucketFactFormula
+
+summarySheetWith :: (PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text) -> PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
+summarySheetWith formulaFor model weekAnchor =
     PayrollWorkbookSheet
         { name = summarySheetName weekAnchor
         , hidden = False
@@ -389,7 +398,7 @@ summarySheet model weekAnchor =
           , textCell rowNumber 2 row.payrollRowPayBucket.payrollPayBucketLabel defaultPayrollWorkbookCellStyle
           ]
             <> zipWith
-                (\column bucket -> formulaCell rowNumber column (summaryBucketFormula model rowNumber staffIdColumn payBucketKeyColumn bucket) hoursStyle)
+                (\column bucket -> formulaCell rowNumber column (formulaFor model rowNumber staffIdColumn payBucketKeyColumn row bucket) hoursStyle)
                 [3 ..]
                 buckets
             <> [ textCell rowNumber staffIdColumn (tshow row.payrollRowStaffId) defaultPayrollWorkbookCellStyle
@@ -424,8 +433,8 @@ summaryBuckets weekAnchor = concatMap bucketsForDate [weekAnchor .. addDays 6 we
             _   -> [(SummaryOrdinary, "Ord"), (SummaryEvening, "7-12"), (SummaryAfterMidnight, "12+")]
         ]
 
-summaryBucketFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> SummaryBucket -> Text
-summaryBucketFormula model summaryRow staffIdColumn payBucketKeyColumn bucket
+summaryBucketFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text
+summaryBucketFormula model summaryRow staffIdColumn payBucketKeyColumn _row bucket
     | bucket.summaryBucketDate < model.payrollModelRangeStart = "SUM()"
     | bucket.summaryBucketDate > model.payrollModelRangeEnd = "SUM()"
     | null matchingColumns = "SUM()"
@@ -446,6 +455,27 @@ summaryBucketFormula model summaryRow staffIdColumn payBucketKeyColumn bucket
             <> ",$" <> columnName staffIdColumn <> tshow summaryRow
             <> "," <> sourceSheet <> "!$" <> columnName sourcePayBucketKeyColumn <> ":$" <> columnName sourcePayBucketKeyColumn
             <> ",$" <> columnName payBucketKeyColumn <> tshow summaryRow
+            <> ")"
+
+summaryBucketFactFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text
+summaryBucketFactFormula model summaryRow staffIdColumn _payBucketKeyColumn row bucket
+    | bucket.summaryBucketDate < model.payrollModelRangeStart = "SUM()"
+    | bucket.summaryBucketDate > model.payrollModelRangeEnd = "SUM()"
+    | null matchingSlots = "SUM()"
+    | otherwise = Text.intercalate "+" (map sumIfFormula matchingSlots)
+  where
+    matchingSlots = filter (summarySlotMatches bucket) model.payrollModelHourSlots
+    (payBucketType, payBucketId) = payBucketIdentity row.payrollRowPayBucket.payrollPayBucketKey
+    dataSource = quoteSheetName "Data"
+    sumIfFormula slot =
+        "SUMIFS("
+            <> dataSource <> "!$M:$M"
+            <> "," <> dataSource <> "!$A:$A,\"" <> tshow bucket.summaryBucketDate <> "\""
+            <> "," <> dataSource <> "!$C:$C,$" <> columnName staffIdColumn <> tshow summaryRow
+            <> "," <> dataSource <> "!$G:$G,\"" <> payBucketType <> "\""
+            <> "," <> dataSource <> "!$H:$H,\"" <> tshow payBucketId <> "\""
+            <> "," <> dataSource <> "!$J:$J," <> tshow slot.payrollHourOfWindow
+            <> "," <> dataSource <> "!$K:$K,\"" <> hourOccurrenceText slot.payrollHourOccurrence <> "\""
             <> ")"
 
 summarySlotMatches :: SummaryBucket -> PayrollWorkbookHourSlot -> Bool
