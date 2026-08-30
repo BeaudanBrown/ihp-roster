@@ -19,7 +19,7 @@ data BepisControllerPolicy
     | BepisAuthenticatedVenueController
     | BepisAdminVenueController
     | BepisSupportController
-    deriving (Eq, Show, Generic)
+    deriving (Bounded, Enum, Eq, Show, Generic)
 
 -- | Wrap a normal IHP beforeAction implementation with Bepis policy metadata.
 -- The supplied action remains responsible for calling the existing auth/scope

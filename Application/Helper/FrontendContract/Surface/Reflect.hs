@@ -34,6 +34,11 @@ import Application.Helper.FrontendContract.ClosedScalar (closedScalarSourceModul
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (..),
                                                    deriveFrontendSurfaceName,
                                                    deriveSurfaceBrowserAttributeName)
+import Application.Helper.FrontendContract.Reflect (ReflectBrowserReachability (..),
+                                                    ReflectField (..),
+                                                    ReflectFieldList (..),
+                                                    ReflectWire (..),
+                                                    reflectedFieldWith)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Data.List as List
@@ -105,7 +110,7 @@ instance (Typeable marker, ReflectFieldList fields, ReflectScopeOptionList optio
     reflectScopePrimitive = ScopeIR
         { scopeMarker = typeMarker @marker
         , scopeName = protocolName @marker ScopeName
-        , scopeFields = reflectFieldList @fields
+        , scopeFields = reflectFieldList @_ @fields
         , scopeOptions = reflectScopeOptionList @options
         }
 
@@ -116,7 +121,7 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('MountS
     reflectPrimitive = ReflectedMountState MountStateIR
         { mountStateMarker = typeMarker @marker
         , mountStateName = protocolName @marker ScopeName
-        , mountStateFields = reflectFieldList @fields
+        , mountStateFields = reflectFieldList @_ @fields
         }
 
 class ReflectFragmentPrimitive (primitive :: SurfacePrimitive) where
@@ -126,7 +131,7 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) =
     reflectFragmentPrimitive = FragmentIR
         { fragmentMarker = typeMarker @marker
         , fragmentName = protocolName @marker FragmentName
-        , fragmentParams = reflectFieldList @fields
+        , fragmentParams = reflectFieldList @_ @fields
         , fragmentOptions = reflectOptionList @options
         }
 
@@ -140,7 +145,7 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) =
     reflectActionPrimitive = HtmxActionIR
         { htmxActionMarker = typeMarker @marker
         , htmxActionName = protocolName @marker ActionName
-        , htmxActionFields = reflectFieldList @fields
+        , htmxActionFields = reflectFieldList @_ @fields
         , htmxActionOptions = reflectOptionList @options
         }
 
@@ -154,7 +159,7 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) =
     reflectIntentPrimitive = IntentIR
         { intentMarker = typeMarker @marker
         , intentName = protocolName @marker IntentName
-        , intentFields = reflectFieldList @fields
+        , intentFields = reflectFieldList @_ @fields
         , intentOptions = reflectOptionList @options
         }
 
@@ -366,7 +371,7 @@ instance (ReflectSessionSelector session, ReflectFragmentSelector fragment, Refl
         }
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Event marker fields) where
-    reflectPrimitive = ReflectedClientEvent (protocolName @marker EventName) (reflectFieldList @fields)
+    reflectPrimitive = ReflectedClientEvent (protocolName @marker EventName) (reflectFieldList @_ @fields)
 
 class ReflectDomTokenPrimitive (primitive :: SurfacePrimitive) where
     reflectDomTokenPrimitive :: Text
@@ -384,41 +389,16 @@ instance ReflectDomTokenPrimitive ('BrowserDomToken marker) => ReflectPrimitive 
     reflectPrimitive = ReflectedBrowserDomToken (reflectDomTokenPrimitive @('BrowserDomToken marker))
 
 instance (ReflectBrowserReachability reachability, Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('SurfaceDto reachability marker fields) where
-    reflectPrimitive = ReflectedDto (reflectBrowserReachability @reachability) (typeMarker @marker) (reflectFieldList @fields)
-
-class ReflectBrowserReachability (reachability :: BrowserReachability) where
-    reflectBrowserReachability :: BrowserReachabilityIR
-
-instance ReflectBrowserReachability 'BrowserUnreachable where reflectBrowserReachability = BrowserUnreachableIR
-instance ReflectBrowserReachability 'BrowserTypeOnly where reflectBrowserReachability = BrowserTypeOnlyIR
-instance ReflectBrowserReachability 'BrowserGuard where reflectBrowserReachability = BrowserGuardIR
-instance ReflectBrowserReachability 'BrowserInbound where reflectBrowserReachability = BrowserInboundIR
-instance ReflectBrowserReachability 'BrowserOutbound where reflectBrowserReachability = BrowserOutboundIR
-instance ReflectBrowserReachability 'BrowserBidirectional where reflectBrowserReachability = BrowserBidirectionalIR
-
-class ReflectFieldList (fields :: [FieldSpec]) where
-    reflectFieldList :: [FieldIR]
-
-instance ReflectFieldList '[] where
-    reflectFieldList = []
-
-instance (ReflectField field, ReflectFieldList rest) => ReflectFieldList (field ': rest) where
-    reflectFieldList = reflectField @field : reflectFieldList @rest
-
-class ReflectField (field :: FieldSpec) where
-    reflectField :: FieldIR
+    reflectPrimitive = ReflectedDto (reflectBrowserReachability @reachability) (typeMarker @marker) (reflectFieldList @_ @fields)
 
 instance (Typeable marker, ReflectWire wire) => ReflectField ('Field marker wire) where
-    reflectField = reflectedField @marker @wire RequiredField
+    reflectField = reflectedFieldWith @marker @wire (deriveFrontendSurfaceName FieldName) RequiredField
 
 instance (Typeable marker, ReflectWire wire) => ReflectField ('OptionalField marker wire) where
-    reflectField = reflectedField @marker @wire OptionalFieldPresence
+    reflectField = reflectedFieldWith @marker @wire (deriveFrontendSurfaceName FieldName) OptionalFieldPresence
 
 instance (Typeable marker, ReflectWire wire) => ReflectField ('NullableField marker wire) where
-    reflectField = reflectedField @marker @wire NullableFieldPresence
-
-class ReflectWire (wire :: WireType) where
-    reflectWire :: WireIR
+    reflectField = reflectedFieldWith @marker @wire (deriveFrontendSurfaceName FieldName) NullableFieldPresence
 
 instance ReflectWire 'WireText where reflectWire = WireTextIR
 instance ReflectWire 'WireInt where reflectWire = WireIntIR
@@ -429,9 +409,9 @@ instance Typeable value => ReflectWire ('WireClosed value) where
     reflectWire = WireClosedIR (typeMarker @value) (closedScalarSourceModule @value) (typeMarker @value)
 instance Typeable value => ReflectWire ('WireDomain value) where
     reflectWire = WireDomainIR (closedScalarSourceModule @value) (typeMarker @value)
-instance ReflectWire inner => ReflectWire ('WireList inner) where reflectWire = WireListIR (reflectWire @inner)
-instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWire = WireOptionalIR (reflectWire @inner)
-instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @inner)
+instance ReflectWire inner => ReflectWire ('WireList inner) where reflectWire = WireListIR (reflectWire @_ @inner)
+instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWire = WireOptionalIR (reflectWire @_ @inner)
+instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @_ @inner)
 instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (typeMarker @marker)
 
 class ReflectScopeOptionList (options :: [ScopeOption]) where
@@ -507,7 +487,7 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectResource ('Resourc
     reflectResource = ResourceIR
         { resourceMarker = typeMarker @marker
         , resourceName = protocolName @marker ScopeName
-        , resourceFields = reflectFieldList @fields
+        , resourceFields = reflectFieldList @_ @fields
         }
 
 class ReflectDependencySourceList (sources :: [DependencySource]) where
@@ -705,7 +685,7 @@ instance (ReflectResource resource, ReflectDependencySourceList sources) => Refl
         }
 instance Typeable marker => ReflectOption ('DependsOnFragment marker) where reflectOption = DependsOnFragmentOption (protocolName @marker FragmentName)
 instance (Typeable marker, ReflectFieldList fields) => ReflectOption ('MountTarget marker fields) where
-    reflectOption = MountTargetOption (protocolName @marker DomTokenName) (reflectFieldList @fields)
+    reflectOption = MountTargetOption (protocolName @marker DomTokenName) (reflectFieldList @_ @fields)
 instance Typeable marker => ReflectOption ('Target marker) where reflectOption = TargetOption (protocolName @marker FragmentName)
 instance Typeable marker => ReflectOption ('BackedBy marker) where reflectOption = BackedByOption (protocolName @marker ActionName)
 instance (Typeable semantic, Typeable intent, ReflectInteractionEffectList effects) => ReflectOption ('ModifierVariant semantic intent effects) where
@@ -1014,17 +994,6 @@ reflectedBrowserAttribute context = BrowserAttributeIR
     , browserAttributeName = protocolName @marker context
     , browserAttributeDomAttribute = ""
     }
-
-reflectedField :: forall marker wire. (Typeable marker, ReflectWire wire) => FieldPresence -> FieldIR
-reflectedField presence =
-    FieldIR
-        { fieldMarker = marker
-        , fieldName = deriveFrontendSurfaceName FieldName marker
-        , fieldWire = reflectWire @wire
-        , fieldPresence = presence
-        }
-    where
-        marker = typeMarker @marker
 
 typeMarker :: forall marker. Typeable marker => Text
 typeMarker = cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))

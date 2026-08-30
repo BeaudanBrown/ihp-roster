@@ -47,7 +47,7 @@ data BepisOperationKind
     | BepisPreferenceAction
     | BepisIntegrationAction
     | BepisExportAction
-    deriving (Eq, Show, Generic)
+    deriving (Bounded, Enum, Eq, Show, Generic)
 
 -- | Low-cardinality response shape labels. Response helpers emit these when
 -- they actually perform a response.
@@ -58,7 +58,7 @@ data BepisResponseKind
     | BepisRedirectResponse
     | BepisJsonResponse
     | BepisFileResponse
-    deriving (Eq, Show, Generic)
+    deriving (Bounded, Enum, Eq, Show, Generic)
 
 data BepisRoleKind
     = BepisOwnerRole
@@ -213,7 +213,7 @@ data BepisFactKind
     | BepisAuditFactKind
     | BepisLiveFactKind
     | BepisResponseFactKind
-    deriving (Eq, Show, Generic)
+    deriving (Bounded, Enum, Eq, Show, Generic)
 
 bepisFactKind :: BepisFact -> BepisFactKind
 bepisFactKind = \case
