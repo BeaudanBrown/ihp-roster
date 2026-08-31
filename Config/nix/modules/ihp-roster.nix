@@ -94,7 +94,7 @@ let
     if self ? rev then self.rev
     else if self ? dirtyRev then self.dirtyRev
     else "unknown";
-  serviceVersion = builtins.substring 0 (builtins.min 12 (builtins.stringLength serviceRevision)) serviceRevision;
+  serviceVersion = builtins.substring 0 (lib.min 12 (builtins.stringLength serviceRevision)) serviceRevision;
   otelResourceAttributes = lib.concatStringsSep "," [
     "deployment.environment.name=${otelCfg.deploymentEnvironment}"
     "service.version=${serviceVersion}"
@@ -103,6 +103,170 @@ let
     "bepis.deployment.slot=${otelCfg.deploymentSlot}"
     "vcs.ref.head.revision=${serviceRevision}"
   ];
+  tempoQueryListenAddress = if tempoCfg.queryAddress == null then "127.0.0.1" else tempoCfg.queryAddress;
+  lokiQueryListenAddress = "127.0.0.1";
+  collectorSettings = {
+    extensions = {
+      health_check.endpoint = "127.0.0.1:${toString collectorCfg.healthPort}";
+      file_storage = {
+        directory = "/var/lib/opentelemetry-collector/queue";
+        create_directory = true;
+      };
+    };
+    receivers = {
+      otlp.protocols = {
+        grpc.endpoint = "${collectorCfg.receiverAddress}:${toString collectorCfg.otlpGrpcPort}";
+        http.endpoint = "${collectorCfg.receiverAddress}:${toString collectorCfg.otlpHttpPort}";
+      };
+      journald = {
+        directory = "/var/log/journal";
+        units = collectorCfg.journalUnits;
+        priority = "info";
+      };
+    };
+    processors = {
+      memory_limiter = {
+        check_interval = "1s";
+        limit_mib = collectorCfg.memoryLimitMiB;
+        spike_limit_mib = collectorCfg.memorySpikeLimitMiB;
+      };
+      batch = {
+        timeout = "1s";
+        send_batch_size = 256;
+        send_batch_max_size = 512;
+      };
+      "transform/redact_journal".log_statements = [{
+        context = "log";
+        statements = [
+          ''set(body, "[redacted production journal event]")''
+          ''keep_keys(attributes, ["systemd.unit", "systemd.priority", "syslog.identifier"])''
+        ];
+      }];
+      "resource/logs".attributes = [
+        { key = "service.namespace"; action = "upsert"; value = "bepis"; }
+        { key = "deployment.environment.name"; action = "upsert"; value = otelCfg.deploymentEnvironment; }
+        { key = "host.name"; action = "upsert"; value = config.networking.hostName; }
+      ];
+    };
+    exporters = {
+      "otlphttp/tempo" = {
+        endpoint = "http://127.0.0.1:${toString tempoCfg.otlpHttpPort}";
+        sending_queue = {
+          enabled = true;
+          queue_size = collectorCfg.queueSize;
+          num_consumers = 2;
+          storage = "file_storage";
+        };
+        retry_on_failure = {
+          enabled = true;
+          initial_interval = "1s";
+          max_interval = "10s";
+          max_elapsed_time = "5m";
+        };
+      };
+      "otlphttp/loki" = {
+        endpoint = "http://127.0.0.1:${toString lokiCfg.otlpHttpPort}/otlp";
+        sending_queue = {
+          enabled = true;
+          queue_size = collectorCfg.queueSize;
+          num_consumers = 2;
+          storage = "file_storage";
+        };
+        retry_on_failure = {
+          enabled = true;
+          initial_interval = "1s";
+          max_interval = "10s";
+          max_elapsed_time = "5m";
+        };
+      };
+    };
+    service = {
+      extensions = [ "health_check" "file_storage" ];
+      telemetry = {
+        logs.level = "info";
+        metrics.address = "127.0.0.1:${toString collectorCfg.metricsPort}";
+      };
+      pipelines = {
+        traces = {
+          receivers = [ "otlp" ];
+          processors = [ "memory_limiter" "batch" ];
+          exporters = [ "otlphttp/tempo" ];
+        };
+        logs = {
+          receivers = [ "otlp" "journald" ];
+          processors = [ "memory_limiter" "transform/redact_journal" "resource/logs" "batch" ];
+          exporters = [ "otlphttp/loki" ];
+        };
+      };
+    };
+  };
+  tempoSettings = {
+    multitenancy_enabled = false;
+    usage_report.reporting_enabled = false;
+    server = {
+      http_listen_address = tempoQueryListenAddress;
+      http_listen_port = tempoCfg.queryPort;
+      grpc_listen_address = "127.0.0.1";
+      grpc_listen_port = tempoCfg.grpcPort;
+    };
+    distributor.receivers.otlp.protocols = {
+      grpc.endpoint = "127.0.0.1:${toString tempoCfg.otlpGrpcPort}";
+      http.endpoint = "127.0.0.1:${toString tempoCfg.otlpHttpPort}";
+    };
+    ingester = {
+      max_block_duration = "5m";
+      max_block_bytes = tempoCfg.maxBlockBytes;
+    };
+    compactor.compaction.block_retention = tempoCfg.retentionPeriod;
+    storage.trace = {
+      backend = "local";
+      wal.path = "${toString tempoCfg.dataDir}/wal";
+      local.path = "${toString tempoCfg.dataDir}/blocks";
+    };
+  };
+  lokiConfiguration = {
+    auth_enabled = false;
+    analytics.reporting_enabled = false;
+    server = {
+      http_listen_address = lokiQueryListenAddress;
+      http_listen_port = lokiCfg.otlpHttpPort;
+      grpc_listen_address = "127.0.0.1";
+      grpc_listen_port = lokiCfg.grpcPort;
+    };
+    common = {
+      instance_addr = "127.0.0.1";
+      path_prefix = toString lokiCfg.dataDir;
+      replication_factor = 1;
+      ring = {
+        instance_addr = "127.0.0.1";
+        kvstore.store = "inmemory";
+      };
+    };
+    query_scheduler.scheduler_ring.instance_addr = "127.0.0.1";
+    schema_config.configs = [{
+      from = "2024-01-01";
+      store = "tsdb";
+      object_store = "filesystem";
+      schema = "v13";
+      index = { prefix = "index_"; period = "24h"; };
+    }];
+    storage_config.filesystem.directory = "${toString lokiCfg.dataDir}/chunks";
+    compactor = {
+      working_directory = "${toString lokiCfg.dataDir}/compactor";
+      retention_enabled = true;
+      delete_request_store = "filesystem";
+    };
+    limits_config = {
+      retention_period = lokiCfg.retentionPeriod;
+      ingestion_rate_mb = lokiCfg.ingestionRateMiB;
+      ingestion_burst_size_mb = lokiCfg.ingestionBurstMiB;
+      max_query_length = lokiCfg.maxQueryLength;
+      max_query_parallelism = lokiCfg.maxQueryParallelism;
+      reject_old_samples = true;
+      reject_old_samples_max_age = lokiCfg.retentionPeriod;
+      allow_structured_metadata = true;
+    };
+  };
   observabilityEnv =
     optionalAttrs otelCfg.enable {
       IHP_ROSTER_OTEL = "1";
@@ -436,11 +600,52 @@ in
           description = "Local OTLP/gRPC receiver port.";
         };
 
-        tailnetQueryAddress = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          example = "100.64.0.10";
-          description = "Optional tailnet address for collector diagnostics/query surfaces. Does not affect OTLP ingestion, which defaults to localhost.";
+        healthPort = mkOption {
+          type = types.port;
+          default = 13133;
+          description = "Localhost-only Collector health-check port.";
+        };
+
+        metricsPort = mkOption {
+          type = types.port;
+          default = 8888;
+          description = "Localhost-only Collector self-metrics port.";
+        };
+
+        memoryLimitMiB = mkOption {
+          type = types.ints.positive;
+          default = 256;
+          description = "Collector memory-limiter steady-state ceiling in MiB.";
+        };
+
+        memorySpikeLimitMiB = mkOption {
+          type = types.ints.positive;
+          default = 64;
+          description = "Collector memory-limiter spike allowance in MiB.";
+        };
+
+        queueSize = mkOption {
+          type = types.ints.positive;
+          default = 2048;
+          description = "Bounded persistent sending queue size per local backend exporter.";
+        };
+
+        storageLimitMiB = mkOption {
+          type = types.ints.positive;
+          default = 256;
+          description = "Hard systemd project quota for Collector persistent queues in MiB.";
+        };
+
+        journalUnits = mkOption {
+          type = types.listOf types.str;
+          default = [ "app.service" "worker.service" ];
+          description = "Closed systemd units read from journald. Nginx access logs are excluded because request targets may carry high-cardinality or customer data.";
+        };
+
+        tailnetInterface = mkOption {
+          type = types.str;
+          default = "tailscale0";
+          description = "Firewall interface allowed to reach enabled Tempo/Loki query ports.";
         };
       };
 
@@ -456,9 +661,18 @@ in
         queryAddress = mkOption {
           type = types.nullOr types.str;
           default = null;
-          example = "100.64.0.10";
-          description = "Optional tailnet-only Tempo query listen address. Leave null to avoid exposing query APIs.";
+          example = "0.0.0.0";
+          description = "Optional Tempo query listen address. Wildcard binding is safe only because the module opens its query port exclusively on collector.tailnetInterface; leave null for localhost only.";
         };
+
+        queryPort = mkOption { type = types.port; default = 3200; description = "Tempo HTTP query port."; };
+        grpcPort = mkOption { type = types.port; default = 9095; description = "Localhost-only Tempo internal gRPC port."; };
+        otlpHttpPort = mkOption { type = types.port; default = 4328; description = "Localhost-only Tempo OTLP/HTTP ingest port used by the Collector."; };
+        otlpGrpcPort = mkOption { type = types.port; default = 4327; description = "Localhost-only Tempo OTLP/gRPC ingest port."; };
+        retentionPeriod = mkOption { type = types.str; default = "168h"; description = "Tempo local block retention period."; };
+        maxBlockBytes = mkOption { type = types.ints.positive; default = 100000000; description = "Maximum Tempo ingester block size before flushing to bounded local storage."; };
+        memoryLimitMiB = mkOption { type = types.ints.positive; default = 512; description = "Tempo systemd MemoryMax ceiling in MiB."; };
+        storageLimitMiB = mkOption { type = types.ints.positive; default = 4096; description = "Hard systemd project quota for Tempo state in MiB."; };
       };
 
       loki = {
@@ -473,9 +687,20 @@ in
         queryAddress = mkOption {
           type = types.nullOr types.str;
           default = null;
-          example = "100.64.0.10";
-          description = "Optional tailnet-only Loki query listen address. Leave null to avoid exposing query APIs.";
+          example = "0.0.0.0";
+          description = "Optional Loki query listen address. Wildcard binding is safe only because the module opens its query port exclusively on collector.tailnetInterface; leave null for localhost only.";
         };
+
+        queryPort = mkOption { type = types.port; default = 3101; description = "Tailnet read-only Loki query proxy port."; };
+        otlpHttpPort = mkOption { type = types.port; default = 3100; description = "Localhost Loki OTLP/HTTP port used by the Collector."; };
+        grpcPort = mkOption { type = types.port; default = 9096; description = "Localhost-only Loki gRPC port."; };
+        retentionPeriod = mkOption { type = types.str; default = "168h"; description = "Loki log retention period."; };
+        ingestionRateMiB = mkOption { type = types.ints.positive; default = 4; description = "Loki steady-state ingestion limit in MiB per second."; };
+        ingestionBurstMiB = mkOption { type = types.ints.positive; default = 8; description = "Loki ingestion burst limit in MiB."; };
+        maxQueryLength = mkOption { type = types.str; default = "168h"; description = "Maximum Loki query time range."; };
+        maxQueryParallelism = mkOption { type = types.ints.positive; default = 8; description = "Maximum Loki query parallelism."; };
+        memoryLimitMiB = mkOption { type = types.ints.positive; default = 512; description = "Loki systemd MemoryMax ceiling in MiB."; };
+        storageLimitMiB = mkOption { type = types.ints.positive; default = 4096; description = "Hard systemd project quota for Loki state in MiB."; };
       };
     };
 
@@ -968,12 +1193,36 @@ in
           message = "services.ihpRoster.observability.collector.receiverAddress must remain localhost; use Tempo/Loki queryAddress for tailnet query exposure.";
         }
         {
+          assertion = !cfg.production || !collectorCfg.enable || builtins.elem "prjquota" config.fileSystems."/".options;
+          message = "production observability requires prjquota on the filesystem backing StateDirectoryQuota.";
+        }
+        {
+          assertion = !collectorCfg.enable || (tempoCfg.enable && lokiCfg.enable);
+          message = "services.ihpRoster.observability.collector requires both local Tempo and Loki backends.";
+        }
+        {
+          assertion = collectorCfg.memorySpikeLimitMiB < collectorCfg.memoryLimitMiB;
+          message = "services.ihpRoster.observability.collector.memorySpikeLimitMiB must be below memoryLimitMiB.";
+        }
+        {
+          assertion = collectorCfg.journalUnits != [ ] && builtins.all (unit: builtins.elem unit [ "app.service" "worker.service" ]) collectorCfg.journalUnits;
+          message = "services.ihpRoster.observability.collector.journalUnits must be a non-empty subset of app.service and worker.service; broader journals require a separate privacy review.";
+        }
+        {
           assertion = tempoCfg.queryAddress == null || tempoCfg.enable;
           message = "services.ihpRoster.observability.tempo.queryAddress requires tempo.enable.";
         }
         {
           assertion = lokiCfg.queryAddress == null || lokiCfg.enable;
           message = "services.ihpRoster.observability.loki.queryAddress requires loki.enable.";
+        }
+        {
+          assertion = tempoCfg.queryPort != lokiCfg.queryPort;
+          message = "services.ihpRoster Tempo and Loki query ports must be distinct.";
+        }
+        {
+          assertion = lokiCfg.queryPort != lokiCfg.otlpHttpPort;
+          message = "services.ihpRoster Loki tailnet query proxy and localhost OTLP ingest ports must be distinct.";
         }
         {
           assertion = !stripeCfg.checkoutEnabled || stripeCfg.enable;
@@ -1165,7 +1414,9 @@ in
       systemd.services.app.after = [
         schemaReadyService
       ]
-      ++ optional cfg.bootstrap.enable "bootstrap-account.service";
+      ++ optional cfg.bootstrap.enable "bootstrap-account.service"
+      ++ optional collectorCfg.enable "opentelemetry-collector.service";
+      systemd.services.app.wants = optional collectorCfg.enable "opentelemetry-collector.service";
       systemd.services.app.requires = [
         schemaReadyService
       ]
@@ -1173,7 +1424,9 @@ in
       systemd.services.worker.after = [
         schemaReadyService
       ]
-      ++ optional cfg.bootstrap.enable "bootstrap-account.service";
+      ++ optional cfg.bootstrap.enable "bootstrap-account.service"
+      ++ optional collectorCfg.enable "opentelemetry-collector.service";
+      systemd.services.worker.wants = optional collectorCfg.enable "opentelemetry-collector.service";
       systemd.services.worker.requires = [
         schemaReadyService
       ]
@@ -1405,6 +1658,87 @@ in
         };
       };
     }
+    (mkIf collectorCfg.enable {
+      services.opentelemetry-collector = {
+        enable = true;
+        package = collectorCfg.package;
+        settings = collectorSettings;
+      };
+      systemd.services.opentelemetry-collector = {
+        after = [ "tempo.service" "loki.service" ];
+        wants = [ "tempo.service" "loki.service" ];
+        serviceConfig = {
+          MemoryMax = "${toString (collectorCfg.memoryLimitMiB + collectorCfg.memorySpikeLimitMiB)}M";
+          CPUQuota = "50%";
+          TasksMax = 64;
+          RestartSec = "5s";
+          UMask = "0077";
+          StateDirectoryAccounting = true;
+          StateDirectoryQuota = "${toString collectorCfg.storageLimitMiB}M";
+        };
+      };
+    })
+    (mkIf tempoCfg.enable {
+      services.tempo = {
+        enable = true;
+        settings = tempoSettings;
+      };
+      systemd.services.tempo.serviceConfig = {
+        StateDirectory = mkForce [ "ihp-roster/tempo" ];
+        WorkingDirectory = mkForce (toString tempoCfg.dataDir);
+        MemoryMax = "${toString tempoCfg.memoryLimitMiB}M";
+        CPUQuota = "50%";
+        TasksMax = 128;
+        RestartSec = "5s";
+        UMask = "0077";
+        StateDirectoryAccounting = true;
+        StateDirectoryQuota = "${toString tempoCfg.storageLimitMiB}M";
+      };
+    })
+    (mkIf lokiCfg.enable {
+      services.loki = {
+        enable = true;
+        dataDir = lokiCfg.dataDir;
+        configuration = lokiConfiguration;
+      };
+      systemd.services.loki.serviceConfig = {
+        StateDirectory = mkForce [ "ihp-roster/loki" ];
+        MemoryMax = "${toString lokiCfg.memoryLimitMiB}M";
+        CPUQuota = "50%";
+        TasksMax = 128;
+        RestartSec = "5s";
+        UMask = "0077";
+        StateDirectoryAccounting = true;
+        StateDirectoryQuota = "${toString lokiCfg.storageLimitMiB}M";
+      };
+    })
+    (mkIf (lokiCfg.queryAddress != null) {
+      services.nginx = {
+        enable = true;
+        virtualHosts."bepis-loki-tailnet-query" = {
+          listen = [{ addr = lokiCfg.queryAddress; port = lokiCfg.queryPort; }];
+          locations."/loki/api/v1/" = {
+            proxyPass = "http://127.0.0.1:${toString lokiCfg.otlpHttpPort}";
+            extraConfig = ''
+              if ($request_method != GET) { return 405; }
+            '';
+          };
+          locations."= /ready" = {
+            proxyPass = "http://127.0.0.1:${toString lokiCfg.otlpHttpPort}/ready";
+            extraConfig = ''
+              if ($request_method != GET) { return 405; }
+            '';
+          };
+          locations."/".extraConfig = "return 404;";
+        };
+      };
+    })
+    (mkIf (tempoCfg.queryAddress != null || lokiCfg.queryAddress != null) {
+      networking.firewall.enable = true;
+      networking.firewall.interfaces.${collectorCfg.tailnetInterface}.allowedTCPPorts =
+        optional (tempoCfg.queryAddress != null) tempoCfg.queryPort
+        ++ optional (lokiCfg.queryAddress != null) lokiCfg.queryPort;
+    })
     (mkIf cfg.createServiceUser {
       users.groups.${cfg.serviceUser} = { };
       users.users.${cfg.serviceUser} = {

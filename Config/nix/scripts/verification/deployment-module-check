@@ -5,3 +5,4 @@ nix eval --impure --json --file Config/nix/tests/billing-stripe-module.nix >/dev
 nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
 nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
 nix eval --impure --json --file Config/nix/tests/live-invalidation-outbox-pruning-module.nix >/dev/null
+bash Config/nix/scripts/verification/observability-production-check

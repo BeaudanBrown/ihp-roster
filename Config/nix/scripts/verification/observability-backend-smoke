@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+run_dir=$(mktemp -d "${TMPDIR:-/tmp}/bepis-observability-smoke.XXXXXX")
+pids=()
+cleanup() {
+  for pid in "${pids[@]:-}"; do kill -TERM "$pid" 2>/dev/null || true; done
+  sleep 0.5
+  for pid in "${pids[@]:-}"; do kill -KILL "$pid" 2>/dev/null || true; done
+  for pid in "${pids[@]:-}"; do wait "$pid" 2>/dev/null || true; done
+  rm -rf "$run_dir"
+}
+trap cleanup EXIT INT TERM
+
+nix eval --impure --json --file "$repo_root/Config/nix/tests/observability-production-module.nix" > "$run_dir/module.json"
+collector_bin=$(jq -r '.collectorExecStart | split(" ")[0]' "$run_dir/module.json")
+tempo_bin=$(jq -r '.tempoExecStart | split(" ")[0]' "$run_dir/module.json")
+loki_bin=$(jq -r '.lokiExecStart | split(" ")[0]' "$run_dir/module.json")
+if [ -x "$loki_bin" ]; then
+  loki_command=("$loki_bin")
+else
+  loki_command=(nix shell nixpkgs#grafana-loki -c loki)
+fi
+
+jq --arg root "$run_dir" '
+  .tempoSettings
+  | .server.http_listen_address = "127.0.0.1"
+  | .server.http_listen_port = 24320
+  | .server.grpc_listen_port = 24395
+  | .distributor.receivers.otlp.protocols.grpc.endpoint = "127.0.0.1:24327"
+  | .distributor.receivers.otlp.protocols.http.endpoint = "127.0.0.1:24328"
+  | .storage.trace.wal.path = ($root + "/tempo/wal")
+  | .storage.trace.local.path = ($root + "/tempo/blocks")
+' "$run_dir/module.json" > "$run_dir/tempo.json"
+
+jq --arg root "$run_dir" '
+  .lokiConfiguration
+  | .server.http_listen_address = "127.0.0.1"
+  | .server.http_listen_port = 24310
+  | .server.grpc_listen_port = 24396
+  | .common.path_prefix = ($root + "/loki")
+  | .storage_config.filesystem.directory = ($root + "/loki/chunks")
+  | .compactor.working_directory = ($root + "/loki/compactor")
+' "$run_dir/module.json" > "$run_dir/loki.json"
+
+jq --arg root "$run_dir" '
+  .collectorSettings
+  | .extensions.health_check.endpoint = "127.0.0.1:24333"
+  | .extensions.file_storage.directory = ($root + "/collector/queue")
+  | .service.telemetry.metrics.address = "127.0.0.1:24388"
+  | .receivers.otlp.protocols.grpc.endpoint = "127.0.0.1:24317"
+  | .receivers.otlp.protocols.http.endpoint = "127.0.0.1:24318"
+  | del(.receivers.journald)
+  | .service.pipelines.logs.receivers = ["otlp"]
+  | .exporters["otlphttp/tempo"].endpoint = "http://127.0.0.1:24328"
+  | .exporters["otlphttp/loki"].endpoint = "http://127.0.0.1:24310/otlp"
+' "$run_dir/module.json" > "$run_dir/collector.json"
+
+mkdir -p "$run_dir"/{tempo,loki,collector,empty-journal}
+"$tempo_bin" -config.file="$run_dir/tempo.json" >"$run_dir/tempo.log" 2>&1 & pids+=("$!")
+"${loki_command[@]}" -config.file="$run_dir/loki.json" >"$run_dir/loki.log" 2>&1 & pids+=("$!")
+
+for endpoint in http://127.0.0.1:24320/ready http://127.0.0.1:24310/ready; do
+  for _ in $(seq 1 60); do curl --connect-timeout 1 --max-time 1 -fsS "$endpoint" >/dev/null 2>&1 && break; sleep 0.25; done
+  if ! curl --connect-timeout 1 --max-time 2 -fsS "$endpoint" >/dev/null; then
+    echo "Backend readiness failed: $endpoint" >&2
+    tail -n 100 "$run_dir/tempo.log" "$run_dir/loki.log" >&2 || true
+    exit 1
+  fi
+done
+
+"$collector_bin" --config="file:$run_dir/collector.json" >"$run_dir/collector.log" 2>&1 & pids+=("$!")
+for _ in $(seq 1 60); do curl --connect-timeout 1 --max-time 1 -fsS http://127.0.0.1:24333/ >/dev/null 2>&1 && break; sleep 0.25; done
+curl --connect-timeout 1 --max-time 2 -fsS http://127.0.0.1:24333/ >/dev/null
+
+start_ns=$(date +%s%N)
+end_ns=$((start_ns + 1000000))
+trace_id=0123456789abcdef0123456789abcdef
+trace_wire="$trace_id"
+span_wire='0123456789abcdef'
+cat > "$run_dir/trace.json" <<JSON
+{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"bepis-observability-smoke"}}]},"scopeSpans":[{"scope":{"name":"smoke"},"spans":[{"traceId":"$trace_wire","spanId":"$span_wire","name":"observability.smoke","kind":1,"startTimeUnixNano":"$start_ns","endTimeUnixNano":"$end_ns","status":{"code":1}}]}]}]}
+JSON
+cat > "$run_dir/log.json" <<JSON
+{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"bepis-observability-smoke"}}]},"scopeLogs":[{"scope":{"name":"smoke"},"logRecords":[{"timeUnixNano":"$start_ns","severityText":"INFO","body":{"stringValue":"bounded-observability-smoke"}}]}]}]}
+JSON
+curl --connect-timeout 1 --max-time 5 -fsS -H 'content-type: application/json' --data-binary @"$run_dir/trace.json" http://127.0.0.1:24318/v1/traces >/dev/null
+curl --connect-timeout 1 --max-time 5 -fsS -H 'content-type: application/json' --data-binary @"$run_dir/log.json" http://127.0.0.1:24318/v1/logs >/dev/null
+
+trace_found=0
+log_found=0
+for _ in $(seq 1 40); do
+  if curl --connect-timeout 1 --max-time 2 -fsS "http://127.0.0.1:24320/api/traces/$trace_id" 2>/dev/null | jq -e '(.batches // .resourceSpans // []) | length > 0' >/dev/null; then trace_found=1; fi
+  if curl --connect-timeout 1 --max-time 2 -G -fsS --data-urlencode 'query={service_name="bepis-observability-smoke"}' --data-urlencode 'limit=10' --data-urlencode "start=$((start_ns - 1000000000))" --data-urlencode "end=$((end_ns + 1000000000))" http://127.0.0.1:24310/loki/api/v1/query_range 2>/dev/null | jq -e '[.data.result[].values[]?[1]] as $lines | ($lines | index("[redacted production journal event]") != null) and ($lines | all(contains("bounded-observability-smoke") | not))' >/dev/null; then log_found=1; fi
+  if [ "$trace_found" = 1 ] && [ "$log_found" = 1 ]; then break; fi
+  sleep 0.25
+done
+
+if [ "$trace_found" != 1 ] || [ "$log_found" != 1 ]; then
+  echo "Observability backend smoke failed: trace=$trace_found log=$log_found" >&2
+  tail -n 80 "$run_dir/collector.log" "$run_dir/tempo.log" "$run_dir/loki.log" >&2 || true
+  exit 1
+fi
+
+echo "observability-backend-smoke: localhost OTLP -> Tempo trace and privacy-redacted Loki log passed"

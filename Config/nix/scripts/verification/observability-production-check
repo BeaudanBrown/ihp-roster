@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/bepis-observability-check.XXXXXX")
+trap 'rm -rf "$tmp_dir"' EXIT
+
+module_json="$tmp_dir/module.json"
+nix eval --impure --json --file "$repo_root/Config/nix/tests/observability-production-module.nix" > "$module_json"
+
+nix eval --impure --json "$repo_root#nixosConfigurations.production.config" --apply '
+  c: {
+    production = c.services.ihpRoster.production;
+    serviceName = c.services.ihp.additionalEnvVars.OTEL_SERVICE_NAME;
+    resourceAttributes = c.services.ihp.additionalEnvVars.OTEL_RESOURCE_ATTRIBUTES;
+    publicPorts = c.networking.firewall.allowedTCPPorts;
+    tailnetPorts = c.networking.firewall.interfaces.tailscale0.allowedTCPPorts;
+    collectorGrpcEndpoint = c.services.opentelemetry-collector.settings.receivers.otlp.protocols.grpc.endpoint;
+    collectorHttpEndpoint = c.services.opentelemetry-collector.settings.receivers.otlp.protocols.http.endpoint;
+    tempoQueryAddress = c.services.tempo.settings.server.http_listen_address;
+    tempoQueryPort = c.services.tempo.settings.server.http_listen_port;
+    tempoOtlpGrpcEndpoint = c.services.tempo.settings.distributor.receivers.otlp.protocols.grpc.endpoint;
+    tempoOtlpHttpEndpoint = c.services.tempo.settings.distributor.receivers.otlp.protocols.http.endpoint;
+    lokiBackendAddress = c.services.loki.configuration.server.http_listen_address;
+    lokiBackendPort = c.services.loki.configuration.server.http_listen_port;
+    collectorQuota = c.systemd.services.opentelemetry-collector.serviceConfig.StateDirectoryQuota;
+    tempoQuota = c.systemd.services.tempo.serviceConfig.StateDirectoryQuota;
+    lokiQuota = c.systemd.services.loki.serviceConfig.StateDirectoryQuota;
+    rootMountOptions = c.fileSystems."/".options;
+  }
+' > "$tmp_dir/production.json"
+
+jq -e '
+  .production == true
+  and .serviceName == "ihp-roster"
+  and (.resourceAttributes | test("(^|,)deployment.environment.name=production(,|$)"))
+  and (.resourceAttributes | test("(^|,)bepis.deployment.slot=production(,|$)"))
+  and (.resourceAttributes | test("(^|,)service.version=[^,]+"))
+  and (.resourceAttributes | test("(^|,)vcs.ref.head.revision=[^,]+"))
+  and (.resourceAttributes | test("(^|,)service.instance.id=[^,]+"))
+  and (.resourceAttributes | test("(^|,)host.name=[^,]+"))
+  and (.publicPorts | sort == [22, 80, 443])
+  and (.tailnetPorts | sort == [3101, 3200])
+  and .collectorGrpcEndpoint == "127.0.0.1:4317"
+  and .collectorHttpEndpoint == "127.0.0.1:4318"
+  and .tempoQueryAddress == "0.0.0.0"
+  and .tempoQueryPort == 3200
+  and .tempoOtlpGrpcEndpoint == "127.0.0.1:4327"
+  and .tempoOtlpHttpEndpoint == "127.0.0.1:4328"
+  and .lokiBackendAddress == "127.0.0.1"
+  and .lokiBackendPort == 3100
+  and .collectorQuota == "256M"
+  and .tempoQuota == "4096M"
+  and .lokiQuota == "4096M"
+  and (.rootMountOptions | index("prjquota") != null)
+' "$tmp_dir/production.json" >/dev/null
+
+jq '.collectorSettings' "$module_json" > "$tmp_dir/collector.json"
+jq '.tempoSettings' "$module_json" > "$tmp_dir/tempo.json"
+jq '.lokiConfiguration' "$module_json" > "$tmp_dir/loki.json"
+
+collector_bin=$(jq -r '.collectorExecStart | split(" ")[0]' "$module_json")
+tempo_bin=$(jq -r '.tempoExecStart | split(" ")[0]' "$module_json")
+loki_bin=$(jq -r '.lokiExecStart | split(" ")[0]' "$module_json")
+
+"$collector_bin" validate --config="file:$tmp_dir/collector.json"
+"$tempo_bin" -config.file="$tmp_dir/tempo.json" -config.verify=true
+if [ -x "$loki_bin" ]; then
+  "$loki_bin" -verify-config -config.file="$tmp_dir/loki.json"
+else
+  nix shell nixpkgs#grafana-loki -c loki -verify-config -config.file="$tmp_dir/loki.json"
+fi
+
+echo "observability-production-check: Collector, Tempo, Loki, tailnet firewall, retention, and unsafe configuration checks passed"

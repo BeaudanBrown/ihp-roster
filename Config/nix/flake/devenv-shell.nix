@@ -31,6 +31,7 @@
                     pkgs.graphviz
                     pkgs.opentelemetry-collector-contrib
                     pkgs.tempo
+                    pkgs.grafana-loki
                     pkgs.grafana
                     pkgs.stripe-cli
                 ];

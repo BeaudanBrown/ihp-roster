@@ -175,6 +175,8 @@ in
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         billing-contract-check = script ../scripts/verification/billing-contract-check;
         deployment-module-check = script ../scripts/verification/deployment-module-check;
+        observability-production-check = script ../scripts/verification/observability-production-check;
+        observability-backend-smoke = script ../scripts/verification/observability-backend-smoke;
         http-polling-policy-check = script ../scripts/verification/http-polling-policy;
         http-polling-policy-test = script ../scripts/verification/http-polling-policy-test;
         http-repository-check = script ../scripts/verification/http-repository-check;

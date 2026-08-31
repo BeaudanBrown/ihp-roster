@@ -160,18 +160,46 @@ saturation. Parsers reject malformed input, files above 64 MiB, more than
 views with bounded messages. Tempo reads additionally cap search results and
 apply per-request timeouts.
 
-The unresolved production target is intentionally documented only at the
-workstream level:
+The production host runs the capture and storage backend locally:
 
 ```text
-Bepis -> localhost OTLP -> production Collector/Alloy -> Tempo/Loki
-  -> tailnet-only query APIs -> authenticated tailnet Grafana
+Bepis app/worker -> 127.0.0.1:4318 Collector
+systemd app/worker journals -> Collector
+Collector -> 127.0.0.1 Tempo/Loki ingest
+Tempo :3200 / read-only Loki proxy :3101 -> tailscale0 firewall only
 ```
 
-Production enablement requires reviewed retention/storage limits, access and
-PII policy, low-cardinality conventions, rollback/disable procedures, and
-continued local capture when a remote frontend is unavailable. OTLP ingestion
-must not be publicly exposed.
+OTLP gRPC/HTTP ingestion, Collector health, Collector metrics, Tempo internal
+and ingest ports, and Loki HTTP/gRPC remain localhost-only and are never added
+to the general or tailnet firewall. Tailnet Loki access uses a separate nginx
+proxy that permits only GETs below `/loki/api/v1/`; write and OTLP paths are not
+proxied. Query services bind for tailnet access only when configured, and the
+firewall opens ports 3101/3200 exclusively on `tailscale0`. Tailscale device
+authentication remains an out-of-band host bootstrap step. Grafana is a separate
+consumer and its availability does not control local capture.
+
+Collector memory is limited to 320 MiB by systemd and a 256 MiB processor
+limit. Each backend exporter has a 2,048-item disk-backed queue and five-minute
+bounded retry window. Hard systemd project quotas cap Collector state at 256
+MiB and Tempo/Loki state at 4 GiB each; production requires the backing root
+filesystem to mount with `prjquota`. Tempo also has a 512 MiB memory limit, 100
+MB ingester block ceiling, and seven-day block retention. Loki has a 512 MiB
+memory limit, seven-day retention/query window, 4 MiB/s steady and 8 MiB burst
+ingestion limits, and bounded query parallelism.
+
+Only `app.service` and `worker.service` journals are accepted. Before export,
+the Collector replaces every journal body with `[redacted production journal
+event]` and retains only allowlisted systemd unit/priority/syslog attributes.
+This deliberately provides occurrence, severity, service, and timing evidence
+without making arbitrary application messages searchable. Expanding retained
+content or adding nginx request logs requires a separate privacy review.
+
+The app and worker want, but do not require, the Collector. Backend failure or
+disablement therefore remains fail-open. Rollback is declarative: disable
+`observability.otel`, `collector`, `tempo`, and `loki`, rebuild the host, and
+leave `/var/lib/ihp-roster/{tempo,loki}` intact for recovery. Retention/access
+operations and final incident procedures remain owned by the production
+observability runbook issue.
 
 ## Verification And Navigation
 
@@ -179,6 +207,10 @@ must not be publicly exposed.
   comparison, and diagnosis.
 - `bash ./bin/in-env telemetry-boundary-probe`: exporter-backed semantic job,
   provider, websocket, export, outcome, and prohibited-attribute contract.
+- `bash ./bin/in-env observability-production-check`: production Collector,
+  Tempo, Loki, retention, resource, firewall, and unsafe-option validation.
+- `bash ./bin/in-env observability-backend-smoke`: bounded local OTLP trace/log
+  export through the production-shaped Collector into queryable Tempo/Loki.
 - `docs/workstreams/opentelemetry-observability.md`: unresolved production
   intent and issue links.
 - `Application/Helper/Telemetry.hs`: app telemetry implementation.

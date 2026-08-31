@@ -7,8 +7,6 @@ workstream retains only unresolved production intent.
 
 ## Open Issues
 
-- [#73](https://github.com/BeaudanBrown/ihp-roster/issues/73) — production
-  Collector/Alloy, Tempo, and Loki.
 - [#40](https://github.com/BeaudanBrown/ihp-roster/issues/40) — tailnet-only NAS
   Grafana frontend.
 - [#13](https://github.com/BeaudanBrown/ihp-roster/issues/13) — dashboards and
@@ -20,7 +18,11 @@ workstream retains only unresolved production intent.
 
 GitHub owns sequencing and implementation status.
 
-## Intended Production Boundary
+The production Collector, local Tempo/Loki storage, and tailnet-only query
+firewall boundary are implemented in `Config/nix/modules/ihp-roster.nix`.
+Remaining work consumes that backend.
+
+## Production Boundary
 
 ```text
 Bepis app
@@ -33,8 +35,10 @@ Bepis app
 
 - OTLP ingestion must not be public. Production query endpoints and Grafana are
   tailnet-only.
-- Traces/logs require explicit retention, access, PII-redaction, and
-  low-cardinality attribute policies before enablement.
+- The production backend starts with seven-day retention, hard project quotas,
+  tailnet-only read access, closed low-cardinality telemetry attributes, and
+  fully redacted journal bodies. Any broader log content requires a new privacy
+  review before enablement.
 - Trace/log correlation should let an operator move from a failed or slow
   request to related logs without making customer or credential data searchable.
 - Metrics remain secondary until stable, low-cardinality operational signals are
