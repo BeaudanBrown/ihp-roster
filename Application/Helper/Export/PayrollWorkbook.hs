@@ -19,7 +19,6 @@ module Application.Helper.Export.PayrollWorkbook
     , payrollWorkbookColor
     , payrollWorkbookSheetFamilyFromText
     , payrollWorkbookSheetFamilyKey
-    , payrollWorkbookSheetFamilyLabel
     , payrollWorkbookSheetFamilyConfigurationLabel
     , renderPayrollWorkbook
     , renderPayrollWorkbookBase64
@@ -143,14 +142,6 @@ payrollWorkbookSheetFamilyKey = \case
     PayrollWorkbookShiftTypeHours         -> "shift-type-hours"
     PayrollWorkbookEmployeePayBucketWages -> "employee-pay-bucket-wages"
     PayrollWorkbookShiftTypeWages         -> "shift-type-wages"
-
-payrollWorkbookSheetFamilyLabel :: PayrollWorkbookSheetFamily -> Text
-payrollWorkbookSheetFamilyLabel = \case
-    PayrollWorkbookSummary                -> "Summary"
-    PayrollWorkbookEmployeePayBucketHours -> "Employee / Pay Bucket Hours"
-    PayrollWorkbookShiftTypeHours         -> "Shift Type Hours"
-    PayrollWorkbookEmployeePayBucketWages -> "Employee / Pay Bucket Wages"
-    PayrollWorkbookShiftTypeWages         -> "Shift Type Wages"
 
 payrollWorkbookSheetFamilyConfigurationLabel :: PayrollWorkbookSheetFamily -> Text
 payrollWorkbookSheetFamilyConfigurationLabel = \case
