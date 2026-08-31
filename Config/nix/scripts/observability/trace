@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+bepis_workspace_configure
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+exec node ./scripts/observability/query.mjs trace "$@"

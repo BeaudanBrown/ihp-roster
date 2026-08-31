@@ -6,6 +6,9 @@ import path from "node:path";
 // The project-owned ESM module is bundled into this extension by the tooling gate.
 // @ts-ignore no standalone declaration file is needed for the local script module.
 import { compareOtelProfiles } from "../../e2e/profile-compare.mjs";
+// The project-owned ESM module is bundled into this extension by the tooling gate.
+// @ts-ignore no standalone declaration file is needed for the local script module.
+import { readQuerySummary, resolveQueryArtifactDirectory } from "../../scripts/observability/query.mjs";
 
 const DEFAULT_SUMMARY_BYTES = 12_000;
 const DEFAULT_TRACE_SPAN_LIMIT = 80;
@@ -25,15 +28,16 @@ function resolveArtifactPath(input: string): string {
     path.resolve(root, "output/otel-browser"),
     path.resolve(root, "output/otel-summary"),
     path.resolve(root, "build/otel"),
+    path.resolve(root, ".pi/tmp/observability-query"),
   ];
   if (!allowedRoots.some((allowed) => resolved === allowed || resolved.startsWith(`${allowed}${path.sep}`))) {
-    throw new Error(`Refusing to read outside profile artifact roots: ${input}`);
+    throw new Error(`Refusing to read outside approved observability artifact roots: ${input}`);
   }
   if (fs.existsSync(resolved)) {
     const canonical = fs.realpathSync(resolved);
     const canonicalRoots = allowedRoots.filter(fs.existsSync).map((allowed) => fs.realpathSync(allowed));
     if (!canonicalRoots.some((allowed) => canonical === allowed || canonical.startsWith(`${allowed}${path.sep}`))) {
-      throw new Error(`Refusing artifact symlink outside profile roots: ${input}`);
+      throw new Error(`Refusing artifact symlink outside approved observability roots: ${input}`);
     }
     return canonical;
   }
@@ -61,15 +65,18 @@ function readJson(filePath: string): JsonObject {
 }
 
 function commonSummary(runDir: string, allowSuite = false): JsonObject {
+  const productionDirectory = resolveQueryArtifactDirectory(runDir);
   const summaryPath = resolveArtifactPath(path.join(runDir, "otel-summary.json"));
-  const report = readJson(summaryPath);
+  const report = productionDirectory
+    ? readQuerySummary(productionDirectory)
+    : readJson(summaryPath);
   const allowedSchemas = allowSuite ? ["bepis.otel.profile.v2", "bepis.otel.suite.v2"] : ["bepis.otel.profile.v2"];
   if (!allowedSchemas.includes(report.schemaVersion)) throw new Error(`Unsupported OpenTelemetry summary schema: ${report.schemaVersion || "missing"}`);
   return report;
 }
 
 function findRunDir(input?: string): string {
-  if (input) return resolveArtifactPath(input);
+  if (input) return resolveQueryArtifactDirectory(input) || resolveArtifactPath(input);
   return resolveArtifactPath("output/profile-load/latest");
 }
 
@@ -136,6 +143,8 @@ export default function observabilityExtension(pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params) {
       const runDir = findRunDir(params.runDir);
+      const productionDirectory = params.runDir ? resolveQueryArtifactDirectory(params.runDir) : null;
+      if (productionDirectory) readQuerySummary(productionDirectory);
       const files = ["suite-summary.md", "load-profile.md", "otel-summary.md"].filter((name) => fs.existsSync(path.join(runDir, name)));
       const body = files.map((name) => `## ${name}\n\n${readBounded(path.join(runDir, name), params.maxBytes || DEFAULT_SUMMARY_BYTES)}`).join("\n\n");
       return text(body || `No known summary files found in ${runDir}`, { runDir, files });
@@ -186,6 +195,72 @@ export default function observabilityExtension(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    name: "otel_recent",
+    label: "Query recent traces",
+    description: "Materialize a short, bounded, privacy-safe Tempo window. Defaults to the current local development workspace; set target=production for the configured tailnet backend.",
+    parameters: Type.Object({
+      target: Type.Optional(Type.Union([Type.Literal("development"), Type.Literal("production")], { default: "development" })),
+      minutes: Type.Optional(Type.Number({ default: 5, minimum: 1, maximum: 15, description: "window length, 1..15 minutes" })),
+      limit: Type.Optional(Type.Number({ default: 10, minimum: 1, maximum: 20, description: "trace limit, 1..20" })),
+      end: Type.Optional(Type.String({ description: "optional ISO-8601 window end within seven days" })),
+    }),
+    async execute(_toolCallId, params) {
+      const args = ["./bin/in-env", "otel-recent", `--target=${params.target ?? "development"}`, `--minutes=${params.minutes ?? 5}`, `--limit=${params.limit ?? 10}`];
+      if (params.end) args.push(`--end=${params.end}`);
+      const result = await runCommand("bash", args, 30_000);
+      return text(`exit=${result.code}\n${result.output.slice(-40_000)}`);
+    },
+  });
+
+  pi.registerTool({
+    name: "otel_trace",
+    label: "Inspect queried trace artifact",
+    description: "Inspect one safe trace reference from a bounded development or production OTel artifact without another backend query.",
+    parameters: Type.Object({
+      artifactDir: Type.String({ description: ".pi/tmp/observability-query artifact directory" }),
+      traceRef: Type.String({ description: "32-character safe trace reference" }),
+      spanLimit: Type.Optional(Type.Number({ default: DEFAULT_TRACE_SPAN_LIMIT, minimum: 1, maximum: 200 })),
+    }),
+    async execute(_toolCallId, params) {
+      const artifactDir = resolveQueryArtifactDirectory(params.artifactDir) || resolveArtifactPath(params.artifactDir);
+      const result = await runCommand("bash", ["./bin/in-env", "otel-trace", `--artifact-dir=${artifactDir}`, `--trace-ref=${params.traceRef}`, `--span-limit=${params.spanLimit ?? DEFAULT_TRACE_SPAN_LIMIT}`], 10_000);
+      return text(`exit=${result.code}\n${result.output.slice(-40_000)}`, { artifactDir });
+    },
+  });
+
+  pi.registerTool({
+    name: "otel_logs",
+    label: "Query related logs",
+    description: "Query only the fixed Loki service selector for a safe trace artifact's bounded time window and persist redacted aggregates.",
+    parameters: Type.Object({
+      artifactDir: Type.String({ description: ".pi/tmp/observability-query artifact directory" }),
+      traceRef: Type.String({ description: "32-character safe trace reference" }),
+    }),
+    async execute(_toolCallId, params) {
+      const artifactDir = resolveQueryArtifactDirectory(params.artifactDir) || resolveArtifactPath(params.artifactDir);
+      const result = await runCommand("bash", ["./bin/in-env", "otel-logs", `--artifact-dir=${artifactDir}`, `--trace-ref=${params.traceRef}`], 30_000);
+      return text(`exit=${result.code}\n${result.output.slice(-40_000)}`, { artifactDir });
+    },
+  });
+
+  pi.registerTool({
+    name: "otel_compare",
+    label: "Compare telemetry windows",
+    description: "Query and compare two short development or production Tempo windows using the common bounded comparison model.",
+    parameters: Type.Object({
+      target: Type.Optional(Type.Union([Type.Literal("development"), Type.Literal("production")], { default: "development" })),
+      beforeEnd: Type.String({ description: "ISO-8601 end of baseline window" }),
+      afterEnd: Type.String({ description: "ISO-8601 end of candidate window" }),
+      minutes: Type.Optional(Type.Number({ default: 5, minimum: 1, maximum: 15, description: "each window length, 1..15 minutes" })),
+      limit: Type.Optional(Type.Number({ default: 10, minimum: 1, maximum: 20, description: "trace limit per window, 1..20" })),
+    }),
+    async execute(_toolCallId, params) {
+      const result = await runCommand("bash", ["./bin/in-env", "otel-compare", `--target=${params.target ?? "development"}`, `--before-end=${params.beforeEnd}`, `--after-end=${params.afterEnd}`, `--minutes=${params.minutes ?? 5}`, `--limit=${params.limit ?? 10}`], 60_000);
+      return text(`exit=${result.code}\n${result.output.slice(-40_000)}`);
+    },
+  });
+
+  pi.registerTool({
     name: "otel_compare_runs",
     label: "Compare OTel runs",
     description: "Compare matched route/span groups from two common OpenTelemetry summaries with bounded deltas and context.",
@@ -195,8 +270,8 @@ export default function observabilityExtension(pi: ExtensionAPI) {
       limit: Type.Optional(Type.Number({ default: 20 })),
     }),
     async execute(_toolCallId, params) {
-      const beforeDir = resolveArtifactPath(params.beforeDir);
-      const afterDir = resolveArtifactPath(params.afterDir);
+      const beforeDir = resolveQueryArtifactDirectory(params.beforeDir) || resolveArtifactPath(params.beforeDir);
+      const afterDir = resolveQueryArtifactDirectory(params.afterDir) || resolveArtifactPath(params.afterDir);
       const before = commonSummary(beforeDir, true);
       const after = commonSummary(afterDir, true);
       const limit = Math.min(100, Math.max(1, params.limit || 20));

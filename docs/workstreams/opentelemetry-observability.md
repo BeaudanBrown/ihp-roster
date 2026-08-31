@@ -13,14 +13,14 @@ workstream retains only unresolved production intent.
   trace/log correlation.
 - [#79](https://github.com/BeaudanBrown/ihp-roster/issues/79) — production
   runbook, retention, and security model.
-- [#28](https://github.com/BeaudanBrown/ihp-roster/issues/28) — retire the custom
-  profiling-header spine after parity.
 
 GitHub owns sequencing and implementation status.
 
-The production Collector, local Tempo/Loki storage, and tailnet-only query
-firewall boundary are implemented in `Config/nix/modules/ihp-roster.nix`.
-Remaining work consumes that backend.
+The production Collector, local Tempo/Loki storage, tailnet-only query firewall,
+and bounded agent-query commands are implemented. Their retained contracts live
+in `Config/nix/modules/ihp-roster.nix`,
+`scripts/observability/query.mjs`, and
+`docs/architecture/observability.md`. Remaining work consumes those boundaries.
 
 ## Production Boundary
 

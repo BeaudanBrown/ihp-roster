@@ -20,6 +20,7 @@ node --test scripts/migration-enum-commit-boundary.test.mjs
 node --test scripts/migration-rehearsal-ci.test.mjs
 node --test scripts/profiling/diagnostic-profile-report.test.mjs
 node --test scripts/profiling/otel-artifact.test.mjs
+node --test scripts/observability/query.test.mjs
 esbuild .pi/extensions/observability.ts --bundle --platform=node --format=esm \
     --external:@earendil-works/pi-coding-agent --external:typebox \
     --outfile=/tmp/bepis-observability-extension-check.mjs >/dev/null

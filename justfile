@@ -73,6 +73,21 @@ otel-browser *args:
 otel-summary *args:
     otel-summary {{args}}
 
+otel-start:
+    dev-start-otel
+
+otel-recent target="development" *args:
+    otel-recent --target="{{target}}" {{args}}
+
+otel-trace artifact trace *args:
+    otel-trace --artifact-dir="{{artifact}}" --trace-ref="{{trace}}" {{args}}
+
+otel-logs artifact trace:
+    otel-logs --artifact-dir="{{artifact}}" --trace-ref="{{trace}}"
+
+otel-compare target before_end after_end *args:
+    otel-compare --target="{{target}}" --before-end="{{before_end}}" --after-end="{{after_end}}" {{args}}
+
 profile-compare before after output="":
     if [ -z "{{output}}" ]; then profile-compare "{{before}}" "{{after}}"; else profile-compare "{{before}}" "{{after}}" "{{output}}"; fi
 

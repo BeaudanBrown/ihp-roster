@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { architectureResult, dotId, dotQuote, ensureDir, readStdinJson, renderDot, repoRoot, slug, traceDir, writeText } from "./shared.mjs";
 import { OTEL_ARTIFACT_SCHEMA, resolveAllowedArtifact } from "../../e2e/otel-artifact.mjs";
+import { readQuerySummary, resolveQueryArtifactDirectory } from "../observability/query.mjs";
 
 const spanIdOf = (span) => span.spanId;
 const parentIdOf = (span) => span.parentSpanId;
@@ -14,13 +15,23 @@ const traceId = args.traceId;
 const limit = Number(args.limit ?? 80);
 if (!traceId) throw new Error("traceId is required");
 if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error("limit must be an integer from 1 to 200");
-const summaryPath = resolveAllowedArtifact(path.join(runDir, "otel-summary.json"), { root: repoRoot });
-if (!fs.existsSync(summaryPath)) throw new Error(`Missing common OpenTelemetry summary: ${summaryPath}; run otel-profile-summary first`);
-const stat = fs.statSync(summaryPath);
-if (stat.size > 64 * 1024 * 1024) throw new Error(`OpenTelemetry summary exceeds 67108864 byte limit (${stat.size} bytes)`);
+const requestedRunDir = path.resolve(repoRoot, runDir);
+const productionRunDir = resolveQueryArtifactDirectory(requestedRunDir, { root: repoRoot });
+const summaryPath = productionRunDir
+  ? path.join(productionRunDir, "otel-summary.json")
+  : resolveAllowedArtifact(path.join(runDir, "otel-summary.json"), { root: repoRoot });
+if (!productionRunDir) {
+  if (!fs.existsSync(summaryPath)) throw new Error(`Missing common OpenTelemetry summary: ${summaryPath}; run otel-profile-summary first`);
+  const stat = fs.statSync(summaryPath);
+  if (stat.size > 64 * 1024 * 1024) throw new Error(`OpenTelemetry summary exceeds 67108864 byte limit (${stat.size} bytes)`);
+}
 let report;
-try { report = JSON.parse(fs.readFileSync(summaryPath, "utf8")); }
-catch (error) { throw new Error(`Malformed OpenTelemetry summary JSON: ${error.message}`); }
+try {
+  report = productionRunDir
+    ? readQuerySummary(productionRunDir)
+    : JSON.parse(fs.readFileSync(summaryPath, "utf8"));
+}
+catch (error) { throw new Error(`Malformed or unsafe OpenTelemetry summary: ${error.message}`); }
 if (report.schemaVersion !== OTEL_ARTIFACT_SCHEMA) throw new Error(`Unsupported OpenTelemetry summary schema: ${report.schemaVersion || "missing"}`);
 const traceView = (report.traceViews || []).find((trace) => trace.traceId === traceId);
 const allTraceSpans = traceView?.spans || [];

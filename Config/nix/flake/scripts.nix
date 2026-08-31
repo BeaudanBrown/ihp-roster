@@ -177,6 +177,10 @@ in
         deployment-module-check = script ../scripts/verification/deployment-module-check;
         observability-production-check = script ../scripts/verification/observability-production-check;
         observability-backend-smoke = script ../scripts/verification/observability-backend-smoke;
+        otel-recent = script ../scripts/observability/recent;
+        otel-trace = script ../scripts/observability/trace;
+        otel-logs = script ../scripts/observability/logs;
+        otel-compare = script ../scripts/observability/compare;
         http-polling-policy-check = script ../scripts/verification/http-polling-policy;
         http-polling-policy-test = script ../scripts/verification/http-polling-policy-test;
         http-repository-check = script ../scripts/verification/http-repository-check;

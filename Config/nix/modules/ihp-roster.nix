@@ -143,6 +143,7 @@ let
         ];
       }];
       "resource/logs".attributes = [
+        { key = "service.name"; action = "upsert"; value = "ihp-roster"; }
         { key = "service.namespace"; action = "upsert"; value = "bepis"; }
         { key = "deployment.environment.name"; action = "upsert"; value = otelCfg.deploymentEnvironment; }
         { key = "host.name"; action = "upsert"; value = config.networking.hostName; }

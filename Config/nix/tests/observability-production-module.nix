@@ -66,6 +66,7 @@ assert cfg.services.loki.enable;
 assert cfg.services.opentelemetry-collector.enable;
 assert collector.receivers.otlp.protocols.http.endpoint == "127.0.0.1:4318";
 assert collector.receivers.journald.units == [ "app.service" "worker.service" ];
+assert builtins.any (attribute: attribute.key == "service.name" && attribute.value == "ihp-roster") collector.processors."resource/logs".attributes;
 assert collector.exporters."otlphttp/tempo".endpoint == "http://127.0.0.1:4328";
 assert collector.exporters."otlphttp/loki".endpoint == "http://127.0.0.1:3100/otlp";
 assert collector.exporters."otlphttp/tempo".sending_queue.storage == "file_storage";

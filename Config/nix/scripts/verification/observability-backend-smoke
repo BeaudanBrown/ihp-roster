@@ -92,7 +92,7 @@ trace_found=0
 log_found=0
 for _ in $(seq 1 40); do
   if curl --connect-timeout 1 --max-time 2 -fsS "http://127.0.0.1:24320/api/traces/$trace_id" 2>/dev/null | jq -e '(.batches // .resourceSpans // []) | length > 0' >/dev/null; then trace_found=1; fi
-  if curl --connect-timeout 1 --max-time 2 -G -fsS --data-urlencode 'query={service_name="bepis-observability-smoke"}' --data-urlencode 'limit=10' --data-urlencode "start=$((start_ns - 1000000000))" --data-urlencode "end=$((end_ns + 1000000000))" http://127.0.0.1:24310/loki/api/v1/query_range 2>/dev/null | jq -e '[.data.result[].values[]?[1]] as $lines | ($lines | index("[redacted production journal event]") != null) and ($lines | all(contains("bounded-observability-smoke") | not))' >/dev/null; then log_found=1; fi
+  if curl --connect-timeout 1 --max-time 2 -G -fsS --data-urlencode 'query={service_name="ihp-roster"}' --data-urlencode 'limit=10' --data-urlencode "start=$((start_ns - 1000000000))" --data-urlencode "end=$((end_ns + 1000000000))" http://127.0.0.1:24310/loki/api/v1/query_range 2>/dev/null | jq -e '[.data.result[].values[]?[1]] as $lines | ($lines | index("[redacted production journal event]") != null) and ($lines | all(contains("bounded-observability-smoke") | not))' >/dev/null; then log_found=1; fi
   if [ "$trace_found" = 1 ] && [ "$log_found" = 1 ]; then break; fi
   sleep 0.25
 done

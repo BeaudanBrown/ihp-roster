@@ -3,7 +3,7 @@
 Implemented telemetry behavior is owned by `Application/Helper/Telemetry.hs`,
 the profiling helpers, `Config/otel/`, and the Nix scripts/module. Exact local
 profiling procedures live in `docs/runbooks/performance-profiling.md`. Unresolved
-production capture, storage, retention, and Grafana work lives only in
+Grafana and production incident-runbook work lives only in
 `docs/workstreams/opentelemetry-observability.md` and its linked GitHub issues.
 
 ## Modes
@@ -194,6 +194,66 @@ This deliberately provides occurrence, severity, service, and timing evidence
 without making arbitrary application messages searchable. Expanding retained
 content or adding nginx request logs requires a separate privacy review.
 
+## Bounded Agent Queries
+
+The generic agent query surface defaults to the current development workspace's
+localhost Tempo. `just otel-start` starts the dev observability stack and an
+OTel-enabled app; `just otel-recent` then materializes recent local timing
+evidence. The workspace wrapper supplies its isolated Tempo port and service
+name.
+
+Production is an explicit target. Configure the full MagicDNS name or Tailscale
+IP; endpoints are never accepted as command-line arguments:
+
+```bash
+export BEPIS_PRODUCTION_TEMPO_QUERY_URL=https://bepis-production.example.ts.net:3200
+export BEPIS_PRODUCTION_LOKI_QUERY_URL=https://bepis-production.example.ts.net:3101
+```
+
+Development accepts loopback only; production accepts tailnet addresses only.
+Both reject credentials, paths, fragments, wrong ports, and OTLP ingestion
+ports. Commands issue GETs only to fixed Tempo search/trace paths and, when Loki
+is configured for the artifact target, its fixed service range query. There is
+no arbitrary TraceQL, LogQL, Grafana, write, or URL parameter surface. The dev
+stack currently provides Tempo but not Loki, so local related-log lookup fails
+closed unless `BEPIS_DEVELOPMENT_LOKI_QUERY_URL` names an approved loopback Loki.
+
+```bash
+# Query local dev by default; pass production as the first just argument.
+just otel-recent
+just otel-recent production --minutes=5 --limit=10
+
+# Use only the safe trace reference and artifact path printed above.
+just otel-trace .pi/tmp/observability-query/... SAFE_REF
+just otel-logs .pi/tmp/observability-query/... SAFE_REF
+
+# Compare two bounded windows on an explicit target.
+just otel-compare production \
+  2026-08-30T01:00:00Z 2026-08-30T01:20:00Z
+
+# The underlying commands also accept --target=development|production.
+# BEPIS_OTEL_QUERY_TARGET changes the default for command-line use.
+```
+
+Queries are limited to the last seven days, three seconds per request and twenty
+seconds per window, 8 MiB total response bytes, 2 MiB per response, 4 MiB per
+materialized JSON artifact, 2,000 spans, 500 spans per trace, and 200 log rows. Raw traces exist in memory only. Before
+materialization, attributes/resources are allowlisted, unknown span names and
+values are hashed, status messages/events are removed, and raw trace IDs become
+the common model's safe references. Loki output is rejected in full unless every
+body is the production redaction marker; retained log evidence is count-only,
+grouped by allowlisted metadata. Related logs are a fixed service query over the
+trace's bounded time range plus 30 seconds, so they are temporal evidence rather
+than a claim of causal trace context.
+
+Private mode-0600 artifacts live only below
+`.pi/tmp/observability-query/`, carry target-bound query provenance and a 24-hour expiry,
+and are cleaned on subsequent command use. They remain
+`bepis.otel.profile.v2`/`bepis.otel.comparison.v2`, so `otel_trace_search`,
+`otel_trace_get`, `otel_compare_runs`, and the architecture `trace` query consume
+them unchanged. Authorization, timeout, malformed-response, and outage failures
+return bounded diagnostics and never touch production capture.
+
 The app and worker want, but do not require, the Collector. Backend failure or
 disablement therefore remains fail-open. Rollback is declarative: disable
 `observability.otel`, `collector`, `tempo`, and `loki`, rebuild the host, and
@@ -211,6 +271,8 @@ observability runbook issue.
   Tempo, Loki, retention, resource, firewall, and unsafe-option validation.
 - `bash ./bin/in-env observability-backend-smoke`: bounded local OTLP trace/log
   export through the production-shaped Collector into queryable Tempo/Loki.
+- `otel-recent`, `otel-trace`, `otel-logs`, and `otel-compare`: fixed, bounded,
+  target-aware development/production diagnosis surfaces.
 - `docs/workstreams/opentelemetry-observability.md`: unresolved production
   intent and issue links.
 - `Application/Helper/Telemetry.hs`: app telemetry implementation.
@@ -218,6 +280,8 @@ observability runbook issue.
 - `Config/otel/` and `Config/nix/scripts/profile/`: collector and runner
   implementation.
 
-Use `otel_trace_search`, `otel_trace_get`, and `otel_compare_runs` for bounded
-agent inspection of generated artifacts. Run canonical architecture and profile
-checks after changing these boundaries.
+Use `otel_recent`, `otel_trace`, `otel_logs`, and `otel_compare` for target-aware
+materialization and focused inspection; use
+`otel_trace_search`, `otel_trace_get`, and `otel_compare_runs` for bounded local
+artifact inspection. Run canonical architecture and profile checks after
+changing these boundaries.
