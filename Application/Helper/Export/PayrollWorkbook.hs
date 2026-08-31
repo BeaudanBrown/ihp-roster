@@ -447,28 +447,28 @@ summaryBuckets weekAnchor = concatMap bucketsForDate [weekAnchor .. addDays 6 we
         ]
 
 summaryBucketFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text
-summaryBucketFormula model summaryRow staffIdColumn payBucketKeyColumn _row bucket
+summaryBucketFormula model _summaryRow _staffIdColumn _payBucketKeyColumn row bucket
     | bucket.summaryBucketDate < model.payrollModelRangeStart = "SUM()"
     | bucket.summaryBucketDate > model.payrollModelRangeEnd = "SUM()"
-    | null matchingColumns = "SUM()"
-    | otherwise = Text.intercalate "+" (map sumIfFormula matchingColumns)
+    | Nothing <- sourceColumn = "SUM()"
+    | null matchingRows = "SUM()"
+    | otherwise = Text.intercalate "+" (map sourceCell matchingRows)
   where
-    matchingColumns =
-        [ column
-        | (column, slot) <- zip [3 ..] model.payrollModelHourSlots
+    sourceSheet = quoteSheetName (dailySheetName DailyHours bucket.summaryBucketDate)
+    sourceDay = List.find ((== bucket.summaryBucketDate) . (.payrollDayDate)) model.payrollModelDays
+    sourceColumn = do
+        day <- sourceDay
+        rowIndex <- List.findIndex ((== payrollRowKey row) . payrollRowKey) day.payrollDayRows
+        pure (rowIndex + 2)
+    matchingRows =
+        [ rowNumber
+        | (rowNumber, slot) <- zip [2 ..] model.payrollModelHourSlots
         , summarySlotMatches bucket slot
         ]
-    sourceSheet = quoteSheetName (dailySheetName DailyHours bucket.summaryBucketDate)
-    sourceStaffIdColumn = 4 + length model.payrollModelHourSlots
-    sourcePayBucketKeyColumn = sourceStaffIdColumn + 1
-    sumIfFormula valueColumn =
-        "SUMIFS("
-            <> sourceSheet <> "!" <> columnName valueColumn <> ":" <> columnName valueColumn
-            <> "," <> sourceSheet <> "!$" <> columnName sourceStaffIdColumn <> ":$" <> columnName sourceStaffIdColumn
-            <> ",$" <> columnName staffIdColumn <> tshow summaryRow
-            <> "," <> sourceSheet <> "!$" <> columnName sourcePayBucketKeyColumn <> ":$" <> columnName sourcePayBucketKeyColumn
-            <> ",$" <> columnName payBucketKeyColumn <> tshow summaryRow
-            <> ")"
+    sourceCell rowNumber =
+        case sourceColumn of
+            Nothing -> "0"
+            Just column -> sourceSheet <> "!" <> columnName column <> tshow rowNumber
 
 summaryBucketFactFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text
 summaryBucketFactFormula model summaryRow staffIdColumn _payBucketKeyColumn row bucket
@@ -509,36 +509,58 @@ dailySheet model kind day =
     PayrollWorkbookSheet
         { name = dailySheetName kind day.payrollDayDate
         , hidden = False
-        , cells = headerCells <> dataCells <> totalCells
-        , columnWidths = [(1, 24), (2, 18)] <> [(column, 22) | column <- [3 .. totalColumn - 1]] <> [(totalColumn, 14)]
-        , hiddenColumns = [staffIdColumn, payBucketKeyColumn]
+        , cells = headerCells <> detailCells <> totalCells <> metadataCells
+        , columnWidths =
+            [(1, 22)]
+                <> [(column, 28) | column <- staffColumns]
+                <> [(totalColumn, 14)]
+                <> [(staffColumnMetadataColumn, 14), (staffIdMetadataColumn, 38), (payBucketKeyMetadataColumn, 42)]
+        , hiddenColumns = [staffColumnMetadataColumn, staffIdMetadataColumn, payBucketKeyMetadataColumn]
         , tabColor = Just (dailyTabColor kind)
         , autoFilter = Nothing
-        , frozenRows = 0
-        , frozenColumns = 0
+        , frozenRows = 1
+        , frozenColumns = 1
         }
   where
-    hourCount = length model.payrollModelHourSlots
-    totalColumn = 3 + hourCount
-    staffIdColumn = totalColumn + 1
-    payBucketKeyColumn = staffIdColumn + 1
+    staffRows = day.payrollDayRows
+    staffColumns = [2 .. length staffRows + 1]
+    totalColumn = length staffRows + 2
+    staffColumnMetadataColumn = totalColumn + 1
+    staffIdMetadataColumn = totalColumn + 2
+    payBucketKeyMetadataColumn = totalColumn + 3
+    reportHours = model.payrollModelHourSlots
+    totalRow = length reportHours + 2
+    numberStyle = dailyNumberStyle kind
+    staffHeadings = disambiguatePayrollStaffHeadings staffRows
     headerCells =
         zipWith (\column label -> textCell 1 column label (dailyHeaderStyle kind))
             [1 ..]
-            ("Employee" : "Pay level / rate" : map (hourSlotLabel model) model.payrollModelHourSlots <> ["Total", "Staff ID", "Pay bucket key"])
-    dataCells = concat
-        [ dailyRowCells kind model totalColumn staffIdColumn payBucketKeyColumn rowNumber row
-        | (rowNumber, row) <- zip [2 ..] day.payrollDayRows
+            ("Time" : staffHeadings <> ["Total", "Staff column", "Staff ID", "Pay bucket key"])
+    detailCells = concat
+        [ [textCell rowNumber 1 (hourSlotLabel model hour) defaultPayrollWorkbookCellStyle]
+            <> concat
+                [ maybeToList (numberCell rowNumber column <$> dailyDetailValue kind hourIndex staffRow <*> pure numberStyle)
+                | (column, staffRow) <- zip staffColumns staffRows
+                ]
+            <> [formulaCell rowNumber totalColumn (dailyRowTotalFormula rowNumber) numberStyle]
+        | (rowNumber, hourIndex, hour) <- zip3 [2 ..] [0 ..] reportHours
         ]
-    totalRow = length day.payrollDayRows + 2
     totalCells =
-        [ textCell totalRow 1 "Total" defaultPayrollWorkbookCellStyle { bold = True }
+        [textCell totalRow 1 "Total" defaultPayrollWorkbookCellStyle { bold = True }]
+            <> [ formulaCell totalRow column (columnTotalFormula column (length reportHours)) numberStyle { bold = True }
+               | column <- staffColumns
+               ]
+            <> [formulaCell totalRow totalColumn (dailyRowTotalFormula totalRow) numberStyle { bold = True }]
+    metadataCells = concat
+        [ [ textCell metadataRow staffColumnMetadataColumn (columnName staffColumn) defaultPayrollWorkbookCellStyle
+          , textCell metadataRow staffIdMetadataColumn (tshow staffRow.payrollRowStaffId) defaultPayrollWorkbookCellStyle
+          , textCell metadataRow payBucketKeyMetadataColumn (payBucketKeyText staffRow.payrollRowPayBucket.payrollPayBucketKey) defaultPayrollWorkbookCellStyle
+          ]
+        | (metadataRow, staffColumn, staffRow) <- zip3 [2 ..] staffColumns staffRows
         ]
-            <> [ formulaCell totalRow column (columnTotalFormula column (length day.payrollDayRows)) (dailyNumberStyle kind) { bold = True }
-               | column <- [3 .. totalColumn - 1]
-               ]
-            <> [ formulaCell totalRow totalColumn (sumFormula totalRow 3 (totalColumn - 1)) (dailyNumberStyle kind) { bold = True }
-               ]
+    dailyRowTotalFormula rowNumber
+        | null staffColumns = "SUM()"
+        | otherwise = sumFormula rowNumber 2 (totalColumn - 1)
 
 data ShiftTypeSheetKind = ShiftTypeHours | ShiftTypeWages
 
@@ -638,20 +660,40 @@ shiftTypeTabColor :: ShiftTypeSheetKind -> PayrollWorkbookColor
 shiftTypeTabColor ShiftTypeHours = color "5B9BD5"
 shiftTypeTabColor ShiftTypeWages = color "A5A5A5"
 
-dailyRowCells :: DailySheetKind -> PayrollWorkbookHourlyModel -> Int -> Int -> Int -> Int -> PayrollWorkbookRow -> [PayrollWorkbookCell]
-dailyRowCells kind model totalColumn staffIdColumn payBucketKeyColumn rowNumber row =
-    [ textCell rowNumber 1 (payrollEmployeeName row) defaultPayrollWorkbookCellStyle
-    , textCell rowNumber 2 row.payrollRowPayBucket.payrollPayBucketLabel defaultPayrollWorkbookCellStyle
-    ]
-        <> zipWith (\column value -> numberCell rowNumber column value (dailyNumberStyle kind)) [3 ..] values
-        <> [ formulaCell rowNumber totalColumn (sumFormula rowNumber 3 (totalColumn - 1)) (dailyNumberStyle kind)
-           , textCell rowNumber staffIdColumn (tshow row.payrollRowStaffId) defaultPayrollWorkbookCellStyle
-           , textCell rowNumber payBucketKeyColumn (payBucketKeyText row.payrollRowPayBucket.payrollPayBucketKey) defaultPayrollWorkbookCellStyle
-           ]
+dailyDetailValue :: DailySheetKind -> Int -> PayrollWorkbookRow -> Maybe Double
+dailyDetailValue kind hourIndex row =
+    case kind of
+        DailyHours -> do
+            hours <- listToMaybe (drop hourIndex row.payrollRowHours)
+            if hours > 0 then Just (fromRational hours) else Nothing
+        DailyWages -> do
+            cents <- listToMaybe (drop hourIndex row.payrollRowWageCents)
+            if cents > 0 then Just (fromIntegral cents / 100) else Nothing
+
+disambiguatePayrollStaffHeadings :: [PayrollWorkbookRow] -> [Text]
+disambiguatePayrollStaffHeadings rows = snd (List.mapAccumL disambiguate Map.empty rows)
   where
-    values = case kind of
-        DailyHours -> map fromRational row.payrollRowHours
-        DailyWages -> map (\cents -> fromIntegral cents / 100) row.payrollRowWageCents
+    disambiguate counts row =
+        let baseHeading = payrollStaffColumnHeading row
+            occurrence = Map.findWithDefault 0 baseHeading counts + 1
+            heading
+                | occurrence == 1 = baseHeading
+                | otherwise = baseHeading <> " (" <> tshow occurrence <> ")"
+         in (Map.insert baseHeading occurrence counts, heading)
+
+payrollStaffColumnHeading :: PayrollWorkbookRow -> Text
+payrollStaffColumnHeading row =
+    row.payrollRowStaffFirstName
+        <> ", "
+        <> row.payrollRowStaffLastName
+        <> ", "
+        <> payrollPayBucketColumnLabel row.payrollRowPayBucket.payrollPayBucketLabel
+
+payrollPayBucketColumnLabel :: Text -> Text
+payrollPayBucketColumnLabel label =
+    case Text.stripPrefix "Level " (Text.strip label) of
+        Just level -> "LVL " <> level
+        Nothing    -> label
 
 columnTotalFormula :: Int -> Int -> Text
 columnTotalFormula column rowCount

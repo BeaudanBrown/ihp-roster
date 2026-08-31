@@ -163,12 +163,12 @@ tests = do
                 pure (key, show (hashlazy rendered :: Digest SHA256))
             renderedVariants `shouldBe`
                 [ ("summary", "687a14792cfb7e288c72cc51c6255988b11ce378fa887f4b8ffdd93ae10d090b")
-                , ("employee-hours", "47f36e4b6c19c69261d8c62e5c9889a498a677d7c69c28be805fdefaa854bafc")
+                , ("employee-hours", "9c43cdade8174da86d199712337f2f3fc52b767b3aa943af64ea01a0434250b5")
                 , ("shift-hours", "4335e83f30e873c13d2bd34e88afec938d8ecdc23c8e1c26c4ed96616ff15cec")
-                , ("employee-wages", "926ea0a971aeebfb0185d05fe66b08f22cccfd08ee96809c24c558ce664d4cc8")
+                , ("employee-wages", "82915619cc77ef41a3b2e900793586d017e2c4c4f2e233dfa087066007d73dac")
                 , ("shift-wages", "415ce75be3337448123055b81dff322923405235ff8025415ec5e35807b54b87")
                 , ("wages-summary", "cb9dd95dff26e171b54d8bedd6cd6f779bfd0af4ba83375ea5003390af286d53")
-                , ("hours-pair", "cf14ae9a5e4823a8f3a3146babd8f8566c128c65cc9f84a6968837416374aaac")
+                , ("hours-pair", "06501d0304c125e8fb1cc34a4da8e8d2c027f0a3032d0dea1213a5c9364d7c0b")
                 ]
 
         it "recalculates default and representative configured variants directly from authoritative Data facts" do
@@ -189,15 +189,15 @@ tests = do
                 LBS.writeFile (artifactDirectory <> "/payroll_workbook-wages-summary.xlsx") configuredBytes
             assertLibreOfficeFormulaValues defaultBytes
                 [ "Summary 2025-01-06\tC2\t1.5"
-                , "Hours Mon 2025-01-06\tD2\t1.5"
+                , "Hours Mon 2025-01-06\tC2\t1.5"
+                , "Hours Mon 2025-01-06\tB3\t1.5"
                 , "Hours Mon 2025-01-06\tC3\t1.5"
-                , "Hours Mon 2025-01-06\tD3\t1.5"
                 , "Shift Type Hours Mon 2025-01-06\tC2\t1"
                 , "Shift Type Hours Mon 2025-01-06\tB3\t1"
                 , "Shift Type Hours Mon 2025-01-06\tC3\t1"
-                , "Wages Mon 2025-01-06\tD2\t45"
+                , "Wages Mon 2025-01-06\tC2\t45"
+                , "Wages Mon 2025-01-06\tB3\t45"
                 , "Wages Mon 2025-01-06\tC3\t45"
-                , "Wages Mon 2025-01-06\tD3\t45"
                 , "Shift Type Wages Mon 2025-01-06\tC2\t45"
                 , "Shift Type Wages Mon 2025-01-06\tB3\t45"
                 , "Shift Type Wages Mon 2025-01-06\tC3\t45"
@@ -229,6 +229,53 @@ tests = do
                 , "Shift Type Wages Mon 2025-01-06\tB3\t45"
                 , "Shift Type Wages Mon 2025-01-06\tC3\t45"
                 ]
+
+        it "renders Staff Hours and Wages with hourly rows, collision-safe headings, blank zeros, and fixed hidden metadata columns" do
+            let day = fromGregorian 2025 1 6
+            let slots = map (`PayrollWorkbookHourSlot` FirstHourlyOccurrence) [18, 19]
+            let firstStaff =
+                    workbookRowWith
+                        "10000000-0000-0000-0000-000000000001"
+                        "20000000-0000-0000-0000-000000000001"
+                        "Level 2"
+                        [1, 0]
+                        [3150, 0]
+            let secondStaff =
+                    workbookRowWith
+                        "10000000-0000-0000-0000-000000000002"
+                        "20000000-0000-0000-0000-000000000002"
+                        "Level 2"
+                        [0, 2]
+                        [0, 6500]
+            let model = PayrollWorkbookHourlyModel day day (HourlyReportWindow 18 20) slots [PayrollWorkbookDay day [firstStaff, secondStaff]]
+            let workbook = payrollWorkbookFromHourlyModel 1 model
+            let hoursSheet = workbook.sheets !! 1
+            let wagesSheet = workbook.sheets !! 2
+
+            forM_
+                [ "Time"
+                , "Ada, Lovelace, LVL 2"
+                , "Ada, Lovelace, LVL 2 (2)"
+                , "Staff column"
+                , "Staff ID"
+                , "Pay bucket key"
+                ] \value -> textValues hoursSheet `shouldSatisfy` (value `elem`)
+            hoursSheet.hiddenColumns `shouldBe` [5, 6, 7]
+            hoursSheet.frozenRows `shouldBe` 1
+            hoursSheet.frozenColumns `shouldBe` 1
+            numberAt 2 2 hoursSheet `shouldBe` Just (1, "0.000000;-0.000000;;")
+            numberAt 2 3 hoursSheet `shouldBe` Nothing
+            numberAt 3 2 hoursSheet `shouldBe` Nothing
+            numberAt 3 3 hoursSheet `shouldBe` Just (2, "0.000000;-0.000000;;")
+            formulaAt 2 4 hoursSheet `shouldBe` Just ("SUM(B2:C2)", "0.000000;-0.000000;;")
+            formulaAt 4 2 hoursSheet `shouldBe` Just ("SUM(B2:B3)", "0.000000;-0.000000;;")
+            textAt 2 5 hoursSheet `shouldBe` Just "B"
+            textAt 3 5 hoursSheet `shouldBe` Just "C"
+            textAt 2 6 hoursSheet `shouldBe` Just "10000000-0000-0000-0000-000000000001"
+            textAt 3 7 hoursSheet `shouldBe` Just "award_level:20000000-0000-0000-0000-000000000002"
+            numberAt 2 2 wagesSheet `shouldBe` Just (31.5, "$#,##0.00;[Red]-$#,##0.00;;")
+            numberAt 2 3 wagesSheet `shouldBe` Nothing
+            numberAt 3 3 wagesSheet `shouldBe` Just (65, "$#,##0.00;[Red]-$#,##0.00;;")
 
         it "aggregates repeated civil-hour occurrences at legacy precision and leaves skipped detail blank" do
             let (day, oneHourModel) = oneHourFactModel
@@ -323,32 +370,32 @@ tests = do
             firstSummary.frozenRows `shouldBe` 0
             firstSummary.frozenColumns `shouldBe` 0
             formulaValues firstSummary `shouldContain`
-                [ "SUMIFS('Hours Mon 2025-01-06'!C:C,'Hours Mon 2025-01-06'!$G:$G,$V2,'Hours Mon 2025-01-06'!$H:$H,$W2)"
-                , "SUMIFS('Hours Mon 2025-01-06'!D:D,'Hours Mon 2025-01-06'!$G:$G,$V2,'Hours Mon 2025-01-06'!$H:$H,$W2)"
-                , "SUMIFS('Hours Mon 2025-01-06'!E:E,'Hours Mon 2025-01-06'!$G:$G,$V2,'Hours Mon 2025-01-06'!$H:$H,$W2)"
+                [ "'Hours Mon 2025-01-06'!B2"
+                , "'Hours Mon 2025-01-06'!B3"
+                , "'Hours Mon 2025-01-06'!B4"
                 ]
 
             let firstHours = workbook.sheets !! 2
-            firstHours.hiddenColumns `shouldBe` [7, 8]
-            firstHours.columnWidths `shouldBe` [(1, 24), (2, 18), (3, 22), (4, 22), (5, 22), (6, 14)]
-            firstHours.frozenRows `shouldBe` 0
-            firstHours.frozenColumns `shouldBe` 0
+            firstHours.hiddenColumns `shouldBe` [4, 5, 6]
+            firstHours.columnWidths `shouldBe` [(1, 22), (2, 28), (3, 14), (4, 14), (5, 38), (6, 42)]
+            firstHours.frozenRows `shouldBe` 1
+            firstHours.frozenColumns `shouldBe` 1
             firstHours.autoFilter `shouldBe` Nothing
-            forM_ ["SUM(C2:E2)", "SUM(C2:C2)", "SUM(C3:E3)"] \formula ->
+            forM_ ["SUM(B2:B2)", "SUM(B3:B3)", "SUM(B4:B4)", "SUM(B2:B4)", "SUM(B5:B5)"] \formula ->
                 formulaValues firstHours `shouldSatisfy` (formula `elem`)
-            numberAt 2 3 firstHours `shouldBe` Just (0, "0.000000;-0.000000;;")
+            numberAt 2 2 firstHours `shouldBe` Nothing
 
             let firstWages = workbook.sheets !! 11
             firstWages.columnWidths `shouldBe` firstHours.columnWidths
             firstWages.autoFilter `shouldBe` Nothing
-            firstWages.frozenRows `shouldBe` 0
-            firstWages.frozenColumns `shouldBe` 0
-            numberAt 2 4 firstWages `shouldBe` Just (12.34, "$#,##0.00;[Red]-$#,##0.00;;")
+            firstWages.frozenRows `shouldBe` 1
+            firstWages.frozenColumns `shouldBe` 1
+            numberAt 3 2 firstWages `shouldBe` Just (12.34, "$#,##0.00;[Red]-$#,##0.00;;")
 
             let rendered = renderPayrollWorkbook workbook
             rendered `shouldBe` renderPayrollWorkbook workbook
             show (hashlazy rendered :: Digest SHA256)
-                `shouldBe` "f3130740aee43578957f7e4ef65db6c7888efee12b4570a961be4ab6b1be469e"
+                `shouldBe` "818c1dadc894ed2cbf8cdc6d51d82beee1952a7f7dc499ce25be0b2afc2e1f3f"
             Xlsx.toXlsxEither rendered `shouldSatisfy` isRight
             let archive = Zip.toArchive rendered
             summaryXml <- archiveText "xl/worksheets/sheet1.xml" archive
@@ -358,16 +405,15 @@ tests = do
             summaryXml `shouldSatisfy` Text.isInfixOf "<tabColor rgb=\"FFFFC000\"/>"
             hoursXml `shouldSatisfy` Text.isInfixOf "<tabColor rgb=\"FF4472C4\"/>"
             wagesXml `shouldSatisfy` Text.isInfixOf "<tabColor rgb=\"FF70AD47\"/>"
-            summaryXml `shouldSatisfy` Text.isInfixOf "SUMIFS"
             summaryXml `shouldSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
             summaryXml `shouldNotSatisfy` Text.isInfixOf "<autoFilter"
             summaryXml `shouldNotSatisfy` Text.isInfixOf "state=\"frozen\""
             summaryXml `shouldSatisfy` Text.isInfixOf "width=\"24"
-            hoursXml `shouldSatisfy` Text.isInfixOf "<f>SUM(C2:E2)</f>"
+            hoursXml `shouldSatisfy` Text.isInfixOf "<f>SUM(B2:B2)</f>"
             hoursXml `shouldNotSatisfy` Text.isInfixOf "<autoFilter"
-            hoursXml `shouldNotSatisfy` Text.isInfixOf "state=\"frozen\""
-            hoursXml `shouldSatisfy` Text.isInfixOf "width=\"22"
-            hoursXml `shouldNotSatisfy` Text.isInfixOf "<f>SUM(C2:E2)</f><v>"
+            hoursXml `shouldSatisfy` Text.isInfixOf "state=\"frozen\""
+            hoursXml `shouldSatisfy` Text.isInfixOf "width=\"28"
+            hoursXml `shouldNotSatisfy` Text.isInfixOf "<f>SUM(B2:B2)</f><v>"
             stylesXml `shouldNotSatisfy` Text.isInfixOf "FFFFF2CC"
             stylesXml `shouldNotSatisfy` Text.isInfixOf "FFD9EAF7"
             stylesXml `shouldNotSatisfy` Text.isInfixOf "FFE2F0D9"
@@ -398,7 +444,7 @@ tests = do
             map (.name) (take 2 fullWeekWorkbook.sheets)
                 `shouldBe` ["Summary 2025-01-06", "Hours Mon 2025-01-06"]
             let emptyHoursDay = fullWeekWorkbook.sheets !! 2
-            formulaValues emptyHoursDay `shouldBe` ["SUM()", "SUM()", "SUM()", "SUM(C2:E2)"]
+            formulaValues emptyHoursDay `shouldBe` replicate 4 "SUM()"
 
             let fortnightEnd = fromGregorian 2025 1 19
             let fortnightModel = PayrollWorkbookHourlyModel rangeStart fortnightEnd (HourlyReportWindow 18 25) slots
@@ -437,18 +483,18 @@ tests = do
                     , "Summary 2025-01-13\tC2\t0.5"
                     , "Summary 2025-01-13\tD2\t1.25"
                     , "Summary 2025-01-13\tE2\t2.25"
-                    , "Hours Sun 2025-01-12\tG2\t10"
-                    , "Hours Sun 2025-01-12\tG3\t26"
-                    , "Hours Sun 2025-01-12\tG4\t36"
-                    , "Wages Sun 2025-01-12\tC4\t6"
-                    , "Wages Sun 2025-01-12\tD4\t8"
-                    , "Wages Sun 2025-01-12\tE4\t10"
-                    , "Wages Sun 2025-01-12\tF4\t12"
-                    , "Wages Sun 2025-01-12\tG4\t36"
-                    , "Hours Mon 2025-01-13\tG2\t4"
-                    , "Hours Mon 2025-01-13\tG3\t4"
-                    , "Wages Mon 2025-01-13\tG2\t4"
-                    , "Wages Mon 2025-01-13\tG3\t4"
+                    , "Hours Sun 2025-01-12\tB6\t10"
+                    , "Hours Sun 2025-01-12\tC6\t26"
+                    , "Hours Sun 2025-01-12\tD6\t36"
+                    , "Wages Sun 2025-01-12\tD2\t6"
+                    , "Wages Sun 2025-01-12\tD3\t8"
+                    , "Wages Sun 2025-01-12\tD4\t10"
+                    , "Wages Sun 2025-01-12\tD5\t12"
+                    , "Wages Sun 2025-01-12\tD6\t36"
+                    , "Hours Mon 2025-01-13\tB6\t4"
+                    , "Hours Mon 2025-01-13\tC6\t4"
+                    , "Wages Mon 2025-01-13\tB6\t4"
+                    , "Wages Mon 2025-01-13\tC6\t4"
                     ]
 
             let workbookBytes = renderPayrollWorkbook (payrollWorkbookFromHourlyModel 1 model)
@@ -458,7 +504,7 @@ tests = do
                 LBS.writeFile artifactPath workbookBytes
             assertLibreOfficeFormulaValues workbookBytes expectedFormulaValues
 
-        it "names repeated DST hour columns explicitly on both daily sheet families" do
+        it "names repeated DST hour rows explicitly on both daily Staff sheet families" do
             let day = fromGregorian 2026 4 4
             let slots =
                     [ PayrollWorkbookHourSlot 26 FirstHourlyOccurrence
@@ -472,8 +518,8 @@ tests = do
             textValues hoursSheet `shouldContain` ["02:00-03:00+1 (first)", "02:00-03:00+1 (second)"]
             textValues wagesSheet `shouldContain` ["02:00-03:00+1 (first)", "02:00-03:00+1 (second)"]
             formulaValues summary `shouldSatisfy` any (\formula ->
-                Text.isInfixOf "'Hours Sat 2026-04-04'!C:C" formula
-                    && Text.isInfixOf "'Hours Sat 2026-04-04'!D:D" formula
+                Text.isInfixOf "'Hours Sat 2026-04-04'!B2" formula
+                    && Text.isInfixOf "'Hours Sat 2026-04-04'!B3" formula
                     && Text.isInfixOf "+" formula
                 )
 
@@ -571,6 +617,15 @@ uuid value = fromMaybe (error "invalid test UUID") (UUID.fromText value)
 
 textValues :: PayrollWorkbookSheet -> [Text]
 textValues sheet = [value | PayrollWorkbookCell { value = PayrollWorkbookText value } <- sheet.cells]
+
+textAt :: Int -> Int -> PayrollWorkbookSheet -> Maybe Text
+textAt row column sheet =
+    listToMaybe
+        [ value
+        | PayrollWorkbookCell { row = cellRow, column = cellColumn, value = PayrollWorkbookText value } <- sheet.cells
+        , cellRow == row
+        , cellColumn == column
+        ]
 
 formulaValues :: PayrollWorkbookSheet -> [Text]
 formulaValues sheet = [value | PayrollWorkbookCell { value = PayrollWorkbookFormula value } <- sheet.cells]
