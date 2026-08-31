@@ -3,7 +3,7 @@ import { passkeyActionButtonDomAttr, passkeyRegistrationDomAttr } from '../../fr
 import { E2E_TIMEOUT } from '../timeouts';
 import { runSql, sqlString } from './database';
 import { gotoWhenReady } from './runtime';
-import { loginAs } from './session';
+import { loginAsWithFreshBrowserSession } from './session';
 
 export const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 
@@ -131,7 +131,7 @@ export async function loginAsPrivilegedUserWithSeededPasskeySession(
     email = 'e2e-admin@example.com',
     password = 'test-password-123',
 ) {
-    await loginAs(page, email, password);
+    await loginAsWithFreshBrowserSession(page, email, password);
     await page.waitForLoadState('networkidle', { timeout: E2E_TIMEOUT.action }).catch(() => {});
     await markCurrentSessionPasskeyVerified(page);
 }

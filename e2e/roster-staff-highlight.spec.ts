@@ -89,10 +89,16 @@ async function gridSlotMetrics(page: Page, staffKey: string): Promise<GridSlotMe
     });
 }
 
+const liveReadOnlyRosterTitle = 'keeps staff-linked row highlights on a live read-only roster';
+
 test.describe('Roster staff shift highlight', () => {
     test.use({ viewport: { width: 1440, height: 900 } });
     test.beforeEach(resetCanonicalRosterAssignedShiftFixture);
-    test.afterEach(resetCanonicalRosterAssignedShiftFixture);
+    test.afterEach(({}, testInfo) => {
+        if (testInfo.title === liveReadOnlyRosterTitle) {
+            resetCanonicalRosterAssignedShiftFixture();
+        }
+    });
 
     test('highlights the assigned slot outline in the row grid without changing cell borders', async ({ page }) => {
         await openRoster(page, { email: 'e2e-test@example.com' });
@@ -116,7 +122,7 @@ test.describe('Roster staff shift highlight', () => {
         expect(afterHover.lastControlWidth ?? 0).toBeCloseTo(beforeHover.lastControlWidth ?? 0, 0);
     });
 
-    test('keeps staff-linked row highlights on a live read-only roster', async ({ page }) => {
+    test(liveReadOnlyRosterTitle, async ({ page }) => {
         runSql(`
             UPDATE roster_slots
             SET assignment_state = 'staff',

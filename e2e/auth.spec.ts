@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { dismissOptionalPasskeySetupPrompt } from './support/session';
+import { dismissOptionalPasskeySetupPrompt, loginAs } from './support/session';
 import { gotoWhenReady } from './support/runtime';
 
 test.describe('Authentication', () => {
@@ -35,6 +35,15 @@ test.describe('Authentication', () => {
         // Should redirect to login page
         await expect(page).toHaveURL(/NewSession/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#email')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+    });
+
+    test('cached login falls back to fresh credentials after logout invalidates its server session', async ({ page }) => {
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await page.click('a:has-text("logout"), button:has-text("logout")');
+        await expect(page.locator('#email')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
     });
 
     test('roster requires authentication', async ({ page }) => {

@@ -1,10 +1,12 @@
 import { expect, type Page } from '@playwright/test';
 import { runSql, sqlString } from './database';
 
-export function resetTimesheetDisplayPreferences(email: string) {
+export function resetTimesheetDisplayPreferences(emails: string | string[]) {
+    const targetEmails = typeof emails === 'string' ? [emails] : emails;
+    if (targetEmails.length === 0) return;
     runSql(`
         INSERT INTO user_preferences (user_id, hide_approved, show_timesheet_suggestions, show_timesheet_wage_estimates, timesheet_preferences_initialized_at)
-        SELECT id, FALSE, TRUE, TRUE, NOW() FROM users WHERE email = ${sqlString(email)}
+        SELECT id, FALSE, TRUE, TRUE, NOW() FROM users WHERE email IN (${targetEmails.map(sqlString).join(', ')})
         ON CONFLICT (user_id) DO UPDATE SET
             hide_approved = FALSE,
             show_timesheet_suggestions = TRUE,

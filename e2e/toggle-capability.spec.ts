@@ -83,12 +83,19 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
     await uniqueToggleIds(page);
 }
 
+const scopedPersistenceTitle = 'submits explicit roster scope and persists the Timesheets hide-approved preference';
+const timesheetPreferenceMutators = new Set([scopedPersistenceTitle]);
+
+function resetTimesheetPreferencesForMutator(testTitle: string) {
+    if (timesheetPreferenceMutators.has(testTitle)) {
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
+    }
+}
+
 test.describe('Generated toggle capability', () => {
     test.describe.configure({ timeout: E2E_TIMEOUT.slowTest });
-    test.afterEach(() => {
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
-        resetTimesheetDisplayPreferences('e2e-worker@example.com');
-    });
+    test.beforeEach(({}, testInfo) => resetTimesheetPreferencesForMutator(testInfo.title));
+    test.afterEach(({}, testInfo) => resetTimesheetPreferencesForMutator(testInfo.title));
 
     test('persists roster Published state in both directions from the desktop control', async ({ page }) => {
         await exerciseRosterLivePersistence(page, { width: 1280, height: 900 }, 11);
@@ -114,7 +121,7 @@ test.describe('Generated toggle capability', () => {
             }
     });
 
-    test('submits explicit roster scope and persists the Timesheets hide-approved preference', async ({ page }) => {
+    test(scopedPersistenceTitle, async ({ page }) => {
         const extraRosterGroupId = 'a1000000-0000-0000-0000-000000000169';
         runSql(`
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
@@ -167,7 +174,6 @@ test.describe('Generated toggle capability', () => {
             `);
         }
 
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.getByRole('link', { name: '>' }).click();
         await expect(page).toHaveURL(/anchorDate=/);
@@ -204,7 +210,6 @@ test.describe('Generated toggle capability', () => {
         );
         await hideApprovedRoot.click();
         await requestPromise;
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 
     test('controls break fields by keyboard after HTMX insertion and rejects malformed config without mutation', async ({ page }) => {

@@ -79,7 +79,7 @@ async function submitTemplateCardAction(button: Locator, requestPath: string) {
 }
 
 test.describe('Roster Week-template modals', () => {
-    test('does not expose retired template-authoring routes', async ({ request }) => {
+    test('does not expose retired template-authoring routes @desktop-only', async ({ request }) => {
         const templateId = '00000000-0000-0000-0000-000000000001';
         const group = `rosterGroupId=${defaultE2ERosterGroupId}`;
         const design = `rosterTemplateDesignId=${templateId}`;
@@ -110,11 +110,11 @@ test.describe('Roster Week-template modals', () => {
     });
 
     test.beforeEach(async ({ page }) => {
-        await openRoster(page, { ensureDraft: true, ensureEditable: true });
+        await openRoster(page, { weekOffset: 40, ensureDraft: true, ensureEditable: true });
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });
 
-    test('uses the same accessible Save modal on desktop and canonical mobile', async ({ page }) => {
+    test('uses the same accessible Save modal on desktop and canonical mobile @canonical-mobile', async ({ page }) => {
         await openTemplatesTab(page);
         await page.getByRole('button', { name: 'Save current week as template' }).click();
 
@@ -129,7 +129,7 @@ test.describe('Roster Week-template modals', () => {
         await expect(dialog).toBeHidden();
     });
 
-    test('converges the shared library across two mounted editors after Save, Apply, and Delete', async ({ page }, testInfo) => {
+    test('converges the shared library across two mounted editors after Save, Apply, and Delete @canonical-mobile', async ({ page }, testInfo) => {
         const viewerPage = await page.context().newPage();
         const templateName = uniqueE2EValue('Shared live template');
         try {
@@ -214,7 +214,7 @@ test.describe('Roster Week-template modals', () => {
         }
     });
 
-    test('opens Apply and completes Delete across canonical viewports without losing context', async ({ page }) => {
+    test('opens Apply and completes Delete across canonical viewports without losing context @canonical-mobile', async ({ page }) => {
         const templateName = uniqueE2EValue('Mobile modal');
         await ensureCompleteDraftWindow(page);
         const initialUrl = page.url();
@@ -285,7 +285,7 @@ test.describe('Roster Week-template modals', () => {
         }
     });
 
-    test('keeps Save and Delete available while any Published target day disables Apply', async ({ page }) => {
+    test('keeps Save and Delete available while any Published target day disables Apply @canonical-mobile', async ({ page }) => {
         const templateName = uniqueE2EValue('Published target');
         const windowStart = await ensureCompleteDraftWindow(page);
 
@@ -348,7 +348,7 @@ test.describe('Roster Week-template modals', () => {
         }
     });
 
-    test('saves, applies, and deletes while retaining the viewed Templates tab', async ({ page }) => {
+    test('saves, applies, and deletes while retaining the viewed Templates tab @canonical-mobile', async ({ page }) => {
         const templateName = uniqueE2EValue('Modal week');
         await ensureRosterLayout(page, 'day_columns');
         await ensureCompleteDraftWindow(page);

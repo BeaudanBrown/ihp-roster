@@ -134,8 +134,16 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     if (!useCurrentSession) {
         await loginAs(page, email, password);
     }
+    const currentRosterUrl = new URL(page.url());
+    const currentRosterGroupId = currentRosterUrl.searchParams.get('rosterGroupId');
+    const canReuseCurrentRosterShell = /\/(RosterWeeks|ShowRosterWindow)$/.test(currentRosterUrl.pathname)
+        && currentRosterUrl.searchParams.has('anchorDate')
+        && currentRosterGroupId === rosterGroupId
+        && await page.locator('#roster-week-shell').isVisible().catch(() => false);
+    if (!canReuseCurrentRosterShell) {
+        await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+    }
     await expect(page.locator('#roster-content')).toBeVisible();
-    await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
     const currentAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
     if (currentAnchorDate === null) throw new Error('Expected canonical roster anchor date');
     const targetAnchorDate = new Date(`${currentAnchorDate}T00:00:00.000Z`);

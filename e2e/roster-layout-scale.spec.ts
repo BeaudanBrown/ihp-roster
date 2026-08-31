@@ -66,11 +66,15 @@ async function measureRosterLayout(page: Page, options: { slotCount?: number } =
 }
 
 test.describe('Roster layout scale baseline', () => {
-    for (const width of [1280, 1366, 1440]) {
-        test(`keeps normal roster layout contained at ${width}px`, async ({ page }) => {
-            await page.setViewportSize({ width, height: 900 });
-            await openRoster(page, { ensureEditable: false });
+    test('keeps normal roster layout contained across desktop widths', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await openRoster(page, { ensureEditable: false });
 
+        for (const width of [1280, 1366, 1440]) {
+            await page.setViewportSize({ width, height: 900 });
+            await expect.poll(() => page.locator('.roster-slots-scroller').evaluate((scroller) =>
+                getComputedStyle(scroller).overflowX
+            )).toBe('auto');
             const metrics = await measureRosterLayout(page);
 
             expect(metrics.viewportWidth).toBe(width);
@@ -90,8 +94,8 @@ test.describe('Roster layout scale baseline', () => {
             expect(metrics.gridFontSize).toBeLessThanOrEqual(14);
             expect(metrics.cellFontSize).toBeGreaterThanOrEqual(9);
             expect(metrics.cellFontSize).toBeLessThanOrEqual(14);
-        });
-    }
+        }
+    });
 
     test('changes roster dimensions through scale presets without page-level overflow', async ({ page }) => {
         await page.setViewportSize({ width: 1366, height: 900 });
@@ -119,12 +123,12 @@ test.describe('Roster layout scale baseline', () => {
         }
     });
 
-    for (const scale of ['compact', 'normal', 'large'] as const) {
-        test(`keeps roster shift dialogs clickable at ${scale} scale`, async ({ page }) => {
-            await page.setViewportSize({ width: 1366, height: 900 });
-            await openRoster(page);
-            await setRosterScale(page, scale);
+    test('keeps roster shift dialogs clickable across scale presets', async ({ page }) => {
+        await page.setViewportSize({ width: 1366, height: 900 });
+        await openRoster(page);
 
+        for (const scale of ['compact', 'normal', 'large'] as const) {
+            await setRosterScale(page, scale);
             const launcher = page.locator('[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]').first();
             await expect(launcher).toBeVisible();
             await launcher.scrollIntoViewIfNeeded();
@@ -144,6 +148,6 @@ test.describe('Roster layout scale baseline', () => {
 
             await page.getByRole('button', { name: 'Cancel' }).click();
             await expect(dialog).toHaveCount(0);
-        });
-    }
+        }
+    });
 });

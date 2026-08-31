@@ -7,8 +7,8 @@ type CachedBrowserSession = Awaited<ReturnType<ReturnType<Page['context']>['cook
 
 const cachedBrowserSessions = new Map<string, CachedBrowserSession>();
 
-function browserSessionKey(page: Page, email: string) {
-    return `${new URL(page.url()).origin}|${email.toLowerCase()}`;
+function browserSessionKey(email: string) {
+    return email.toLowerCase();
 }
 
 async function completePasswordLoginFromVisibleForm(page: Page, email: string, password: string) {
@@ -21,21 +21,33 @@ async function completePasswordLoginFromVisibleForm(page: Page, email: string, p
 }
 
 export async function loginAsWithFreshBrowserSession(page: Page, email: string, password: string) {
+    cachedBrowserSessions.delete(browserSessionKey(email));
     await gotoWhenReady(page, '/NewSession', '#email');
     await completePasswordLoginFromVisibleForm(page, email, password);
 }
 
 export async function loginAs(page: Page, email: string, password: string) {
-    await gotoWhenReady(page, '/NewSession', '#email');
-    const key = browserSessionKey(page, email);
+    const key = browserSessionKey(email);
     const cachedCookies = cachedBrowserSessions.get(key);
     if (cachedCookies) {
         await page.context().addCookies(cachedCookies);
-        await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
-        await dismissOptionalPasskeySetupPrompt(page);
-        return;
+        await page.goto('/RosterWeeks');
+        const restored = await page.locator('#roster-content')
+            .waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action })
+            .then(() => true)
+            .catch(() => false);
+        if (restored) {
+            await dismissOptionalPasskeySetupPrompt(page);
+            return;
+        }
+
+        // Logout invalidates the server-side session represented by the cached
+        // cookie. Never let that stale boundary fall through to another user.
+        cachedBrowserSessions.delete(key);
+        await page.context().clearCookies();
     }
 
+    await gotoWhenReady(page, '/NewSession', '#email');
     await completePasswordLoginFromVisibleForm(page, email, password);
     cachedBrowserSessions.set(key, await page.context().cookies());
 }
