@@ -498,7 +498,7 @@ fetchPreparationNotPaidStaffIds connection = do
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhere (#mappingStatus, NotApplicable)
             |> fetch
-    pure (map (.staffId) (filter (isJust . (.updatedByUserId)) mappings))
+    pure (map (.staffId) mappings)
 
 ensurePreparationDecisionProposals ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

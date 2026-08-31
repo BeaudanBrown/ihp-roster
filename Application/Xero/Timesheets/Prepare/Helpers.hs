@@ -250,7 +250,7 @@ staffNeedsXeroDecision row =
 staffMappingResolved :: XeroStaffMapping -> Bool
 staffMappingResolved mapping =
     staffMappingVerified mapping
-        || (xeroStaffMappingIsNotApplicable mapping.mappingStatus && isJust mapping.updatedByUserId)
+        || xeroStaffMappingIsNotApplicable mapping.mappingStatus
 
 staffMappingVerified :: XeroStaffMapping -> Bool
 staffMappingVerified mapping =

@@ -26,7 +26,7 @@ import Application.Xero.ReferenceDemand (fetchXeroPayrollEligibleApprovedStaffId
 import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (NoMissingPayrollReferenceDemand))
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
-import Application.Xero.WorkflowState (xeroStaffMappingIsNotApplicable,
+import Application.Xero.WorkflowState (xeroStaffMappingIsUnmapped,
                                        xeroStaffMappingIsVerified)
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
@@ -183,7 +183,7 @@ ensureDefaultXeroStaffMapping connection staff Nothing =
         |> set #venueId (unpackId currentVenueId)
         |> set #staffId (unpackId staff.id)
         |> set #xeroConnectionId (unpackId connection.id)
-        |> set #mappingStatus NotApplicable
+        |> set #mappingStatus XeroStaffMappingStatusEnumUnmapped
         |> createRecord
 
 fetchStaffLinkedUser :: (?modelContext :: ModelContext) => Staff -> IO (Maybe User)
@@ -517,7 +517,7 @@ attachXeroStaffMappingSuggestions employees rows =
     map attach rows
     where
         attach row
-            | not (xeroStaffMappingIsNotApplicable row.mappingRowMapping.mappingStatus) = row { mappingRowSuggestedEmployee = Nothing }
+            | not (xeroStaffMappingIsUnmapped row.mappingRowMapping.mappingStatus) = row { mappingRowSuggestedEmployee = Nothing }
             | otherwise =
                 let availableEmployees = filter (xeroEmployeeAvailableForStaff row.mappingRowStaff rows) employees
                  in case bestXeroEmployeeSuggestion row availableEmployees of

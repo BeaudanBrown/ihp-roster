@@ -24,7 +24,12 @@ issue and, when cross-system design remains unresolved, a new workstream.
   open the imported-pay-item dialog, or launch guided timesheet preparation,
   but it must not load or render standalone staff-mapping, earnings-mapping,
   calendar, readiness, pay-item, or legacy timesheet panels.
-- Staff decisions, managed pay items, readiness checks, preview, and submission
+- Staff mappings distinguish `unmapped`, verified, explicitly not applicable,
+  and stale states. Removing a linked staff member atomically clears the current
+  Xero employee identity and verification metadata, releases that employee for
+  another active staff member, and retains the previous mapping in the staff
+  removal audit event. Historical submissions and sealed payroll facts remain
+  unchanged. Staff decisions, managed pay items, readiness checks, preview, and submission
   belong to the guided preparation workflow. The staff-selection AppShell action
   is nominal: it carries staff identity plus one provider-owned employee
   selection and has no second text decision discriminator. The pre-wizard

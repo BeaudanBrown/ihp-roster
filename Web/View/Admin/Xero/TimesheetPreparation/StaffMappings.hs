@@ -22,7 +22,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
-import Application.Xero.EmployeeId (XeroEmployeeSelection (..), parseXeroEmployeeId)
+import Application.Xero.EmployeeId (XeroEmployeeSelection (..),
+                                    parseXeroEmployeeId)
 import Application.Xero.WorkflowState
 import Control.Monad (guard)
 import qualified Data.Text as Text
@@ -209,7 +210,7 @@ currentStaffEmployeeSelection row =
             guard (xeroStaffMappingIsVerified mapping.mappingStatus)
             mapping.xeroEmployeeId
         notApplicableSelection = do
-            guard (xeroStaffMappingIsNotApplicable mapping.mappingStatus && isJust mapping.updatedByUserId)
+            guard (xeroStaffMappingIsNotApplicable mapping.mappingStatus)
             Just "not_applicable"
 
 selectedStaffEmployeeId :: XeroPreparationStaffRow -> Maybe Text
@@ -271,7 +272,6 @@ staffHasVerifiedXeroEmployee row =
 staffMarkedNotPaidThroughXero :: XeroPreparationStaffRow -> Bool
 staffMarkedNotPaidThroughXero row =
     xeroStaffMappingIsNotApplicable row.preparationStaffMappingRow.mappingRowMapping.mappingStatus
-        && isJust row.preparationStaffMappingRow.mappingRowMapping.updatedByUserId
 
 staffName :: Staff -> Text
 staffName staff = Text.strip (staff.firstName <> " " <> staff.lastName)

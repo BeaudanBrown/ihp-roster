@@ -53,7 +53,7 @@ CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
 CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
 CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');
 CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');
-CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('verified', 'not_applicable', 'stale');
+CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('unmapped', 'verified', 'not_applicable', 'stale');
 CREATE TYPE xero_earnings_rate_mapping_status_enum AS ENUM ('unmapped', 'verified', 'stale');
 CREATE TYPE xero_pay_item_account_code_selection_status_enum AS ENUM ('none', 'verified', 'stale');
 CREATE TYPE xero_pay_item_requirement_status_enum AS ENUM ('proposed', 'matched', 'created', 'ignored', 'stale', 'rate_changed');
@@ -1522,7 +1522,7 @@ CREATE TABLE xero_staff_mappings (
     xero_employee_id TEXT,
     xero_employee_name TEXT,
     xero_employee_email TEXT,
-    mapping_status xero_staff_mapping_status_enum DEFAULT 'not_applicable' NOT NULL,
+    mapping_status xero_staff_mapping_status_enum DEFAULT 'unmapped' NOT NULL,
     last_verified_at TIMESTAMP WITH TIME ZONE,
     reference_refreshed_at TIMESTAMP WITH TIME ZONE,
     created_by_user_id UUID,
