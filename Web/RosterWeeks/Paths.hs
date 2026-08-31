@@ -3,6 +3,7 @@
 module Web.RosterWeeks.Paths
     ( rosterAssignmentFiltersUrl
     , rosterDayMutationUrl
+    , rosterDeleteSlotUrl
     , rosterExistingSlotDialogUrl
     , rosterNewSlotDialogUrl
     , rosterCopyWeekUrl
@@ -163,6 +164,14 @@ rosterExistingSlotDialogUrl :: Id RosterSlot -> Day -> Int -> Text
 rosterExistingSlotDialogUrl rosterSlotId anchorDate calendarRevision =
     appendQueryParams
         (pathTo (EditRosterSlotDialogAction rosterSlotId))
+        [ ("anchorDate", formatDayParam anchorDate)
+        , ("rosterCalendarRevision", tshow calendarRevision)
+        ]
+
+rosterDeleteSlotUrl :: Id RosterSlot -> Day -> Int -> Text
+rosterDeleteSlotUrl rosterSlotId anchorDate calendarRevision =
+    appendQueryParams
+        (pathTo (DeleteRosterSlotAction rosterSlotId))
         [ ("anchorDate", formatDayParam anchorDate)
         , ("rosterCalendarRevision", tshow calendarRevision)
         ]

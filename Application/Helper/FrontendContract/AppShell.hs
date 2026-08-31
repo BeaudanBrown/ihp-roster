@@ -376,8 +376,8 @@ type AppShellContract =
          , AppShellAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction DeleteRosterSlotOverlay
-            '[ Field AnchorDateField 'WireText
-             , Field RosterCalendarRevisionField 'WireText
+            '[ Field AnchorDateField 'WireDay
+             , Field RosterCalendarRevisionField 'WireInt
              ]
             '[ AppShellHtmxMethod 'AppShellDelete
              , AppShellHtmxTarget DialogOverlayMount
@@ -386,7 +386,9 @@ type AppShellContract =
              , AppShellHtmxConfirm "Delete this shift?"
              ]
          , AppShellAction ConfirmDeleteRosterSlotOverlay
-            '[]
+            '[ Field AnchorDateField 'WireDay
+             , Field RosterCalendarRevisionField 'WireInt
+             ]
             '[ AppShellHtmxMethod 'AppShellDelete
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"

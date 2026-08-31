@@ -34,6 +34,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (isJust)
 import qualified Data.Set as Set
 import Data.UUID (UUID)
+import Web.RosterWeeks.Paths (rosterDeleteSlotUrl)
 import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude
 
@@ -132,7 +133,7 @@ deleteButton False anchorDate calendarRevision (EditRosterShiftDialog rosterSlot
     [ OverlayButton
         { overlayButtonLabel = "Delete shift"
         , overlayButtonClass = "btn btn-outline-danger"
-        , overlayButtonAction = GeneratedDialogFormAction (appShellActionByMarker @DeleteRosterSlotOverlay) (rosterAppShellActionRoute (pathTo (DeleteRosterSlotAction rosterSlotId)) anchorDate calendarRevision) [] (Just "Delete this shift?")
+        , overlayButtonAction = GeneratedDialogFormAction (appShellActionByMarker @DeleteRosterSlotOverlay) (rosterAppShellActionRoute (rosterDeleteSlotUrl rosterSlotId anchorDate calendarRevision) anchorDate calendarRevision) [] (Just "Delete this shift?")
         }
     ]
 

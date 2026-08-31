@@ -86,6 +86,34 @@ test.describe('roster pointer session effects', () => {
         resetCanonicalRosterAssignedShiftFixture();
     });
 
+    test('deletes a roster shift from its edit dialog', async ({ page }) => {
+        resetCanonicalRosterAssignedShiftFixture();
+        await openRoster(page, { email: 'e2e-admin@example.com' });
+
+        const source = page.locator('.roster-grid-frame[data-roster-layout="day_rows"] [data-bepis-source-ref="shift-drag-source"][data-roster-shift-launcher="true"]').first();
+        await expect(source).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        const sourceKey = await source.getAttribute('data-bepis-source-key');
+        expect(sourceKey).toMatch(/^existing:/);
+        const deletedSource = page.locator(`[data-bepis-source-ref="shift-drag-source"][data-bepis-source-key="${sourceKey}"]`);
+
+        await source.click();
+        const dialog = page.getByRole('dialog', { name: 'Edit shift' });
+        await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+
+        page.once('dialog', confirmation => confirmation.accept());
+        const deleteResponse = page.waitForResponse(response =>
+            new URL(response.url()).pathname === '/DeleteRosterSlot'
+            && response.request().method() === 'DELETE',
+        );
+        await dialog.getByRole('button', { name: 'Delete shift' }).click();
+        const response = await deleteResponse;
+        expect(response.status()).toBe(200);
+        expect(new URL(response.url()).searchParams.has('anchorDate')).toBe(true);
+        expect(new URL(response.url()).searchParams.has('rosterCalendarRevision')).toBe(true);
+        await expect(deletedSource).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
+        resetCanonicalRosterAssignedShiftFixture();
+    });
+
     test('staff drag highlights the full empty row-grid shift span', async ({ page }) => {
         await openRoster(page, { email: 'e2e-admin@example.com' });
 
