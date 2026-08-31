@@ -12,7 +12,6 @@ legacy_schema_vocabulary="$(
         --glob '*.hs' --glob '*.sql' --glob '*.ts' \
         --glob '!Application/Migration/**' \
         --glob '!Application/Helper/FrontendContract/Surface/Roster/Generated/**' \
-        --glob '!e2e/date-native-roster-readiness.spec.ts' \
         || true
 )"
 [[ -z "$legacy_schema_vocabulary" ]] \

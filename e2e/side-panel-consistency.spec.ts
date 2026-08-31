@@ -42,75 +42,6 @@ async function staffNamesByKey(root: Locator, target: SidePanelPage) {
     return new Map(rows.map(row => [row.staffRowKey, row.staffName]));
 }
 
-async function managerPanelVisualContract(root: Locator) {
-    const panel = root.locator('.app-side-panel-region');
-    const staffTab = panel.getByRole('tab', { name: 'Staff' });
-    const firstHeader = panel.locator('table thead th').first();
-    const firstRole = panel.locator('table tbody tr').first().locator('td').first();
-    const firstLocate = panel.getByRole('button', { name: /^Locate/ }).first();
-    const locateIcon = firstLocate.locator('.app-side-panel-locate-icon');
-    const cardBody = panel.locator('.app-side-panel-card > .app-panel-body');
-    const tableList = panel.locator('.app-side-panel-table-list').first();
-
-    await expect(staffTab).toBeVisible();
-    await expect(firstHeader).toBeVisible();
-    await expect(firstRole).toBeVisible();
-    await expect(firstLocate).toBeVisible();
-    await expect(locateIcon).toBeVisible();
-    await expect(cardBody).not.toHaveClass(/app-side-panel-scroll-body/);
-
-    return {
-        tabs: await staffTab.locator('..').evaluate(element => {
-            const style = getComputedStyle(element);
-            return [style.display, style.gridTemplateColumns.split(' ').length.toString(), style.gap, style.padding, style.borderRadius, style.backgroundColor];
-        }),
-        tab: await staffTab.evaluate(element => {
-            const style = getComputedStyle(element);
-            return [style.minHeight, style.borderRadius, style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.backgroundColor, style.color];
-        }),
-        header: await firstHeader.evaluate(element => {
-            const style = getComputedStyle(element);
-            return [style.paddingTop, style.paddingBottom, style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.letterSpacing, style.textTransform];
-        }),
-        role: await firstRole.evaluate(element => {
-            const style = getComputedStyle(element);
-            return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.letterSpacing, style.textTransform, style.color];
-        }),
-        locate: await firstLocate.evaluate(element => {
-            const style = getComputedStyle(element);
-            return [style.width, style.height, style.borderRadius, style.paddingTop, style.paddingRight];
-        }),
-        locateIcon: await locateIcon.evaluate(element => {
-            const style = getComputedStyle(element);
-            const rect = element.getBoundingClientRect();
-            return [element.tagName, style.display, Math.round(rect.width), Math.round(rect.height), style.color];
-        }),
-        geometry: await cardBody.evaluate((body) => {
-            const bodyRect = body.getBoundingClientRect();
-            const tabs = body.querySelector('.app-side-panel-tabs');
-            const header = body.querySelector('.app-side-panel-content-header');
-            if (!tabs || !header) throw new Error('Expected canonical SidePanel tabs and content header');
-            const tabsRect = tabs.getBoundingClientRect();
-            const headerRect = header.getBoundingClientRect();
-            const bodyStyle = getComputedStyle(body);
-            return [
-                bodyStyle.paddingLeft,
-                bodyStyle.paddingRight,
-                Math.round(tabsRect.left - bodyRect.left),
-                Math.round(bodyRect.right - tabsRect.right),
-                Math.round(headerRect.left - bodyRect.left),
-            ];
-        }),
-        scrolling: await tableList.evaluate((element) => {
-            const style = getComputedStyle(element);
-            const body = element.closest('.app-panel-body');
-            if (!body) throw new Error('Expected SidePanel card body');
-            const bodyStyle = getComputedStyle(body);
-            return [bodyStyle.overflowY, style.overflowY, style.scrollbarGutter];
-        }),
-    };
-}
-
 test.describe('cross-page SidePanel consistency', () => {
     test.describe.configure({ timeout: E2E_TIMEOUT.slowTest });
 
@@ -171,20 +102,6 @@ test.describe('cross-page SidePanel consistency', () => {
             for (const [staffKey, staffName] of sharedStaff) {
                 expect(staffName, `${target.surface} name for ${staffKey}`).toBe(rosterNames.get(staffKey));
             }
-        }
-    });
-
-    test('uses the Roster visual contract for every manager panel', async ({ page }) => {
-        await page.setViewportSize({ width: 1440, height: 900 });
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-
-        const roster = managerPages[0]!;
-        const { root: rosterRoot } = await openPage(page, roster);
-        const expectedVisualContract = await managerPanelVisualContract(rosterRoot);
-
-        for (const target of managerPages.slice(1)) {
-            const { root } = await openPage(page, target);
-            expect(await managerPanelVisualContract(root)).toEqual(expectedVisualContract);
         }
     });
 

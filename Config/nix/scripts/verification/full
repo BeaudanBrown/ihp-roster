@@ -22,6 +22,9 @@ bash ./bin/wage-authority-check
 echo "verify-full: date-native Roster runtime authority"
 bash ./bin/date-native-roster-authority-check
 
+echo "verify-full: date-native Roster read-only readiness integration"
+date-native-roster-readiness-test
+
 echo "verify-full: documentation links, anchors, archive inventory, and scoped retired terms"
 documentation-repository-check
 

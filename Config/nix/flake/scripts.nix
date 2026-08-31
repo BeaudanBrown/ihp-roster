@@ -157,6 +157,7 @@ in
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
         verify-tooling = script ../scripts/verification/verify-tooling;
+        date-native-roster-readiness-test = script ../scripts/verification/date-native-roster-readiness-test;
         verify-all = script ../scripts/verification/verify-all;
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         billing-contract-check = script ../scripts/verification/billing-contract-check;
