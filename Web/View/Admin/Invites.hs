@@ -6,9 +6,6 @@ module Web.View.Admin.Invites
     , renderInvitesSectionFragmentWithSwap
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..),
-                                  externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -68,7 +65,7 @@ renderInvitesSectionFragment =
 
 renderInvitesSectionFragmentWithSwap :: Maybe Text -> UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragmentWithSwap maybeSwapOob now invitations rosterGroupId =
-    renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
+    renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
         Html5.div
             ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment noSurfaceFields)
             ! maybeAttr "hx-swap-oob" maybeSwapOob
@@ -82,12 +79,6 @@ attr name value =
 maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
 maybeAttr _ Nothing         = mempty
 maybeAttr name (Just value) = attr name value
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin invites live surface requires a current venue"
 
 renderInviteTable :: UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInviteTable now invitations rosterGroupId = [hsx|

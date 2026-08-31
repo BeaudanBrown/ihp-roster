@@ -7,9 +7,6 @@ module Web.View.Admin.VenueSettings
     , renderVenueSettingsSectionFragmentWithSwap
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..),
-                                  externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -29,19 +26,13 @@ import Web.View.Prelude
 adminVenueSettingsFragmentId :: Text
 adminVenueSettingsFragmentId = surfaceFragmentTargetId @Surface.AdminVenueSettingsSurface @Surface.AdminVenueSettingsFragment noSurfaceFields
 
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin venue settings live surface requires a current venue"
-
 renderVenueSettingsSectionFragment :: (?context :: ControllerContext) => VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderVenueSettingsSectionFragment =
     renderVenueSettingsSectionFragmentWithSwap Nothing
 
 renderVenueSettingsSectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig awardLevels awardLevelBaseRates =
-    renderFrontendSurfaceMount (adminVenueSettingsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminVenueSettingsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={adminVenueSettingsFragmentId}
              hx-swap-oob={maybeSwapOob}>
             {renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates}

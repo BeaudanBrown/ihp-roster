@@ -9,9 +9,6 @@ module Web.View.Admin.Xero
 
 {-# LANGUAGE TypeApplications #-}
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..),
-                                  externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverlay,
                                                      OpenXeroStaffMappingsOverlay,
                                                      OpenXeroTimesheetPreparationOverlay)
@@ -67,15 +64,9 @@ instance View XeroView where
             , appPageBody = xeroPanel
             }
 
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing    -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin Xero live surface requires a current venue"
-
 renderXeroPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderXeroPageContentSurface body =
-    renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={surfaceFragmentTargetId @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment noSurfaceFields}>
             {body}
         </div>
@@ -87,7 +78,7 @@ renderXeroSection =
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment xeroSectionData =
-    renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment noSurfaceFields}
              hx-swap-oob={noOobSwap}>
             {renderXeroSection xeroSectionData}

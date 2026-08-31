@@ -6,9 +6,6 @@ module Web.View.Admin.Exports
     , renderExportsSectionFragmentWithSwap
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..),
-                                  externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
@@ -33,19 +30,13 @@ import Web.View.Prelude
 adminExportsFragmentId :: Text
 adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
 
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing    -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin exports live surface requires a current venue"
-
 renderExportsSectionFragment :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
 renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragmentWithSwap maybeSwapOob selection savedConfigurations =
-    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
+    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
             {renderExportsSection selection savedConfigurations}

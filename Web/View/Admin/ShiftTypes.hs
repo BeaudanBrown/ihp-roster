@@ -6,9 +6,6 @@ module Web.View.Admin.ShiftTypes
     ( renderShiftTypesSectionFragment
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..),
-                                  externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
@@ -17,8 +14,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             applyFrontendSurfaceActionAttrs,
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
-                                                            renderFrontendSurfaceActionLink,
-                                                            renderFrontendSurfaceActionSubmitButton,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum (..),
@@ -37,57 +32,30 @@ renderShiftTypesSection :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBas
 renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
     renderConfigSection
         "admin-shift-types-section"
-        (renderShiftTypesInactiveSummary shiftTypes showInactive)
+        (renderAdminInactiveSummary shiftTypes showInactive toggleAction toggleRoute)
         (renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
         (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
+    where
+        toggleHref = appendQueryParams (pathTo ShowadminShiftTypesLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveShiftTypes toggleFields, if showInactive then "false" else "true")]
+        toggleFields = AdminAction.toggleInactiveShiftTypesActionFields (not showInactive)
+        toggleAction = AdminAction.toggleInactiveShiftTypesAction toggleFields
+        toggleRoute = ((defaultFrontendSurfaceActionRoute toggleHref)
+            { actionRouteStandardUrl = Just toggleHref
+            })
 
 renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
-    renderFrontendSurfaceMount (adminShiftTypesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminShiftTypesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={surfaceFragmentTargetId @Surface.AdminShiftTypesSurface @Surface.AdminShiftTypesFragment noSurfaceFields}>
             {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems}
         </div>
     |]
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin shift types live surface requires a current venue"
 
 submittedPayRateSelectionValue :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> ShiftTypePayRateSelection
 submittedPayRateSelectionValue RosterOnly _ _ = ShiftTypePayRateRosterOnly
 submittedPayRateSelectionValue XeroRate _ (Just importedPayItemId) = ShiftTypePayRateXero importedPayItemId
 submittedPayRateSelectionValue AwardRate (Just awardLevelId) Nothing = ShiftTypePayRateAward awardLevelId
 submittedPayRateSelectionValue _ _ _ = ShiftTypePayRateDefault
-
-renderShiftTypesInactiveSummary :: [ShiftType] -> Bool -> Html
-renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <p class="small app-muted mb-0">
-            {tshow (length shiftTypes)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
-        </p>
-        <div>
-            {renderFrontendSurfaceActionLink toggleAction toggleRoute toggleLabel}
-        </div>
-    </div>
-|]
-    where
-        activeCount = countActiveRows shiftTypes
-        inactiveCount = length shiftTypes - activeCount
-        toggleLabel = [hsx|<span class="small">Show disabled</span>|]
-        toggleHref = appendQueryParams (pathTo ShowadminShiftTypesLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveShiftTypes toggleFields, if showInactive then "false" else "true")]
-        toggleFields = AdminAction.toggleInactiveShiftTypesActionFields (not showInactive)
-        toggleAction = AdminAction.toggleInactiveShiftTypesAction toggleFields
-        toggleRoute = ((defaultFrontendSurfaceActionRoute (toggleHref))
-            { actionRouteStandardUrl = Just toggleHref
-            , actionRouteExtraAttrs = [("class", toggleClass), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
-            })
-        toggleClass = classes
-            [ ("btn app-toggle-button btn-sm", True)
-            , ("btn-success", showInactive)
-            , ("btn-outline-success", not showInactive)
-            ]
 
 renderShiftTypeCreateForm :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
@@ -143,8 +111,8 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
         <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowInactiveShiftTypes fields} value={boolParam showInactive} />
         <div class="d-flex justify-content-end align-items-center mb-2">
             <div class="btn-group btn-group-sm" role="group" aria-label="Reorder shift type">
-                {renderShiftTypeMoveButton (not shiftType.isActive || shiftTypeIndex == 0) (AdminAction.moveShiftTypeUpAction moveUpFields) (pathTo (MoveShiftTypeUpAction shiftType.id)) "Up"}
-                {renderShiftTypeMoveButton (not shiftType.isActive || shiftTypeIndex == activeCount - 1) (AdminAction.moveShiftTypeDownAction moveDownFields) (pathTo (MoveShiftTypeDownAction shiftType.id)) "Down"}
+                {renderAdminReorderControl (not shiftType.isActive || shiftTypeIndex == 0) (AdminAction.moveShiftTypeUpAction moveUpFields) (pathTo (MoveShiftTypeUpAction shiftType.id)) "Up"}
+                {renderAdminReorderControl (not shiftType.isActive || shiftTypeIndex == activeCount - 1) (AdminAction.moveShiftTypeDownAction moveDownFields) (pathTo (MoveShiftTypeDownAction shiftType.id)) "Down"}
             </div>
         </div>
         <div class="row g-2 align-items-end">
@@ -192,20 +160,6 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
                 , ("data-admin-shift-type-row", "true")
 
                 ]
-            })
-
-renderShiftTypeMoveButton :: Bool -> FrontendSurfaceAction -> Text -> Text -> Html
-renderShiftTypeMoveButton isDisabled action actionUrl label =
-    if isDisabled
-        then [hsx|
-            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
-        |]
-        else renderFrontendSurfaceActionSubmitButton action route [hsx|{label}|]
-    where
-        route = ((defaultFrontendSurfaceActionRoute (actionUrl))
-            { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
-            , actionRouteStandardUrl = Just actionUrl
-            , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
             })
 
 renderPayRateSelect :: SurfaceFieldBundleOf (ActionFieldSpecs AdminAction.CreateShiftTypeActionOperation) fields => fields -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html

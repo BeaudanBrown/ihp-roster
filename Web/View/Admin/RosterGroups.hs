@@ -5,18 +5,11 @@ module Web.View.Admin.RosterGroups
     ( renderRosterGroupsSectionFragment
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..),
-                                  externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
-import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceCustomHtmxAttrs (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
-                                                            renderFrontendSurfaceActionLink,
-                                                            renderFrontendSurfaceActionSubmitButton,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -28,53 +21,26 @@ renderRosterGroupsSection :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSection rosterGroups showInactive =
     renderConfigSection
         "admin-roster-groups-section"
-        (renderRosterGroupsInactiveSummary rosterGroups showInactive)
+        (renderAdminInactiveSummary rosterGroups showInactive toggleAction toggleRoute)
         [hsx|
             {renderRosterGroupCreateForm showInactive}
         |]
         (renderRosterGroupRows rosterGroups showInactive)
+    where
+        toggleHref = appendQueryParams (pathTo ShowadminRosterGroupsLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveRosterGroups toggleFields, if showInactive then "false" else "true")]
+        toggleFields = AdminAction.toggleInactiveRosterGroupsActionFields (not showInactive)
+        toggleAction = AdminAction.toggleInactiveRosterGroupsAction toggleFields
+        toggleRoute = ((defaultFrontendSurfaceActionRoute toggleHref)
+            { actionRouteStandardUrl = Just toggleHref
+            })
 
 renderRosterGroupsSectionFragment :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSectionFragment rosterGroups showInactive =
-    renderFrontendSurfaceMount (adminRosterGroupsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminRosterGroupsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={surfaceFragmentTargetId @Surface.AdminRosterGroupsSurface @Surface.AdminRosterGroupsFragment noSurfaceFields}>
             {renderRosterGroupsSection rosterGroups showInactive}
         </div>
     |]
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin roster groups live surface requires a current venue"
-
-renderRosterGroupsInactiveSummary :: [RosterGroup] -> Bool -> Html
-renderRosterGroupsInactiveSummary rosterGroups showInactive = [hsx|
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <p class="small app-muted mb-0">
-            {tshow (length rosterGroups)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
-        </p>
-        <div>
-            {renderFrontendSurfaceActionLink toggleAction toggleRoute toggleLabel}
-        </div>
-    </div>
-|]
-    where
-        activeCount = countActiveRows rosterGroups
-        inactiveCount = length rosterGroups - activeCount
-        toggleLabel = [hsx|<span class="small">Show disabled</span>|]
-        toggleHref = appendQueryParams (pathTo ShowadminRosterGroupsLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveRosterGroups toggleFields, if showInactive then "false" else "true")]
-        toggleFields = AdminAction.toggleInactiveRosterGroupsActionFields (not showInactive)
-        toggleAction = AdminAction.toggleInactiveRosterGroupsAction toggleFields
-        toggleRoute = ((defaultFrontendSurfaceActionRoute (toggleHref))
-            { actionRouteStandardUrl = Just toggleHref
-            , actionRouteExtraAttrs = [("class", toggleClass), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
-            })
-        toggleClass = classes
-            [ ("btn app-toggle-button btn-sm", True)
-            , ("btn-success", showInactive)
-            , ("btn-outline-success", not showInactive)
-            ]
 
 renderRosterGroupCreateForm :: Bool -> Html
 renderRosterGroupCreateForm showInactive =
@@ -134,8 +100,8 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                     {renderActiveBadge rosterGroup.isActive}
                 </div>
                 <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
-                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (AdminAction.moveRosterGroupUpAction moveUpFields) (pathTo (MoveRosterGroupUpAction rosterGroup.id)) "Up"}
-                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (AdminAction.moveRosterGroupDownAction moveDownFields) (pathTo (MoveRosterGroupDownAction rosterGroup.id)) "Down"}
+                    {renderAdminReorderControl (not rosterGroup.isActive || rosterGroupIndex == 0) (AdminAction.moveRosterGroupUpAction moveUpFields) (pathTo (MoveRosterGroupUpAction rosterGroup.id)) "Up"}
+                    {renderAdminReorderControl (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (AdminAction.moveRosterGroupDownAction moveDownFields) (pathTo (MoveRosterGroupDownAction rosterGroup.id)) "Down"}
                 </div>
             </div>
             <div class="row g-2 align-items-end">
@@ -154,17 +120,3 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
         |]
         moveUpFields = AdminAction.moveRosterGroupUpActionFields showInactive
         moveDownFields = AdminAction.moveRosterGroupDownActionFields showInactive
-
-renderRosterGroupMoveButton :: Bool -> FrontendSurfaceAction -> Text -> Text -> Html
-renderRosterGroupMoveButton isDisabled action actionUrl label =
-    if isDisabled
-        then [hsx|
-            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
-        |]
-        else renderFrontendSurfaceActionSubmitButton action route [hsx|{label}|]
-    where
-        route = ((defaultFrontendSurfaceActionRoute (actionUrl))
-            { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
-            , actionRouteStandardUrl = Just actionUrl
-            , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
-            })

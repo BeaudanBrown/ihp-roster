@@ -1,5 +1,14 @@
 module Web.View.Admin.Common where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (AuthorizedFrameworkInvariant),
+                                  externalRuntimeInvariantFailure)
+import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
+                                                            renderFrontendSurfaceActionLink,
+                                                            renderFrontendSurfaceActionSubmitButton)
 import Web.View.Prelude
 
 renderConfigSection :: Text -> Html -> Html -> Html -> Html
@@ -73,6 +82,57 @@ renderAdminActiveToggleWithPolicy inputId binding isActive submitPolicy =
 
 renderEmptyState :: Text -> Html
 renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]
+
+currentAdminVenueScopeId :: (?context :: ControllerContext) => UUID
+currentAdminVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing ->
+            externalRuntimeInvariantFailure
+                AuthorizedFrameworkInvariant
+                "Admin Surface rendering requires an authorized current venue in ControllerContext"
+
+renderAdminInactiveSummary :: HasField "isActive" record Bool => [record] -> Bool -> FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Html
+renderAdminInactiveSummary rows showInactive toggleAction toggleRoute = [hsx|
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <p class="small app-muted mb-0">
+            {tshow (length rows)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
+        </p>
+        <div>
+            {renderFrontendSurfaceActionLink toggleAction routeWithToggleAttrs toggleLabel}
+        </div>
+    </div>
+|]
+    where
+        activeCount = countActiveRows rows
+        inactiveCount = length rows - activeCount
+        toggleLabel = [hsx|<span class="small">Show disabled</span>|]
+        routeWithToggleAttrs = toggleRoute
+            { actionRouteExtraAttrs =
+                [ ("class", classes
+                    [ ("btn app-toggle-button btn-sm", True)
+                    , ("btn-success", showInactive)
+                    , ("btn-outline-success", not showInactive)
+                    ])
+                , ("role", "switch")
+                , ("aria-checked", if showInactive then "true" else "false")
+                ]
+                    <> toggleRoute.actionRouteExtraAttrs
+            }
+
+renderAdminReorderControl :: Bool -> FrontendSurfaceAction -> Text -> Text -> Html
+renderAdminReorderControl isDisabled action actionUrl label =
+    if isDisabled
+        then [hsx|
+            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
+        |]
+        else renderFrontendSurfaceActionSubmitButton action route [hsx|{label}|]
+    where
+        route = ((defaultFrontendSurfaceActionRoute actionUrl)
+            { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
+            , actionRouteStandardUrl = Just actionUrl
+            , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
+            })
 
 visibleRosterGroupsForAdmin :: [RosterGroup] -> Bool -> [RosterGroup]
 visibleRosterGroupsForAdmin rosterGroups showInactive =
