@@ -34,19 +34,25 @@ android-stop:
     nix run .#bepis-pwa-android -- stop
 
 tunnel-grill:
+    eval "$(dev-workspace-info --shell)"; \
     ssh -N -T \
-        -L 8000:localhost:8000 \
-        -L 8001:localhost:8001 \
-        -L 8025:localhost:8025 \
-        -L 1025:localhost:1025 \
+        -L "${PORT}:localhost:${PORT}" \
+        -L "$((PORT + 1)):localhost:$((PORT + 1))" \
+        -L "${MAILHOG_PORT}:localhost:${MAILHOG_PORT}" \
+        -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
+        -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
+        -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
         grill
 
 tunnel-agent:
+    eval "$(dev-workspace-info --shell)"; \
     ssh -N -T \
-        -L 8000:localhost:8000 \
-        -L 8001:localhost:8001 \
-        -L 8025:localhost:8025 \
-        -L 1025:localhost:1025 \
+        -L "${PORT}:localhost:${PORT}" \
+        -L "$((PORT + 1)):localhost:$((PORT + 1))" \
+        -L "${MAILHOG_PORT}:localhost:${MAILHOG_PORT}" \
+        -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
+        -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
+        -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
         agent
 
 db:
