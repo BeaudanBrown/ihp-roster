@@ -408,6 +408,7 @@ Web/Controller/Admin/Xero/Connection.hs	production	runtime	Main	Reachable from M
 Web/Controller/Admin/Xero/ImportedPayItems.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/ReferenceSync.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Responses.hs	production	runtime	Main	Reachable from Main
+Web/Controller/Admin/Xero/StaffMappings.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Auth.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Billing.hs	production	runtime	Main	Reachable from Main
@@ -510,6 +511,7 @@ Web/View/Admin/VenueSettings.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/Connection.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/ImportedPayItems.hs	production	runtime	Main	Reachable from Main
+Web/View/Admin/Xero/StaffMappingDialog.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation/Review.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation/StaffMappings.hs	production	runtime	Main	Reachable from Main

@@ -153,6 +153,8 @@ data AdminController
     | SyncXeroPayrollReferenceDataAction
     | OpenXeroPayItemImportAction
     | ImportXeroPayItemsAction
+    | OpenXeroStaffMappingsAction
+    | ApplyXeroStaffMappingAction
     | OpenXeroTimesheetPreparationAction
     | RunXeroTimesheetPreparationAction
     | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
@@ -180,6 +182,7 @@ data AdminController
     | ShowadminXeroReferenceSyncLiveFragmentAction
     | ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
     | ShowadminXeroPayItemImportWaitLiveFragmentAction
+    | ShowadminXeroStaffMappingsWaitLiveFragmentAction { xeroReferenceSyncJobId :: !(Id AppJob) }
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | RenewVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }

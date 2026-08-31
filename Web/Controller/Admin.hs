@@ -315,6 +315,14 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero importXeroPayItemsAction
 
+    action currentAction@OpenXeroStaffMappingsAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero openXeroStaffMappingsAction
+
+    action currentAction@ApplyXeroStaffMappingAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero applyXeroStaffMappingAction
+
     action currentAction@OpenXeroTimesheetPreparationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero openXeroTimesheetPreparationAction
@@ -527,6 +535,10 @@ instance Controller AdminController where
     action currentAction@ShowadminXeroPayItemImportWaitLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_pay_item_import_wait_fragment.respond" do
             requireCurrentVenueOwnerForXero showXeroPayItemImportWaitFragmentAction
+
+    action currentAction@ShowadminXeroStaffMappingsWaitLiveFragmentAction { xeroReferenceSyncJobId } = runBepis currentAction BepisFragmentAction $
+        profileActionSpan "admin.xero_staff_mappings_wait_fragment.respond" do
+            requireCurrentVenueOwnerForXero (showXeroStaffMappingsWaitFragmentAction xeroReferenceSyncJobId)
 
     action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

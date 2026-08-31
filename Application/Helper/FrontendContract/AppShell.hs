@@ -50,6 +50,8 @@ module Application.Helper.FrontendContract.AppShell
     , OpenPasskeyRecoveryCodeDialog
     , SubmitPasskeyProtectedAction
     , CreateLeaveRequestOverlay
+    , OpenXeroStaffMappingsOverlay
+    , ApplyXeroStaffMappingOverlay
     , OpenXeroTimesheetPreparationOverlay
     , RunXeroTimesheetPreparationOverlay
     , ContinueXeroTimesheetPreparationStaffOverlay
@@ -161,6 +163,8 @@ data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
 data SubmitPasskeyProtectedAction
 data CreateLeaveRequestOverlay
+data OpenXeroStaffMappingsOverlay
+data ApplyXeroStaffMappingOverlay
 data OpenXeroTimesheetPreparationOverlay
 data RunXeroTimesheetPreparationOverlay
 data ContinueXeroTimesheetPreparationStaffOverlay
@@ -305,6 +309,18 @@ type AppShellContract =
              , Field ReasonField 'WireText
              ]
             DialogSubmitOptions
+         , AppShellAction OpenXeroStaffMappingsOverlay '[] DialogSubmitOptions
+         , AppShellAction ApplyXeroStaffMappingOverlay
+            '[ Field StaffIdField 'WireUUID
+             , Field XeroEmployeeSelectionField ('WireDomain XeroEmployeeSelection)
+             ]
+            '[ AppShellHtmxMethod 'AppShellPost
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             , AppShellHtmxTrigger "change, submit"
+             , AppShellHtmxSync "#xero-staff-mappings:queue all"
+             ]
          , AppShellAction OpenXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
          , AppShellAction RunXeroTimesheetPreparationOverlay
             '[]

@@ -32,6 +32,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminXeroReferenceSyncFragment
     , AdminXeroTimesheetPreparationWaitFragment
     , AdminXeroPayItemImportWaitFragment
+    , AdminXeroStaffMappingsWaitFragment
     , AdminVenueSettings
     , AdminInvites
     , AdminExports
@@ -84,6 +85,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , IsActive
     , EditStaffId
     , ShowMatched
+    , ReferenceSyncJobId
     ) where
 
 import Application.Helper.Export.Types (ExportJobType)
@@ -123,6 +125,7 @@ data AdminXeroShellFragment
 data AdminXeroReferenceSyncFragment
 data AdminXeroTimesheetPreparationWaitFragment
 data AdminXeroPayItemImportWaitFragment
+data AdminXeroStaffMappingsWaitFragment
 
 data CreateRosterGroup
 data UpdateRosterGroup
@@ -169,6 +172,7 @@ data ColourKey
 data IsActive
 data EditStaffId
 data ShowMatched
+data ReferenceSyncJobId
 data XeroPreparationStaffMappings
 
 data None
@@ -450,6 +454,13 @@ type AdminXeroSurface =
          , Fragment AdminXeroReferenceSyncFragment '[] '[ 'MountTarget AdminXeroReferenceSyncFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
          , Fragment AdminXeroTimesheetPreparationWaitFragment '[] '[ 'MountTarget AdminXeroTimesheetPreparationWaitFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
          , Fragment AdminXeroPayItemImportWaitFragment '[] '[ 'MountTarget AdminXeroPayItemImportWaitFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroStaffMappingsWaitFragment
+            '[ Field ReferenceSyncJobId 'WireUUID ]
+            '[ 'MountTarget AdminXeroStaffMappingsWaitFragment '[ Field ReferenceSyncJobId 'WireUUID ]
+             , 'Eager
+             , 'Live
+             , 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ]
+             ]
          , Action SyncXeroPayrollReferenceData
             '[]
             '[ 'HtmxMethod 'HtmxPost

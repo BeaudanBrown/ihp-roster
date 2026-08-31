@@ -29,8 +29,15 @@ issue and, when cross-system design remains unresolved, a new workstream.
   Xero employee identity and verification metadata, releases that employee for
   another active staff member, and retains the previous mapping in the staff
   removal audit event. Historical submissions and sealed payroll facts remain
-  unchanged. Staff decisions, managed pay items, readiness checks, preview, and submission
-  belong to the guided preparation workflow. The staff-selection AppShell action
+  unchanged. Owners and super admins may manage every linked active staff mapping
+  from the standalone Staff mappings dialog. Opening it always requests or joins
+  pending Staff-only reference work; successful Staff publication opens the
+  editor, while failure closes the loading overlay and emits the standard safe
+  error toast. Trials, inactive or archived staff, and staff without linked
+  accounts are excluded. Selections persist immediately and the dialog creates
+  no preparation run or decision. The guided workflow reuses the same mapping
+  validation and persistence service. Managed pay items, readiness checks,
+  preview, and submission remain preparation-owned. The staff-selection AppShell action
   is nominal: it carries staff identity plus one provider-owned employee
   selection and has no second text decision discriminator. The pre-wizard
   preview, submit, and retry endpoints are retired.

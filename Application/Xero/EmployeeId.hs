@@ -16,7 +16,7 @@ newtype XeroEmployeeId = XeroEmployeeId Text
 parseXeroEmployeeId :: Text -> Either Text XeroEmployeeId
 parseXeroEmployeeId value
     | Text.null (Text.strip value) = Left "Xero employee identifier is empty."
-    | value == "not_applicable" = Left "Xero employee identifier uses the reserved not-applicable value."
+    | value `elem` ["not_applicable", "unmapped"] = Left "Xero employee identifier uses a reserved mapping value."
     | otherwise = Right (XeroEmployeeId value)
 
 xeroEmployeeIdText :: XeroEmployeeId -> Text
@@ -27,12 +27,15 @@ instance NominalText XeroEmployeeId where
     parseNominalText = parseXeroEmployeeId
 
 data XeroEmployeeSelection
-    = XeroEmployeeNotApplicable
+    = XeroEmployeeUnmapped
+    | XeroEmployeeNotApplicable
     | XeroEmployeeSelected !XeroEmployeeId
     deriving (Eq, Show)
 
 instance NominalText XeroEmployeeSelection where
+    renderNominalText XeroEmployeeUnmapped = "unmapped"
     renderNominalText XeroEmployeeNotApplicable = "not_applicable"
     renderNominalText (XeroEmployeeSelected employeeId) = xeroEmployeeIdText employeeId
+    parseNominalText "unmapped" = Right XeroEmployeeUnmapped
     parseNominalText "not_applicable" = Right XeroEmployeeNotApplicable
     parseNominalText value = XeroEmployeeSelected <$> parseXeroEmployeeId value

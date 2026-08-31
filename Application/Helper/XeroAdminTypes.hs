@@ -11,6 +11,12 @@ import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.Prelude
 
+data XeroStaffMappingsView = XeroStaffMappingsView
+    { staffMappingsConnection :: XeroConnection
+    , staffMappingsRows       :: [XeroStaffMappingRow]
+    , staffMappingsEmployees  :: [XeroEmployee]
+    }
+
 data XeroStaffMappingRow = XeroStaffMappingRow
     { mappingRowStaff             :: Staff
     , mappingRowUser              :: Maybe User

@@ -180,7 +180,8 @@ renderStaffEmployeeSelectionForm view row =
                     &: noSurfaceFields
                 )
         fieldSelection
-            | currentSelection == "not_applicable" || Text.null currentSelection = XeroEmployeeNotApplicable
+            | Text.null currentSelection = XeroEmployeeUnmapped
+            | currentSelection == "not_applicable" = XeroEmployeeNotApplicable
             | otherwise = either (const XeroEmployeeNotApplicable) XeroEmployeeSelected (parseXeroEmployeeId currentSelection)
 
 renderEmployeeOption :: Text -> XeroEmployee -> Html
