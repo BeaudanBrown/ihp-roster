@@ -18,25 +18,17 @@ import Web.View.Prelude
 
 renderRosterTemplateApplicationTransportError :: Text -> Html
 renderRosterTemplateApplicationTransportError message =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Review template application"
-        , dialogOverlayBody = [hsx|<p class="alert alert-danger">{message}</p>|]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Close"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Review template application"
+            [hsx|<p class="alert alert-danger">{message}</p>|]
+            [ dialogOverlayCloseButton "Close"
+            ])
 
 renderRosterTemplateApplicationConfirmation :: (?context :: ControllerContext) => Id RosterTemplate -> Id RosterGroup -> RosterTemplateApplicationPreview -> Maybe Text -> Html
 renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId preview maybeMessage =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Apply " <> preview.applicationPreviewTemplateName
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            ("Apply " <> preview.applicationPreviewTemplateName)
+            [hsx|
             {forEach maybeMessage renderMessage}
             <p>This will replace the entire viewed window’s operational structure.</p>
             <p class="small text-muted">Publication remains Draft. Existing Timesheets and their source provenance are preserved.</p>
@@ -44,21 +36,9 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId previ
             {renderWarnings preview.applicationWarnings}
             {renderFrontendSurfaceActionForm (RosterAction.applyRosterTemplateApplicationAction actionFields) actionRoute (renderApplicationFields rosterTemplateId preview actionFields)}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            , OverlayButton
-                { overlayButtonLabel = "Apply template"
-                , overlayButtonClass = "btn btn-primary"
-                , overlayButtonAction = OverlaySubmitFormAction formId
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            [ dialogOverlayCloseButton "Cancel"
+            , dialogOverlaySubmitButton "Apply template" formId
+            ])
   where
     formId = "roster-template-application-form"
     actionUrl = rosterTemplateApplicationUrl preview.applicationPreviewTargetWindowStart rosterTemplateId rosterGroupId

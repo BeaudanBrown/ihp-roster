@@ -36,6 +36,28 @@
   var navigationLoadingDomAttr = "data-bepis-navigation-loading";
   var navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config";
 
+  // frontend/ts/dialog-overlays/lifecycle.ts
+  function createDialogDismissalLifecycle(eventName) {
+    const activeDialogs = /* @__PURE__ */ new WeakMap();
+    const dismissedDialogs = /* @__PURE__ */ new WeakSet();
+    function dismiss(dialog, eventOwner, replacement = null) {
+      if (dismissedDialogs.has(dialog)) return false;
+      dismissedDialogs.add(dialog);
+      eventOwner.dispatchEvent(new CustomEvent(eventName, {
+        bubbles: true,
+        detail: { dialog, replacement }
+      }));
+      return true;
+    }
+    function reconcile(mount, activeDialog) {
+      const previousDialog = activeDialogs.get(mount) ?? null;
+      activeDialogs.set(mount, activeDialog);
+      if (previousDialog === null || previousDialog === activeDialog) return false;
+      return dismiss(previousDialog, mount, activeDialog);
+    }
+    return { dismiss, reconcile };
+  }
+
   // frontend/ts/shared/dom.ts
   function isElement(value) {
     return typeof Element !== "undefined" && value instanceof Element;
@@ -201,6 +223,7 @@
   (function enableDialogOverlayMount() {
     if (typeof window === "undefined") return;
     const mountId = dialogOverlayMountDomId;
+    const dismissalLifecycle = createDialogDismissalLifecycle(dialogDismissedEvent);
     const blockingBackgroundInertStates = /* @__PURE__ */ new Map();
     let blockingDialogReturnFocus = null;
     function getMount() {
@@ -210,6 +233,13 @@
     function getActiveDialog() {
       const dialogs = Array.from(document.querySelectorAll(dialogMountSelector)).filter(isHTMLElement);
       return dialogs.length === 0 ? null : dialogs[dialogs.length - 1];
+    }
+    function getMountedDialog(mountEl) {
+      const dialogs = Array.from(mountEl.querySelectorAll(dialogMountSelector)).filter(isHTMLElement);
+      return dialogs.length === 0 ? null : dialogs[dialogs.length - 1];
+    }
+    function reconcileDialogDismissal(mountEl) {
+      dismissalLifecycle.reconcile(mountEl, getMountedDialog(mountEl));
     }
     function keyboardFocusRegion(dialog) {
       if (!dialog.matches(dialogKeyboardSelector)) return null;
@@ -294,7 +324,10 @@
       backdrop.className = "modal-backdrop fade show";
       backdrop.setAttribute(dialogBackdropDomAttr, "true");
       blockingDialogReturnFocus = isHTMLElement(document.activeElement) ? document.activeElement : null;
+      const replacedDialog = getMountedDialog(mountEl);
+      if (replacedDialog !== null) dismissalLifecycle.dismiss(replacedDialog, mountEl, dialogEl);
       mountEl.replaceChildren(dialogEl, backdrop);
+      reconcileDialogDismissal(mountEl);
       setBlockingBackgroundInert(mountEl, true);
       syncDialogState();
       dialogEl.focus();
@@ -315,8 +348,9 @@
       });
     }
     function clearDialog(dialogEl) {
-      dialogEl.dispatchEvent(new CustomEvent(dialogDismissedEvent, { bubbles: true }));
       const mountEl = getMount();
+      const eventOwner = mountEl !== null && mountEl.contains(dialogEl) ? mountEl : dialogEl;
+      dismissalLifecycle.dismiss(dialogEl, eventOwner);
       const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
       const inheritedBlockingState = blockingBackgroundInertStates.size > 0;
       if ((wasBlocking || inheritedBlockingState) && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
@@ -324,6 +358,7 @@
       if (wasBlocking || inheritedBlockingState) blockingDialogReturnFocus = null;
       if (mountEl !== null && mountEl.contains(dialogEl)) {
         mountEl.innerHTML = "";
+        reconcileDialogDismissal(mountEl);
         syncDialogState();
         if (returnFocus?.isConnected) returnFocus.focus();
         return;
@@ -467,6 +502,7 @@
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
       initializeKeyboardDialogs(target);
+      reconcileDialogDismissal(target);
       releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
     });
@@ -475,6 +511,7 @@
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
       initializeKeyboardDialogs(target);
+      reconcileDialogDismissal(target);
       releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
     });
@@ -488,6 +525,8 @@
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);
     document.addEventListener(pageReadyEvent, (event) => {
+      const mountEl = getMount();
+      if (mountEl !== null) reconcileDialogDismissal(mountEl);
       syncDialogState();
       const target = detailTarget(event, "target");
       if (target instanceof HTMLElement || target instanceof Document) initializeKeyboardDialogs(target);

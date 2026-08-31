@@ -98,6 +98,17 @@
   var passkeyDismissalDomAttr = "data-bepis-passkey-dismissal";
   var passkeyFlowConfigDomAttr = "data-bepis-passkey-flow-config";
 
+  // frontend/ts/dialog-overlays/lifecycle.ts
+  function dialogDismissedDetail(event) {
+    if (!(event instanceof CustomEvent)) return null;
+    const detail = event.detail;
+    if (detail === null || typeof detail !== "object") return null;
+    const candidate = detail;
+    if (!(candidate.dialog instanceof Element)) return null;
+    if (candidate.replacement !== void 0 && candidate.replacement !== null && !(candidate.replacement instanceof Element)) return null;
+    return { dialog: candidate.dialog, replacement: candidate.replacement ?? null };
+  }
+
   // frontend/ts/passkeys/base64url.ts
   function base64UrlToArrayBuffer(value) {
     const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -474,14 +485,24 @@
         assertNever(config, "Unexpected generated passkey flow");
     }
   }
+  function listenForContainingDialogDismissal(element, handler) {
+    const listener = (event) => {
+      const detail = dialogDismissedDetail(event);
+      if (detail === null || !(detail.dialog.contains(element) || element.contains(detail.dialog))) return;
+      document.removeEventListener(dialogDismissedEvent, listener);
+      handler();
+    };
+    document.addEventListener(dialogDismissedEvent, listener);
+    return () => document.removeEventListener(dialogDismissedEvent, listener);
+  }
   function initializePasskeySetupPrompt(control) {
-    control.root.addEventListener(dialogDismissedEvent, () => {
+    listenForContainingDialogDismissal(control.root, () => {
       if (automaticPromptDismissals.has(control.root)) {
         automaticPromptDismissals.delete(control.root);
         return;
       }
       dismissPasskeyPrompt(control.config.promptUserKey);
-    }, { once: true });
+    });
     if (!passkeysAreAvailable() || isPasskeyPromptDismissed(control.config.promptUserKey) || promptModeAlreadyConfigured(control.config)) {
       automaticPromptDismissals.add(control.root);
       control.dismissal.click();
@@ -501,9 +522,7 @@
     const abortController = control.overlayClose === null ? null : new AbortController();
     const dialog = control.root.closest(`[${dialogMountDomAttr}]`);
     const abortPendingRequest = () => abortController?.abort();
-    if (dialog !== null && abortController !== null) {
-      dialog.addEventListener(dialogDismissedEvent, abortPendingRequest, { once: true });
-    }
+    const stopListeningForDismissal = dialog !== null && abortController !== null ? listenForContainingDialogDismissal(dialog, abortPendingRequest) : () => void 0;
     try {
       await withPasskeyButton(control, async () => {
         setPasskeyStatus(control.status, "info", control.config.waitingMessage);
@@ -535,7 +554,7 @@
         }
       });
     } finally {
-      dialog?.removeEventListener(dialogDismissedEvent, abortPendingRequest);
+      stopListeningForDismissal();
     }
   }
   async function runPasskeyRegistration(control) {

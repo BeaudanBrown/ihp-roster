@@ -38,23 +38,19 @@ renderPasskeySetupPromptDialog mode successRedirect =
     renderPasskeyPromptDialogOverlay (passkeySetupDialogConfig mode successRedirect)
 
 passkeySetupDialogConfig :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> DialogOverlayConfig
-passkeySetupDialogConfig mode successRedirect = DialogOverlayConfig
-    { dialogOverlayTitle = passkeySetupTitle mode
-    , dialogOverlayBody = renderPasskeySetupBody mode successRedirect
-    , dialogOverlayStartButtons = []
-    , dialogOverlayButtons = []
-    , dialogOverlayDialogClass = ""
-    }
+passkeySetupDialogConfig mode successRedirect = defaultDialogOverlayConfig
+            (passkeySetupTitle mode)
+            (renderPasskeySetupBody mode successRedirect)
+            []
 
 renderPasskeySetupPageDialog :: (?context :: ControllerContext) => Text -> PasskeySetupMode -> Text -> Html
 renderPasskeySetupPageDialog closeUrl mode successRedirect =
-    renderPageDialogModal closeUrl DialogOverlayConfig
-        { dialogOverlayTitle = passkeySetupTitle mode
-        , dialogOverlayBody = renderPasskeySetupBody mode successRedirect
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = []
-        , dialogOverlayDialogClass = "modal-dialog-centered"
-        }
+    renderPageDialogModal closeUrl (defaultDialogOverlayConfig
+            (passkeySetupTitle mode)
+            (renderPasskeySetupBody mode successRedirect)
+            [])
+            { dialogOverlayDialogClass = "modal-dialog-centered"
+            }
 
 renderPasskeySetupBody :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
 renderPasskeySetupBody mode successRedirect =

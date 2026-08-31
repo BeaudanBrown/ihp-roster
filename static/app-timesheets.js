@@ -1,24 +1,23 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  var pageReadyEvent = "bepis:page-ready";
-  var dialogOverlayMountDomId = "dialog-overlay-mount";
+  var dialogDismissedEvent = "bepis:dialog-dismissed";
   var timesheetWeekShellDomToken = "timesheet-week-shell";
 
-  // frontend/ts/shared/lifecycle.ts
-  function onAppPageReady(handler) {
-    if (typeof document === "undefined") return;
-    document.addEventListener(pageReadyEvent, handler);
+  // frontend/ts/dialog-overlays/lifecycle.ts
+  function dialogDismissedDetail(event) {
+    if (!(event instanceof CustomEvent)) return null;
+    const detail = event.detail;
+    if (detail === null || typeof detail !== "object") return null;
+    const candidate = detail;
+    if (!(candidate.dialog instanceof Element)) return null;
+    if (candidate.replacement !== void 0 && candidate.replacement !== null && !(candidate.replacement instanceof Element)) return null;
+    return { dialog: candidate.dialog, replacement: candidate.replacement ?? null };
   }
 
   // frontend/ts/app-timesheets.ts
-  var dialogMountId = dialogOverlayMountDomId;
   var entryLinkSelector = `#${timesheetWeekShellDomToken} .timesheet-entry-card-link`;
   var pointerOpenedEntryLink = null;
-  var mountObserver = null;
-  function getDialogMount() {
-    return document.getElementById(dialogMountId);
-  }
   function clearTrackedEntryLink() {
     pointerOpenedEntryLink = null;
   }
@@ -31,23 +30,6 @@
       linkEl.blur();
     }
   }
-  function isDialogMountEmpty() {
-    const mountEl = getDialogMount();
-    return mountEl instanceof HTMLElement && mountEl.children.length === 0;
-  }
-  function handlePossibleDialogClose() {
-    if (pointerOpenedEntryLink === null) return;
-    if (!isDialogMountEmpty()) return;
-    window.requestAnimationFrame(blurTrackedEntryLinkIfFocused);
-  }
-  function ensureMountObserver() {
-    if (mountObserver !== null) return;
-    if (typeof window.MutationObserver !== "function") return;
-    const mountEl = getDialogMount();
-    if (!(mountEl instanceof HTMLElement)) return;
-    mountObserver = new MutationObserver(handlePossibleDialogClose);
-    mountObserver.observe(mountEl, { childList: true });
-  }
   function blurPointerOpenedTimesheetEntryAfterDialogClose() {
     if (typeof window === "undefined") return;
     document.addEventListener("pointerdown", (event) => {
@@ -58,10 +40,10 @@
       }
     }, true);
     document.addEventListener("keydown", clearTrackedEntryLink, true);
-    document.addEventListener("DOMContentLoaded", ensureMountObserver);
-    onAppPageReady(() => {
-      ensureMountObserver();
-      handlePossibleDialogClose();
+    document.addEventListener(dialogDismissedEvent, (event) => {
+      const detail = dialogDismissedDetail(event);
+      if (detail === null || detail.replacement !== null || pointerOpenedEntryLink === null) return;
+      window.requestAnimationFrame(blurTrackedEntryLinkIfFocused);
     });
   }
   blurPointerOpenedTimesheetEntryAfterDialogClose();

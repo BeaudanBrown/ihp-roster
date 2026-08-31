@@ -8,9 +8,13 @@ module Application.Helper.View.Overlay
     , OverlayButton (..)
     , OverlayButtonAction (..)
     , OverlayFormMode (..)
+    , defaultDialogOverlayConfig
     , defaultOverlayButtons
+    , dialogOverlayCloseButton
     , dialogOverlayMountId
+    , dialogOverlaySubmitButton
     , renderDialogOverlay
+    , renderDialogOverlayClearOob
     , renderKeyboardDialogOverlay
     , renderDialogOverlayBodyOnly
     , renderDialogOverlayWithCloseRole
@@ -62,22 +66,40 @@ data DialogOverlayConfig = DialogOverlayConfig
     , dialogOverlayDialogClass  :: !Text
     }
 
+defaultDialogOverlayConfig :: Text -> Html -> [OverlayButton] -> DialogOverlayConfig
+defaultDialogOverlayConfig title body buttons = DialogOverlayConfig
+    { dialogOverlayTitle = title
+    , dialogOverlayBody = body
+    , dialogOverlayStartButtons = []
+    , dialogOverlayButtons = buttons
+    , dialogOverlayDialogClass = ""
+    }
+
+dialogOverlayCloseButton :: Text -> OverlayButton
+dialogOverlayCloseButton label = OverlayButton
+    { overlayButtonLabel = label
+    , overlayButtonClass = "btn btn-outline-secondary"
+    , overlayButtonAction = OverlayCloseAction
+    }
+
+dialogOverlaySubmitButton :: Text -> Text -> OverlayButton
+dialogOverlaySubmitButton label formId = OverlayButton
+    { overlayButtonLabel = label
+    , overlayButtonClass = "btn btn-primary"
+    , overlayButtonAction = OverlaySubmitFormAction formId
+    }
+
 defaultOverlayButtons :: Text -> [OverlayButton]
 defaultOverlayButtons formId =
-    [ OverlayButton
-        { overlayButtonLabel = "Cancel"
-        , overlayButtonClass = "btn btn-outline-secondary"
-        , overlayButtonAction = OverlayCloseAction
-        }
-    , OverlayButton
-        { overlayButtonLabel = "Save"
-        , overlayButtonClass = "btn btn-primary"
-        , overlayButtonAction = OverlaySubmitFormAction formId
-        }
+    [ dialogOverlayCloseButton "Cancel"
+    , dialogOverlaySubmitButton "Save" formId
     ]
 
 renderDialogOverlay :: DialogOverlayConfig -> Html
 renderDialogOverlay = renderDialogOverlayWithOptions [] False
+
+renderDialogOverlayClearOob :: Html
+renderDialogOverlayClearOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
 
 renderKeyboardDialogOverlay :: DialogOverlayConfig -> Html
 renderKeyboardDialogOverlay = renderDialogOverlayWithOptions [] True

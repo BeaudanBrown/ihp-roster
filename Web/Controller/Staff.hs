@@ -22,11 +22,13 @@ import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (..),
+import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
                                 OverlayFormMode (HtmxOverlayForm),
-                                ToastOverlayPosition (..), dialogOverlayMountId,
-                                errorToast, renderDialogOverlay, renderToastOob,
+                                ToastOverlayPosition (..),
+                                defaultDialogOverlayConfig,
+                                dialogOverlayCloseButton, errorToast,
+                                renderDialogOverlay,
+                                renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (selectableStaffAssignmentMode)
@@ -338,7 +340,7 @@ instance Controller StaffController where
                             actorTouchedResources
                             rosterGridInnerAndStaffPanelFragments
                             [hsx|
-                                <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                                {renderDialogOverlayClearOob}
                                 {renderToastOob ToastBottomCenter (successToast "Staff member removed")}
                             |]
                     else do
@@ -402,18 +404,12 @@ staffRequiresPayConfigurationRemediation staff =
 
 renderStaffRemovalConfirmation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Day -> Maybe (Id RosterGroup) -> Html
 renderStaffRemovalConfirmation staff anchorDate maybeRosterGroupId =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Remove staff member"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Remove staff member"
+            [hsx|
             <p class="mb-0">Are you sure you want to remove this staff member? This cannot be undone.</p>
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
+            [ dialogOverlayCloseButton "Cancel"
             , OverlayButton
                 { overlayButtonLabel = "Remove staff member"
                 , overlayButtonClass = "btn btn-danger"
@@ -425,9 +421,7 @@ renderStaffRemovalConfirmation staff anchorDate maybeRosterGroupId =
                     returnFields
                     Nothing
                 }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            ])
   where
     returnFields =
         [("anchorDate", tshow anchorDate)]
@@ -490,14 +484,14 @@ validateTrialStaffInvitationEmail submittedEmail =
 respondWithTrialStaffInvitationSuccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
 respondWithTrialStaffInvitationSuccess message =
     respondHtml [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast message)}
     |]
 
 respondWithTrialStaffInvitationFailure :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
 respondWithTrialStaffInvitationFailure message =
     respondHtml [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (errorToast message)}
     |]
 

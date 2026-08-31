@@ -25,9 +25,9 @@ renderRosterNotificationConfirmation ::
     Maybe RosterNotificationRunSummary ->
     Html
 renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd calendarRevision audience latestRun =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Email roster"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Email roster"
+            [hsx|
             <dl class="row mb-3">
                 <dt class="col-4">Venue</dt><dd class="col-8">{venue.name}</dd>
                 <dt class="col-4">Roster group</dt><dd class="col-8">{rosterGroup.name}</dd>
@@ -39,24 +39,11 @@ renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd cal
             {renderLatestRunSummary latestRun}
             {sendForm}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            ] <> if canSend
-                then
-                    [ OverlayButton
-                        { overlayButtonLabel = "Email roster"
-                        , overlayButtonClass = "btn btn-primary"
-                        , overlayButtonAction = OverlaySubmitFormAction formId
-                        }
-                    ]
-                else []
-        , dialogOverlayDialogClass = ""
-        }
+            ( [dialogOverlayCloseButton "Cancel"]
+                <> if canSend
+                    then [dialogOverlaySubmitButton "Email roster" formId]
+                    else []
+            ))
   where
     formId = rosterNotificationSendFormId
     actionUrl = pathTo CreateRosterNotificationRunAction

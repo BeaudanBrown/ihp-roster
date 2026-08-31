@@ -13,28 +13,20 @@ import Web.View.Prelude
 
 renderRosterTemplateDeleteConfirmation :: (?context :: ControllerContext) => RosterTemplate -> Id RosterGroup -> Day -> Html
 renderRosterTemplateDeleteConfirmation template rosterGroupId anchorDate =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Delete " <> template.name
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            ("Delete " <> template.name)
+            [hsx|
             <p>Delete this saved template?</p>
             <p class="small text-muted">Existing rosters are unaffected.</p>
             {deleteForm}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
+            [ dialogOverlayCloseButton "Cancel"
             , OverlayButton
                 { overlayButtonLabel = "Delete template"
                 , overlayButtonClass = "btn btn-danger"
                 , overlayButtonAction = OverlaySubmitFormAction rosterTemplateDeleteFormId
                 }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            ])
   where
     deleteForm = renderFrontendSurfaceActionForm (RosterAction.deleteRosterTemplateAction RosterAction.deleteRosterTemplateActionFields) route [hsx|
         <input type="hidden" name="_method" value="DELETE"/>
@@ -49,10 +41,7 @@ renderRosterTemplateDeleteConfirmation template rosterGroupId anchorDate =
 
 renderRosterTemplateDeleteError :: Text -> Html
 renderRosterTemplateDeleteError message =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Delete template"
-        , dialogOverlayBody = [hsx|<p class="alert alert-danger">{message}</p>|]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = [OverlayButton "Close" "btn btn-outline-secondary" OverlayCloseAction]
-        , dialogOverlayDialogClass = ""
-        }
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Delete template"
+            [hsx|<p class="alert alert-danger">{message}</p>|]
+            [dialogOverlayCloseButton "Close"])

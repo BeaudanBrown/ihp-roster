@@ -14,7 +14,8 @@ module Web.RosterWeeks.Responses
     , respondWithRosterTemplateDeleteUpdate
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
@@ -25,7 +26,8 @@ import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
-                                renderToastOob, successToast)
+                                renderDialogOverlayClearOob, renderToastOob,
+                                successToast)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, diffDays)
@@ -117,21 +119,21 @@ prepareRosterCompleteResourceInvalidation windowScope touchedResources = do
 respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
 respondWithRosterTemplateApplicationUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast "Template applied.")}
     |]
 
 respondWithRosterTemplateCaptureUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
 respondWithRosterTemplateCaptureUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast "Template saved.")}
     |]
 
 respondWithRosterTemplateDeleteUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
 respondWithRosterTemplateDeleteUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast "Template deleted.")}
     |]
 

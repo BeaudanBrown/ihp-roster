@@ -157,13 +157,12 @@ billingCheckoutReturnState (Just BillingCheckoutReturn { checkoutAttemptId }) =
 renderBillingCheckoutReturnDialog :: Maybe BillingCheckoutReturn -> Html
 renderBillingCheckoutReturnDialog Nothing = mempty
 renderBillingCheckoutReturnDialog (Just checkoutReturn) =
-    renderPageDialogModal (pathTo BillingAction) DialogOverlayConfig
-        { dialogOverlayTitle = billingCheckoutDialogTitle checkoutReturn.checkoutOutcome
-        , dialogOverlayBody = renderBillingCheckoutDialogBody checkoutReturn.checkoutOutcome
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = billingCheckoutDialogButtons checkoutReturn.checkoutOutcome
-        , dialogOverlayDialogClass = "modal-dialog-centered"
-        }
+    renderPageDialogModal (pathTo BillingAction) (defaultDialogOverlayConfig
+            (billingCheckoutDialogTitle checkoutReturn.checkoutOutcome)
+            (renderBillingCheckoutDialogBody checkoutReturn.checkoutOutcome)
+            (billingCheckoutDialogButtons checkoutReturn.checkoutOutcome))
+            { dialogOverlayDialogClass = "modal-dialog-centered"
+            }
 
 billingCheckoutDialogTitle :: BillingCheckoutOutcome -> Text
 billingCheckoutDialogTitle BillingCheckoutPending = "Finalising subscription"

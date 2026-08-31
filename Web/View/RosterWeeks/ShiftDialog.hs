@@ -19,9 +19,10 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
-import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (..), defaultOverlayButtons,
-                                renderDialogOverlay, staffDisplayName)
+import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
+                                defaultDialogOverlayConfig,
+                                defaultOverlayButtons, renderDialogOverlay,
+                                staffDisplayName)
 import Application.Helper.View.TimeOccurrence
 import Application.Helper.View.TimePicker (defaultTimePickerConfig,
                                            optionalTimeOfDayToStorageValue,
@@ -118,13 +119,12 @@ rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
 
 renderRosterShiftDialog :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
 renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle, rosterShiftDialogAssignmentOnly, rosterShiftDialogAnchorDate, rosterShiftDialogCalendarRevision } =
-    renderKeyboardDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = rosterShiftDialogTitle
-        , dialogOverlayBody = renderRosterShiftForm dialogData
-        , dialogOverlayStartButtons = deleteButton rosterShiftDialogAssignmentOnly rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision rosterShiftDialogMode
-        , dialogOverlayButtons = defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)
-        , dialogOverlayDialogClass = ""
-        }
+    renderKeyboardDialogOverlay (defaultDialogOverlayConfig
+            rosterShiftDialogTitle
+            (renderRosterShiftForm dialogData)
+            (defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)))
+            { dialogOverlayStartButtons = deleteButton rosterShiftDialogAssignmentOnly rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision rosterShiftDialogMode
+            }
 
 
 deleteButton :: Bool -> Day -> Int -> RosterShiftDialogMode -> [OverlayButton]

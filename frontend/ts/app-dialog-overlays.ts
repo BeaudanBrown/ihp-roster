@@ -17,6 +17,7 @@ import {
     type DialogSubmitConfig,
     type NavigationLoadingConfig,
 } from "./generated/contracts";
+import { createDialogDismissalLifecycle } from "./dialog-overlays/lifecycle";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailRoot, detailTarget } from "./shared/lifecycle";
 
@@ -168,6 +169,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
     if (typeof window === "undefined") return;
 
     const mountId = dialogOverlayMountDomId;
+    const dismissalLifecycle = createDialogDismissalLifecycle(dialogDismissedEvent);
     const blockingBackgroundInertStates = new Map<HTMLElement, boolean>();
     let blockingDialogReturnFocus: HTMLElement | null = null;
 
@@ -179,6 +181,15 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
     function getActiveDialog(): HTMLElement | null {
         const dialogs = Array.from(document.querySelectorAll(dialogMountSelector)).filter(isHTMLElement);
         return dialogs.length === 0 ? null : dialogs[dialogs.length - 1];
+    }
+
+    function getMountedDialog(mountEl: HTMLElement): HTMLElement | null {
+        const dialogs = Array.from(mountEl.querySelectorAll(dialogMountSelector)).filter(isHTMLElement);
+        return dialogs.length === 0 ? null : dialogs[dialogs.length - 1];
+    }
+
+    function reconcileDialogDismissal(mountEl: HTMLElement): void {
+        dismissalLifecycle.reconcile(mountEl, getMountedDialog(mountEl));
     }
 
     function keyboardFocusRegion(dialog: HTMLElement): HTMLElement | null {
@@ -275,7 +286,10 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         backdrop.className = "modal-backdrop fade show";
         backdrop.setAttribute(dialogBackdropDomAttr, "true");
         blockingDialogReturnFocus = isHTMLElement(document.activeElement) ? document.activeElement : null;
+        const replacedDialog = getMountedDialog(mountEl);
+        if (replacedDialog !== null) dismissalLifecycle.dismiss(replacedDialog, mountEl, dialogEl);
         mountEl.replaceChildren(dialogEl, backdrop);
+        reconcileDialogDismissal(mountEl);
         setBlockingBackgroundInert(mountEl, true);
         syncDialogState();
         dialogEl.focus();
@@ -298,9 +312,10 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
     }
 
     function clearDialog(dialogEl: HTMLElement): void {
-        dialogEl.dispatchEvent(new CustomEvent(dialogDismissedEvent, { bubbles: true }));
-
         const mountEl = getMount();
+        const eventOwner = mountEl !== null && mountEl.contains(dialogEl) ? mountEl : dialogEl;
+        dismissalLifecycle.dismiss(dialogEl, eventOwner);
+
         const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
         const inheritedBlockingState = blockingBackgroundInertStates.size > 0;
         if ((wasBlocking || inheritedBlockingState) && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
@@ -308,6 +323,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (wasBlocking || inheritedBlockingState) blockingDialogReturnFocus = null;
         if (mountEl !== null && mountEl.contains(dialogEl)) {
             mountEl.innerHTML = "";
+            reconcileDialogDismissal(mountEl);
             syncDialogState();
             if (returnFocus?.isConnected) returnFocus.focus();
             return;
@@ -478,6 +494,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (target.id !== mountId) return;
 
         initializeKeyboardDialogs(target);
+        reconcileDialogDismissal(target);
         releaseInheritedBlockingStateWhenDialogAbsent(target);
 
         syncDialogState();
@@ -489,6 +506,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (target.id !== mountId) return;
 
         initializeKeyboardDialogs(target);
+        reconcileDialogDismissal(target);
         releaseInheritedBlockingStateWhenDialogAbsent(target);
         syncDialogState();
     });
@@ -503,6 +521,8 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);
     document.addEventListener(pageReadyEvent, (event) => {
+        const mountEl = getMount();
+        if (mountEl !== null) reconcileDialogDismissal(mountEl);
         syncDialogState();
         const target = detailTarget(event, "target");
         if (target instanceof HTMLElement || target instanceof Document) initializeKeyboardDialogs(target);

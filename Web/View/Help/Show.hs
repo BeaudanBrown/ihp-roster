@@ -18,16 +18,14 @@ renderPageHelpDialog topic =
 
 pageHelpDialogConfig :: PageHelpTopic -> DialogOverlayConfig
 pageHelpDialogConfig topic =
-    DialogOverlayConfig
-        { dialogOverlayTitle = "Help - " <> pageHelpTopicTitle topic
-        , dialogOverlayBody = renderPageHelpBody topic
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
+    (defaultDialogOverlayConfig
+            ("Help - " <> pageHelpTopicTitle topic)
+            (renderPageHelpBody topic)
             [ OverlayButton
                 { overlayButtonLabel = "Close"
                 , overlayButtonClass = "btn btn-primary"
                 , overlayButtonAction = OverlayCloseAction
                 }
-            ]
-        , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
-        }
+            ])
+            { dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
+            }

@@ -22,8 +22,9 @@ import Application.Helper.Profiling
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue,
                                            liveMutationResult)
-import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
-                                errorToast, renderToastOob, successToast)
+import Application.Helper.View (ToastOverlayPosition (..), errorToast,
+                                renderDialogOverlayClearOob, renderToastOob,
+                                successToast)
 import qualified Application.UnavailabilityBlackout.Mutations as BlackoutMutations
 import Data.Coerce (coerce)
 import qualified Data.Set as Set
@@ -355,7 +356,7 @@ respondWithLeaveRequestsContent touchedResources successMessage = do
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (leaveRequestsSurfaceScope scope) touchedResources (leaveRequestsCandidateMountedFragments scope)
     respondHtmlProfiled $
-        [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+        renderDialogOverlayClearOob
             <> renderToastOob ToastBottomCenter (successToast successMessage)
 
 respondWithLeaveRequestsContentForReview :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()

@@ -15,8 +15,9 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.Telemetry (addTelemetryEvent)
-import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
-                                renderToastOob, successToast)
+import Application.Helper.View (ToastOverlayPosition (..),
+                                renderDialogOverlayClearOob, renderToastOob,
+                                successToast)
 import Control.Monad (guard)
 import Data.Char (isControl)
 import Data.Coerce (coerce)
@@ -66,7 +67,7 @@ instance Controller FeedbackController where
                                 ]
                             if isHtmxRequest
                                 then respondHtml [hsx|
-                                    <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                                    {renderDialogOverlayClearOob}
                                     {renderToastOob ToastBottomCenter (successToast "Thanks — your feedback was sent.")}
                                 |]
                                 else do

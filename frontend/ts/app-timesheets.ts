@@ -1,14 +1,8 @@
-import { dialogOverlayMountDomId, timesheetWeekShellDomToken } from "./generated/contracts";
-import { onAppPageReady } from "./shared/lifecycle";
+import { dialogDismissedEvent, timesheetWeekShellDomToken } from "./generated/contracts";
+import { dialogDismissedDetail } from "./dialog-overlays/lifecycle";
 
-const dialogMountId = dialogOverlayMountDomId;
 const entryLinkSelector = `#${timesheetWeekShellDomToken} .timesheet-entry-card-link`;
 let pointerOpenedEntryLink: HTMLElement | null = null;
-let mountObserver: MutationObserver | null = null;
-
-function getDialogMount(): HTMLElement | null {
-    return document.getElementById(dialogMountId);
-}
 
 function clearTrackedEntryLink(): void {
     pointerOpenedEntryLink = null;
@@ -25,29 +19,6 @@ function blurTrackedEntryLinkIfFocused(): void {
     }
 }
 
-function isDialogMountEmpty(): boolean {
-    const mountEl = getDialogMount();
-    return mountEl instanceof HTMLElement && mountEl.children.length === 0;
-}
-
-function handlePossibleDialogClose(): void {
-    if (pointerOpenedEntryLink === null) return;
-    if (!isDialogMountEmpty()) return;
-
-    window.requestAnimationFrame(blurTrackedEntryLinkIfFocused);
-}
-
-function ensureMountObserver(): void {
-    if (mountObserver !== null) return;
-    if (typeof window.MutationObserver !== "function") return;
-
-    const mountEl = getDialogMount();
-    if (!(mountEl instanceof HTMLElement)) return;
-
-    mountObserver = new MutationObserver(handlePossibleDialogClose);
-    mountObserver.observe(mountEl, { childList: true });
-}
-
 function blurPointerOpenedTimesheetEntryAfterDialogClose(): void {
     if (typeof window === "undefined") return;
 
@@ -62,10 +33,10 @@ function blurPointerOpenedTimesheetEntryAfterDialogClose(): void {
 
     document.addEventListener("keydown", clearTrackedEntryLink, true);
 
-    document.addEventListener("DOMContentLoaded", ensureMountObserver);
-    onAppPageReady(() => {
-        ensureMountObserver();
-        handlePossibleDialogClose();
+    document.addEventListener(dialogDismissedEvent, (event) => {
+        const detail = dialogDismissedDetail(event);
+        if (detail === null || detail.replacement !== null || pointerOpenedEntryLink === null) return;
+        window.requestAnimationFrame(blurTrackedEntryLinkIfFocused);
     });
 }
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dialogOverlayMountDomId, timePickerTriggerDomAttr } from '../frontend/ts/generated/contracts';
+import { dialogDismissedEvent, dialogOverlayMountDomId, timePickerTriggerDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
@@ -58,6 +58,33 @@ test.describe('No automatic focus', () => {
         const form = page.locator('#timesheet-entry-create-form');
         await expect(form).toBeVisible();
         await expect(form.locator(`[${timePickerTriggerDomAttr}]`).first()).toBeFocused();
+    });
+
+    test('timesheet dismissal blurs pointer-opened cards but preserves keyboard focus', async ({ page }) => {
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+
+        const cardLink = page.locator('.timesheet-entry-card-link').first();
+        const dispatchDismissal = async () => {
+            await page.locator(`#${dialogOverlayMountDomId}`).evaluate((mount, eventName) => {
+                mount.dispatchEvent(new CustomEvent(eventName, {
+                    bubbles: true,
+                    detail: { dialog: document.createElement('div'), replacement: null },
+                }));
+            }, dialogDismissedEvent);
+            await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+        };
+
+        await cardLink.focus();
+        await cardLink.dispatchEvent('pointerdown');
+        await dispatchDismissal();
+        await expect(cardLink).not.toBeFocused();
+
+        await cardLink.focus();
+        await cardLink.dispatchEvent('pointerdown');
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+        await dispatchDismissal();
+        await expect(cardLink).toBeFocused();
     });
 
     test('timesheet cards reserve their focus outline for keyboard focus', async ({ page }) => {

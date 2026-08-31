@@ -464,26 +464,14 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
 
 renderTrialStaffInvitationModalFragment :: UTCTime -> Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Day -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationModalFragment now staff pendingInvitations maybeError submittedEmail anchorDate maybeRosterGroupId =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Invite trial staff"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Invite trial staff"
+            [hsx|
             {renderTrialStaffInvitationForm now staff pendingInvitations maybeError submittedEmail anchorDate maybeRosterGroupId}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            , OverlayButton
-                { overlayButtonLabel = "Send invite"
-                , overlayButtonClass = "btn btn-primary"
-                , overlayButtonAction = OverlaySubmitFormAction "trial-staff-invite-form"
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            [ dialogOverlayCloseButton "Cancel"
+            , dialogOverlaySubmitButton "Send invite" "trial-staff-invite-form"
+            ])
 
 renderTrialStaffInvitationForm :: UTCTime -> Staff -> [VenueInvitation] -> Maybe Text -> Maybe Text -> Day -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationForm now staff pendingInvitations maybeError submittedEmail anchorDate maybeRosterGroupId = [hsx|

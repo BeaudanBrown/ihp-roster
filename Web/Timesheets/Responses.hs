@@ -13,8 +13,9 @@ import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceResource (SurfaceResourceValue)
-import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
-                                renderToastOob, successToast)
+import Application.Helper.View (ToastOverlayPosition (..),
+                                renderDialogOverlayClearOob, renderToastOob,
+                                successToast)
 import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
@@ -106,7 +107,7 @@ respondWithTimesheetMutationUpdate scope staffFilterId touchedResources successM
     respondWithTimesheetResourceInvalidation
         (timesheetProjectionRequestForScope scope staffFilterId)
         touchedResources
-        ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+        ( when closeDialog renderDialogOverlayClearOob
             <> renderToastOob ToastBottomCenter (successToast successMessage)
         )
 

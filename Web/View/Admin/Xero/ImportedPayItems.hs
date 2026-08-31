@@ -42,9 +42,9 @@ renderXeroImportedPayItemImportWaitingDialog venueId trustState =
 renderXeroImportedPayItemImportWaitFragment :: XeroReferenceTrustState -> Html
 renderXeroImportedPayItemImportWaitFragment trustState =
     renderXeroImportedPayItemImportWaitFragmentRoot $
-        renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Import Xero pay items"
-        , dialogOverlayBody = [hsx|
+        renderDialogOverlay (defaultDialogOverlayConfig
+            "Import Xero pay items"
+            [hsx|
             <div class="d-flex align-items-start gap-3" data-xero-reference-sync-waiting="true">
                 <div id="xero-import-pay-items-loading-indicator" class="spinner-border text-primary mt-1" role="status" aria-hidden="true"></div>
                 <div class="d-flex flex-column gap-1">
@@ -56,16 +56,8 @@ renderXeroImportedPayItemImportWaitFragment trustState =
                 </div>
             </div>
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Close"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            [ dialogOverlayCloseButton "Close"
+            ])
 
 renderXeroImportedPayItemImportCandidatesWaitFragment :: [XeroImportedPayItemCandidate] -> Html
 renderXeroImportedPayItemImportCandidatesWaitFragment candidates =
@@ -92,44 +84,30 @@ renderCompletedPayItemsPage (Just page) = [hsx|<div class="small app-muted">Comp
 
 renderXeroImportedPayItemImportErrorDialog :: Text -> Html
 renderXeroImportedPayItemImportErrorDialog message =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Import Xero pay items"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Import Xero pay items"
+            [hsx|
             <div class="alert alert-danger mb-0">{message}</div>
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Close"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            [ dialogOverlayCloseButton "Close"
+            ])
 
 renderXeroImportedPayItemImportDialog :: [XeroImportedPayItemCandidate] -> Html
 renderXeroImportedPayItemImportDialog candidates =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Import Xero pay items"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Import Xero pay items"
+            [hsx|
             {renderImportXeroPayItemsForm candidates}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
+            [ dialogOverlayCloseButton "Cancel"
             , OverlayButton
                 { overlayButtonLabel = "Import selected"
                 , overlayButtonClass = classes [("btn btn-primary", True), ("disabled", null candidates)]
                 , overlayButtonAction = OverlaySubmitFormAction "xero-imported-pay-items-import-form"
                 }
-            ]
-        , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
-        }
+            ])
+            { dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
+            }
 
 renderImportXeroPayItemsForm :: [XeroImportedPayItemCandidate] -> Html
 renderImportXeroPayItemsForm candidates =

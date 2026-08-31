@@ -49,11 +49,13 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
-import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (..), ToastOverlayConfig,
+import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
+                                ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
-                                dialogOverlayMountId, errorToast,
-                                renderDialogOverlay, renderToastOob,
+                                defaultDialogOverlayConfig,
+                                dialogOverlayCloseButton, dialogOverlayMountId,
+                                errorToast, renderDialogOverlay,
+                                renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import qualified Application.RosterNotification as Notification
@@ -411,14 +413,14 @@ instance Controller RosterWeeksController where
             Notification.RosterNotificationRunAlreadyActive ->
                 if isHtmxRequest
                     then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
-                        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                        {renderDialogOverlayClearOob}
                         {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
                     |]
                     else setErrorMessage "Roster email delivery is already in progress." >> redirectToRosterWindow scope
             Notification.RosterNotificationRunHasNoEligibleRecipients ->
                 if isHtmxRequest
                     then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
-                        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                        {renderDialogOverlayClearOob}
                         {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
                     |]
                     else setErrorMessage "No eligible recipients are available." >> redirectToRosterWindow scope
@@ -432,7 +434,7 @@ instance Controller RosterWeeksController where
                         (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) run.weekStart run.windowEnd))
                         [RosterProjectionStaffPanel]
                         [hsx|
-                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                            {renderDialogOverlayClearOob}
                             {renderToastOob ToastBottomCenter (successToast successMessage)}
                         |]
                     else setSuccessMessage successMessage >> redirectToRosterWindow scope
@@ -648,7 +650,7 @@ instance Controller RosterWeeksController where
                             scope
                             mutationResult.liveMutationTouchedResources
                             rosterGridInnerAndStaffPanelFragments
-                            clearDialogOverlayOob
+                            renderDialogOverlayClearOob
                     else do
                         setSuccessMessage "Roster sorted."
                         redirectToRosterWindow scope
@@ -678,7 +680,7 @@ instance Controller RosterWeeksController where
                             scope
                             mutationResult.liveMutationTouchedResources
                             mountedProjections
-                            clearDialogOverlayOob
+                            renderDialogOverlayClearOob
                     else do
                         setSuccessMessage successMessage
                         redirectToPath targetPath
@@ -723,7 +725,7 @@ instance Controller RosterWeeksController where
                                     scope
                                     mutationResult.liveMutationTouchedResources
                                     mountedProjections
-                                    clearDialogOverlayOob
+                                    renderDialogOverlayClearOob
                             else do
                                 setSuccessMessage "Roster row added."
                                 redirectToRosterWindow scope
@@ -769,7 +771,7 @@ instance Controller RosterWeeksController where
                                     scope
                                     mutationResult.liveMutationTouchedResources
                                     mountedProjections
-                                    clearDialogOverlayOob
+                                    renderDialogOverlayClearOob
                             else do
                                 setSuccessMessage "Roster row removed."
                                 redirectToRosterWindow scope
@@ -1240,7 +1242,7 @@ respondWithMoveRosterShiftFailure scope message =
     if isHtmxRequest
         then do
             setHeader ("HX-Reswap", "none")
-            respondHtmlProfiled (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (errorToast message))
+            respondHtmlProfiled (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (errorToast message))
         else do
             setErrorMessage message
             redirectToRosterWindow scope
@@ -1279,7 +1281,7 @@ respondToRosterSlotMutation scope rosterDay rowIndex mutationResult successMessa
                 scope
                 mutationResult.liveMutationTouchedResources
                 mountedProjections
-                (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage))
+                (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast successMessage))
         else do
             setSuccessMessage successMessage
             redirectToRosterWindow scope
@@ -1291,7 +1293,7 @@ respondToRosterSlotMove scope mutationResult impactedRowKeys shouldWarnSourceTim
         scope
         mutationResult.liveMutationTouchedResources
         mountedProjections
-        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+        (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
 respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
 respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged = do
@@ -1300,7 +1302,7 @@ respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUn
         scope
         mutationResult.liveMutationTouchedResources
         mountedProjections
-        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+        (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
 respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
@@ -1309,7 +1311,7 @@ respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceT
         scope
         mutationResult.liveMutationTouchedResources
         mountedProjections
-        (clearDialogOverlayOob <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+        (renderDialogOverlayClearOob <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
 sourceTimesheetWarningToast :: (?context :: ControllerContext, ?request :: Request) => Bool -> Blaze.Html
 sourceTimesheetWarningToast shouldWarn =
@@ -1424,31 +1426,22 @@ respondWithDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
             {renderDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision}
         </div>
     |]
-
 renderDeleteRosterSlotConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> Blaze.Html
 renderDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Delete roster shift?"
-        , dialogOverlayBody = [hsx|<p class="mb-0">Delete this shift?</p>|]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            , OverlayButton
-                { overlayButtonLabel = "Delete shift"
-                , overlayButtonClass = "btn btn-danger"
-                , overlayButtonAction = GeneratedDialogFormAction
-                    (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
-                    (rosterDeleteSlotActionRoute rosterSlot.id anchorDate calendarRevision)
-                    []
-                    Nothing
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+    renderDialogOverlay (defaultDialogOverlayConfig
+        "Delete roster shift?"
+        [hsx|<p class="mb-0">Delete this shift?</p>|]
+        [ dialogOverlayCloseButton "Cancel"
+        , OverlayButton
+            { overlayButtonLabel = "Delete shift"
+            , overlayButtonClass = "btn btn-danger"
+            , overlayButtonAction = GeneratedDialogFormAction
+                (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
+                (rosterDeleteSlotActionRoute rosterSlot.id anchorDate calendarRevision)
+                []
+                Nothing
+            }
+        ])
 
 rosterDeleteSlotActionRoute :: Id RosterSlot -> Calendar.Day -> Int -> AppShellActionRoute
 rosterDeleteSlotActionRoute rosterSlotId anchorDate calendarRevision =
@@ -1491,9 +1484,9 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                     })
                 [hsx|<input type="hidden" name="confirmDeletePopulatedRow" value="true" />|]
         confirmationDialog =
-            renderDialogOverlay DialogOverlayConfig
-                { dialogOverlayTitle = "Delete roster row?"
-                , dialogOverlayBody = [hsx|
+            renderDialogOverlay (defaultDialogOverlayConfig
+            "Delete roster row?"
+            [hsx|
                     <p class="mb-2">
                         {overflowCopy} cannot be packed into another column and will be deleted.
                     </p>
@@ -1501,24 +1494,14 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                         Shifts that fit will be moved into the bottom of the remaining columns from left to right.
                     </p>
                 |]
-                , dialogOverlayStartButtons = []
-                , dialogOverlayButtons =
-                    [ OverlayButton
-                        { overlayButtonLabel = "Cancel"
-                        , overlayButtonClass = "btn btn-outline-secondary"
-                        , overlayButtonAction = OverlayCloseAction
-                        }
+            [ dialogOverlayCloseButton "Cancel"
                     , OverlayButton
                         { overlayButtonLabel = "Delete row"
                         , overlayButtonClass = "btn btn-danger"
                         , overlayButtonAction = OverlaySubmitFormAction confirmFormId
                         }
-                    ]
-                , dialogOverlayDialogClass = ""
-                }
+                    ])
 
-clearDialogOverlayOob :: Blaze.Html
-clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
 
 markStaleRosterCalendarResponseForRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 markStaleRosterCalendarResponseForRefresh =

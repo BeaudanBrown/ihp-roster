@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
     dialogBackdropDomAttr,
     dialogCloseDomAttr,
+    dialogDismissedEvent,
     dialogMountDomAttr,
     dialogOverlayMountDomId,
     dialogSubmitConfigDomAttr,
@@ -19,6 +20,16 @@ const dialogHostSelector = `#${dialogOverlayMountDomId}`;
 const dialogSelector = `${dialogHostSelector} [${dialogMountDomAttr}]`;
 const toastHostSelector = `#${toastOverlayMountDomId}`;
 
+async function observeDialogDismissals(page: Page) {
+    await page.locator(dialogHostSelector).evaluate((host, eventName) => {
+        host.setAttribute('data-e2e-dialog-dismissals', '0');
+        document.addEventListener(eventName, () => {
+            const count = Number(host.getAttribute('data-e2e-dialog-dismissals') ?? '0');
+            host.setAttribute('data-e2e-dialog-dismissals', String(count + 1));
+        });
+    }, dialogDismissedEvent);
+}
+
 async function openFeedbackDialog(page: Page) {
     const launcher = page.getByRole('button', { name: 'feedback', exact: true });
     await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
@@ -33,6 +44,7 @@ test.describe('Generated overlay capability', () => {
     });
 
     test('preserves dialog submit, HTMX clear, body locking, toast, and accessibility behavior', async ({ page }) => {
+        await observeDialogDismissals(page);
         await openFeedbackDialog(page);
 
         const dialog = page.locator(dialogSelector);
@@ -72,6 +84,7 @@ test.describe('Generated overlay capability', () => {
         expect(response.status(), await response.text()).toBe(200);
 
         await expect(page.locator(dialogHostSelector)).toBeEmpty({ timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator(dialogHostSelector)).toHaveAttribute('data-e2e-dialog-dismissals', '1');
         await expect(page.locator('body')).not.toHaveClass(/modal-open/);
 
         const toast = page.locator(`${toastHostSelector} [${toastMountDomAttr}]`);
@@ -86,18 +99,24 @@ test.describe('Generated overlay capability', () => {
         await expect(toast).toHaveCount(0, { timeout: E2E_TIMEOUT.action });
     });
 
-    test('preserves close-control, backdrop, and Escape dismissal', async ({ page }) => {
+    test('preserves exactly-once close-control, backdrop, and Escape dismissal', async ({ page }) => {
+        await observeDialogDismissals(page);
+        const dialogHost = page.locator(dialogHostSelector);
+
         await openFeedbackDialog(page);
         await page.locator(`${dialogSelector} [${dialogCloseDomAttr}]`).first().click();
-        await expect(page.locator(dialogHostSelector)).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+        await expect(dialogHost).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+        await expect(dialogHost).toHaveAttribute('data-e2e-dialog-dismissals', '1');
 
         await openFeedbackDialog(page);
         await page.locator(`[${dialogBackdropDomAttr}]`).dispatchEvent('click');
-        await expect(page.locator(dialogHostSelector)).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+        await expect(dialogHost).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+        await expect(dialogHost).toHaveAttribute('data-e2e-dialog-dismissals', '2');
 
         await openFeedbackDialog(page);
         await page.keyboard.press('Escape');
-        await expect(page.locator(dialogHostSelector)).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+        await expect(dialogHost).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+        await expect(dialogHost).toHaveAttribute('data-e2e-dialog-dismissals', '3');
         await expect(page.locator('body')).not.toHaveClass(/modal-open/);
     });
 

@@ -39,13 +39,10 @@ renderNewFeedbackDialog feedbackItem =
 
 feedbackDialogConfig :: OverlayFormMode -> UserFeedbackItem -> DialogOverlayConfig
 feedbackDialogConfig formMode feedbackItem =
-    DialogOverlayConfig
-        { dialogOverlayTitle = "Send Feedback"
-        , dialogOverlayBody = renderFeedbackForm formMode feedbackItem
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = defaultOverlayButtons feedbackFormId
-        , dialogOverlayDialogClass = ""
-        }
+    defaultDialogOverlayConfig
+            "Send Feedback"
+            (renderFeedbackForm formMode feedbackItem)
+            (defaultOverlayButtons feedbackFormId)
 
 renderFeedbackForm :: OverlayFormMode -> UserFeedbackItem -> Html
 renderFeedbackForm formMode feedbackItem =

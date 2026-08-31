@@ -37,10 +37,9 @@ renderRosterTemplateCaptureInput ::
     Text ->
     Html
 renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submittedMode errorMessage =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Save current week as template"
-        , dialogOverlayBody =
-            renderFrontendSurfaceActionForm (RosterAction.previewRosterTemplateCaptureAction fields) route [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Save current week as template"
+            (renderFrontendSurfaceActionForm (RosterAction.previewRosterTemplateCaptureAction fields) route [hsx|
                 {renderInputError errorMessage}
                 <div class="mb-3">
                     <label class="form-label" for={rosterTemplateCaptureNameInputId}>Template name</label>
@@ -51,14 +50,10 @@ renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submitte
                     {renderAssignmentModeChoice (surfaceFieldNameFrom @Surface.CaptureAssignmentMode fields) submittedMode KeepValidStaffAssignments "Keep valid Staff assignments"}
                     {renderAssignmentModeChoice (surfaceFieldNameFrom @Surface.CaptureAssignmentMode fields) submittedMode MakeEveryShiftOpen "Make every shift Open"}
                 </fieldset>
-            |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton "Cancel" "btn btn-outline-secondary" OverlayCloseAction
-            , OverlayButton "Review template" "btn btn-primary" (OverlaySubmitFormAction rosterTemplateCaptureFormId)
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            |])
+            [ dialogOverlayCloseButton "Cancel"
+            , dialogOverlaySubmitButton "Review template" rosterTemplateCaptureFormId
+            ])
   where
     fields = RosterAction.previewRosterTemplateCaptureActionFields submittedName KeepValidStaffAssignments Nothing Nothing
     actionUrl = appendQueryParams (pathTo PreviewRosterTemplateCaptureAction { rosterGroupId }) [("anchorDate", tshow anchorDate)]
@@ -90,28 +85,16 @@ renderRosterTemplateCaptureConfirmation ::
     Maybe Text ->
     Html
 renderRosterTemplateCaptureConfirmation rosterGroupId anchorDate _request preview maybeMessage =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Save current week as template"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Save current week as template"
+            [hsx|
             {forEach maybeMessage renderMessage}
             {renderStaffWarnings preview.capturePreviewWarnings}
             {renderCaptureConfirmationForm rosterGroupId anchorDate preview}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            , OverlayButton
-                { overlayButtonLabel = if mappingsComplete then "Save template" else "Review mappings"
-                , overlayButtonClass = "btn btn-primary"
-                , overlayButtonAction = OverlaySubmitFormAction rosterTemplateCaptureFormId
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            [ dialogOverlayCloseButton "Cancel"
+            , dialogOverlaySubmitButton (if mappingsComplete then "Save template" else "Review mappings") rosterTemplateCaptureFormId
+            ])
   where
     mappingsComplete = isJust preview.capturePreviewContent
 

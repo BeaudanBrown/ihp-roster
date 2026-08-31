@@ -29,6 +29,14 @@ pureTests = do
 databaseTests :: Spec
 databaseTests = aroundAll withDatabaseTestContext do
     describe "Overlay render helpers" do
+        it "owns the exact dialog mount clear OOB fragment" $ withContext do
+            withCurrentControllerContext do
+                let html = renderText renderDialogOverlayClearOob
+
+                html `shouldSatisfy` Text.isInfixOf "id=\"dialog-overlay-mount\""
+                html `shouldSatisfy` Text.isInfixOf "hx-swap-oob=\"innerHTML\""
+                Text.count "dialog-overlay-mount" html `shouldBe` 1
+
         it "renders generated dialog roles and exact submit config with native accessibility state" $ withContext do
             withCurrentControllerContext do
                 let html = renderText (renderDialogOverlay dialogConfig)
@@ -72,13 +80,10 @@ databaseTests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` not . Text.isInfixOf "data-auto-hide-ms"
                 html `shouldSatisfy` not . Text.isInfixOf "data-toast-close"
   where
-    dialogConfig = DialogOverlayConfig
-        { dialogOverlayTitle = "Generated overlay"
-        , dialogOverlayBody = Html5.toHtml ("Body" :: Text)
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = defaultOverlayButtons "generated-overlay-form"
-        , dialogOverlayDialogClass = ""
-        }
+    dialogConfig = defaultDialogOverlayConfig
+            "Generated overlay"
+            (Html5.toHtml ("Body" :: Text))
+            (defaultOverlayButtons "generated-overlay-form")
 
 renderText :: Html -> Text
 renderText = cs . HtmlRenderer.renderHtml

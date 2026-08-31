@@ -21,6 +21,7 @@ import {
     type PasskeyFinishResponse,
     type PasskeyFlowConfig,
 } from "./generated/contracts";
+import { dialogDismissedDetail } from "./dialog-overlays/lifecycle";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./passkeys/base64url";
 import { localStorageKeyForPasskey, type PasskeyStorageKey } from "./passkeys/storage";
 import {
@@ -396,14 +397,25 @@ export function initializePasskeyRoot(
     }
 }
 
+function listenForContainingDialogDismissal(element: Element, handler: () => void): () => void {
+    const listener = (event: Event) => {
+        const detail = dialogDismissedDetail(event);
+        if (detail === null || !(detail.dialog.contains(element) || element.contains(detail.dialog))) return;
+        document.removeEventListener(dialogDismissedEvent, listener);
+        handler();
+    };
+    document.addEventListener(dialogDismissedEvent, listener);
+    return () => document.removeEventListener(dialogDismissedEvent, listener);
+}
+
 function initializePasskeySetupPrompt(control: PasskeyPromptControl): void {
-    control.root.addEventListener(dialogDismissedEvent, () => {
+    listenForContainingDialogDismissal(control.root, () => {
         if (automaticPromptDismissals.has(control.root)) {
             automaticPromptDismissals.delete(control.root);
             return;
         }
         dismissPasskeyPrompt(control.config.promptUserKey);
-    }, { once: true });
+    });
 
     if (!passkeysAreAvailable()
         || isPasskeyPromptDismissed(control.config.promptUserKey)
@@ -428,9 +440,9 @@ async function runPasskeyLogin(control: PasskeyLoginControl): Promise<void> {
     const abortController = control.overlayClose === null ? null : new AbortController();
     const dialog = control.root.closest(`[${dialogMountDomAttr}]`);
     const abortPendingRequest = () => abortController?.abort();
-    if (dialog !== null && abortController !== null) {
-        dialog.addEventListener(dialogDismissedEvent, abortPendingRequest, { once: true });
-    }
+    const stopListeningForDismissal = dialog !== null && abortController !== null
+        ? listenForContainingDialogDismissal(dialog, abortPendingRequest)
+        : () => undefined;
 
     try {
         await withPasskeyButton(control, async () => {
@@ -465,7 +477,7 @@ async function runPasskeyLogin(control: PasskeyLoginControl): Promise<void> {
             }
         });
     } finally {
-        dialog?.removeEventListener(dialogDismissedEvent, abortPendingRequest);
+        stopListeningForDismissal();
     }
 }
 

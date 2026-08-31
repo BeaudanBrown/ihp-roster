@@ -398,12 +398,11 @@ renderTimesheetEntryModalWithStartButtons :: Text -> Text -> Text -> Html -> [Ov
 renderTimesheetEntryModalWithStartButtons title closeUrl formId formContent startButtons =
     renderPageDialogModal
         closeUrl
-        DialogOverlayConfig
-            { dialogOverlayTitle = title
-            , dialogOverlayBody = formContent
-            , dialogOverlayStartButtons = startButtons
-            , dialogOverlayButtons = defaultOverlayButtons formId
-            , dialogOverlayDialogClass = ""
+        (defaultDialogOverlayConfig
+            title
+            formContent
+            (defaultOverlayButtons formId))
+            { dialogOverlayStartButtons = startButtons
             }
 
 renderTimesheetEntryDialog :: Text -> Text -> Html -> Html
@@ -412,10 +411,9 @@ renderTimesheetEntryDialog title formId formContent =
 
 renderTimesheetEntryDialogWithStartButtons :: Text -> Text -> Html -> [OverlayButton] -> Html
 renderTimesheetEntryDialogWithStartButtons title formId formContent startButtons =
-    renderKeyboardDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = title
-        , dialogOverlayBody = formContent
-        , dialogOverlayStartButtons = startButtons
-        , dialogOverlayButtons = defaultOverlayButtons formId
-        , dialogOverlayDialogClass = ""
-        }
+    renderKeyboardDialogOverlay (defaultDialogOverlayConfig
+            title
+            formContent
+            (defaultOverlayButtons formId))
+            { dialogOverlayStartButtons = startButtons
+            }

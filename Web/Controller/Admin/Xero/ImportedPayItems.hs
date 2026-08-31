@@ -7,7 +7,8 @@ module Web.Controller.Admin.Xero.ImportedPayItems
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
-                                dialogOverlayMountId, renderToastOverlayHostOob)
+                                renderDialogOverlayClearOob,
+                                renderToastOverlayHostOob)
 import Application.Helper.Xero (XeroEarningsRateRef (..))
 import Application.Xero.Admin.ImportedPayItems
 import Application.Xero.Admin.ReadModel (fetchCurrentVenueXeroConnection)
@@ -106,7 +107,7 @@ respondImportedPayItemImportSuccess maybeToast =
     if isHtmxRequest
         then respondHtml $
             mconcat
-                [ [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+                [ renderDialogOverlayClearOob
                 , maybe mempty (renderToastOverlayHostOob ToastBottomCenter . pure) maybeToast
                 ]
         else do

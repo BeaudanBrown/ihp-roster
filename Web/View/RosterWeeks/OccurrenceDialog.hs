@@ -22,16 +22,13 @@ import Web.View.Prelude
 
 renderRosterWeekCopyOccurrenceDialog :: Text -> Int -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> Html
 renderRosterWeekCopyOccurrenceDialog actionUrl calendarRevision startIsRepeated endIsRepeated selections =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Choose repeated-time occurrence"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Choose repeated-time occurrence"
+            [hsx|
             <p class="app-muted">The target week crosses the autumn clock change. Choose which instant repeated roster times mean.</p>
             {renderFrontendSurfaceActionForm (RosterAction.copyRosterWeekAction actionFields) actionRoute occurrenceFields}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = defaultOverlayButtons formId
-        , dialogOverlayDialogClass = ""
-        }
+            (defaultOverlayButtons formId))
   where
     formId = "roster-copy-occurrence-form"
     actionFields =
@@ -50,27 +47,15 @@ renderRosterWeekCopyOccurrenceDialog actionUrl calendarRevision startIsRepeated 
 
 renderRosterShiftOccurrenceDialog :: Text -> FrontendSurfaceIntentForm -> (Text, Text) -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> Html
 renderRosterShiftOccurrenceDialog operationLabel intentForm (startOccurrenceField, endOccurrenceField) startIsRepeated endIsRepeated selections =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Choose occurrence to " <> operationLabel <> " shift"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            ("Choose occurrence to " <> operationLabel <> " shift")
+            [hsx|
             <p class="app-muted">The target shift crosses the autumn clock change. Choose which instant repeated roster times mean.</p>
             {renderFrontendSurfaceIntentFormWithId formId intentForm formBody}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            , OverlayButton
-                { overlayButtonLabel = "Continue"
-                , overlayButtonClass = "btn btn-primary"
-                , overlayButtonAction = OverlaySubmitFormAction formId
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            [ dialogOverlayCloseButton "Cancel"
+            , dialogOverlaySubmitButton "Continue" formId
+            ])
   where
     formId = "roster-shift-occurrence-form"
     formBody = [hsx|
