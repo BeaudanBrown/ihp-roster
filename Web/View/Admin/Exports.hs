@@ -53,11 +53,7 @@ renderExportsSection :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguratio
 renderExportsSection selection savedConfigurations =
     renderConfigSection
         "admin-exports-section"
-        [hsx|
-            <p class="small app-muted mb-3">
-                Download a configured Payroll Workbook for the selected roster week.
-            </p>
-        |]
+        mempty
         [hsx|
             {renderExportWeekSelector selection}
             {renderExportGenerationForm selection savedConfigurations}
@@ -108,10 +104,7 @@ exportWeekLabel selection =
 renderExportGenerationForm :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportGenerationForm selection savedConfigurations = [hsx|
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div>
-            <div class="fw-semibold">Payroll Workbook exports</div>
-            <div class="small app-muted">Each export uses its sheet families in the order shown. The hidden Data sheet is always included.</div>
-        </div>
+        <div class="fw-semibold">Payroll Workbook exports</div>
         {renderAddExportButton selection}
     </div>
     <div class="d-grid gap-2" data-payroll-workbook-configuration-list="true">
@@ -145,13 +138,14 @@ renderSavedConfigurationCard selection configuration = [hsx|
         renderFrontendSurfaceActionFormWithHiddenFields
             (AdminAction.createExportJobAction fields)
             (createExportRoute ("admin-saved-payroll-workbook-download-" <> tshow configurationRecord.id))
-            [hsx|<button class="btn btn-primary" type="submit">Download workbook</button>|]
+            [hsx|<button class="btn btn-primary" type="submit">Download</button>|]
 
 savedConfigurationSummary :: SavedPayrollWorkbookConfiguration -> Text
 savedConfigurationSummary configuration =
-    Text.intercalate
-        " → "
-        (map payrollWorkbookSheetFamilyConfigurationLabel configuration.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies)
+    "Sheets: "
+        <> Text.intercalate
+            " → "
+            (map payrollWorkbookSheetFamilyConfigurationLabel configuration.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies)
 
 renderAddExportButton :: ReportWeekSelection -> Html
 renderAddExportButton selection =
@@ -164,7 +158,7 @@ renderAddExportButton selection =
             , appShellActionRouteStandardUrl = Nothing
             , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-primary"), ("type", "button")]
             }
-        (Html5.button "Add export")
+        (Html5.button "Create new export")
 
 renderEditExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderEditExportButton selection configuration =

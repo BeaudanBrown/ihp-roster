@@ -32,7 +32,7 @@ test.describe('Export authorization and negative cases', () => {
         await gotoExports(page);
 
         await expect(page.locator('#payroll-workbook-configuration-management')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Add export' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Create new export' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Exports' })).toBeVisible();
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
         await expect(payrollReportCard(page, 'Payroll Workbook')).toHaveCount(1);

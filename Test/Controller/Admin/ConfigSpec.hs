@@ -401,7 +401,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportsResponse `responseBodyShouldContain` "hx-get=\"/NewPayrollWorkbookConfiguration"
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 exportsResponse `responseBodyShouldContain` "Payroll Workbook exports"
-                exportsResponse `responseBodyShouldContain` "Add export"
+                exportsResponse `responseBodyShouldContain` "Create new export"
                 exportsResponse `responseBodyShouldContain` "No Payroll Workbook exports configured."
                 exportsResponse `responseBodyShouldNotContain` "Download workbook"
                 exportsResponse `responseBodyShouldNotContain` "Download CSV"

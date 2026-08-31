@@ -523,7 +523,7 @@ async function runExportGenerationScenario(page, options, manifest, scenario, re
             response.request().method() === 'POST'
             && new URL(response.url()).pathname.includes('CreateExportJob')
         ),
-        page.locator('[data-payroll-workbook-configuration] button', { hasText: 'Download workbook' }).first().click(),
+        page.locator('[data-payroll-workbook-configuration] button', { hasText: 'Download' }).first().click(),
     ]).then(([response]) => response);
     const wallMs = performance.now() - startedAt;
     const exportResponseHeaders = exportResponse.headers();

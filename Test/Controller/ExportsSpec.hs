@@ -1059,7 +1059,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Payroll Workbook exports"
-                response `responseBodyShouldContain` "Add export"
+                response `responseBodyShouldContain` "Create new export"
                 response `responseBodyShouldNotContain` "Payroll Earnings CSV"
                 response `responseBodyShouldNotContain` "Recent Exports"
                 response `responseBodyShouldNotContain` "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
@@ -1132,7 +1132,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Payroll Workbook exports"
-                response `responseBodyShouldContain` "Add export"
+                response `responseBodyShouldContain` "Create new export"
                 response `responseBodyShouldNotContain` "Payroll Earnings CSV"
                 response `responseBodyShouldNotContain` "Staff Hours CSV"
                 response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"

@@ -82,7 +82,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Invites"
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "Payroll Workbook exports"
-                response `responseBodyShouldContain` "Add export"
+                response `responseBodyShouldContain` "Create new export"
                 response `responseBodyShouldContain` "No Payroll Workbook exports configured."
                 response `responseBodyShouldNotContain` "Download workbook"
                 response `responseBodyShouldNotContain` "Payroll Earnings CSV"
