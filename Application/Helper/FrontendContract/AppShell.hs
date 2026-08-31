@@ -71,7 +71,7 @@ module Application.Helper.FrontendContract.AppShell
     , OpenStaffRemovalDialog
     , CreateRosterShiftOverlay
     , UpdateRosterShiftOverlay
-    , DeleteRosterSlotOverlay
+    , OpenRosterSlotDeleteConfirmationDialog
     , ConfirmDeleteRosterSlotOverlay
     , ConfirmRemoveRosterRowOverlay
     , CreateTrialStaffOverlay
@@ -184,7 +184,7 @@ data OpenTrialStaffInvitationDialog
 data OpenStaffRemovalDialog
 data CreateRosterShiftOverlay
 data UpdateRosterShiftOverlay
-data DeleteRosterSlotOverlay
+data OpenRosterSlotDeleteConfirmationDialog
 data ConfirmDeleteRosterSlotOverlay
 data ConfirmRemoveRosterRowOverlay
 data CreateTrialStaffOverlay
@@ -375,16 +375,11 @@ type AppShellContract =
          , AppShellAction OpenStaffRemovalDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
-         , AppShellAction DeleteRosterSlotOverlay
+         , AppShellAction OpenRosterSlotDeleteConfirmationDialog
             '[ Field AnchorDateField 'WireDay
              , Field RosterCalendarRevisionField 'WireInt
              ]
-            '[ AppShellHtmxMethod 'AppShellDelete
-             , AppShellHtmxTarget DialogOverlayMount
-             , AppShellHtmxSwap "innerHTML"
-             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxConfirm "Delete this shift?"
-             ]
+            DialogLauncherOptions
          , AppShellAction ConfirmDeleteRosterSlotOverlay
             '[ Field AnchorDateField 'WireDay
              , Field RosterCalendarRevisionField 'WireInt

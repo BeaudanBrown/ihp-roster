@@ -100,12 +100,16 @@ test.describe('roster pointer session effects', () => {
         const dialog = page.getByRole('dialog', { name: 'Edit shift' });
         await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
-        page.once('dialog', confirmation => confirmation.accept());
+        await dialog.getByRole('button', { name: 'Delete shift' }).click();
+        const confirmationDialog = page.getByRole('dialog', { name: 'Delete roster shift?' });
+        await expect(confirmationDialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(confirmationDialog).toContainText('Delete this shift?');
+
         const deleteResponse = page.waitForResponse(response =>
             new URL(response.url()).pathname === '/DeleteRosterSlot'
             && response.request().method() === 'DELETE',
         );
-        await dialog.getByRole('button', { name: 'Delete shift' }).click();
+        await confirmationDialog.getByRole('button', { name: 'Delete shift' }).click();
         const response = await deleteResponse;
         expect(response.status()).toBe(200);
         expect(new URL(response.url()).searchParams.has('anchorDate')).toBe(true);

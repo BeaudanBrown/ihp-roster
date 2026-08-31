@@ -318,6 +318,7 @@ data RosterWeeksController
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }
     | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
+    | ShowRosterSlotDeleteConfirmationAction { rosterSlotId :: !(Id RosterSlot) }
     | DeleteRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     deriving (Eq, Show, Data)
 
