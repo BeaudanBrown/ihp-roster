@@ -6,9 +6,11 @@ Author app JavaScript in `frontend/ts/`. Generated bundles are checked in under
 `static/app*.js`; generated backend-owned contracts live in
 `frontend/ts/generated/`. Do not hand-edit either generated output.
 
-Every top-level `frontend/ts/app*.ts` entrypoint is global unless an accountable,
-reasoned exception exists in `scripts/architecture/wiring-policy.mjs`; its
-bundle must be loaded exactly once by `Web/View/Layout.hs`.
+`frontend/ts/app.ts` is the sole ordered production entrypoint and its bundle is
+loaded exactly once by `Web/View/Layout.hs`. Keep the imported `app-*.ts` modules
+focused; do not recreate independent bundles or a monolithic runtime module.
+Any accountable entrypoint exception belongs in
+`scripts/architecture/wiring-policy.mjs`.
 
 Generated contracts cover browser boundaries only. Parse/encode backend JSON,
 DOM configuration, Surface mounts, roles, intents, and transport values with

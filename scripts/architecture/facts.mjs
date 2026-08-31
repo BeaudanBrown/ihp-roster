@@ -340,8 +340,7 @@ function parseRealtime(files) {
 
 function parseFrontendWiring() {
   const entrypoints = listFiles(["frontend/ts"], (file) =>
-    path.dirname(path.relative(repoRoot, file)) === "frontend/ts"
-      && /^app.*\.ts$/.test(path.basename(file))
+    path.relative(repoRoot, file) === "frontend/ts/app.ts"
   ).map((relPath) => ({
     path: relPath,
     outputAsset: `/${path.basename(relPath, ".ts")}.js`,

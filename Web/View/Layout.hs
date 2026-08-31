@@ -393,26 +393,12 @@ scripts = [hsx|
         <script src={assetPath "/vendor/htmx-1.9.12/htmx.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js"}></script>
         <script src={assetPath "/vendor/flatpickr.js"}></script>
-        <script src={assetPath "/app-bootstrap.js"}></script>
-        <script src={assetPath "/app-pwa.js"}></script>
-        <script src={assetPath "/app-scrollbars.js"}></script>
-        <script src={assetPath "/app-date-pickers.js"}></script>
-        <script src={assetPath "/app-passkeys.js"}></script>
-        <script src={assetPath "/app-live-updates.js"}></script>
-        <script src={assetPath "/app-interactions.js"}></script>
-        <script src={assetPath "/app-dialog-overlays.js"}></script>
-        <script src={assetPath "/app-toasts.js"}></script>
-        <script src={assetPath "/app-time-picker.js"}></script>
-        <script src={assetPath "/app-horizontal-scroll.js"}></script>
-        <script src={assetPath "/app-roster.js"}></script>
-        <script src={assetPath "/app-timesheets.js"}></script>
-        <script src={assetPath "/app-xero.js"}></script>
-        <script src={assetPath "/app-toggle-buttons.js"}></script>
-        <script src={assetPath "/app-preferences.js"}></script>
+        <script src={assetPath "/app.js"}></script>
     |]
 
 devScripts :: Html
 devScripts = [hsx|
+        <script src={assetPath "/dev-timer-tracking.js"}></script>
         <script id="livereload-script" src={assetPath "/livereload.js"} data-ws={developmentLiveReloadWebsocketUrl}></script>
     |]
 

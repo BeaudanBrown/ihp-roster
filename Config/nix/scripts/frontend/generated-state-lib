@@ -66,11 +66,9 @@ frontend_js_input_hash() {
 }
 
 frontend_js_output_paths() {
-    local entry
-    shopt -s nullglob
-    for entry in frontend/ts/app*.ts; do
-        printf 'static/%s.js\n' "$(basename "$entry" .ts)"
-    done
+    printf '%s\n' \
+        static/app.js \
+        static/dev-timer-tracking.js
 }
 
 frontend_js_output_hash() {

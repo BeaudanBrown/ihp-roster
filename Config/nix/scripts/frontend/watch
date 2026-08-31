@@ -16,12 +16,15 @@ if ! frontend_js_watch_lock; then
     exit 75
 fi
 
-shopt -s nullglob
-entries=(frontend/ts/app*.ts)
-if [ "${#entries[@]}" -eq 0 ]; then
-    echo "frontend-watch: no frontend/ts/app*.ts entrypoints found" >&2
-    exit 1
-fi
+entries=(frontend/ts/app.ts frontend/ts/dev-timer-tracking.ts)
+for entry in "${entries[@]}"; do
+    if [ ! -f "$entry" ]; then
+        echo "frontend-watch: missing entrypoint $entry" >&2
+        exit 1
+    fi
+done
+
+rm -f static/app*.js static/dev-timer-tracking.js
 
 exec esbuild "${entries[@]}" \
     --bundle \

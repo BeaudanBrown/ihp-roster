@@ -40,6 +40,8 @@ tests = aroundAll withDatabaseTestContext do
             response `responseBodyShouldNotContain` "/BeginPasskeyAuthentication"
             response `responseBodyShouldNotContain` "/FinishPasskeyAuthentication"
             response `responseBodyShouldContain` "Billing and support information"
+            response `responseBodyShouldContain` "src=\"/static/app.js"
+            response `responseBodyShouldNotContain` "src=\"/static/app-bootstrap.js"
 
         it "routes public dev livereload through the HTTPS tunnel without changing localhost" \_ -> do
             let localLiveReloadUrl = "ws://localhost:8013"
