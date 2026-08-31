@@ -10,6 +10,7 @@ import qualified Application.Helper.FrontendContract.Surface.Profile.Action as P
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             SurfaceImpl,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -54,12 +55,9 @@ profileSectionsAccordionId = "profile-sections"
 
 profileActionRoute :: Text -> FrontendSurfaceActionRoute
 profileActionRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
-        , actionRouteExtraAttrs = []
-        }
+    ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
+        })
 
 profileSectionActionRoute :: Text -> Text -> Text -> FrontendSurfaceActionRoute
 profileSectionActionRoute actionUrl target swap =

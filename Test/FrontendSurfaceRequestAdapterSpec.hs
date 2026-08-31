@@ -30,6 +30,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceIntentForm)
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
@@ -900,13 +901,7 @@ requestWithParams params =
             }
 
 emptyActionRoute :: Text -> FrontendSurfaceActionRoute
-emptyActionRoute url =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = url
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+emptyActionRoute = defaultFrontendSurfaceActionRoute
 
 sectionActionRoute :: Text -> Text -> FrontendSurfaceActionRoute
 sectionActionRoute url target =

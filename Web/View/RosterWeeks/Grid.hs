@@ -47,6 +47,7 @@ import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (rosterStaf
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
                                                             FrontendSurfaceMountConfig (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
@@ -96,12 +97,9 @@ import Web.View.RosterWeeks.Timeline (renderRosterDayTimelinePanel)
 
 rosterGridActionRoute :: Text -> FrontendSurfaceActionRoute
 rosterGridActionRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
-        , actionRouteExtraAttrs = []
-        }
+    ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
+        })
 
 renderrosterContentLiveFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderrosterContentLiveFragment =

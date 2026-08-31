@@ -8,6 +8,7 @@ import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
 import Application.Helper.FeedbackType (feedbackTypeLabel)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
@@ -34,12 +35,9 @@ import Web.View.Prelude
 
 supportActionRoute :: Text -> FrontendSurfaceActionRoute
 supportActionRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
-        , actionRouteExtraAttrs = []
-        }
+    ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
+        })
 
 data IndexView = IndexView
     { onboardingInvitation          :: VenueOnboardingInvitation

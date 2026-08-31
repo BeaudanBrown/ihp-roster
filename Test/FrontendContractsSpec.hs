@@ -13,7 +13,8 @@ import Application.Helper.FrontendContract.AppShell.Request (appShellActionField
                                                              parseAppShellActionParamPairs)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             appShellActionHtmxAttrPairs)
+                                                             appShellActionHtmxAttrPairs,
+                                                             defaultAppShellActionRoute)
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
                                                       canonicalAppEvents,
                                                       interactionIntentSubmitHtmxTrigger)
@@ -328,6 +329,16 @@ tests = describe "Frontend contract generator foundation" do
             Left _  -> pure ()
             Right _ -> expectationFailure "undeclared feedback type parsed successfully"
 
+    it "owns the standard AppShell action route defaults" do
+        defaultAppShellActionRoute "/fixture/action"
+            `shouldBe` AppShellActionRoute
+                { appShellActionRouteUrl = "/fixture/action"
+                , appShellActionRouteFields = []
+                , appShellActionRouteCustomHtmx = []
+                , appShellActionRouteStandardUrl = Nothing
+                , appShellActionRouteExtraAttrs = []
+                }
+
     it "reflects generated AppShell action manifests and runtime attrs" do
         let appShellActions =
                 [ action
@@ -347,13 +358,7 @@ tests = describe "Frontend contract generator foundation" do
                        , Contract.HtmxActionSwapIR (Contract.HtmxTypedSyntaxIR "innerHTML" [])
                        , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                        ]
-        let partialNavigateAttrs = appShellActionHtmxAttrPairs partialNavigateAction AppShellActionRoute
-                { appShellActionRouteUrl = "/next"
-                , appShellActionRouteFields = []
-                , appShellActionRouteCustomHtmx = []
-                , appShellActionRouteStandardUrl = Nothing
-                , appShellActionRouteExtraAttrs = []
-                }
+        let partialNavigateAttrs = appShellActionHtmxAttrPairs partialNavigateAction (defaultAppShellActionRoute "/next")
         partialNavigateAttrs `shouldContain` [("hx-get", "/next")]
         partialNavigateAttrs `shouldNotContain` [("data-bepis-app-shell-action", "partial-navigate")]
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "AppShellActionManifest"

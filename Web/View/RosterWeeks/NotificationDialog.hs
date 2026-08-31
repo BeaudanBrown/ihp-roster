@@ -4,6 +4,7 @@ module Web.View.RosterWeeks.NotificationDialog
 
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionFormWithHiddenFields)
 import Application.Helper.View.Overlay
 import Application.RosterNotification
@@ -61,12 +62,10 @@ renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd cal
     actionUrl = pathTo CreateRosterNotificationRunAction
     sendForm = renderFrontendSurfaceActionFormWithHiddenFields
         (RosterAction.createRosterNotificationRunAction (RosterAction.createRosterNotificationRunActionFields (unpackId rosterGroup.id) windowStart windowEnd calendarRevision))
-        FrontendSurfaceActionRoute
-            { actionRouteUrl = actionUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just actionUrl
+        ((defaultFrontendSurfaceActionRoute (actionUrl))
+            { actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("id", formId)]
-            }
+            })
         mempty
     recipientCount = length audience.audienceRecipients
     skippedCount = length audience.audienceSkippedRecipients

@@ -5,6 +5,7 @@ module Web.View.RosterTemplates.DeleteConfirmation
 
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.View.Overlay
 import Web.RosterWeeks.Dom (rosterTemplateDeleteFormId)
@@ -41,12 +42,10 @@ renderRosterTemplateDeleteConfirmation template rosterGroupId anchorDate =
     actionUrl = appendQueryParams
         (pathTo (DeleteRosterTemplateAction template.id))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", tshow rosterGroupId)]
-    route = FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
+    route = ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = [("id", rosterTemplateDeleteFormId)]
-        }
+        })
 
 renderRosterTemplateDeleteError :: Text -> Html
 renderRosterTemplateDeleteError message =

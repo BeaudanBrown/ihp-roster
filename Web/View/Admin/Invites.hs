@@ -6,11 +6,13 @@ module Web.View.Admin.Invites
     , renderInvitesSectionFragmentWithSwap
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -55,12 +57,10 @@ renderInviteCreateForm rosterGroupId =
     fields = AdminAction.createVenueInvitationActionFields ""
 
 inviteCreateRoute :: Id RosterGroup -> FrontendSurfaceActionRoute
-inviteCreateRoute rosterGroupId = FrontendSurfaceActionRoute
-    { actionRouteUrl = appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)])
+inviteCreateRoute rosterGroupId = ((defaultFrontendSurfaceActionRoute (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]))
+    { actionRouteStandardUrl = Just (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)])
     , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
-    }
+    })
 
 renderInvitesSectionFragment :: UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragment =
@@ -148,12 +148,10 @@ renderRenewVenueInvitationForm rosterGroupId invitation =
     where
         fields = AdminAction.renewVenueInvitationActionFields (Just invitation.email)
         renewUrl = appendQueryParams (pathTo (RenewVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = renewUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just renewUrl
+        route = ((defaultFrontendSurfaceActionRoute (renewUrl))
+            { actionRouteStandardUrl = Just renewUrl
             , actionRouteExtraAttrs = [("class", "d-inline")]
-            }
+            })
 
 renderRevokeVenueInvitationForm :: Id RosterGroup -> VenueInvitation -> Html
 renderRevokeVenueInvitationForm rosterGroupId invitation =
@@ -162,9 +160,7 @@ renderRevokeVenueInvitationForm rosterGroupId invitation =
     |]
     where
         revokeUrl = appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = revokeUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just revokeUrl
+        route = ((defaultFrontendSurfaceActionRoute (revokeUrl))
+            { actionRouteStandardUrl = Just revokeUrl
             , actionRouteExtraAttrs = [("class", "d-inline")]
-            }
+            })

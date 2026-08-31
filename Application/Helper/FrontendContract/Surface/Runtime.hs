@@ -29,6 +29,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , SurfaceImpl (..)
     , frontendSurfaceMountedFragmentFor
     , defaultFrontendSurfaceLazyFragmentConfig
+    , defaultFrontendSurfaceActionRoute
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
     , applyFrontendSurfaceActionAttrs
@@ -265,6 +266,17 @@ data FrontendSurfaceActionRoute = FrontendSurfaceActionRoute
     , actionRouteExtraAttrs  :: ![(Text, Text)]
     }
     deriving (Eq, Show)
+
+-- | Standard route shape for Surface actions. Exceptional native URLs and
+-- transport attributes stay explicit through record updates at call sites.
+defaultFrontendSurfaceActionRoute :: Text -> FrontendSurfaceActionRoute
+defaultFrontendSurfaceActionRoute actionRouteUrl =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Nothing
+        , actionRouteExtraAttrs = []
+        }
 
 frontendSurfaceMountConfigJson :: FrontendSurfaceMountConfig -> Text
 frontendSurfaceMountConfigJson =

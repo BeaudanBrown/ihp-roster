@@ -17,6 +17,7 @@ import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.View
 import qualified Data.Text as Text
@@ -123,16 +124,11 @@ renderFeedbackOverlayButton :: Text -> Text -> Text -> Html
 renderFeedbackOverlayButton buttonClasses iconClasses label =
     applyAppShellActionAttrs
         (appShellActionByMarker @OpenFeedbackDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo NewFeedbackAction
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs =
-                [ ("class", buttonClasses)
+        ((defaultAppShellActionRoute (pathTo NewFeedbackAction))
+            { appShellActionRouteExtraAttrs = [ ("class", buttonClasses)
                 , ("type", "button")
                 ]
-            }
+            })
         (Html5.button $ do
             [hsx|<i class={iconClasses} aria-hidden="true"></i>|]
             [hsx|<span>{label}</span>|])
@@ -288,13 +284,10 @@ renderSupportImpersonationSwitcher :: (?context :: ControllerContext, ?request :
 renderSupportImpersonationSwitcher switchId formClass =
     renderAppShellActionForm
         (appShellActionByMarker @SubmitPasskeyProtectedAction)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo SwitchSupportImpersonationAction
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Just (pathTo SwitchSupportImpersonationAction)
+        ((defaultAppShellActionRoute (pathTo SwitchSupportImpersonationAction))
+            { appShellActionRouteStandardUrl = Just (pathTo SwitchSupportImpersonationAction)
             , appShellActionRouteExtraAttrs = [("class", formClass)]
-            }
+            })
         [hsx|
             <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
             <div class="input-group input-group-sm">

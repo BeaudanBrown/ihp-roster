@@ -5,13 +5,15 @@ module Web.View.Admin.RosterGroups
     ( renderRosterGroupsSectionFragment
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceActionSubmitButton,
@@ -64,12 +66,10 @@ renderRosterGroupsInactiveSummary rosterGroups showInactive = [hsx|
         toggleHref = appendQueryParams (pathTo ShowadminRosterGroupsLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveRosterGroups toggleFields, if showInactive then "false" else "true")]
         toggleFields = AdminAction.toggleInactiveRosterGroupsActionFields (not showInactive)
         toggleAction = AdminAction.toggleInactiveRosterGroupsAction toggleFields
-        toggleRoute = FrontendSurfaceActionRoute
-            { actionRouteUrl = toggleHref
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just toggleHref
+        toggleRoute = ((defaultFrontendSurfaceActionRoute (toggleHref))
+            { actionRouteStandardUrl = Just toggleHref
             , actionRouteExtraAttrs = [("class", toggleClass), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
-            }
+            })
         toggleClass = classes
             [ ("btn app-toggle-button btn-sm", True)
             , ("btn-success", showInactive)
@@ -96,12 +96,10 @@ renderRosterGroupCreateForm showInactive =
     |]
     where
         fields = AdminAction.createRosterGroupActionFields showInactive "" True
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = pathTo CreateRosterGroupAction
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just (pathTo CreateRosterGroupAction)
+        route = ((defaultFrontendSurfaceActionRoute (pathTo CreateRosterGroupAction))
+            { actionRouteStandardUrl = Just (pathTo CreateRosterGroupAction)
             , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
-            }
+            })
 
 renderRosterGroupRows :: [RosterGroup] -> Bool -> Html
 renderRosterGroupRows rosterGroups showInactive
@@ -125,12 +123,9 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
     where
         updateUrl = appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]
         fields = AdminAction.updateRosterGroupActionFields showInactive rosterGroup.name rosterGroup.isActive
-        updateRoute = FrontendSurfaceActionRoute
-            { actionRouteUrl = updateUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just updateUrl
-            , actionRouteExtraAttrs = []
-            }
+        updateRoute = ((defaultFrontendSurfaceActionRoute (updateUrl))
+            { actionRouteStandardUrl = Just updateUrl
+            })
         rowFormBody = [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowInactiveRosterGroups fields} value={boolParam showInactive} />
             <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
@@ -168,9 +163,8 @@ renderRosterGroupMoveButton isDisabled action actionUrl label =
         |]
         else renderFrontendSurfaceActionSubmitButton action route [hsx|{label}|]
     where
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = actionUrl
-            , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
+        route = ((defaultFrontendSurfaceActionRoute (actionUrl))
+            { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
             , actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
-            }
+            })

@@ -12,6 +12,7 @@ module Web.View.Admin.Xero.ImportedPayItems
 import Application.Helper.FrontendContract.AppShell (ImportXeroPayItemsOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
@@ -30,13 +31,7 @@ import Web.View.Prelude
 
 xeroPayItemAppShellActionRoute :: Text -> AppShellActionRoute
 xeroPayItemAppShellActionRoute actionUrl =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+    (defaultAppShellActionRoute (actionUrl))
 
 renderXeroImportedPayItemImportWaitingDialog :: UUID -> XeroReferenceTrustState -> Html
 renderXeroImportedPayItemImportWaitingDialog venueId trustState =

@@ -6,7 +6,8 @@ module Web.View.Admin.ShiftTypes
     ( renderShiftTypesSectionFragment
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -14,6 +15,7 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             applyFrontendSurfaceActionAttrs,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceActionSubmitButton,
@@ -77,12 +79,10 @@ renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
         toggleHref = appendQueryParams (pathTo ShowadminShiftTypesLiveFragmentAction) [(surfaceFieldNameFrom @Surface.ShowInactiveShiftTypes toggleFields, if showInactive then "false" else "true")]
         toggleFields = AdminAction.toggleInactiveShiftTypesActionFields (not showInactive)
         toggleAction = AdminAction.toggleInactiveShiftTypesAction toggleFields
-        toggleRoute = FrontendSurfaceActionRoute
-            { actionRouteUrl = toggleHref
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just toggleHref
+        toggleRoute = ((defaultFrontendSurfaceActionRoute (toggleHref))
+            { actionRouteStandardUrl = Just toggleHref
             , actionRouteExtraAttrs = [("class", toggleClass), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
-            }
+            })
         toggleClass = classes
             [ ("btn app-toggle-button btn-sm", True)
             , ("btn-success", showInactive)
@@ -116,12 +116,10 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
     where
         defaultCreateColourKey = NoColour
         fields = AdminAction.createShiftTypeActionFields showInactive "" ShiftTypePayRateDefault defaultCreateColourKey True
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = pathTo CreateShiftTypeAction
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just (pathTo CreateShiftTypeAction)
+        route = ((defaultFrontendSurfaceActionRoute (pathTo CreateShiftTypeAction))
+            { actionRouteStandardUrl = Just (pathTo CreateShiftTypeAction)
             , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
-            }
+            })
 
 renderShiftTypeRows :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems
@@ -181,29 +179,20 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
                    data-admin-shift-type-field-key={shiftTypeFieldKey shiftType.id "name"} />
         |]
         updateUrl = pathTo (UpdateShiftTypeAction (get #id shiftType))
-        autosaveNameRoute rowShiftType = FrontendSurfaceActionRoute
-            { actionRouteUrl = pathTo (UpdateShiftTypeAction rowShiftType.id)
-            , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "input-changed-autosave-custom-htmx" [("hx-trigger", "input changed delay:600ms, blur changed"), ("hx-include", "closest form")]]
-            , actionRouteStandardUrl = Nothing
-            , actionRouteExtraAttrs = []
-            }
-        autosaveSelectionRoute rowShiftType = FrontendSurfaceActionRoute
-            { actionRouteUrl = pathTo (UpdateShiftTypeAction rowShiftType.id)
-            , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change"), ("hx-include", "closest form")]]
-            , actionRouteStandardUrl = Nothing
-            , actionRouteExtraAttrs = []
-            }
-        updateRoute = FrontendSurfaceActionRoute
-            { actionRouteUrl = updateUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just updateUrl
-            , actionRouteExtraAttrs =
-                [ ("class", appSurfaceClasses "p-3 mb-2")
+        autosaveNameRoute rowShiftType = ((defaultFrontendSurfaceActionRoute (pathTo (UpdateShiftTypeAction rowShiftType.id)))
+            { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "input-changed-autosave-custom-htmx" [("hx-trigger", "input changed delay:600ms, blur changed"), ("hx-include", "closest form")]]
+            })
+        autosaveSelectionRoute rowShiftType = ((defaultFrontendSurfaceActionRoute (pathTo (UpdateShiftTypeAction rowShiftType.id)))
+            { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change"), ("hx-include", "closest form")]]
+            })
+        updateRoute = ((defaultFrontendSurfaceActionRoute (updateUrl))
+            { actionRouteStandardUrl = Just updateUrl
+            , actionRouteExtraAttrs = [ ("class", appSurfaceClasses "p-3 mb-2")
                 , ("id", shiftTypeRowId shiftType.id)
                 , ("data-admin-shift-type-row", "true")
 
                 ]
-            }
+            })
 
 renderShiftTypeMoveButton :: Bool -> FrontendSurfaceAction -> Text -> Text -> Html
 renderShiftTypeMoveButton isDisabled action actionUrl label =
@@ -213,12 +202,11 @@ renderShiftTypeMoveButton isDisabled action actionUrl label =
         |]
         else renderFrontendSurfaceActionSubmitButton action route [hsx|{label}|]
     where
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = actionUrl
-            , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
+        route = ((defaultFrontendSurfaceActionRoute (actionUrl))
+            { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
             , actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
-            }
+            })
 
 renderPayRateSelect :: SurfaceFieldBundleOf (ActionFieldSpecs AdminAction.CreateShiftTypeActionOperation) fields => fields -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderPayRateSelect fields fieldId selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|

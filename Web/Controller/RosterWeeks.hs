@@ -20,6 +20,7 @@ import Application.Helper.FrontendContract.AppShell.Request (parseAppShellAction
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode,
                                                             passkeySetupPromptModeFromValue)
@@ -1451,16 +1452,12 @@ renderDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
 
 rosterDeleteSlotActionRoute :: Id RosterSlot -> Calendar.Day -> Int -> AppShellActionRoute
 rosterDeleteSlotActionRoute rosterSlotId anchorDate calendarRevision =
-    AppShellActionRoute
-        { appShellActionRouteUrl = rosterDeleteSlotUrl rosterSlotId anchorDate calendarRevision
-        , appShellActionRouteFields =
+    ((defaultAppShellActionRoute (rosterDeleteSlotUrl rosterSlotId anchorDate calendarRevision))
+        { appShellActionRouteFields =
             [ AppShellFieldValue ("anchorDate", tshow anchorDate)
             , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)
             ]
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+        })
 
 respondWithRemoveRosterRowConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterDayRowRemovalPreview -> IO ()
 respondWithRemoveRosterRowConfirmation rosterDay preview =
@@ -1484,19 +1481,14 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
         confirmForm =
             renderAppShellActionForm
                 (appShellActionByMarker @ConfirmRemoveRosterRowOverlay)
-                AppShellActionRoute
-                    { appShellActionRouteUrl = pathTo (RemoveRosterRowAction rosterDay.id)
-                    , appShellActionRouteFields =
-                        [ AppShellFieldValue ("anchorDate", param @Text "anchorDate")
+                ((defaultAppShellActionRoute (pathTo (RemoveRosterRowAction rosterDay.id)))
+                    { appShellActionRouteFields = [ AppShellFieldValue ("anchorDate", param @Text "anchorDate")
                         , AppShellFieldValue ("rosterCalendarRevision", param @Text "rosterCalendarRevision")
                         ]
-                    , appShellActionRouteCustomHtmx = []
-                    , appShellActionRouteStandardUrl = Nothing
-                    , appShellActionRouteExtraAttrs =
-                        [ ("id", confirmFormId)
+                    , appShellActionRouteExtraAttrs = [ ("id", confirmFormId)
 
                         ]
-                    }
+                    })
                 [hsx|<input type="hidden" name="confirmDeletePopulatedRow" value="true" />|]
         confirmationDialog =
             renderDialogOverlay DialogOverlayConfig

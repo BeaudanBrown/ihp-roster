@@ -9,6 +9,7 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceIntentFormWithId)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
@@ -38,12 +39,10 @@ renderRosterWeekCopyOccurrenceDialog actionUrl calendarRevision startIsRepeated 
             calendarRevision
             (occurrenceSelectionValue selections.copyShiftStartOccurrence)
             (occurrenceSelectionValue selections.copyShiftEndOccurrence)
-    actionRoute = FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
+    actionRoute = ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = [("id", formId)]
-        }
+        })
     occurrenceFields = [hsx|
         {when startIsRepeated (renderOccurrenceSelect (surfaceFieldNameFrom @Surface.CopyStartOccurrence actionFields) "Shift start occurrence" selections.copyShiftStartOccurrence)}
         {when endIsRepeated (renderOccurrenceSelect (surfaceFieldNameFrom @Surface.CopyEndOccurrence actionFields) "Shift end occurrence" selections.copyShiftEndOccurrence)}

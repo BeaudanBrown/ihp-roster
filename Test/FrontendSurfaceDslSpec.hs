@@ -1380,6 +1380,15 @@ tests = describe "FrontendSurface DSL foundation" do
         memberHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-order=\"opaque:shift\""
         pinHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-pin=\"opaque:staff\""
 
+    it "owns the standard Surface action route defaults" do
+        defaultFrontendSurfaceActionRoute "/fixture/action"
+            `shouldBe` FrontendSurfaceActionRoute
+                { actionRouteUrl = "/fixture/action"
+                , actionRouteCustomHtmx = []
+                , actionRouteStandardUrl = Nothing
+                , actionRouteExtraAttrs = []
+                }
+
     it "renders generated HTMX action attrs from complete typed fixture fields" do
         let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
         let fields =

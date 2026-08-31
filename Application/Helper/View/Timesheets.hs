@@ -24,6 +24,7 @@ module Application.Helper.View.Timesheets
     ) where
 
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
@@ -107,16 +108,11 @@ renderTimesheetForm model@TimesheetFormRenderModel { timesheetFormPresentation =
         HtmxOverlayForm ->
             renderAppShellActionForm
                 appShellAction
-                AppShellActionRoute
-                    { appShellActionRouteUrl = actionUrl
-                    , appShellActionRouteFields = []
-                    , appShellActionRouteCustomHtmx = []
-                    , appShellActionRouteStandardUrl = Nothing
-                    , appShellActionRouteExtraAttrs =
-                        [ ("id", formId)
+                ((defaultAppShellActionRoute (actionUrl))
+                    { appShellActionRouteExtraAttrs = [ ("id", formId)
                         , ("class", "mt-3")
                         ]
-                    }
+                    })
                 (renderTimesheetFormFields model)
         PageOverlayForm -> [hsx|
             <form id={formId}

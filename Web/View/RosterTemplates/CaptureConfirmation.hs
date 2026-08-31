@@ -5,10 +5,12 @@ module Web.View.RosterTemplates.CaptureConfirmation
     , renderRosterTemplateCaptureConfirmation
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.Helper.FrontendContract.Toggle.Runtime (ToggleFieldBinding,
@@ -147,12 +149,10 @@ renderCaptureConfirmationForm rosterGroupId anchorDate preview
     previewRoute = captureActionRoute previewActionUrl
 
 captureActionRoute :: Text -> FrontendSurfaceActionRoute
-captureActionRoute actionUrl = FrontendSurfaceActionRoute
-    { actionRouteUrl = actionUrl
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just actionUrl
+captureActionRoute actionUrl = ((defaultFrontendSurfaceActionRoute (actionUrl))
+    { actionRouteStandardUrl = Just actionUrl
     , actionRouteExtraAttrs = [("id", rosterTemplateCaptureFormId)]
-    }
+    })
 
 optionalIds :: [UUID] -> Maybe [UUID]
 optionalIds []  = Nothing

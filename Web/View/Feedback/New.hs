@@ -13,6 +13,7 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              appShellActionFields,
                                                              appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.FeedbackDiagnostics.Runtime (renderFeedbackDiagnosticInputs)
 import Application.Helper.FrontendContract.Surface.Values
@@ -52,16 +53,11 @@ renderFeedbackForm formMode feedbackItem =
         HtmxOverlayForm ->
             renderAppShellActionForm
                 (appShellActionFor fields)
-                AppShellActionRoute
-                    { appShellActionRouteUrl = pathTo CreateFeedbackAction
-                    , appShellActionRouteFields = []
-                    , appShellActionRouteCustomHtmx = []
-                    , appShellActionRouteStandardUrl = Nothing
-                    , appShellActionRouteExtraAttrs =
-                        [ ("id", feedbackFormId)
+                ((defaultAppShellActionRoute (pathTo CreateFeedbackAction))
+                    { appShellActionRouteExtraAttrs = [ ("id", feedbackFormId)
 
                         ]
-                    }
+                    })
                 (renderFeedbackFormFields fields feedbackItem)
         PageOverlayForm -> [hsx|
             <form id={feedbackFormId}

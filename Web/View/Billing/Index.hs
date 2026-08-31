@@ -2,11 +2,13 @@
 
 module Web.View.Billing.Index where
 
-import Application.Billing.Checkout (checkoutAllowedForSubscription, venueSubscriptionIsLive)
+import Application.Billing.Checkout (checkoutAllowedForSubscription,
+                                     venueSubscriptionIsLive)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
@@ -326,13 +328,9 @@ renderPasskeyProtectedBillingForm :: Text -> Text -> Bool -> Html
 renderPasskeyProtectedBillingForm actionUrl label available =
     renderAppShellActionForm
         (appShellActionByMarker @SubmitPasskeyProtectedAction)
-        AppShellActionRoute
-            { appShellActionRouteUrl = actionUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
-            }
+        ((defaultAppShellActionRoute (actionUrl))
+            { appShellActionRouteExtraAttrs = navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
+            })
         [hsx|<button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>|]
 
 renderCheckoutUnavailableNotice :: Html

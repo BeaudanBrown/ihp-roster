@@ -15,10 +15,12 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              RegisteredAppShellAction,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.XeroAdminTypes
@@ -32,13 +34,7 @@ import Web.View.Prelude
 
 xeroPreparationAppShellActionRoute :: Text -> AppShellActionRoute
 xeroPreparationAppShellActionRoute actionUrl =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+    (defaultAppShellActionRoute (actionUrl))
 
 renderXeroPreparationOverlayForm :: (Typeable action, RegisteredAppShellAction action) => AppShellActionFields action -> Text -> [(Text, Text)] -> Html -> Html
 renderXeroPreparationOverlayForm fields actionUrl attrs =
@@ -125,12 +121,9 @@ renderStaffEmployeeEditForm :: XeroTimesheetPreparationView -> XeroPreparationSt
 renderStaffEmployeeEditForm view row =
     renderFrontendSurfaceActionForm
         (AdminAction.showXeroTimesheetPreparationStaffMappingsAction fields)
-        FrontendSurfaceActionRoute
-            { actionRouteUrl = pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just (pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id))
-            , actionRouteExtraAttrs = []
-            }
+        ((defaultFrontendSurfaceActionRoute (pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)))
+            { actionRouteStandardUrl = Just (pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id))
+            })
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowMatched fields} value="true" />
             <input type="hidden" name={surfaceFieldNameFrom @Surface.EditStaffId fields} value={tshow row.preparationStaffMappingRow.mappingRowStaff.id} />

@@ -3,7 +3,8 @@ module Web.Controller.Staff where
 import Application.Helper.Controller (parseVenueRole)
 import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker)
+                                                             appShellActionByMarker,
+                                                             defaultAppShellActionRoute)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
@@ -418,13 +419,9 @@ renderStaffRemovalConfirmation staff anchorDate maybeRosterGroupId =
                 , overlayButtonClass = "btn btn-danger"
                 , overlayButtonAction = GeneratedDialogFormAction
                     (appShellActionByMarker @RemoveStaffOverlay)
-                    AppShellActionRoute
-                        { appShellActionRouteUrl = pathTo (RemoveStaffAction staff.id)
-                        , appShellActionRouteFields = []
-                        , appShellActionRouteCustomHtmx = []
-                        , appShellActionRouteStandardUrl = Just (pathTo (RemoveStaffAction staff.id))
-                        , appShellActionRouteExtraAttrs = []
-                        }
+                    ((defaultAppShellActionRoute (pathTo (RemoveStaffAction staff.id)))
+                        { appShellActionRouteStandardUrl = Just (pathTo (RemoveStaffAction staff.id))
+                        })
                     returnFields
                     Nothing
                 }

@@ -12,6 +12,7 @@ import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
@@ -19,6 +20,7 @@ import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as 
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceActionLink,
@@ -90,12 +92,7 @@ data IndexView = IndexView
 
 timesheetsActionRoute :: Text -> FrontendSurfaceActionRoute
 timesheetsActionRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+    (defaultFrontendSurfaceActionRoute (actionUrl))
 
 data TimesheetDayRenderModel = TimesheetDayRenderModel
     { dayEntries             :: [TimesheetEntry]
@@ -361,13 +358,7 @@ renderTimesheetStaffPanelEntry staffMembers entry =
     SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource timesheetStaffCardsLinkedHighlight staffKey $
         applyAppShellActionAttrs
             (appShellActionByMarker @OpenRosterStaffEditDialog)
-            AppShellActionRoute
-                { appShellActionRouteUrl = pathTo (EditStaffAction entry.panelStaff.id)
-                , appShellActionRouteFields = []
-                , appShellActionRouteCustomHtmx = []
-                , appShellActionRouteStandardUrl = Nothing
-                , appShellActionRouteExtraAttrs = []
-                }
+            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
             [hsx|
                 <tr class="app-side-panel-entry timesheet-staff-panel-entry" role="button" tabindex="0"
                     {...timesheetStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelEntryCount entry.panelApprovedCount}>
@@ -578,17 +569,12 @@ renderNewEntryOverlayLink :: Text -> Text -> Text -> Day -> Html
 renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate =
     renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = newEntryUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs =
-                [ ("class", "timesheet-day-add-bar")
+        ((defaultAppShellActionRoute (newEntryUrl))
+            { appShellActionRouteExtraAttrs = [ ("class", "timesheet-day-add-bar")
                 , ("data-timesheet-day-add", "true")
                 , ("aria-label", "Add timesheet entry for " <> weekdayLabel <> " " <> formatDateCompact dayDate)
                 ]
-            }
+            })
         [hsx|
             <span class="timesheet-day-add-plus">+</span>
             <span class="timesheet-day-add-label">{weekdayShortLabel} {formatDateCompact dayDate}</span>
@@ -643,16 +629,11 @@ renderSuggestionCardOverlayLink :: (?context :: ControllerContext) => Day -> Tex
 renderSuggestionCardOverlayLink workedOn editUrl =
     renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = editUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs =
-                [ ("class", "timesheet-entry-card-link")
+        ((defaultAppShellActionRoute (editUrl))
+            { appShellActionRouteExtraAttrs = [ ("class", "timesheet-entry-card-link")
                 , ("aria-label", "Adjust rostered timesheet suggestion for " <> tshow workedOn)
                 ]
-            }
+            })
         mempty
 
 renderEntryCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Html
@@ -724,16 +705,11 @@ renderEntryCardOverlayLink entry canEdit editUrl
     | canEdit =
         renderAppShellActionLink
             (appShellActionByMarker @EditTimesheetEntryDialog)
-            AppShellActionRoute
-                { appShellActionRouteUrl = editUrl
-                , appShellActionRouteFields = []
-                , appShellActionRouteCustomHtmx = []
-                , appShellActionRouteStandardUrl = Nothing
-                , appShellActionRouteExtraAttrs =
-                    [ ("class", "timesheet-entry-card-link")
+            ((defaultAppShellActionRoute (editUrl))
+                { appShellActionRouteExtraAttrs = [ ("class", "timesheet-entry-card-link")
                     , ("aria-label", "Edit timesheet entry for " <> tshow (timesheetEntryOperationalDate entry))
                     ]
-                }
+                })
             mempty
     | otherwise = mempty
 

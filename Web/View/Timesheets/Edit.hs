@@ -5,7 +5,8 @@ module Web.View.Timesheets.Edit where
 import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay,
                                                      UpdateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker)
+                                                             appShellActionByMarker,
+                                                             defaultAppShellActionRoute)
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowStateQueryParams,
                              timesheetWindowUrl)
@@ -64,13 +65,7 @@ deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
         , overlayButtonAction =
             GeneratedDialogFormAction
                 (appShellActionByMarker @DeleteTimesheetEntryOverlay)
-                AppShellActionRoute
-                    { appShellActionRouteUrl = deleteUrl
-                    , appShellActionRouteFields = []
-                    , appShellActionRouteCustomHtmx = []
-                    , appShellActionRouteStandardUrl = Nothing
-                    , appShellActionRouteExtraAttrs = []
-                    }
+                (defaultAppShellActionRoute (deleteUrl))
                 (("_method", "DELETE") : requestParams)
                 (Just "Delete this timesheet entry? This cannot be undone.")
         }

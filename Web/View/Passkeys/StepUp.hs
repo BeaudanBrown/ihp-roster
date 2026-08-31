@@ -5,6 +5,7 @@ module Web.View.Passkeys.StepUp where
 import Application.Helper.FrontendContract.AppShell (OpenPasskeyRecoveryCodeDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Web.View.Prelude
 
@@ -73,13 +74,9 @@ renderRecoveryCodeDialogLink :: (?context :: ControllerContext) => Html
 renderRecoveryCodeDialogLink =
     renderAppShellActionLink
         (appShellActionByMarker @OpenPasskeyRecoveryCodeDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo ShowPasskeyRecoveryCodeDialogAction
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "small")]
-            }
+        ((defaultAppShellActionRoute (pathTo ShowPasskeyRecoveryCodeDialogAction))
+            { appShellActionRouteExtraAttrs = [("class", "small")]
+            })
         [hsx|Can't access your passkey?|]
 
 passkeyRecoveryCodeFormId :: Text

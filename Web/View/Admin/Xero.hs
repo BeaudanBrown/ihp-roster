@@ -9,19 +9,22 @@ module Web.View.Admin.Xero
 
 {-# LANGUAGE TypeApplications #-}
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverlay,
                                                      OpenXeroStaffMappingsOverlay,
                                                      OpenXeroTimesheetPreparationOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
@@ -121,27 +124,17 @@ renderXeroReferenceSyncFragment maybeDiagnostics = [hsx|
 
 xeroAppShellActionRoute :: Text -> AppShellActionRoute
 xeroAppShellActionRoute actionUrl =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+    (defaultAppShellActionRoute (actionUrl))
 
 xeroReferenceSyncActionRoute :: FrontendSurfaceActionRoute
 xeroReferenceSyncActionRoute =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = pathTo SyncXeroPayrollReferenceDataAction
-        , actionRouteCustomHtmx =
-            [ FrontendSurfaceCustomHtmxAttrs
+    ((defaultFrontendSurfaceActionRoute (pathTo SyncXeroPayrollReferenceDataAction))
+        { actionRouteCustomHtmx = [ FrontendSurfaceCustomHtmxAttrs
                 { customHtmxAttrMarker = "load-reference-sync-custom-htmx"
                 , customHtmxAttrValues = []
                 }
             ]
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+        })
 
 renderXeroActionControls :: XeroConnection -> Bool -> Bool -> Html
 renderXeroActionControls connection connectionActionsAllowed referenceRefreshAllowed = [hsx|

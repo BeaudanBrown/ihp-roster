@@ -21,7 +21,8 @@ import Application.Helper.Controller (hasRole)
 import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
@@ -432,13 +433,7 @@ applyRosterShiftDialogLauncherAttrs :: Text -> Html -> Html
 applyRosterShiftDialogLauncherAttrs actionUrl =
     applyAppShellActionAttrs
         (appShellActionByMarker @OpenRosterShiftDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = actionUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = []
-            }
+        (defaultAppShellActionRoute (actionUrl))
 
 renderEmptyBlockCells :: (?context :: ControllerContext) => Bool -> Int -> Html
 renderEmptyBlockCells =

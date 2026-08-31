@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionHtmxControl)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
@@ -25,6 +26,7 @@ import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterStaf
                                                                       rosterStaffPanelSortRowAttrs,
                                                                       rosterStaffPanelTabAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
@@ -149,13 +151,7 @@ renderRosterStaffPanelHeader anchorDate currentRosterGroupId hasMultipleRosterGr
 
 rosterStaffOverlayRoute :: Text -> AppShellActionRoute
 rosterStaffOverlayRoute actionUrl =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+    (defaultAppShellActionRoute (actionUrl))
 
 renderOpenRosterStaffCreateDialogButton :: Day -> Id RosterGroup -> Html
 renderOpenRosterStaffCreateDialogButton anchorDate currentRosterGroupId =
@@ -241,12 +237,10 @@ renderStaffScopeToggle :: (?context :: ControllerContext) => Day -> Id RosterGro
 renderStaffScopeToggle anchorDate currentRosterGroupId panelScope =
     renderFrontendSurfaceActionForm
         (RosterAction.toggleRosterStaffScopeAction fields)
-        FrontendSurfaceActionRoute
-            { actionRouteUrl = actionUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just actionUrl
+        ((defaultFrontendSurfaceActionRoute (actionUrl))
+            { actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("class", "mb-0 roster-staff-scope-toggle")]
-            }
+            })
         [hsx|
             <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
             {renderStaffScopeToggleButton fields currentRosterGroupId panelScope}

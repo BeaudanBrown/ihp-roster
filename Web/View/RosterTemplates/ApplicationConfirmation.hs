@@ -8,6 +8,7 @@ module Web.View.RosterTemplates.ApplicationConfirmation
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.Helper.View.Overlay
@@ -68,12 +69,10 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId previ
         preview.applicationRosterCalendarRevision
         Nothing
         Nothing
-    actionRoute = FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
+    actionRoute = ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = [("id", formId)]
-        }
+        })
 
 renderApplicationFields rosterTemplateId preview fields = [hsx|
     <input type="hidden" name={surfaceFieldNameFrom @Surface.TemplateId fields} value={tshow rosterTemplateId}/>

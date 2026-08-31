@@ -8,6 +8,7 @@ module Web.View.RosterWeeks.TemplatePanel
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.RosterTemplates
@@ -48,12 +49,10 @@ renderCaptureLauncher anchorDate rosterGroupId =
     |]
   where
     actionUrl = appendQueryParams (pathTo PreviewRosterTemplateCaptureAction { rosterGroupId }) [("anchorDate", tshow anchorDate)]
-    route = FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
+    route = ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = [("id", rosterTemplateCaptureLauncherFormId), ("class", "app-side-panel-content-header-actions")]
-        }
+        })
 
 renderPublishedTargetMessage :: Maybe RosterWindowState -> Html
 renderPublishedTargetMessage (Just rosterWeek)
@@ -103,12 +102,10 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek shift
         |]
     previewFormId = rosterTemplateApplicationPreviewFormId template.id
     previewFields = RosterAction.previewRosterTemplateApplicationActionFields (unpackId template.id) anchorDate calendarRevision Nothing Nothing
-    previewRoute = FrontendSurfaceActionRoute
-        { actionRouteUrl = pathTo PreviewRosterTemplateApplicationAction { rosterGroupId = rosterGroup.id }
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just (pathTo PreviewRosterTemplateApplicationAction { rosterGroupId = rosterGroup.id })
+    previewRoute = ((defaultFrontendSurfaceActionRoute (pathTo PreviewRosterTemplateApplicationAction { rosterGroupId = rosterGroup.id }))
+        { actionRouteStandardUrl = Just (pathTo PreviewRosterTemplateApplicationAction { rosterGroupId = rosterGroup.id })
         , actionRouteExtraAttrs = [("id", previewFormId), ("class", "d-none")]
-        }
+        })
 
 renderDeleteLauncher :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterTemplate -> Html
 renderDeleteLauncher anchorDate rosterGroupId template =
@@ -119,9 +116,7 @@ renderDeleteLauncher anchorDate rosterGroupId template =
     |]
   where
     actionUrl = appendQueryParams (pathTo (ConfirmDeleteRosterTemplateAction template.id rosterGroupId)) [("anchorDate", tshow anchorDate)]
-    route = FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just actionUrl
+    route = ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = [("id", rosterTemplateDeletePreviewFormId template.id)]
-        }
+        })

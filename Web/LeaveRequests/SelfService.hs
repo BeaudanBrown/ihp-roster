@@ -14,6 +14,7 @@ module Web.LeaveRequests.SelfService
 
 import Application.Helper.Controller (currentVenueId)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as Surface
@@ -111,12 +112,10 @@ renderSelfServiceLeaveForm :: (?context :: ControllerContext) => LeaveRequest ->
 renderSelfServiceLeaveForm leaveRequest =
     renderFrontendSurfaceActionForm
         (SurfaceAction.createSelfServiceLeaveRequestAction fields)
-        FrontendSurfaceActionRoute
-            { actionRouteUrl = createSelfServiceLeaveRequestPath
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just createSelfServiceLeaveRequestPath
+        ((defaultFrontendSurfaceActionRoute (createSelfServiceLeaveRequestPath))
+            { actionRouteStandardUrl = Just createSelfServiceLeaveRequestPath
             , actionRouteExtraAttrs = [("id", selfServiceLeaveFormId)]
-            }
+            })
         [hsx|
             <input type="hidden" name="responseContext" value="self-service"/>
             {renderLeaveRequestFormFieldsWithNames fieldNames leaveRequest}

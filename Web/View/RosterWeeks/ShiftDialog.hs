@@ -16,6 +16,7 @@ import Application.Helper.FrontendContract.AppShell (CreateRosterShiftOverlay,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
@@ -149,16 +150,11 @@ rosterShiftSubmitAppShellAction EditRosterShiftDialog {} = appShellActionByMarke
 
 rosterAppShellActionRoute :: Text -> Day -> Int -> AppShellActionRoute
 rosterAppShellActionRoute actionUrl anchorDate calendarRevision =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields =
-            [ AppShellFieldValue ("anchorDate", tshow anchorDate)
+    ((defaultAppShellActionRoute (actionUrl))
+        { appShellActionRouteFields = [ AppShellFieldValue ("anchorDate", tshow anchorDate)
             , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)
             ]
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+        })
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html

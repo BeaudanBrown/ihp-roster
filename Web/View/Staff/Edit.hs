@@ -11,13 +11,15 @@ import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationO
                                                      UpdateStaffShiftPreferencesOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -241,13 +243,9 @@ renderStaffRemovalPanel staff staffRemovalAllowed anchorDate maybeRosterGroupId
             (appShellActionByMarker @OpenStaffRemovalDialog)
             removalDialogRoute
             [hsx|<a href={removalUrl} class="btn btn-outline-danger">Remove staff member</a>|]
-    removalDialogRoute = AppShellActionRoute
-        { appShellActionRouteUrl = removalUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Just removalUrl
-        , appShellActionRouteExtraAttrs = []
-        }
+    removalDialogRoute = ((defaultAppShellActionRoute (removalUrl))
+        { appShellActionRouteStandardUrl = Just removalUrl
+        })
 
 staffEditManagementFields :: StaffEditRenderContext -> StaffManagementFieldData
 staffEditManagementFields StaffEditRenderContext { .. } =
@@ -340,15 +338,12 @@ renderStaffLeaveRequestForm :: Id Staff -> LeaveRequest -> Html
 renderStaffLeaveRequestForm staffId leaveRequest =
     renderFrontendSurfaceActionForm
         (ProfileAction.createStaffLeaveRequestAction fields)
-        FrontendSurfaceActionRoute
-            { actionRouteUrl = pathTo CreateLeaveRequestAction
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just (pathTo CreateLeaveRequestAction)
-            , actionRouteExtraAttrs =
-                [ ("id", "staff-leave-request-form")
+        ((defaultFrontendSurfaceActionRoute (pathTo CreateLeaveRequestAction))
+            { actionRouteStandardUrl = Just (pathTo CreateLeaveRequestAction)
+            , actionRouteExtraAttrs = [ ("id", "staff-leave-request-form")
 
                 ]
-            }
+            })
         [hsx|
             <input type="hidden" name="responseContext" value="staff"/>
             <input type="hidden" name="staffId" value={tshow staffId}/>
@@ -516,13 +511,9 @@ renderCreateTrialStaffInvitationForm staff maybeError submittedEmail anchorDate 
 
 trialInvitationSubmitRoute :: Text -> [(Text, Text)] -> AppShellActionRoute
 trialInvitationSubmitRoute actionUrl extraAttrs =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = extraAttrs
-        }
+    ((defaultAppShellActionRoute (actionUrl))
+        { appShellActionRouteExtraAttrs = extraAttrs
+        })
 
 renderTrialInviteError :: Text -> Html
 renderTrialInviteError message = [hsx|<div class="alert alert-danger" role="alert">{message}</div>|]
@@ -614,20 +605,12 @@ staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing
 
 staffAppShellActionRoute :: Text -> AppShellActionRoute
 staffAppShellActionRoute actionUrl =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+    (defaultAppShellActionRoute (actionUrl))
 
 staffSectionActionRoute :: Text -> Text -> Text -> FrontendSurfaceActionRoute
 staffSectionActionRoute actionUrl target swap =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx =
-            [ FrontendSurfaceCustomHtmxAttrs
+    ((defaultFrontendSurfaceActionRoute (actionUrl))
+        { actionRouteCustomHtmx = [ FrontendSurfaceCustomHtmxAttrs
                 { customHtmxAttrMarker = "staff-profile-section-htmx-attrs"
                 , customHtmxAttrValues =
                     [ ("hx-target", target)
@@ -635,6 +618,4 @@ staffSectionActionRoute actionUrl target swap =
                     ]
                 }
             ]
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+        })

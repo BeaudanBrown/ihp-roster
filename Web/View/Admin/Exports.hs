@@ -6,17 +6,19 @@ module Web.View.Admin.Exports
     , renderExportsSectionFragmentWithSwap
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            renderFrontendSurfaceActionForm,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -152,45 +154,31 @@ renderAddExportButton :: ReportWeekSelection -> Html
 renderAddExportButton selection =
     applyAppShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart))
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-primary"), ("type", "button")]
-            }
+        ((defaultAppShellActionRoute (pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart)))
+            { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-primary"), ("type", "button")]
+            }))
         (Html5.button "Create new export")
 
 renderEditExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderEditExportButton selection configuration =
     applyAppShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart))
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("type", "button")]
-            }
+        ((defaultAppShellActionRoute (pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
+            { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("type", "button")]
+            }))
         (Html5.button "Edit")
 
 renderDeleteExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderDeleteExportButton selection configuration =
     applyAppShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDeleteDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart))
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-danger"), ("type", "button")]
-            }
+        ((defaultAppShellActionRoute (pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
+            { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-danger"), ("type", "button")]
+            }))
         (Html5.button "Delete")
 
 createExportRoute :: Text -> FrontendSurfaceActionRoute
-createExportRoute formId = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo CreateExportJobAction
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
+createExportRoute formId = ((defaultFrontendSurfaceActionRoute (pathTo CreateExportJobAction))
+    { actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
     , actionRouteExtraAttrs = [("id", formId)]
-    }
+    })

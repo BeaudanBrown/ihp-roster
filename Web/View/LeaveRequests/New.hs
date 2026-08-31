@@ -5,6 +5,7 @@ module Web.View.LeaveRequests.New where
 import Application.Helper.FrontendContract.AppShell (CreateLeaveRequestOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Web.View.Prelude
 
@@ -43,17 +44,12 @@ renderLeaveRequestForm formMode leaveRequest =
         HtmxOverlayForm ->
             renderAppShellActionForm
                 (appShellActionByMarker @CreateLeaveRequestOverlay)
-                AppShellActionRoute
-                    { appShellActionRouteUrl = pathTo CreateLeaveRequestAction
-                    , appShellActionRouteFields = []
-                    , appShellActionRouteCustomHtmx = []
-                    , appShellActionRouteStandardUrl = Nothing
-                    , appShellActionRouteExtraAttrs =
-                        [ ("id", leaveRequestFormId)
+                ((defaultAppShellActionRoute (pathTo CreateLeaveRequestAction))
+                    { appShellActionRouteExtraAttrs = [ ("id", leaveRequestFormId)
                         , ("class", "mt-3")
 
                         ]
-                    }
+                    })
                 (renderLeaveRequestFormFields leaveRequest)
         PageOverlayForm -> [hsx|
             <form id={leaveRequestFormId}

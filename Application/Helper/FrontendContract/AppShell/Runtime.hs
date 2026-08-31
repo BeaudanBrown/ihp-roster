@@ -17,6 +17,7 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , AppShellFieldValue (..)
     , RegisteredAppShellAction
     , appShellActionByMarker
+    , defaultAppShellActionRoute
     , appShellActionHtmxAttrPairs
     , applyAppShellActionAttrs
     , renderAppShellActionForm
@@ -62,6 +63,18 @@ data AppShellActionRoute = AppShellActionRoute
     , appShellActionRouteExtraAttrs  :: ![(Text, Text)]
     }
     deriving (Eq, Show)
+
+-- | Standard route shape for AppShell actions. Submitted fields, native URL
+-- overrides, and transport attributes remain explicit record updates.
+defaultAppShellActionRoute :: Text -> AppShellActionRoute
+defaultAppShellActionRoute appShellActionRouteUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
+        }
 
 data AppShellActionSearch
     = MissingAppShellAction

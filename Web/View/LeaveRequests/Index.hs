@@ -2,12 +2,14 @@
 
 module Web.View.LeaveRequests.Index where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (leaveRequestIsArchivedOn)
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffEditDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
@@ -22,6 +24,7 @@ import Application.Helper.FrontendContract.Surface.LeaveRequests.StaffPanel (Lea
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
@@ -36,12 +39,7 @@ import Web.View.Prelude
 
 leaveRequestsActionRoute :: Text -> FrontendSurfaceActionRoute
 leaveRequestsActionRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+    (defaultFrontendSurfaceActionRoute (actionUrl))
 
 data LeaveStaffPanelEntry = LeaveStaffPanelEntry
     { panelStaff        :: !Staff
@@ -208,13 +206,7 @@ renderLeaveStaffPanelEntry staffMembers entry =
     SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource leaveStaffPeriodsLinkedHighlight staffKey $
         applyAppShellActionAttrs
             (appShellActionByMarker @OpenRosterStaffEditDialog)
-            AppShellActionRoute
-                { appShellActionRouteUrl = pathTo (EditStaffAction entry.panelStaff.id)
-                , appShellActionRouteFields = []
-                , appShellActionRouteCustomHtmx = []
-                , appShellActionRouteStandardUrl = Nothing
-                , appShellActionRouteExtraAttrs = []
-                }
+            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
             [hsx|
                 <tr class="app-side-panel-entry leave-staff-panel-entry" role="button" tabindex="0"
                     {...leaveStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelPeriodCount entry.panelPendingCount}>
