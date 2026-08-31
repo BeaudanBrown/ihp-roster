@@ -861,7 +861,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
 
-        it "atomically reconciles provider availability while preserving archival and locked pay history" $ withContext do
+        it "publishes each successful provider-availability category while preserving archival and locked pay history" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Availability Reconciliation Venue"
                 owner <- createUserRecordWithPlatformRole "xero-availability@example.com" "staff" (Just SuperAdmin) True
@@ -951,12 +951,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         }
                 failedResponse <- runSync failedClient
                 failedResponse `responseStatusShouldBe` status302
-                fetch syncedEmployee.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                fetch syncedEmployee.id >>= (\record -> record.providerAvailable `shouldBe` False)
                 fetch syncedRate.id >>= (\record -> record.providerAvailable `shouldBe` True)
-                fetch syncedAccount.id >>= (\record -> record.providerAvailable `shouldBe` True)
-                fetch syncedCalendar.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                fetch syncedAccount.id >>= (\record -> record.providerAvailable `shouldBe` False)
+                fetch syncedCalendar.id >>= (\record -> record.providerAvailable `shouldBe` False)
                 failedSyncMapping <- query @XeroStaffMapping |> fetchOne
-                failedSyncMapping.referenceRefreshedAt `shouldBe` Nothing
+                failedSyncMapping.referenceRefreshedAt `shouldSatisfy` isJust
 
                 let inactiveEmployee = employee { xeroEmployeeStatus = Just "INACTIVE" }
                     inactiveRate = rate { xeroEarningsRateIsActive = False }

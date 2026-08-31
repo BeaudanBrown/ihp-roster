@@ -310,7 +310,8 @@ tests = describe "Schema" do
         let expectedEnumDeclarations =
                 [ "CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');"
                 , "CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');"
-                , "CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('verified', 'not_applicable', 'stale');"
+                , "CREATE TYPE xero_reference_sync_category_enum AS ENUM ('xero_staff', 'pay_items', 'payroll_calendars', 'accounts');"
+                , "CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('unmapped', 'verified', 'not_applicable', 'stale');"
                 , "CREATE TYPE xero_earnings_rate_mapping_status_enum AS ENUM ('unmapped', 'verified', 'stale');"
                 , "CREATE TYPE xero_pay_item_account_code_selection_status_enum AS ENUM ('none', 'verified', 'stale');"
                 , "CREATE TYPE xero_pay_item_requirement_status_enum AS ENUM ('proposed', 'matched', 'created', 'ignored', 'stale', 'rate_changed');"

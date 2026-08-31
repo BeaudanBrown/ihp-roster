@@ -14,6 +14,7 @@ import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
 import Data.IORef
+import qualified Data.Set as Set
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime, getCurrentTime,
                         secondsToDiffTime)
@@ -60,6 +61,86 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#jobKind, xeroReferenceSyncJobKind)
                     |> fetchCount
                     >>= (`shouldBe` 1)
+
+        it "runs a Staff-only refresh without touching unrelated categories or aggregate freshness" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Staff Category Sync"
+                owner <- createUserRecord "xero-staff-category@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-staff-category"
+                calls <- newIORef []
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncCategories (Just owner.id) connection (Set.singleton XeroStaff)
+
+                performXeroReferenceSyncJobWith (testRuntime fixedReferenceSyncTime) (recordingReferenceSource calls connection) job
+
+                readIORef calls `shouldReturn` ["refresh", "employees"]
+                [categoryState] <- query @XeroReferenceSyncCategoryState |> fetch
+                categoryState.category `shouldBe` XeroStaff
+                refreshedConnection <- fetch connection.id
+                refreshedConnection.lastSyncAt `shouldBe` Nothing
+                completedJob <- fetch job.id
+                completedJob.result `shouldSatisfy` ("staff" `isInfixOf`) . tshow
+
+        it "joins Staff demand to an active full refresh" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Staff Full Join"
+                owner <- createUserRecord "xero-staff-full-join@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-staff-full-join"
+                EnqueuedAppJob fullJob <- requestXeroReferenceSyncJob (Just owner.id) connection
+
+                ExistingActiveAppJob joinedJob <- requestXeroReferenceSyncCategories (Just owner.id) connection (Set.singleton XeroStaff)
+
+                joinedJob.id `shouldBe` fullJob.id
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
+
+        it "does not join Staff demand after an active full refresh has published Staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Staff Completed Full Refresh"
+                owner <- createUserRecord "xero-staff-completed-full@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-staff-completed-full"
+                EnqueuedAppJob queuedFullJob <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+                let requestedAt = fixedReferenceSyncTime
+                fullJob <-
+                    queuedFullJob
+                        |> set #status JobStatusRunning
+                        |> set #payload (referenceSyncPayload connection requestedAt 0)
+                        |> updateRecord
+                _ <-
+                    newRecord @XeroReferenceSyncCategoryState
+                        |> set #venueId (unpackId venue.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #category XeroStaff
+                        |> set #lastSuccessAt (addUTCTime 1 requestedAt)
+                        |> createRecord
+
+                EnqueuedAppJob staffJob <- requestXeroReferenceSyncCategories (Just owner.id) connection (Set.singleton XeroStaff)
+
+                staffJob.id `shouldNotBe` fullJob.id
+                query @AppJob |> fetchCount >>= (`shouldBe` 2)
+
+        it "publishes successful categories even when another category fails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Independent Category Publication"
+                owner <- createUserRecord "xero-independent-categories@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-independent-categories"
+                calls <- newIORef []
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+                let source =
+                        (recordingReferenceSource calls connection)
+                            { fetchReferenceEmployees = \_ _ -> do
+                                modifyIORef' calls (<> ["employees"])
+                                pure (Left (XeroHttpResponseError 400 Nothing "staff request rejected"))
+                            }
+
+                outcome <- Exception.try (performXeroReferenceSyncJobWith (testRuntime fixedReferenceSyncTime) source job) :: IO (Either Exception.SomeException ())
+
+                outcome `shouldSatisfy` isLeft
+                readIORef calls `shouldReturn` ["refresh", "employees", "pay-items-1", "calendars", "accounts", "payroll-settings"]
+                categoryStates <- query @XeroReferenceSyncCategoryState |> orderByAsc #category |> fetch
+                Set.fromList (map (.category) categoryStates) `shouldBe` Set.fromList [PayItems, PayrollCalendars, Accounts]
+                refreshedConnection <- fetch connection.id
+                refreshedConnection.lastSyncAt `shouldBe` Nothing
+                [syncRun] <- query @XeroSyncRun |> fetch
+                syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
 
         it "publishes a queued transition from the manual request boundary" $ withContext do
             withCleanDb do

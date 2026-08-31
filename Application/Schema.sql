@@ -53,6 +53,7 @@ CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
 CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
 CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');
 CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');
+CREATE TYPE xero_reference_sync_category_enum AS ENUM ('xero_staff', 'pay_items', 'payroll_calendars', 'accounts');
 CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('unmapped', 'verified', 'not_applicable', 'stale');
 CREATE TYPE xero_earnings_rate_mapping_status_enum AS ENUM ('unmapped', 'verified', 'stale');
 CREATE TYPE xero_pay_item_account_code_selection_status_enum AS ENUM ('none', 'verified', 'stale');
@@ -1384,6 +1385,18 @@ CREATE TABLE xero_reference_sync_leases (
     FOREIGN KEY (app_job_id) REFERENCES app_jobs (id) ON DELETE SET NULL
 );
 CREATE INDEX idx_xero_reference_sync_leases_expiry ON xero_reference_sync_leases (lease_expires_at);
+CREATE TABLE xero_reference_sync_category_states (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    category xero_reference_sync_category_enum NOT NULL,
+    last_success_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(xero_connection_id, category),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+);
 CREATE TABLE xero_employees (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -2135,6 +2148,7 @@ CREATE UNIQUE INDEX idx_xero_connections_active_venue ON xero_connections (venue
 CREATE INDEX idx_xero_oauth_states_token ON xero_oauth_states (state_token);
 CREATE INDEX idx_xero_oauth_states_venue_user_created_at ON xero_oauth_states (venue_id, user_id, created_at DESC);
 CREATE INDEX idx_xero_sync_runs_venue_started_at ON xero_sync_runs (venue_id, started_at DESC);
+CREATE INDEX idx_xero_reference_sync_category_states_venue ON xero_reference_sync_category_states (venue_id, category, last_success_at DESC);
 CREATE UNIQUE INDEX idx_xero_employees_connection_employee ON xero_employees (xero_connection_id, xero_employee_id);
 CREATE INDEX idx_xero_employees_venue_name ON xero_employees (venue_id, display_name) WHERE provider_available = TRUE;
 CREATE UNIQUE INDEX idx_xero_earnings_rates_connection_rate ON xero_earnings_rates (xero_connection_id, xero_earnings_rate_id);
@@ -2289,6 +2303,7 @@ CREATE TRIGGER prevent_hard_delete_export_jobs BEFORE DELETE ON export_jobs FOR 
 CREATE TRIGGER prevent_hard_delete_export_job_entries BEFORE DELETE ON export_job_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_connections BEFORE DELETE ON xero_connections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_sync_runs BEFORE DELETE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_reference_sync_category_states BEFORE DELETE ON xero_reference_sync_category_states FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_employees BEFORE DELETE ON xero_employees FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_earnings_rates BEFORE DELETE ON xero_earnings_rates FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_imported_pay_items BEFORE DELETE ON xero_imported_pay_items FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -2822,6 +2837,7 @@ CREATE TRIGGER enforce_leave_request_venue_integrity BEFORE INSERT OR UPDATE ON 
 CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_entry_venue_integrity();
 CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION enforce_roster_derived_timesheet_identity_immutable();
 CREATE TRIGGER enforce_xero_sync_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
+CREATE TRIGGER enforce_xero_reference_sync_category_states_venue_integrity BEFORE INSERT OR UPDATE ON xero_reference_sync_category_states FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_employees_venue_integrity BEFORE INSERT OR UPDATE ON xero_employees FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_staff_xero_pay_item_venue BEFORE INSERT OR UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();
 CREATE TRIGGER enforce_shift_types_xero_pay_item_venue BEFORE INSERT OR UPDATE ON shift_types FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();

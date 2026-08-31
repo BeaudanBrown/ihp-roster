@@ -1,17 +1,20 @@
 module Application.Xero.ReferenceSyncRequest
-    ( runXeroReferenceDataSyncRequest
+    ( runXeroReferenceDataSyncCategoriesRequest
+    , runXeroReferenceDataSyncRequest
     , withInlineXeroReferenceSyncRequestsForTest
     , withQueuedXeroReferenceSyncRequestsForTest
     ) where
 
 import Application.Async.Queue
 import Application.Xero.Admin.ReferenceData (XeroReferenceDataSyncResult (..))
+import Application.Xero.ReferenceCategory (allXeroReferenceSyncCategories)
 import Application.Xero.ReferenceSyncJob
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.IORef as IORef
+import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
@@ -33,11 +36,22 @@ runXeroReferenceDataSyncRequest ::
     Maybe (Id User) ->
     XeroConnection ->
     IO (Either Text XeroReferenceDataSyncResult)
-runXeroReferenceDataSyncRequest maybeActorUserId connection
+runXeroReferenceDataSyncRequest maybeActorUserId connection =
+    runXeroReferenceDataSyncCategoriesRequest maybeActorUserId connection allXeroReferenceSyncCategories
+
+runXeroReferenceDataSyncCategoriesRequest ::
+    (?modelContext :: ModelContext) =>
+    Maybe (Id User) ->
+    XeroConnection ->
+    Set.Set XeroReferenceSyncCategoryEnum ->
+    IO (Either Text XeroReferenceDataSyncResult)
+runXeroReferenceDataSyncCategoriesRequest maybeActorUserId connection categories
     | connection.connectionStatus /= "active" =
         pure (Left "Reconnect Xero before syncing payroll reference data.")
+    | Set.null categories =
+        pure (Left "Choose at least one Xero reference category to sync.")
     | otherwise =
-        requestXeroReferenceSyncJob maybeActorUserId connection >>= \case
+        requestXeroReferenceSyncCategories maybeActorUserId connection categories >>= \case
             ExistingActiveAppJob _ ->
                 pure (Left "Xero payroll reference data is already syncing in the background.")
             EnqueuedAppJob appJob -> do

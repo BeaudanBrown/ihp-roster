@@ -1,6 +1,11 @@
 module Application.Xero.Admin.ReferenceData
     ( XeroReferenceDataSyncResult (..)
+    , completeXeroAccountsReferenceDataSync
+    , completeXeroPayItemsReferenceDataSync
+    , completeXeroPayrollCalendarsReferenceDataSync
     , completeXeroReferenceDataSync
+    , completeXeroReferenceSyncRun
+    , completeXeroStaffReferenceDataSync
     , failXeroReferenceDataSync
     , startXeroReferenceDataSync
     , markStaleXeroEarningsRateMappings
@@ -93,6 +98,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
         markXeroStaffMappingsReferenceRefreshed connection now
         markStaleXeroEarningsRateMappings connection earningsRates
         reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts
+        forM_ [XeroStaff, PayItems, PayrollCalendars, Accounts] (recordXeroReferenceCategorySuccess connection now)
         updatedSyncRun <-
             activeSyncRun
                 |> set #syncStatus Succeeded
@@ -125,6 +131,141 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
             , referenceDataSyncPayrollCalendarCount = length payrollCalendars
             , referenceDataSyncAccountCount = length accounts
             }
+
+completeXeroReferenceSyncRun ::
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
+    XeroSyncRun ->
+    XeroConnection ->
+    Bool ->
+    [Text] ->
+    Int ->
+    Int ->
+    Int ->
+    Int ->
+    IO XeroReferenceDataSyncResult
+completeXeroReferenceSyncRun maybeActorUserId syncRun connection completesAggregateSnapshot completedCategories employeeCount earningsRateCount payrollCalendarCount accountCount = do
+    now <- getCurrentTime
+    completedRun <- liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.data_completed" do
+        activeSyncRun <- fetch syncRun.id
+        when (activeSyncRun.syncStatus /= Running) $
+            fail "Xero reference sync run is no longer active."
+        updatedSyncRun <-
+            activeSyncRun
+                |> set #syncStatus Succeeded
+                |> set #employeesCount employeeCount
+                |> set #earningsRatesCount earningsRateCount
+                |> set #payrollCalendarsCount payrollCalendarCount
+                |> set #finishedAt (Just now)
+                |> updateRecord
+        when completesAggregateSnapshot $
+            void $
+                connection
+                    |> set #lastSyncAt (Just now)
+                    |> set #lastError Nothing
+                    |> updateRecord
+        recordXeroReferenceSyncAudit maybeActorUserId connection XeroReferenceSyncSucceededAudit syncRun.id
+            (Aeson.object
+                [ "tenantId" Aeson..= connection.tenantId
+                , "categories" Aeson..= completedCategories
+                , "aggregateSnapshot" Aeson..= completesAggregateSnapshot
+                , "employeesCount" Aeson..= employeeCount
+                , "earningsRatesCount" Aeson..= earningsRateCount
+                , "payrollCalendarsCount" Aeson..= payrollCalendarCount
+                , "accountsCount" Aeson..= accountCount
+                ]
+            )
+        pure (liveMutationResult updatedSyncRun [xeroReferenceSyncStateResource connection.venueId])
+    updatedConnection <- fetch connection.id
+    pure
+        XeroReferenceDataSyncResult
+            { referenceDataSyncRun = completedRun
+            , referenceDataSyncConnection = updatedConnection
+            , referenceDataSyncEmployeeCount = employeeCount
+            , referenceDataSyncEarningsRateCount = earningsRateCount
+            , referenceDataSyncPayrollCalendarCount = payrollCalendarCount
+            , referenceDataSyncAccountCount = accountCount
+            }
+
+completeXeroStaffReferenceDataSync ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    [XeroEmployeeRef] ->
+    IO Int
+completeXeroStaffReferenceDataSync connection employees =
+    liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.staff_completed" do
+        now <- getCurrentTime
+        mapM_ (upsertXeroEmployee connection now) employees
+        reconcileXeroEmployeeProviderAvailability connection now employees
+        markStaleXeroStaffMappings connection employees
+        markXeroStaffMappingsReferenceRefreshed connection now
+        recordXeroReferenceCategorySuccess connection now XeroStaff
+        pure (liveMutationResult (length employees) [xeroReferenceSyncStateResource connection.venueId])
+
+completeXeroPayItemsReferenceDataSync ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    [XeroEarningsRateRef] ->
+    IO Int
+completeXeroPayItemsReferenceDataSync connection earningsRates =
+    liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.pay_items_completed" do
+        now <- getCurrentTime
+        mapM_ (upsertXeroEarningsRate connection now) earningsRates
+        reconcileXeroEarningsRateProviderAvailability connection now earningsRates
+        markStaleXeroEarningsRateMappings connection earningsRates
+        recordXeroReferenceCategorySuccess connection now PayItems
+        pure (liveMutationResult (length earningsRates) [xeroReferenceSyncStateResource connection.venueId])
+
+completeXeroPayrollCalendarsReferenceDataSync ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    [XeroPayrollCalendarRef] ->
+    IO Int
+completeXeroPayrollCalendarsReferenceDataSync connection payrollCalendars =
+    liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.payroll_calendars_completed" do
+        now <- getCurrentTime
+        mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
+        reconcileXeroPayrollCalendarProviderAvailability connection now payrollCalendars
+        recordXeroReferenceCategorySuccess connection now PayrollCalendars
+        pure (liveMutationResult (length payrollCalendars) [xeroReferenceSyncStateResource connection.venueId])
+
+completeXeroAccountsReferenceDataSync ::
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
+    XeroConnection ->
+    [XeroAccountRef] ->
+    [XeroAccountRef] ->
+    IO Int
+completeXeroAccountsReferenceDataSync maybeActorUserId connection accounts payrollSettingsAccounts =
+    liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.accounts_completed" do
+        now <- getCurrentTime
+        mapM_ (upsertXeroAccount connection now) accounts
+        reconcileXeroAccountProviderAvailability connection now accounts
+        reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts
+        recordXeroReferenceCategorySuccess connection now Accounts
+        pure (liveMutationResult (length accounts) [xeroReferenceSyncStateResource connection.venueId])
+
+recordXeroReferenceCategorySuccess ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    UTCTime ->
+    XeroReferenceSyncCategoryEnum ->
+    IO ()
+recordXeroReferenceCategorySuccess connection succeededAt category = do
+    existing <-
+        query @XeroReferenceSyncCategoryState
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#category, category)
+            |> fetchOneOrNothing
+    let prepared record =
+            record
+                |> set #venueId connection.venueId
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #category category
+                |> set #lastSuccessAt succeededAt
+    case existing of
+        Just record -> prepared record |> updateRecord |> void
+        Nothing -> prepared (newRecord @XeroReferenceSyncCategoryState) |> createRecord |> void
 
 failXeroReferenceDataSync ::
     (?modelContext :: ModelContext) =>
@@ -339,24 +480,26 @@ upsertXeroPayItemAccountCodeSelection maybeActorUserId connection selectionStatu
 
 reconcileXeroProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> [XeroAccountRef] -> IO ()
 reconcileXeroProviderAvailability connection reconciledAt employees earningsRates payrollCalendars accounts = do
+    reconcileXeroEmployeeProviderAvailability connection reconciledAt employees
+    reconcileXeroEarningsRateProviderAvailability connection reconciledAt earningsRates
+    reconcileXeroPayrollCalendarProviderAvailability connection reconciledAt payrollCalendars
+    reconcileXeroAccountProviderAvailability connection reconciledAt accounts
+
+reconcileXeroEmployeeProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroEmployeeRef] -> IO ()
+reconcileXeroEmployeeProviderAvailability connection reconciledAt employees = do
     let availableEmployeeIds = map (.xeroEmployeeId) (filter xeroEmployeeRefIsProviderAvailable employees)
-        availableEarningsRateIds = map (.xeroEarningsRateId) (filter (.xeroEarningsRateIsActive) earningsRates)
-        seenEarningsRateIds = map (.xeroEarningsRateId) earningsRates
-        availablePayrollCalendarIds = map (.xeroPayrollCalendarId) payrollCalendars
-        availableAccountIds = map (.xeroAccountId) (filter xeroAccountRefIsProviderAvailable accounts)
     storedEmployees <- query @XeroEmployee |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
-    storedEarningsRates <- query @XeroEarningsRate |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
-    storedPayrollCalendars <- query @XeroPayrollCalendar |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
-    storedAccounts <- query @XeroAccount |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
-    importedPayItems <- query @XeroImportedPayItem |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
     forM_ storedEmployees \record ->
         setXeroEmployeeProviderAvailability reconciledAt (record.xeroEmployeeId `elem` availableEmployeeIds) record
+
+reconcileXeroEarningsRateProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> IO ()
+reconcileXeroEarningsRateProviderAvailability connection reconciledAt earningsRates = do
+    let availableEarningsRateIds = map (.xeroEarningsRateId) (filter (.xeroEarningsRateIsActive) earningsRates)
+        seenEarningsRateIds = map (.xeroEarningsRateId) earningsRates
+    storedEarningsRates <- query @XeroEarningsRate |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    importedPayItems <- query @XeroImportedPayItem |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
     forM_ storedEarningsRates \record ->
         setXeroEarningsRateProviderAvailability reconciledAt (record.xeroEarningsRateId `elem` availableEarningsRateIds) record
-    forM_ storedPayrollCalendars \record ->
-        setXeroPayrollCalendarProviderAvailability reconciledAt (record.xeroPayrollCalendarId `elem` availablePayrollCalendarIds) record
-    forM_ storedAccounts \record ->
-        setXeroAccountProviderAvailability reconciledAt (record.xeroAccountId `elem` availableAccountIds) record
     forM_ importedPayItems \record -> do
         let seen = record.xeroEarningsRateId `elem` seenEarningsRateIds
             available = record.xeroEarningsRateId `elem` availableEarningsRateIds
@@ -366,6 +509,20 @@ reconcileXeroProviderAvailability connection reconciledAt employees earningsRate
             |> set #lastSeenAt (if seen then reconciledAt else record.lastSeenAt)
             |> updateRecord
             |> void
+
+reconcileXeroPayrollCalendarProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroPayrollCalendarRef] -> IO ()
+reconcileXeroPayrollCalendarProviderAvailability connection reconciledAt payrollCalendars = do
+    let availablePayrollCalendarIds = map (.xeroPayrollCalendarId) payrollCalendars
+    storedPayrollCalendars <- query @XeroPayrollCalendar |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    forM_ storedPayrollCalendars \record ->
+        setXeroPayrollCalendarProviderAvailability reconciledAt (record.xeroPayrollCalendarId `elem` availablePayrollCalendarIds) record
+
+reconcileXeroAccountProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroAccountRef] -> IO ()
+reconcileXeroAccountProviderAvailability connection reconciledAt accounts = do
+    let availableAccountIds = map (.xeroAccountId) (filter xeroAccountRefIsProviderAvailable accounts)
+    storedAccounts <- query @XeroAccount |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+    forM_ storedAccounts \record ->
+        setXeroAccountProviderAvailability reconciledAt (record.xeroAccountId `elem` availableAccountIds) record
 
 setXeroEmployeeProviderAvailability :: (?modelContext :: ModelContext) => UTCTime -> Bool -> XeroEmployee -> IO ()
 setXeroEmployeeProviderAvailability reconciledAt available record =

@@ -43,9 +43,18 @@ issue and, when cross-system design remains unresolved, a new workstream.
   account, pay-run, and timesheet status vocabulary remains open `Text` and is
   preserved unchanged, including unknown future provider values.
 - Every reference-sync path uses the same background-safe persistence and
-  reconciliation service. Complete bulk refresh can run as a durable `app_jobs`
-  job, coalesced per connection and leased per Xero tenant. Provider requests
-  are sequential and paced to 50 requests/minute. Earnings-rate reads use the
+  reconciliation service. Callers request typed Staff, Pay items, Payroll
+  calendars, or Accounts categories; complete refresh requests all four. A
+  successful category is reconciled and published independently, so a later
+  category failure does not discard usable reference data. Complete aggregate
+  freshness advances only when every category requested by that full refresh
+  succeeds. A failed full-refresh attempt retries only its failed categories,
+  while retaining the original aggregate request boundary. Jobs coalesce by
+  compatible connection/category demand and are leased per Xero tenant. A Staff
+  request joins an active full refresh whenever that job still includes pending
+  or running Staff work. Provider requests remain sequential and paced to 50
+  requests/minute; a category failure does not prevent later requested
+  categories from being attempted. Earnings-rate reads use the
   paginated Payroll AU v2 `/earningsRates` endpoint, matching the existing v2
   earnings-rate creation boundary. Pagination continues until a partial page, rejects a
   repeated full page that adds no new ids, and stops at the runtime-configurable
