@@ -22,7 +22,7 @@ test.describe('Payroll export downloads', () => {
 
         const standardCard = payrollReportCard(page, 'Payroll Workbook');
         await expect(standardCard).toHaveCount(1);
-        await expect(standardCard).toContainText('Summary → Employee / Pay Bucket Hours → Shift Type Hours → Employee / Pay Bucket Wages → Shift Type Wages');
+        await expect(standardCard).toContainText('Summary → Hours by Staff → Hours by Shift Type → Wages by Staff → Wages by Shift Type');
         await expect(standardCard.getByRole('button', { name: 'Download workbook' })).toHaveCount(1);
         await expect(standardCard.getByRole('button', { name: 'Edit' })).toHaveCount(1);
         await expect(standardCard.getByRole('button', { name: 'Delete' })).toHaveCount(1);
@@ -43,27 +43,22 @@ test.describe('Payroll export downloads', () => {
         await page.getByRole('button', { name: 'Add export' }).click();
         const addDialog = page.getByRole('dialog', { name: 'Add export' });
         await expect(addDialog).toBeVisible();
-        await expect(addDialog.getByText('No sheet families included yet.')).toBeVisible();
+        await expect(addDialog.getByText('No sheets included.')).toBeVisible();
+        await expect(addDialog.getByRole('heading', { name: 'Excluded sheets' })).toBeVisible();
         await expect(addDialog.locator('#payroll-workbook-configuration-name')).toHaveValue('');
         await addDialog.locator('#payroll-workbook-configuration-name').fill('Empty export');
         await addDialog.getByRole('button', { name: 'Save' }).click();
         await expect(addDialog.getByRole('alert')).toContainText('at least one presentation sheet family');
 
         await addDialog.locator('#payroll-workbook-configuration-name').fill('Wages then Summary');
-        const picker = addDialog.locator('#payroll-workbook-family-picker');
-        await picker.selectOption('summary');
-        await addDialog.getByRole('button', { name: 'Add sheet' }).click();
-        await expect(picker.locator('option[value="summary"]')).toBeDisabled();
-        await picker.selectOption('shift-type-wages');
-        await addDialog.getByRole('button', { name: 'Add sheet' }).click();
-        const summaryFamily = addDialog.locator('[draggable="true"]').filter({ hasText: 'Summary' });
-        const shiftWagesFamily = addDialog.locator('[draggable="true"]').filter({ hasText: 'Shift Type Wages' });
-        await shiftWagesFamily.dragTo(summaryFamily);
+        await addDialog.getByRole('button', { name: 'Add Summary' }).click();
+        await addDialog.getByRole('button', { name: 'Add Wages by Shift Type' }).click();
+        await addDialog.getByRole('button', { name: 'Move Wages by Shift Type up' }).click();
         await addDialog.getByRole('button', { name: 'Save' }).click();
 
         const configurationRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Wages then Summary' });
         await expect(configurationRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
-        await expect(configurationRow).toContainText('Shift Type Wages → Summary');
+        await expect(configurationRow).toContainText('Wages by Shift Type → Summary');
 
         const configuredRefresh = page.waitForResponse((response) => response.url().includes('/ShowadminExportsLiveFragment'), { timeout: E2E_TIMEOUT.assertion });
         const configuredDownload = await generatePayrollReport(page, 'Wages then Summary', 'Download workbook');
@@ -81,14 +76,13 @@ test.describe('Payroll export downloads', () => {
         await expect(editDialog).toBeVisible();
         await editDialog.locator('#payroll-workbook-configuration-name').fill('Hours then Wages');
         await editDialog.getByRole('button', { name: 'Remove Summary' }).click();
-        await editDialog.locator('#payroll-workbook-family-picker').selectOption('employee-pay-bucket-hours');
-        await editDialog.getByRole('button', { name: 'Add sheet' }).click();
-        await editDialog.getByRole('button', { name: 'Move Employee / Pay Bucket Hours up' }).click();
+        await editDialog.getByRole('button', { name: 'Add Hours by Staff' }).click();
+        await editDialog.getByRole('button', { name: 'Move Hours by Staff up' }).click();
         await editDialog.getByRole('button', { name: 'Save' }).click();
 
         const editedRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Hours then Wages' });
         await expect(editedRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
-        await expect(editedRow).toContainText('Employee / Pay Bucket Hours → Shift Type Wages');
+        await expect(editedRow).toContainText('Hours by Staff → Wages by Shift Type');
         await expect(configurationRow).toHaveCount(0);
 
         await editedRow.getByRole('button', { name: 'Delete' }).click();

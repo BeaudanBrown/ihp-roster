@@ -890,7 +890,7 @@ tests = aroundAll withDatabaseTestContext do
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "Payroll Workbook exports"
                 fragmentResponse `responseBodyShouldContain` "Wages then Summary"
-                fragmentResponse `responseBodyShouldContain` "Shift Type Wages → Summary"
+                fragmentResponse `responseBodyShouldContain` "Wages by Shift Type → Summary"
                 fragmentResponse `responseBodyShouldContain` "Edit"
                 fragmentResponse `responseBodyShouldContain` "Delete"
                 fragmentResponse `responseBodyShouldNotContain` "Payroll Earnings CSV"
@@ -901,7 +901,7 @@ tests = aroundAll withDatabaseTestContext do
                 editDialogResponse `responseStatusShouldBe` status200
                 editDialogResponse `responseBodyShouldContain` "Edit export"
                 editDialogResponse `responseBodyShouldContain` "Wages then Summary"
-                editDialogResponse `responseBodyShouldContain` "Shift Type Wages"
+                editDialogResponse `responseBodyShouldContain` "Wages by Shift Type"
 
                 updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdatePayrollWorkbookConfigurationAction configuration.id)

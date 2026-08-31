@@ -1549,17 +1549,6 @@ export const leaveRequestsLeaveStaffHighlightMemberDomAttr = "data-bepis-leave-r
 export const leaveRequestsLeaveStaffHighlightPinDomAttr = "data-bepis-leave-requests-leave-staff-highlight-pin" as const;
 export const leaveRequestsLeaveSidePanelDomAttr = "data-bepis-leave-requests-leave-side-panel" as const;
 
-export const adminExportsPayrollWorkbookEditorRootDomAttr = "data-bepis-admin-exports-payroll-workbook-editor-root" as const;
-export const adminExportsPayrollWorkbookFamilyListDomAttr = "data-bepis-admin-exports-payroll-workbook-family-list" as const;
-export const adminExportsPayrollWorkbookFamilyValueDomAttr = "data-bepis-admin-exports-payroll-workbook-family-value" as const;
-export const adminExportsPayrollWorkbookFamilyRowDomAttr = "data-bepis-admin-exports-payroll-workbook-family-row" as const;
-export const adminExportsPayrollWorkbookFamilyMoveUpDomAttr = "data-bepis-admin-exports-payroll-workbook-family-move-up" as const;
-export const adminExportsPayrollWorkbookFamilyMoveDownDomAttr = "data-bepis-admin-exports-payroll-workbook-family-move-down" as const;
-export const adminExportsPayrollWorkbookFamilyRemoveDomAttr = "data-bepis-admin-exports-payroll-workbook-family-remove" as const;
-export const adminExportsPayrollWorkbookFamilyPickerDomAttr = "data-bepis-admin-exports-payroll-workbook-family-picker" as const;
-export const adminExportsPayrollWorkbookFamilyAddDomAttr = "data-bepis-admin-exports-payroll-workbook-family-add" as const;
-export const adminExportsPayrollWorkbookFamilyEmptyDomAttr = "data-bepis-admin-exports-payroll-workbook-family-empty" as const;
-
 export const timesheetsTimesheetSidePanelStates = {"collapsed":"collapsed","expanded":"expanded"} as const;
 export type TimesheetsTimesheetSidePanelState = "collapsed" | "expanded";
 export function isTimesheetsTimesheetSidePanelState(value: unknown): value is TimesheetsTimesheetSidePanelState {

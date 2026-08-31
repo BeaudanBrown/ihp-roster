@@ -12,10 +12,17 @@ module Application.Helper.FrontendContract.AppShell
     , OpenPayrollWorkbookConfigurationDeleteDialog
     , CreatePayrollWorkbookConfigurationOverlay
     , UpdatePayrollWorkbookConfigurationOverlay
+    , AddPayrollWorkbookConfigurationSheetOverlay
+    , RemovePayrollWorkbookConfigurationSheetOverlay
+    , MovePayrollWorkbookConfigurationSheetUpOverlay
+    , MovePayrollWorkbookConfigurationSheetDownOverlay
+    , PayrollWorkbookConfigurationDraftFields
     , ExportAnchorDateField
     , PayrollWorkbookConfigurationNameField
     , PayrollWorkbookSheetFamiliesField
     , PayrollWorkbookConfigurationRevisionField
+    , PayrollWorkbookConfigurationIdField
+    , PayrollWorkbookConfigurationSheetField
     , SubmitFeedback
     , FeedbackTypeField
     , ContentField
@@ -115,10 +122,16 @@ data OpenPayrollWorkbookConfigurationDialog
 data OpenPayrollWorkbookConfigurationDeleteDialog
 data CreatePayrollWorkbookConfigurationOverlay
 data UpdatePayrollWorkbookConfigurationOverlay
+data AddPayrollWorkbookConfigurationSheetOverlay
+data RemovePayrollWorkbookConfigurationSheetOverlay
+data MovePayrollWorkbookConfigurationSheetUpOverlay
+data MovePayrollWorkbookConfigurationSheetDownOverlay
 data ExportAnchorDateField
 data PayrollWorkbookConfigurationNameField
 data PayrollWorkbookSheetFamiliesField
 data PayrollWorkbookConfigurationRevisionField
+data PayrollWorkbookConfigurationIdField
+data PayrollWorkbookConfigurationSheetField
 data SubmitFeedback
 data FeedbackTypeField
 data ContentField
@@ -233,6 +246,10 @@ type AppShellContract =
              , Field PayrollWorkbookConfigurationRevisionField 'WireInt
              ]
             DialogSubmitOptions
+         , AppShellAction AddPayrollWorkbookConfigurationSheetOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
+         , AppShellAction RemovePayrollWorkbookConfigurationSheetOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
+         , AppShellAction MovePayrollWorkbookConfigurationSheetUpOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
+         , AppShellAction MovePayrollWorkbookConfigurationSheetDownOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
          , AppShellAction SubmitFeedback
             '[ Field FeedbackTypeField ('WireClosed FeedbackTypeEnum)
              , Field ContentField 'WireText
@@ -400,6 +417,24 @@ type DialogSubmitOptions =
      , AppShellHtmxTarget DialogOverlayMount
      , AppShellHtmxSwap "innerHTML"
      , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     ]
+
+type PayrollWorkbookConfigurationDraftFields =
+    '[ Field ExportAnchorDateField 'WireDay
+     , Field PayrollWorkbookConfigurationNameField 'WireText
+     , Field PayrollWorkbookSheetFamiliesField ('WireList 'WireText)
+     , Field PayrollWorkbookConfigurationRevisionField 'WireInt
+     , OptionalField PayrollWorkbookConfigurationIdField 'WireUUID
+     , Field PayrollWorkbookConfigurationSheetField 'WireText
+     ]
+
+type PayrollWorkbookConfigurationDraftOptions =
+    '[ AppShellHtmxMethod 'AppShellPost
+     , AppShellHtmxInclude "#payroll-workbook-configuration-editor-form"
+     , AppShellHtmxTarget DialogOverlayMount
+     , AppShellHtmxSwap "innerHTML"
+     , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     , AppShellHtmxSync "#payroll-workbook-configuration-editor-form:replace"
      ]
 
 type RosterShiftFields =

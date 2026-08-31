@@ -54,16 +54,6 @@ module Application.Helper.FrontendContract.Surface.Admin
     , RevokeVenueInvitation
     , RenewVenueInvitation
     , CreateExportJob
-    , PayrollWorkbookEditorRootRole
-    , PayrollWorkbookFamilyListRole
-    , PayrollWorkbookFamilyValueRole
-    , PayrollWorkbookFamilyRowRole
-    , PayrollWorkbookFamilyMoveUpRole
-    , PayrollWorkbookFamilyMoveDownRole
-    , PayrollWorkbookFamilyRemoveRole
-    , PayrollWorkbookFamilyPickerRole
-    , PayrollWorkbookFamilyAddRole
-    , PayrollWorkbookFamilyEmptyRole
     , CreateShiftType
     , UpdateShiftType
     , MoveShiftTypeUp
@@ -149,16 +139,6 @@ data CreateVenueInvitation
 data RevokeVenueInvitation
 data RenewVenueInvitation
 data CreateExportJob
-data PayrollWorkbookEditorRootRole
-data PayrollWorkbookFamilyListRole
-data PayrollWorkbookFamilyValueRole
-data PayrollWorkbookFamilyRowRole
-data PayrollWorkbookFamilyMoveUpRole
-data PayrollWorkbookFamilyMoveDownRole
-data PayrollWorkbookFamilyRemoveRole
-data PayrollWorkbookFamilyPickerRole
-data PayrollWorkbookFamilyAddRole
-data PayrollWorkbookFamilyEmptyRole
 data CreateShiftType
 data UpdateShiftType
 data MoveShiftTypeUp
@@ -334,16 +314,6 @@ type AdminExportsSurface =
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
-         , BrowserRole PayrollWorkbookEditorRootRole
-         , BrowserRole PayrollWorkbookFamilyListRole
-         , BrowserRole PayrollWorkbookFamilyValueRole
-         , BrowserRole PayrollWorkbookFamilyRowRole
-         , BrowserRole PayrollWorkbookFamilyMoveUpRole
-         , BrowserRole PayrollWorkbookFamilyMoveDownRole
-         , BrowserRole PayrollWorkbookFamilyRemoveRole
-         , BrowserRole PayrollWorkbookFamilyPickerRole
-         , BrowserRole PayrollWorkbookFamilyAddRole
-         , BrowserRole PayrollWorkbookFamilyEmptyRole
          ]
 
 type AdminShiftTypesSurface =

@@ -15,6 +15,7 @@ import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderToastOob, successToast)
 import qualified Data.ByteString.Base64 as Base64
+import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
@@ -119,6 +120,76 @@ respondWithPayrollWorkbookConfigurationEditorError anchorDate draft message =
         else do
             setErrorMessage message
             redirectToPath (adminExportsPath anchorDate)
+
+data PayrollWorkbookConfigurationDraftOperation
+    = AddDraftSheet
+    | RemoveDraftSheet
+    | MoveDraftSheetUp
+    | MoveDraftSheetDown
+
+respondWithPayrollWorkbookConfigurationDraftControl ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    PayrollWorkbookConfigurationDraftOperation ->
+    Day ->
+    Text ->
+    [Text] ->
+    Int ->
+    Maybe UUID ->
+    Text ->
+    IO ()
+respondWithPayrollWorkbookConfigurationDraftControl operation anchorDate name familyKeys revision maybeConfigurationId targetFamilyKey =
+    case (mapM payrollWorkbookSheetFamilyFromText familyKeys, payrollWorkbookSheetFamilyFromText targetFamilyKey) of
+        (Left message, _) -> respondWithDraftError newPayrollWorkbookConfigurationDraft message
+        (_, Left message) -> respondWithDraftError newPayrollWorkbookConfigurationDraft message
+        (Right families, Right targetFamily)
+            | length families /= length (List.nub families) -> respondWithDraftError (draftWith families) "Sheet families cannot be duplicated."
+            | otherwise -> respondWithDraft (draftWith (applyDraftOperation operation targetFamily families))
+  where
+    draftWith families =
+        PayrollWorkbookConfigurationDraft
+            { payrollWorkbookConfigurationDraftId = Id <$> maybeConfigurationId
+            , payrollWorkbookConfigurationDraftName = name
+            , payrollWorkbookConfigurationDraftFamilies = families
+            , payrollWorkbookConfigurationDraftRevision = revision
+            , payrollWorkbookConfigurationDraftError = Nothing
+            }
+    respondWithDraft draft =
+        if isHtmxRequest
+            then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft)
+            else redirectToPath (adminExportsPath anchorDate)
+    respondWithDraftError draft message =
+        respondWithDraft draft { payrollWorkbookConfigurationDraftError = Just message }
+
+applyDraftOperation :: PayrollWorkbookConfigurationDraftOperation -> PayrollWorkbookSheetFamily -> [PayrollWorkbookSheetFamily] -> [PayrollWorkbookSheetFamily]
+applyDraftOperation operation target families =
+    case operation of
+        AddDraftSheet
+            | target `elem` families -> families
+            | otherwise -> families <> [target]
+        RemoveDraftSheet -> filter (/= target) families
+        MoveDraftSheetUp -> moveDraftSheet (-1) target families
+        MoveDraftSheetDown -> moveDraftSheet 1 target families
+
+moveDraftSheet :: Int -> PayrollWorkbookSheetFamily -> [PayrollWorkbookSheetFamily] -> [PayrollWorkbookSheetFamily]
+moveDraftSheet offset target families =
+    case List.elemIndex target families of
+        Nothing -> families
+        Just sourceIndex
+            | destinationIndex < 0 || destinationIndex >= length families -> families
+            | otherwise -> swapAt sourceIndex destinationIndex families
+          where
+            destinationIndex = sourceIndex + offset
+
+swapAt :: Int -> Int -> [value] -> [value]
+swapAt leftIndex rightIndex values =
+    zipWith replace [0 :: Int ..] values
+  where
+    leftValue = values !! leftIndex
+    rightValue = values !! rightIndex
+    replace index value
+        | index == leftIndex = rightValue
+        | index == rightIndex = leftValue
+        | otherwise = value
 
 adminExportsPath :: Day -> Text
 adminExportsPath anchorDate =
@@ -255,6 +326,66 @@ instance Controller ExportsController where
                         updatePayrollWorkbookConfigurationMutation payrollWorkbookConfigurationId input >>= \case
                             Left configurationError -> respondWithPayrollWorkbookConfigurationEditorError anchorDate draft (payrollWorkbookConfigurationErrorMessage configurationError)
                             Right result -> respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook export updated." result
+
+    action currentAction@AddPayrollWorkbookConfigurationSheetDraftAction = runBepis currentAction BepisFormAction do
+        case parseAppShellActionParams @AppShell.AddPayrollWorkbookConfigurationSheetOverlay of
+            Left errors -> do
+                fallbackSelection <- currentExportWeekSelection
+                respondWithPayrollWorkbookConfigurationEditorError fallbackSelection.weekStart newPayrollWorkbookConfigurationDraft (surfaceRequestFieldErrorsMessage errors)
+            Right fields ->
+                respondWithPayrollWorkbookConfigurationDraftControl
+                    AddDraftSheet
+                    (surfaceFieldValue @AppShell.ExportAnchorDateField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationNameField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookSheetFamiliesField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationRevisionField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationIdField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationSheetField fields)
+
+    action currentAction@RemovePayrollWorkbookConfigurationSheetDraftAction = runBepis currentAction BepisFormAction do
+        case parseAppShellActionParams @AppShell.RemovePayrollWorkbookConfigurationSheetOverlay of
+            Left errors -> do
+                fallbackSelection <- currentExportWeekSelection
+                respondWithPayrollWorkbookConfigurationEditorError fallbackSelection.weekStart newPayrollWorkbookConfigurationDraft (surfaceRequestFieldErrorsMessage errors)
+            Right fields ->
+                respondWithPayrollWorkbookConfigurationDraftControl
+                    RemoveDraftSheet
+                    (surfaceFieldValue @AppShell.ExportAnchorDateField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationNameField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookSheetFamiliesField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationRevisionField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationIdField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationSheetField fields)
+
+    action currentAction@MovePayrollWorkbookConfigurationSheetUpDraftAction = runBepis currentAction BepisFormAction do
+        case parseAppShellActionParams @AppShell.MovePayrollWorkbookConfigurationSheetUpOverlay of
+            Left errors -> do
+                fallbackSelection <- currentExportWeekSelection
+                respondWithPayrollWorkbookConfigurationEditorError fallbackSelection.weekStart newPayrollWorkbookConfigurationDraft (surfaceRequestFieldErrorsMessage errors)
+            Right fields ->
+                respondWithPayrollWorkbookConfigurationDraftControl
+                    MoveDraftSheetUp
+                    (surfaceFieldValue @AppShell.ExportAnchorDateField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationNameField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookSheetFamiliesField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationRevisionField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationIdField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationSheetField fields)
+
+    action currentAction@MovePayrollWorkbookConfigurationSheetDownDraftAction = runBepis currentAction BepisFormAction do
+        case parseAppShellActionParams @AppShell.MovePayrollWorkbookConfigurationSheetDownOverlay of
+            Left errors -> do
+                fallbackSelection <- currentExportWeekSelection
+                respondWithPayrollWorkbookConfigurationEditorError fallbackSelection.weekStart newPayrollWorkbookConfigurationDraft (surfaceRequestFieldErrorsMessage errors)
+            Right fields ->
+                respondWithPayrollWorkbookConfigurationDraftControl
+                    MoveDraftSheetDown
+                    (surfaceFieldValue @AppShell.ExportAnchorDateField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationNameField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookSheetFamiliesField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationRevisionField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationIdField fields)
+                    (surfaceFieldValue @AppShell.PayrollWorkbookConfigurationSheetField fields)
 
     action currentAction@ConfirmDeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId, anchorDate = anchorDateParam } = runBepis currentAction BepisFormAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam

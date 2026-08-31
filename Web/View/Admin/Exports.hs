@@ -151,7 +151,7 @@ savedConfigurationSummary :: SavedPayrollWorkbookConfiguration -> Text
 savedConfigurationSummary configuration =
     Text.intercalate
         " → "
-        (map payrollWorkbookSheetFamilyLabel configuration.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies)
+        (map payrollWorkbookSheetFamilyConfigurationLabel configuration.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies)
 
 renderAddExportButton :: ReportWeekSelection -> Html
 renderAddExportButton selection =

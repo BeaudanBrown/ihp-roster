@@ -417,7 +417,6 @@ scripts = [hsx|
         <script src={assetPath "/app-xero.js"}></script>
         <script src={assetPath "/app-toggle-buttons.js"}></script>
         <script src={assetPath "/app-preferences.js"}></script>
-        <script src={assetPath "/app-payroll-workbook-configurations.js"}></script>
     |]
 
 devScripts :: Html

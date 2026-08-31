@@ -61,10 +61,14 @@ cross-module safety and payroll contracts.
   least one presentation family. Admins, owners, and unimpersonated founder
   support with a real current venue may create, list, read, and delete saved
   definitions; managers and cross-venue identifiers are denied. The Admin
-  exports surface provides ordered family selectors, included-sheet summaries,
-  per-definition download actions, and an explicit two-step delete confirmation;
-  stale or foreign identifiers produce controlled errors. Creation and editing
-  share one catalog-driven ordered-list dialog with no storage-level family-count
+  exports surface provides included-sheet summaries, per-definition download
+  actions, and an explicit two-step delete confirmation; stale or foreign
+  identifiers produce controlled errors. Creation and editing share one
+  catalog-driven dialog that always renders Included sheets and Excluded sheets.
+  Server-rendered Add, Remove, Up, and Down controls transform only the unsaved
+  overlay draft; Save is the sole persistence action. Configuration-facing copy
+  names the families Hours/Wages by Staff or Shift Type without changing stable
+  family keys or XLSX worksheet names. There is no storage-level family-count
   ceiling; revisions reject stale overwrites. All configurations appear once in
   the normal exports list and may be deleted, including the venue's final one.
   Payroll Earnings CSV generation is hidden while its backend and historical

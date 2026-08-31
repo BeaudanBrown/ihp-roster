@@ -1,4 +1,6 @@
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Web.View.Admin.PayrollWorkbookConfigurationDialog
     ( PayrollWorkbookConfigurationDraft (..)
@@ -13,15 +15,16 @@ import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Request (appShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             applyAppShellActionAttrs,
                                                              renderAppShellActionForm)
-import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
-import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View.Overlay
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as Text
+import qualified Data.List as List
 import Data.Text.Encoding (decodeUtf8)
+import Data.Typeable (Typeable)
 import Web.View.Prelude
 
 data PayrollWorkbookConfigurationDraft = PayrollWorkbookConfigurationDraft
@@ -68,38 +71,26 @@ renderEditorForm :: Day -> PayrollWorkbookConfigurationDraft -> Html
 renderEditorForm anchorDate draft =
     case draft.payrollWorkbookConfigurationDraftId of
         Nothing ->
-            let fields =
-                    appShellActionFields @AppShell.CreatePayrollWorkbookConfigurationOverlay
-                        (surfaceField @AppShell.ExportAnchorDateField anchorDate)
-                        ( surfaceField @AppShell.PayrollWorkbookConfigurationNameField draft.payrollWorkbookConfigurationDraftName
-                            &: surfaceField @AppShell.PayrollWorkbookSheetFamiliesField (map payrollWorkbookSheetFamilyKey draft.payrollWorkbookConfigurationDraftFamilies)
-                            &: noSurfaceFields
-                        )
-             in renderAppShellActionForm
-                    (appShellActionByMarker @AppShell.CreatePayrollWorkbookConfigurationOverlay)
-                    (editorRoute (pathTo CreatePayrollWorkbookConfigurationAction))
-                    [hsx|
-                        <input type="hidden" name={surfaceFieldNameFrom @AppShell.ExportAnchorDateField fields} value={tshow anchorDate} />
-                        {renderEditorFields fields draft}
-                    |]
+            renderAppShellActionForm
+                (appShellActionByMarker @AppShell.CreatePayrollWorkbookConfigurationOverlay)
+                (editorRoute (pathTo CreatePayrollWorkbookConfigurationAction))
+                (renderEditorFields anchorDate draft draftFields)
         Just configurationId ->
-            let fields =
-                    appShellActionFields @AppShell.UpdatePayrollWorkbookConfigurationOverlay
-                        (surfaceField @AppShell.ExportAnchorDateField anchorDate)
-                        ( surfaceField @AppShell.PayrollWorkbookConfigurationNameField draft.payrollWorkbookConfigurationDraftName
-                            &: surfaceField @AppShell.PayrollWorkbookSheetFamiliesField (map payrollWorkbookSheetFamilyKey draft.payrollWorkbookConfigurationDraftFamilies)
-                            &: surfaceField @AppShell.PayrollWorkbookConfigurationRevisionField draft.payrollWorkbookConfigurationDraftRevision
-                            &: noSurfaceFields
-                        )
-             in renderAppShellActionForm
-                    (appShellActionByMarker @AppShell.UpdatePayrollWorkbookConfigurationOverlay)
-                    (editorRoute (pathTo (UpdatePayrollWorkbookConfigurationAction configurationId)))
-                    [hsx|
-                        <input type="hidden" name={surfaceFieldNameFrom @AppShell.ExportAnchorDateField fields} value={tshow anchorDate} />
-                        <input type="hidden" name={surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationRevisionField fields} value={tshow draft.payrollWorkbookConfigurationDraftRevision} />
-                        {renderEditorFields fields draft}
-                    |]
+            renderAppShellActionForm
+                (appShellActionByMarker @AppShell.UpdatePayrollWorkbookConfigurationOverlay)
+                (editorRoute (pathTo (UpdatePayrollWorkbookConfigurationAction configurationId)))
+                (renderEditorFields anchorDate draft draftFields)
   where
+    draftFields =
+        appShellActionFields @AppShell.AddPayrollWorkbookConfigurationSheetOverlay
+            (surfaceField @AppShell.ExportAnchorDateField anchorDate)
+            ( surfaceField @AppShell.PayrollWorkbookConfigurationNameField draft.payrollWorkbookConfigurationDraftName
+                &: surfaceField @AppShell.PayrollWorkbookSheetFamiliesField (map payrollWorkbookSheetFamilyKey draft.payrollWorkbookConfigurationDraftFamilies)
+                &: surfaceField @AppShell.PayrollWorkbookConfigurationRevisionField draft.payrollWorkbookConfigurationDraftRevision
+                &: surfaceOptionalField @AppShell.PayrollWorkbookConfigurationIdField (unpackId <$> draft.payrollWorkbookConfigurationDraftId)
+                &: surfaceField @AppShell.PayrollWorkbookConfigurationSheetField ""
+                &: noSurfaceFields
+            )
     editorRoute actionUrl =
         AppShellActionRoute
             { appShellActionRouteUrl = actionUrl
@@ -109,80 +100,138 @@ renderEditorForm anchorDate draft =
             , appShellActionRouteExtraAttrs = [("id", editorFormId)]
             }
 
-renderEditorFields fields draft = [hsx|
-    <div {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookEditorRootRole)}>
-        {maybe mempty renderError draft.payrollWorkbookConfigurationDraftError}
-        <input type="hidden"
-               name={surfaceFieldNameFrom @AppShell.PayrollWorkbookSheetFamiliesField fields}
-               value={encodedFamilies draft.payrollWorkbookConfigurationDraftFamilies}
-               {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyValueRole)} />
-        <div class="mb-3">
-            <label class="form-label" for="payroll-workbook-configuration-name">Export name</label>
-            <input id="payroll-workbook-configuration-name"
-                   class="form-control"
-                   type="text"
-                   maxlength="100"
-                   required="required"
-                   name={surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationNameField fields}
-                   value={draft.payrollWorkbookConfigurationDraftName}
-                   placeholder="Payroll Workbook" />
-        </div>
-        <div class="mb-3">
-            <div class="form-label">Included sheet families</div>
-            <div class="d-grid gap-2"
-                 {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyListRole)}>
-                {forEach draft.payrollWorkbookConfigurationDraftFamilies renderFamilyRow}
-            </div>
-            <div class="small app-muted py-2"
-                 {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyEmptyRole)}>
-                No sheet families included yet.
-            </div>
-        </div>
-        <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
-            <div class="flex-grow-1">
-                <label class="form-label" for="payroll-workbook-family-picker">Add sheet</label>
-                <select id="payroll-workbook-family-picker"
-                        class="form-select"
-                        {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyPickerRole)}>
-                    <option value="">Choose a sheet family</option>
-                    {forEach availablePayrollWorkbookSheetFamilies renderPickerOption}
-                </select>
-            </div>
-            <button type="button"
-                    class="btn btn-outline-primary"
-                    {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyAddRole)}>
-                Add sheet
-            </button>
-        </div>
-        <div class="small app-muted border-top pt-3">
-            <span class="fw-semibold">Data</span> is included automatically and hidden. It cannot be removed or reordered.
-        </div>
+renderEditorFields saveFieldsAnchor draft saveFields = [hsx|
+    {maybe mempty renderError draft.payrollWorkbookConfigurationDraftError}
+    <input type="hidden"
+           name={surfaceFieldNameFrom @AppShell.ExportAnchorDateField saveFields}
+           value={tshow saveFieldsAnchor} />
+    <input type="hidden"
+           name={surfaceFieldNameFrom @AppShell.PayrollWorkbookSheetFamiliesField saveFields}
+           value={encodedFamilies draft.payrollWorkbookConfigurationDraftFamilies} />
+    {renderRevisionField saveFields draft}
+    {renderConfigurationIdField saveFields draft}
+    <div class="mb-4">
+        <label class="form-label" for="payroll-workbook-configuration-name">Export name</label>
+        <input id="payroll-workbook-configuration-name"
+               class="form-control"
+               type="text"
+               maxlength="100"
+               required="required"
+               name={surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationNameField saveFields}
+               value={draft.payrollWorkbookConfigurationDraftName}
+               placeholder="Payroll Workbook" />
     </div>
+    {renderIncludedSheets (surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationSheetField saveFields) draft}
+    {renderExcludedSheets (surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationSheetField saveFields) draft}
 |]
   where
     renderError message = [hsx|<div class="alert alert-danger" role="alert">{message}</div>|]
-    renderPickerOption family = [hsx|
-        <option value={payrollWorkbookSheetFamilyKey family}>{payrollWorkbookSheetFamilyLabel family}</option>
-    |]
 
-renderFamilyRow :: PayrollWorkbookSheetFamily -> Html
-renderFamilyRow family = [hsx|
-    <div class="d-flex align-items-center gap-2 border rounded p-2"
-         draggable="true"
-         {...familyKeyAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyRowRole) family}>
-        <span class="text-body-secondary" aria-hidden="true">⋮⋮</span>
-        <span class="flex-grow-1 fw-semibold">{payrollWorkbookSheetFamilyLabel family}</span>
-        <button type="button" class="btn btn-outline-secondary btn-sm" aria-label={"Move " <> payrollWorkbookSheetFamilyLabel family <> " up"}
-                {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyMoveUpRole)}>↑</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" aria-label={"Move " <> payrollWorkbookSheetFamilyLabel family <> " down"}
-                {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyMoveDownRole)}>↓</button>
-        <button type="button" class="btn btn-outline-danger btn-sm" aria-label={"Remove " <> payrollWorkbookSheetFamilyLabel family}
-                {...roleAttrs (surfaceBrowserRoleValue @Surface.AdminExportsSurface @Surface.PayrollWorkbookFamilyRemoveRole)}>Remove</button>
-    </div>
+renderRevisionField saveFields draft = [hsx|
+    <input type="hidden"
+           name={surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationRevisionField saveFields}
+           value={tshow draft.payrollWorkbookConfigurationDraftRevision} />
 |]
 
-familyKeyAttrs attribute family =
-    [(name, payrollWorkbookSheetFamilyKey family) | (name, _) <- roleAttrs attribute]
+renderConfigurationIdField saveFields draft =
+    case draft.payrollWorkbookConfigurationDraftId of
+        Nothing -> mempty
+        Just configurationId -> [hsx|
+            <input type="hidden"
+                   name={surfaceFieldNameFrom @AppShell.PayrollWorkbookConfigurationIdField saveFields}
+                   value={tshow configurationId} />
+        |]
+
+renderIncludedSheets :: Text -> PayrollWorkbookConfigurationDraft -> Html
+renderIncludedSheets sheetFieldName draft = [hsx|
+    <section class="mb-4" aria-labelledby="payroll-workbook-included-sheets-heading">
+        <h3 id="payroll-workbook-included-sheets-heading" class="h6 mb-2">Included sheets</h3>
+        <div class="d-grid gap-2">{renderIncludedRows}</div>
+    </section>
+|]
+  where
+    families = draft.payrollWorkbookConfigurationDraftFamilies
+    renderIncludedRows
+        | null families = [hsx|<p class="small app-muted mb-0">No sheets included.</p>|]
+        | otherwise = forEach (zip [0 :: Int ..] families) renderIncludedSheet
+    renderIncludedSheet (index, family) = [hsx|
+        <div class="d-flex align-items-center gap-2 border rounded p-2">
+            <span class="flex-grow-1 fw-semibold">{payrollWorkbookSheetFamilyConfigurationLabel family}</span>
+            {renderDraftControl @AppShell.MovePayrollWorkbookConfigurationSheetUpOverlay
+                sheetFieldName
+                MovePayrollWorkbookConfigurationSheetUpDraftAction
+                family
+                "↑"
+                ("Move " <> payrollWorkbookSheetFamilyConfigurationLabel family <> " up")
+                "btn btn-outline-secondary btn-sm"
+                (index == 0)}
+            {renderDraftControl @AppShell.MovePayrollWorkbookConfigurationSheetDownOverlay
+                sheetFieldName
+                MovePayrollWorkbookConfigurationSheetDownDraftAction
+                family
+                "↓"
+                ("Move " <> payrollWorkbookSheetFamilyConfigurationLabel family <> " down")
+                "btn btn-outline-secondary btn-sm"
+                (index == length families - 1)}
+            {renderDraftControl @AppShell.RemovePayrollWorkbookConfigurationSheetOverlay
+                sheetFieldName
+                RemovePayrollWorkbookConfigurationSheetDraftAction
+                family
+                "Remove"
+                ("Remove " <> payrollWorkbookSheetFamilyConfigurationLabel family)
+                "btn btn-outline-danger btn-sm"
+                False}
+        </div>
+    |]
+
+renderExcludedSheets :: Text -> PayrollWorkbookConfigurationDraft -> Html
+renderExcludedSheets sheetFieldName draft = [hsx|
+    <section aria-labelledby="payroll-workbook-excluded-sheets-heading">
+        <h3 id="payroll-workbook-excluded-sheets-heading" class="h6 mb-2">Excluded sheets</h3>
+        <div class="d-grid gap-2">{renderExcludedRows}</div>
+    </section>
+|]
+  where
+    excludedFamilies = availablePayrollWorkbookSheetFamilies List.\\ draft.payrollWorkbookConfigurationDraftFamilies
+    renderExcludedRows
+        | null excludedFamilies = [hsx|<p class="small app-muted mb-0">No sheets excluded.</p>|]
+        | otherwise = forEach excludedFamilies renderExcludedSheet
+    renderExcludedSheet family = [hsx|
+        <div class="d-flex align-items-center gap-2 border rounded p-2">
+            <span class="flex-grow-1 fw-semibold">{payrollWorkbookSheetFamilyConfigurationLabel family}</span>
+            {renderDraftControl @AppShell.AddPayrollWorkbookConfigurationSheetOverlay
+                sheetFieldName
+                AddPayrollWorkbookConfigurationSheetDraftAction
+                family
+                "Add"
+                ("Add " <> payrollWorkbookSheetFamilyConfigurationLabel family)
+                "btn btn-outline-primary btn-sm"
+                False}
+        </div>
+    |]
+
+renderDraftControl :: forall marker. Typeable marker => Text -> ExportsController -> PayrollWorkbookSheetFamily -> Text -> Text -> Text -> Bool -> Html
+renderDraftControl sheetFieldName action family label ariaLabel buttonClass disabled =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @marker)
+        AppShellActionRoute
+            { appShellActionRouteUrl =
+                appendQueryParams
+                    (pathTo action)
+                    [(sheetFieldName, payrollWorkbookSheetFamilyKey family)]
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = []
+            }
+        [hsx|
+            <button type="button"
+                    class={buttonClass}
+                    aria-label={ariaLabel}
+                    disabled={disabled}>
+                {label}
+            </button>
+        |]
 
 encodedFamilies :: [PayrollWorkbookSheetFamily] -> Text
 encodedFamilies families =

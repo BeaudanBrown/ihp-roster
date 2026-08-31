@@ -109,6 +109,10 @@ data ExportsController
     | EditPayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | CreatePayrollWorkbookConfigurationAction
     | UpdatePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration) }
+    | AddPayrollWorkbookConfigurationSheetDraftAction
+    | RemovePayrollWorkbookConfigurationSheetDraftAction
+    | MovePayrollWorkbookConfigurationSheetUpDraftAction
+    | MovePayrollWorkbookConfigurationSheetDownDraftAction
     | ConfirmDeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | DeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | DownloadExportJobAction { exportJobId :: !(Id ExportJob) }
