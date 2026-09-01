@@ -21,6 +21,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , adminXeroPayItemImportWaitLiveFragment
     , adminXeroReferenceSyncLiveFragment
     , adminXeroShellLiveFragment
+    , adminXeroStaffMappingsWaitLiveFragment
     , adminXeroTimesheetPreparationWaitLiveFragment
     , matchAdminExportsLiveFragment
     , matchAdminExportsLiveScope
@@ -40,6 +41,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , matchAdminXeroPayItemImportWaitLiveFragment
     , matchAdminXeroReferenceSyncLiveFragment
     , matchAdminXeroShellLiveFragment
+    , matchAdminXeroStaffMappingsWaitLiveFragment
     , matchAdminXeroTimesheetPreparationWaitLiveFragment
     ) where
 
@@ -322,6 +324,23 @@ matchAdminXeroShellLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
         @Types1.AdminXeroShellFragment
+
+adminXeroStaffMappingsWaitLiveFragment ::
+    UUID.UUID ->
+    SurfaceFragmentKey
+adminXeroStaffMappingsWaitLiveFragment referenceSyncJobId =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroStaffMappingsWaitFragment
+        ( surfaceField @Types1.ReferenceSyncJobId referenceSyncJobId
+            &: noSurfaceFields
+        )
+
+matchAdminXeroStaffMappingsWaitLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ())
+matchAdminXeroStaffMappingsWaitLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroStaffMappingsWaitFragment
 
 adminXeroTimesheetPreparationWaitLiveFragment :: SurfaceFragmentKey
 adminXeroTimesheetPreparationWaitLiveFragment =

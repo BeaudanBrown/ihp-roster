@@ -70,10 +70,11 @@ generates frontend contracts once through its isolated tooling package; later
 architecture checks consume that current output. Fingerprinted per-worktree
 verification caches retain successful compilation dependencies but never omit a
 validation subject. `dev-start` and
-`just dev` first use content fingerprints to generate only stale frontend
-contracts, Haskell Surface adapters, and JavaScript, then run the coordinated
-frontend-generated watcher plus the frontend asset watcher. IHP's `RunDevServer`
-remains the sole live owner of schema-derived `build/Generated/` Haskell types.
+`just dev` first use content fingerprints to generate only stale schema-derived
+Haskell types, frontend contracts, Haskell Surface adapters, and JavaScript, then
+run one workspace-owned generated watcher plus the frontend asset watcher.
+Focused Haskell commands use the same fast schema/compiler provenance marker, so
+ignored `build/Generated/` output cannot survive a branch switch unnoticed.
 Foreground observability is opt-in via `IHP_ROSTER_DEV_OBSERVABILITY=1`;
 `dev-stop` cleans up detached dev processes. There is no Vite dev server or true
 HMR requirement. Contract-source edits regenerate both Haskell adapters and
@@ -94,6 +95,7 @@ bash ./bin/in-env dev-start
 bash ./bin/in-env dev-wait
 bash ./bin/in-env dev-workspace-info
 bash ./bin/in-env dev-stop
+bash ./bin/in-env dev-db-reset
 bash ./bin/in-env seed-dev app
 bash ./bin/in-env psql -d app
 ```
@@ -102,8 +104,22 @@ bash ./bin/in-env psql -d app
 Stripe-test mode: it opens `https://dev.bepis.lol` with `dev-tunnel`, creates a
 temporary webhook endpoint at the application's single pinned Stripe API
 version, and runs the app in the foreground with that public origin for Checkout
-and email links. It deletes the endpoint on exit, requires a valid local Stripe
-test configuration, and exposes the primary workspace until Ctrl-C. Managed workspaces
+and email links. Epic worktree provisioning links the primary checkout's local
+`.ghci` and `.env` when present, without copying their contents or replacing
+existing worktree configuration; missing primary configuration does not block
+provisioning. Routine workspace setup uses validated registry identity resolution
+without expensive process, resource, or HLS inspection; explicit
+`epic-worktree inspect` retains those diagnostics. `ddev` deletes the endpoint
+on exit, requires a valid local Stripe test
+configuration, and exposes the current workspace until Ctrl-C. Foreground
+development does not open a browser by default; set `IHP_BROWSER` to an explicit
+browser command to opt in. `just db` ensures and hot-resets the workspace database;
+`just seed-dev` performs that reset itself before loading complete development
+fixtures, so combining them is redundant. Both serialize maintenance, preserve
+the running IHP/GHCi process, and wait for one reconnected durable listener before
+returning. Long-lived development processes inherit the workspace's equal-weight
+cgroup slice.
+Managed workspaces
 derive isolated ports, PostgreSQL state, and runtime paths; inspect them with
 `dev-workspace-info --json` rather than assuming addresses. See `AGENTS.md` for
 epic-worktree delegation and approval boundaries.

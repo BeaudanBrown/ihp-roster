@@ -177,7 +177,7 @@ tests = describe "Schema" do
         allVenueRoleValues `shouldBe` ["worker", "supervisor", "manager", "venue_admin", "venue_owner"]
         allPlatformRoleValues `shouldBe` ["super_admin"]
         allLeaveRequestStatusValues `shouldBe` ["pending", "approved", "denied"]
-        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv"]
+        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv", "payroll_workbook_xlsx"]
         allExportJobStatusValues `shouldBe` ["pending", "ready", "expired"]
 
         parseUserRole ("staff" :: Text) `shouldBe` Just StaffRole
@@ -202,6 +202,7 @@ tests = describe "Schema" do
         parseExportJobType "staff_pay_csv" `shouldBe` Just StaffPayCsv
         parseExportJobType "hourly_breakdown_zip" `shouldBe` Just HourlyBreakdownZip
         parseExportJobType "payroll_earnings_csv" `shouldBe` Just PayrollEarningsCsv
+        parseExportJobType "payroll_workbook_xlsx" `shouldBe` Just PayrollWorkbookXlsx
         parseExportJobType "leave_csv" `shouldBe` Nothing
         parseExportJobStatus "pending" `shouldBe` Just ExportPending
         parseExportJobStatus "ready" `shouldBe` Just ExportReady
@@ -225,8 +226,48 @@ tests = describe "Schema" do
         canAssignVenueRole False (Just VenueAdmin) VenueOwner VenueAdmin `shouldBe` False
         canAssignVenueRole False (Just VenueOwner) VenueOwner VenueAdmin `shouldBe` True
         canAssignVenueRole True Nothing VenueOwner VenueAdmin `shouldBe` True
-        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv] `shouldBe` allExportJobTypeValues
+        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] `shouldBe` allExportJobTypeValues
         map exportJobStatusToText [ExportPending, ExportReady, ExportExpired] `shouldBe` allExportJobStatusValues
+
+    it "retains the additive Payroll Workbook XLSX export migration" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788200000-add-payroll-workbook-xlsx-export-contract.sql"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "export_jobs_payroll_workbook_xlsx_contract"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "export_type <> 'payroll_workbook_xlsx'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "file_encoding = 'base64'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+
+    it "retains additive venue-scoped Payroll Workbook configuration persistence" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788200100-add-payroll-workbook-configurations.sql"
+        forM_
+            [ "CREATE TABLE payroll_workbook_configurations"
+            , "CREATE TABLE payroll_workbook_configuration_families"
+            , "ON DELETE CASCADE"
+            , "definition_version = 1"
+            , "payroll_workbook_configurations_venue_name_idx"
+            ]
+            (\requiredSql -> migrationSqlText `shouldSatisfy` Text.isInfixOf requiredSql)
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "export_jobs"
+
+    it "makes Payroll Workbook configurations editable and catalog-scalable without replacing customer rows" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788300000-make-payroll-workbook-configurations-editable.sql"
+        forM_
+            [ "ADD COLUMN revision"
+            , "DROP CONSTRAINT payroll_workbook_configuration_families_family_key_check"
+            , "DROP CONSTRAINT payroll_workbook_configuration_families_position_check"
+            , "ADD CHECK (position >= 0)"
+            , "'Payroll Workbook'"
+            , "ON CONFLICT (venue_id, lower(name)) DO NOTHING"
+            ]
+            (\requiredSql -> migrationSqlText `shouldSatisfy` Text.isInfixOf requiredSql)
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
 
     it "avoids IN-based CHECK constraints that pg_dump rewrites into parser-hostile ANY(ARRAY ...)" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -269,7 +310,8 @@ tests = describe "Schema" do
         let expectedEnumDeclarations =
                 [ "CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');"
                 , "CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');"
-                , "CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('verified', 'not_applicable', 'stale');"
+                , "CREATE TYPE xero_reference_sync_category_enum AS ENUM ('xero_staff', 'pay_items', 'payroll_calendars', 'accounts');"
+                , "CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('unmapped', 'verified', 'not_applicable', 'stale');"
                 , "CREATE TYPE xero_earnings_rate_mapping_status_enum AS ENUM ('unmapped', 'verified', 'stale');"
                 , "CREATE TYPE xero_pay_item_account_code_selection_status_enum AS ENUM ('none', 'verified', 'stale');"
                 , "CREATE TYPE xero_pay_item_requirement_status_enum AS ENUM ('proposed', 'matched', 'created', 'ignored', 'stale', 'rate_changed');"
@@ -287,6 +329,18 @@ tests = describe "Schema" do
             `shouldSatisfy` Text.isInfixOf "status TEXT"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_pay_run_status TEXT DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_timesheet_status TEXT DEFAULT NULL"
+
+    it "commits the Xero unmapped enum value before backfill first use" do
+        enumMigration <- TextIO.readFile "Application/Migration/1788400000-add-xero-staff-unmapped-status.sql"
+        backfillMigration <- TextIO.readFile "Application/Migration/1788400001-backfill-xero-staff-unmapped-status.sql"
+        enumMigration `shouldSatisfy` Text.isInfixOf "ADD VALUE 'unmapped' BEFORE 'verified'"
+        enumMigration `shouldNotSatisfy` Text.isInfixOf "UPDATE xero_staff_mappings"
+        enumMigration `shouldNotSatisfy` Text.isInfixOf "SET DEFAULT"
+        enumMigration `shouldNotSatisfy` Text.isInfixOf "COMMIT"
+        backfillMigration `shouldSatisfy` Text.isInfixOf "UPDATE xero_staff_mappings"
+        backfillMigration `shouldSatisfy` Text.isInfixOf "updated_by_user_id IS NULL"
+        backfillMigration `shouldSatisfy` Text.isInfixOf "SET DEFAULT 'unmapped'"
+        backfillMigration `shouldNotSatisfy` Text.isInfixOf "ADD VALUE"
 
     it "validates every live Xero workflow value before converting columns to enums" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1786000000.sql"

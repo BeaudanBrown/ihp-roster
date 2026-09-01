@@ -28,12 +28,14 @@ import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
-import Application.Xero.EmployeeId (XeroEmployeeId, xeroEmployeeIdText)
+import Application.Xero.EmployeeId (XeroEmployeeId, XeroEmployeeSelection (..),
+                                    parseXeroEmployeeId, xeroEmployeeIdText)
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
 import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePresentation (..),
                                                      xeroPreparationReferencePresentation)
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Application.Xero.ReferenceTrust.Service
+import Application.Xero.StaffMappings (applyXeroStaffMappingSelection)
 import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.Preview
@@ -312,9 +314,11 @@ applyDefaultNotPaidDecision ::
     IO ()
 applyDefaultNotPaidDecision run connection row = do
     let staff = row.mappingRowStaff
-    _ <- persistPreparationStaffMapping connection staff NotApplicable Nothing
-    _ <- applyPreparationDecision run (Just staff) StaffNotPaid Nothing Nothing Nothing
-    dismissPendingStaffAutoMatches run staff
+    applyXeroStaffMappingSelection currentVenueId currentUser.id connection staff.id XeroEmployeeNotApplicable >>= \case
+        Left _ -> pure ()
+        Right _ -> do
+            _ <- applyPreparationDecision run (Just staff) StaffNotPaid Nothing Nothing Nothing
+            dismissPendingStaffAutoMatches run staff
 
 applyPendingAutoMatchDecision ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -350,11 +354,13 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                 Just staff | not (isLinkedActiveStaff staff) -> pure (preparationFailure "Choose a linked active staff member from the current venue.")
                 Just staff ->
                     case decision of
-                        MarkStaffNotPaidThroughXero -> do
-                            _ <- persistPreparationStaffMapping connection staff NotApplicable Nothing
-                            _ <- applyPreparationDecision run (Just staff) StaffNotPaid Nothing Nothing Nothing
-                            dismissPendingStaffAutoMatches run staff
-                            reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
+                        MarkStaffNotPaidThroughXero ->
+                            applyXeroStaffMappingSelection currentVenueId currentUser.id connection staff.id XeroEmployeeNotApplicable >>= \case
+                                Left message -> pure (preparationFailure message)
+                                Right _ -> do
+                                    _ <- applyPreparationDecision run (Just staff) StaffNotPaid Nothing Nothing Nothing
+                                    dismissPendingStaffAutoMatches run staff
+                                    reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
                         SelectXeroEmployee employeeId -> do
                             pendingSuggestion <- fetchPendingStaffAutoMatch run staff
                             let employeeIdText = xeroEmployeeIdText employeeId
@@ -606,7 +612,7 @@ fetchPreparationNotPaidStaffIds connection = do
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhere (#mappingStatus, NotApplicable)
             |> fetch
-    pure (map (.staffId) (filter (isJust . (.updatedByUserId)) mappings))
+    pure (map (.staffId) mappings)
 
 ensurePreparationDecisionProposals ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -741,64 +747,16 @@ applyEmployeeMappingDecisionWithoutReload ::
     XeroTimesheetPreparationDecisionKindEnum ->
     Text ->
     IO (Either Text ())
-applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind employeeId = do
-    maybeEmployee <-
-        query @XeroEmployee
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#xeroEmployeeId, employeeId)
-            |> filterWhere (#providerAvailable, True)
-            |> fetchOneOrNothing
-    case maybeEmployee of
-        Nothing -> pure (Left "Choose a synced Xero employee from this venue.")
-        Just employee -> do
-            duplicateMapping <-
-                query @XeroStaffMapping
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                    |> filterWhere (#xeroEmployeeId, Just employeeId)
-                    |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
-                    |> filterWhereNot (#staffId, unpackId staff.id)
-                    |> fetchOneOrNothing
-            case duplicateMapping of
-                Just _ -> pure (Left "That Xero employee is already mapped to another staff member.")
-                Nothing -> do
-                    _ <- persistPreparationStaffMapping connection staff XeroStaffMappingStatusEnumVerified (Just employee)
-                    _ <- applyPreparationDecision run (Just staff) decisionKind (Just employee.xeroEmployeeId) (Just employee.displayName) Nothing
+applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind employeeId =
+    case parseXeroEmployeeId employeeId of
+        Left _ -> pure (Left "Choose a synced Xero employee from this venue.")
+        Right selectedEmployeeId ->
+            applyXeroStaffMappingSelection currentVenueId currentUser.id connection staff.id (XeroEmployeeSelected selectedEmployeeId) >>= \case
+                Left message -> pure (Left message)
+                Right mapping -> do
+                    _ <- applyPreparationDecision run (Just staff) decisionKind mapping.xeroEmployeeId mapping.xeroEmployeeName Nothing
                     dismissPendingStaffAutoMatches run staff
                     pure (Right ())
-
-persistPreparationStaffMapping ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroConnection ->
-    Staff ->
-    XeroStaffMappingStatusEnum ->
-    Maybe XeroEmployee ->
-    IO XeroStaffMapping
-persistPreparationStaffMapping connection staff mappingStatus maybeEmployee = do
-    now <- getCurrentTime
-    existingMapping <-
-        query @XeroStaffMapping
-            |> filterWhere (#staffId, unpackId staff.id)
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> fetchOneOrNothing
-    let prepared record =
-            record
-                |> set #venueId (unpackId currentVenueId)
-                |> set #staffId (unpackId staff.id)
-                |> set #xeroConnectionId (unpackId connection.id)
-                |> set #xeroEmployeeId ((.xeroEmployeeId) <$> maybeEmployee)
-                |> set #xeroEmployeeName ((.displayName) <$> maybeEmployee)
-                |> set #xeroEmployeeEmail (maybeEmployee >>= (.email))
-                |> set #mappingStatus mappingStatus
-                |> set #lastVerifiedAt (if xeroStaffMappingIsVerified mappingStatus then Just now else Nothing)
-                |> set #updatedByUserId (Just (unpackId currentUser.id))
-    case existingMapping of
-        Just existing -> prepared existing |> updateRecord
-        Nothing ->
-            prepared (newRecord @XeroStaffMapping)
-                |> set #createdByUserId (Just (unpackId currentUser.id))
-                |> createRecord
 
 dismissPendingStaffAutoMatches ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

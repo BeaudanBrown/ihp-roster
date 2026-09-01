@@ -9,14 +9,20 @@ module Web.View.Admin.Exports
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
+import qualified Application.Helper.FrontendContract.AppShell as AppShell
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             applyAppShellActionAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import qualified Text.Blaze.Html5 as Html5
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImplForWindow)
 import Web.View.Admin.Common
@@ -31,31 +37,27 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing    -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin exports live surface requires a current venue"
 
-renderExportsSectionFragment :: ReportWeekSelection -> Html
+renderExportsSectionFragment :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
-renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> Html
-renderExportsSectionFragmentWithSwap maybeSwapOob selection =
+renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionFragmentWithSwap maybeSwapOob selection savedConfigurations =
     renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderExportsSection selection}
+            {renderExportsSection selection savedConfigurations}
         </div>
     |]
 
-renderExportsSection :: ReportWeekSelection -> Html
-renderExportsSection selection =
+renderExportsSection :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSection selection savedConfigurations =
     renderConfigSection
         "admin-exports-section"
-        [hsx|
-            <p class="small app-muted mb-3">
-                Download approved Staff Hours, hourly staff hours or wage totals, or payroll earnings for one roster week. Exports are also retained in the venue's export history.
-            </p>
-        |]
+        mempty
         [hsx|
             {renderExportWeekSelector selection}
-            {renderExportGenerationForm selection}
+            {renderExportGenerationForm selection savedConfigurations}
         |]
         mempty
 
@@ -100,58 +102,90 @@ exportWeekLabel selection =
         <> " – "
         <> Text.pack (formatTime defaultTimeLocale "%-d %b %Y" selection.weekEnd)
 
-renderExportGenerationForm :: ReportWeekSelection -> Html
-renderExportGenerationForm selection = [hsx|
-    <div class="d-grid gap-2">
-        {renderExportCard selection StaffPayCsv "Staff Hours CSV" "Hours grouped by staff member and effective pay level for the selected roster week." "Download CSV" "admin-export-generation-form"}
-        {renderHourlyBreakdownExportCard selection}
-        {renderExportCard selection PayrollEarningsCsv "Payroll Earnings CSV" "Approved payroll earnings by staff, date, earnings bucket, and tracking code." "Download CSV" "admin-payroll-earnings-export-generation-form"}
+renderExportGenerationForm :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportGenerationForm selection savedConfigurations = [hsx|
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="fw-semibold">Payroll Workbook exports</div>
+        {renderAddExportButton selection}
+    </div>
+    <div class="d-grid gap-2" data-payroll-workbook-configuration-list="true">
+        {if null savedConfigurations then renderEmptyState "No Payroll Workbook exports configured." else forEach savedConfigurations (renderSavedConfigurationCard selection)}
     </div>
 |]
 
-renderHourlyBreakdownExportCard :: ReportWeekSelection -> Html
-renderHourlyBreakdownExportCard selection = [hsx|
-    <div class={appSurfaceClasses "p-3"} data-fixed-export-card="true" data-export-type="hourly-breakdown-variants">
+renderSavedConfigurationCard :: ReportWeekSelection -> SavedPayrollWorkbookConfiguration -> Html
+renderSavedConfigurationCard selection configuration = [hsx|
+    <div class={appSurfaceClasses "p-3"}
+         data-fixed-export-card="true"
+         data-export-type={exportJobTypeToText PayrollWorkbookXlsx}
+         data-payroll-workbook-configuration={tshow configurationRecord.id}>
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div>
-                <div class="fw-semibold">Hourly Breakdown ZIP</div>
-                <div class="small app-muted">Hourly staff hours or wage totals by shift type for each date in the selected roster week.</div>
+                <div class="fw-semibold">{configurationRecord.name}</div>
+                <div class="small app-muted">{savedConfigurationSummary configuration}</div>
             </div>
             <div class="d-flex flex-wrap gap-2">
-                {renderHourlyBreakdownButton selection HourlyBreakdownZip "Download staff hours" "admin-hourly-breakdown-export-generation-form"}
-                {renderHourlyBreakdownButton selection HourlyWageTotalsZip "Download wage totals" "admin-hourly-wage-totals-export-generation-form"}
+                {downloadForm}
+                {renderEditExportButton selection configurationRecord}
+                {renderDeleteExportButton selection configurationRecord}
             </div>
         </div>
     </div>
 |]
-
-renderHourlyBreakdownButton :: ReportWeekSelection -> ExportJobType -> Text -> Text -> Html
-renderHourlyBreakdownButton selection exportType downloadLabel formId =
-    renderFrontendSurfaceActionFormWithHiddenFields
-        (AdminAction.createExportJobAction fields)
-        (createExportRoute formId)
-        [hsx|<button class="btn btn-primary" type="submit">{downloadLabel}</button>|]
   where
-    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd exportType
+    configurationRecord = configuration.savedPayrollWorkbookConfigurationRecord
+    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd PayrollWorkbookXlsx (Just (unpackId configurationRecord.id))
+    downloadForm =
+        renderFrontendSurfaceActionFormWithHiddenFields
+            (AdminAction.createExportJobAction fields)
+            (createExportRoute ("admin-saved-payroll-workbook-download-" <> tshow configurationRecord.id))
+            [hsx|<button class="btn btn-primary" type="submit">Download</button>|]
 
-renderExportCard :: ReportWeekSelection -> ExportJobType -> Text -> Text -> Text -> Text -> Html
-renderExportCard selection exportType label description downloadLabel formId =
-    renderFrontendSurfaceActionFormWithHiddenFields
-        (AdminAction.createExportJobAction fields)
-        (createExportRoute formId)
-        [hsx|
-            <div class={appSurfaceClasses "p-3"} data-fixed-export-card="true" data-export-type={exportJobTypeToText exportType}>
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-                    <div>
-                        <div class="fw-semibold">{label}</div>
-                        <div class="small app-muted">{description}</div>
-                    </div>
-                    <button class="btn btn-primary" type="submit">{downloadLabel}</button>
-                </div>
-            </div>
-        |]
-  where
-    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd exportType
+savedConfigurationSummary :: SavedPayrollWorkbookConfiguration -> Text
+savedConfigurationSummary configuration =
+    "Sheets: "
+        <> Text.intercalate
+            " → "
+            (map payrollWorkbookSheetFamilyConfigurationLabel configuration.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies)
+
+renderAddExportButton :: ReportWeekSelection -> Html
+renderAddExportButton selection =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart))
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-primary"), ("type", "button")]
+            }
+        (Html5.button "Create new export")
+
+renderEditExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
+renderEditExportButton selection configuration =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart))
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("type", "button")]
+            }
+        (Html5.button "Edit")
+
+renderDeleteExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
+renderDeleteExportButton selection configuration =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDeleteDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart))
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-danger"), ("type", "button")]
+            }
+        (Html5.button "Delete")
 
 createExportRoute :: Text -> FrontendSurfaceActionRoute
 createExportRoute formId = FrontendSurfaceActionRoute

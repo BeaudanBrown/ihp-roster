@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Content-derived provenance for ignored IHP generated Haskell types.
+
+haskell_generated_repo_root() {
+    if [ -n "${HASKELL_GENERATED_REPO_ROOT:-}" ]; then
+        printf '%s\n' "$HASKELL_GENERATED_REPO_ROOT"
+    else
+        git rev-parse --show-toplevel 2>/dev/null || pwd
+    fi
+}
+
+haskell_generated_state_dir() {
+    printf '%s/generated-code\n' "$(dev-agent-state-dir)"
+}
+
+haskell_generated_input_hash() {
+    local repo_root schema_compiler compiler_hash ihp_schema ihp_schema_hash
+    repo_root="$(haskell_generated_repo_root)"
+    schema_compiler="$(command -v build-generated-code 2>/dev/null || true)"
+    if [ -n "$schema_compiler" ] && [ -f "$schema_compiler" ]; then
+        compiler_hash="$(sha256sum "$schema_compiler" | cut -d ' ' -f 1)"
+    else
+        compiler_hash="missing-build-generated-code"
+    fi
+    ihp_schema="${IHP_LIB:-}/IHPSchema.sql"
+    if [ -n "${IHP_LIB:-}" ] && [ -f "$ihp_schema" ]; then
+        ihp_schema_hash="$(sha256sum "$ihp_schema" | cut -d ' ' -f 1)"
+    else
+        ihp_schema_hash="missing-ihp-schema"
+    fi
+    {
+        printf 'application-schema\n'
+        sha256sum "$repo_root/Application/Schema.sql"
+        printf 'ihp-schema:%s\n' "$ihp_schema_hash"
+        printf 'schema-compiler:%s\n' "$compiler_hash"
+    } | sha256sum | cut -d ' ' -f 1
+}
+
+haskell_generated_marker_path() {
+    printf '%s/build/Generated/.bepis-input-hash\n' "$(haskell_generated_repo_root)"
+}
+
+haskell_generated_is_current() {
+    local expected="$1" repo_root marker
+    repo_root="$(haskell_generated_repo_root)"
+    marker="$(haskell_generated_marker_path)"
+    [ -f "$repo_root/build/Generated/Types.hs" ] \
+        && [ -f "$marker" ] \
+        && [ "$(cat "$marker")" = "$expected" ]
+}
+
+haskell_generated_write_marker() {
+    local input_hash="$1" marker temporary
+    marker="$(haskell_generated_marker_path)"
+    mkdir -p "$(dirname "$marker")"
+    temporary="$(mktemp "${marker}.XXXXXX")"
+    printf '%s\n' "$input_hash" >"$temporary"
+    mv "$temporary" "$marker"
+}
+
+haskell_generation_lock() {
+    local state_dir
+    state_dir="$(haskell_generated_state_dir)"
+    mkdir -p "$state_dir"
+    exec 6>"$state_dir/haskell-generation.lock"
+    flock 6
+}

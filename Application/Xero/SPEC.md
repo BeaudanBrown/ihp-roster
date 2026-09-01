@@ -24,8 +24,20 @@ issue and, when cross-system design remains unresolved, a new workstream.
   open the imported-pay-item dialog, or launch guided timesheet preparation,
   but it must not load or render standalone staff-mapping, earnings-mapping,
   calendar, readiness, pay-item, or legacy timesheet panels.
-- Staff decisions, managed pay items, readiness checks, preview, and submission
-  belong to the guided preparation workflow. The staff-selection AppShell action
+- Staff mappings distinguish `unmapped`, verified, explicitly not applicable,
+  and stale states. Removing a linked staff member atomically clears the current
+  Xero employee identity and verification metadata, releases that employee for
+  another active staff member, and retains the previous mapping in the staff
+  removal audit event. Historical submissions and sealed payroll facts remain
+  unchanged. Owners and super admins may manage every linked active staff mapping
+  from the standalone Staff mappings dialog. Opening it always requests or joins
+  pending Staff-only reference work; successful Staff publication opens the
+  editor, while failure closes the loading overlay and emits the standard safe
+  error toast. Trials, inactive or archived staff, and staff without linked
+  accounts are excluded. Selections persist immediately and the dialog creates
+  no preparation run or decision. The guided workflow reuses the same mapping
+  validation and persistence service. Managed pay items, readiness checks,
+  preview, and submission remain preparation-owned. The staff-selection AppShell action
   is nominal: it carries staff identity plus one provider-owned employee
   selection and has no second text decision discriminator. The pre-wizard
   preview, submit, and retry endpoints are retired.
@@ -38,9 +50,18 @@ issue and, when cross-system design remains unresolved, a new workstream.
   account, pay-run, and timesheet status vocabulary remains open `Text` and is
   preserved unchanged, including unknown future provider values.
 - Every reference-sync path uses the same background-safe persistence and
-  reconciliation service. Complete bulk refresh can run as a durable `app_jobs`
-  job, coalesced per connection and leased per Xero tenant. Provider requests
-  are sequential and paced to 50 requests/minute. Earnings-rate reads use the
+  reconciliation service. Callers request typed Staff, Pay items, Payroll
+  calendars, or Accounts categories; complete refresh requests all four. A
+  successful category is reconciled and published independently, so a later
+  category failure does not discard usable reference data. Complete aggregate
+  freshness advances only when every category requested by that full refresh
+  succeeds. A failed full-refresh attempt retries only its failed categories,
+  while retaining the original aggregate request boundary. Jobs coalesce by
+  compatible connection/category demand and are leased per Xero tenant. A Staff
+  request joins an active full refresh whenever that job still includes pending
+  or running Staff work. Provider requests remain sequential and paced to 50
+  requests/minute; a category failure does not prevent later requested
+  categories from being attempted. Earnings-rate reads use the
   paginated Payroll AU v2 `/earningsRates` endpoint, matching the existing v2
   earnings-rate creation boundary. Pagination continues until a partial page, rejects a
   repeated full page that adds no new ids, and stops at the runtime-configurable

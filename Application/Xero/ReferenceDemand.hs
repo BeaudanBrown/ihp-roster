@@ -163,7 +163,7 @@ needsReferenceRefresh connection mappings assignment =
 mappingResolvesStaff :: XeroStaffMapping -> Bool
 mappingResolvesStaff mapping =
     (xeroStaffMappingIsVerified mapping.mappingStatus && isJust mapping.xeroEmployeeId)
-        || (xeroStaffMappingIsNotApplicable mapping.mappingStatus && isJust mapping.updatedByUserId)
+        || xeroStaffMappingIsNotApplicable mapping.mappingStatus
 
 payrollEligible :: EffectivePayAssignment -> Bool
 payrollEligible = \case

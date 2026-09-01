@@ -27,15 +27,17 @@ test.describe('Export authorization and negative cases', () => {
         await expect(page.locator('[data-fixed-export-card="true"]')).toHaveCount(0);
     });
 
-    test('venue admin sees the fixed export catalog without report-definition management', async ({ page }) => {
+    test('venue admin sees the unified Payroll Workbook export list', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
-        await expect(page.locator('#report-definition-management')).toHaveCount(0);
+        await expect(page.locator('#payroll-workbook-configuration-management')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Create new export' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Exports' })).toBeVisible();
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
-        await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(1);
-        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(1);
-        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Payroll Workbook')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(0);
+        await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(0);
+        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(0);
     });
 });

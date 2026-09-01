@@ -10,7 +10,7 @@ import Application.VenueTime.Model (ValidatedTimesheetTiming,
                                     timesheetTimingWorkedOn)
 import Application.WagePublication (StaffHoursBucketKind (..),
                                     StaffHoursContribution (..))
-import qualified Codec.Archive.Zip as Zip
+import qualified "zip-archive" Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List

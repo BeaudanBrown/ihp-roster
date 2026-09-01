@@ -1,6 +1,7 @@
 module Web.Controller.Users where
 
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
+import Application.Helper.Export.PayrollWorkbookConfiguration (createStandardPayrollWorkbookConfigurationInCurrentTransaction)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
@@ -239,6 +240,7 @@ instance Controller UsersController where
                                                                     }
                                                             (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig
                                                             membership <- provisionVenueMembership createdVenue user VenueOwner
+                                                            _ <- createStandardPayrollWorkbookConfigurationInCurrentTransaction createdVenue user
                                                             _ <- createSignupStaff createdVenue user staff
                                                             _ <-
                                                                 lockedInvitation

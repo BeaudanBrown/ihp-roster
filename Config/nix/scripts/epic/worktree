@@ -21,12 +21,15 @@ usage() {
 Usage:
   epic-worktree register --epic NUMBER --target BRANCH [--branch BRANCH] [--path PATH] [--kind epic]
   epic-worktree inspect [--epic NUMBER | --branch BRANCH | --path PATH | --all] [--json]
+  epic-worktree resolve [--epic NUMBER | --branch BRANCH | --path PATH | --all] [--json]
   epic-worktree orient [--json]
 
-Registers, inspects, and orients local epic worktrees. The shared registry is
-stored beneath Git's common directory; the compact identity is stored in the
-worktree root. Orientation reads live parent/sub-issue/blocker state from GitHub
-and never selects, starts, or closes work.
+Registers, inspects, resolves, and orients local epic worktrees. The shared
+registry is stored beneath Git's common directory; the compact identity is
+stored in the worktree root. Resolve validates registry, Git, and identity state
+without the process, resource, or HLS diagnostics gathered by inspect.
+Orientation reads live parent/sub-issue/blocker state from GitHub and never
+selects, starts, or closes work.
 EOF
 }
 
@@ -196,7 +199,7 @@ write_identity() {
     fi
 }
 
-record_with_status() {
+record_with_identity_status() {
     local record="$1"
     local status="stale"
     if validate_record_git_state "$record"; then
@@ -208,6 +211,12 @@ record_with_status() {
             *) status="inconsistent-identity" ;;
         esac
     fi
+    jq -c --arg status "$status" '. + {status: $status}' <<<"$record"
+}
+
+record_with_status() {
+    local record
+    record="$(record_with_identity_status "$1")"
     local resources path uncontained uncontained_work hls
     path="$(jq -r '.path' <<<"$record")"
     resources="$(bepis_workspace_resource_status "$RESOLVED_COMMON_DIR" epic "$(jq -r '.slot' <<<"$record")")"
@@ -227,7 +236,7 @@ record_with_status() {
               uncontainedWorkProcesses: $uncontainedWork,
               warning: (if ($uncontainedWork | length) > 0 then "resource-consuming processes in worktree are outside expected slice" else null end)}' \
         <<<"$resources")"
-    jq -c --arg status "$status" --argjson resources "$resources" '. + {status: $status, resources: $resources}' <<<"$record"
+    jq -c --argjson resources "$resources" '. + {resources: $resources}' <<<"$record"
 }
 
 print_record() {
@@ -244,9 +253,19 @@ print_record() {
     fi
 }
 
+print_resolved_record() {
+    local record="$1"
+    local json="$2"
+    if [ "$json" = true ]; then
+        jq . <<<"$record"
+    else
+        jq -r '"epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | \(.path)"' <<<"$record"
+    fi
+}
+
 command_name="${1:-}"
 case "$command_name" in
-    register|inspect|orient)
+    register|inspect|resolve|orient)
         shift
         ;;
     help|-h|--help)
@@ -255,7 +274,7 @@ case "$command_name" in
         ;;
     *)
         usage >&2
-        die 64 "expected register, inspect, or orient"
+        die 64 "expected register, inspect, resolve, or orient"
         ;;
 esac
 
@@ -286,7 +305,7 @@ if [ "$command_name" = orient ]; then
     mapfile -t orientation_records < <(jq -c --arg path "$RESOLVED_PATH" '.workspaces[] | select(.path == $path)' "$REGISTRY_FILE")
     [ "${#orientation_records[@]}" -eq 1 ] || die 66 "current worktree is not registered as an epic workspace"
     orientation_record="${orientation_records[0]}"
-    [ "$(jq -r '.status' <<<"$(record_with_status "$orientation_record")")" = active ] \
+    [ "$(jq -r '.status' <<<"$(record_with_identity_status "$orientation_record")")" = active ] \
         || die 65 "current epic worktree identity is stale or inconsistent"
 
     epic_number="$(jq -r '.epic' <<<"$orientation_record")"
@@ -558,10 +577,10 @@ while [ "$#" -gt 0 ]; do
             usage
             exit 0
             ;;
-        *) die 64 "unknown inspect option: $1" ;;
+        *) die 64 "unknown $command_name option: $1" ;;
     esac
 done
-[ "$selector_count" -le 1 ] || die 64 "inspect accepts only one selector"
+[ "$selector_count" -le 1 ] || die 64 "$command_name accepts only one selector"
 
 if [ "$selector_kind" = epic ] && [ -n "$selector_value" ]; then
     validate_epic "$selector_value"
@@ -601,14 +620,25 @@ else
 fi
 
 [ "${#records[@]}" -gt 0 ] || die 66 "no registered epic workspace matched"
+if [ "$command_name" = resolve ]; then
+    status_function=record_with_identity_status
+else
+    status_function=record_with_status
+fi
+
 if [ "$json" = true ] && [ "$all" = true ]; then
     statuses='[]'
     for record in "${records[@]}"; do
-        statuses="$(jq -c --argjson record "$(record_with_status "$record")" '. + [$record]' <<<"$statuses")"
+        statuses="$(jq -c --argjson record "$($status_function "$record")" '. + [$record]' <<<"$statuses")"
     done
     jq . <<<"$statuses"
 else
     for record in "${records[@]}"; do
-        print_record "$(record_with_status "$record")" "$json"
+        record="$($status_function "$record")"
+        if [ "$command_name" = resolve ]; then
+            print_resolved_record "$record" "$json"
+        else
+            print_record "$record" "$json"
+        fi
     done
 fi

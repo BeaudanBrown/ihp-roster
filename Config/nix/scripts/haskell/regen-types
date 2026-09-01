@@ -2,8 +2,11 @@
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "@scriptsRoot@/lib/ghc.sh"
+# shellcheck source=generated-state-lib
+. "@scriptsRoot@/haskell/generated-state-lib"
 ihp_roster_configure_compiler_tmpdir
 rm -rf build/Generated
 mkdir -p build/Generated
 build-generated-code
+haskell_generated_write_marker "$(haskell_generated_input_hash)"
 echo "Types regenerated in build/Generated/"

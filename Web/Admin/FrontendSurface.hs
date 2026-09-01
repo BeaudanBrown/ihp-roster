@@ -14,6 +14,7 @@ module Web.Admin.FrontendSurface
     , adminXeroSurfaceImpl
     , adminXeroTimesheetPreparationWaitSurfaceImpl
     , adminXeroPayItemImportWaitSurfaceImpl
+    , adminXeroStaffMappingsWaitSurfaceImpl
     , adminVenueSettingsFragment
     , adminInvitesFragment
     , adminExportsFragmentForWindow
@@ -23,6 +24,7 @@ module Web.Admin.FrontendSurface
     , adminXeroReferenceSyncFragment
     , adminXeroTimesheetPreparationWaitFragment
     , adminXeroPayItemImportWaitFragment
+    , adminXeroStaffMappingsWaitFragment
     , adminRosterGroupsFragmentKeys
     , adminXeroFragmentKeys
     ) where
@@ -122,6 +124,14 @@ adminXeroPayItemImportWaitSurfaceImpl scope =
         (adminVenueScopeFields scope)
         noSurfaceFields
         [adminXeroPayItemImportWaitFragment]
+
+adminXeroStaffMappingsWaitSurfaceImpl :: AdminVenueScopeValue -> Id AppJob -> SurfaceImpl Surface.AdminXeroSurface
+adminXeroStaffMappingsWaitSurfaceImpl scope jobId =
+    mkSurfaceImplFromValues @Surface.AdminXeroSurface @Surface.AdminXeroScope
+        "staff-mappings-wait"
+        (adminVenueScopeFields scope)
+        noSurfaceFields
+        [adminXeroStaffMappingsWaitFragment jobId]
 
 adminVenueScopeFields :: AdminVenueScopeValue -> SurfaceFields '[ 'Field Surface.VenueId 'WireUUID]
 adminVenueScopeFields scope =
@@ -224,6 +234,16 @@ adminXeroPayItemImportWaitFragment =
         noSurfaceFields
         (pathTo ShowadminXeroPayItemImportWaitLiveFragmentAction)
         FrontendSurfaceReplace
+
+adminXeroStaffMappingsWaitFragment :: Id AppJob -> FrontendSurfaceMountedFragment
+adminXeroStaffMappingsWaitFragment jobId =
+    frontendSurfaceMountedFragmentFor @Surface.AdminXeroSurface @Surface.AdminXeroStaffMappingsWaitFragment
+        fields
+        fields
+        (pathTo (ShowadminXeroStaffMappingsWaitLiveFragmentAction jobId))
+        FrontendSurfaceReplace
+  where
+    fields = surfaceField @Surface.ReferenceSyncJobId (unpackId jobId) &: noSurfaceFields
 
 
 adminRosterGroupsFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]

@@ -218,24 +218,27 @@ type instance ActionFieldSpecs CreateExportJobActionOperation =
     '[ 'Field Types2.RangeStart 'WireDay
      , 'Field Types2.RangeEnd 'WireDay
      , 'Field Types2.ExportType ('WireClosed Types1.ExportJobType)
+     , 'OptionalField Types2.PayrollWorkbookConfigurationId 'WireUUID
      ]
 
 createExportJobActionFields ::
     Day ->
     Day ->
     Types1.ExportJobType ->
+    Maybe UUID.UUID ->
     ActionFields CreateExportJobActionOperation
-createExportJobActionFields rangeStart rangeEnd exportType =
+createExportJobActionFields rangeStart rangeEnd exportType payrollWorkbookConfigurationId =
     actionFields
         (surfaceField @Types2.RangeStart rangeStart)
         ( surfaceField @Types2.RangeEnd rangeEnd
             &: surfaceField @Types2.ExportType exportType
+            &: surfaceOptionalField @Types2.PayrollWorkbookConfigurationId payrollWorkbookConfigurationId
             &: noSurfaceFields
         )
 
 createExportJobActionEvidence :: ActionEvidence CreateExportJobActionOperation
 createExportJobActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateExportJob" "create-export-job" [SurfaceIR.FieldIR "RangeStart" "rangeStart" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RangeEnd" "rangeEnd" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExportType" "exportType" (SurfaceIR.WireClosedIR "ExportJobType" "Application.Helper.Export.Types" "ExportJobType") SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-exports-fragment" ["admin-exports-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateExportJob" "create-export-job" [SurfaceIR.FieldIR "RangeStart" "rangeStart" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RangeEnd" "rangeEnd" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExportType" "exportType" (SurfaceIR.WireClosedIR "ExportJobType" "Application.Helper.Export.Types" "ExportJobType") SurfaceIR.RequiredField, SurfaceIR.FieldIR "PayrollWorkbookConfigurationId" "payrollWorkbookConfigurationId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-exports-fragment" ["admin-exports-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 createExportJobAction :: ActionFields CreateExportJobActionOperation -> FrontendSurfaceAction
 createExportJobAction =

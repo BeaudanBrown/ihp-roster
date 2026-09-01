@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${HASKELL_GENERATED_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+if [ -f "@scriptsRoot@/haskell/generated-state-lib" ]; then
+    # shellcheck source=generated-state-lib
+    . "@scriptsRoot@/haskell/generated-state-lib"
+else
+    # shellcheck source=generated-state-lib
+    . "Config/nix/scripts/haskell/generated-state-lib"
+fi
+
+expected="$(haskell_generated_input_hash)"
+if haskell_generated_is_current "$expected"; then
+    echo "haskell-generated-ensure: generated types are current"
+    exit 0
+fi
+
+haskell_generation_lock
+expected="$(haskell_generated_input_hash)"
+if haskell_generated_is_current "$expected"; then
+    echo "haskell-generated-ensure: generated types are current"
+    exit 0
+fi
+
+echo "haskell-generated-ensure: regenerating types"
+"${HASKELL_REGEN_TYPES_COMMAND:-regen-types}"
+expected="$(haskell_generated_input_hash)"
+haskell_generated_write_marker "$expected"
+haskell_generated_is_current "$expected" \
+    || { echo "haskell-generated-ensure: regeneration did not publish current types" >&2; exit 1; }

@@ -21,6 +21,8 @@
                     pkgs.haskellPackages.weeder
                     pkgs.mailhog
                     pkgs.poppler-utils
+                    # Verification-only spreadsheet recalculation; excluded from ihp-app/production.
+                    pkgs.libreoffice
                     pkgs.k6
                     pkgs.jq
                     pkgs.gh

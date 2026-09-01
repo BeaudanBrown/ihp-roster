@@ -135,6 +135,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Upload timesheets"
+                response `responseBodyShouldContain` "Staff mappings"
                 response `responseBodyShouldContain` "Import pay items"
                 response `responseBodyShouldNotContain` "Sync Xero data"
                 response `responseBodyShouldNotContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
@@ -451,6 +452,117 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationResponse `responseBodyShouldContain` "Reconnect Xero before preparing draft timesheets"
                 importResponse `responseBodyShouldNotContain` "Contact support"
                 preparationResponse `responseBodyShouldNotContain` "Contact support"
+
+        it "refreshes and manages all eligible linked staff without creating a preparation run" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Standalone Staff Mappings Venue"
+                owner <- createUserRecord "xero-standalone-mappings-owner@example.com" "staff" True
+                eligibleUser <- createUserRecord "xero-standalone-mappings-eligible@example.com" "staff" True
+                inactiveUser <- createUserRecord "xero-standalone-mappings-inactive@example.com" "staff" True
+                archivedUser <- createUserRecord "xero-standalone-mappings-archived@example.com" "staff" True
+                manager <- createUserRecord "xero-standalone-mappings-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createVenueMembershipRecord venue eligibleUser Worker
+                _ <- createVenueMembershipRecord venue inactiveUser Worker
+                _ <- createVenueMembershipRecord venue archivedUser Worker
+                _ <- createVenueMembershipRecord venue manager Manager
+                eligibleStaff <- createStaffRecord venue (Just eligibleUser) "Eligible" "Worker"
+                _ <- createStaffRecord venue Nothing "Trial" "Worker"
+                _ <- createStaffRecord venue (Just inactiveUser) "Inactive" "Worker" >>= updateRecord . set #isActive False
+                now <- getCurrentTime
+                _ <-
+                    createStaffRecord venue (Just archivedUser) "Archived" "Worker"
+                        >>= updateRecord . set #isActive False . set #archivedAt (Just now)
+                connection <- createSyncableXeroConnection venue owner
+                let employee =
+                        XeroEmployeeRef
+                            "standalone-employee"
+                            "Xero Eligible Worker"
+                            (Just "xero-eligible@example.com")
+                            (Just "ACTIVE")
+                            (Aeson.object ["EmployeeID" Aeson..= ("standalone-employee" :: Text)])
+                    tokenResponse = XeroTokenResponse "staff-access-token" "staff-refresh-token" 1800 (Just requiredXeroScopesText)
+                    client = referenceSyncXeroClient tokenResponse [employee] [] []
+
+                waitingResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction OpenXeroStaffMappingsAction
+
+                waitingResponse `responseStatusShouldBe` status200
+                waitingResponse `responseBodyShouldContain` "Refreshing Xero staff"
+                [job] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
+                withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest client do
+                        performXeroReferenceSyncJob job
+                dialogResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ShowadminXeroStaffMappingsWaitLiveFragmentAction job.id)
+
+                dialogResponse `responseStatusShouldBe` status200
+                dialogResponse `responseBodyShouldContain` "Eligible Worker"
+                dialogResponse `responseBodyShouldContain` "Xero Eligible Worker"
+                dialogResponse `responseBodyShouldContain` "Unmapped"
+                dialogResponse `responseBodyShouldNotContain` "Trial Worker"
+                dialogResponse `responseBodyShouldNotContain` "Inactive Worker"
+                dialogResponse `responseBodyShouldNotContain` "Archived Worker"
+                dialogResponse `responseBodyShouldContain` ">Close<"
+                query @XeroTimesheetPreparationRun |> fetchCount >>= (`shouldBe` 0)
+                query @XeroTimesheetPreparationDecision |> fetchCount >>= (`shouldBe` 0)
+
+                mappingResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ApplyXeroStaffMappingAction
+                            [ ("staffId", idToParam eligibleStaff.id)
+                            , ("xeroEmployeeSelection", "standalone-employee")
+                            ]
+
+                mappingResponse `responseStatusShouldBe` status200
+                mappingResponse `responseBodyShouldContain` "Verified"
+                mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId eligibleStaff.id) |> fetchOne
+                mapping.mappingStatus `shouldBe` XeroStaffMappingStatusEnumVerified
+                mapping.xeroEmployeeId `shouldBe` Just "standalone-employee"
+
+                unmapResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ApplyXeroStaffMappingAction
+                            [ ("staffId", idToParam eligibleStaff.id)
+                            , ("xeroEmployeeSelection", "unmapped")
+                            ]
+                unmapResponse `responseBodyShouldContain` "Unmapped"
+                unmapped <- fetch mapping.id
+                unmapped.mappingStatus `shouldBe` XeroStaffMappingStatusEnumUnmapped
+                unmapped.xeroEmployeeId `shouldBe` Nothing
+                query @XeroTimesheetPreparationRun |> fetchCount >>= (`shouldBe` 0)
+                query @XeroTimesheetPreparationDecision |> fetchCount >>= (`shouldBe` 0)
+
+                managerResponse <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    callAction OpenXeroStaffMappingsAction
+                managerResponse `responseStatusShouldBe` status302
+                refreshedConnection <- fetch connection.id
+                refreshedConnection.lastSyncAt `shouldBe` Nothing
+
+        it "closes the Staff mappings loading overlay and shows a safe toast after refresh failure" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Standalone Staff Mapping Failure Venue"
+                owner <- createUserRecord "xero-standalone-mapping-failure@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                connection <- createSyncableXeroConnection venue owner
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncCategories (Just owner.id) connection (Set.singleton XeroStaff)
+                failedJob <-
+                    job
+                        |> set #status JobStatusFailed
+                        |> set #lastError (Just "Xero staff sync failed: provider request could not be completed.")
+                        |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ShowadminXeroStaffMappingsWaitLiveFragmentAction failedJob.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "dialog-overlay-mount"
+                response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                response `responseBodyShouldContain` "Xero staff sync failed"
+                response `responseBodyShouldNotContain` "Staff mappings</h"
 
         it "records touched resources for Xero connection mutations" $ withContext do
             withCleanDb do
@@ -864,7 +976,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
 
-        it "atomically reconciles provider availability while preserving archival and locked pay history" $ withContext do
+        it "publishes each successful provider-availability category while preserving archival and locked pay history" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Availability Reconciliation Venue"
                 owner <- createUserRecordWithPlatformRole "xero-availability@example.com" "staff" (Just SuperAdmin) True
@@ -954,12 +1066,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         }
                 failedResponse <- runSync failedClient
                 failedResponse `responseStatusShouldBe` status302
-                fetch syncedEmployee.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                fetch syncedEmployee.id >>= (\record -> record.providerAvailable `shouldBe` False)
                 fetch syncedRate.id >>= (\record -> record.providerAvailable `shouldBe` True)
-                fetch syncedAccount.id >>= (\record -> record.providerAvailable `shouldBe` True)
-                fetch syncedCalendar.id >>= (\record -> record.providerAvailable `shouldBe` True)
+                fetch syncedAccount.id >>= (\record -> record.providerAvailable `shouldBe` False)
+                fetch syncedCalendar.id >>= (\record -> record.providerAvailable `shouldBe` False)
                 failedSyncMapping <- query @XeroStaffMapping |> fetchOne
-                failedSyncMapping.referenceRefreshedAt `shouldBe` Nothing
+                failedSyncMapping.referenceRefreshedAt `shouldSatisfy` isJust
 
                 let inactiveEmployee = employee { xeroEmployeeStatus = Just "INACTIVE" }
                     inactiveRate = rate { xeroEarningsRateIsActive = False }

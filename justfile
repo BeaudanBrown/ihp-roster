@@ -50,7 +50,7 @@ tunnel-agent:
         agent
 
 db:
-    make db
+    dev-db-reset
 
 seed-dev *args:
     if [ -z "{{args}}" ]; then seed-dev app; else seed-dev {{args}}; fi

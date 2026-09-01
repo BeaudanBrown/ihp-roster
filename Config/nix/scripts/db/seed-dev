@@ -2,6 +2,12 @@
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "@scriptsRoot@/lib/ghc.sh"
+# shellcheck source=../lib/workspace.sh
+. "@scriptsRoot@/lib/workspace.sh"
+# shellcheck source=../lib/dev-db-maintenance.sh
+. "@scriptsRoot@/lib/dev-db-maintenance.sh"
+
+bash "@scriptsRoot@/haskell/generated-ensure"
 
 DB_NAME="app"
 RESET_MODE=""
@@ -25,21 +31,30 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
-    echo "Dev fixture seeding requires the local postgres socket at $DB_SOCKET" >&2
-    echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
-    exit 1
-fi
-
 case "$DB_NAME" in
     app_test)
+        if ! connection_output="$(psql -X -h "$DB_SOCKET" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then
+            echo "Dev fixture seeding could not connect to PostgreSQL at $DB_SOCKET" >&2
+            echo "$connection_output" >&2
+            exit 1
+        fi
         export TEST_DATABASE_NAME="$DB_NAME"
         export TEST_DB_SOCKET="$DB_SOCKET"
         test-db-reset
         ;;
     app)
+        bepis_workspace_configure
+        DB_SOCKET="$PGHOST"
+        bepis_dev_db_acquire_maintenance_lock
+        bepis_dev_db_capture_app_state
+        dev-ensure-postgres >/dev/null
+        if ! connection_output="$(psql -X -h "$DB_SOCKET" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then
+            echo "Dev fixture seeding could not connect to PostgreSQL at $DB_SOCKET" >&2
+            echo "$connection_output" >&2
+            exit 1
+        fi
         make db
-    ;;
+        ;;
     *)
         echo "Unsupported database target: $DB_NAME" >&2
         echo "Usage: seed-dev [app|app_test] [--force] [seed-options...]" >&2
@@ -85,6 +100,8 @@ if [ ! -x build/Script/SeedDev ] \
     || ! printf '%s\n' "$GHC_OPTS" | cmp -s "$SEED_DEV_GHC_OPTS_STAMP" - \
     || find Application Config Web build/Generated build/Script/SeedDevMain.hs \
         -name '*.hs' -newer build/Script/SeedDev -print -quit | grep -q .; then
+    # GHC_OPTS is the intentionally word-split option vector from the shared helper.
+    # shellcheck disable=SC2086
     ghc $GHC_OPTS -iTest -main-is Main build/Script/SeedDevMain.hs \
         -o build/Script/SeedDev \
         -odir build/Script \
@@ -107,4 +124,8 @@ if [ -f "$DEV_XERO_SEED_FILE" ]; then
     psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f "$DEV_XERO_SEED_FILE"
     echo "Loading dev Xero pay item mappings"
     psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Fixture/Seed/DevXeroPayItemMappings.sql
+fi
+
+if [ "$DB_NAME" = app ]; then
+    bepis_dev_db_wait_for_app_recovery
 fi

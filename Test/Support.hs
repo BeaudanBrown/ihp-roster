@@ -715,12 +715,13 @@ withPasskeyVerifiedUserAndCurrentVenue user venueId callback = do
 
 ensureTestUserHasPasskey :: (?modelContext :: ModelContext) => User -> IO ()
 ensureTestUserHasPasskey user = do
-    hasPasskey <-
-        query @Passkey
-            |> filterWhere (#userId, unpackId user.id)
-            |> fetchExists
-    unless hasPasskey do
-        void (createTestPasskeyRecord user "Test passkey")
+    let passkeyName = "Test passkey"
+    let credentialId = Binary (cs ("test-credential-id-" <> inputValue user.id <> "-" <> passkeyName) :: ByteString.ByteString)
+    -- One idempotent statement keeps concurrent controller requests from
+    -- racing the test-only passkey precondition.
+    sqlExecDiscardResult
+        "INSERT INTO passkeys (user_id, credential_id, public_key, name) VALUES (?, ?, ?, ?) ON CONFLICT (credential_id) DO NOTHING"
+        (unpackId user.id, credentialId, Binary ("test-public-key" :: ByteString.ByteString), passkeyName)
 
 withSessionValues ::
     forall result.

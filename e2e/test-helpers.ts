@@ -1069,8 +1069,8 @@ async function ensureExportsSectionOpen(page: Page) {
     }
     await expect(exportsToggle).toHaveAttribute('aria-expanded', 'true', { timeout: E2E_TIMEOUT.action });
     await expect(page.locator('#exports-collapse')).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await expect(page.locator('#admin-export-generation-form')).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await expect(page.locator('[data-fixed-export-card="true"]').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('[data-payroll-workbook-configuration]').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('[data-payroll-workbook-configuration] form').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
 export async function gotoExports(page: Page) {
@@ -1079,7 +1079,7 @@ export async function gotoExports(page: Page) {
 }
 
 export async function currentReportWeek(page: Page) {
-    const form = page.locator('#admin-export-generation-form');
+    const form = page.locator('[data-payroll-workbook-configuration] form').first();
     const weekStart = await form.locator('input[name="rangeStart"]').inputValue();
     const weekEnd = await form.locator('input[name="rangeEnd"]').inputValue();
     return { weekStart, weekEnd };
@@ -1104,68 +1104,16 @@ export function payrollReportCard(page: Page, reportName: string) {
     });
 }
 
-export async function generatePayrollReport(page: Page, reportName: string) {
+export async function generatePayrollReport(page: Page, reportName: string, downloadLabel = 'Download CSV') {
     await ensureExportsSectionOpen(page);
     const card = payrollReportCard(page, reportName);
     await expect(card).toHaveCount(1, { timeout: E2E_TIMEOUT.action });
     await expect(card).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    const downloadButton = card.getByRole('button', { name: 'Download CSV' });
+    const downloadButton = card.getByRole('button', { name: downloadLabel });
     await expect(downloadButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
     const downloadPromise = page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion });
     await downloadButton.click({ timeout: E2E_TIMEOUT.action });
     return downloadPromise;
-}
-
-export function exportJobRow(page: Page, fileName: string) {
-    return page.locator(`[data-export-job-row="true"][data-export-job-file="${fileName}"]`);
-}
-
-export function exportJobRows(page: Page, fileName: string) {
-    return page.locator(`[data-export-job-row="true"][data-export-job-file="${fileName}"]`);
-}
-
-export async function waitForExportJob(page: Page, fileName: string) {
-    await ensureExportsSectionOpen(page);
-    const rows = exportJobRows(page, fileName);
-    await expect
-        .poll(async () => rows.count(), {
-            message: `expected at least one export row for ${fileName}`,
-            timeout: E2E_TIMEOUT.assertion,
-        })
-        .toBeGreaterThan(0);
-    const row = rows.last();
-    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-    return row;
-}
-
-export async function downloadExport(page: Page, fileName: string) {
-    const row = await waitForExportJob(page, fileName);
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
-        row.getByRole('link', { name: 'Download' }).click(),
-    ]);
-
-    return download;
-}
-
-export async function downloadExportAtIndex(page: Page, fileName: string, index: number) {
-    await ensureExportsSectionOpen(page);
-    const rows = exportJobRows(page, fileName);
-    await expect
-        .poll(async () => rows.count(), {
-            message: `expected at least ${index + 1} export rows for ${fileName}`,
-            timeout: E2E_TIMEOUT.assertion,
-        })
-        .toBeGreaterThan(index);
-    const row = rows.nth(index);
-    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
-        row.getByRole('link', { name: 'Download' }).click(),
-    ]);
-
-    return download;
 }
 
 export async function readDownloadText(download: Download) {

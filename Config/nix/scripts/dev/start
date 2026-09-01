@@ -2,7 +2,11 @@
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "@scriptsRoot@/lib/workspace.sh"
+# shellcheck source=../lib/workspace-resources.sh
+. "@scriptsRoot@/lib/workspace-resources.sh"
 bepis_workspace_configure
+bepis_workspace_resource_reexec_dev "$(command -v dev-start)" "$@"
+bash "@scriptsRoot@/haskell/generated-ensure"
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
@@ -35,6 +39,13 @@ start_tracked_watch() {
     local tracked_pid=$!
     echo "$tracked_pid" > "$pid_file"
     disown "$tracked_pid" 2>/dev/null || true
+    sleep 0.1
+    if ! kill -0 "$tracked_pid" 2>/dev/null; then
+        echo "$label failed to start; recent log output:" >&2
+        tail -n 40 "$log_file" >&2 || true
+        rm -f "$pid_file"
+        return 75
+    fi
 }
 
 start_frontend_watchers() {

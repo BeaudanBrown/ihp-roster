@@ -25,6 +25,25 @@ persistReadyExportJob ::
     Aeson.Value ->
     IO ExportJob
 persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt auditPayload = do
+    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt auditPayload
+
+persistReadyExportJobForEntries ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    [TimesheetEntry] ->
+    Text ->
+    Day ->
+    Day ->
+    Aeson.Value ->
+    Text ->
+    Text ->
+    Text ->
+    Text ->
+    Maybe Text ->
+    UTCTime ->
+    Aeson.Value ->
+    IO ExportJob
+persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt auditPayload = do
     exportJob <-
         newRecord @ExportJob
             |> set #venueId (unpackId currentVenueId)
@@ -51,7 +70,7 @@ persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName content
             |> set #fileContents (Just fileContents)
             |> updateRecord
 
-    recordExportJobEntriesForRange exportJob rangeStart rangeEnd
+    recordExportJobEntries exportJob entries
 
     void $ recordCurrentUserAuditEvent
         ExportGeneratedAudit
@@ -60,16 +79,6 @@ persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName content
         auditPayload
 
     pure exportJob
-
-recordExportJobEntriesForRange ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    ExportJob ->
-    Day ->
-    Day ->
-    IO ()
-recordExportJobEntriesForRange exportJob rangeStart rangeEnd = do
-    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
-    recordExportJobEntries exportJob entries
 
 recordExportJobEntries :: (?modelContext :: ModelContext) => ExportJob -> [TimesheetEntry] -> IO ()
 recordExportJobEntries exportJob entries =

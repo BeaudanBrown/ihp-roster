@@ -8,7 +8,7 @@ module Application.Helper.LiveUpdate.DurableListener
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
                                                    decodeDurableResource)
 import Application.Helper.LiveUpdate.DurableState
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Text.IO as TextIO
@@ -24,19 +24,23 @@ import System.IO (stderr)
 startDurableInvalidationListener :: (Int -> [DurableResource] -> IO ()) -> IO ()
 startDurableInvalidationListener dispatch = do
     databaseUrl <- getEnv "DATABASE_URL"
-    _ <- forkIO (supervise databaseUrl 0)
-    pure ()
+    supervise databaseUrl 0
   where
     supervise databaseUrl attempt = do
-        outcome <- Exception.try (runDurableInvalidationListenerConnection databaseUrl dispatch) :: IO (Either Exception.SomeException ())
+        outcome <- Exception.tryJust synchronousExceptionOnly (runDurableInvalidationListenerConnection databaseUrl dispatch)
         case outcome of
             Right () -> supervise databaseUrl 0
-            Left _exception -> do
+            Left (_exception :: Exception.SomeException) -> do
                 let cappedAttempt = min attempt 6
                 let delayMicros = min 10000000 (250000 * (2 ^ cappedAttempt))
                 writeDurableListenerDiagnostic ("[live-invalidation-listener] healthy=false reconnect_attempt=" <> tshow (attempt + 1) <> " backoff_ms=" <> tshow (delayMicros `div` 1000) <> " connection_error=true")
                 threadDelay delayMicros
                 supervise databaseUrl (attempt + 1)
+
+    synchronousExceptionOnly exception =
+        case Exception.fromException exception :: Maybe Exception.SomeAsyncException of
+            Just _  -> Nothing
+            Nothing -> Just exception
 
 runDurableInvalidationListenerConnection :: String -> (Int -> [DurableResource] -> IO ()) -> IO ()
 runDurableInvalidationListenerConnection databaseUrl dispatch =

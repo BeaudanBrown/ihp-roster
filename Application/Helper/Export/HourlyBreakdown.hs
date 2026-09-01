@@ -6,6 +6,8 @@ module Application.Helper.Export.HourlyBreakdown
     , formatHourlyWindowRange
     , hourlyReportHours
     , roundRationalAt
+    , storedIntervalLocalHourOccurrenceSegments
+    , wageCentsForEntryBySlot
     ) where
 
 import Application.Helper.Export.Types
@@ -122,10 +124,11 @@ buildHourlyShiftTypeColumns activeShiftTypes referencedShiftTypes entries labels
              in (Map.insert label occurrence seen, column { hourlyShiftTypeLabel = renderedLabel })
 
 data TimedEarningsShare = TimedEarningsShare
-    { timedShareHour      :: !Int
-    , timedShareBucketKey :: !FinalEarningsBucketKey
-    , timedShareAmount    :: !Rational
-    , timedShareOrdinal   :: !Int
+    { timedShareHour       :: !Int
+    , timedShareOccurrence :: !HourlyOccurrence
+    , timedShareBucketKey  :: !FinalEarningsBucketKey
+    , timedShareAmount     :: !Rational
+    , timedShareOrdinal    :: !Int
     }
     deriving (Eq, Show)
 
@@ -149,15 +152,15 @@ buildHourlyWageCents entries calculationsByEntryId =
             (Left ("Approved timesheet entry has no sealed wage calculation: " <> tshow entry.id))
             Right
             (Map.lookup (unpackId entry.id) calculationsByEntryId)
-        entryCents <- wageCentsForEntry entry calculation
+        entryCents <- wageCentsForEntryBySlot entry calculation
         pure $
             foldl'
-                (\result (hour, cents) -> Map.insertWith (+) (entry.operationalDate, hour, entry.shiftTypeId) cents result)
+                (\result ((hour, _occurrence), cents) -> Map.insertWith (+) (entry.operationalDate, hour, entry.shiftTypeId) cents result)
                 totals
                 (Map.toList entryCents)
 
-wageCentsForEntry :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map Int Integer)
-wageCentsForEntry entry calculation = do
+wageCentsForEntryBySlot :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map (Int, HourlyOccurrence) Integer)
+wageCentsForEntryBySlot entry calculation = do
     intervalShares <- intervalSharesForCalculation entry.timezone entry.startsAt entry.endsAt calculation
     let timedShares = concatMap (splitIntervalShareIntoHours entry) intervalShares
     allocateFinalEarningsCents calculation timedShares
@@ -265,19 +268,20 @@ splitIntervalShareIntoHours :: TimesheetEntry -> IntervalEarningsShare -> [Timed
 splitIntervalShareIntoHours entry share =
     [ TimedEarningsShare
         { timedShareHour = fromInteger (diffDays localDate ownershipDate) * 24 + localHour
+        , timedShareOccurrence = occurrence
         , timedShareBucketKey = share.intervalShareBucketKey
         , timedShareAmount = share.intervalShareAmount * toRational elapsed / totalSeconds
         , timedShareOrdinal = ordinal
         }
-    | (ordinal, (localDate, localHour, elapsed)) <- zip [0 ..] localSegments
+    | (ordinal, (localDate, localHour, occurrence, elapsed)) <- zip [0 ..] localSegments
     , elapsed > 0
     ]
   where
     ownershipDate = entry.operationalDate
-    localSegments = storedIntervalLocalHourSegments entry.timezone share.intervalShareStart share.intervalShareEnd
+    localSegments = storedIntervalLocalHourOccurrenceSegments entry.timezone share.intervalShareStart share.intervalShareEnd
     totalSeconds = toRational (diffUTCTime share.intervalShareEnd share.intervalShareStart)
 
-allocateFinalEarningsCents :: WageCalculation -> [TimedEarningsShare] -> Either Text (Map.Map Int Integer)
+allocateFinalEarningsCents :: WageCalculation -> [TimedEarningsShare] -> Either Text (Map.Map (Int, HourlyOccurrence) Integer)
 allocateFinalEarningsCents calculation shares = do
     allocated <- traverse allocateLine publishedLines
     let knownKeys = Map.fromList [(line.finalEarningsLineBucketKey, ()) | line <- publishedLines]
@@ -296,11 +300,11 @@ allocateFinalEarningsCents calculation shares = do
             Left "Approved wage earnings line has no hourly attribution."
         pure (allocateCents targetCents lineShares)
 
-allocateCents :: Integer -> [TimedEarningsShare] -> [(Int, Integer)]
+allocateCents :: Integer -> [TimedEarningsShare] -> [((Int, HourlyOccurrence), Integer)]
 allocateCents targetCents shares
     | targetCents <= 0 || null shares = []
     | otherwise =
-        [ (share.timedShareHour, base + if index `elem` remainderIndexes then 1 else 0)
+        [ ((share.timedShareHour, share.timedShareOccurrence), base + if index `elem` remainderIndexes then 1 else 0)
         | (index, share, base, _) <- quotas
         ]
   where
@@ -314,7 +318,7 @@ allocateCents targetCents shares
     remainderCount = fromInteger (targetCents - allocatedBase)
     remainderIndexes =
         quotas
-            |> List.sortOn (\(index, share, _, remainder) -> (Down remainder, share.timedShareHour, share.timedShareOrdinal, index))
+            |> List.sortOn (\(index, share, _, remainder) -> (Down remainder, share.timedShareHour, share.timedShareOccurrence, share.timedShareOrdinal, index))
             |> take remainderCount
             |> map (\(index, _, _, _) -> index)
 
@@ -345,7 +349,13 @@ intervalSecondsInLocalHour timezone targetDate targetHour startsAt endsAt =
         ]
 
 storedIntervalLocalHourSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, NominalDiffTime)]
-storedIntervalLocalHourSegments timezone startsAt endsAt = go startsAt
+storedIntervalLocalHourSegments timezone startsAt endsAt =
+    [ (date, hour, elapsed)
+    | (date, hour, _occurrence, elapsed) <- storedIntervalLocalHourOccurrenceSegments timezone startsAt endsAt
+    ]
+
+storedIntervalLocalHourOccurrenceSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, HourlyOccurrence, NominalDiffTime)]
+storedIntervalLocalHourOccurrenceSegments timezone startsAt endsAt = go startsAt
   where
     go cursor
         | cursor >= endsAt = []
@@ -354,13 +364,30 @@ storedIntervalLocalHourSegments timezone startsAt endsAt = go startsAt
                 Left _ -> []
                 Right local ->
                     let segmentEnd = min endsAt (nextStoredLocalHourBoundary timezone cursor local)
-                     in (local.localDay, local.localTimeOfDay.todHour, diffUTCTime segmentEnd cursor) : go segmentEnd
+                        occurrence = occurrenceForCursor cursor local
+                     in (local.localDay, local.localTimeOfDay.todHour, occurrence, diffUTCTime segmentEnd cursor) : go segmentEnd
+
+    occurrenceForCursor cursor local
+        | not (civilBoundaryIsRepeated local.localDay hourStart) = FirstHourlyOccurrence
+        | otherwise =
+            case resolveBoundaryInstant timezone local.localDay hourStart (Just SecondOccurrence) of
+                Right secondStart | cursor >= secondStart -> SecondHourlyOccurrence
+                _ -> FirstHourlyOccurrence
+      where
+        hourStart = TimeOfDay local.localTimeOfDay.todHour 0 0
 
 nextStoredLocalHourBoundary :: Text -> UTCTime -> LocalTime -> UTCTime
-nextStoredLocalHourBoundary timezone cursor local = findBoundary firstCandidateLocal
+nextStoredLocalHourBoundary timezone cursor local =
+    case repeatedCurrentHourSecondStart of
+        Just secondStart | secondStart > cursor -> secondStart
+        _ -> findBoundary firstCandidateLocal
   where
     localHourStart = LocalTime local.localDay (TimeOfDay local.localTimeOfDay.todHour 0 0)
     firstCandidateLocal = addLocalTime 3600 localHourStart
+    repeatedCurrentHourSecondStart
+        | civilBoundaryIsRepeated local.localDay localHourStart.localTimeOfDay =
+            either (const Nothing) Just (resolveBoundaryInstant timezone local.localDay localHourStart.localTimeOfDay (Just SecondOccurrence))
+        | otherwise = Nothing
 
     findBoundary candidateLocal =
         case filter (> cursor) (resolvedCandidates candidateLocal) of

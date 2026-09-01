@@ -14,9 +14,12 @@ tests =
             fmap xeroEmployeeIdText parsed `shouldBe` Right "employee-a"
             (parsed >>= (parseNominalText . renderNominalText)) `shouldBe` parsed
             fmap xeroEmployeeIdText (parseXeroEmployeeId " provider-owned ") `shouldBe` Right " provider-owned "
-        it "keeps the not-applicable selection sentinel unchanged" do
+        it "keeps explicit mapping selection sentinels unchanged" do
+            renderNominalText XeroEmployeeUnmapped `shouldBe` "unmapped"
+            parseNominalText "unmapped" `shouldBe` Right XeroEmployeeUnmapped
             renderNominalText XeroEmployeeNotApplicable `shouldBe` "not_applicable"
             parseNominalText "not_applicable" `shouldBe` Right XeroEmployeeNotApplicable
         it "rejects empty and reserved raw employee identifiers" do
             parseXeroEmployeeId "" `shouldSatisfy` isLeft
             parseXeroEmployeeId "not_applicable" `shouldSatisfy` isLeft
+            parseXeroEmployeeId "unmapped" `shouldSatisfy` isLeft

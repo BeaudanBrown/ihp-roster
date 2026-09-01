@@ -11,9 +11,9 @@ tests :: Spec
 tests =
     describe "typed Xero workflow state authority" do
         it "classifies mapping, selection, requirement, and decision capabilities exhaustively" do
-            map xeroStaffMappingStatusFlags [XeroStaffMappingStatusEnumVerified, NotApplicable, XeroStaffMappingStatusEnumStale]
-                `shouldBe` [(True, False), (False, True), (False, False)]
-            map xeroEarningsRateMappingIsVerified [Unmapped, XeroEarningsRateMappingStatusEnumVerified, XeroEarningsRateMappingStatusEnumStale]
+            map xeroStaffMappingStatusFlags [XeroStaffMappingStatusEnumUnmapped, XeroStaffMappingStatusEnumVerified, NotApplicable, XeroStaffMappingStatusEnumStale]
+                `shouldBe` [(False, False), (True, False), (False, True), (False, False)]
+            map xeroEarningsRateMappingIsVerified [XeroEarningsRateMappingStatusEnumUnmapped, XeroEarningsRateMappingStatusEnumVerified, XeroEarningsRateMappingStatusEnumStale]
                 `shouldBe` [False, True, False]
             map xeroAccountCodeSelectionIsVerified [None, XeroPayItemAccountCodeSelectionStatusEnumVerified, XeroPayItemAccountCodeSelectionStatusEnumStale]
                 `shouldBe` [False, True, False]

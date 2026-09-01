@@ -102,6 +102,7 @@ in
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
         frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
         frontend-generated-ensure = script ../scripts/frontend/generated-ensure;
+        frontend-generated-state-test = script ../scripts/frontend/generated-state-test;
         frontend-generated-sync = script ../scripts/frontend/generated-sync;
         frontend-generated-watch = script ../scripts/frontend/generated-watch;
         frontend-drift-check = script ../scripts/frontend/drift-check;
@@ -148,6 +149,8 @@ in
         weeder-check = script ../scripts/haskell/weeder-check;
         weeder-policy-test = script ../scripts/haskell/weeder-policy-test;
         regen-types = script ../scripts/haskell/regen-types;
+        haskell-generated-ensure = script ../scripts/haskell/generated-ensure;
+        haskell-generated-ensure-test = script ../scripts/haskell/generated-ensure-test;
         generated-code-sync = script ../scripts/haskell/generated-code-sync;
         hie-bios-test = script ../scripts/haskell/hie-bios-test;
         hls-lsp = script ../scripts/haskell/hls-lsp;
@@ -185,6 +188,8 @@ in
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;
+        dev-db-reset = script ../scripts/db/reset-dev;
+        dev-db-maintenance-test = script ../scripts/db/dev-maintenance-test;
         seed-dev = script ../scripts/db/seed-dev;
         seed-profile = script ../scripts/db/seed-profile;
         profile-test-server = script ../scripts/profile/test-server;

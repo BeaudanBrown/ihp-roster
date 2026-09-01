@@ -35,7 +35,10 @@ frontend_contract_input_hash() {
             -type d -name Generated -prune -o \
             -type f -name '*.hs' -print
     } | LC_ALL=C sort -u | frontend_hash_paths)"
-    tool_identity="$(command -v ghc 2>/dev/null || printf 'missing-ghc'):$({ ghc --numeric-version 2>/dev/null || true; } | tr -d '\n')"
+    # App.cabal and flake.lock own the package environment. Absolute Nix store
+    # paths are deliberately excluded so equivalent shells cannot invalidate
+    # each other's manifest.
+    tool_identity="ghc:$({ ghc --numeric-version 2>/dev/null || printf 'missing'; } | tr -d '\n')"
     printf '%s\n%s\n' "$files_hash" "$tool_identity" | sha256sum | cut -d ' ' -f 1
 }
 
@@ -101,4 +104,20 @@ frontend_generation_lock() {
     mkdir -p "$state_dir"
     exec 9>"$state_dir/generation.lock"
     flock 9
+}
+
+frontend_generated_watch_lock() {
+    local state_dir
+    state_dir="$(frontend_generated_state_dir)"
+    mkdir -p "$state_dir"
+    exec 8>"$state_dir/contracts-watch.lock"
+    flock -n 8
+}
+
+frontend_js_watch_lock() {
+    local state_dir
+    state_dir="$(frontend_generated_state_dir)"
+    mkdir -p "$state_dir"
+    exec 7>"$state_dir/js-watch.lock"
+    flock -n 7
 }

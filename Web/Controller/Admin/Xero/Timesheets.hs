@@ -393,6 +393,7 @@ resolvePreparationMutation mutation =
 parseStaffDecision :: AppShellActionFields ApplyXeroTimesheetPreparationStaffDecisionOverlay -> Either Text XeroPreparationStaffDecision
 parseStaffDecision fields =
     case surfaceFieldValue @XeroEmployeeSelectionField fields of
+        XeroEmployeeUnmapped            -> Left "Choose a Xero employee or Not paid through Xero."
         XeroEmployeeNotApplicable       -> Right MarkStaffNotPaidThroughXero
         XeroEmployeeSelected employeeId -> Right (SelectXeroEmployee employeeId)
 

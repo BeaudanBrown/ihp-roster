@@ -181,7 +181,8 @@ renderStaffEmployeeSelectionForm view row =
                     &: noSurfaceFields
                 )
         fieldSelection
-            | currentSelection == "not_applicable" || Text.null currentSelection = XeroEmployeeNotApplicable
+            | Text.null currentSelection = XeroEmployeeUnmapped
+            | currentSelection == "not_applicable" = XeroEmployeeNotApplicable
             | otherwise = either (const XeroEmployeeNotApplicable) XeroEmployeeSelected (parseXeroEmployeeId currentSelection)
 
 renderEmployeeOption :: Text -> XeroEmployee -> Html
@@ -211,7 +212,7 @@ currentStaffEmployeeSelection row =
             guard (xeroStaffMappingIsVerified mapping.mappingStatus)
             mapping.xeroEmployeeId
         notApplicableSelection = do
-            guard (xeroStaffMappingIsNotApplicable mapping.mappingStatus && isJust mapping.updatedByUserId)
+            guard (xeroStaffMappingIsNotApplicable mapping.mappingStatus)
             Just "not_applicable"
 
 selectedStaffEmployeeId :: XeroPreparationStaffRow -> Maybe Text
@@ -273,7 +274,6 @@ staffHasVerifiedXeroEmployee row =
 staffMarkedNotPaidThroughXero :: XeroPreparationStaffRow -> Bool
 staffMarkedNotPaidThroughXero row =
     xeroStaffMappingIsNotApplicable row.preparationStaffMappingRow.mappingRowMapping.mappingStatus
-        && isJust row.preparationStaffMappingRow.mappingRowMapping.updatedByUserId
 
 staffName :: Staff -> Text
 staffName staff = Text.strip (staff.firstName <> " " <> staff.lastName)

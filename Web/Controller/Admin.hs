@@ -205,6 +205,16 @@ parseAdminRosterGroupsVisibility
     | not (AdminAction.toggleInactiveRosterGroupsActionParamsPresent) = Right False
     | otherwise = surfaceFieldValue @Surface.ShowInactiveRosterGroups <$> AdminAction.parseToggleInactiveRosterGroupsActionParams
 
+fetchSavedPayrollWorkbookConfigurationsForAdmin ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO [SavedPayrollWorkbookConfiguration]
+fetchSavedPayrollWorkbookConfigurationsForAdmin =
+    listSavedPayrollWorkbookConfigurations >>= \case
+        Right configurations -> pure configurations
+        Left _ -> do
+            setErrorMessage "Payroll Workbook export configurations are temporarily unavailable."
+            pure []
+
 instance Controller AdminController where
     beforeAction = bepisBeforeAction BepisAdminVenueController do
         annotateTelemetryAction
@@ -237,6 +247,7 @@ instance Controller AdminController where
             let maybeExportAnchorDate = paramOrNothing @Day "anchorDate"
             exportWeekSelection <- profileActionSpan "admin.page.export_week_selection" $
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeExportAnchorDate
+            savedPayrollWorkbookConfigurations <- profileActionSpan "admin.page.fetch_payroll_workbook_configurations" fetchSavedPayrollWorkbookConfigurationsForAdmin
             let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
             currentTime <- getCurrentTime
             let today = utctDay currentTime
@@ -303,6 +314,14 @@ instance Controller AdminController where
     action currentAction@ImportXeroPayItemsAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero importXeroPayItemsAction
+
+    action currentAction@OpenXeroStaffMappingsAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero openXeroStaffMappingsAction
+
+    action currentAction@ApplyXeroStaffMappingAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero applyXeroStaffMappingAction
 
     action currentAction@OpenXeroTimesheetPreparationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -502,7 +521,8 @@ instance Controller AdminController where
             let maybeAnchorDate = paramOrNothing @Day "anchorDate"
             exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
                 maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeAnchorDate
-            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection))
+            savedConfigurations <- profileActionSpan "admin.exports_fragment.fetch_payroll_workbook_configurations" fetchSavedPayrollWorkbookConfigurationsForAdmin
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection savedConfigurations))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do
@@ -519,6 +539,10 @@ instance Controller AdminController where
     action currentAction@ShowadminXeroPayItemImportWaitLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_pay_item_import_wait_fragment.respond" do
             requireCurrentVenueOwnerForXero showXeroPayItemImportWaitFragmentAction
+
+    action currentAction@ShowadminXeroStaffMappingsWaitLiveFragmentAction { xeroReferenceSyncJobId } = runBepis currentAction BepisFragmentAction $
+        profileActionSpan "admin.xero_staff_mappings_wait_fragment.respond" do
+            requireCurrentVenueOwnerForXero (showXeroStaffMappingsWaitFragmentAction xeroReferenceSyncJobId)
 
     action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

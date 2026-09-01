@@ -71,6 +71,8 @@
                         wai
                         webauthn
                         text
+                        xlsx
+                        xml-conduit
                         zip-archive
                     ];
                 devHaskellPackages = p: with p; [

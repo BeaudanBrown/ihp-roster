@@ -8,6 +8,21 @@ module Application.Helper.FrontendContract.AppShell
     , PartialNavigationHtmxAttrs
     , OpenFeedbackDialog
     , OpenPageHelpDialog
+    , OpenPayrollWorkbookConfigurationDialog
+    , OpenPayrollWorkbookConfigurationDeleteDialog
+    , CreatePayrollWorkbookConfigurationOverlay
+    , UpdatePayrollWorkbookConfigurationOverlay
+    , AddPayrollWorkbookConfigurationSheetOverlay
+    , RemovePayrollWorkbookConfigurationSheetOverlay
+    , MovePayrollWorkbookConfigurationSheetUpOverlay
+    , MovePayrollWorkbookConfigurationSheetDownOverlay
+    , PayrollWorkbookConfigurationDraftFields
+    , ExportAnchorDateField
+    , PayrollWorkbookConfigurationNameField
+    , PayrollWorkbookSheetFamiliesField
+    , PayrollWorkbookConfigurationRevisionField
+    , PayrollWorkbookConfigurationIdField
+    , PayrollWorkbookConfigurationSheetField
     , SubmitFeedback
     , FeedbackTypeField
     , ContentField
@@ -35,6 +50,8 @@ module Application.Helper.FrontendContract.AppShell
     , OpenPasskeyRecoveryCodeDialog
     , SubmitPasskeyProtectedAction
     , CreateLeaveRequestOverlay
+    , OpenXeroStaffMappingsOverlay
+    , ApplyXeroStaffMappingOverlay
     , OpenXeroTimesheetPreparationOverlay
     , RunXeroTimesheetPreparationOverlay
     , ContinueXeroTimesheetPreparationStaffOverlay
@@ -55,7 +72,7 @@ module Application.Helper.FrontendContract.AppShell
     , OpenStaffRemovalDialog
     , CreateRosterShiftOverlay
     , UpdateRosterShiftOverlay
-    , DeleteRosterSlotOverlay
+    , OpenRosterSlotDeleteConfirmationDialog
     , ConfirmDeleteRosterSlotOverlay
     , ConfirmRemoveRosterRowOverlay
     , CreateTrialStaffOverlay
@@ -106,6 +123,20 @@ data PartialNavigationHtmxAttrs
 
 data OpenFeedbackDialog
 data OpenPageHelpDialog
+data OpenPayrollWorkbookConfigurationDialog
+data OpenPayrollWorkbookConfigurationDeleteDialog
+data CreatePayrollWorkbookConfigurationOverlay
+data UpdatePayrollWorkbookConfigurationOverlay
+data AddPayrollWorkbookConfigurationSheetOverlay
+data RemovePayrollWorkbookConfigurationSheetOverlay
+data MovePayrollWorkbookConfigurationSheetUpOverlay
+data MovePayrollWorkbookConfigurationSheetDownOverlay
+data ExportAnchorDateField
+data PayrollWorkbookConfigurationNameField
+data PayrollWorkbookSheetFamiliesField
+data PayrollWorkbookConfigurationRevisionField
+data PayrollWorkbookConfigurationIdField
+data PayrollWorkbookConfigurationSheetField
 data SubmitFeedback
 data FeedbackTypeField
 data ContentField
@@ -135,6 +166,8 @@ data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
 data SubmitPasskeyProtectedAction
 data CreateLeaveRequestOverlay
+data OpenXeroStaffMappingsOverlay
+data ApplyXeroStaffMappingOverlay
 data OpenXeroTimesheetPreparationOverlay
 data RunXeroTimesheetPreparationOverlay
 data ContinueXeroTimesheetPreparationStaffOverlay
@@ -155,7 +188,7 @@ data OpenTrialStaffInvitationDialog
 data OpenStaffRemovalDialog
 data CreateRosterShiftOverlay
 data UpdateRosterShiftOverlay
-data DeleteRosterSlotOverlay
+data OpenRosterSlotDeleteConfirmationDialog
 data ConfirmDeleteRosterSlotOverlay
 data ConfirmRemoveRosterRowOverlay
 data CreateTrialStaffOverlay
@@ -208,6 +241,25 @@ type AppShellContract =
          , AppShellAction OpenPageHelpDialog
             '[]
             DialogLauncherOptions
+         , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions
+         , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
+         , AppShellAction CreatePayrollWorkbookConfigurationOverlay
+            '[ Field ExportAnchorDateField 'WireDay
+             , Field PayrollWorkbookConfigurationNameField 'WireText
+             , Field PayrollWorkbookSheetFamiliesField ('WireList 'WireText)
+             ]
+            DialogSubmitOptions
+         , AppShellAction UpdatePayrollWorkbookConfigurationOverlay
+            '[ Field ExportAnchorDateField 'WireDay
+             , Field PayrollWorkbookConfigurationNameField 'WireText
+             , Field PayrollWorkbookSheetFamiliesField ('WireList 'WireText)
+             , Field PayrollWorkbookConfigurationRevisionField 'WireInt
+             ]
+            DialogSubmitOptions
+         , AppShellAction AddPayrollWorkbookConfigurationSheetOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
+         , AppShellAction RemovePayrollWorkbookConfigurationSheetOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
+         , AppShellAction MovePayrollWorkbookConfigurationSheetUpOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
+         , AppShellAction MovePayrollWorkbookConfigurationSheetDownOverlay PayrollWorkbookConfigurationDraftFields PayrollWorkbookConfigurationDraftOptions
          , AppShellAction SubmitFeedback
             '[ Field FeedbackTypeField ('WireClosed FeedbackTypeEnum)
              , Field ContentField 'WireText
@@ -263,6 +315,18 @@ type AppShellContract =
              , Field ReasonField 'WireText
              ]
             DialogSubmitOptions
+         , AppShellAction OpenXeroStaffMappingsOverlay '[] DialogSubmitOptions
+         , AppShellAction ApplyXeroStaffMappingOverlay
+            '[ Field StaffIdField 'WireUUID
+             , Field XeroEmployeeSelectionField ('WireDomain XeroEmployeeSelection)
+             ]
+            '[ AppShellHtmxMethod 'AppShellPost
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             , AppShellHtmxTrigger "change, submit"
+             , AppShellHtmxSync "#xero-staff-mappings:queue all"
+             ]
          , AppShellAction OpenXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
          , AppShellAction RunXeroTimesheetPreparationOverlay
             '[]
@@ -327,18 +391,15 @@ type AppShellContract =
          , AppShellAction OpenStaffRemovalDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
-         , AppShellAction DeleteRosterSlotOverlay
-            '[ Field AnchorDateField 'WireText
-             , Field RosterCalendarRevisionField 'WireText
+         , AppShellAction OpenRosterSlotDeleteConfirmationDialog
+            '[ Field AnchorDateField 'WireDay
+             , Field RosterCalendarRevisionField 'WireInt
              ]
-            '[ AppShellHtmxMethod 'AppShellDelete
-             , AppShellHtmxTarget DialogOverlayMount
-             , AppShellHtmxSwap "innerHTML"
-             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxConfirm "Delete this shift?"
-             ]
+            DialogLauncherOptions
          , AppShellAction ConfirmDeleteRosterSlotOverlay
-            '[]
+            '[ Field AnchorDateField 'WireDay
+             , Field RosterCalendarRevisionField 'WireInt
+             ]
             '[ AppShellHtmxMethod 'AppShellDelete
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
@@ -385,6 +446,24 @@ type DialogSubmitOptions =
      , AppShellHtmxTarget DialogOverlayMount
      , AppShellHtmxSwap "innerHTML"
      , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     ]
+
+type PayrollWorkbookConfigurationDraftFields =
+    '[ Field ExportAnchorDateField 'WireDay
+     , Field PayrollWorkbookConfigurationNameField 'WireText
+     , Field PayrollWorkbookSheetFamiliesField ('WireList 'WireText)
+     , Field PayrollWorkbookConfigurationRevisionField 'WireInt
+     , OptionalField PayrollWorkbookConfigurationIdField 'WireUUID
+     , Field PayrollWorkbookConfigurationSheetField 'WireText
+     ]
+
+type PayrollWorkbookConfigurationDraftOptions =
+    '[ AppShellHtmxMethod 'AppShellPost
+     , AppShellHtmxInclude "#payroll-workbook-configuration-editor-form"
+     , AppShellHtmxTarget DialogOverlayMount
+     , AppShellHtmxSwap "innerHTML"
+     , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     , AppShellHtmxSync "#payroll-workbook-configuration-editor-form:replace"
      ]
 
 type RosterShiftFields =

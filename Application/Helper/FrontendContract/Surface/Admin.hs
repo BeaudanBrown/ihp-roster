@@ -32,6 +32,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminXeroReferenceSyncFragment
     , AdminXeroTimesheetPreparationWaitFragment
     , AdminXeroPayItemImportWaitFragment
+    , AdminXeroStaffMappingsWaitFragment
     , AdminVenueSettings
     , AdminInvites
     , AdminExports
@@ -74,6 +75,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , RangeStart
     , RangeEnd
     , ExportType
+    , PayrollWorkbookConfigurationId
     , ShowInactiveRosterGroups
     , ShowInactiveShiftTypes
     , Name
@@ -83,6 +85,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , IsActive
     , EditStaffId
     , ShowMatched
+    , ReferenceSyncJobId
     ) where
 
 import Application.Helper.Export.Types (ExportJobType)
@@ -122,6 +125,7 @@ data AdminXeroShellFragment
 data AdminXeroReferenceSyncFragment
 data AdminXeroTimesheetPreparationWaitFragment
 data AdminXeroPayItemImportWaitFragment
+data AdminXeroStaffMappingsWaitFragment
 
 data CreateRosterGroup
 data UpdateRosterGroup
@@ -158,6 +162,7 @@ data Email
 data RangeStart
 data RangeEnd
 data ExportType
+data PayrollWorkbookConfigurationId
 data ShowInactiveRosterGroups
 data ShowInactiveShiftTypes
 data Name
@@ -167,6 +172,7 @@ data ColourKey
 data IsActive
 data EditStaffId
 data ShowMatched
+data ReferenceSyncJobId
 data XeroPreparationStaffMappings
 
 data None
@@ -305,6 +311,7 @@ type AdminExportsSurface =
             '[ Field RangeStart 'WireDay
              , Field RangeEnd 'WireDay
              , Field ExportType ('WireClosed ExportJobType)
+             , OptionalField PayrollWorkbookConfigurationId 'WireUUID
              ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminExportsFragment)
@@ -447,6 +454,13 @@ type AdminXeroSurface =
          , Fragment AdminXeroReferenceSyncFragment '[] '[ 'MountTarget AdminXeroReferenceSyncFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
          , Fragment AdminXeroTimesheetPreparationWaitFragment '[] '[ 'MountTarget AdminXeroTimesheetPreparationWaitFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
          , Fragment AdminXeroPayItemImportWaitFragment '[] '[ 'MountTarget AdminXeroPayItemImportWaitFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroStaffMappingsWaitFragment
+            '[ Field ReferenceSyncJobId 'WireUUID ]
+            '[ 'MountTarget AdminXeroStaffMappingsWaitFragment '[ Field ReferenceSyncJobId 'WireUUID ]
+             , 'Eager
+             , 'Live
+             , 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ]
+             ]
          , Action SyncXeroPayrollReferenceData
             '[]
             '[ 'HtmxMethod 'HtmxPost

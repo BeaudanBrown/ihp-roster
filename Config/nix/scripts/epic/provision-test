@@ -26,15 +26,17 @@ git init --quiet --initial-branch=roster "$fixture_repo"
 git -C "$fixture_repo" config user.name "Epic Provision Test"
 git -C "$fixture_repo" config user.email "epic-provision-test@example.invalid"
 printf 'committed\n' >"$fixture_repo/tracked"
-printf '.bepis-epic-worktree.json\n.env\n' >"$fixture_repo/.gitignore"
+printf '.bepis-epic-worktree.json\n.env\n.ghci\n' >"$fixture_repo/.gitignore"
 git -C "$fixture_repo" add tracked .gitignore
 git -C "$fixture_repo" commit --quiet -m fixture
 base_commit="$(git -C "$fixture_repo" rev-parse HEAD)"
 
-# Dirty and secret primary-checkout state must not enter or change the new worktree.
+# Dirty primary-checkout state must not enter the new worktree. Secret configuration
+# is referenced by symlink without being copied or inspected by provisioning.
 printf 'dirty staged\n' >"$fixture_repo/tracked"
 git -C "$fixture_repo" add tracked
 printf 'SECRET=do-not-copy\n' >"$fixture_repo/.env"
+printf ':load Main.hs\n' >"$fixture_repo/.ghci"
 status_before="$(git -C "$fixture_repo" status --porcelain=v1)"
 branch_before="$(git -C "$fixture_repo" branch --show-current)"
 head_before="$(git -C "$fixture_repo" rev-parse HEAD)"
@@ -75,7 +77,10 @@ expected_path="$fixture_root/repo-epic-265"
 [ "$(git -C "$fixture_repo" rev-parse HEAD)" = "$head_before" ] || fail "primary HEAD changed"
 [ "$(git -C "$fixture_repo" status --porcelain=v1)" = "$status_before" ] || fail "primary dirty state changed"
 [ "$(cat "$expected_path/tracked")" = "committed" ] || fail "dirty staged content leaked into worktree"
-[ ! -e "$expected_path/.env" ] || fail "primary .env was copied"
+[ -L "$expected_path/.env" ] || fail "worktree .env is not a symlink"
+[ "$(readlink "$expected_path/.env")" = "$fixture_repo/.env" ] || fail "worktree .env does not reference the primary checkout"
+[ -L "$expected_path/.ghci" ] || fail "worktree .ghci is not a symlink"
+[ "$(readlink "$expected_path/.ghci")" = "$fixture_repo/.ghci" ] || fail "worktree .ghci does not reference the primary checkout"
 [ "$(git -C "$expected_path" branch --show-current)" = "epic-265" ] || fail "worktree branch mismatch"
 assert_contains "$(cat "$direnv_log")" "allow $expected_path"
 assert_contains "$(cat "$direnv_log")" "exec $expected_path true"
@@ -89,6 +94,10 @@ second_json="$(
         bash "$provision_command" --epic 265 --base roster --json
 )"
 [ "$(jq -r '.path' <<<"$second_json")" = "$expected_path" ] || fail "repeat changed workspace"
+[ -L "$expected_path/.env" ] || fail "repeat provisioning replaced the .env symlink"
+[ "$(readlink "$expected_path/.env")" = "$fixture_repo/.env" ] || fail "repeat provisioning changed the .env target"
+[ -L "$expected_path/.ghci" ] || fail "repeat provisioning replaced the .ghci symlink"
+[ "$(readlink "$expected_path/.ghci")" = "$fixture_repo/.ghci" ] || fail "repeat provisioning changed the .ghci target"
 common_dir="$(git -C "$fixture_repo" rev-parse --path-format=absolute --git-common-dir)"
 registry_file="$common_dir/bepis/epic-worktrees/registry.json"
 [ "$(jq '.workspaces | length' "$registry_file")" = "1" ] || fail "repeat duplicated registration"
@@ -192,6 +201,37 @@ set -e
 [ "$symlink_status" -eq 65 ] || fail "symlinked sibling path was accepted"
 assert_contains "$symlink_output" "refusing symlink"
 [ "$(jq '[.workspaces[] | select(.epic == 271)] | length' "$registry_file")" = "0" ] || fail "symlinked path was registered"
+
+# Missing primary configuration does not block provisioning, and existing
+# worktree configuration is never replaced when primary files later appear.
+rm "$fixture_repo/.env" "$fixture_repo/.ghci"
+without_env_json="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 273 --base roster --json
+)"
+without_env_path="$(jq -r '.path' <<<"$without_env_json")"
+[ ! -e "$without_env_path/.env" ] && [ ! -L "$without_env_path/.env" ] \
+    || fail "missing primary .env unexpectedly created a worktree link"
+[ ! -e "$without_env_path/.ghci" ] && [ ! -L "$without_env_path/.ghci" ] \
+    || fail "missing primary .ghci unexpectedly created a worktree link"
+printf 'LOCAL=keep\n' >"$without_env_path/.env"
+printf ':load Local.hs\n' >"$without_env_path/.ghci"
+printf 'PRIMARY=available\n' >"$fixture_repo/.env"
+printf ':load Main.hs\n' >"$fixture_repo/.ghci"
+(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 273 --base roster --json >/dev/null
+)
+[ ! -L "$without_env_path/.env" ] || fail "existing worktree .env was replaced with a symlink"
+[ "$(cat "$without_env_path/.env")" = "LOCAL=keep" ] || fail "existing worktree .env content changed"
+[ ! -L "$without_env_path/.ghci" ] || fail "existing worktree .ghci was replaced with a symlink"
+[ "$(cat "$without_env_path/.ghci")" = ":load Local.hs" ] || fail "existing worktree .ghci content changed"
 
 set +e
 missing_base_output="$(cd "$fixture_repo" && bash "$provision_command" --epic 272 2>&1)"

@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "issue": 443,
-  "authority": "Stable production app-library and inventory regression ceilings reconciled after the typed-error outcome rollover, checked frontend-contract authority, and Week-template snapshot retirements; measured memory is opt-in and builder-specific",
-  "measurement_profile": "Config/nix/baselines/production-build/epic-364-post-staging-rebase.json",
+  "authority": "Stable production app-library and inventory regression ceilings reconciled after merging Payroll Workbook and category-aware Xero management into the typed-error and Week-template snapshot staging line; measured memory is opt-in and builder-specific",
+  "measurement_profile": "Config/nix/baselines/production-build/epic-444-final-xero-management.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 541,
+    "module_count_max": 549,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -30,8 +30,8 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/StaffPanel.hi",
-        "bytes_max": 41943040,
-        "reason": "GHC 9.10 retains typed Roster staff-panel surface evidence required by runtime rendering"
+        "bytes_max": 50331648,
+        "reason": "GHC 9.10 retains typed Roster staff-panel surface evidence required by runtime rendering; the merged staging closure measured 46,238,142 bytes"
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Resource.hi",
@@ -43,16 +43,13 @@
         "bytes_max": 23068672,
         "reason": "GHC 9.10 retains the runtime composition of canonical Roster surface declarations"
       },
-      {
-        "path": "Application/Helper/FrontendContract/Surface/Roster/Chrome.hi",
-        "bytes_max": 25165824,
-        "reason": "GHC 9.10 retains typed dated Roster chrome surface evidence required by runtime rendering; #395 measured 22,102,748 bytes after the staging/date-native reconciliation"
-      },
+
       {
         "path": "Web/RosterWeeks/Dom.hi",
         "bytes_max": 20971520,
         "reason": "GHC 9.10 retains typed DOM identifiers shared across Roster runtime renderers"
       },
+
       {
         "path": "Web/RosterWeeks/Mutations.hi",
         "bytes_max": 18874368,
@@ -60,7 +57,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 541, "bytes_max": 629145600 },
+      ".hi": { "count": 549, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -69,8 +66,8 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 542,
-    "dependency_packages_max": 43,
+    "module_rows_max": 550,
+    "dependency_packages_max": 45,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
     "dependency_inventory": "../../production-package-dependency-inventory.tsv",

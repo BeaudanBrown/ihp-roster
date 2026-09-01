@@ -4,6 +4,8 @@ import Application.Helper.Controller
 import Application.Helper.Export.Definitions
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Payloads
+import Application.Helper.Export.PayrollWorkbook
+import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
@@ -38,6 +40,99 @@ requestFixedExport exportType rangeStart rangeEnd
             HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
             HourlyWageTotalsZip -> requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd
             PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
+            PayrollWorkbookXlsx -> requestPayrollWorkbookXlsxExport rangeStart rangeEnd
+
+requestPayrollWorkbookXlsxExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestPayrollWorkbookXlsxExport =
+    requestPayrollWorkbookXlsxExportWithDefinition defaultPayrollWorkbookDefinition
+
+requestPayrollWorkbookXlsxExportWithDefinition ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    PayrollWorkbookDefinition ->
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd = do
+    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    staffById <- fetchStaffMap entries
+    let includedEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
+    if null includedEntries
+        then pure (Left "No approved payroll entries were found for the Payroll Workbook range.")
+        else enforceFinalWageEntries includedEntries >>= \case
+            Left failures -> pure (Left (renderWageEntryFailures "Payroll Workbook blocked: " failures))
+            Right calculations -> do
+                venueConfig <- fetchVenueConfig
+                payBucketsByEntryId <- fetchApprovedEntryPayrollPayBuckets includedEntries
+                shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels includedEntries
+                activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
+                reportShiftTypes <- fetchReportShiftTypes includedEntries
+                versionManifestsByEntryId <- fetchVersionManifestsForEntries includedEntries
+                let shiftTypeColumns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes includedEntries shiftLabelsByEntryId
+                let calculationsByEntryId = calculationMap includedEntries calculations
+                case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId shiftTypeColumns calculationsByEntryId of
+                    Left message -> pure (Left message)
+                    Right factModel ->
+                        case payrollWorkbookFromDefinition definition venueConfig.rosterWeekStartsOn factModel of
+                            Left message -> pure (Left message)
+                            Right workbook -> persistModel definition includedEntries versionManifestsByEntryId factModel workbook
+  where
+    persistModel definition includedEntries versionManifestsByEntryId factModel workbook = do
+        now <- getCurrentTime
+        let exportType = exportJobTypeToText PayrollWorkbookXlsx
+        let fileName = "payroll_workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
+        let hourlyModel = payrollWorkbookHourlyModelFromFacts factModel
+        let workbookContents = renderPayrollWorkbookBase64 workbook
+        let definitionSnapshot = map payrollWorkbookSheetFamilyKey definition.payrollWorkbookDefinitionSheetFamilies
+        let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
+        let exportVersionManifest = collapseVersionManifests versionManifests
+        let rowCount = sum (map (length . (.payrollDayRows)) hourlyModel.payrollModelDays)
+        exportJob <-
+            persistReadyExportJobForEntries
+                includedEntries
+                exportType
+                rangeStart
+                rangeEnd
+                (Aeson.object
+                    [ "rangeStart" Aeson..= rangeStart
+                    , "rangeEnd" Aeson..= rangeEnd
+                    , "format" Aeson..= ("xlsx" :: Text)
+                    , "workbookVersion" Aeson..= (2 :: Int)
+                    , "dataModel" Aeson..= ("normalized_hourly_facts_v2" :: Text)
+                    , "definitionKey" Aeson..= definition.payrollWorkbookDefinitionKey
+                    , "definitionVersion" Aeson..= definition.payrollWorkbookDefinitionVersion
+                    , "sheetFamilies" Aeson..= definitionSnapshot
+                    , "entryCount" Aeson..= length includedEntries
+                    , "factCount" Aeson..= length factModel.payrollFactModelFacts
+                    , "rowCount" Aeson..= rowCount
+                    , "hourColumnCount" Aeson..= length hourlyModel.payrollModelHourSlots
+                    , "effectiveWindowStartHour" Aeson..= hourlyModel.payrollModelWindow.hourlyWindowStartHour
+                    , "effectiveWindowEndHour" Aeson..= hourlyModel.payrollModelWindow.hourlyWindowEndHour
+                    , "versionManifests" Aeson..= versionManifests
+                    ])
+                fileName
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                "base64"
+                workbookContents
+                exportVersionManifest
+                (addUTCTime exportExpirySeconds now)
+                (Aeson.object
+                    [ "exportType" Aeson..= exportType
+                    , "rangeStart" Aeson..= rangeStart
+                    , "rangeEnd" Aeson..= rangeEnd
+                    , "entryCount" Aeson..= length includedEntries
+                    , "rowCount" Aeson..= rowCount
+                    , "workbookVersion" Aeson..= (1 :: Int)
+                    , "definitionKey" Aeson..= definition.payrollWorkbookDefinitionKey
+                    , "definitionVersion" Aeson..= definition.payrollWorkbookDefinitionVersion
+                    , "sheetFamilies" Aeson..= definitionSnapshot
+                    , "payConfigVersionManifest" Aeson..= exportVersionManifest
+                    , "deliveryMethod" Aeson..= browserDownloadMethod
+                    ])
+        pure (Right exportJob)
 
 invalidTimesheetTimingExportMessage :: Text
 invalidTimesheetTimingExportMessage = "Export blocked because a Timesheet has invalid timing. Repair and reapprove it before exporting."

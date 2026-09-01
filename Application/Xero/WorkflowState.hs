@@ -18,6 +18,7 @@ module Application.Xero.WorkflowState
     , xeroPreparationKindIsStaffMappingDecision
     , xeroPreparationKindIsStaffStepApproval
     , xeroStaffMappingIsNotApplicable
+    , xeroStaffMappingIsUnmapped
     , xeroStaffMappingIsVerified
     , xeroStaffMappingStatusFlags
     , xeroSubmissionIsInProgress
@@ -33,6 +34,7 @@ import Generated.Types
 import IHP.Prelude
 
 xeroStaffMappingStatusFlags :: XeroStaffMappingStatusEnum -> (Bool, Bool)
+xeroStaffMappingStatusFlags XeroStaffMappingStatusEnumUnmapped = (False, False)
 xeroStaffMappingStatusFlags XeroStaffMappingStatusEnumVerified = (True, False)
 xeroStaffMappingStatusFlags NotApplicable                      = (False, True)
 xeroStaffMappingStatusFlags XeroStaffMappingStatusEnumStale    = (False, False)
@@ -43,8 +45,14 @@ xeroStaffMappingIsVerified = fst . xeroStaffMappingStatusFlags
 xeroStaffMappingIsNotApplicable :: XeroStaffMappingStatusEnum -> Bool
 xeroStaffMappingIsNotApplicable = snd . xeroStaffMappingStatusFlags
 
+xeroStaffMappingIsUnmapped :: XeroStaffMappingStatusEnum -> Bool
+xeroStaffMappingIsUnmapped XeroStaffMappingStatusEnumUnmapped = True
+xeroStaffMappingIsUnmapped XeroStaffMappingStatusEnumVerified = False
+xeroStaffMappingIsUnmapped NotApplicable                      = False
+xeroStaffMappingIsUnmapped XeroStaffMappingStatusEnumStale    = False
+
 xeroEarningsRateMappingIsVerified :: XeroEarningsRateMappingStatusEnum -> Bool
-xeroEarningsRateMappingIsVerified Unmapped = False
+xeroEarningsRateMappingIsVerified XeroEarningsRateMappingStatusEnumUnmapped = False
 xeroEarningsRateMappingIsVerified XeroEarningsRateMappingStatusEnumVerified = True
 xeroEarningsRateMappingIsVerified XeroEarningsRateMappingStatusEnumStale = False
 

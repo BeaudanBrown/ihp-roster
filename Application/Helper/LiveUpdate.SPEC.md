@@ -115,8 +115,12 @@ each local transaction. Outcomes classified by the producer as validation
 failures, stale-lock failures, or no live-visible change commit without an
 event; explicitly convergent idempotent outcomes may retain a focused event.
 Listeners replay durable events into each process-local `LiveBus`. Producers
-never dispatch directly to that bus. Malformed resource children are skipped and
-counted in bounded diagnostics while valid siblings continue; ordered event
+never dispatch directly to that bus. The durable listener supervisor is itself
+the long-lived IHP initializer action: it must not detach a child thread. IHP
+owns and cancels that action on shutdown or GHCi reload, and cancellation must
+propagate through the PostgreSQL connection bracket so exactly one listener and
+one `LISTEN` connection remain per running application process. Malformed
+resource children are skipped and counted in bounded diagnostics while valid siblings continue; ordered event
 cursors still advance so poison payloads cannot create a reconnect loop.
 
 Event replay history is retained for at least seven days and pruned in bounded,

@@ -88,9 +88,9 @@ bepis_workspace_configure() {
 
         local workspace_json
         if [ -x "$registry_command" ]; then
-            workspace_json="$("$registry_command" inspect --path "$repo_root" --json 2>/dev/null || true)"
+            workspace_json="$("$registry_command" resolve --path "$repo_root" --json 2>/dev/null || true)"
         else
-            workspace_json="$(bash "$registry_command" inspect --path "$repo_root" --json 2>/dev/null || true)"
+            workspace_json="$(bash "$registry_command" resolve --path "$repo_root" --json 2>/dev/null || true)"
         fi
         if ! jq -e --arg path "$repo_root" '
             .path == $path

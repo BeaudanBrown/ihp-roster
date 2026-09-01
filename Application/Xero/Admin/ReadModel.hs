@@ -8,6 +8,7 @@ module Application.Xero.Admin.ReadModel
     , fetchCurrentVenueXeroPayItemAccountCodeSelection
     , fetchCurrentVenueXeroPayItemRequirements
     , fetchCurrentVenueXeroPayrollCalendars
+    , fetchCurrentVenueXeroStaffManagementRows
     , fetchCurrentVenueXeroStaffMappingRows
     , fetchCurrentVenueXeroTimesheetPeriodOptions
     , xeroEmployeeAvailableForStaff
@@ -26,7 +27,7 @@ import Application.Xero.ReferenceDemand (fetchXeroPayrollEligibleApprovedStaffId
 import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (NoMissingPayrollReferenceDemand))
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
-import Application.Xero.WorkflowState (xeroStaffMappingIsNotApplicable,
+import Application.Xero.WorkflowState (xeroStaffMappingIsUnmapped,
                                        xeroStaffMappingIsVerified)
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
@@ -158,32 +159,48 @@ fetchCurrentVenueXeroStaffMappingRows maybeConnection =
             staffMembers <-
                 fetchLinkedActiveVenueStaff currentVenueId
                     |> fmap (filter (\staff -> unpackId staff.id `elem` payrollEligibleStaffIds))
-            mappings <-
-                query @XeroStaffMapping
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                    |> fetch
-            xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
-            rows <- forM staffMembers \staff -> do
-                maybeUser <- fetchStaffLinkedUser staff
-                mapping <- ensureDefaultXeroStaffMapping connection staff (List.find (\mapping -> mapping.staffId == unpackId staff.id) mappings)
-                pure XeroStaffMappingRow
-                    { mappingRowStaff = staff
-                    , mappingRowUser = maybeUser
-                    , mappingRowMapping = mapping
-                    , mappingRowSuggestedEmployee = Nothing
-                    }
-            pure (attachXeroStaffMappingSuggestions xeroEmployees rows)
+            fetchXeroStaffMappingRows connection staffMembers
 
-ensureDefaultXeroStaffMapping :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> Staff -> Maybe XeroStaffMapping -> IO XeroStaffMapping
-ensureDefaultXeroStaffMapping _ _ (Just mapping) =
+fetchCurrentVenueXeroStaffManagementRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> IO [XeroStaffMappingRow]
+fetchCurrentVenueXeroStaffManagementRows connection = do
+    staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
+    fetchXeroStaffMappingRows connection staffMembers
+
+fetchXeroStaffMappingRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> [Staff] -> IO [XeroStaffMappingRow]
+fetchXeroStaffMappingRows connection staffMembers = do
+    mappings <-
+        query @XeroStaffMapping
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetch
+    xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
+    maybeStaffRefreshedAt <-
+        query @XeroReferenceSyncCategoryState
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#category, XeroStaff)
+            |> fetchOneOrNothing
+            |> fmap (fmap (.lastSuccessAt))
+    rows <- forM staffMembers \staff -> do
+        maybeUser <- fetchStaffLinkedUser staff
+        mapping <- ensureDefaultXeroStaffMapping connection staff maybeStaffRefreshedAt (List.find (\candidate -> candidate.staffId == unpackId staff.id) mappings)
+        pure XeroStaffMappingRow
+            { mappingRowStaff = staff
+            , mappingRowUser = maybeUser
+            , mappingRowMapping = mapping
+            , mappingRowSuggestedEmployee = Nothing
+            }
+    pure (attachXeroStaffMappingSuggestions xeroEmployees rows)
+
+ensureDefaultXeroStaffMapping :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> Staff -> Maybe UTCTime -> Maybe XeroStaffMapping -> IO XeroStaffMapping
+ensureDefaultXeroStaffMapping _ _ _ (Just mapping) =
     pure mapping
-ensureDefaultXeroStaffMapping connection staff Nothing =
+ensureDefaultXeroStaffMapping connection staff maybeStaffRefreshedAt Nothing =
     newRecord @XeroStaffMapping
         |> set #venueId (unpackId currentVenueId)
         |> set #staffId (unpackId staff.id)
         |> set #xeroConnectionId (unpackId connection.id)
-        |> set #mappingStatus NotApplicable
+        |> set #mappingStatus XeroStaffMappingStatusEnumUnmapped
+        |> set #referenceRefreshedAt maybeStaffRefreshedAt
         |> createRecord
 
 fetchStaffLinkedUser :: (?modelContext :: ModelContext) => Staff -> IO (Maybe User)
@@ -529,7 +546,7 @@ attachXeroStaffMappingSuggestions employees rows =
     map attach rows
     where
         attach row
-            | not (xeroStaffMappingIsNotApplicable row.mappingRowMapping.mappingStatus) = row { mappingRowSuggestedEmployee = Nothing }
+            | not (xeroStaffMappingIsUnmapped row.mappingRowMapping.mappingStatus) = row { mappingRowSuggestedEmployee = Nothing }
             | otherwise =
                 let availableEmployees = filter (xeroEmployeeAvailableForStaff row.mappingRowStaff rows) employees
                  in case bestXeroEmployeeSuggestion row availableEmployees of

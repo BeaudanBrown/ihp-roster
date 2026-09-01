@@ -499,8 +499,6 @@ instance Controller TimesheetsController where
                     ensureStaffAssignmentAllowedForExisting existingEntry timesheetEntry.staffId
                     ensureShiftTypeAllowedForExisting existingEntry timesheetEntry.shiftTypeId
                     let coreChanged = timesheetCoreChanged existingEntry timesheetEntry
-                    when (wasApproved && coreChanged) do
-                        ensureTimesheetEntryNotPayrollLocked existingEntry timesheetScope selectedStaffFilterId
                     let successMessage =
                             if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
@@ -522,7 +520,6 @@ instance Controller TimesheetsController where
 
         timesheetScope <- requireCurrentTimesheetMutationCalendar
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters timesheetFiltersFromRequest
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry timesheetScope selectedStaffFilterId
         mutationResult <- deleteTimesheetEntryMutation timesheetScope timesheetEntry
         if isHtmxRequest
             then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
@@ -565,7 +562,6 @@ instance Controller TimesheetsController where
         state <- requireTimesheetSurfaceState parseUnapproveTimesheetEntryState
         timesheetScope <- requireCurrentTimesheetCalendar state
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry timesheetScope selectedStaffFilterId
 
         mutationResult <- unapproveTimesheetEntryMutation timesheetScope timesheetEntry
         if isHtmxRequest

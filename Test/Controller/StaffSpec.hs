@@ -1276,6 +1276,53 @@ tests = aroundAll withDatabaseTestContext do
                 removedStaff.archivedByUserId `shouldBe` Just (unpackId admin.id)
                 removedStaff.archiveReason `shouldBe` Just "Removed from venue staff"
 
+        it "clears current Xero mappings when linked staff are removed" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Mapping Staff Removal Venue"
+                admin <- createUserRecord "xero-mapping-removal-admin@example.com" "staff" True
+                worker <- createUserRecord "xero-mapping-removal-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue worker Worker
+                staff <- createStaffRecord venue (Just worker) "Mapped" "Worker"
+                connection <- createXeroConnectionRecord venue admin "staff-removal-tenant"
+                now <- getCurrentTime
+                mapping <-
+                    newRecord @XeroStaffMapping
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId staff.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #xeroEmployeeId (Just ("released-xero-employee" :: Text))
+                        |> set #xeroEmployeeName (Just ("Mapped Worker" :: Text))
+                        |> set #xeroEmployeeEmail (Just ("mapped@example.com" :: Text))
+                        |> set #mappingStatus XeroStaffMappingStatusEnumVerified
+                        |> set #lastVerifiedAt (Just now)
+                        |> set #referenceRefreshedAt (Just now)
+                        |> set #createdByUserId (Just (unpackId admin.id))
+                        |> set #updatedByUserId (Just (unpackId admin.id))
+                        |> createRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (RemoveStaffAction staff.id)
+
+                response `responseStatusShouldBe` status302
+                clearedMapping <- fetch mapping.id
+                clearedMapping.mappingStatus `shouldBe` XeroStaffMappingStatusEnumUnmapped
+                clearedMapping.xeroEmployeeId `shouldBe` Nothing
+                clearedMapping.xeroEmployeeName `shouldBe` Nothing
+                clearedMapping.xeroEmployeeEmail `shouldBe` Nothing
+                clearedMapping.lastVerifiedAt `shouldBe` Nothing
+                clearedMapping.referenceRefreshedAt `shouldBe` Nothing
+                clearedMapping.updatedByUserId `shouldBe` Just (unpackId admin.id)
+                removalAudit <-
+                    query @AuditEvent
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> filterWhere (#eventType, "staff_removed" :: Text)
+                        |> filterWhere (#targetTable, "staff" :: Text)
+                        |> filterWhere (#targetId, unpackId staff.id)
+                        |> fetchOne
+                tshow removalAudit.payload `shouldSatisfy` Text.isInfixOf "released-xero-employee"
+                tshow removalAudit.payload `shouldSatisfy` Text.isInfixOf "verified"
+
         it "rejects removal by a manager without mutating staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Manager Removal Rejection Venue"

@@ -195,6 +195,8 @@ tests = aroundAll withDatabaseTestContext do
                 membership <- query @VenueMembership |> filterWhere (#userId, unpackId user.id) |> fetchOne
                 staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOneOrNothing
                 updatedInvitation <- fetch invitation.id
+                standardWorkbook <- query @PayrollWorkbookConfiguration |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                standardWorkbookFamilies <- query @PayrollWorkbookConfigurationFamily |> filterWhere (#configurationId, unpackId standardWorkbook.id) |> orderByAsc #position |> fetch
 
                 venueConfig.timezone `shouldBe` defaultVenueBootstrapTimezone
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
@@ -205,6 +207,16 @@ tests = aroundAll withDatabaseTestContext do
                 staff `shouldSatisfy` isJust
                 inputValue updatedInvitation.status `shouldBe` "accepted"
                 updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId user.id)
+                standardWorkbook.name `shouldBe` "Payroll Workbook"
+                standardWorkbook.revision `shouldBe` 0
+                map (.familyKey) standardWorkbookFamilies
+                    `shouldBe`
+                        [ "summary"
+                        , "employee-pay-bucket-hours"
+                        , "shift-type-hours"
+                        , "employee-pay-bucket-wages"
+                        , "shift-type-wages"
+                        ]
 
         it "does not redeem an invitation that has already been accepted" $ withContext do
             withCleanDb do

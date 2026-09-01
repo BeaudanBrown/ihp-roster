@@ -810,6 +810,26 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 afterFill `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
 
+        it "rejects roster shift deletion without calendar context as a controlled bad request" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Delete Context Venue"
+                manager <- createUserRecord "delete-context-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (DeleteRosterSlotAction slot.id) []
+
+                response `responseStatusShouldBe` status400
+                response `responseBodyShouldContain` "Check the roster controls:"
+                persistedSlot <- fetch slot.id
+                persistedSlot.deletedAt `shouldBe` Nothing
+
         it "rejects Published Open-shift tampering, deletion, ordinary staff writes, and Assigned transitions" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Live Open Security Venue"

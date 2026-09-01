@@ -105,6 +105,16 @@ data LeaveRequestsController
 data ExportsController
     = ExportJobsAction
     | CreateExportJobAction
+    | NewPayrollWorkbookConfigurationAction { anchorDate :: !Text }
+    | EditPayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
+    | CreatePayrollWorkbookConfigurationAction
+    | UpdatePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration) }
+    | AddPayrollWorkbookConfigurationSheetDraftAction
+    | RemovePayrollWorkbookConfigurationSheetDraftAction
+    | MovePayrollWorkbookConfigurationSheetUpDraftAction
+    | MovePayrollWorkbookConfigurationSheetDownDraftAction
+    | ConfirmDeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
+    | DeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | DownloadExportJobAction { exportJobId :: !(Id ExportJob) }
     deriving (Eq, Show, Data)
 
@@ -143,6 +153,8 @@ data AdminController
     | SyncXeroPayrollReferenceDataAction
     | OpenXeroPayItemImportAction
     | ImportXeroPayItemsAction
+    | OpenXeroStaffMappingsAction
+    | ApplyXeroStaffMappingAction
     | OpenXeroTimesheetPreparationAction
     | RunXeroTimesheetPreparationAction
     | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
@@ -171,6 +183,7 @@ data AdminController
     | ShowadminXeroReferenceSyncLiveFragmentAction
     | ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
     | ShowadminXeroPayItemImportWaitLiveFragmentAction
+    | ShowadminXeroStaffMappingsWaitLiveFragmentAction { xeroReferenceSyncJobId :: !(Id AppJob) }
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | RenewVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
@@ -290,6 +303,7 @@ data RosterWeeksController
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }
     | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
+    | ShowRosterSlotDeleteConfirmationAction { rosterSlotId :: !(Id RosterSlot) }
     | DeleteRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     deriving (Eq, Show, Data)
 

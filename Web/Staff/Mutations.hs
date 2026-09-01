@@ -40,6 +40,8 @@ import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransactio
                                     withStaffRemovalLockInCurrentTransaction)
 import Application.VenueInvitation.Mutations (withTrialStaffInvitationLockInCurrentTransaction,
                                               withVenueInvitationRenewalLockInCurrentTransaction)
+import Application.Xero.StaffMappings (ClearedXeroStaffMapping (..),
+                                       clearXeroStaffMappingsForInactiveStaff)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
@@ -221,6 +223,8 @@ removeStaffMember staff
                             |> set #archivedByUserId (Just (unpackId currentUser.id))
                             |> set #archiveReason (Just ("Removed from venue staff" :: Text))
                             |> updateRecord
+                        clearedXeroStaffMappings <-
+                            clearXeroStaffMappingsForInactiveStaff currentUser.id removedStaff
                         forM_ maybeMembership \membership ->
                             void $
                                 membership
@@ -283,6 +287,7 @@ removeStaffMember staff
                                 (Aeson.object
                                     [ "linkedUserId" Aeson..= lockedStaff.userId
                                     , "removedRosterAssignmentCount" Aeson..= removedRosterAssignmentCount
+                                    , "clearedXeroStaffMappings" Aeson..= map clearedXeroStaffMappingAuditValue clearedXeroStaffMappings
                                     , "reason" Aeson..= ("removed_from_venue_staff" :: Text)
                                     ]
                                 )
@@ -313,6 +318,16 @@ removeStaffMember staff
                     pure (Right (liveMutationResult removedStaff touchedResources))
   where
     publicationFor = either (const Nothing) (\result -> Just ("staff.remove", result.liveMutationTouchedResources))
+
+clearedXeroStaffMappingAuditValue :: ClearedXeroStaffMapping -> Aeson.Value
+clearedXeroStaffMappingAuditValue mapping =
+    Aeson.object
+        [ "mappingId" Aeson..= unpackId mapping.clearedMappingId
+        , "connectionId" Aeson..= unpackId mapping.clearedConnectionId
+        , "xeroEmployeeId" Aeson..= mapping.clearedXeroEmployeeId
+        , "xeroEmployeeName" Aeson..= mapping.clearedXeroEmployeeName
+        , "previousStatus" Aeson..= inputValue mapping.clearedPreviousMappingStatus
+        ]
 
 denyPendingStaffLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO ()
 denyPendingStaffLeaveRequests staff = do

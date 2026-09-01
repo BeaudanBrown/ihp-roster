@@ -105,7 +105,7 @@ run_registry() {
 }
 
 set +e
-existing_json="$(run_registry inspect --epic "$epic" --json 2>/dev/null)"
+existing_json="$(run_registry resolve --epic "$epic" --json 2>/dev/null)"
 existing_status=$?
 set -e
 if [ "$existing_status" -eq 0 ]; then
@@ -158,6 +158,21 @@ if [ "$existing_status" -ne 0 ]; then
     fi
 fi
 
+# Share required local IHP startup configuration and opt-in environment
+# configuration without copying contents. Existing worktree files always win,
+# and missing primary files do not prevent provisioning.
+link_primary_configuration() {
+    local name="$1"
+    local primary_file="$primary_root/$name"
+    local worktree_file="$path/$name"
+    if [ -f "$primary_file" ] && [ ! -e "$worktree_file" ] && [ ! -L "$worktree_file" ]; then
+        ln -s "$primary_file" "$worktree_file" \
+            || die 73 "failed to link primary $name into worktree: $path"
+    fi
+}
+link_primary_configuration .ghci
+link_primary_configuration .env
+
 set +e
 direnv allow "$path" >/dev/null
 allow_status=$?
@@ -181,7 +196,7 @@ if [ "$existing_status" -ne 0 ]; then
         --path "$path" \
         --kind epic >/dev/null
 fi
-workspace_json="$(run_registry inspect --epic "$epic" --json)"
+workspace_json="$(run_registry resolve --epic "$epic" --json)"
 slot="$(jq -r '.slot' <<<"$workspace_json")"
 app_url="http://127.0.0.1:$((8000 + (3 * slot)))"
 mailhog_url="http://127.0.0.1:$((8025 + slot))"

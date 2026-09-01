@@ -8,10 +8,12 @@ module Web.Controller.RosterWeeks where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller
-import Application.Helper.FrontendContract.AppShell (ConfirmDeleteRosterSlotOverlay,
+import Application.Helper.FrontendContract.AppShell (AnchorDateField,
+                                                     ConfirmDeleteRosterSlotOverlay,
                                                      ConfirmRemoveRosterRowOverlay,
                                                      CreateRosterShiftOverlay,
-                                                     DeleteRosterSlotOverlay,
+                                                     OpenRosterSlotDeleteConfirmationDialog,
+                                                     RosterCalendarRevisionField,
                                                      UpdateRosterShiftOverlay)
 import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
@@ -98,8 +100,8 @@ import Web.RosterWeeks.FrontendSurface (rosterDuplicateShiftIntentForm,
                                         rosterTimelineMoveShiftIntentForm)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
-import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterTimelineWindowUrl,
-                              rosterWindowUrl)
+import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterDeleteSlotUrl,
+                              rosterTimelineWindowUrl, rosterWindowUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
 import qualified Web.RosterWeeks.Responses as RosterResponses
@@ -146,9 +148,12 @@ rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
 rosterSurfaceRequestErrorMessage errors =
     "Check the roster controls: " <> surfaceRequestFieldErrorsMessage errors
 
-respondRosterNotificationBadRequest :: (?request :: Request) => Text -> IO value
-respondRosterNotificationBadRequest message =
+respondRosterBadRequest :: (?request :: Request) => Text -> IO value
+respondRosterBadRequest message =
     respondAndStop (Wai.responseLBS status400 [("Content-Type", "text/plain")] (cs message))
+
+respondRosterNotificationBadRequest :: (?request :: Request) => Text -> IO value
+respondRosterNotificationBadRequest = respondRosterBadRequest
 
 copyOccurrenceSelectionsFromValues :: Maybe Text -> Maybe Text -> Either Text ShiftCopyOccurrenceSelections
 copyOccurrenceSelectionsFromValues startValue endValue = do
@@ -826,7 +831,7 @@ instance Controller RosterWeeksController where
                         result <- validateRosterShiftDeleteDropIntent scope sourceToken targetToken
                         case result of
                             Left message -> respondWithMoveRosterShiftFailure scope message
-                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
+                            Right rosterSlot -> respondWithDeleteRosterSlotConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
                     else do
                         result <- validateMoveRosterShiftIntent scope sourceToken targetToken
                         case result of
@@ -912,7 +917,7 @@ instance Controller RosterWeeksController where
                         result <- validateRosterShiftDeleteDropIntent scope sourceToken targetToken
                         case result of
                             Left message -> respondWithMoveRosterShiftFailure scope message
-                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
+                            Right rosterSlot -> respondWithDeleteRosterSlotConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
                     else do
                         result <- validateDuplicateRosterShiftIntent scope sourceToken targetToken
                         case result of
@@ -1136,17 +1141,44 @@ instance Controller RosterWeeksController where
                                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
                                 respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
 
+    action currentAction@ShowRosterSlotDeleteConfirmationAction { rosterSlotId } = runBepis currentAction BepisFormAction do
+        ensureManagerRole
+        ensureVenueWritable
+        case parseAppShellActionParams @OpenRosterSlotDeleteConfirmationDialog of
+            Left errors -> respondRosterBadRequest (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> do
+                rosterSlot <- fetchRosterSlotForEdit rosterSlotId
+                authorizeRosterSlotForEdit rosterSlot
+                rosterDay <- fetchRosterSlotEditContext rosterSlot
+                scope <- rosterMutationScopeForDayAt
+                    (surfaceFieldValue @AnchorDateField fields)
+                    (surfaceFieldValue @RosterCalendarRevisionField fields)
+                    rosterDay
+                authorizeRosterSlotDeleteContext scope rosterDay
+                respondHtmlProfiled
+                    ( renderDeleteRosterSlotConfirmation
+                        rosterSlot
+                        (surfaceFieldValue @AnchorDateField fields)
+                        (surfaceFieldValue @RosterCalendarRevisionField fields)
+                    )
+
     action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterSlot <- fetchRosterSlotForEdit rosterSlotId
-        authorizeRosterSlotForEdit rosterSlot
-        rosterDay <- fetchRosterSlotEditContext rosterSlot
-        scope <- rosterMutationScopeForDay rosterDay
-        authorizeRosterSlotDeleteContext scope rosterDay
-        deleteRosterSlotMutation scope rosterDay rosterSlot >>= \case
-            Left message -> respondWithMoveRosterShiftFailure scope message
-            Right mutationResult -> respondToRosterSlotUpdate scope mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+        case parseAppShellActionParams @ConfirmDeleteRosterSlotOverlay of
+            Left errors -> respondRosterBadRequest (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> do
+                rosterSlot <- fetchRosterSlotForEdit rosterSlotId
+                authorizeRosterSlotForEdit rosterSlot
+                rosterDay <- fetchRosterSlotEditContext rosterSlot
+                scope <- rosterMutationScopeForDayAt
+                    (surfaceFieldValue @AnchorDateField fields)
+                    (surfaceFieldValue @RosterCalendarRevisionField fields)
+                    rosterDay
+                authorizeRosterSlotDeleteContext scope rosterDay
+                deleteRosterSlotMutation scope rosterDay rosterSlot >>= \case
+                    Left message -> respondWithMoveRosterShiftFailure scope message
+                    Right mutationResult -> respondToRosterSlotUpdate scope mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
 
 requireRosterShiftCalendarAppShellContext :: (?context :: ControllerContext, ?request :: Request) => Either [SurfaceRequestFieldError] fields -> IO ()
 requireRosterShiftCalendarAppShellContext requestFields =
@@ -1372,10 +1404,19 @@ rosterActionScopeForDay rosterDay = do
     pure scope
 
 rosterMutationScopeForDay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> IO RosterWindowScope
-rosterMutationScopeForDay rosterDay = do
-    scope <- rosterActionScopeForDay rosterDay
+rosterMutationScopeForDay rosterDay =
+    rosterMutationScopeForDayAt
+        (param @Calendar.Day "anchorDate")
+        (param @Int "rosterCalendarRevision")
+        rosterDay
+
+rosterMutationScopeForDayAt :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Calendar.Day -> Int -> RosterDay -> IO RosterWindowScope
+rosterMutationScopeForDayAt anchorDate calendarRevision rosterDay = do
+    ensureRecordInCurrentVenue rosterDay.venueId
     venueConfig <- fetchVenueConfig
-    requireCurrentRosterCalendarRevision venueConfig (param @Int "rosterCalendarRevision")
+    requireCurrentRosterCalendarRevision venueConfig calendarRevision
+    let scope = rosterWindowScopeForAnchor venueConfig (Id rosterDay.rosterGroupId) anchorDate
+    accessDeniedUnless (rosterDay.operationalDate >= scope.rosterWindowStart && rosterDay.operationalDate < scope.rosterWindowEnd)
     pure scope
 
 rosterWindowScopeForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> Id RosterDay -> IO RosterWindowScope
@@ -1388,42 +1429,43 @@ rosterWindowScopeForFragmentRosterDay anchorDate rosterDayId = do
     accessDeniedUnless (rosterDay.operationalDate < scope.rosterWindowEnd)
     pure scope
 
-respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> IO ()
-respondWithDeleteRosterSlotDropConfirmation rosterSlot anchorDate calendarRevision =
+respondWithDeleteRosterSlotConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> IO ()
+respondWithDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
     respondHtmlProfiled [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
-            {confirmationDialog}
+            {renderDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision}
         </div>
     |]
-  where
-    confirmationDialog =
-        renderDialogOverlay DialogOverlayConfig
-            { dialogOverlayTitle = "Delete roster shift?"
-            , dialogOverlayBody = [hsx|<p class="mb-0">Delete this shift?</p>|]
-            , dialogOverlayStartButtons = []
-            , dialogOverlayButtons =
-                [ OverlayButton
-                    { overlayButtonLabel = "Cancel"
-                    , overlayButtonClass = "btn btn-outline-secondary"
-                    , overlayButtonAction = OverlayCloseAction
-                    }
-                , OverlayButton
-                    { overlayButtonLabel = "Delete shift"
-                    , overlayButtonClass = "btn btn-danger"
-                    , overlayButtonAction = GeneratedDialogFormAction
-                        (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
-                        (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)) anchorDate calendarRevision)
-                        []
-                        Nothing
-                    }
-                ]
-            , dialogOverlayDialogClass = ""
-            }
 
-rosterDeleteSlotActionRoute :: Text -> Calendar.Day -> Int -> AppShellActionRoute
-rosterDeleteSlotActionRoute actionUrl anchorDate calendarRevision =
+renderDeleteRosterSlotConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> Blaze.Html
+renderDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Delete roster shift?"
+        , dialogOverlayBody = [hsx|<p class="mb-0">Delete this shift?</p>|]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Cancel"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            , OverlayButton
+                { overlayButtonLabel = "Delete shift"
+                , overlayButtonClass = "btn btn-danger"
+                , overlayButtonAction = GeneratedDialogFormAction
+                    (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
+                    (rosterDeleteSlotActionRoute rosterSlot.id anchorDate calendarRevision)
+                    []
+                    Nothing
+                }
+            ]
+        , dialogOverlayDialogClass = ""
+        }
+
+rosterDeleteSlotActionRoute :: Id RosterSlot -> Calendar.Day -> Int -> AppShellActionRoute
+rosterDeleteSlotActionRoute rosterSlotId anchorDate calendarRevision =
     AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl <> "&anchorDate=" <> tshow anchorDate <> "&rosterCalendarRevision=" <> tshow calendarRevision
+        { appShellActionRouteUrl = rosterDeleteSlotUrl rosterSlotId anchorDate calendarRevision
         , appShellActionRouteFields =
             [ AppShellFieldValue ("anchorDate", tshow anchorDate)
             , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)

@@ -2,6 +2,7 @@
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "@scriptsRoot@/lib/ghc.sh"
+bash "@scriptsRoot@/haskell/generated-ensure"
 
 weeder_build_dir="${WEEDER_BUILD_DIR:-$(ihp_roster_verification_build_dir)/weeder}"
 hie_dir="${WEEDER_HIE_DIR:-$weeder_build_dir/hie}"

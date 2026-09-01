@@ -12,6 +12,7 @@ module Web.View.Admin.Xero
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverlay,
+                                                     OpenXeroStaffMappingsOverlay,
                                                      OpenXeroTimesheetPreparationOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
@@ -147,6 +148,7 @@ renderXeroActionControls connection connectionActionsAllowed referenceRefreshAll
     <div class="d-flex flex-column gap-2">
         <div class="d-flex flex-wrap gap-2">
             {renderOpenXeroTimesheetPreparationForm canRunXeroActions}
+            {renderOpenXeroStaffMappingsForm canRunXeroActions}
             {renderOpenXeroPayItemImportForm canRunXeroActions}
             {if referenceRefreshAllowed then renderXeroReferenceSyncForm canRunXeroActions else mempty}
             <form method="POST" action={DisconnectXeroConnectionAction}>
@@ -205,6 +207,15 @@ renderXeroReferenceSyncForm actionsAllowed =
         (AdminAction.syncXeroPayrollReferenceDataAction AdminAction.syncXeroPayrollReferenceDataActionFields)
         xeroReferenceSyncActionRoute
         [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not actionsAllowed}>Sync Xero data</button>|]
+
+renderOpenXeroStaffMappingsForm :: Bool -> Html
+renderOpenXeroStaffMappingsForm connectionActionsAllowed =
+    renderAppShellActionForm
+        (appShellActionByMarker @OpenXeroStaffMappingsOverlay)
+        (xeroAppShellActionRoute (pathTo OpenXeroStaffMappingsAction))
+            { appShellActionRouteExtraAttrs = navigationLoadingAttrs "Loading…" "Refreshing Xero staff."
+            }
+        [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not connectionActionsAllowed}>Staff mappings</button>|]
 
 renderOpenXeroTimesheetPreparationForm :: Bool -> Html
 renderOpenXeroTimesheetPreparationForm connectionActionsAllowed =

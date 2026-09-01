@@ -422,7 +422,7 @@ resetXeroStaffMappingForPreparation staff = do
     mappings <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetch
     forM_ mappings \mapping ->
         mapping
-            |> set #mappingStatus NotApplicable
+            |> set #mappingStatus XeroStaffMappingStatusEnumUnmapped
             |> set #xeroEmployeeId Nothing
             |> set #xeroEmployeeName Nothing
             |> set #xeroEmployeeEmail Nothing

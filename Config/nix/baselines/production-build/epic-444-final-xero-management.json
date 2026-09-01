@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "issue": 444,
+  "objective": "Reconcile stable production output ceilings after Payroll Workbook completion and standalone category-aware Xero staff mapping management",
+  "observed_by": "bash ./bin/in-env production-package-smoke && bash ./bin/in-env production-build-profile --output-dir .pi/tmp/production-build-epic-444-final --no-rebuild",
+  "observed_revision": "1f3fbade83424fb4afdbcbba6648e7723d99feee",
+  "observed_dirty": false,
+  "app_library": {
+    "self_size_bytes": 786754887,
+    "module_count": 534,
+    "artifacts": {
+      ".hi": { "count": 534, "bytes": 621296582 },
+      ".a": { "count": 1, "bytes": 165429674 },
+      ".conf": { "count": 1, "bytes": 27145 },
+      "[no extension]": { "count": 1, "bytes": 1486 },
+      ".dyn_hi": { "count": 0 },
+      ".so": { "count": 0 }
+    }
+  },
+  "production_inventory": {
+    "module_rows": 535,
+    "dependency_packages": 44,
+    "executable_rows": 10,
+    "inventory_check": "passed",
+    "package_smoke": "passed"
+  },
+  "reconciliation": {
+    "module_count_delta": 4,
+    "hi_count_delta": 4,
+    "module_rows_delta": 4,
+    "dependency_packages_delta": 0,
+    "reason": "Epic #444 adds four production Haskell modules after the issue #492 baseline: Application.Xero.ReferenceCategory, Application.Xero.StaffMappings, Web.Controller.Admin.Xero.StaffMappings, and Web.View.Admin.Xero.StaffMappingDialog. They provide typed category-aware synchronization, shared mapping mutation authority, and the standalone server-rendered management flow. No development, test, fixture, profiling, or tooling-only module entered production, and no dependency package or packaged executable was added."
+  },
+  "verification": "Production inventory, all ten packaged executable smoke checks, and the optimized production profile passed at the clean pushed implementation commit; final verify-full is required after this exact-count reconciliation.",
+  "budget_authority": "Config/nix/baselines/production-build/final-regression-budget.json"
+}
