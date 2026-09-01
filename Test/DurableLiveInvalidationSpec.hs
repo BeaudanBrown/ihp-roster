@@ -346,7 +346,7 @@ tests =
                     summary.eventResourceCount `shouldBe` 0
                     summary.resourceVersionCount `shouldBe` 1
 
-            it "upgrades the deployed version foreign key without losing version authority" $ withContext do
+            it "applies foreign-key repair SQL without losing version authority" $ withContext do
                 withCleanDb do
                     publication <- publishTestDurableInvalidation "test.prune.migration" (Set.singleton (AdminResource.adminVenueSettingsResource nil))
                     databaseUrl <- getEnv "DATABASE_URL"

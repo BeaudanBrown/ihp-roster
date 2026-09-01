@@ -38,7 +38,9 @@ persistence and constraints in DB tests; controller tests for parsing, auth,
 venue scope, response wiring, and orchestration; Playwright only for browser
 behavior. Keep byte-level export/generator authority in goldens and schema/
 migration/deployment protections at their real boundaries. Source-text checks
-are only for narrow ownership or retired-vocabulary guards.
+are only for narrow ownership or retired-vocabulary guards. Migration-check
+authority and the retained direct-SQL inventory are documented in
+`MigrationChecks.md`.
 
 ## Database Context And Isolation
 

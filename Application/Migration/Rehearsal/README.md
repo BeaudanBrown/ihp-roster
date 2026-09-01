@@ -38,5 +38,7 @@ constraint details cannot disclose row values.
 This pair is mandatory when a migration transforms existing customer rows. The
 predecessor fixture must be minimal and synthetic while covering preservation,
 backfill, and exceptional values relevant to that revision. Purely structural
-migrations need no bespoke fixture. These runtime SQL checks—not source-text
+migrations need no bespoke fixture. Revision `1784761930` is the retained billing
+example; `billing-migration-check` invokes the shared harness from that
+revision's exact Git predecessor. These runtime SQL checks—not source-text
 inspection—are migration data authority.
