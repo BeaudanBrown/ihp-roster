@@ -291,7 +291,7 @@ test.describe('Xero timesheet preparation', () => {
         }), { timeout: E2E_TIMEOUT.assertion }).toBe(true);
     });
 
-    test('opens the guided preparation modal from a selected Xero pay period', async ({ page }) => {
+    test('opens the guided preparation modal with a default Xero pay period selected', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
         await openXeroPage(page);
 
@@ -309,30 +309,12 @@ test.describe('Xero timesheet preparation', () => {
         const preparationDialog = page.locator('[data-xero-timesheet-preparation-dialog="true"]');
 
         await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-        await expect(page.getByRole('heading', { name: 'Staff mappings' })).toBeVisible();
-        await expect(preparationDialog).toContainText('Staff matches');
-        await expect(preparationDialog).toContainText('Confirm proposed matches');
+        await expect(page.getByRole('heading', { name: 'Prepare Xero draft timesheets' })).toBeVisible();
+        await expect(preparationDialog).toContainText('Pay period');
+        await expect(preparationDialog).toContainText('Choose the Xero payroll period to upload.');
+        await expect(preparationDialog.getByRole('combobox', { name: 'Xero pay period' })).toHaveValue(/.+/);
+        await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
         await expect(preparationDialog).not.toContainText('Step 1 of');
-        const continueButton = page.getByRole('button', { name: 'Continue', exact: true });
-        await expect(continueButton).toBeVisible();
-        const firstSelection = preparationDialog.getByRole('combobox', { name: /Xero employee for/ }).first();
-        await expect(firstSelection).toBeVisible();
-        const firstStaffRow = firstSelection.locator('xpath=ancestor::tr');
-        const firstStaffName = (await firstStaffRow.locator('td').first().innerText()).trim();
-
-        await page.route('**/ApplyXeroTimesheetPreparationStaffDecision**', async (route) => {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            await route.continue();
-        });
-        const saveResponsePromise = page.waitForResponse((response) =>
-            response.request().method() === 'POST' && response.url().includes('/ApplyXeroTimesheetPreparationStaffDecision')
-        );
-        await firstSelection.selectOption({ index: 0 });
-        await expect(dialog).not.toHaveAttribute('aria-busy', 'true');
-        const saveResponse = await saveResponsePromise;
-        expect(saveResponse.status()).toBe(200);
-        await expect(preparationDialog).toContainText(firstStaffName);
-        await expect(continueButton).toBeVisible();
 
         await dialog.evaluate((activeDialog) => {
             const mount = activeDialog.parentElement;

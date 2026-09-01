@@ -2,7 +2,6 @@ module Web.Timesheets.Responses
     ( respondWithTimesheetMutationUpdate
     , respondWithTimesheetPreferenceUpdate
     , respondWithTimesheetFragment
-    , respondWithTimesheetDaySectionUpdate
     , respondWithTimesheetWeekView
     , renderTimesheetWindowPage
     ) where
@@ -19,7 +18,7 @@ import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
 import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -101,17 +100,6 @@ respondWithTimesheetPreferenceUpdate scope staffFilterId = do
             { projectionRosterGroupFilterId = filters.filterRosterGroupId }
         [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
         mempty
-
-respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> Day -> Maybe UUID.UUID -> Text -> Bool -> IO ()
-respondWithTimesheetDaySectionUpdate scope workedOn staffFilterId successMessage closeDialog = do
-    let dayOffset = fromInteger (diffDays workedOn scope.timesheetWindowStart)
-    let requestKey = timesheetProjectionRequestForScope scope staffFilterId
-    respondWithTimesheetActorFragments
-        requestKey
-        [TimesheetProjectionDaySection dayOffset]
-        ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-            <> renderToastOob ToastBottomCenter (successToast successMessage)
-        )
 
 respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> Maybe UUID.UUID -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
 respondWithTimesheetMutationUpdate scope staffFilterId touchedResources successMessage closeDialog = do
