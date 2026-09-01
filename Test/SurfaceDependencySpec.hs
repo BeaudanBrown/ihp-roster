@@ -58,9 +58,11 @@ import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidationsWithoutContext)
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsCandidateMountedFragments,
+                                       timesheetsMountStateForFilters,
                                        timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
 import Web.Types
@@ -122,10 +124,12 @@ tests = do
                            , "timesheet-day-section-2025-01-26"
                            ]
 
-        it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
+        it "plans filtered Timesheet actor keys from typed scope and mount state through the passive dependency plan" do
             let venueId = fromWords 1 0 0 0
+            let staffId = fromWords 2 0 0 0
+            let rosterGroupId = fromWords 3 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
-            let mountState = TimesheetsMountStateValue Nothing Nothing
+            let mountState = timesheetsMountStateForFilters (TimesheetViewFilters (Just staffId) (Just rosterGroupId))
             let scope = timesheetsSurfaceScope scopeValue
             let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState
             let duplicatedMount = mountedFragments <> mountedFragments
@@ -138,6 +142,10 @@ tests = do
 
             actorFragmentKeys `shouldBe` concatMap (.targetFragments) passiveTargets
             actorFragmentKeys `shouldBe` [TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 2))]
+            map (.mountedFragmentUrl) mountedFragments
+                `shouldSatisfy` all (Text.isInfixOf ("staffFilterId=" <> tshow staffId))
+            map (.mountedFragmentUrl) mountedFragments
+                `shouldSatisfy` all (Text.isInfixOf ("rosterGroupFilterId=" <> tshow rosterGroupId))
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0

@@ -20,12 +20,11 @@ import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays)
-import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
-                                       TimesheetsMountStateValue (..),
+                                       TimesheetsMountStateValue,
                                        timesheetsCandidateMountedFragments,
                                        timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
@@ -41,25 +40,19 @@ respondWithTimesheetFragment requestKey fragment =
             TextIO.putStrLn ("timesheet_projection_miss: request=" <> tshow requestKey <> " fragment=" <> tshow fragment)
         respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
-respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
-respondWithTimesheetActorFragments requestKey fragments extraHtml = do
-    projection <- fetchTimesheetWeekProjection requestKey
-    let scope = timesheetScopeFromProjection projection
-    let mountState = TimesheetsMountStateValue requestKey.projectionStaffFilterId requestKey.projectionRosterGroupFilterId
-    let selectedMountedFragments = selectTimesheetMountedFragments projection (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
+respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
+respondWithTimesheetActorFragments scope mountState fragments extraHtml = do
+    let selectedMountedFragments = selectTimesheetMountedFragments scope (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
     setActorLocalFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
     respondHtmlProfiled extraHtml
 
-respondWithTimesheetResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
-respondWithTimesheetResourceInvalidation requestKey touchedResources extraHtml = do
-    projection <- fetchTimesheetWeekProjection requestKey
-    let scope = timesheetScopeFromProjection projection
-    let mountState = TimesheetsMountStateValue requestKey.projectionStaffFilterId requestKey.projectionRosterGroupFilterId
+respondWithTimesheetResourceInvalidation :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
+respondWithTimesheetResourceInvalidation scope mountState touchedResources extraHtml = do
     setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsCandidateMountedFragments scope mountState)
     respondHtmlProfiled extraHtml
 
-selectTimesheetMountedFragments :: TimesheetWeekProjection -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
-selectTimesheetMountedFragments projection fragments mountedFragments =
+selectTimesheetMountedFragments :: TimesheetWeekScopeValue -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
+selectTimesheetMountedFragments scope fragments mountedFragments =
     filter (\mountedFragment -> any (matchesFragment mountedFragment) fragments) mountedFragments
   where
     matchesFragment mountedFragment = \case
@@ -71,16 +64,7 @@ selectTimesheetMountedFragments projection fragments mountedFragments =
             isJust (SurfaceLive.matchTimesheetSidePanelContentLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDaySection dayOffset ->
             SurfaceLive.matchTimesheetDaySectionLiveFragment mountedFragment.mountedFragmentKey
-                == Just (addDays (toInteger dayOffset) projection.timesheetWeekStartDate, ())
-
-timesheetScopeFromProjection :: (?context :: ControllerContext) => TimesheetWeekProjection -> TimesheetWeekScopeValue
-timesheetScopeFromProjection projection =
-    TimesheetWeekScopeValue
-        { timesheetWeekVenueId = unpackId currentVenueId
-        , timesheetWindowStart = projection.timesheetWeekStartDate
-        , timesheetWindowEnd = addDays 1 projection.timesheetWeekEndDate
-        , timesheetCalendarRevision = projection.timesheetCalendarRevision
-        }
+                == Just (addDays (toInteger dayOffset) scope.timesheetWindowStart, ())
 
 normalizeTimesheetFragments :: [TimesheetProjectionFragment] -> [TimesheetProjectionFragment]
 normalizeTimesheetFragments fragments =
@@ -93,19 +77,19 @@ normalizeTimesheetFragments fragments =
             TimesheetProjectionDaySection _ -> True
             _                               -> False
 
-respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> Maybe UUID.UUID -> IO ()
-respondWithTimesheetPreferenceUpdate scope staffFilterId = do
-    filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
+respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> IO ()
+respondWithTimesheetPreferenceUpdate scope mountState =
     respondWithTimesheetActorFragments
-        (timesheetProjectionRequestForScope scope staffFilterId)
-            { projectionRosterGroupFilterId = filters.filterRosterGroupId }
+        scope
+        mountState
         [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
         mempty
 
-respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> Maybe UUID.UUID -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
-respondWithTimesheetMutationUpdate scope staffFilterId touchedResources successMessage closeDialog = do
+respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
+respondWithTimesheetMutationUpdate scope mountState touchedResources successMessage closeDialog = do
     respondWithTimesheetResourceInvalidation
-        (timesheetProjectionRequestForScope scope staffFilterId)
+        scope
+        mountState
         touchedResources
         ( when closeDialog renderDialogOverlayClearOob
             <> renderToastOob ToastBottomCenter (successToast successMessage)
@@ -117,15 +101,6 @@ renderTimesheetWindowPage windowStart filters =
         let requestKey = TimesheetProjectionRequest windowStart (addDays 7 windowStart) filters.filterStaffId filters.filterRosterGroupId
         projection <- profileActionSpan "timesheets.page.fetch_read_model" (fetchTimesheetWeekProjection requestKey)
         profileActionSpan "timesheets.page.respond" (respondWithTimesheetWeekView (timesheetIndexView projection))
-
-timesheetProjectionRequestForScope :: TimesheetWeekScopeValue -> Maybe UUID.UUID -> TimesheetProjectionRequest
-timesheetProjectionRequestForScope scope staffFilterId =
-    TimesheetProjectionRequest
-        { projectionWindowStart = scope.timesheetWindowStart
-        , projectionWindowEnd = scope.timesheetWindowEnd
-        , projectionStaffFilterId = staffFilterId
-        , projectionRosterGroupFilterId = Nothing
-        }
 
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =

@@ -19,7 +19,8 @@ import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
-                                       timesheetWeekScopeForAnchor)
+                                       timesheetWeekScopeForAnchor,
+                                       timesheetsMountStateForFilters)
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (editTimesheetEntryUrl,
                              newTimesheetEntryFromSuggestionUrl,
@@ -221,11 +222,11 @@ instance Controller TimesheetsController where
             Right fields -> do
                 let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
                 timesheetScope <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
-                selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
+                filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
                 upsertCurrentUserTimesheetShowApproved (not (surfaceFieldValue @Surface.HideApproved fields))
                 if isHtmxRequest
-                    then respondWithTimesheetPreferenceUpdate timesheetScope selectedStaffFilterId
-                    else redirectToPath (timesheetWindowUrl anchorDate selectedStaffFilterId)
+                    then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
+                    else redirectToPath (timesheetWindowUrl anchorDate filters.filterStaffId)
 
     action currentAction@ToggleTimesheetShowSuggestionsAction = runBepis currentAction BepisMutationAction do
         case TimesheetsAction.parseToggleTimesheetShowSuggestionsActionParams of
@@ -235,11 +236,11 @@ instance Controller TimesheetsController where
             Right fields -> do
                 let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
                 timesheetScope <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
-                selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
+                filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
                 upsertCurrentUserTimesheetShowSuggestions (surfaceFieldValue @Surface.ShowTimesheetSuggestions fields)
                 if isHtmxRequest
-                    then respondWithTimesheetPreferenceUpdate timesheetScope selectedStaffFilterId
-                    else redirectToPath (timesheetWindowUrl anchorDate selectedStaffFilterId)
+                    then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
+                    else redirectToPath (timesheetWindowUrl anchorDate filters.filterStaffId)
 
     action currentAction@ToggleTimesheetWageEstimatesAction = runBepis currentAction BepisMutationAction do
         accessDeniedUnless canViewTimesheetWageEstimates
@@ -253,7 +254,7 @@ instance Controller TimesheetsController where
                 filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
                 upsertCurrentUserTimesheetShowWageEstimates (surfaceFieldValue @Surface.ShowTimesheetWageEstimates fields)
                 if isHtmxRequest
-                    then respondWithTimesheetPreferenceUpdate timesheetScope filters.filterStaffId
+                    then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
                     else redirectToPath (timesheetWindowUrlWithFilters anchorDate filters)
 
     action currentAction@NewTimesheetEntryAction = runBepis currentAction BepisFormAction do
@@ -300,7 +301,8 @@ instance Controller TimesheetsController where
     action currentAction@CreateTimesheetEntryAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         timesheetScope <- requireCurrentTimesheetMutationCalendar
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters timesheetFiltersFromRequest
+        filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
+        let selectedStaffFilterId = filters.filterStaffId
         formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
         let venueConfig = formContext.formVenueConfig
         let currentViewerStaffId = formContext.formCurrentViewerStaffId
@@ -332,7 +334,7 @@ instance Controller TimesheetsController where
                             mutationResult <- createTimesheetEntryMutation timesheetScope timesheetEntry
                             let createdEntry = mutationResult.liveMutationValue
                             if isHtmxRequest
-                                then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry created" True
+                                then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Timesheet entry created" True
                                 else do
                                     setSuccessMessage "Timesheet entry created"
                                     redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
@@ -362,7 +364,8 @@ instance Controller TimesheetsController where
         ensureVenueWritable
         state <- requireTimesheetSurfaceState parseCreateTimesheetEntryFromSuggestionState
         timesheetScope <- requireCurrentTimesheetCalendar state
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
+        filters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
+        let selectedStaffFilterId = filters.filterStaffId
         maybeSuggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlotId
         case maybeSuggestion of
             Nothing -> do
@@ -402,7 +405,7 @@ instance Controller TimesheetsController where
                                         redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
                                     Right (Just mutationResult) ->
                                         if isHtmxRequest
-                                            then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry approved" True
+                                            then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Rostered timesheet entry approved" True
                                             else do
                                                 setSuccessMessage "Rostered timesheet entry approved"
                                                 redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
@@ -414,7 +417,7 @@ instance Controller TimesheetsController where
                                             redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
                                         Just mutationResult ->
                                             if isHtmxRequest
-                                                then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Rostered timesheet entry created" True
+                                                then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Rostered timesheet entry created" True
                                                 else do
                                                     setSuccessMessage "Rostered timesheet entry created"
                                                     redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
@@ -445,7 +448,8 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager existingWorkedOn
 
         timesheetScope <- requireCurrentTimesheetMutationCalendar
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters timesheetFiltersFromRequest
+        filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
+        let selectedStaffFilterId = filters.filterStaffId
         formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor existingEntry) selectedStaffFilterId
         let venueConfig = formContext.formVenueConfig
         let currentViewerStaffId = formContext.formCurrentViewerStaffId
@@ -470,7 +474,7 @@ instance Controller TimesheetsController where
                                 else "Timesheet entry updated"
                     mutationResult <- updateTimesheetEntryMutation timesheetScope existingEntry timesheetEntry (wasApproved && coreChanged)
                     if isHtmxRequest
-                        then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources successMessage True
+                        then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources successMessage True
                         else do
                             setSuccessMessage successMessage
                             redirectToPath (timesheetWindowUrl timesheetScope.timesheetWindowStart selectedStaffFilterId)
@@ -484,10 +488,11 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager workedOn
 
         timesheetScope <- requireCurrentTimesheetMutationCalendar
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters timesheetFiltersFromRequest
+        filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
+        let selectedStaffFilterId = filters.filterStaffId
         mutationResult <- deleteTimesheetEntryMutation timesheetScope timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
+            then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
             else setSuccessMessage "Timesheet entry removed"
         unless isHtmxRequest do
             redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
@@ -500,7 +505,8 @@ instance Controller TimesheetsController where
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         state <- requireTimesheetSurfaceState parseApproveTimesheetEntryState
         timesheetScope <- requireCurrentTimesheetCalendar state
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
+        filters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
+        let selectedStaffFilterId = filters.filterStaffId
         case decodeTimesheetTiming timesheetEntry of
             Left _ ->
                 respondAndStop
@@ -513,7 +519,7 @@ instance Controller TimesheetsController where
                         redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
                     Right mutationResult ->
                         if isHtmxRequest
-                            then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
+                            then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
                             else do
                                 setSuccessMessage "Timesheet entry approved"
                                 redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
@@ -526,11 +532,12 @@ instance Controller TimesheetsController where
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         state <- requireTimesheetSurfaceState parseUnapproveTimesheetEntryState
         timesheetScope <- requireCurrentTimesheetCalendar state
-        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
+        filters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
+        let selectedStaffFilterId = filters.filterStaffId
 
         mutationResult <- unapproveTimesheetEntryMutation timesheetScope timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry unapproved" False
+            then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Timesheet entry unapproved" False
             else do
                 setSuccessMessage "Timesheet entry unapproved"
                 redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
