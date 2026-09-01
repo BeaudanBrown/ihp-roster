@@ -22,6 +22,7 @@ import IHP.Prelude
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -65,7 +66,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime appJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 updatedJob <- fetch appJob.id
@@ -91,7 +92,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime appJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 updatedInvitation.deliveredAt `shouldBe` Nothing
@@ -109,8 +110,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime expiredJob
-                    performEmailDeliveryJobWith enabledEmailRuntime revokedJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime expiredJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime revokedJob
 
                 updatedExpired <- fetch expired.id
                 updatedRevoked <- fetch revoked.id
@@ -133,10 +134,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure True
-                            , deliverMail = \_ -> expectationFailure "disabled invitation delivery must not send"
-                            }
+                        disabledEmailDeliveryRuntime
                         appJob
 
                 deliveredInvitation <- fetch invitation.id
@@ -158,7 +156,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime finalAttemptJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime finalAttemptJob
                 handleEmailDeliveryFailureAfterFinalAttempt finalAttemptJob
 
                 unchangedInvitation <- fetch invitation.id
@@ -178,10 +176,7 @@ tests = aroundAll withDatabaseTestContext do
                     let ?context = frameworkConfig
                     try
                         ( performEmailDeliveryJobWith
-                            EmailDeliveryRuntime
-                                { deliveryIsDisabled = pure False
-                                , deliverMail = \_ -> ioError (userError "SMTP detail containing secret@example.com")
-                                }
+                            (failingEmailDeliveryRuntime "SMTP detail containing secret@example.com")
                             finalAttemptJob
                         ) :: IO (Either SomeException ())
                 failure `shouldSatisfy` isLeft
@@ -206,7 +201,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime appJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 inputValue updatedInvitation.deliveryStatus `shouldBe` "queued"
@@ -214,13 +209,6 @@ tests = aroundAll withDatabaseTestContext do
                 completedJob <- fetch appJob.id
                 jobJsonText completedJob.result "deliveryStatus" `shouldBe` Just "delivery_skipped"
                 jobJsonText completedJob.result "reason" `shouldBe` Just "consumed"
-
-enabledEmailRuntime :: EmailDeliveryRuntime
-enabledEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> pure ()
-        }
 
 jobJsonText :: Aeson.Value -> Text -> Maybe Text
 jobJsonText value key =

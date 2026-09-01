@@ -29,14 +29,13 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     timesheetEntryElapsedSeconds,
                                     timesheetEntryOperationalDate)
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
-import Control.Exception (SomeException, try)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
+import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -50,6 +49,7 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsImmediately)
 import Test.Support.SurfaceContract
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
@@ -1218,91 +1218,60 @@ tests = aroundAll withDatabaseTestContext do
 
         it "shows future Published-roster suggestions immediately" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Future Suggestion Venue"
-                workerUser <- createUserRecord "timesheet-future-suggestion-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Faye" "Future"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel worker
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                rosterWeek <- createRosterWeekRecord venue 3 True
-                rosterDay <- createRosterDayRecord rosterWeek 4
-                slotName <- fetchSlotNameRecord venue "Late"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 31) (TimeOfDay 12 0 0) (TimeOfDay 20 0 0)
-                        |> setTestDurationMinutes (Just 480)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Future Suggestion Venue" Nothing "timesheet-future-suggestion-worker@example.com" "Faye" "Future"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Late" 3 4 (fromGregorian 2025 1 31) (TimeOfDay 12 0 0) (TimeOfDay 20 0 0) 480
+                    }
 
-                response <- withUserAndCurrentVenue workerUser venue.id do
+                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 3)))
                         [("anchorDate", "2025-01-27"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "hides suggestions from the persisted user preference with clean week navigation" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Filter Venue"
-                manager <- createUserRecord "timesheet-suggestion-filter-manager@example.com" "staff" True
-                workerUser <- createUserRecord "timesheet-suggestion-filter-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Fiona" "Filtered"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                shiftType <- createShiftTypeRecord venue payLevel "Lunch"
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                _ <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 16 0 0)
-                        |> setTestDurationMinutes (Just 360)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Filter Venue" (Just "timesheet-suggestion-filter-manager@example.com") "timesheet-suggestion-filter-worker@example.com" "Fiona" "Filtered"
+                    , suggestionActor = SuggestionManager
+                    , suggestionEligibility = PreserveStaffPayDefaults
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Lunch" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) 360
+                    }
 
                 now <- getCurrentTime
                 _ <- newRecord @UserPreference
-                    |> set #userId (unpackId manager.id)
+                    |> set #userId (unpackId scenario.scenarioActor.id)
                     |> set #showTimesheetSuggestions False
                     |> set #timesheetPreferencesInitializedAt (Just now)
                     |> createRecord
-                response <- withUserAndCurrentVenue manager venue.id do
+                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Show suggestions"
-                response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
                 response `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-13\""
 
         it "quick-creates one unapproved snapshot from an authorized roster suggestion" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Create Venue"
-                workerUser <- createUserRecord "timesheet-suggestion-create-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Quinn" "QuickCreate"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel worker
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0)
-                        |> setTestDurationMinutes (Just 375)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Create Venue" Nothing "timesheet-suggestion-create-worker@example.com" "Quinn" "QuickCreate"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0) 375
+                    }
 
-                malformedResponse <- withUserAndCurrentVenue workerUser venue.id do
+                malformedResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                             [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("hadBreak", "not-a-boolean")
                             ]
@@ -1311,16 +1280,16 @@ tests = aroundAll withDatabaseTestContext do
                 malformedResponse `responseBodyShouldContain` "Had break must be true or false"
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
-                response <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                entry.venueId `shouldBe` unpackId venue.id
-                entry.staffId `shouldBe` unpackId worker.id
-                entry.shiftTypeId `shouldBe` unpackId shiftType.id
+                entry.venueId `shouldBe` unpackId scenario.scenarioVenue.id
+                entry.staffId `shouldBe` unpackId scenario.scenarioWorker.id
+                entry.shiftTypeId `shouldBe` unpackId scenario.scenarioShiftType.id
                 testWorkedOn entry `shouldBe` fromGregorian 2025 1 7
                 testStartTime entry `shouldBe` TimeOfDay 9 0 0
                 testEndTime entry `shouldBe` TimeOfDay 15 15 0
@@ -1329,39 +1298,25 @@ tests = aroundAll withDatabaseTestContext do
                 testBreakEndTime entry `shouldBe` Just (TimeOfDay 15 0 0)
                 testBreakMinutes entry `shouldBe` 30
                 entry.isApproved `shouldBe` False
-                entry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+                entry.sourceRosterSlotId `shouldBe` Just (unpackId scenario.scenarioRosterSlot.id)
                 version <- query @TimesheetEntryVersion |> fetchOne
                 version.payload `shouldBe` Aeson.object
                     [ "source" Aeson..= ("roster_suggestion" :: Text)
-                    , "rosterSlotId" Aeson..= tshow rosterSlot.id
+                    , "rosterSlotId" Aeson..= tshow scenario.scenarioRosterSlot.id
                     ]
 
         it "quick-approves a manager's roster suggestion atomically" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Quick Approve Venue"
-                manager <- createUserRecord "timesheet-suggestion-quick-approve-manager@example.com" "staff" True
-                workerUser <- createUserRecord "timesheet-suggestion-quick-approve-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                importedPayItem <- createImportedXeroPayItemRecord venue manager "Suggestion approval" "suggestion-approval" 31
-                worker <- createStaffRecord venue (Just workerUser) "Quinn" "Approve"
-                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
-                payLevel <- createPayLevelRecord venue "Level 1"
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                    >>= updateRecord . set #payAssignmentMode XeroRate . set #overrideAwardLevelId Nothing . set #importedXeroPayItemId (Just importedPayItem.id)
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0)
-                        |> setTestDurationMinutes (Just 375)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Quick Approve Venue" (Just "timesheet-suggestion-quick-approve-manager@example.com") "timesheet-suggestion-quick-approve-worker@example.com" "Quinn" "Approve"
+                    , suggestionActor = SuggestionManager
+                    , suggestionEligibility = PreserveStaffPayDefaults
+                    , suggestionApprovalFacts = XeroSuggestionApproval "Suggestion approval" "suggestion-approval" 31
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0) 375
+                    }
 
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("approveSuggestion", "true")
                         ]
@@ -1369,35 +1324,23 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
                 entry.isApproved `shouldBe` True
-                entry.approvedByUserId `shouldBe` Just (unpackId manager.id)
+                entry.approvedByUserId `shouldBe` Just (unpackId scenario.scenarioActor.id)
                 entry.activePayCalculationId `shouldSatisfy` isJust
                 query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 2)
                 query @AuditEvent |> filterWhere (#eventType, auditEventTypeText TimesheetApprovedAudit) |> fetchCount >>= (`shouldBe` 1)
 
         it "rolls back quick suggestion creation when manager approval fails" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Approval Rollback Venue"
-                manager <- createUserRecord "timesheet-suggestion-approval-rollback-manager@example.com" "staff" True
-                workerUser <- createUserRecord "timesheet-suggestion-approval-rollback-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Rollback" "Approval"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel worker
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0)
-                        |> setTestDurationMinutes (Just 375)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Approval Rollback Venue" (Just "timesheet-suggestion-approval-rollback-manager@example.com") "timesheet-suggestion-approval-rollback-worker@example.com" "Rollback" "Approval"
+                    , suggestionActor = SuggestionManager
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = AwardSuggestionApprovalWithoutSealedFacts
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0) 375
+                    }
 
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("approveSuggestion", "true")
                         ]
@@ -1649,30 +1592,20 @@ tests = aroundAll withDatabaseTestContext do
 
         it "rejects materialization when the roster source changes after projection" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Stale Venue"
-                workerUser <- createUserRecord "timesheet-suggestion-stale-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Stella" "Stale"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel worker
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
-                        |> setTestDurationMinutes (Just 480)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Stale Venue" Nothing "timesheet-suggestion-stale-worker@example.com" "Stella" "Stale"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) 480
+                    }
 
-                materializationResult <- withUserAndCurrentVenue workerUser venue.id do
+                materializationResult <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withCurrentControllerContext do
-                        suggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
-                        _ <- updateRecord (rosterSlot |> setTestEndTime (Just (TimeOfDay 18 0 0)) |> setTestDurationMinutes (Just 540))
-                        let entry = newTimesheetEntryFromSuggestion (unpackId venue.id) suggestion
-                        let scope = TimesheetWeekScopeValue (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
+                        suggestion <- fetchTimesheetSuggestionForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
+                        _ <- updateRecord (scenario.scenarioRosterSlot |> setTestEndTime (Just (TimeOfDay 18 0 0)) |> setTestDurationMinutes (Just 540))
+                        let entry = newTimesheetEntryFromSuggestion (unpackId scenario.scenarioVenue.id) suggestion
+                        let scope = TimesheetWeekScopeValue (unpackId scenario.scenarioVenue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
                         materializeTimesheetSuggestionMutation scope suggestion entry
 
                 materializationResult `shouldBe` Nothing
@@ -1680,61 +1613,41 @@ tests = aroundAll withDatabaseTestContext do
 
         it "materializes a suggestion idempotently under concurrent submissions" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Concurrent Venue"
-                workerUser <- createUserRecord "timesheet-suggestion-concurrent-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Connie" "Concurrent"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel worker
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
-                        |> setTestDurationMinutes (Just 480)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Concurrent Venue" Nothing "timesheet-suggestion-concurrent-worker@example.com" "Connie" "Concurrent"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) 480
+                    }
 
-                results <- runConcurrentTimesheetActions 8 do
-                    withUserAndCurrentVenue workerUser venue.id do
-                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                results <- runConcurrentActionsImmediately 8 do
+                    withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                             [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 lefts results `shouldSatisfy` null
                 mapM_ (`responseStatusShouldBe` status302) (rights results)
                 activeEntries <-
                     query @TimesheetEntry
-                        |> filterWhere (#sourceRosterSlotId, Just (unpackId rosterSlot.id))
+                        |> filterWhere (#sourceRosterSlotId, Just (unpackId scenario.scenarioRosterSlot.id))
                         |> filterWhere (#deletedAt, Nothing)
                         |> fetch
                 length activeEntries `shouldBe` 1
 
         it "lets staff edit rostered values before creating the linked snapshot" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Edit Venue"
-                workerUser <- createUserRecord "timesheet-suggestion-edit-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Edie" "Editor"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel worker
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
-                        |> setTestDurationMinutes (Just 480)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Edit Venue" Nothing "timesheet-suggestion-edit-worker@example.com" "Edie" "Editor"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) 480
+                    }
 
-                formResponse <- withUserAndCurrentVenue workerUser venue.id do
+                formResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams NewTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                        callActionWithParams NewTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                             [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 formResponse `responseStatusShouldBe` status200
@@ -1745,11 +1658,11 @@ tests = aroundAll withDatabaseTestContext do
                 formResponse `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
                 formResponse `responseBodyShouldContain` "name=\"endTime\" value=\"17:00\""
 
-                createResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                createResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
-                        , ("staffId", idToParam worker.id)
-                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("staffId", idToParam scenario.scenarioWorker.id)
+                        , ("shiftTypeId", idToParam scenario.scenarioShiftType.id)
                         , ("workedOn", "2025-01-07")
                         , ("startTime", "10:00")
                         , ("endTime", "16:00")
@@ -1761,7 +1674,7 @@ tests = aroundAll withDatabaseTestContext do
                 testStartTime entry `shouldBe` TimeOfDay 10 0 0
                 testEndTime entry `shouldBe` TimeOfDay 16 0 0
                 testHadBreak entry `shouldBe` False
-                entry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
+                entry.sourceRosterSlotId `shouldBe` Just (unpackId scenario.scenarioRosterSlot.id)
 
         it "keeps an ad-hoc entry separate without showing an origin warning" $ withContext do
             withCleanDb do
@@ -1816,55 +1729,45 @@ tests = aroundAll withDatabaseTestContext do
 
         it "restores a suggestion after its linked entry is soft-deleted and preserves both snapshots" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Suggestion Restore Venue"
-                workerUser <- createUserRecord "timesheet-suggestion-restore-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue workerUser Worker
-                worker <- createStaffRecord venue (Just workerUser) "Rory" "Restore"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                _ <- makeStaffTimesheetProducing payLevel worker
-                shiftType <- createShiftTypeRecord venue payLevel "Day"
-                rosterWeek <- createRosterWeekRecord venue 0 True
-                rosterDay <- createRosterDayRecord rosterWeek 1
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
-                rosterSlot <- updateRecord
-                    ( rosterSlot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
-                        |> setTestDurationMinutes (Just 480)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Restore Venue" Nothing "timesheet-suggestion-restore-worker@example.com" "Rory" "Restore"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) 480
+                    }
                 oldEntry <-
                     newRecord @TimesheetEntry
-                        |> set #venueId (unpackId venue.id)
-                        |> set #staffId (unpackId worker.id)
-                        |> set #shiftTypeId (unpackId shiftType.id)
-                        |> set #operationalDate rosterDay.operationalDate
+                        |> set #venueId (unpackId scenario.scenarioVenue.id)
+                        |> set #staffId (unpackId scenario.scenarioWorker.id)
+                        |> set #shiftTypeId (unpackId scenario.scenarioShiftType.id)
+                        |> set #operationalDate (fromGregorian 2025 1 7)
                         |> setTestWorkedOn (fromGregorian 2025 1 7)
                         |> setTestStartTime (TimeOfDay 9 0 0)
                         |> setTestEndTime (TimeOfDay 17 0 0)
-                        |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
+                        |> set #sourceRosterSlotId (Just (unpackId scenario.scenarioRosterSlot.id))
                         |> createRecord
                 now <- getCurrentTime
                 _ <- updateRecord
                     ( oldEntry
                         |> set #deletedAt (Just now)
-                        |> set #deletedByUserId (Just (unpackId workerUser.id))
+                        |> set #deletedByUserId (Just (unpackId scenario.scenarioWorkerUser.id))
                         |> set #deleteReason (Just "test_deleted")
                     )
 
-                suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
+                suggestionResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
-                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
 
-                createResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                createResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 createResponse `responseStatusShouldBe` status302
                 linkedEntries :: [TimesheetEntry] <-
                     query @TimesheetEntry
-                        |> filterWhere (#sourceRosterSlotId, Just (unpackId rosterSlot.id))
+                        |> filterWhere (#sourceRosterSlotId, Just (unpackId scenario.scenarioRosterSlot.id))
                         |> orderByAsc #createdAt
                         |> fetch
                 length linkedEntries `shouldBe` 2
@@ -2513,7 +2416,7 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
-                results <- runConcurrentTimesheetActions 8 do
+                results <- runConcurrentActionsImmediately 8 do
                     withUserAndCurrentVenue manager venue.id do
                         callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
                             [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
@@ -2737,15 +2640,102 @@ assertPayrollAuditProvenanceRetained entry = do
         |> fetchCount
         >>= (`shouldBe` 1)
 
+data SuggestionActor = SuggestionWorker | SuggestionManager
+
+data SuggestionEligibility
+    = EnsureTimesheetProducing
+    | PreserveStaffPayDefaults
+
+data SuggestionApprovalFacts
+    = NoSuggestionApproval
+    | XeroSuggestionApproval Text Text Scientific
+    | AwardSuggestionApprovalWithoutSealedFacts
+
+data SuggestionIdentity = SuggestionIdentity
+    { suggestionVenueName       :: Text
+    , suggestionManagerEmail    :: Maybe Text
+    , suggestionWorkerEmail     :: Text
+    , suggestionWorkerFirstName :: Text
+    , suggestionWorkerLastName  :: Text
+    }
+
+data SuggestionRosterFacts = SuggestionRosterFacts
+    { suggestionShiftName       :: Text
+    , suggestionSlotName        :: Text
+    , suggestionWeekOffset      :: Int
+    , suggestionDayOffset       :: Int
+    , suggestionOperationalDate :: Day
+    , suggestionStartTime       :: TimeOfDay
+    , suggestionEndTime         :: TimeOfDay
+    , suggestionDurationMinutes :: Int
+    }
+
+data SuggestionScenarioPlan = SuggestionScenarioPlan
+    { suggestionIdentity      :: SuggestionIdentity
+    , suggestionActor         :: SuggestionActor
+    , suggestionEligibility   :: SuggestionEligibility
+    , suggestionApprovalFacts :: SuggestionApprovalFacts
+    , suggestionRosterFacts   :: SuggestionRosterFacts
+    }
+
+data SuggestionScenario = SuggestionScenario
+    { scenarioVenue      :: Venue
+    , scenarioActor      :: User
+    , scenarioWorkerUser :: User
+    , scenarioWorker     :: Staff
+    , scenarioShiftType  :: ShiftType
+    , scenarioRosterSlot :: RosterSlot
+    }
+
+createSuggestionScenario :: (?modelContext :: ModelContext) => SuggestionScenarioPlan -> IO SuggestionScenario
+createSuggestionScenario plan = do
+    let identity = plan.suggestionIdentity
+    let rosterFacts = plan.suggestionRosterFacts
+    venue <- createVenueWithConfig identity.suggestionVenueName
+    manager <- forM identity.suggestionManagerEmail \email -> do
+        user <- createUserRecord email "staff" True
+        _ <- createVenueMembershipRecord venue user Manager
+        pure user
+    workerUser <- createUserRecord identity.suggestionWorkerEmail "staff" True
+    _ <- createVenueMembershipRecord venue workerUser Worker
+    worker <- createStaffRecord venue (Just workerUser) identity.suggestionWorkerFirstName identity.suggestionWorkerLastName
+    payLevel <- createPayLevelRecord venue "Level 1"
+    worker <- case plan.suggestionEligibility of
+        EnsureTimesheetProducing -> makeStaffTimesheetProducing payLevel worker
+        PreserveStaffPayDefaults -> pure worker
+    shiftType <- createShiftTypeRecord venue payLevel rosterFacts.suggestionShiftName
+    (worker, shiftType) <- case plan.suggestionApprovalFacts of
+        XeroSuggestionApproval itemName itemCode itemOrder -> do
+            approvalActor <- maybe (error "Xero suggestion approval requires a manager") pure manager
+            importedPayItem <- createImportedXeroPayItemRecord venue approvalActor itemName itemCode itemOrder
+            approvedWorker <- updateRecord (worker |> set #payAssignmentMode XeroRate |> set #importedXeroPayItemId (Just importedPayItem.id))
+            approvedShiftType <- updateRecord (shiftType |> set #payAssignmentMode XeroRate |> set #overrideAwardLevelId Nothing |> set #importedXeroPayItemId (Just importedPayItem.id))
+            pure (approvedWorker, approvedShiftType)
+        NoSuggestionApproval -> pure (worker, shiftType)
+        AwardSuggestionApprovalWithoutSealedFacts -> pure (worker, shiftType)
+    rosterWeek <- createRosterWeekRecord venue rosterFacts.suggestionWeekOffset True
+    rosterDay <- createRosterDayRecord rosterWeek rosterFacts.suggestionDayOffset
+    slotName <- fetchSlotNameRecord venue rosterFacts.suggestionSlotName
+    rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+        >>= updateRecord
+            . set #shiftTypeId (Just (unpackId shiftType.id))
+            . setTestDurationMinutes (Just rosterFacts.suggestionDurationMinutes)
+            . setTestRosterSlotBoundaries rosterFacts.suggestionOperationalDate rosterFacts.suggestionStartTime rosterFacts.suggestionEndTime
+    actor <- case plan.suggestionActor of
+        SuggestionWorker -> pure workerUser
+        SuggestionManager -> maybe (error "manager suggestion actor requires a manager") pure manager
+    pure SuggestionScenario
+        { scenarioVenue = venue
+        , scenarioActor = actor
+        , scenarioWorkerUser = workerUser
+        , scenarioWorker = worker
+        , scenarioShiftType = shiftType
+        , scenarioRosterSlot = rosterSlot
+        }
+
 makeStaffTimesheetProducing :: (?modelContext :: ModelContext) => AwardLevel -> Staff -> IO Staff
 makeStaffTimesheetProducing payLevel staff =
     staff
         |> set #payAssignmentMode AwardRate
         |> set #defaultAwardLevelId (Just payLevel.id)
         |> updateRecord
-
-runConcurrentTimesheetActions :: Int -> IO a -> IO [Either SomeException a]
-runConcurrentTimesheetActions count action = do
-    vars <- mapM (const newEmptyMVar) [1 .. count]
-    _ <- mapM (\var -> forkIO (try action >>= putMVar var)) vars
-    mapM takeMVar vars

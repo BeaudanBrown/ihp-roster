@@ -8,9 +8,7 @@ import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.SurfaceResource
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception.Safe (SomeException, try)
-import Control.Monad (zipWithM)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.ByteString.Lazy.Char8 as LByteString
@@ -30,6 +28,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsFromBarrier)
 import Web.FrontController ()
 import Web.LeaveRequests.Blackouts (currentVenueCalendarDay)
 import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
@@ -193,7 +192,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("reason", reason)
                             ]
 
-                results <- runConcurrentLeaveActionList
+                results <- runConcurrentActionsFromBarrier
                     [createAction "Concurrent closure one", createAction "Concurrent closure two"]
 
                 lefts results `shouldSatisfy` null
@@ -1142,18 +1141,4 @@ tests = aroundAll withDatabaseTestContext do
                 inputValue leaveEvent.eventType `shouldBe` "created"
                 leaveEvent.previousStatus `shouldBe` Nothing
                 fmap inputValue leaveEvent.newStatus `shouldBe` Just "pending"
-
-runConcurrentLeaveActionList :: [IO result] -> IO [Either SomeException result]
-runConcurrentLeaveActionList actions = do
-    resultVars <- mapM (const newEmptyMVar) actions
-    readyVars <- mapM (const newEmptyMVar) actions
-    startVar <- newEmptyMVar
-    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
-            putMVar readyVar ()
-            _ <- readMVar startVar
-            try action >>= putMVar resultVar
-        ) resultVars (zip readyVars actions)
-    mapM_ takeMVar readyVars
-    putMVar startVar ()
-    mapM takeMVar resultVars
 

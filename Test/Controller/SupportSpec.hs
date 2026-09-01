@@ -11,8 +11,6 @@ import Application.Helper.OpaqueToken (hashOpaqueToken)
 import Application.Helper.Xero
 import Application.Support.LiveUpdates
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
-import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import Data.Bits (xor)
@@ -32,6 +30,7 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsImmediately)
 import Test.Support.SurfaceContract
 import Test.Support.XeroAdmin (testXeroConfig)
 import qualified Web.ClientSession as ClientSession
@@ -1226,7 +1225,7 @@ tests = aroundAll withDatabaseTestContext do
                 superAdmin <- createUserRecordWithPlatformRole "support-concurrent-super@example.com" "staff" (Just SuperAdmin) True
                 ensureTestUserHasPasskey superAdmin
 
-                results <- runConcurrentActions 12 do
+                results <- runConcurrentActionsImmediately 12 do
                     withPasskeyVerifiedUser superAdmin do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction CreateFwcMapdRefreshJobAction
@@ -1242,9 +1241,3 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhereIn (#status, activeAppJobStatuses)
                     |> fetch
                 length activeJobs `shouldBe` 1
-
-runConcurrentActions :: Int -> IO a -> IO [Either SomeException a]
-runConcurrentActions count action = do
-    vars <- mapM (const newEmptyMVar) [1 .. count]
-    _ <- mapM (\var -> forkIO (try action >>= putMVar var)) vars
-    mapM takeMVar vars

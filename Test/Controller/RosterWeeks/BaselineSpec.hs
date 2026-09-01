@@ -1,7 +1,6 @@
 module Test.Controller.RosterWeeks.BaselineSpec where
 
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
-import Control.Exception (bracket)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Maybe (fromJust)
@@ -18,6 +17,7 @@ import Network.Wai
 import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
+import Test.Support.Environment (withEnvironmentVariable)
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.Routes
@@ -28,7 +28,7 @@ tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController direct read-model integration" do
         it "renders full-page and fragment roster reads through the direct read model" $ withContext do
-            withEnv "IHP_ROSTER_PROFILING" (Just "1") do
+            withEnvironmentVariable "IHP_ROSTER_PROFILING" (Just "1") do
                 withCleanDb do
                     BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
 
@@ -126,7 +126,7 @@ tests = aroundAll withDatabaseTestContext do
                 length explicitLanes `shouldBe` 7
 
         it "keeps slot mutation actor refresh separate from passive direct refetch" $ withContext do
-            withEnv "IHP_ROSTER_PROFILING" (Just "1") do
+            withEnvironmentVariable "IHP_ROSTER_PROFILING" (Just "1") do
                 withCleanDb do
                     BaselineRoster { brVenue, brManager, brRosterDay, brMutableSlot, brAlternateStaff } <- createBaselineRoster
                     shiftType <- ensureVenueDefaultShiftType brVenue
@@ -218,18 +218,3 @@ dumpBaselineTimings responses = do
     when (shouldPrint == Just "1") do
         forM_ responses \(label, response) ->
             putStrLn (cs label <> ": " <> cs (ByteString.unpack (serverTiming response)))
-
-withEnv :: String -> Maybe String -> IO a -> IO a
-withEnv name value action =
-    bracket setup restore (const action)
-    where
-        setup = do
-            previous <- Environment.lookupEnv name
-            apply value
-            pure previous
-
-        restore previous =
-            apply previous
-
-        apply Nothing         = Environment.unsetEnv name
-        apply (Just envValue) = Environment.setEnv name envValue

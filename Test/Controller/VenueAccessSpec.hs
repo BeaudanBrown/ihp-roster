@@ -19,9 +19,6 @@ import Application.Helper.LiveUpdate
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
-import Control.Exception (SomeException, try)
-import Control.Monad (zipWithM)
 import Data.Coerce (coerce)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
@@ -43,6 +40,8 @@ import Network.Wai (responseHeaders)
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsFromBarrier)
+import Test.Support.EmailDelivery
 import Web.Controller.Admin ()
 import Web.Controller.LeaveRequests ()
 import Web.Controller.RosterWeeks ()
@@ -555,7 +554,7 @@ tests = aroundAll withDatabaseTestContext do
                 ensureTestUserHasPasskey founder
                 original <- createVenueOnboardingInvitationRecord (Just founder) "concurrent-owner@example.com"
 
-                results <- runConcurrentVenueAccessActions 12 do
+                results <- runConcurrentActionsFromBarrier $ replicate 12 do
                     withPasskeyVerifiedUser founder do
                         callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
                             [("email", "replacement-owner@example.com")]
@@ -582,7 +581,7 @@ tests = aroundAll withDatabaseTestContext do
                 firstOriginal <- createVenueOnboardingInvitationRecord (Just founder) "first-original-owner@example.com"
                 secondOriginal <- createVenueOnboardingInvitationRecord (Just founder) "second-original-owner@example.com"
 
-                results <- runConcurrentVenueAccessActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUser founder do
                         callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
                             [("email", "shared-corrected-owner@example.com")]
@@ -628,7 +627,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("idealShiftsPerWeek", "3")
                         ]
 
-                results <- runConcurrentVenueAccessActionList
+                results <- runConcurrentActionsFromBarrier
                     [ callActionWithParams CreateVenueOnboardingUserAction signupParams
                     , withPasskeyVerifiedUser founder do
                         callActionWithParams (RenewSupportVenueOnboardingInvitationAction invitation.id)
@@ -664,8 +663,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 let performDelivery = withFrameworkConfig config \frameworkConfig -> do
                         let ?context = frameworkConfig
-                        performEmailDeliveryJobWith venueAccessEmailRuntime appJob
-                results <- runConcurrentVenueAccessActionList
+                        performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
+                results <- runConcurrentActionsFromBarrier
                     [ performDelivery >> pure status200
                     , withPasskeyVerifiedUser founder do
                         response <- callActionWithParams (RenewSupportVenueOnboardingInvitationAction invitation.id)
@@ -1187,31 +1186,6 @@ tests = aroundAll withDatabaseTestContext do
                 length rosterDays `shouldBe` 7
                 nub (map (.name) rosterLanes) `shouldMatchList` ["Early", "Mid", "Late"]
                 otherVenueDays `shouldBe` []
-
-runConcurrentVenueAccessActions :: Int -> IO a -> IO [Either SomeException a]
-runConcurrentVenueAccessActions count action =
-    runConcurrentVenueAccessActionList (replicate count action)
-
-runConcurrentVenueAccessActionList :: [IO a] -> IO [Either SomeException a]
-runConcurrentVenueAccessActionList actions = do
-    resultVars <- mapM (const newEmptyMVar) actions
-    readyVars <- mapM (const newEmptyMVar) actions
-    startVar <- newEmptyMVar
-    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
-            putMVar readyVar ()
-            _ <- readMVar startVar
-            try action >>= putMVar resultVar
-        ) resultVars (zip readyVars actions)
-    mapM_ takeMVar readyVars
-    putMVar startVar ()
-    mapM takeMVar resultVars
-
-venueAccessEmailRuntime :: EmailDeliveryRuntime
-venueAccessEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> pure ()
-        }
 
 withAuthenticatedControllerContext ::
     forall result.

@@ -29,6 +29,7 @@ import IHP.Test.Mocking (withContext)
 import Network.Mail.Mime (Address (..))
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
 import Web.Mail.RosterNotification
 
@@ -182,12 +183,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    forM_ jobs $ performEmailDeliveryJobWith EmailDeliveryRuntime
-                        { deliveryIsDisabled = pure False
-                        , deliverMail = \mail -> do
-                            let ?mail = mail
-                            modifyIORef' delivered ((addressEmail (Mail.to mail), Mail.text mail) :)
-                        }
+                    forM_ jobs $ performEmailDeliveryJobWith $ capturingEmailDeliveryRuntime \mail -> do
+                        let ?mail = mail
+                        modifyIORef' delivered ((addressEmail (Mail.to mail), Mail.text mail) :)
 
                 deliveredMails <- readIORef delivered
                 length deliveredMails `shouldBe` 2
@@ -210,10 +208,7 @@ tests = aroundAll withDatabaseTestContext do
                 otherVenue <- createVenueWithConfig "Other Delivery Venue"
                 appJob <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetchOne
                 calls <- newIORef (0 :: Int)
-                let runtime = EmailDeliveryRuntime
-                        { deliveryIsDisabled = pure False
-                        , deliverMail = \_ -> modifyIORef' calls (+ 1)
-                        }
+                let runtime = capturingEmailDeliveryRuntime (\_ -> modifyIORef' calls (+ 1))
                 results <- withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     forM
@@ -236,10 +231,7 @@ tests = aroundAll withDatabaseTestContext do
                     let ?context = frameworkConfig
                     Exception.try
                         ( performEmailDeliveryJobWith
-                            EmailDeliveryRuntime
-                                { deliveryIsDisabled = pure False
-                                , deliverMail = \_ -> ioError (userError "temporary SMTP failure")
-                                }
+                            (failingEmailDeliveryRuntime "temporary SMTP failure")
                             firstJob
                         ) :: IO (Either Exception.SomeException ())
                 failure `shouldSatisfy` isLeft
@@ -249,10 +241,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure True
-                            , deliverMail = \_ -> expectationFailure "disabled delivery must not invoke transport"
-                            }
+                        disabledEmailDeliveryRuntime
                         secondJob
                 disabled <- fetch secondJob.id
                 resultText "deliveryStatus" disabled `shouldBe` Just "delivery_disabled"

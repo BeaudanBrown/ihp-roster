@@ -2,16 +2,15 @@ module Test.Controller.E2ETestSpec where
 
 import Application.Helper.Controller (passkeyVerifiedUserSessionKey)
 import Config
-import Control.Exception (finally)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
+import Test.Support.Environment (withEnvironmentVariables)
 import Web.Controller.E2ETest ()
 import Web.FrontController ()
 import Web.Routes
@@ -52,7 +51,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue user VenueAdmin
                 _ <- createTestPasskeyRecord user "Seeded E2E passkey"
 
-                withTestEnv [("IHP_ROSTER_E2E", Nothing), ("E2E_TEST_TOKEN", Just "test-token")] do
+                withEnvironmentVariables [("IHP_ROSTER_E2E", Nothing), ("E2E_TEST_TOKEN", Just "test-token")] do
                     response <- withUserAndCurrentVenue user venue.id do
                         withRequestHeaders [("X-E2E-Test-Token", "test-token")] do
                             callAction MarkE2EPasskeyVerifiedAction
@@ -85,18 +84,4 @@ tests = aroundAll withDatabaseTestContext do
 
 withE2ETestEnv :: IO a -> IO a
 withE2ETestEnv =
-    withTestEnv [("IHP_ROSTER_E2E", Just "1"), ("E2E_TEST_TOKEN", Just "test-token")]
-
-withTestEnv :: [(String, Maybe String)] -> IO a -> IO a
-withTestEnv vars action = do
-    previous <- forM vars \(name, value) -> do
-        oldValue <- Environment.lookupEnv name
-        applyEnv name value
-        pure (name, oldValue)
-    action `finally` forM_ previous (uncurry applyEnv)
-
-applyEnv :: String -> Maybe String -> IO ()
-applyEnv name maybeValue =
-    case maybeValue of
-        Just value -> Environment.setEnv name value
-        Nothing    -> Environment.unsetEnv name
+    withEnvironmentVariables [("IHP_ROSTER_E2E", Just "1"), ("E2E_TEST_TOKEN", Just "test-token")]

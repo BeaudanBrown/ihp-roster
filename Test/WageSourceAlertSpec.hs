@@ -22,9 +22,10 @@ import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Test.Mocking
-import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
+import Test.Support.Environment (withEnvironmentVariable)
 
 
 tests :: Spec
@@ -77,7 +78,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- inactive |> set #deactivatedAt (Just now) |> updateRecord
                 sourceJob <- createSourceJob "fwc_mapd_refresh" Nothing >>= updateRecord . set #attemptsCount appJobMaxAttempts
 
-                dispatchResult <- withoutEnvironmentVariable "FWC_MAPD_KEY" $
+                dispatchResult <- withEnvironmentVariable "FWC_MAPD_KEY" Nothing $
                     withFrameworkConfig config \frameworkConfig -> do
                         let ?context = frameworkConfig
                         Exception.try (dispatchAppJob sourceJob) :: IO (Either Exception.SomeException ())
@@ -214,10 +215,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure False
-                            , deliverMail = \_ -> modifyIORef' calls (+ 1)
-                            }
+                        (capturingEmailDeliveryRuntime (\_ -> modifyIORef' calls (+ 1)))
                         missingEmail
 
                 readIORef calls `shouldReturn` 1
@@ -312,13 +310,6 @@ payloadMailKind appJob =
 payloadRecipientAccountId :: AppJob -> Maybe UUID
 payloadRecipientAccountId appJob =
     AesonTypes.parseMaybe (Aeson.withObject "email payload" (Aeson..: "recipientAccountId")) appJob.payload
-
-withoutEnvironmentVariable :: String -> IO value -> IO value
-withoutEnvironmentVariable name action =
-    Exception.bracket (Environment.lookupEnv name <* Environment.unsetEnv name) restore (const action)
-  where
-    restore Nothing      = Environment.unsetEnv name
-    restore (Just value) = Environment.setEnv name value
 
 contains :: Text -> Text -> Bool
 contains = Text.isInfixOf

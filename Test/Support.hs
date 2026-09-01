@@ -54,10 +54,11 @@ import Network.HTTP.Types (Status)
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Session.Maybe as WaiSession
-import System.Environment (lookupEnv, setEnv, unsetEnv)
+import System.Environment (lookupEnv, setEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec (Expectation, shouldBe)
+import Test.Support.Environment (withEnvironmentVariable)
 import Web.FrontController ()
 import Web.Types
 
@@ -282,14 +283,10 @@ databaseTestConfig = do
     config
 
 withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
-withPrivilegedStrongAuthentication enabled action =
-    bracket
-        (lookupEnv variableName)
-        restore
-        (\_ -> setEnv variableName (if enabled then "true" else "false") >> action)
-  where
-    variableName = "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
-    restore = maybe (unsetEnv variableName) (setEnv variableName)
+withPrivilegedStrongAuthentication enabled =
+    withEnvironmentVariable
+        "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+        (Just (if enabled then "true" else "false"))
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = FixtureReset.resetDatabase

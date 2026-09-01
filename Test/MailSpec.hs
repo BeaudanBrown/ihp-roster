@@ -3,7 +3,6 @@ module Test.MailSpec where
 import Application.Billing.NotificationKind (BillingNotificationKind (BillingPaymentTrouble, BillingRenewalResumed))
 import Application.Helper.Mail
 import Application.WageSourceAlert.Types
-import Control.Exception (bracket)
 import Data.Text (isInfixOf)
 import qualified Data.Text.Lazy as LazyText
 import Data.Time.Calendar (fromGregorian)
@@ -15,9 +14,9 @@ import IHP.MailPrelude
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.Mail.Mime (Address (..))
-import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
+import Test.Support.Environment (withEnvironmentVariable)
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import Web.Mail.Billing.Notification
 import Web.Mail.FeedbackNotification
@@ -356,27 +355,19 @@ tests = aroundAll withDatabaseTestContext do
 
     describe "Mail settings" do
         it "loads production-safe reply-to and support defaults" $ withContext do
-            withEnv "MAIL_FROM" Nothing do
-                withEnv "MAIL_REPLY_TO" Nothing do
-                    withEnv "MAIL_SUPPORT_EMAIL" Nothing do
+            withEnvironmentVariable "MAIL_FROM" Nothing do
+                withEnvironmentVariable "MAIL_REPLY_TO" Nothing do
+                    withEnvironmentVariable "MAIL_SUPPORT_EMAIL" Nothing do
                         settings <- loadAppMailSettings
                         settings.mailFromAddress `shouldBe` "noreply@dev.local"
                         settings.mailReplyToAddress `shouldBe` "support@bepis.lol"
                         settings.mailSupportEmail `shouldBe` "support@bepis.lol"
 
         it "loads sender, reply-to, and support overrides from the environment" $ withContext do
-            withEnv "MAIL_FROM" (Just "accounts@bepis.lol") do
-                withEnv "MAIL_REPLY_TO" (Just "help@bepis.lol") do
-                    withEnv "MAIL_SUPPORT_EMAIL" (Just "support@bepis.lol") do
+            withEnvironmentVariable "MAIL_FROM" (Just "accounts@bepis.lol") do
+                withEnvironmentVariable "MAIL_REPLY_TO" (Just "help@bepis.lol") do
+                    withEnvironmentVariable "MAIL_SUPPORT_EMAIL" (Just "support@bepis.lol") do
                         settings <- loadAppMailSettings
                         settings.mailFromAddress `shouldBe` "accounts@bepis.lol"
                         settings.mailReplyToAddress `shouldBe` "help@bepis.lol"
                         settings.mailSupportEmail `shouldBe` "support@bepis.lol"
-
-withEnv :: String -> Maybe String -> IO a -> IO a
-withEnv name value action =
-    bracket (Environment.lookupEnv name <* apply value) restore (const action)
-  where
-    restore previous = apply previous
-    apply Nothing        = Environment.unsetEnv name
-    apply (Just current) = Environment.setEnv name current

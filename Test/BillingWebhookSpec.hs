@@ -35,6 +35,7 @@ import qualified Network.Wai as Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 import Web.Controller.StripeWebhooks ()
 import Web.FrontController ()
 import Web.Types
@@ -48,10 +49,7 @@ performBillingNotificationJob ::
     IO ()
 performBillingNotificationJob =
     performEmailDeliveryJobWith
-        EmailDeliveryRuntime
-            { deliveryIsDisabled = pure False
-            , deliverMail = \_ -> pure ()
-            }
+        enabledEmailDeliveryRuntime
 
 handleStripeWebhookPayload :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
 handleStripeWebhookPayload expectedMode rawBody =
@@ -415,10 +413,7 @@ tests = aroundAll withDatabaseTestContext do
                     let ?context = frameworkConfig
                     try
                         ( performEmailDeliveryJobWith
-                            EmailDeliveryRuntime
-                                { deliveryIsDisabled = pure False
-                                , deliverMail = \_ -> ioError (userError "simulated smtp failure")
-                                }
+                            (failingEmailDeliveryRuntime "simulated smtp failure")
                             job
                         ) :: IO (Either SomeException ())
                 failedDelivery `shouldSatisfy` isLeft
@@ -428,10 +423,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure True
-                            , deliverMail = \_ -> expectationFailure "disabled billing delivery must not call transport"
-                            }
+                        disabledEmailDeliveryRuntime
                         job
                 completed <- fetch job.id
                 cs (Aeson.encode completed.result) `shouldSatisfy` Text.isInfixOf "delivery_disabled"

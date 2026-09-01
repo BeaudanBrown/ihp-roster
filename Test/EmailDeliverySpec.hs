@@ -22,6 +22,7 @@ import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 
 
 tests :: Spec
@@ -58,10 +59,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure True
-                            , deliverMail = \_ -> modifyIORef' calls (+ 1)
-                            }
+                        disabledEmailDeliveryRuntime
                         appJob
 
                 readIORef calls `shouldReturn` 0
@@ -238,10 +236,7 @@ createQueuedFeedback recipientEmail = do
 
 enabledRuntime :: IO () -> EmailDeliveryRuntime
 enabledRuntime delivery =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> delivery
-        }
+    capturingEmailDeliveryRuntime (\_ -> delivery)
 
 payloadResultText :: Text -> AppJob -> Maybe Text
 payloadResultText key appJob =

@@ -3,7 +3,7 @@ module Test.WageSourceEnforcementSpec where
 import Application.EmailDelivery
 import Application.Helper.Mail (AppMailSettings (..))
 import Application.Helper.XeroTimesheetReadiness (XeroReadinessBlocker (..),
-                                                   xeroWageFailureBlockers)
+                                                  xeroWageFailureBlockers)
 import Application.WageSourceEnforcement
 import Application.WageSourceNotification.Email
 import Application.WageSourceNotifications (emitLatestAwardDriftNotifications)
@@ -26,6 +26,7 @@ import IHP.Prelude
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 import Web.Mail.WageSourceDrift (WageSourceDriftMail (..))
 
 tests :: Spec
@@ -157,10 +158,7 @@ tests = aroundAll withDatabaseTestContext do
                     let ?context = frameworkConfig
                     forM_ jobs $
                         performEmailDeliveryJobWith
-                            EmailDeliveryRuntime
-                                { deliveryIsDisabled = pure False
-                                , deliverMail = \_ -> modifyIORef' deliveryCalls (+ 1)
-                                }
+                            (capturingEmailDeliveryRuntime (\_ -> modifyIORef' deliveryCalls (+ 1)))
                 readIORef deliveryCalls `shouldReturn` 0
                 completed <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetch
                 map (.result) completed `shouldSatisfy` all (Text.isInfixOf "recipient_ineligible" . cs . Aeson.encode)

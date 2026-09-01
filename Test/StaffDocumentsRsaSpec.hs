@@ -22,6 +22,7 @@ import IHP.Test.Mocking
 import qualified IHP.ViewSupport as ViewSupport
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
 import Web.View.StaffDocuments.RsaScan
@@ -222,10 +223,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure False
-                            , deliverMail = \_ -> modifyIORef' calls (+ 1)
-                            }
+                        (capturingEmailDeliveryRuntime (\_ -> modifyIORef' calls (+ 1)))
                         appJob
 
                 readIORef calls `shouldReturn` 1
@@ -250,10 +248,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure True
-                            , deliverMail = \_ -> expectationFailure "disabled RSA delivery must not send"
-                            }
+                        disabledEmailDeliveryRuntime
                         appJob
 
                 completedDocument <- fetch staffDocument.id
@@ -278,10 +273,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure True
-                            , deliverMail = \_ -> expectationFailure "disabled RSA delivery must not send"
-                            }
+                        disabledEmailDeliveryRuntime
                         appJob
 
                 unchangedDocument <- fetch staffDocument.id
@@ -305,10 +297,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure False
-                            , deliverMail = \_ -> expectationFailure "obsolete RSA reminder must not send"
-                            }
+                        (capturingEmailDeliveryRuntime (\_ -> expectationFailure "obsolete RSA reminder must not send"))
                         appJob
 
                 skippedJob <- fetch appJob.id

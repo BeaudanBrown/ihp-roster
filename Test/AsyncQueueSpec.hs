@@ -9,7 +9,6 @@ import Application.WageSourceAlert.Job (wageSourceHealthCheckJobKind)
 import Application.Xero.Keepalive (xeroConnectionKeepaliveJobKind)
 import Application.Xero.ReferenceSyncJob (xeroReferenceSyncJobKind)
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (AsyncException (ThreadKilled), SomeException)
 import qualified Control.Exception as BaseException
 import qualified Data.Aeson as Aeson
@@ -23,6 +22,7 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsImmediately)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -38,7 +38,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "deduplicates concurrent active jobs without surfacing unique violations" $ withContext do
             withCleanDb do
-                results <- runConcurrentActions 30 (enqueueAppJob (testJobRequest (Just "queue-concurrent")))
+                results <- runConcurrentActionsImmediately 30 (enqueueAppJob (testJobRequest (Just "queue-concurrent")))
                 let successes = rights results
                 let failures = lefts results
                 failures `shouldSatisfy` null
@@ -181,9 +181,3 @@ testJobRequest dedupeKey =
         , dedupeKey
         , runAt = Nothing
         }
-
-runConcurrentActions :: Int -> IO a -> IO [Either SomeException a]
-runConcurrentActions count action = do
-    vars <- mapM (const newEmptyMVar) [1 .. count]
-    _ <- mapM (\var -> forkIO (BaseException.try action >>= putMVar var)) vars
-    mapM takeMVar vars

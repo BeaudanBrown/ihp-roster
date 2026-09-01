@@ -2,7 +2,7 @@ module Test.StripeBillingSpec where
 
 import Application.Billing.Checkout (checkoutAllowedForSubscription)
 import Application.Billing.Stripe
-import Control.Exception (bracket, bracket_)
+import Control.Exception (bracket)
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.List as List
@@ -15,9 +15,9 @@ import Network.HTTP.Types.Status (status302)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified System.Directory as Directory
-import qualified System.Environment as Environment
 import System.IO (hClose, openTempFile)
 import Test.Hspec
+import Test.Support.Environment (withEnvironmentVariables)
 
 tests :: Spec
 tests =
@@ -519,30 +519,4 @@ withTempSecret value action =
             Directory.removeFile path
 
 withStripeEnv :: [(String, Maybe String)] -> IO a -> IO a
-withStripeEnv values action =
-    foldr withOne action values
-    where
-        withOne (name, value) inner =
-            withEnv name value inner
-
-withEnv :: String -> Maybe String -> IO a -> IO a
-withEnv name value action =
-    bracket_ setup restore action
-    where
-        setup = do
-            previous <- Environment.lookupEnv name
-            Environment.setEnv ("__PREVIOUS_" <> name) (fromMaybe "" previous)
-            Environment.setEnv ("__HAD_PREVIOUS_" <> name) (if isJust previous then "1" else "0")
-            apply value
-
-        restore = do
-            hadPrevious <- Environment.lookupEnv ("__HAD_PREVIOUS_" <> name)
-            previous <- Environment.lookupEnv ("__PREVIOUS_" <> name)
-            case (hadPrevious, previous) of
-                (Just "1", Just oldValue) -> Environment.setEnv name oldValue
-                _                         -> Environment.unsetEnv name
-            Environment.unsetEnv ("__PREVIOUS_" <> name)
-            Environment.unsetEnv ("__HAD_PREVIOUS_" <> name)
-
-        apply Nothing      = Environment.unsetEnv name
-        apply (Just value) = Environment.setEnv name value
+withStripeEnv = withEnvironmentVariables
