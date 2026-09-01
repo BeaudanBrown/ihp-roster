@@ -1,0 +1,332 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+usage() {
+    cat <<'EOF'
+Usage: migration-rehearsal --from-ref GIT_REF [--keep-failure-artifacts]
+
+Reconstructs the predecessor schema in a uniquely named database owned by the
+repository's managed test-postgres instance, then runs candidate migrations
+through the checkout's pinned IHP migrate binary.
+
+Options:
+  --from-ref GIT_REF          Required predecessor commit/ref.
+  --keep-failure-artifacts    Retain bounded logs under .pi/tmp on failure.
+  -h, --help                  Show this help.
+
+External PostgreSQL modes and database targets are never accepted. The database
+is dropped after success, failure, or interruption.
+EOF
+}
+
+from_ref=""
+keep_failure_artifacts=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --from-ref)
+            [ "$#" -ge 2 ] || { echo "migration-rehearsal: --from-ref requires a value" >&2; exit 64; }
+            from_ref="$2"
+            shift 2
+            ;;
+        --keep-failure-artifacts)
+            keep_failure_artifacts=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "migration-rehearsal: unknown argument: $1" >&2
+            usage >&2
+            exit 64
+            ;;
+    esac
+done
+
+[ -n "$from_ref" ] || { echo "migration-rehearsal: --from-ref is required" >&2; exit 64; }
+if [ -n "${TEST_POSTGRES_MODE:-}" ] && [ "$TEST_POSTGRES_MODE" != "managed" ]; then
+    echo "migration-rehearsal: external PostgreSQL mode is forbidden; use managed test-postgres" >&2
+    exit 64
+fi
+
+for required_command in createdb dropdb git jq migrate nix psql readlink tail test-postgres; do
+    command -v "$required_command" >/dev/null 2>&1 || {
+        echo "migration-rehearsal: required command is unavailable: $required_command" >&2
+        exit 69
+    }
+done
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$repo_root" ] || { echo "migration-rehearsal: run from an ihp-roster checkout" >&2; exit 66; }
+repo_root="$(readlink -f "$repo_root")"
+cd "$repo_root"
+
+candidate_commit="$(git rev-parse --verify 'HEAD^{commit}')"
+predecessor_commit="$(git rev-parse --verify --end-of-options "$from_ref^{commit}" 2>/dev/null || true)"
+[ -n "$predecessor_commit" ] || {
+    echo "migration-rehearsal: predecessor ref does not resolve to a commit: $from_ref" >&2
+    exit 65
+}
+if ! git merge-base --is-ancestor "$predecessor_commit" "$candidate_commit"; then
+    echo "migration-rehearsal: predecessor must be an ancestor of candidate HEAD" >&2
+    exit 65
+fi
+if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
+    echo "migration-rehearsal: candidate checkout must be clean so reported HEAD matches executed migrations" >&2
+    exit 65
+fi
+if ! git cat-file -e "$predecessor_commit:Application/Schema.sql" 2>/dev/null; then
+    echo "migration-rehearsal: predecessor has no Application/Schema.sql" >&2
+    exit 65
+fi
+if ! git cat-file -e "$predecessor_commit:flake.lock" 2>/dev/null; then
+    echo "migration-rehearsal: predecessor has no flake.lock" >&2
+    exit 65
+fi
+
+pinned_ihp_json="$(
+    nix eval --json --impure --no-write-lock-file --expr '
+        let flake = builtins.getFlake (toString ./.); in {
+            ihpSource = flake.inputs.ihp.outPath;
+            migratePackage = flake.inputs.ihp.packages.${builtins.currentSystem}.migrate.outPath;
+        }
+    '
+)" || {
+    echo "migration-rehearsal: failed to resolve the candidate-pinned IHP input" >&2
+    exit 69
+}
+candidate_ihp_source="$(jq -r '.ihpSource' <<<"$pinned_ihp_json")"
+expected_runner="$(jq -r '.migratePackage' <<<"$pinned_ihp_json")/bin/migrate"
+runner="$(readlink -f "$(command -v migrate)")"
+if [ "$runner" != "$expected_runner" ]; then
+    echo "migration-rehearsal: active migrate does not match the candidate-pinned IHP runner" >&2
+    echo "expected_runner=$expected_runner" >&2
+    echo "active_runner=$runner" >&2
+    exit 69
+fi
+port=5432
+database_user="$(id -un)"
+run_id="$(date -u +%Y%m%dT%H%M%SZ)-${$}-${RANDOM}"
+work_root="$repo_root/.pi/tmp/migration-rehearsal"
+run_dir="$work_root/$run_id"
+mkdir -p "$run_dir"
+chmod 700 "$work_root" "$run_dir"
+setup_log="$run_dir/setup.log"
+migrate_log="$run_dir/migrate.log"
+metadata_file="$run_dir/metadata.txt"
+database="migration_rehearsal_$(id -u)_${$}_${RANDOM}"
+database_created=0
+completed=0
+
+managed_postgres() {
+    env -u DATABASE_URL -u PGHOST -u PGPORT -u PGDATABASE -u PGUSER \
+        -u PGSERVICE -u PGPASSFILE -u PGPASSWORD -u PGOPTIONS \
+        TEST_POSTGRES_MODE=managed \
+        TEST_POSTGRES_PROFILE=migration-rehearsal \
+        TEST_POSTGRES_REPO_ROOT="$repo_root" \
+        test-postgres "$@"
+}
+
+pg_command() {
+    env -u DATABASE_URL -u PGHOST -u PGPORT -u PGDATABASE -u PGUSER \
+        -u PGSERVICE -u PGPASSFILE -u PGPASSWORD -u PGOPTIONS \
+        "$@" -h "$socket" -p "$port" -U "$database_user"
+}
+
+bounded_log() {
+    local log_file="$1"
+    [ -s "$log_file" ] || return 0
+    echo "--- bounded failure log ---" >&2
+    tail -c 65536 "$log_file" >&2
+    echo >&2
+    echo "--- end failure log ---" >&2
+}
+
+cleanup() {
+    local exit_status=$?
+    local cleanup_failed=0
+    trap - EXIT INT TERM HUP
+    if [ "$database_created" -eq 1 ]; then
+        local dropped=0
+        for _ in $(seq 1 50); do
+            if pg_command dropdb --if-exists --force "$database" >/dev/null 2>&1; then
+                dropped=1
+                break
+            fi
+            sleep 0.05
+        done
+        if [ "$dropped" -ne 1 ]; then
+            echo "migration-rehearsal: failed to drop disposable database: $database" >&2
+            cleanup_failed=1
+        fi
+    fi
+    if [ "$completed" -eq 0 ] && [ "$keep_failure_artifacts" -eq 1 ]; then
+        for log_file in "$setup_log" "$migrate_log"; do
+            if [ -f "$log_file" ] && [ "$(wc -c < "$log_file")" -gt 65536 ]; then
+                tail -c 65536 "$log_file" > "$log_file.bounded"
+                mv "$log_file.bounded" "$log_file"
+            fi
+        done
+        printf 'artifact_dir=%s\n' "$run_dir" >&2
+    else
+        rm -rf "$run_dir"
+    fi
+    if [ "$cleanup_failed" -ne 0 ]; then
+        exit 1
+    fi
+    exit "$exit_status"
+}
+runner_pid=""
+handle_signal() {
+    local signal_status="$1"
+    trap - INT TERM HUP
+    if [ -n "$runner_pid" ] && kill -0 "$runner_pid" 2>/dev/null; then
+        kill -TERM "$runner_pid" 2>/dev/null || true
+        wait "$runner_pid" 2>/dev/null || true
+        runner_pid=""
+    fi
+    exit "$signal_status"
+}
+trap cleanup EXIT
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
+trap 'handle_signal 129' HUP
+
+# Materialize predecessor-owned inputs without checking out or mutating either tree.
+git show "$predecessor_commit:Application/Schema.sql" > "$run_dir/ApplicationSchema.sql"
+git show "$predecessor_commit:flake.lock" > "$run_dir/predecessor-flake.lock"
+
+candidate_ihp_revision="$(jq -r '.nodes.ihp.locked.rev // "unknown"' flake.lock)"
+predecessor_ihp_revision="$(jq -r '.nodes.ihp.locked.rev // "unknown"' "$run_dir/predecessor-flake.lock")"
+candidate_ihp_lock="$(jq -cS '.nodes.ihp.locked' flake.lock)"
+predecessor_ihp_lock="$(jq -cS '.nodes.ihp.locked' "$run_dir/predecessor-flake.lock")"
+ihp_schema=""
+if [ "$predecessor_ihp_lock" = "$candidate_ihp_lock" ]; then
+    ihp_source="$candidate_ihp_source"
+else
+    if [ "$predecessor_ihp_lock" = "null" ]; then
+        echo "migration-rehearsal: predecessor has no locked IHP source" >&2
+        exit 65
+    fi
+    nix_expression="(builtins.fetchTree (builtins.fromJSON $(printf '%s' "$predecessor_ihp_lock" | jq -Rs .))).outPath"
+    ihp_source="$(nix eval --raw --impure --expr "$nix_expression" 2>>"$setup_log")" || {
+        echo "migration-rehearsal: failed to resolve the exact predecessor IHP source" >&2
+        bounded_log "$setup_log"
+        exit 1
+    }
+fi
+ihp_schema="$ihp_source/ihp-ide/data/IHPSchema.sql"
+[ -f "$ihp_schema" ] || {
+    echo "migration-rehearsal: predecessor IHP schema is unavailable: $ihp_schema" >&2
+    exit 65
+}
+
+mapfile -t predecessor_revisions < <(
+    git ls-tree -r --name-only "$predecessor_commit" -- Application/Migration \
+        | awk -F/ '$NF ~ /^[0-9]+.*[.]sql$/ { name=$NF; sub(/[^0-9].*$/, "", name); print name }' \
+        | sort -n -u
+)
+mapfile -t candidate_revisions < <(
+    find Application/Migration -maxdepth 1 -type f -name '*.sql' -printf '%f\n' \
+        | awk '/^[0-9]+.*[.]sql$/ { name=$0; sub(/[^0-9].*$/, "", name); print name }' \
+        | sort -n -u
+)
+
+socket="$(managed_postgres ensure)"
+server_version="$(pg_command psql -d postgres -X -qAt -v ON_ERROR_STOP=1 -c 'SHOW server_version')"
+
+{
+    printf 'predecessor_ref=%s\n' "$from_ref"
+    printf 'predecessor_commit=%s\n' "$predecessor_commit"
+    printf 'candidate_commit=%s\n' "$candidate_commit"
+    printf 'postgres_version=%s\n' "$server_version"
+    printf 'ihp_revision=%s\n' "$candidate_ihp_revision"
+    printf 'predecessor_ihp_revision=%s\n' "$predecessor_ihp_revision"
+    printf 'runner=%s\n' "$runner"
+    printf 'database=%s\n' "$database"
+} | tee "$metadata_file"
+
+if ! pg_command createdb "$database" >"$setup_log" 2>&1; then
+    echo "migration-rehearsal: failed to create disposable database" >&2
+    bounded_log "$setup_log"
+    exit 1
+fi
+database_created=1
+
+if ! pg_command psql -d "$database" -X -q -v ON_ERROR_STOP=1 -f "$ihp_schema" >>"$setup_log" 2>&1 \
+    || ! pg_command psql -d "$database" -X -q -v ON_ERROR_STOP=1 -f "$run_dir/ApplicationSchema.sql" >>"$setup_log" 2>&1; then
+    echo "migration-rehearsal: failed to load predecessor IHP/application schema" >&2
+    bounded_log "$setup_log"
+    exit 1
+fi
+
+{
+    echo 'CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);'
+    for revision in "${predecessor_revisions[@]}"; do
+        printf 'INSERT INTO schema_migrations (revision) VALUES (%s) ON CONFLICT DO NOTHING;\n' "$revision"
+    done
+} > "$run_dir/schema-migrations.sql"
+if ! pg_command psql -d "$database" -X -q -v ON_ERROR_STOP=1 -f "$run_dir/schema-migrations.sql" >>"$setup_log" 2>&1; then
+    echo "migration-rehearsal: failed to reconstruct predecessor migration revisions" >&2
+    bounded_log "$setup_log"
+    exit 1
+fi
+
+mapfile -t before_revisions < <(
+    pg_command psql -d "$database" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT revision FROM schema_migrations ORDER BY revision'
+)
+pending_revisions=()
+for revision in "${candidate_revisions[@]}"; do
+    if ! printf '%s\n' "${before_revisions[@]}" | grep -Fxq "$revision"; then
+        pending_revisions+=("$revision")
+    fi
+done
+pending_csv="$(IFS=,; echo "${pending_revisions[*]:-}")"
+printf 'pending_revisions=%s\n' "${pending_csv:-none}" | tee -a "$metadata_file"
+
+migration_url="postgresql:///$database?host=$socket&port=$port&user=$database_user"
+env -i \
+    HOME="${HOME:-/tmp}" \
+    LANG="${LANG:-C.UTF-8}" \
+    PATH="$PATH" \
+    TZ=UTC \
+    DATABASE_URL="$migration_url" \
+    IHP_MIGRATION_DIR="$repo_root/Application/Migration/" \
+    "$runner" >"$migrate_log" 2>&1 &
+runner_pid=$!
+set +e
+wait "$runner_pid"
+runner_status=$?
+set -e
+runner_pid=""
+if [ "$runner_status" -ne 0 ]; then
+    mapfile -t failed_state_revisions < <(
+        pg_command psql -d "$database" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT revision FROM schema_migrations ORDER BY revision' 2>/dev/null || true
+    )
+    failed_revision="unknown"
+    for revision in "${pending_revisions[@]}"; do
+        if ! printf '%s\n' "${failed_state_revisions[@]}" | grep -Fxq "$revision"; then
+            failed_revision="$revision"
+            break
+        fi
+    done
+    echo "migration-rehearsal: FAIL predecessor_ref=$from_ref predecessor_commit=$predecessor_commit candidate_commit=$candidate_commit failed_revision=$failed_revision" >&2
+    bounded_log "$migrate_log"
+    exit 1
+fi
+
+mapfile -t after_revisions < <(
+    pg_command psql -d "$database" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT revision FROM schema_migrations ORDER BY revision'
+)
+applied_revisions=()
+for revision in "${after_revisions[@]}"; do
+    if ! printf '%s\n' "${before_revisions[@]}" | grep -Fxq "$revision"; then
+        applied_revisions+=("$revision")
+    fi
+done
+applied_csv="$(IFS=,; echo "${applied_revisions[*]:-}")"
+printf 'applied_revisions=%s\n' "${applied_csv:-none}" | tee -a "$metadata_file"
+echo "migration-rehearsal: PASS predecessor=$predecessor_commit candidate=$candidate_commit applied=${applied_csv:-none}"
+completed=1
