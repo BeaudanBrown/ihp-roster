@@ -22,7 +22,9 @@ issue-recorded reason none is needed) is incomplete.
 - Record non-obvious backfill, constraint, trigger, index, and enum transitions
   beside the migration or in its operator runbook.
 - `make db` resets local development data; it verifies fresh-schema parsing and
-  startup only and is never a deployed upgrade strategy.
+  startup only and is never a deployed upgrade strategy. The operator/CI
+  command, evidence policy, and production-clone staging boundary are in
+  `../../docs/runbooks/migration-rehearsal.md`.
 
 ## Verification
 

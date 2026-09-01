@@ -126,7 +126,10 @@ epic-worktree delegation and approval boundaries.
 
 Bepis is live. Schema changes require both `Application/Schema.sql` and a safe
 IHP migration under `Application/Migration/`. Local `make db` resets development
-data and is not a production/staging upgrade path.
+data and is not a production/staging upgrade path. Use the advisory
+[migration rehearsal runbook](docs/runbooks/migration-rehearsal.md) to verify a
+named deployed predecessor through the pinned IHP runner before final
+production-clone staging acceptance.
 
 ## Generated Boundaries
 
@@ -147,6 +150,7 @@ consumed by deterministic regression tooling live beside that tooling under
 - `docs/adr/README.md` — durable decisions
 - `docs/workstreams/` — unresolved design linked to GitHub issues
 - `docs/runbooks/production-build-profiling.md` — safe NAS/grill build profiling
+- `docs/runbooks/migration-rehearsal.md` — advisory CI/operator upgrade evidence
 - GitHub Issues — only live implementation router and status tracker
 
 ## License
