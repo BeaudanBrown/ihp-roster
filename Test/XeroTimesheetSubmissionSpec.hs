@@ -26,12 +26,12 @@ import Network.HTTP.Types.Status (status200, status404, status409, status500,
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.XeroTimesheet (EntrySpec (..), PreviewFixture (..),
+                                   createLateBindingPreviewFixture,
+                                   createPreviewFixture,
+                                   createPreviewFixtureAtPeriod, fixtureStaffA,
+                                   fixtureStaffB)
 import qualified Test.XeroMock as XeroMock
-import Test.XeroTimesheetPreviewSpec (EntrySpec (..), PreviewFixture (..),
-                                      createLateBindingPreviewFixture,
-                                      createPreviewFixture,
-                                      createPreviewFixtureAtPeriod,
-                                      fixtureStaffA, fixtureStaffB)
 
 reviewXeroDraftTimesheets :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO (Either Text Aeson.Value)
 reviewXeroDraftTimesheets request = Submission.reviewXeroDraftTimesheets request >>= expectSubmissionResult

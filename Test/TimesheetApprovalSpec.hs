@@ -17,7 +17,7 @@ import IHP.ModelSupport (sqlQuery)
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Test.XeroTimesheetPreviewSpec (PreviewFixture (..))
+import Test.Support.XeroTimesheet (PreviewFixture (..))
 import qualified Test.XeroTimesheetReadinessSpec as Readiness
 import qualified Test.XeroTimesheetReservationSpec as Reservation
 

@@ -14,8 +14,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
 import Test.Support
+import qualified Test.Support.XeroTimesheet as Preview
 import qualified Test.XeroMock as XeroMock
-import qualified Test.XeroTimesheetPreviewSpec as Preview
 
 testXeroConfig :: XeroConfig
 testXeroConfig =
@@ -317,7 +317,8 @@ markOtherFixtureStaffNotPaid ::
     IO ()
 markOtherFixtureStaffNotPaid fixture = do
     staff <- query @Staff |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetch
-    forM_ (filter (\candidate -> candidate.id `notElem` [fixture.staffA.id, fixture.staffB.id]) staff) \staffMember -> do
+    let fixtureStaffIds = map (.id) ([fixture.staffA] <> maybeToList fixture.staffB)
+    forM_ (filter (\candidate -> candidate.id `notElem` fixtureStaffIds) staff) \staffMember -> do
         existing <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> filterWhere (#staffId, unpackId staffMember.id) |> fetchOneOrNothing
         case existing of
             Just mapping ->
@@ -375,24 +376,8 @@ createPreparationRunForFixture fixture status =
         |> set #status status
         |> createRecord
 
-createXeroPayRunForFixture ::
-    (?modelContext :: ModelContext) =>
-    Preview.PreviewFixture ->
-    Text ->
-    IO XeroPayRun
-createXeroPayRunForFixture fixture status = do
-    now <- getCurrentTime
-    newRecord @XeroPayRun
-        |> set #venueId (unpackId fixture.venue.id)
-        |> set #xeroConnectionId (unpackId fixture.connection.id)
-        |> set #xeroPayRunId ("pay-run-" <> Text.toLower status)
-        |> set #xeroPayrollCalendarId ("calendar-preview" :: Text)
-        |> set #payPeriodStart fixture.periodStart
-        |> set #payPeriodEnd fixture.periodEnd
-        |> set #payRunStatus (Just status)
-        |> set #rawPayload (Aeson.object ["PayRunID" Aeson..= ("pay-run-" <> Text.toLower status)])
-        |> set #syncedAt now
-        |> createRecord
+createXeroPayRunForFixture :: (?modelContext :: ModelContext) => Preview.PreviewFixture -> Text -> IO XeroPayRun
+createXeroPayRunForFixture = Preview.createPreviewPayRun
 
 createXeroPayrollCalendarRecord ::
     (?modelContext :: ModelContext) =>

@@ -51,8 +51,8 @@ import Network.Wai (Response, responseHeaders)
 import Test.Hspec
 import Test.Support
 import Test.Support.XeroAdmin
+import qualified Test.Support.XeroTimesheet as Preview
 import qualified Test.XeroMock as XeroMock
-import qualified Test.XeroTimesheetPreviewSpec as Preview
 import Web.Admin.Xero.Mutations (xeroConnectionTouchedResources,
                                  xeroPayItemsTouchedResources,
                                  xeroReferenceSyncTouchedResources,
@@ -1743,7 +1743,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
-                resetXeroStaffMappingForPreparation fixture.staffB
+                resetXeroStaffMappingForPreparation (Preview.requiredFixtureStaff fixture Preview.fixtureStaffB)
                 mappingRefreshCompletedAt <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just mappingRefreshCompletedAt) |> updateRecord
                 refreshedMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -1813,7 +1813,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
         it "applies the selected suggested employee through the unified preparation dropdown" $ withContext do
             withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                fixture <- Preview.createPreviewFixtureWithStaffFacts [Preview.fixtureStaffA, Preview.fixtureStaffB] "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -1858,14 +1858,14 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
-                            [ ("staffId", idToParam fixture.staffB.id)
+                            [ ("staffId", idToParam (Preview.requiredFixtureStaff fixture Preview.fixtureStaffB).id)
                             , ("decision", "select_employee")
                             , ("xeroEmployeeSelection", "employee-a")
                             ]
                 duplicateResponse `responseStatusShouldBe` status200
                 duplicateResponse `responseBodyShouldContain` "That Xero employee is already mapped to another staff member."
                 duplicateResponse `responseBodyShouldContain` "Ada Lovelace"
-                duplicateMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffB.id) |> fetchOne
+                duplicateMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId (Preview.requiredFixtureStaff fixture Preview.fixtureStaffB).id) |> fetchOne
                 duplicateMapping.xeroEmployeeId `shouldNotBe` Just "employee-a"
 
         it "shows proposed managed pay item creation instead of manual earnings-rate mapping in the preparation modal" $ withContext do

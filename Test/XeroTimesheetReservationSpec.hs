@@ -19,9 +19,9 @@ import IHP.ModelSupport.Types (HasqlSessionError)
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
-import Test.XeroTimesheetPreviewSpec (EntrySpec (..), PreviewFixture (..),
-                                      createPreviewFixture, fixtureStaffA,
-                                      fixtureStaffB)
+import Test.Support.XeroTimesheet (EntrySpec (..), PreviewFixture (..),
+                                   createPreviewFixture, fixtureStaffA,
+                                   fixtureStaffB, requiredFixtureStaff)
 
 tests :: Spec
 tests =
@@ -151,7 +151,7 @@ tests =
                                 reserveXeroTimesheetSubmissionRun
                                     (submissionRunTemplate fixture)
                                     [ submissionReservationFor fixture fixture.staffA "employee-a" [entryA]
-                                    , submissionReservationFor fixture fixture.staffB "employee-b" [entryB]
+                                    , submissionReservationFor fixture (requiredFixtureStaff fixture fixtureStaffB) "employee-b" [entryB]
                                     ]
                                     []
 
