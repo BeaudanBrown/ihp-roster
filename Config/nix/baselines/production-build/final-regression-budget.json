@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "issue": 492,
-  "authority": "Stable production app-library and inventory regression ceilings measured after the editable composable Payroll Workbook interface, including its typed dialog view; measured memory is opt-in and builder-specific",
-  "measurement_profile": "Config/nix/baselines/production-build/issue-492-editable-payroll-workbook-exports.json",
+  "issue": 444,
+  "authority": "Stable production app-library and inventory regression ceilings measured after Payroll Workbook completion and standalone category-aware Xero staff mapping management; measured memory is opt-in and builder-specific",
+  "measurement_profile": "Config/nix/baselines/production-build/epic-444-final-xero-management.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 530,
+    "module_count_max": 534,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -70,7 +70,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 530, "bytes_max": 629145600 },
+      ".hi": { "count": 534, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -79,7 +79,7 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 531,
+    "module_rows_max": 535,
     "dependency_packages_max": 44,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
