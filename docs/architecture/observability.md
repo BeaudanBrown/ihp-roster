@@ -2,9 +2,9 @@
 
 Implemented telemetry behavior is owned by `Application/Helper/Telemetry.hs`,
 the profiling helpers, `Config/otel/`, and the Nix scripts/module. Exact local
-profiling procedures live in `docs/runbooks/performance-profiling.md`. Unresolved
-Grafana and production incident-runbook work lives only in
-`docs/workstreams/opentelemetry-observability.md` and its linked GitHub issues.
+profiling procedures live in `docs/runbooks/performance-profiling.md`; production
+operation, access control, incident containment, and recovery live in
+`docs/runbooks/production-observability.md`.
 
 ## Modes
 
@@ -273,14 +273,15 @@ distinction and the journal redaction boundary.
 The app and worker want, but do not require, the Collector. Backend failure or
 disablement therefore remains fail-open. Rollback is declarative: disable
 `observability.otel`, `collector`, `tempo`, and `loki`, rebuild the host, and
-leave `/var/lib/ihp-roster/{tempo,loki}` intact for recovery. Retention/access
-operations and final incident procedures remain owned by the production
-observability runbook issue.
+leave `/var/lib/ihp-roster/{tempo,loki}` intact for recovery. The production
+runbook owns retention, access, incident containment, and recovery procedures.
 
 ## Verification And Navigation
 
 - `docs/runbooks/performance-profiling.md`: exact local commands, artifacts,
   comparison, and diagnosis.
+- `docs/runbooks/production-observability.md`: safe production enablement,
+  access, health checks, containment, and recovery.
 - `bash ./bin/in-env telemetry-boundary-probe`: exporter-backed semantic job,
   provider, websocket, export, outcome, and prohibited-attribute contract.
 - `bash ./bin/in-env observability-production-check`: production Collector,
@@ -289,8 +290,6 @@ observability runbook issue.
   export through the production-shaped Collector into queryable Tempo/Loki.
 - `otel-recent`, `otel-trace`, `otel-logs`, and `otel-compare`: fixed, bounded,
   target-aware development/production diagnosis surfaces.
-- `docs/workstreams/opentelemetry-observability.md`: unresolved production
-  intent and issue links.
 - `Application/Helper/Telemetry.hs`: app telemetry implementation.
 - `Config/nix/modules/ihp-roster.nix`: production configuration boundary.
 - `Config/otel/` and `Config/nix/scripts/profile/`: collector and runner

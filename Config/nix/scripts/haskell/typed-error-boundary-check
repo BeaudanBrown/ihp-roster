@@ -33,7 +33,7 @@ direct_throw_owners = {
     'Application/Error/Boundary.hs': {'respondAndStop', 'withSynchronousAppErrorFallback'},
     'Application/Async/Boundary.hs': {'runAppJobBoundary', 'trySynchronousAppJobAction', 'throwProjectedAppError'},
     'Application/Bepis/Action.hs': {'runBepisActionSpan'},
-    'Application/Helper/Telemetry.hs': {'withTelemetrySpanAttributes'},
+    'Application/Helper/Telemetry.hs': {'withClassifiedTelemetrySpan', 'withTelemetrySpanAttributes'},
     'Application/TimesheetApproval.hs': {'refreshProblemApprovalWithAudit'},
     'Web/Timesheets/Mutations.hs': {'approveTimesheetEntryInCurrentTransaction'},
 }

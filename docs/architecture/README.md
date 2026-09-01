@@ -98,6 +98,6 @@ See ADRs
 `docs/runbooks/production-build-profiling.md` for clean-builder diagnosis.
 
 Current observability boundaries are summarized in `observability.md`; exact
-profiling procedures live in `docs/runbooks/performance-profiling.md`, while
-unresolved production intent lives in
-`docs/workstreams/opentelemetry-observability.md`.
+profiling procedures live in `docs/runbooks/performance-profiling.md`, and
+production operation/security procedures live in
+`docs/runbooks/production-observability.md`.

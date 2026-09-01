@@ -196,29 +196,30 @@ withExportTelemetrySpan exportKind =
         [("bepis.export.kind", toAttribute exportKind)]
 
 withClassifiedTelemetrySpan :: forall a. Otel.SpanKind -> Text -> [(Text, Attribute)] -> (a -> Bool) -> IO a -> IO a
-withClassifiedTelemetrySpan spanKind name attributes succeeded action
-    | not telemetryEnabledFlag = action
-    | otherwise = do
-        actionResultRef <- IORef.newIORef Nothing
-        spanResult <- Exception.try do
-            tracerProvider <- Otel.getGlobalTracerProvider
-            let tracer = Otel.makeTracer tracerProvider "ihp-roster" Otel.tracerOptions
-            Otel.inSpan tracer name arguments do
-                actionResult <- Exception.try action :: IO (Either SomeException a)
-                IORef.writeIORef actionResultRef (Just actionResult)
-                case actionResult of
-                    Left exception
-                        | SafeException.isAsyncException exception -> pure ()
-                        | otherwise -> recordOutcome False
-                    Right value -> recordOutcome (succeeded value)
-                pure actionResult
-        case spanResult of
-            Right actionResult -> resolveActionResult actionResult
-            Left exception
-                | SafeException.isAsyncException exception -> Exception.throwIO (exception :: SomeException)
-                | otherwise -> do
-                    putStrLn "otel_span_failure"
-                    IORef.readIORef actionResultRef >>= maybe action resolveActionResult
+withClassifiedTelemetrySpan spanKind name attributes succeeded action =
+    if not telemetryEnabledFlag
+        then action
+        else do
+            actionResultRef <- IORef.newIORef Nothing
+            spanResult <- Exception.try do
+                tracerProvider <- Otel.getGlobalTracerProvider
+                let tracer = Otel.makeTracer tracerProvider "ihp-roster" Otel.tracerOptions
+                Otel.inSpan tracer name arguments do
+                    actionResult <- Exception.try action :: IO (Either SomeException a)
+                    IORef.writeIORef actionResultRef (Just actionResult)
+                    case actionResult of
+                        Left exception
+                            | SafeException.isAsyncException exception -> pure ()
+                            | otherwise -> recordOutcome False
+                        Right value -> recordOutcome (succeeded value)
+                    pure actionResult
+            case spanResult of
+                Right actionResult -> resolveActionResult actionResult
+                Left exception
+                    | SafeException.isAsyncException exception -> Exception.throwIO (exception :: SomeException)
+                    | otherwise -> do
+                        putStrLn "otel_span_failure"
+                        IORef.readIORef actionResultRef >>= maybe action resolveActionResult
   where
     arguments = (spanArguments attributes) { Otel.kind = spanKind }
     resolveActionResult = either Exception.throwIO pure
