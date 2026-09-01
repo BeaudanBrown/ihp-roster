@@ -7,8 +7,6 @@ workstream retains only unresolved production intent.
 
 ## Open Issues
 
-- [#40](https://github.com/BeaudanBrown/ihp-roster/issues/40) — tailnet-only NAS
-  Grafana frontend.
 - [#13](https://github.com/BeaudanBrown/ihp-roster/issues/13) — dashboards and
   trace/log correlation.
 - [#79](https://github.com/BeaudanBrown/ihp-roster/issues/79) — production

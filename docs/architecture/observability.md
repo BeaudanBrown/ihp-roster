@@ -254,6 +254,22 @@ and are cleaned on subsequent command use. They remain
 them unchanged. Authorization, timeout, malformed-response, and outage failures
 return bounded diagnostics and never touch production capture.
 
+## Grafana Operator Frontend
+
+The separate `nix-dotfiles` repository declaratively provisions the NAS Grafana
+service, immutable data sources, and a stable **Bepis** dashboard folder. The
+source is `modules/services/grafana/{nas,dashboards}.nix`; operators must not
+create a parallel hand-maintained dashboard set in the Grafana database. Tempo
+dashboards switch between production and the reverse-tunnelled current
+development workspace. Development has no Loki source.
+
+Production Tempo maps the low-cardinality trace resource `service.name` to the
+Loki `service_name` label and links to a span-bounded time window with 30 seconds
+of context on each side. Trace-ID and span-ID filtering remain disabled because
+production journals retain no trace context. The resulting log rows are temporal
+evidence, not causal evidence. Dashboards and their help text must preserve this
+distinction and the journal redaction boundary.
+
 The app and worker want, but do not require, the Collector. Backend failure or
 disablement therefore remains fail-open. Rollback is declarative: disable
 `observability.otel`, `collector`, `tempo`, and `loki`, rebuild the host, and
