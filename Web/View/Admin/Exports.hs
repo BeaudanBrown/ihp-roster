@@ -145,28 +145,34 @@ renderAddExportButton :: ReportWeekSelection -> Html
 renderAddExportButton selection =
     applyAppShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
-        ((defaultAppShellActionRoute (pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart)))
-            { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-primary"), ("type", "button")]
-            }))
+        (exportDialogActionRoute
+            (pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart)))
+            "btn btn-outline-primary")
         (Html5.button "Create new export")
 
 renderEditExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderEditExportButton selection configuration =
     applyAppShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
-        ((defaultAppShellActionRoute (pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
-            { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("type", "button")]
-            }))
+        (exportDialogActionRoute
+            (pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
+            "btn btn-outline-secondary")
         (Html5.button "Edit")
 
 renderDeleteExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderDeleteExportButton selection configuration =
     applyAppShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDeleteDialog)
-        ((defaultAppShellActionRoute (pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
-            { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-danger"), ("type", "button")]
-            }))
+        (exportDialogActionRoute
+            (pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
+            "btn btn-outline-danger")
         (Html5.button "Delete")
+
+exportDialogActionRoute :: Text -> Text -> AppShellActionRoute
+exportDialogActionRoute url buttonClass =
+    (defaultAppShellActionRoute url)
+        { appShellActionRouteExtraAttrs = [("class", buttonClass), ("type", "button")]
+        }
 
 createExportRoute :: Text -> FrontendSurfaceActionRoute
 createExportRoute formId = ((defaultFrontendSurfaceActionRoute (pathTo CreateExportJobAction))

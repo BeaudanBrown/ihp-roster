@@ -93,7 +93,7 @@ GHC.Stats	base	Application/Helper/Profiling/Runtime.hs via Main
 GHC.TypeLits	base	Application/Helper/FrontendContract/DSL.hs via Main
 Generated.Enums	app-models	Application/FwcMapd/Validation.hs via Main
 Generated.Types	app-models	Web/Types.hs via Main
-Hasql.Errors	hasql	Application/Helper/Hasql.hs via Main
+Hasql.Errors	hasql	Application/Helper/Export/PayrollWorkbookConfiguration.hs via Main
 IHP.AuthSupport.Authentication	ihp	Web/Controller/Sessions.hs via Main
 IHP.AuthSupport.Controller.Sessions	ihp	Web/Controller/Auth.hs via Main
 IHP.AuthSupport.Lockable	ihp	Web/Controller/Sessions.hs via Main

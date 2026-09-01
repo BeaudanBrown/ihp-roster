@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -63,6 +64,20 @@ export async function generatePayrollReport(page: Page, reportName: string, down
 export async function readDownloadText(download: Download) {
     const filePath = await persistDownload(download);
     return readFile(filePath, 'utf8');
+}
+
+export async function listZipEntries(download: Download) {
+    const filePath = await persistDownload(download);
+    const output = execFileSync('unzip', ['-Z1', filePath], { encoding: 'utf8' });
+    return output
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+}
+
+export async function readZipEntryText(download: Download, entryName: string) {
+    const filePath = await persistDownload(download);
+    return execFileSync('unzip', ['-p', filePath, entryName], { encoding: 'utf8' });
 }
 
 export function parseCsv(text: string): string[][] {

@@ -3,7 +3,7 @@ set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 ihp_roster_configure_compiler_tmpdir
-bash "@scriptsRoot@/haskell/generated-ensure"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 TARGET="${1:-Main.hs}"
 GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
 TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$(ihp_roster_verification_build_dir)}"

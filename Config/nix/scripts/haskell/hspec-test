@@ -3,7 +3,7 @@ set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 ihp_roster_configure_compiler_tmpdir
-bash "@scriptsRoot@/haskell/generated-ensure"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 # shellcheck source=../lib/common.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test}"

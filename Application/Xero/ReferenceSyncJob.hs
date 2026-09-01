@@ -198,12 +198,14 @@ fetchContainingReferenceSyncJob connection requested = do
             |> fetch
     pure $ find (jobContainsPendingCategories categoryStates requested) activeJobs
   where
-    jobContainsPendingCategories categoryStates requestedCategories activeJob =
-        case parseReferenceSyncJobPayload activeJob.payload of
-            Right payload ->
-                payload.requestedCategories `xeroReferenceSyncCategoriesContain` requestedCategories
-                    && all (categoryIsPending payload categoryStates) (Set.toList requestedCategories)
-            Left _ -> False
+    jobContainsPendingCategories categoryStates requestedCategories activeJob
+        | activeJob.payloadSchemaVersion `notElem` [1, 2] = False
+        | otherwise =
+            case (Aeson.fromJSON activeJob.payload :: Aeson.Result XeroReferenceSyncJobPayload) of
+                Aeson.Success payload ->
+                    payload.requestedCategories `xeroReferenceSyncCategoriesContain` requestedCategories
+                        && all (categoryIsPending payload categoryStates) (Set.toList requestedCategories)
+                Aeson.Error _ -> False
 
     categoryIsPending payload categoryStates category =
         categoryStates

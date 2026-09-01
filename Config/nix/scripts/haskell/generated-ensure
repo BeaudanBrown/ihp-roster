@@ -4,9 +4,9 @@ set -euo pipefail
 repo_root="${HASKELL_GENERATED_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-if [ -f "@scriptsRoot@/haskell/generated-state-lib" ]; then
+if [ -f "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-state-lib" ]; then
     # shellcheck source=generated-state-lib
-    . "@scriptsRoot@/haskell/generated-state-lib"
+    . "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-state-lib"
 else
     # shellcheck source=generated-state-lib
     . "Config/nix/scripts/haskell/generated-state-lib"

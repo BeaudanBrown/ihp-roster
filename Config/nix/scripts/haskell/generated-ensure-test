@@ -40,7 +40,7 @@ run_ensure() {
         export HASKELL_REGEN_TYPES_COMMAND="$fake_bin/regen-fixture"
         export HASKELL_GENERATED_TEST_COUNT="$fixture_root/count"
         export BEPIS_SCRIPTS_ROOT="$fixture_repo/Config/nix/scripts"
-        sed "s|@scriptsRoot@|$fixture_repo/Config/nix/scripts|g" Config/nix/scripts/haskell/generated-ensure | bash
+        bash Config/nix/scripts/haskell/generated-ensure
     )
 }
 

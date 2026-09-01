@@ -182,6 +182,13 @@ async function enableVirtualPasskeyAuthenticator(page) {
     return { cdp, authenticatorId };
 }
 
+async function firstVisibleLocator(locator) {
+    for (let index = 0; index < await locator.count(); index += 1) {
+        if (await locator.nth(index).isVisible()) return locator.nth(index);
+    }
+    return null;
+}
+
 async function ensurePrivilegedPasskeyReady(page, options) {
     if (!page.url().includes('/EditProfile')) return;
     await page.locator('#profile-content-fragment').waitFor({ state: 'visible', timeout: options.timeoutMs });
@@ -189,17 +196,14 @@ async function ensurePrivilegedPasskeyReady(page, options) {
     if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
         await securityToggle.click({ force: true });
     }
-    let createButton = page.locator('[data-bepis-passkey-registration] [data-bepis-passkey-action-button]').first();
-    if (!(await createButton.isVisible().catch(() => false))) {
-        const setupLinks = page.getByRole('link', { name: 'Create passkey' });
-        let setupLink = null;
-        for (let index = 0; index < await setupLinks.count(); index += 1) {
-            if (await setupLinks.nth(index).isVisible()) { setupLink = setupLinks.nth(index); break; }
-        }
+    let createButton = await firstVisibleLocator(page.getByRole('button', { name: 'Create passkey' }));
+    if (!createButton) {
+        const setupLink = await firstVisibleLocator(page.getByRole('link', { name: 'Create passkey' }));
         if (!setupLink) throw new Error('No visible passkey setup link');
         await setupLink.click();
-        createButton = page.locator('[data-bepis-passkey-registration] [data-bepis-passkey-action-button]').first();
+        createButton = await firstVisibleLocator(page.getByRole('button', { name: 'Create passkey' }));
     }
+    if (!createButton) throw new Error('No visible passkey creation button');
     await createButton.waitFor({ state: 'visible', timeout: options.timeoutMs });
     const finishRegistration = page.waitForResponse((response) =>
         response.request().method() === 'POST'
