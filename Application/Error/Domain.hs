@@ -9,10 +9,13 @@
 
 module Application.Error.Domain
     ( AppErrorProjection (..)
+    , actionRequiredErrorProjection
     , DomainError (..)
     , domainErrorCode
     , domainErrorCodes
     , projectDomainError
+    , retryableErrorProjection
+    , terminalErrorProjection
     ) where
 
 import Application.Error.Startup (startupInvariantFailure)
@@ -35,6 +38,18 @@ data AppErrorProjection = AppErrorProjection
     , retryDirective :: !RetryDirective
     }
     deriving (Eq, Show)
+
+actionRequiredErrorProjection :: Text -> AppErrorProjection
+actionRequiredErrorProjection safeMessage =
+    AppErrorProjection safeMessage Blocking UserActionRequired DoNotRetry
+
+terminalErrorProjection :: Text -> AppErrorProjection
+terminalErrorProjection safeMessage =
+    AppErrorProjection safeMessage Critical Terminal DoNotRetry
+
+retryableErrorProjection :: Text -> AppErrorProjection
+retryableErrorProjection safeMessage =
+    AppErrorProjection safeMessage Critical Retryable RetryUsingBoundaryPolicy
 
 class (Generic domainError, Typeable domainError, GenericErrorConstructors (Rep domainError)) => DomainError domainError where
     appErrorProjection :: domainError -> AppErrorProjection

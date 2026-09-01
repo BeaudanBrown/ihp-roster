@@ -6,9 +6,9 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       passkeyRecoveryVerifiedAtSessionKey,
                                       passkeyRecoveryVerifiedUserSessionKey,
                                       passkeyStepUpRedirectSessionKey,
-                                      safePasskeyReturnPath,
                                       passkeyVerifiedAtSessionKey,
-                                      passkeyVerifiedUserSessionKey)
+                                      passkeyVerifiedUserSessionKey,
+                                      safePasskeyReturnPath)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
                                                             canonicalOverlayDom)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
@@ -55,6 +55,10 @@ import Web.View.Passkeys.Management (formatRelativeLastUsed)
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "PasskeysController" do
+        it "retains lowercase SHA-256 recovery-code encoding" $ withContext do
+            hashRecoveryCode "abcd-efgh-ijkl-mnop"
+                `shouldBe` "e7e8b89c2721d290cc5f55425491ecd6831355e91063f20b39c22f9ec6a71f91"
+
         it "formats relative passkey last-used times with one unit" $ withContext do
             let now = UTCTime (fromGregorian 2026 5 28) (secondsToDiffTime (12 * 60 * 60))
             formatRelativeLastUsed now Nothing `shouldBe` "Never"

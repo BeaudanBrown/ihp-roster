@@ -5,7 +5,6 @@ module Application.Error.Foundation
     ) where
 
 import Application.Error.Domain
-import Application.Error.Types
 import GHC.Generics (Generic)
 import IHP.Prelude
 
@@ -16,9 +15,5 @@ data FoundationError
     deriving (Eq, Generic, Show)
 
 instance DomainError FoundationError where
-    appErrorProjection UnexpectedSynchronousError = AppErrorProjection
-        { safeMessage = "We couldn't complete that request. Please try again."
-        , severity = Critical
-        , recovery = Retryable
-        , retryDirective = RetryUsingBoundaryPolicy
-        }
+    appErrorProjection UnexpectedSynchronousError =
+        retryableErrorProjection "We couldn't complete that request. Please try again."

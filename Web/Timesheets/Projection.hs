@@ -46,7 +46,8 @@ import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowApproved,
                                            userTimesheetShowSuggestions,
                                            userTimesheetShowWageEstimates)
-import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds,
+                                              fetchLinkedActiveVenueStaff)
 import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
@@ -213,14 +214,7 @@ buildTimesheetStaffPanelEntries :: (?modelContext :: ModelContext, ?context :: C
 buildTimesheetStaffPanelEntries staffMembers entries = do
     let eligibleStaff = filter staffCanProduceTimesheets staffMembers
     let linkedUserIds = mapMaybe (.userId) eligibleStaff
-    memberships <-
-        if null linkedUserIds
-            then pure []
-            else query @VenueMembership
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#userId, linkedUserIds)
-                |> filterWhere (#isActive, True)
-                |> fetch
+    memberships <- fetchActiveVenueMembershipsByUserIds currentVenueId linkedUserIds
     let membershipsByUserId = Map.fromList [(membership.userId, membership) | membership <- memberships]
     let entryCountByStaffId = Map.fromListWith (+) [(entry.staffId, 1 :: Int) | entry <- entries]
     let approvedCountByStaffId = Map.fromListWith (+) [(entry.staffId, 1 :: Int) | entry <- entries, entry.isApproved]

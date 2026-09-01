@@ -7,6 +7,7 @@ Application/AccountSecurityEmail/Types.hs	production	runtime	Main	Reachable from
 Application/Architecture/Contracts.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Async/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Async/Error.hs	production	runtime	Main	Reachable from Main
+Application/Async/Payload.hs	production	runtime	Main	Reachable from Main
 Application/Async/Queue.hs	production	runtime	Main	Reachable from Main
 Application/Async/Registry.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Action.hs	production	runtime	Main	Reachable from Main
@@ -63,6 +64,7 @@ Application/FwcMapd/Sync.hs	production	runtime	Main	Reachable from Main
 Application/FwcMapd/Validation.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Audit.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Audit/Vocabulary.hs	production	runtime	Main	Reachable from Main
+Application/Helper/ByteEncoding.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Conflict.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Controller.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Controller/Input.hs	production	runtime	Main	Reachable from Main
@@ -242,6 +244,7 @@ Application/Helper/FrontendContract/Wire/Passkey.hs	production	runtime	Main	Reac
 Application/Helper/FrontendContract/XeroCandidateFilter.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/XeroCandidateFilter/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FwcMapd.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Hasql.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Htmx.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Impersonation.hs	production	runtime	Main	Reachable from Main
 Application/Helper/InvitationStatus.hs	production	runtime	Main	Reachable from Main

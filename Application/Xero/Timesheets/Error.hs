@@ -4,8 +4,7 @@ module Application.Xero.Timesheets.Error
     ( XeroPreparationError (..)
     ) where
 
-import Application.Error.Domain (AppErrorProjection (..), DomainError (..))
-import Application.Error.Types
+import Application.Error.Domain (DomainError (..), retryableErrorProjection)
 import GHC.Generics (Generic)
 import IHP.Prelude
 
@@ -15,9 +14,4 @@ data XeroPreparationError
 
 instance DomainError XeroPreparationError where
     appErrorProjection XeroPreparationStateUnavailable =
-        AppErrorProjection
-            { safeMessage = "Xero preparation could not load trustworthy payroll state. Try again."
-            , severity = Critical
-            , recovery = Retryable
-            , retryDirective = RetryUsingBoundaryPolicy
-            }
+        retryableErrorProjection "Xero preparation could not load trustworthy payroll state. Try again."

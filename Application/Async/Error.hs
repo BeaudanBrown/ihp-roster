@@ -5,7 +5,6 @@ module Application.Async.Error
     ) where
 
 import Application.Error.Domain
-import Application.Error.Types
 import GHC.Generics (Generic)
 import IHP.Prelude
 
@@ -31,36 +30,17 @@ data AppJobError
 
 instance DomainError AppJobError where
     appErrorProjection = \case
-        JobAuthenticationRequired -> actionRequired "The provider connection requires attention before this job can continue."
-        JobRateLimited -> retryable "The provider asked Bepis to retry this job later."
-        JobValidationRejected -> terminal "The job's validated data was rejected."
-        JobRemoteConflict -> terminal "The provider state conflicts with this job."
-        JobMalformedResponse -> retryable "The provider returned a response Bepis could not safely read."
-        JobTransportUnavailable -> retryable "The provider could not be reached."
-        JobConfigurationUnavailable -> terminal "Job configuration is unavailable."
-        JobCryptoUnavailable -> terminal "Secure job processing is unavailable."
-        JobDatabaseUnavailable -> retryable "The job could not update its durable state."
-        JobMalformedPersistedPayload -> terminal "The stored job payload is invalid."
-        JobUnsupportedPayloadSchemaVersion -> terminal "The stored job payload version is unsupported."
-        JobInvalidProvenance -> terminal "The stored job provenance is invalid."
-        JobUnknownKind -> terminal "The stored job kind is unsupported."
-        JobUnexpectedSynchronousFailure -> retryable "The job could not be completed."
-      where
-        actionRequired message = AppErrorProjection
-            { safeMessage = message
-            , severity = Blocking
-            , recovery = UserActionRequired
-            , retryDirective = DoNotRetry
-            }
-        terminal message = AppErrorProjection
-            { safeMessage = message
-            , severity = Critical
-            , recovery = Terminal
-            , retryDirective = DoNotRetry
-            }
-        retryable message = AppErrorProjection
-            { safeMessage = message
-            , severity = Critical
-            , recovery = Retryable
-            , retryDirective = RetryUsingBoundaryPolicy
-            }
+        JobAuthenticationRequired -> actionRequiredErrorProjection "The provider connection requires attention before this job can continue."
+        JobRateLimited -> retryableErrorProjection "The provider asked Bepis to retry this job later."
+        JobValidationRejected -> terminalErrorProjection "The job's validated data was rejected."
+        JobRemoteConflict -> terminalErrorProjection "The provider state conflicts with this job."
+        JobMalformedResponse -> retryableErrorProjection "The provider returned a response Bepis could not safely read."
+        JobTransportUnavailable -> retryableErrorProjection "The provider could not be reached."
+        JobConfigurationUnavailable -> terminalErrorProjection "Job configuration is unavailable."
+        JobCryptoUnavailable -> terminalErrorProjection "Secure job processing is unavailable."
+        JobDatabaseUnavailable -> retryableErrorProjection "The job could not update its durable state."
+        JobMalformedPersistedPayload -> terminalErrorProjection "The stored job payload is invalid."
+        JobUnsupportedPayloadSchemaVersion -> terminalErrorProjection "The stored job payload version is unsupported."
+        JobInvalidProvenance -> terminalErrorProjection "The stored job provenance is invalid."
+        JobUnknownKind -> terminalErrorProjection "The stored job kind is unsupported."
+        JobUnexpectedSynchronousFailure -> retryableErrorProjection "The job could not be completed."

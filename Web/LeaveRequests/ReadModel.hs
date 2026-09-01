@@ -25,6 +25,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.Profiling
 import Application.Helper.Staff (isTrialStaff)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import Data.Time.Clock (getCurrentTime, utctDay)
@@ -110,14 +111,7 @@ buildLeaveStaffPanelEntries :: (?modelContext :: ModelContext, ?context :: Contr
 buildLeaveStaffPanelEntries today staffMembers leaveRequests = do
     let eligibleStaff = filter (\staff -> staff.isActive && isNothing staff.archivedAt) staffMembers
     let linkedUserIds = mapMaybe (.userId) eligibleStaff
-    memberships <-
-        if null linkedUserIds
-            then pure []
-            else query @VenueMembership
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#userId, linkedUserIds)
-                |> filterWhere (#isActive, True)
-                |> fetch
+    memberships <- fetchActiveVenueMembershipsByUserIds currentVenueId linkedUserIds
     let membershipsByUserId = Map.fromList [(membership.userId, membership) | membership <- memberships]
     let currentAndFutureRequests = activeLeaveRequests leaveRequests today
     let periodCountByStaffId = Map.fromListWith (+) [(request.staffId, 1 :: Int) | request <- currentAndFutureRequests]

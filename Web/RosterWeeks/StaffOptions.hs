@@ -13,6 +13,7 @@ module Web.RosterWeeks.StaffOptions
 import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.Helper.Staff (isTrialStaff, sortStaffForDisplay)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Application.Helper.View (rosterableStaffForRosterPanel)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.PayAssignment (StaffPayAssignment (..),
@@ -39,14 +40,7 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
     let panelStaff = staffForPanelScope panelScope staffMembers
     let linkedUserIds = mapMaybe (.userId) panelStaff
 
-    memberships <-
-        if null linkedUserIds
-            then pure []
-            else query @VenueMembership
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#userId, linkedUserIds)
-                |> filterWhere (#isActive, True)
-                |> fetch
+    memberships <- fetchActiveVenueMembershipsByUserIds currentVenueId linkedUserIds
 
     payConfigurationRequiredIds <- fetchStaffPayConfigurationRequiredIds panelStaff
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]

@@ -18,6 +18,7 @@ module Application.Xero.ReferenceSyncJob
 
 import Application.Async.Boundary (throwAppJobError)
 import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayload)
 import Application.Async.Queue
 import Application.Error.Runtime (ExternalRuntimeCategory (CheckedConfigurationInvariant),
                                   throwExternalRuntimeMessage)
@@ -37,7 +38,7 @@ import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
 import Control.Monad (join, void)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.IORef as IORef
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -74,6 +75,17 @@ data XeroReferenceSyncJobPayload = XeroReferenceSyncJobPayload
     , requestedCategories   :: !(Set.Set XeroReferenceSyncCategoryEnum)
     , completesFullSnapshot :: !Bool
     }
+
+instance Aeson.FromJSON XeroReferenceSyncJobPayload where
+    parseJSON = Aeson.withObject "XeroReferenceSyncJobPayload" \object -> do
+        payloadConnectionId <- object Aeson..: "xeroConnectionId"
+        payloadTenantId <- object Aeson..: "tenantId"
+        requestedAt <- object Aeson..: "requestedAt"
+        retryNumber <- object Aeson..: "retryNumber"
+        maybeCategoryValue <- object Aeson..:? "categories"
+        requestedCategories <- maybe (pure allXeroReferenceSyncCategories) parseXeroReferenceSyncCategories maybeCategoryValue
+        completesFullSnapshot <- object Aeson..:? "completesFullSnapshot" Aeson..!= (requestedCategories == allXeroReferenceSyncCategories)
+        pure XeroReferenceSyncJobPayload { .. }
 
 data XeroReferenceSyncCounts = XeroReferenceSyncCounts
     { employeeCount        :: !Int
@@ -212,38 +224,36 @@ performXeroReferenceSyncJobWith ::
     XeroReferenceDataSource ->
     AppJob ->
     IO ()
-performXeroReferenceSyncJobWith runtime source appJob
-    | appJob.payloadSchemaVersion `notElem` [1, 2] = throwAppJobError JobUnsupportedPayloadSchemaVersion
-    | appJob.relatedTable /= Just "xero_connections" = throwAppJobError JobInvalidProvenance
-    | otherwise = case appJob.relatedId of
-        Nothing -> throwAppJobError JobInvalidProvenance
-        Just connectionUuid -> do
-            payload <- either (const (throwAppJobError JobMalformedPersistedPayload)) pure (parseReferenceSyncJobPayload appJob.payload)
-            unless (payload.payloadConnectionId == tshow (Id connectionUuid :: Id XeroConnection)) (throwAppJobError JobInvalidProvenance)
-            maybeConnection <- fetchOneOrNothing (Id connectionUuid :: Id XeroConnection)
-            case maybeConnection of
-                Nothing -> completeSkippedReferenceSyncJob runtime appJob "missing_connection"
-                Just connection
-                    | payload.payloadTenantId /= connection.tenantId -> throwAppJobError JobInvalidProvenance
-                    | connection.connectionStatus /= "active" -> completeSkippedReferenceSyncJob runtime appJob "inactive_connection"
-                    | otherwise -> do
-                        now <- runtime.currentReferenceSyncTime
-                        acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
-                        if not acquired
-                            then handleReferenceSyncFailure runtime appJob payload connection Nothing (XeroReferencePhaseFailure "tenant_lease" (XeroHttpError "Another reference sync is already running for this Xero tenant."))
-                            else
-                                Exception.finally
-                                    (do
-                                        refreshedConnection <- fetch connection.id
-                                        if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
-                                            then completeSkippedReferenceSyncJob runtime appJob "connection_changed"
-                                            else do
-                                                snapshotCurrent <- referenceSnapshotSatisfiesRequest payload refreshedConnection
-                                                if snapshotCurrent
-                                                    then completeSkippedReferenceSyncJob runtime appJob "snapshot_already_current"
-                                                    else runLeasedReferenceSync runtime source appJob payload refreshedConnection
-                                    )
-                                    (releaseXeroReferenceSyncLease appJob connection.tenantId)
+performXeroReferenceSyncJobWith runtime source appJob = do
+    when (appJob.relatedTable /= Just "xero_connections") do
+        throwAppJobError JobInvalidProvenance
+    connectionUuid <- maybe (throwAppJobError JobInvalidProvenance) pure appJob.relatedId
+    payload <- decodeAppJobPayload [1, 2] appJob
+    unless (payload.payloadConnectionId == tshow (Id connectionUuid :: Id XeroConnection)) (throwAppJobError JobInvalidProvenance)
+    maybeConnection <- fetchOneOrNothing (Id connectionUuid :: Id XeroConnection)
+    case maybeConnection of
+        Nothing -> completeSkippedReferenceSyncJob runtime appJob "missing_connection"
+        Just connection
+            | payload.payloadTenantId /= connection.tenantId -> throwAppJobError JobInvalidProvenance
+            | connection.connectionStatus /= "active" -> completeSkippedReferenceSyncJob runtime appJob "inactive_connection"
+            | otherwise -> do
+                now <- runtime.currentReferenceSyncTime
+                acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
+                if not acquired
+                    then handleReferenceSyncFailure runtime appJob payload connection Nothing (XeroReferencePhaseFailure "tenant_lease" (XeroHttpError "Another reference sync is already running for this Xero tenant."))
+                    else
+                        Exception.finally
+                            (do
+                                refreshedConnection <- fetch connection.id
+                                if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
+                                    then completeSkippedReferenceSyncJob runtime appJob "connection_changed"
+                                    else do
+                                        snapshotCurrent <- referenceSnapshotSatisfiesRequest payload refreshedConnection
+                                        if snapshotCurrent
+                                            then completeSkippedReferenceSyncJob runtime appJob "snapshot_already_current"
+                                            else runLeasedReferenceSync runtime source appJob payload refreshedConnection
+                            )
+                            (releaseXeroReferenceSyncLease appJob connection.tenantId)
 
 referenceSnapshotSatisfiesRequest ::
     (?modelContext :: ModelContext) =>
@@ -527,7 +537,7 @@ scheduleReferenceSyncRetry runtime appJob connection payload retryAt failedPhase
 
 completedPayItemsPageFromProgress :: Aeson.Value -> Maybe Int
 completedPayItemsPageFromProgress value =
-    join (Aeson.parseMaybe (Aeson.withObject "Xero reference sync progress" (\object -> object Aeson..:? "completedPayItemsPage")) value)
+    join (AesonTypes.parseMaybe (Aeson.withObject "Xero reference sync progress" (\object -> object Aeson..:? "completedPayItemsPage")) value)
 
 completeReferenceSyncJob ::
     (?modelContext :: ModelContext) =>
@@ -641,22 +651,6 @@ referenceSyncJobPayload connection requestedAt retryNumber categories completesF
         , "categories" Aeson..= map xeroReferenceSyncCategoryLabel (Set.toAscList categories)
         , "completesFullSnapshot" Aeson..= completesFullSnapshot
         ]
-
-parseReferenceSyncJobPayload :: Aeson.Value -> Either Text XeroReferenceSyncJobPayload
-parseReferenceSyncJobPayload value =
-    case Aeson.parseEither parser value of
-        Left message -> Left ("Invalid Xero reference sync job payload: " <> cs message)
-        Right payload -> Right payload
-    where
-        parser = Aeson.withObject "XeroReferenceSyncJobPayload" \object -> do
-            payloadConnectionId <- object Aeson..: "xeroConnectionId"
-            payloadTenantId <- object Aeson..: "tenantId"
-            requestedAt <- object Aeson..: "requestedAt"
-            retryNumber <- object Aeson..: "retryNumber"
-            maybeCategoryValue <- object Aeson..:? "categories"
-            categories <- maybe (pure allXeroReferenceSyncCategories) parseXeroReferenceSyncCategories maybeCategoryValue
-            completesFullSnapshot <- object Aeson..:? "completesFullSnapshot" Aeson..!= (categories == allXeroReferenceSyncCategories)
-            pure XeroReferenceSyncJobPayload { payloadConnectionId, payloadTenantId, requestedAt, retryNumber, requestedCategories = categories, completesFullSnapshot }
 
 acquireXeroReferenceSyncLease ::
     (?modelContext :: ModelContext) =>

@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Xero.Keepalive
     ( XeroKeepaliveSweepSummary (..)
     , enqueueDueXeroKeepaliveJobs
@@ -9,6 +11,7 @@ module Application.Xero.Keepalive
 
 import Application.Async.Boundary (throwAppJobError)
 import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1, requireAppJobPayloadV1)
 import Application.Async.Queue
 import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroConnectionResource)
 import Application.Helper.SurfaceResource
@@ -132,35 +135,34 @@ performXeroConnectionKeepaliveJob ::
     (?modelContext :: ModelContext) =>
     AppJob ->
     IO ()
-performXeroConnectionKeepaliveJob appJob
-    | appJob.payloadSchemaVersion /= 1 = throwAppJobError JobUnsupportedPayloadSchemaVersion
-    | appJob.relatedTable /= Just "xero_connections" = throwAppJobError JobInvalidProvenance
-    | otherwise = case (appJob.relatedId, Aeson.fromJSON appJob.payload :: Aeson.Result XeroConnectionKeepalivePayload) of
-        (Nothing, _) -> throwAppJobError JobInvalidProvenance
-        (_, Aeson.Error _) -> throwAppJobError JobMalformedPersistedPayload
-        (Just connectionUuid, Aeson.Success payload)
-            | payload.payloadConnectionId /= tshow (Id connectionUuid :: Id XeroConnection) -> throwAppJobError JobInvalidProvenance
+performXeroConnectionKeepaliveJob appJob = do
+    requireAppJobPayloadV1 appJob
+    when (appJob.relatedTable /= Just "xero_connections") do
+        throwAppJobError JobInvalidProvenance
+    connectionUuid <- maybe (throwAppJobError JobInvalidProvenance) pure appJob.relatedId
+    payload <- decodeAppJobPayloadV1 @XeroConnectionKeepalivePayload appJob
+    when (payload.payloadConnectionId /= tshow (Id connectionUuid :: Id XeroConnection)) do
+        throwAppJobError JobInvalidProvenance
+    maybeConnection <- fetchOneOrNothing (Id connectionUuid :: Id XeroConnection)
+    case maybeConnection of
+        Nothing ->
+            completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("missing_connection" :: Text)])
+        Just connection
+            | payload.payloadTenantId /= connection.tenantId -> throwAppJobError JobInvalidProvenance
+            | connection.connectionStatus /= "active" ->
+                completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("inactive_connection" :: Text)])
             | otherwise -> do
-                maybeConnection <- fetchOneOrNothing (Id connectionUuid :: Id XeroConnection)
-                case maybeConnection of
-                    Nothing ->
-                        completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("missing_connection" :: Text)])
-                    Just connection
-                        | payload.payloadTenantId /= connection.tenantId -> throwAppJobError JobInvalidProvenance
-                        | connection.connectionStatus /= "active" ->
-                            completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("inactive_connection" :: Text)])
-                        | otherwise -> do
-                            now <- getCurrentTime
-                            acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
-                            unless acquired (throwAppJobError JobRemoteConflict)
-                            Exception.finally
-                                (do
-                                    refreshedConnection <- fetch connection.id
-                                    if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
-                                        then completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("connection_changed" :: Text)])
-                                        else performLeasedXeroConnectionKeepaliveJob appJob refreshedConnection
-                                )
-                                (releaseXeroReferenceSyncLease appJob connection.tenantId)
+                now <- getCurrentTime
+                acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
+                unless acquired (throwAppJobError JobRemoteConflict)
+                Exception.finally
+                    (do
+                        refreshedConnection <- fetch connection.id
+                        if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
+                            then completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("connection_changed" :: Text)])
+                            else performLeasedXeroConnectionKeepaliveJob appJob refreshedConnection
+                    )
+                    (releaseXeroReferenceSyncLease appJob connection.tenantId)
 
 performLeasedXeroConnectionKeepaliveJob ::
     (?modelContext :: ModelContext) =>

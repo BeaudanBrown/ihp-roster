@@ -16,6 +16,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Rost
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate
+import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
@@ -56,6 +57,19 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Venue-scoped access control" do
+        it "keeps active membership batches empty-safe and venue-scoped" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Membership batch A"
+                venueB <- createVenueWithConfig "Membership batch B"
+                userA <- createUserRecord "membership-batch-a@example.com" "staff" True
+                userB <- createUserRecord "membership-batch-b@example.com" "staff" True
+                membershipA <- createVenueMembershipRecord venueA userA Worker
+                _ <- createVenueMembershipRecord venueB userB Worker
+
+                fetchActiveVenueMembershipsByUserIds venueA.id [] `shouldReturn` []
+                memberships <- fetchActiveVenueMembershipsByUserIds venueA.id [unpackId userA.id, unpackId userB.id]
+                map (.id) memberships `shouldBe` [membershipA.id]
+
         it "denies editing a staff record from another venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"

@@ -20,7 +20,6 @@ module Web.RosterWeeks.DirectReadModel
 
 import Application.Error.Domain
 import Application.Error.Telemetry (recordAppError)
-import Application.Error.Types
 import Application.Helper.Conflict
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
@@ -383,12 +382,8 @@ data RosterConflictDecodeError
     deriving (Eq, Generic, Show)
 
 instance DomainError RosterConflictDecodeError where
-    appErrorProjection UnknownRosterConflictType = AppErrorProjection
-        { safeMessage = "Conflict details unavailable"
-        , severity = Critical
-        , recovery = Terminal
-        , retryDirective = DoNotRetry
-        }
+    appErrorProjection UnknownRosterConflictType =
+        terminalErrorProjection "Conflict details unavailable"
 
 decodeRosterConflictType :: Text -> Either RosterConflictDecodeError RosterConflict
 decodeRosterConflictType "duplicate_assignment" = Right (rosterConflict DuplicateAssignment "Multiple shifts rostered on the same day.")

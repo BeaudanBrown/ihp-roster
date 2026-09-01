@@ -18,6 +18,7 @@ import Application.AccountSecurityEmail.TokenCipher (AccountSecurityTokenCipherE
 import Application.AccountSecurityEmail.Types
 import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
 import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Enqueue
@@ -90,15 +91,10 @@ performEmailDeliveryJobWith ::
     EmailDeliveryRuntime ->
     AppJob ->
     IO ()
-performEmailDeliveryJobWith runtime@EmailDeliveryRuntime { deliverMail } appJob
-    | appJob.payloadSchemaVersion /= 1 =
-        throwAppJobError JobUnsupportedPayloadSchemaVersion
-    | otherwise =
-        case Aeson.fromJSON appJob.payload of
-            Aeson.Error _ -> throwAppJobError JobMalformedPersistedPayload
-            Aeson.Success payload ->
-                performPayload (runtime { deliverMail = deliverJobMail deliverMail }) appJob payload
-                    `Exception.catch` handleAccountSecurityCipherError
+performEmailDeliveryJobWith runtime@EmailDeliveryRuntime { deliverMail } appJob = do
+    payload <- decodeAppJobPayloadV1 appJob
+    performPayload (runtime { deliverMail = deliverJobMail deliverMail }) appJob payload
+        `Exception.catch` handleAccountSecurityCipherError
 
 handleAccountSecurityCipherError :: AccountSecurityTokenCipherError -> IO value
 handleAccountSecurityCipherError = \case

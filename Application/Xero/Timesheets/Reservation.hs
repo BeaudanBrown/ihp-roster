@@ -13,6 +13,7 @@ module Application.Xero.Timesheets.Reservation
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure,
                                   throwExternalRuntime)
+import Application.Helper.Hasql (isUniqueViolation)
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
@@ -32,7 +33,6 @@ import Data.Traversable (traverse)
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
-import qualified Hasql.Errors as Hasql
 import IHP.ControllerPrelude
 import IHP.ModelSupport.Types (HasqlSessionError (..))
 
@@ -383,24 +383,6 @@ reservationLockKey reservation =
         , tshow reservation.reservationPayPeriodStart
         , tshow reservation.reservationPayPeriodEnd
         ]
-
-isUniqueViolation :: HasqlSessionError -> Bool
-isUniqueViolation (HasqlSessionError sessionError) =
-    case sessionError of
-        Hasql.StatementSessionError _ _ _ _ _ statementError -> statementErrorIsUniqueViolation statementError
-        Hasql.ScriptSessionError _ serverError -> serverErrorIsUniqueViolation serverError
-        Hasql.ConnectionSessionError _ -> False
-        Hasql.MissingTypesSessionError _ -> False
-        Hasql.DriverSessionError _ -> False
-  where
-    statementErrorIsUniqueViolation (Hasql.ServerStatementError serverError) = serverErrorIsUniqueViolation serverError
-    statementErrorIsUniqueViolation (Hasql.UnexpectedRowCountStatementError _ _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnCountStatementError _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnTypeStatementError _ _ _) = False
-    statementErrorIsUniqueViolation (Hasql.RowStatementError _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedResultStatementError _) = False
-
-    serverErrorIsUniqueViolation (Hasql.ServerError code _ _ _ _) = code == "23505"
 
 recoverExpectedUniqueRace ::
     (?modelContext :: ModelContext) =>

@@ -8,6 +8,7 @@ module Application.WageSourceAlert.Job
 
 import Application.Async.Boundary (throwAppJobError)
 import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue
 import Application.EmailDelivery
 import Application.Error.Parser (parserFailure)
@@ -128,28 +129,18 @@ performWageSourceHealthCheckJob ::
     (?modelContext :: ModelContext) =>
     AppJob ->
     IO ()
-performWageSourceHealthCheckJob appJob
-    | appJob.payloadSchemaVersion /= 1 =
-        throwAppJobError JobUnsupportedPayloadSchemaVersion
-    | otherwise =
-        case Aeson.fromJSON appJob.payload of
-            Aeson.Error _ -> throwAppJobError JobMalformedPersistedPayload
-            Aeson.Success payload -> do
-                now <- getCurrentTime
-                performHealthCheck appJob payload now
+performWageSourceHealthCheckJob appJob = do
+    payload <- decodeAppJobPayloadV1 appJob
+    now <- getCurrentTime
+    performHealthCheck appJob payload now
 
 performWageSourceHealthCheckJobAt ::
     (?modelContext :: ModelContext) =>
     UTCTime ->
     AppJob ->
     IO ()
-performWageSourceHealthCheckJobAt now appJob
-    | appJob.payloadSchemaVersion /= 1 =
-        throwAppJobError JobUnsupportedPayloadSchemaVersion
-    | otherwise =
-        case Aeson.fromJSON appJob.payload of
-            Aeson.Error _ -> throwAppJobError JobMalformedPersistedPayload
-            Aeson.Success payload -> performHealthCheck appJob payload now
+performWageSourceHealthCheckJobAt now appJob =
+    decodeAppJobPayloadV1 appJob >>= \payload -> performHealthCheck appJob payload now
 
 performHealthCheck ::
     (?modelContext :: ModelContext) =>

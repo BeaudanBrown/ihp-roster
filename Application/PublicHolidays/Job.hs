@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.PublicHolidays.Job
     ( enqueuePublicHolidayRefreshJob
     , performPublicHolidayRefreshJob
@@ -8,6 +10,7 @@ module Application.PublicHolidays.Job
 
 import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
 import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1, requireAppJobPayloadV1)
 import Application.Async.Queue
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
 import Application.Helper.SurfaceResource
@@ -65,37 +68,36 @@ performPublicHolidayRefreshJobWith
     => IO PublicHolidaySyncSummary
     -> AppJob
     -> IO ()
-performPublicHolidayRefreshJobWith syncAction appJob
-    | appJob.payloadSchemaVersion /= 1 = throwAppJobError JobUnsupportedPayloadSchemaVersion
-    | appJob.relatedTable /= Just "public_holidays" || isJust appJob.relatedId = throwAppJobError JobInvalidProvenance
-    | otherwise = case (Aeson.fromJSON appJob.payload :: Aeson.Result PublicHolidayRefreshPayload) of
-        Aeson.Error _ -> throwAppJobError JobMalformedPersistedPayload
-        Aeson.Success payload
-            | payload.payloadJurisdiction /= PublicHolidayPolicy.publicHolidayJurisdiction -> throwAppJobError JobInvalidProvenance
-            | otherwise -> do
-                summary <- trySynchronousAppJobAction syncAction >>= \case
-                    Right value -> pure value
-                    Left exception -> throwAppJobError (publicHolidaySyncJobError exception)
-                completedAt <- getCurrentTime
-                void $ withDurableLiveMutationWithoutContext "support.public_holidays.refresh" do
-                    let resultPayload =
-                            Aeson.object
-                                [ "targetYears" Aeson..= summary.targetYears
-                                , "fetchedCount" Aeson..= summary.fetchedCount
-                                , "importedCount" Aeson..= summary.importedCount
-                                , "insertedCount" Aeson..= summary.insertedCount
-                                , "updatedCount" Aeson..= summary.updatedCount
-                                , "skippedCount" Aeson..= summary.skippedCount
-                                , "invalidCount" Aeson..= summary.invalidCount
-                                , "prunedCount" Aeson..= summary.prunedCount
-                                ]
-                    completedJob <-
-                        appJob
-                            |> set #result resultPayload
-                            |> set #status JobStatusSucceeded
-                            |> updateRecord
-                    void (enqueueWageSourceFreshnessCheck DataVicWageSource completedJob completedAt)
-                    pure (liveMutationResult () [supportPublicHolidaysResource])
+performPublicHolidayRefreshJobWith syncAction appJob = do
+    requireAppJobPayloadV1 appJob
+    when (appJob.relatedTable /= Just "public_holidays" || isJust appJob.relatedId) do
+        throwAppJobError JobInvalidProvenance
+    payload <- decodeAppJobPayloadV1 @PublicHolidayRefreshPayload appJob
+    when (payload.payloadJurisdiction /= PublicHolidayPolicy.publicHolidayJurisdiction) do
+        throwAppJobError JobInvalidProvenance
+    summary <- trySynchronousAppJobAction syncAction >>= \case
+        Right value -> pure value
+        Left exception -> throwAppJobError (publicHolidaySyncJobError exception)
+    completedAt <- getCurrentTime
+    void $ withDurableLiveMutationWithoutContext "support.public_holidays.refresh" do
+        let resultPayload =
+                Aeson.object
+                    [ "targetYears" Aeson..= summary.targetYears
+                    , "fetchedCount" Aeson..= summary.fetchedCount
+                    , "importedCount" Aeson..= summary.importedCount
+                    , "insertedCount" Aeson..= summary.insertedCount
+                    , "updatedCount" Aeson..= summary.updatedCount
+                    , "skippedCount" Aeson..= summary.skippedCount
+                    , "invalidCount" Aeson..= summary.invalidCount
+                    , "prunedCount" Aeson..= summary.prunedCount
+                    ]
+        completedJob <-
+            appJob
+                |> set #result resultPayload
+                |> set #status JobStatusSucceeded
+                |> updateRecord
+        void (enqueueWageSourceFreshnessCheck DataVicWageSource completedJob completedAt)
+        pure (liveMutationResult () [supportPublicHolidaysResource])
 
 publicHolidaySyncJobError :: Exception.SomeException -> AppJobError
 publicHolidaySyncJobError exception =
