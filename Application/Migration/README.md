@@ -14,6 +14,10 @@ issue-recorded reason none is needed) is incomplete.
   tighten or retire compatibility in a separately controlled step.
 - Account for IHP's transactional runner. Use parser-safe SQL and apply
   `IF EXISTS`/`IF NOT EXISTS` only where repeatability cannot hide drift.
+- Add a PostgreSQL enum value in one migration file and first use it in a later
+  migration file. The Hasql runner sends each complete file as one script, so
+  embedded `COMMIT`/`BEGIN` statements cannot provide the required committed
+  enum boundary within that file.
 - Record non-obvious backfill, constraint, trigger, index, and enum transitions
   beside the migration or in its operator runbook.
 - `make db` resets local development data; it verifies fresh-schema parsing and

@@ -330,6 +330,18 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_pay_run_status TEXT DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_timesheet_status TEXT DEFAULT NULL"
 
+    it "commits the Xero unmapped enum value before backfill first use" do
+        enumMigration <- TextIO.readFile "Application/Migration/1788400000-add-xero-staff-unmapped-status.sql"
+        backfillMigration <- TextIO.readFile "Application/Migration/1788400001-backfill-xero-staff-unmapped-status.sql"
+        enumMigration `shouldSatisfy` Text.isInfixOf "ADD VALUE 'unmapped' BEFORE 'verified'"
+        enumMigration `shouldNotSatisfy` Text.isInfixOf "UPDATE xero_staff_mappings"
+        enumMigration `shouldNotSatisfy` Text.isInfixOf "SET DEFAULT"
+        enumMigration `shouldNotSatisfy` Text.isInfixOf "COMMIT"
+        backfillMigration `shouldSatisfy` Text.isInfixOf "UPDATE xero_staff_mappings"
+        backfillMigration `shouldSatisfy` Text.isInfixOf "updated_by_user_id IS NULL"
+        backfillMigration `shouldSatisfy` Text.isInfixOf "SET DEFAULT 'unmapped'"
+        backfillMigration `shouldNotSatisfy` Text.isInfixOf "ADD VALUE"
+
     it "validates every live Xero workflow value before converting columns to enums" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1786000000.sql"
         runbookSqlText <- TextIO.readFile "Application/Migration/xero-workflow-enums-334-runbook.md"
