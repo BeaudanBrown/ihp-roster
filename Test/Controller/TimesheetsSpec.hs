@@ -960,7 +960,10 @@ tests = aroundAll withDatabaseTestContext do
                         (,)
                             <$> fetchTimesheetFormContext noReferencedTimesheetOptions Nothing
                             <*> fetchTimesheetFormContext
-                                (TimesheetFormReferences (Just (unpackId worker.id)) (Just (unpackId rosterOnlyShift.id)))
+                                TimesheetFormReferences
+                                    { referencedStaffId = Just worker.id
+                                    , referencedShiftTypeId = Just rosterOnlyShift.id
+                                    }
                                 Nothing
                 map (.id) newContext.formStaffMembers `shouldNotContain` [worker.id]
                 map (.id) editContext.formStaffMembers `shouldContain` [worker.id]

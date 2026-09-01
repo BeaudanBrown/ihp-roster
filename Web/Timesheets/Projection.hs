@@ -72,15 +72,19 @@ import Web.Timesheets.WageEstimates
 import Web.View.Timesheets.Index
 
 data TimesheetFormReferences = TimesheetFormReferences
-    { referencedStaffId     :: Maybe UUID.UUID
-    , referencedShiftTypeId :: Maybe UUID.UUID
+    { referencedStaffId     :: Maybe (Id Staff)
+    , referencedShiftTypeId :: Maybe (Id ShiftType)
     }
 
 noReferencedTimesheetOptions :: TimesheetFormReferences
-noReferencedTimesheetOptions = TimesheetFormReferences Nothing Nothing
+noReferencedTimesheetOptions = TimesheetFormReferences { referencedStaffId = Nothing, referencedShiftTypeId = Nothing }
 
 timesheetFormReferencesFor :: TimesheetEntry -> TimesheetFormReferences
-timesheetFormReferencesFor entry = TimesheetFormReferences (Just entry.staffId) (Just entry.shiftTypeId)
+timesheetFormReferencesFor entry =
+    TimesheetFormReferences
+        { referencedStaffId = Just (Id entry.staffId)
+        , referencedShiftTypeId = Just (Id entry.shiftTypeId)
+        }
 
 data TimesheetFormContext = TimesheetFormContext
     { formVenueConfig           :: VenueConfig
@@ -311,8 +315,8 @@ fetchTimesheetFormContext ::
     Maybe UUID.UUID ->
     IO TimesheetFormContext
 fetchTimesheetFormContext TimesheetFormReferences { .. } formSelectedStaffFilterId = do
-    formStaffMembers <- maybe fetchStaffForForm fetchStaffForFormIncluding referencedStaffId
-    formShiftTypes <- maybe fetchShiftTypesForForm fetchShiftTypesForFormIncluding referencedShiftTypeId
+    formStaffMembers <- maybe fetchStaffForForm (fetchStaffForFormIncluding . unpackId) referencedStaffId
+    formShiftTypes <- maybe fetchShiftTypesForForm (fetchShiftTypesForFormIncluding . unpackId) referencedShiftTypeId
     currentUserStaff <- fetchCurrentUserStaff
     let formCurrentViewerStaffId = unpackId . (.id) <$> currentUserStaff
     formVenueConfig <- fetchVenueConfig
