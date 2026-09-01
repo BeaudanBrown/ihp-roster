@@ -51,47 +51,17 @@ renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRen
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWindowScope, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
-    let rosterData = RosterRenderData
-            { rosterWeek = Just rosterWeek
-            , rosterWindowScope = gridWindowScope
-            , rosterDays = gridRosterDays
-            , rosterGroups = []
-            , currentRosterGroup = gridCurrentRosterGroup
-            , weekStartDate = gridWeekStartDate
-            , rosterCalendarRevision = gridRosterCalendarRevision
-            , assignmentFilters = gridAssignmentFilters
-            , staffMembers = gridStaffMembers
-            , panelStaff = gridPanelStaff
-            , templateLibrary = gridTemplateLibrary
-            , rosterNotificationPanelData = gridNotificationPanelData
-            , staffSelfServicePanel = gridStaffSelfServicePanel
-            , orderedSlotNames = gridSlotNames
-            , shiftTypes = gridShiftTypes
-            , allSlots = gridAllSlots
-            , slotConflicts = gridSlotConflicts
-            , renderIndexes = gridRenderIndexes
-            , rosterLayoutMode = gridRosterLayoutMode
-            , rosterEndTimesEnabled = gridRosterEndTimesEnabled
-            , rosterTimePickerStartMinute = gridRosterTimePickerStartMinute
-            , rosterTimePickerFinalSelectableMinute = gridRosterTimePickerFinalSelectableMinute
-            , rosterWagePrediction = gridRosterWagePrediction
-            , showWageEstimates = gridShowWageEstimates
-            , showRosterWarnings = gridShowRosterWarnings
-            , highlightOwnLiveShifts = gridHighlightOwnLiveShifts
-            , currentViewerStaffKey = gridCurrentViewerStaffKey
-            , rosterPublicHolidays = gridPublicHolidays
-            }
-     in renderRosterDayTimelineMounted rosterData rosterDay (renderRosterDayTimelineContent Nothing rosterData rosterDay)
+renderRosterDayTimelinePanel gridModel@RosterGridRenderModel { gridRosterWeek = Just _ } rosterDay =
+    renderRosterDayTimelineMounted gridModel.gridWindowScope rosterDay (renderRosterDayTimelineContent Nothing gridModel rosterDay)
 
-renderRosterDayTimelineMounted :: RosterRenderData -> RosterDay -> Html -> Html
-renderRosterDayTimelineMounted RosterRenderData { rosterWindowScope } rosterDay body =
+renderRosterDayTimelineMounted :: RosterWindowScope -> RosterDay -> Html -> Html
+renderRosterDayTimelineMounted windowScope rosterDay body =
     let timelineSurfaceScope = RosterDayTimelineScopeValue
-            { rosterDayTimelineVenueId = unpackId rosterWindowScope.rosterWindowVenueId
-            , rosterDayTimelineGroupId = rosterWindowScope.rosterWindowRosterGroupId
-            , rosterDayTimelineWindowStart = rosterWindowScope.rosterWindowStart
-            , rosterDayTimelineWindowEnd = rosterWindowScope.rosterWindowEnd
-            , rosterDayTimelineCalendarRevision = rosterWindowScope.rosterWindowCalendarRevision
+            { rosterDayTimelineVenueId = unpackId windowScope.rosterWindowVenueId
+            , rosterDayTimelineGroupId = windowScope.rosterWindowRosterGroupId
+            , rosterDayTimelineWindowStart = windowScope.rosterWindowStart
+            , rosterDayTimelineWindowEnd = windowScope.rosterWindowEnd
+            , rosterDayTimelineCalendarRevision = windowScope.rosterWindowCalendarRevision
             , rosterDayTimelineOperationalDate = rosterDay.operationalDate
             , rosterDayTimelineDayId = rosterDay.id
             }
@@ -111,15 +81,15 @@ data TimelineShift = TimelineShift
     , timelineShiftTimingInvalid :: !Bool
     }
 
-renderRosterDayTimelineContent :: Maybe Text -> RosterRenderData -> RosterDay -> Html
-renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
+renderRosterDayTimelineContent :: Maybe Text -> RosterGridRenderModel -> RosterDay -> Html
+renderRosterDayTimelineContent maybeSwapOob gridModel rosterDay =
     let date = rosterDay.operationalDate
-        daySlots = filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) rosterData.allSlots
+        daySlots = filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) gridModel.gridAllSlots
         slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterLaneId, [slot]) | slot <- daySlots ]
-        staffById = Map.fromList [ (unpackId staff.id, staff) | staff <- rosterData.staffMembers ]
-        shiftTypeById = Map.fromList [ (unpackId shiftType.id, shiftType) | shiftType <- rosterData.shiftTypes ]
-        editable = currentUserIsManager && maybe False (not . (.windowIsPublished)) rosterData.rosterWeek && not rosterDay.isClosed
-        timelineWindow = timelineWindowFromRosterData rosterData
+        staffById = Map.fromList [ (unpackId staff.id, staff) | staff <- gridModel.gridStaffMembers ]
+        shiftTypeById = Map.fromList [ (unpackId shiftType.id, shiftType) | shiftType <- gridModel.gridShiftTypes ]
+        editable = currentUserIsManager && maybe False (not . (.windowIsPublished)) gridModel.gridRosterWeek && not rosterDay.isClosed
+        timelineWindow = timelineWindowFromGridModel gridModel
      in [hsx|
         <section id={rosterDayTimelineContentFragmentId rosterDay.id}
                  class="roster-day-timeline-shell"
@@ -128,7 +98,7 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
                  hx-swap-oob={maybeSwapOob}>
             <div class="roster-day-timeline" role="grid" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
                 {renderTimelineScale timelineWindow}
-                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay rosterData.rosterCalendarRevision staffById shiftTypeById slotsByDefinition rosterData.renderIndexes.rosterTimingBySlotId)}
+                {forEach gridModel.gridSlotNames (renderTimelineLane timelineWindow editable rosterDay gridModel.gridRosterCalendarRevision staffById shiftTypeById slotsByDefinition gridModel.gridRenderIndexes.rosterTimingBySlotId)}
             </div>
         </section>
     |]
@@ -139,13 +109,13 @@ data TimelineWindow = TimelineWindow
     , timelineWindowTotalMinutes :: !Int
     }
 
-timelineWindowFromRosterData :: RosterRenderData -> TimelineWindow
-timelineWindowFromRosterData RosterRenderData { rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute } =
-    let endMinute = normalizeWindowEndMinute rosterTimePickerStartMinute rosterTimePickerFinalSelectableMinute
+timelineWindowFromGridModel :: RosterGridRenderModel -> TimelineWindow
+timelineWindowFromGridModel RosterGridRenderModel { gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute } =
+    let endMinute = normalizeWindowEndMinute gridRosterTimePickerStartMinute gridRosterTimePickerFinalSelectableMinute
      in TimelineWindow
-            { timelineWindowStartMinute = rosterTimePickerStartMinute
+            { timelineWindowStartMinute = gridRosterTimePickerStartMinute
             , timelineWindowEndMinute = endMinute
-            , timelineWindowTotalMinutes = max 15 (endMinute - rosterTimePickerStartMinute + 15)
+            , timelineWindowTotalMinutes = max 15 (endMinute - gridRosterTimePickerStartMinute + 15)
             }
 
 renderTimelineScale :: TimelineWindow -> Html

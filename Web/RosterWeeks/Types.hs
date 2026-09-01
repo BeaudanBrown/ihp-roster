@@ -43,40 +43,9 @@ data NoRosterGroupView = NoRosterGroupView
     }
 
 data ShowView = ShowView
-    { rosterWeek             :: Maybe RosterWindowState
-    , rosterDays             :: [RosterDay]
-    , rosterWindowScope      :: RosterWindowScope
-    , rosterGroups           :: [RosterGroup]
-    , currentRosterGroup     :: RosterGroup
-    , weekStartDate          :: Day
-    , weekEndDate            :: Day
-    , rosterCalendarRevision :: Int
-    , assignmentFilters      :: RosterAssignmentFilters
-    , staffMembers           :: [Staff]
-    , panelStaff             :: [RosterStaffPanelEntry]
-    , templateLibrary        :: Maybe RosterTemplateLibrary
-    , showNotificationPanelData :: Maybe RosterNotificationPanelData
-    , staffSelfServicePanel  :: Maybe RosterStaffSelfServicePanel
-    , slotNames              :: [RosterWindowLane]
-    , allSlots               :: [RosterSlot]
-    , slotConflicts          :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes          :: RosterRenderIndexes
-    , viewCapabilities       :: RosterViewCapabilities
-    , rosterLayoutMode       :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled              :: Bool
-    , rosterTimePickerStartMinute        :: Int
-    , rosterTimePickerFinalSelectableMinute :: Int
-    , rosterWagePrediction               :: Maybe RosterWagePrediction
-    , showWageEstimates      :: Bool
-    , showRosterWarnings     :: Bool
-    , highlightOwnLiveShifts :: Bool
-    , currentViewerStaffKey  :: Maybe Text
-    , publicHolidays         :: Map Day Text
-    , shiftTypes             :: [ShiftType]
-    , passkeySetupPrompt     :: Maybe PasskeySetupPromptMode
+    { rosterPageGridModel                 :: RosterGridRenderModel
+    , passkeySetupPrompt                  :: Maybe PasskeySetupPromptMode
     , passkeyStrongAuthenticationRequired :: Bool
-    , rosterGridViewMode     :: RosterGridViewMode
-    , rosterTimelineTodayUrl :: Maybe Text
     }
 
 data RosterGridViewMode

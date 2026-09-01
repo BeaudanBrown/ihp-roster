@@ -288,7 +288,8 @@ instance Controller RosterWeeksController where
                 let canViewTimeline = maybe False (.windowIsPublished) rosterData.rosterWeek || hasRole Manager
                 accessDeniedUnless canViewTimeline
                 let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
-                respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterData) maybeRosterDay)
+                let rosterGridModel = rosterGridRenderModelFromProjection rosterData
+                respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterGridModel) maybeRosterDay)
 
     action currentAction@ShowRosterWeekOverviewFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
@@ -1545,16 +1546,6 @@ rosterWindowScopeForRequestedAnchor rosterGroupId anchorDate = do
     venueConfig <- fetchVenueConfig
     pure (rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate)
 
-currentRosterGridViewMode :: (?request :: Request) => Calendar.Day -> RosterGridViewMode
-currentRosterGridViewMode windowStart =
-    case (paramOrNothing @Text "rosterView", paramOrNothing @Calendar.Day "dayDate", paramOrNothing @Int "dayOffset") of
-        (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (Calendar.diffDays dayDate windowStart)))
-        (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset)
-        _ -> RosterWeekGridView
-  where
-    clampDayOffset = max 0 . min 6
-
-
 buildRosterTimelineTodayUrl :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO Text
 buildRosterTimelineTodayUrl rosterGroupId = do
     venueConfig <- fetchVenueConfig
@@ -1564,8 +1555,6 @@ buildRosterTimelineTodayUrl rosterGroupId = do
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> IO ()
 renderRosterWeekPage requestedScope =
     profileActionSpan "roster.page.render" do
-        let weekStartDate = requestedScope.rosterWindowStart
-        let weekEndDate = Calendar.addDays (-1) requestedScope.rosterWindowEnd
         setTitle "Roster"
         rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
         currentRosterGroup <- profileActionSpan "roster.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just requestedScope.rosterWindowRosterGroupId))
@@ -1576,50 +1565,15 @@ renderRosterWeekPage requestedScope =
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
-                let visibleRosterWeek =
-                        case rosterWeek of
-                            Just legacyRosterWeek
-                                | legacyRosterWeek.windowIsPublished || hasRole Manager -> Just legacyRosterWeek
-                            _ -> Nothing
+            Just rosterData ->
+                let rosterPageGridModel =
+                        (rosterGridRenderModelFromProjection rosterData)
+                            { gridRosterGroups = rosterGroups
+                            , gridCurrentRosterGroup = currentRosterGroup
+                            , gridTimelineTodayUrl = Just timelineTodayUrl
+                            }
                  in profileActionSpan "roster.page.respond" $
-                        respondWithRosterWeekView
-                            ShowView
-                                { rosterWeek = visibleRosterWeek
-                                , rosterDays
-                                , rosterWindowScope
-                                , rosterGroups
-                                , currentRosterGroup
-                                , weekStartDate
-                                , weekEndDate
-                                , rosterCalendarRevision
-                                , assignmentFilters
-                                , staffMembers
-                                , panelStaff
-                                , templateLibrary
-                                , showNotificationPanelData = rosterNotificationPanelData
-                                , staffSelfServicePanel
-                                , slotNames = orderedSlotNames
-                                , shiftTypes
-                                , allSlots
-                                , slotConflicts
-                                , renderIndexes
-                                , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
-                                , rosterLayoutMode
-                                , rosterEndTimesEnabled
-                                , rosterTimePickerStartMinute
-                                , rosterTimePickerFinalSelectableMinute
-                                , rosterWagePrediction
-                                , showWageEstimates
-                                , showRosterWarnings
-                                , highlightOwnLiveShifts
-                                , currentViewerStaffKey
-                                , publicHolidays = rosterPublicHolidays
-                                , passkeySetupPrompt
-                                , passkeyStrongAuthenticationRequired
-                                , rosterGridViewMode = currentRosterGridViewMode weekStartDate
-                                , rosterTimelineTodayUrl = Just timelineTodayUrl
-                                }
+                        respondWithRosterWeekView ShowView { rosterPageGridModel, passkeySetupPrompt, passkeyStrongAuthenticationRequired }
             Nothing ->
                 externalRuntimeInvariantFailure PersistedRuntimeInvariant "Roster date range could not be projected for the selected roster group"
 

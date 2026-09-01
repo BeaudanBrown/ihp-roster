@@ -5,7 +5,6 @@ import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import qualified Data.Time.Calendar as Calendar
-import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
@@ -46,7 +45,7 @@ renderNoRosterGroupShell NoRosterGroupView { .. } =
     |]
 
 renderRosterWeekShell :: ShowView -> Html
-renderRosterWeekShell ShowView { .. } =
+renderRosterWeekShell ShowView { rosterPageGridModel, .. } =
     let page = renderAppPage (AppPageConfig
             { appPageTitle = "Roster"
             , appPageDescription = Nothing
@@ -56,53 +55,21 @@ renderRosterWeekShell ShowView { .. } =
             , appPageBody =
                 mconcat
                     [ renderPasskeySetupPrompt passkeyStrongAuthenticationRequired passkeySetupPrompt
-                    , renderRosterLayout RosterGridRenderModel
-                        { gridRosterWeek = rosterWeek
-                        , gridRosterDays = rosterDays
-                        , gridWindowScope = rosterWindowScope
-                        , gridRosterGroups = rosterGroups
-                        , gridCurrentRosterGroup = currentRosterGroup
-                        , gridAssignmentFilters = assignmentFilters
-                        , gridStaffMembers = staffMembers
-                        , gridPanelStaff = panelStaff
-                        , gridTemplateLibrary = templateLibrary
-                        , gridNotificationPanelData = showNotificationPanelData
-                        , gridStaffSelfServicePanel = staffSelfServicePanel
-                        , gridSlotNames = slotNames
-                        , gridShiftTypes = shiftTypes
-                        , gridWeekStartDate = weekStartDate
-                        , gridRosterCalendarRevision = rosterCalendarRevision
-                        , gridAllSlots = allSlots
-                        , gridSlotConflicts = slotConflicts
-                        , gridRenderIndexes = renderIndexes
-                        , gridViewCapabilities = viewCapabilities
-                        , gridRosterLayoutMode = rosterLayoutMode
-                        , gridRosterEndTimesEnabled = rosterEndTimesEnabled
-                        , gridRosterTimePickerStartMinute = rosterTimePickerStartMinute
-                        , gridRosterTimePickerFinalSelectableMinute = rosterTimePickerFinalSelectableMinute
-                        , gridRosterWagePrediction = rosterWagePrediction
-                        , gridShowWageEstimates = showWageEstimates
-                        , gridShowRosterWarnings = showRosterWarnings
-                        , gridHighlightOwnLiveShifts = highlightOwnLiveShifts
-                        , gridCurrentViewerStaffKey = currentViewerStaffKey
-                        , gridPublicHolidays = publicHolidays
-                        , gridPublishAttempted = False
-                        , gridViewMode = rosterGridViewMode
-                        , gridTimelineTodayUrl = rosterTimelineTodayUrl
-                        }
+                    , renderRosterLayout rosterPageGridModel
                     ]
             })
+        rosterWindowScope = rosterPageGridModel.gridWindowScope
         rosterSurfaceScope = RosterWeekScopeValue
             { rosterWeekVenueId = unpackId rosterWindowScope.rosterWindowVenueId
             , rosterWeekGroupId = rosterWindowScope.rosterWindowRosterGroupId
             , rosterWeekWindowStart = rosterWindowScope.rosterWindowStart
             , rosterWeekWindowEnd = rosterWindowScope.rosterWindowEnd
             , rosterWeekCalendarRevision = rosterWindowScope.rosterWindowCalendarRevision
-            , rosterWeekTimelineDate = case rosterGridViewMode of
+            , rosterWeekTimelineDate = case rosterPageGridModel.gridViewMode of
                 RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) rosterWindowScope.rosterWindowStart)
                 RosterWeekGridView                  -> Nothing
             }
-        rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData (isJust templateLibrary) rosterDays renderIndexes
+        rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData (isJust rosterPageGridModel.gridTemplateLibrary) rosterPageGridModel.gridRosterDays rosterPageGridModel.gridRenderIndexes
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope rosterSurfacePlan
         shell = [hsx|
             <section id={rosterWeekShellId}

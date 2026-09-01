@@ -5,14 +5,18 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Web.RosterWeeks.RenderData
-    ( fetchVisibleRosterReadModel
+    ( currentRosterGridViewMode
+    , currentRosterTimelineDate
+    , fetchVisibleRosterReadModel
     , fetchVisibleRosterStaffPanelRenderModel
     , renderRosterProjectionFragmentWithMode
     , renderVisibleRosterReadModelFragment
+    , rosterGridRenderModelFromProjection
     )
 where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
@@ -121,9 +125,7 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
     where
         renderGridFragment plainRenderer swapRenderer maybeRosterData = do
             projection <- maybeRosterData
-            let visibleRosterWeek = visibleRosterWeekForCurrentUser projection.rosterWeek
-            let viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
-            let gridModel = (rosterGridRenderModelFromProjection viewCapabilities projection) { gridViewMode = currentRosterGridViewMode projection.weekStartDate }
+            let gridModel = rosterGridRenderModelFromProjection projection
             pure $ case renderMode of
                 FragmentPlain        -> plainRenderer gridModel
                 FragmentOob swapAttr -> swapRenderer swapAttr gridModel
@@ -174,18 +176,20 @@ renderRosterContentFromProjection :: (?context :: ControllerContext, ?modelConte
 renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> pure [hsx|<div id="roster-content"></div>|]
-        Just projection -> do
-            let viewCapabilities = buildRosterViewCapabilities (visibleRosterWeekForCurrentUser projection.rosterWeek)
-            pure $ renderrosterContentLiveFragment (rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities RosterWeekGridView projection)
+        Just projection ->
+            pure $
+                renderrosterContentLiveFragment
+                    (rosterGridRenderModelFromProjection projection)
+                        { gridRosterGroups = rosterGroups
+                        , gridCurrentRosterGroup = currentRosterGroup
+                        , gridViewMode = RosterWeekGridView
+                        }
 
-rosterGridRenderModelFromProjection :: (?context :: ControllerContext) => RosterViewCapabilities -> RosterRenderData -> RosterGridRenderModel
-rosterGridRenderModelFromProjection viewCapabilities projection@RosterRenderData { rosterGroups, currentRosterGroup } =
-    rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities RosterWeekGridView projection
-
-rosterGridRenderModelFromProjectionWithGroups :: (?context :: ControllerContext) => [RosterGroup] -> RosterGroup -> RosterViewCapabilities -> RosterGridViewMode -> RosterRenderData -> RosterGridRenderModel
-rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities gridViewMode RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } =
-    RosterGridRenderModel
-        { gridRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
+rosterGridRenderModelFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterRenderData -> RosterGridRenderModel
+rosterGridRenderModelFromProjection RosterRenderData { rosterWeek, rosterWindowScope, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } =
+    let visibleRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
+     in RosterGridRenderModel
+        { gridRosterWeek = visibleRosterWeek
         , gridRosterDays = rosterDays
         , gridWindowScope = rosterWindowScope
         , gridRosterGroups = rosterGroups
@@ -203,7 +207,7 @@ rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup vi
         , gridAllSlots = allSlots
         , gridSlotConflicts = slotConflicts
         , gridRenderIndexes = renderIndexes
-        , gridViewCapabilities = viewCapabilities
+        , gridViewCapabilities = buildRosterViewCapabilities visibleRosterWeek
         , gridRosterLayoutMode = rosterLayoutMode
         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
         , gridRosterTimePickerStartMinute = rosterTimePickerStartMinute
@@ -215,7 +219,7 @@ rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup vi
         , gridCurrentViewerStaffKey = currentViewerStaffKey
         , gridPublicHolidays = rosterPublicHolidays
         , gridPublishAttempted = False
-        , gridViewMode = gridViewMode
+        , gridViewMode = currentRosterGridViewMode weekStartDate
         , gridTimelineTodayUrl = Nothing
         }
 
@@ -227,6 +231,11 @@ currentRosterGridViewMode windowStart =
         _ -> RosterWeekGridView
   where
     clampDayOffset = max 0 . min 6
+
+currentRosterTimelineDate :: (?request :: Request) => Calendar.Day -> Maybe Calendar.Day
+currentRosterTimelineDate windowStart = case currentRosterGridViewMode windowStart of
+    RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) windowStart)
+    RosterWeekGridView                  -> Nothing
 
 visibleRosterWeekForCurrentUser :: (?context :: ControllerContext) => Maybe RosterWindowState -> Maybe RosterWindowState
 visibleRosterWeekForCurrentUser (Just rosterWeek)

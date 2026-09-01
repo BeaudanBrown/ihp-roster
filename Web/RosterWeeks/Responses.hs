@@ -30,10 +30,8 @@ import Application.Helper.View (ToastOverlayConfig,
                                 successToast)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays, diffDays)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterCandidateMountedFragments,
@@ -42,11 +40,12 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterSurfaceFragmentKeys,
                                         rosterSurfaceScope)
 import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
-import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
+import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
+                                   fetchVisibleRosterReadModel,
                                    renderRosterProjectionFragmentWithMode,
-                                   renderVisibleRosterReadModelFragment)
+                                   renderVisibleRosterReadModelFragment,
+                                   rosterGridRenderModelFromProjection)
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),
-                              RosterGridViewMode (..),
                               RosterProjectionFragment (..),
                               RosterRenderData (..))
 import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
@@ -149,44 +148,13 @@ respondWithRosterContentOob scope = do
         Nothing -> do
             TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } -> do
-            let viewCapabilities = buildRosterViewCapabilities rosterWeek
+        Just rosterData ->
             respondHtmlProfiled $
-                    renderrosterContentLiveFragmentOob
-                        RosterGridRenderModel
-                            { gridRosterWeek = rosterWeek
-                            , gridRosterDays = rosterDays
-                            , gridWindowScope = rosterWindowScope
-                            , gridRosterGroups = rosterGroups
-                            , gridCurrentRosterGroup = currentRosterGroup
-                            , gridAssignmentFilters = assignmentFilters
-                            , gridStaffMembers = staffMembers
-                            , gridPanelStaff = panelStaff
-                            , gridTemplateLibrary = templateLibrary
-                            , gridNotificationPanelData = rosterNotificationPanelData
-                            , gridStaffSelfServicePanel = staffSelfServicePanel
-                            , gridSlotNames = orderedSlotNames
-                            , gridShiftTypes = shiftTypes
-                            , gridWeekStartDate = weekStartDate
-                            , gridRosterCalendarRevision = rosterCalendarRevision
-                            , gridAllSlots = allSlots
-                            , gridSlotConflicts = slotConflicts
-                            , gridRenderIndexes = renderIndexes
-                            , gridViewCapabilities = viewCapabilities
-                            , gridRosterLayoutMode = rosterLayoutMode
-                            , gridRosterEndTimesEnabled = rosterEndTimesEnabled
-                            , gridRosterTimePickerStartMinute = rosterTimePickerStartMinute
-                            , gridRosterTimePickerFinalSelectableMinute = rosterTimePickerFinalSelectableMinute
-                            , gridRosterWagePrediction = rosterWagePrediction
-                            , gridShowWageEstimates = showWageEstimates
-                            , gridShowRosterWarnings = showRosterWarnings
-                            , gridHighlightOwnLiveShifts = highlightOwnLiveShifts
-                            , gridCurrentViewerStaffKey = currentViewerStaffKey
-                            , gridPublicHolidays = rosterPublicHolidays
-                            , gridPublishAttempted = False
-                            , gridViewMode = currentRosterGridViewMode weekStartDate
-                            , gridTimelineTodayUrl = Nothing
-                            }
+                renderrosterContentLiveFragmentOob
+                    (rosterGridRenderModelFromProjection rosterData)
+                        { gridRosterGroups = rosterGroups
+                        , gridCurrentRosterGroup = currentRosterGroup
+                        }
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Text -> IO ()
 respondWithRosterContentUpdate scope touchedResources successMessage =
@@ -211,43 +179,13 @@ respondWithRosterContentToast scope publishAttempted toast = do
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
-                    let viewCapabilities = buildRosterViewCapabilities rosterWeek
-                     in renderrosterContentLiveFragment
-                            RosterGridRenderModel
-                                { gridRosterWeek = rosterWeek
-                                , gridRosterDays = rosterDays
-                                , gridWindowScope = rosterWindowScope
-                                , gridRosterGroups = rosterGroups
-                                , gridCurrentRosterGroup = currentRosterGroup
-                                , gridAssignmentFilters = assignmentFilters
-                                , gridStaffMembers = staffMembers
-                                , gridPanelStaff = panelStaff
-                                , gridTemplateLibrary = templateLibrary
-                                , gridNotificationPanelData = rosterNotificationPanelData
-                                , gridStaffSelfServicePanel = staffSelfServicePanel
-                                , gridSlotNames = orderedSlotNames
-                                , gridShiftTypes = shiftTypes
-                                , gridWeekStartDate = weekStartDate
-                                , gridRosterCalendarRevision = rosterCalendarRevision
-                                , gridAllSlots = allSlots
-                                , gridSlotConflicts = slotConflicts
-                                , gridRenderIndexes = renderIndexes
-                                , gridViewCapabilities = viewCapabilities
-                                , gridRosterLayoutMode = rosterLayoutMode
-                                , gridRosterEndTimesEnabled = rosterEndTimesEnabled
-                                , gridRosterTimePickerStartMinute = rosterTimePickerStartMinute
-                                , gridRosterTimePickerFinalSelectableMinute = rosterTimePickerFinalSelectableMinute
-                                , gridRosterWagePrediction = rosterWagePrediction
-                                , gridShowWageEstimates = showWageEstimates
-                                , gridShowRosterWarnings = showRosterWarnings
-                                , gridHighlightOwnLiveShifts = highlightOwnLiveShifts
-                                , gridCurrentViewerStaffKey = currentViewerStaffKey
-                                , gridPublicHolidays = rosterPublicHolidays
-                                , gridPublishAttempted = publishAttempted
-                                , gridViewMode = currentRosterGridViewMode weekStartDate
-                                , gridTimelineTodayUrl = Nothing
-                                }
+                Just rosterData ->
+                    renderrosterContentLiveFragment
+                        (rosterGridRenderModelFromProjection rosterData)
+                            { gridRosterGroups = rosterGroups
+                            , gridCurrentRosterGroup = currentRosterGroup
+                            , gridPublishAttempted = publishAttempted
+                            }
             , renderToastOob ToastBottomCenter toast
             ]
 
@@ -261,20 +199,6 @@ rosterFrontendScopeValue scope =
         , rosterWeekCalendarRevision = scope.rosterWindowCalendarRevision
         , rosterWeekTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         }
-
-currentRosterGridViewMode :: (?request :: Request) => Day -> RosterGridViewMode
-currentRosterGridViewMode windowStart =
-    case (paramOrNothing @Text "rosterView", paramOrNothing @Day "dayDate", paramOrNothing @Int "dayOffset") of
-        (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (diffDays dayDate windowStart)))
-        (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset)
-        _ -> RosterWeekGridView
-  where
-    clampDayOffset = max 0 . min 6
-
-currentRosterTimelineDate :: (?request :: Request) => Day -> Maybe Day
-currentRosterTimelineDate windowStart = case currentRosterGridViewMode windowStart of
-    RosterDayTimelineGridView dayOffset -> Just (addDays (toInteger dayOffset) windowStart)
-    RosterWeekGridView                  -> Nothing
 
 respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO ()
 respondWithRosterToast message toastClass =
