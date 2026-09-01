@@ -10,69 +10,12 @@ import {
     type CompleteSetSortDiagnostic,
 } from "../complete-set-sort/runtime";
 import { assertDeepEqual, assertEqual, test } from "./harness";
+import { MiniElement as SharedMiniElement } from "./mini-dom";
 
-class MiniElement {
-    readonly children: MiniElement[] = [];
-    parentElement: MiniElement | null = null;
-    readonly id: string;
-    private readonly attrs = new Map<string, string>();
-
+class MiniElement extends SharedMiniElement {
     constructor(tagName: string, attrs: Record<string, string> = {}, id = "") {
-        this.tagName = tagName.toLowerCase();
-        this.id = id;
-        Object.entries(attrs).forEach(([name, value]) => this.attrs.set(name, value));
+        super(attrs, id, [], tagName);
     }
-
-    readonly tagName: string;
-
-    appendChild(child: MiniElement): MiniElement {
-        if (child.parentElement) {
-            const previousIndex = child.parentElement.children.indexOf(child);
-            if (previousIndex >= 0) child.parentElement.children.splice(previousIndex, 1);
-        }
-        child.parentElement = this;
-        this.children.push(child);
-        return child;
-    }
-
-    append(child: MiniElement): MiniElement {
-        return this.appendChild(child);
-    }
-
-    getAttribute(name: string): string | null {
-        return this.attrs.get(name) ?? null;
-    }
-
-    setAttribute(name: string, value: string): void {
-        this.attrs.set(name, value);
-    }
-
-    closest(selector: string): MiniElement | null {
-        let current: MiniElement | null = this;
-        while (current) {
-            if (matches(current, selector)) return current;
-            current = current.parentElement;
-        }
-        return null;
-    }
-
-    querySelectorAll(selector: string): MiniElement[] {
-        const found: MiniElement[] = [];
-        const visit = (owner: MiniElement) => {
-            for (const child of owner.children) {
-                if (matches(child, selector)) found.push(child);
-                visit(child);
-            }
-        };
-        visit(this);
-        return found;
-    }
-}
-
-function matches(element: MiniElement, selector: string): boolean {
-    const attribute = selector.match(/^\[([^\]]+)\]$/)?.[1];
-    if (attribute) return element.getAttribute(attribute) !== null;
-    return element.tagName === selector.toLowerCase();
 }
 
 type SortFixture = {
