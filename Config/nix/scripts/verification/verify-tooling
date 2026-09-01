@@ -13,7 +13,7 @@ production-build-budget-test
 
 echo "verify-tooling: checker parser and publication fixtures"
 weeder-policy-test
-bash Config/nix/scripts/frontend/surface-adapter-publication-test
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
 http-polling-policy-test
 node --test scripts/documentation/check.test.mjs
 node --test scripts/migration-enum-commit-boundary.test.mjs
@@ -26,7 +26,7 @@ esbuild .pi/extensions/observability.ts --bundle --platform=node --format=esm \
     --outfile=/tmp/bepis-observability-extension-check.mjs >/dev/null
 migration-enum-commit-boundary-real-runner-test
 migration-rehearsal-test
-bash Config/nix/scripts/architecture/wiring-registry-test
+bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/wiring-registry-test"
 node --test scripts/architecture/enum-authority.test.mjs
 node --test scripts/architecture/facts-currency.test.mjs
 node --test scripts/architecture/layout-policy.test.mjs

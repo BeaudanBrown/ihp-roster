@@ -4,13 +4,8 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-if [ -f "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib" ]; then
-    # shellcheck source=generated-state-lib
-    . "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
-else
-    # shellcheck source=generated-state-lib
-    . "Config/nix/scripts/frontend/generated-state-lib"
-fi
+# shellcheck source=generated-state-lib
+. "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
 if ! frontend_js_watch_lock; then
     echo "frontend-watch: another watcher already owns this workspace" >&2
     exit 75

@@ -4,14 +4,14 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-bash Config/nix/scripts/frontend/contracts-check
-bash Config/nix/scripts/frontend/surface-adapters-check
-bash Config/nix/scripts/frontend/surface-guardrails
-bash Config/nix/scripts/frontend/surface-adapter-publication-test
-bash Config/nix/scripts/frontend/surface-compile-fail-check
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/contracts-check"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapters-check"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-guardrails"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-compile-fail-check"
 tsc --project tsconfig.json --noEmit
 e2e-typecheck
-bash Config/nix/scripts/frontend/no-ts-nocheck
-bash Config/nix/scripts/frontend/no-broad-switch-defaults
-bash Config/nix/scripts/frontend/test
-bash Config/nix/scripts/frontend/drift-check
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/no-ts-nocheck"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/no-broad-switch-defaults"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/test"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/drift-check"

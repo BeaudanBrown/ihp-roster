@@ -100,7 +100,7 @@ fi
 if command -v enum-authority-check >/dev/null 2>&1; then
     enum-authority-check || fail "generated enum authority failed"
 else
-    bash Config/nix/scripts/haskell/enum-authority-check || fail "generated enum authority failed"
+    bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/enum-authority-check" || fail "generated enum authority failed"
 fi
 
 node scripts/production-inventory.mjs --check \

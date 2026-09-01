@@ -4,7 +4,7 @@ set -euo pipefail
 node scripts/architecture/email-transport.mjs >/dev/null
 node scripts/architecture/fixture-reset-manifest.mjs >/dev/null
 node scripts/production-inventory.mjs --check >/dev/null
-bash ./Config/nix/scripts/architecture/facts >/dev/null
+bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/facts" >/dev/null
 node scripts/architecture/surface-request-closure.mjs >/dev/null
 # Blocking checks validate deterministic DOT without paying for ignored SVGs.
 ARCHITECTURE_FACTS_CURRENT=1 ARCHITECTURE_RENDER_SVG=0 ARCHITECTURE_VERIFY_DOT_DETERMINISM=1 node scripts/architecture/schema.mjs >/dev/null
