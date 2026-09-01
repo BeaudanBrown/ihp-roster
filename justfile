@@ -34,7 +34,7 @@ android-stop:
     nix run .#bepis-pwa-android -- stop
 
 tunnel-grill:
-    eval "$(dev-workspace-info --shell)"; \
+    eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
     ssh -N -T \
         -L "${PORT}:localhost:${PORT}" \
         -L "$((PORT + 1)):localhost:$((PORT + 1))" \
@@ -45,7 +45,7 @@ tunnel-grill:
         grill
 
 tunnel-agent:
-    eval "$(dev-workspace-info --shell)"; \
+    eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
     ssh -N -T \
         -L "${PORT}:localhost:${PORT}" \
         -L "$((PORT + 1)):localhost:$((PORT + 1))" \
