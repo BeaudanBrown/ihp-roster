@@ -161,6 +161,7 @@ in
         test-postgres = script ../scripts/db/test-postgres;
         billing-migration-check = script ../scripts/db/billing-migration-check;
         migration-enum-commit-boundary-check = script ../scripts/db/migration-enum-commit-boundary-check;
+        migration-enum-commit-boundary-real-runner-test = script ../scripts/db/migration-enum-commit-boundary-real-runner-test;
         migration-rehearsal = script ../scripts/db/migration-rehearsal;
         migration-rehearsal-test = script ../scripts/db/migration-rehearsal-test;
         hspec-test = script ../scripts/haskell/hspec-test;

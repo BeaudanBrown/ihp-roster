@@ -34,8 +34,13 @@ normalization and focused data-fixture convention are documented in
 `Rehearsal/README.md`. Migration-specific tests and operator checks remain
 mandatory.
 
+The static commit-boundary check is paired with a synthetic real-runner
+regression that proves the pinned runner returns SQLSTATE `55P04` for a combined
+revision and preserves actor-confirmed values when the migration is split.
+
 ```bash
 bash ./bin/in-env migration-enum-commit-boundary-check
+bash ./bin/in-env migration-enum-commit-boundary-real-runner-test
 bash ./bin/in-env regen-types
 bash ./bin/in-env typecheck
 ```
