@@ -4,20 +4,23 @@
 module Web.Timesheets.Projection
     ( TimesheetProjectionFragment (..)
     , TimesheetProjectionRequest (..)
+    , TimesheetFormContext (..)
+    , TimesheetFormReferences (..)
     , TimesheetSuggestion (..)
     , TimesheetSurfaceRequestState (..)
     , TimesheetWeekProjection (..)
     , currentTimesheetWindowStart
     , fetchShiftTypesForForm
-    , fetchShiftTypesForFormIncluding
-    , fetchStaffForForm
-    , fetchStaffForFormIncluding
+    , fetchTimesheetFormContext
+    , noReferencedTimesheetOptions
     , fetchTimesheetSuggestionForRosterSlot
     , fetchTimesheetWeekProjection
     , renderTimesheetProjectionFragment
     , renderTimesheetProjectionFragmentFromProjection
     , renderTimesheetWeekProjectionFragment
     , timesheetDayRenderModelFromProjection
+    , timesheetFormInputsFor
+    , timesheetFormReferencesFor
     , timesheetIndexView
     , parseApproveTimesheetEntryState
     , parseCreateTimesheetEntryFromSuggestionState
@@ -36,11 +39,15 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action a
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
+import Application.Helper.TimeRules (venueShiftTimeIntervalMinutes,
+                                     venueTimePickerFinalSelectableTimeText,
+                                     venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowApproved,
                                            userTimesheetShowSuggestions,
                                            userTimesheetShowWageEstimates)
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
+import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
@@ -63,6 +70,26 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
 import Web.Timesheets.Suggestion
 import Web.Timesheets.WageEstimates
 import Web.View.Timesheets.Index
+
+data TimesheetFormReferences = TimesheetFormReferences
+    { referencedStaffId     :: Maybe UUID.UUID
+    , referencedShiftTypeId :: Maybe UUID.UUID
+    }
+
+noReferencedTimesheetOptions :: TimesheetFormReferences
+noReferencedTimesheetOptions = TimesheetFormReferences Nothing Nothing
+
+timesheetFormReferencesFor :: TimesheetEntry -> TimesheetFormReferences
+timesheetFormReferencesFor entry = TimesheetFormReferences (Just entry.staffId) (Just entry.shiftTypeId)
+
+data TimesheetFormContext = TimesheetFormContext
+    { formVenueConfig           :: VenueConfig
+    , formStaffMembers          :: [Staff]
+    , formShiftTypes            :: [ShiftType]
+    , formCurrentViewerStaffId  :: Maybe UUID.UUID
+    , formSelectedStaffFilterId :: Maybe UUID.UUID
+    , formViewerIsManager       :: Bool
+    }
 
 data TimesheetWeekProjection = TimesheetWeekProjection
     { timesheetEntries              :: [TimesheetEntry]
@@ -277,6 +304,35 @@ fetchTimesheetSuggestionsForWindow windowStart windowEnd filters staffMembers cu
             }
 
     eitherToMaybe = either (const Nothing) Just
+
+fetchTimesheetFormContext ::
+    (?modelContext :: ModelContext, ?context :: ControllerContext) =>
+    TimesheetFormReferences ->
+    Maybe UUID.UUID ->
+    IO TimesheetFormContext
+fetchTimesheetFormContext TimesheetFormReferences { .. } formSelectedStaffFilterId = do
+    formStaffMembers <- maybe fetchStaffForForm fetchStaffForFormIncluding referencedStaffId
+    formShiftTypes <- maybe fetchShiftTypesForForm fetchShiftTypesForFormIncluding referencedShiftTypeId
+    currentUserStaff <- fetchCurrentUserStaff
+    let formCurrentViewerStaffId = unpackId . (.id) <$> currentUserStaff
+    formVenueConfig <- fetchVenueConfig
+    let formViewerIsManager = hasRole Manager
+    pure TimesheetFormContext { .. }
+
+timesheetFormInputsFor :: TimesheetFormContext -> TimesheetEntry -> TimesheetFormInputs
+timesheetFormInputsFor context timesheetEntry =
+    TimesheetFormInputs
+        { timesheetEntry
+        , staffMembers = context.formStaffMembers
+        , shiftTypes = context.formShiftTypes
+        , calendarRevision = context.formVenueConfig.rosterCalendarRevision
+        , selectedStaffFilterId = context.formSelectedStaffFilterId
+        , currentViewerStaffId = context.formCurrentViewerStaffId
+        , pickerStart = venueTimePickerStartTimeText context.formVenueConfig
+        , pickerEnd = venueTimePickerFinalSelectableTimeText context.formVenueConfig
+        , pickerStep = venueShiftTimeIntervalMinutes context.formVenueConfig
+        , viewerIsManager = context.formViewerIsManager
+        }
 
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffForForm = do

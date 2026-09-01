@@ -57,9 +57,13 @@ import Web.Routes
 import Web.Timesheets.FrontendSurface
 import Web.Timesheets.Mutations (materializeTimesheetSuggestionMutation,
                                  timesheetEntryTouchedResourcesForScopes)
-import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
+import Web.Timesheets.Projection (TimesheetFormContext (..),
+                                  TimesheetFormReferences (..),
+                                  TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
-                                  fetchTimesheetSuggestionForRosterSlot)
+                                  fetchTimesheetFormContext,
+                                  fetchTimesheetSuggestionForRosterSlot,
+                                  noReferencedTimesheetOptions)
 import Web.Timesheets.Suggestion (TimesheetSuggestion (..),
                                   newTimesheetEntryFromSuggestion)
 import Web.Types
@@ -950,6 +954,18 @@ tests = aroundAll withDatabaseTestContext do
                 currentWorker <- fetch worker.id
                 _ <- updateRecord (currentWorker |> set #payAssignmentMode RosterOnly |> set #defaultAwardLevelId Nothing)
                 _ <- updateRecord (rosterOnlyShift |> set #payAssignmentMode RosterOnly |> set #overrideAwardLevelId Nothing)
+
+                (newContext, editContext) <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        (,)
+                            <$> fetchTimesheetFormContext noReferencedTimesheetOptions Nothing
+                            <*> fetchTimesheetFormContext
+                                (TimesheetFormReferences (Just (unpackId worker.id)) (Just (unpackId rosterOnlyShift.id)))
+                                Nothing
+                map (.id) newContext.formStaffMembers `shouldNotContain` [worker.id]
+                map (.id) editContext.formStaffMembers `shouldContain` [worker.id]
+                map (.id) newContext.formShiftTypes `shouldNotContain` [rosterOnlyShift.id]
+                map (.id) editContext.formShiftTypes `shouldContain` [rosterOnlyShift.id]
 
                 formResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

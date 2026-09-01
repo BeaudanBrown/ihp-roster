@@ -8,14 +8,10 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action a
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (calendarDayForOperationalClock,
-                                     defaultShiftTimesForVenueConfig,
-                                     venueShiftTimeIntervalMinutes,
-                                     venueTimePickerFinalSelectableTimeText,
-                                     venueTimePickerStartTimeText)
+                                     defaultShiftTimesForVenueConfig)
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
                                            upsertCurrentUserTimesheetShowSuggestions,
                                            upsertCurrentUserTimesheetShowWageEstimates)
-import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime.Model
 import Network.HTTP.Types.Status (status409)
@@ -264,23 +260,16 @@ instance Controller TimesheetsController where
         windowStart <- windowStartFromParamOrCurrent
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        staffMembers <- fetchStaffForForm
-        shiftTypes <- fetchShiftTypesForForm
-        currentUserStaff <- fetchCurrentUserStaff
-        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
         let maybeWorkedOn = paramOrNothing @Day "workedOn"
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
             case maybeWorkedOn of
                 Just workedOn -> redirectToPath (newTimesheetEntryUrl workedOn workedOn selectedStaffFilterId)
                 Nothing       -> redirectToTimesheetWindow windowStart selectedStaffFilterId
-        venueConfig <- fetchVenueConfig
-        let calendarRevision = venueConfig.rosterCalendarRevision
-        let pickerStart = venueTimePickerStartTimeText venueConfig
-        let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
-        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
+        formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+        let venueConfig = formContext.formVenueConfig
         let (defaultStartTime, defaultEndTime) = defaultShiftTimesForVenueConfig venueConfig
 
-        case (staffMembers, shiftTypes, maybeWorkedOn) of
+        case (formContext.formStaffMembers, formContext.formShiftTypes, maybeWorkedOn) of
             ([], _, _) -> do
                 setErrorMessage "No staff record found. Contact an administrator."
                 redirectToTimesheetWindow windowStart selectedStaffFilterId
@@ -300,10 +289,9 @@ instance Controller TimesheetsController where
                         let timesheetEntry =
                                 newTimesheetEntryForForm workedOn boundaries
                                     |> set #venueId (unpackId currentVenueId)
-                                    |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
+                                    |> (\entry -> maybe entry (\staffId -> set #staffId staffId entry) formContext.formCurrentViewerStaffId)
                                     |> set #shiftTypeId (unpackId (get #id defaultShiftType))
-                        let viewerIsManager = hasRole Manager
-                        let timesheetFormInputs = TimesheetFormInputs { .. }
+                        let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                         let newTimesheetRenderModel = NewTimesheetRenderModel { .. }
                         if isHtmxRequest
                             then respondHtml (renderNewTimesheetDialog newTimesheetRenderModel)
@@ -313,15 +301,9 @@ instance Controller TimesheetsController where
         ensureVenueWritable
         timesheetScope <- requireCurrentTimesheetMutationCalendar
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters timesheetFiltersFromRequest
-        staffMembers <- fetchStaffForForm
-        shiftTypes <- fetchShiftTypesForForm
-        currentUserStaff <- fetchCurrentUserStaff
-        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
-        venueConfig <- fetchVenueConfig
-        let calendarRevision = venueConfig.rosterCalendarRevision
-        let pickerStart = venueTimePickerStartTimeText venueConfig
-        let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
-        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
+        formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+        let venueConfig = formContext.formVenueConfig
+        let currentViewerStaffId = formContext.formCurrentViewerStaffId
         let fallbackWorkedOn = timesheetScope.timesheetWindowStart
         let submittedWorkedOn = fromMaybe fallbackWorkedOn (paramOrNothing @Day "workedOn")
         let (defaultStartTime, defaultEndTime) = defaultShiftTimesForVenueConfig venueConfig
@@ -339,8 +321,7 @@ instance Controller TimesheetsController where
                 timesheetEntryRecord
                     |> ifValid \case
                         Left timesheetEntry -> do
-                            let viewerIsManager = hasRole Manager
-                            let timesheetFormInputs = TimesheetFormInputs { .. }
+                            let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                             let newTimesheetRenderModel = NewTimesheetRenderModel { .. }
                             if isHtmxRequest
                                 then respondHtml (renderNewTimesheetDialog newTimesheetRenderModel)
@@ -368,19 +349,10 @@ instance Controller TimesheetsController where
             Just suggestion -> do
                 when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
                     redirectToPath (newTimesheetEntryFromSuggestionUrl rosterSlotId (timesheetSuggestionOperationalDate suggestion) selectedStaffFilterId)
-                staffMembers <- fetchStaffForForm
-                shiftTypes <- fetchShiftTypesForForm
-                currentUserStaff <- fetchCurrentUserStaff
-                let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
-                venueConfig <- fetchVenueConfig
-                ensureTimesheetCreationTimingAvailable venueConfig (timesheetSuggestionOperationalDate suggestion) selectedStaffFilterId
-                let calendarRevision = venueConfig.rosterCalendarRevision
-                let pickerStart = venueTimePickerStartTimeText venueConfig
-                let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
-                let pickerStep = venueShiftTimeIntervalMinutes venueConfig
+                formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+                ensureTimesheetCreationTimingAvailable formContext.formVenueConfig (timesheetSuggestionOperationalDate suggestion) selectedStaffFilterId
                 let timesheetEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
-                let viewerIsManager = hasRole Manager
-                let timesheetFormInputs = TimesheetFormInputs { .. }
+                let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                 let suggestedTimesheetRenderModel = SuggestedTimesheetRenderModel { .. }
                 if isHtmxRequest
                     then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
@@ -397,16 +369,10 @@ instance Controller TimesheetsController where
                 setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
                 redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
             Just suggestion -> do
-                staffMembers <- fetchStaffForForm
-                shiftTypes <- fetchShiftTypesForForm
-                currentUserStaff <- fetchCurrentUserStaff
-                let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
-                venueConfig <- fetchVenueConfig
+                formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+                let venueConfig = formContext.formVenueConfig
+                let currentViewerStaffId = formContext.formCurrentViewerStaffId
                 ensureTimesheetCreationTimingAvailable venueConfig timesheetScope.timesheetWindowStart selectedStaffFilterId
-                let calendarRevision = venueConfig.rosterCalendarRevision
-                let pickerStart = venueTimePickerStartTimeText venueConfig
-                let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
-                let pickerStep = venueShiftTimeIntervalMinutes venueConfig
                 let suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
                 let timesheetEntry =
                         if hasParam "startTime" || hasParam "hadBreak"
@@ -414,10 +380,8 @@ instance Controller TimesheetsController where
                             else suggestedEntry
                 timesheetEntry
                     |> ifValid \case
-                        Left invalidEntry -> do
-                            let timesheetEntry = invalidEntry
-                            let viewerIsManager = hasRole Manager
-                            let timesheetFormInputs = TimesheetFormInputs { .. }
+                        Left timesheetEntry -> do
+                            let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                             let suggestedTimesheetRenderModel = SuggestedTimesheetRenderModel { .. }
                             if isHtmxRequest
                                 then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
@@ -466,17 +430,8 @@ instance Controller TimesheetsController where
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
             redirectToPath (editTimesheetEntryUrl timesheetEntryId workedOn selectedStaffFilterId)
-        staffMembers <- fetchStaffForFormIncluding timesheetEntry.staffId
-        shiftTypes <- fetchShiftTypesForFormIncluding timesheetEntry.shiftTypeId
-        currentUserStaff <- fetchCurrentUserStaff
-        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
-        venueConfig <- fetchVenueConfig
-        let calendarRevision = venueConfig.rosterCalendarRevision
-        let pickerStart = venueTimePickerStartTimeText venueConfig
-        let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
-        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
-        let viewerIsManager = hasRole Manager
-        let timesheetFormInputs = TimesheetFormInputs { .. }
+        formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor timesheetEntry) selectedStaffFilterId
+        let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
         if isHtmxRequest
             then respondHtml (renderEditTimesheetDialog timesheetFormInputs)
             else render EditView { .. }
@@ -491,23 +446,16 @@ instance Controller TimesheetsController where
 
         timesheetScope <- requireCurrentTimesheetMutationCalendar
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters timesheetFiltersFromRequest
-        staffMembers <- fetchStaffForFormIncluding existingEntry.staffId
-        shiftTypes <- fetchShiftTypesForFormIncluding existingEntry.shiftTypeId
-        currentUserStaff <- fetchCurrentUserStaff
-        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
-        venueConfig <- fetchVenueConfig
-        let calendarRevision = venueConfig.rosterCalendarRevision
-        let pickerStart = venueTimePickerStartTimeText venueConfig
-        let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
-        let pickerStep = venueShiftTimeIntervalMinutes venueConfig
+        formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor existingEntry) selectedStaffFilterId
+        let venueConfig = formContext.formVenueConfig
+        let currentViewerStaffId = formContext.formCurrentViewerStaffId
 
         let wasApproved = existingEntry.isApproved
         existingEntry
             |> buildTimesheetEntry venueConfig currentViewerStaffId
             |> ifValid \case
                 Left timesheetEntry -> do
-                    let viewerIsManager = hasRole Manager
-                    let timesheetFormInputs = TimesheetFormInputs { .. }
+                    let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                     if isHtmxRequest
                         then respondHtml (renderEditTimesheetDialog timesheetFormInputs)
                         else render EditView { .. }
