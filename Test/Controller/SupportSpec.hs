@@ -48,10 +48,6 @@ supportFragmentRef fragment =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "SupportController" do
-        it "retains lowercase SHA-256 opaque-token encoding" $ withContext do
-            hashOpaqueToken "abc"
-                `shouldBe` "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-
         it "drops venue-scoped roster groups from canonical support-switch return paths" $ withContext do
             supportVenueSwitchReturnPath "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=11111111-1111-1111-1111-111111111111"
                 `shouldBe` "/RosterWeeks"

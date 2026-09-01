@@ -31,6 +31,7 @@ import qualified Test.BillingPersistenceSpec
 import qualified Test.BillingReadOnlySpec
 import qualified Test.BillingReconciliationSpec
 import qualified Test.BillingWebhookSpec
+import qualified Test.BoundaryUtilitiesSpec
 import qualified Test.ConflictSpec
 import qualified Test.ContextLifecycleSpec
 import qualified Test.Controller.Admin.AccessSpec
@@ -419,6 +420,7 @@ allSuites :: [TestSuite]
 allSuites =
     [ databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "Audit", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.AuditSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "AuditVocabulary", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [A5], definitionPartialInvariants = []} Test.AuditVocabularySpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "BoundaryUtilities", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = DataIntegrityAndAudit, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.BoundaryUtilitiesSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "StaticController", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.Controller.StaticSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "AsyncQueue", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TestInfrastructure, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.AsyncQueueSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "Billing", definitionEstimatedRuntimeSeconds = 0.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Billing, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [B5, B7], definitionPartialInvariants = []} Test.BillingPersistenceSpec.tests
