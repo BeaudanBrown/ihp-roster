@@ -7,6 +7,9 @@ devenv-script-freshness-check
 echo "verify-fast: production HTTP polling policy"
 http-repository-check
 
+echo "verify-fast: migration enum commit-boundary policy"
+migration-enum-commit-boundary-check
+
 echo "verify-fast: typecheck"
 typecheck
 

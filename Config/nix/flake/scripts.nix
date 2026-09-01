@@ -160,6 +160,7 @@ in
         test-db-reset = script ../scripts/db/test-db-reset;
         test-postgres = script ../scripts/db/test-postgres;
         billing-migration-check = script ../scripts/db/billing-migration-check;
+        migration-enum-commit-boundary-check = script ../scripts/db/migration-enum-commit-boundary-check;
         hspec-test = script ../scripts/haskell/hspec-test;
         hspec-pure = script ../scripts/haskell/hspec-pure;
         hspec-db = script ../scripts/haskell/hspec-db;
