@@ -7,8 +7,9 @@ usage() {
 Usage: migration-rehearsal --from-ref GIT_REF [--keep-failure-artifacts]
 
 Reconstructs the predecessor schema in a uniquely named database owned by the
-repository's managed test-postgres instance, then runs candidate migrations
-through the checkout's pinned IHP migrate binary.
+repository's managed test-postgres instance, runs candidate migrations through
+the checkout's pinned IHP migrate binary, executes focused SQL assertions, and
+compares the upgraded schema with a fresh candidate schema.
 
 Options:
   --from-ref GIT_REF          Required predecessor commit/ref.
@@ -51,7 +52,7 @@ if [ -n "${TEST_POSTGRES_MODE:-}" ] && [ "$TEST_POSTGRES_MODE" != "managed" ]; t
     exit 64
 fi
 
-for required_command in createdb dropdb git jq migrate nix psql readlink tail test-postgres; do
+for required_command in createdb diff dropdb git head jq migrate nix pg_dump psql readlink tail test-postgres; do
     command -v "$required_command" >/dev/null 2>&1 || {
         echo "migration-rehearsal: required command is unavailable: $required_command" >&2
         exit 69
@@ -115,9 +116,13 @@ mkdir -p "$run_dir"
 chmod 700 "$work_root" "$run_dir"
 setup_log="$run_dir/setup.log"
 migrate_log="$run_dir/migrate.log"
+fixture_log="$run_dir/fixture.log"
+verification_log="$run_dir/verification.log"
 metadata_file="$run_dir/metadata.txt"
 database="migration_rehearsal_$(id -u)_${$}_${RANDOM}"
+fresh_database="${database}_fresh"
 database_created=0
+fresh_database_created=0
 completed=0
 
 managed_postgres() {
@@ -144,31 +149,50 @@ bounded_log() {
     echo "--- end failure log ---" >&2
 }
 
+sanitize_migrate_failure() {
+    local runner_status="$1"
+    local sqlstate
+    sqlstate="$(grep -Eo '(sqlState = |ServerError )"[0-9A-Z]{5}"' "$migrate_log" | head -n 1 | grep -Eo '[0-9A-Z]{5}' || true)"
+    {
+        printf 'runner_exit_status=%s\n' "$runner_status"
+        printf 'server_sqlstate=%s\n' "${sqlstate:-unavailable}"
+    } > "$migrate_log.sanitized"
+    mv "$migrate_log.sanitized" "$migrate_log"
+}
+
+drop_rehearsal_database() {
+    local database_name="$1"
+    for _ in $(seq 1 50); do
+        if pg_command dropdb --if-exists --force "$database_name" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.05
+    done
+    return 1
+}
+
 cleanup() {
     local exit_status=$?
     local cleanup_failed=0
     trap - EXIT INT TERM HUP
-    if [ "$database_created" -eq 1 ]; then
-        local dropped=0
-        for _ in $(seq 1 50); do
-            if pg_command dropdb --if-exists --force "$database" >/dev/null 2>&1; then
-                dropped=1
-                break
-            fi
-            sleep 0.05
-        done
-        if [ "$dropped" -ne 1 ]; then
-            echo "migration-rehearsal: failed to drop disposable database: $database" >&2
-            cleanup_failed=1
-        fi
+    if [ "$database_created" -eq 1 ] && ! drop_rehearsal_database "$database"; then
+        echo "migration-rehearsal: failed to drop disposable database: $database" >&2
+        cleanup_failed=1
+    fi
+    if [ "$fresh_database_created" -eq 1 ] && ! drop_rehearsal_database "$fresh_database"; then
+        echo "migration-rehearsal: failed to drop disposable database: $fresh_database" >&2
+        cleanup_failed=1
     fi
     if [ "$completed" -eq 0 ] && [ "$keep_failure_artifacts" -eq 1 ]; then
-        for log_file in "$setup_log" "$migrate_log"; do
+        for log_file in "$setup_log" "$migrate_log" "$fixture_log" "$verification_log" "$run_dir/schema.diff"; do
             if [ -f "$log_file" ] && [ "$(wc -c < "$log_file")" -gt 65536 ]; then
                 tail -c 65536 "$log_file" > "$log_file.bounded"
                 mv "$log_file.bounded" "$log_file"
             fi
         done
+        rm -f "$run_dir/ApplicationSchema.sql" "$run_dir/predecessor-flake.lock" \
+            "$run_dir/schema-migrations.sql" "$run_dir/fresh-schema.dump" \
+            "$run_dir/upgraded-schema.dump" "$run_dir/schema.diff.full"
         printf 'artifact_dir=%s\n' "$run_dir" >&2
     else
         rm -rf "$run_dir"
@@ -225,12 +249,12 @@ ihp_schema="$ihp_source/ihp-ide/data/IHPSchema.sql"
 
 mapfile -t predecessor_revisions < <(
     git ls-tree -r --name-only "$predecessor_commit" -- Application/Migration \
-        | awk -F/ '$NF ~ /^[0-9]+.*[.]sql$/ { name=$NF; sub(/[^0-9].*$/, "", name); print name }' \
+        | awk -F/ '$NF ~ /^[0-9]+.*[.]sql$/ { name=$NF; sub(/[^0-9].*$/, "", name); print name + 0 }' \
         | sort -n -u
 )
 mapfile -t candidate_revisions < <(
     find Application/Migration -maxdepth 1 -type f -name '*.sql' -printf '%f\n' \
-        | awk '/^[0-9]+.*[.]sql$/ { name=$0; sub(/[^0-9].*$/, "", name); print name }' \
+        | awk '/^[0-9]+.*[.]sql$/ { name=$0; sub(/[^0-9].*$/, "", name); print name + 0 }' \
         | sort -n -u
 )
 
@@ -286,6 +310,28 @@ done
 pending_csv="$(IFS=,; echo "${pending_revisions[*]:-}")"
 printf 'pending_revisions=%s\n' "${pending_csv:-none}" | tee -a "$metadata_file"
 
+assertion_revisions=()
+for revision in "${pending_revisions[@]}"; do
+    rehearsal_fixture_dir="Application/Migration/Rehearsal/$revision"
+    predecessor_fixture="$rehearsal_fixture_dir/predecessor.sql"
+    assertion_fixture="$rehearsal_fixture_dir/assert.sql"
+    if [ -e "$predecessor_fixture" ] || [ -e "$assertion_fixture" ]; then
+        if [ ! -f "$predecessor_fixture" ] || [ ! -f "$assertion_fixture" ]; then
+            echo "migration-rehearsal: revision $revision requires both $predecessor_fixture and $assertion_fixture" >&2
+            exit 65
+        fi
+        if ! pg_command psql -d "$database" -X -q -v ON_ERROR_STOP=1 \
+            -f "$predecessor_fixture" >/dev/null 2>"$fixture_log"; then
+            printf 'predecessor_fixture=%s\nstatus=failed\n' "$predecessor_fixture" > "$fixture_log"
+            echo "migration-rehearsal: predecessor fixture failed: $predecessor_fixture" >&2
+            exit 1
+        fi
+        rm -f "$fixture_log"
+        assertion_revisions+=("$revision")
+        printf 'predecessor_fixture=%s\n' "$predecessor_fixture" | tee -a "$metadata_file"
+    fi
+done
+
 migration_url="postgresql:///$database?host=$socket&port=$port&user=$database_user"
 env -i \
     HOME="${HOME:-/tmp}" \
@@ -312,14 +358,29 @@ if [ "$runner_status" -ne 0 ]; then
             break
         fi
     done
+    sanitize_migrate_failure "$runner_status"
     echo "migration-rehearsal: FAIL predecessor_ref=$from_ref predecessor_commit=$predecessor_commit candidate_commit=$candidate_commit failed_revision=$failed_revision" >&2
     bounded_log "$migrate_log"
     exit 1
 fi
+# Successful runner output is intentionally discarded: notices can contain row values.
+: > "$migrate_log"
 
 mapfile -t after_revisions < <(
     pg_command psql -d "$database" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT revision FROM schema_migrations ORDER BY revision'
 )
+missing_revisions=()
+for revision in "${candidate_revisions[@]}"; do
+    if ! printf '%s\n' "${after_revisions[@]}" | grep -Fxq "$revision"; then
+        missing_revisions+=("$revision")
+    fi
+done
+if [ "${#missing_revisions[@]}" -gt 0 ]; then
+    missing_csv="$(IFS=,; echo "${missing_revisions[*]}")"
+    echo "migration-rehearsal: FAIL missing_candidate_revisions=$missing_csv" >&2
+    exit 1
+fi
+
 applied_revisions=()
 for revision in "${after_revisions[@]}"; do
     if ! printf '%s\n' "${before_revisions[@]}" | grep -Fxq "$revision"; then
@@ -328,5 +389,63 @@ for revision in "${after_revisions[@]}"; do
 done
 applied_csv="$(IFS=,; echo "${applied_revisions[*]:-}")"
 printf 'applied_revisions=%s\n' "${applied_csv:-none}" | tee -a "$metadata_file"
-echo "migration-rehearsal: PASS predecessor=$predecessor_commit candidate=$candidate_commit applied=${applied_csv:-none}"
+
+for revision in "${assertion_revisions[@]}"; do
+    assertion_fixture="Application/Migration/Rehearsal/$revision/assert.sql"
+    if ! pg_command psql -d "$database" -X -q -v ON_ERROR_STOP=1 \
+        -f "$assertion_fixture" >/dev/null 2>"$fixture_log"; then
+        printf 'assertion_file=%s\nstatus=failed\n' "$assertion_fixture" > "$fixture_log"
+        echo "migration-rehearsal: focused assertion failed: $assertion_fixture" >&2
+        exit 1
+    fi
+    rm -f "$fixture_log"
+    printf 'assertion_revision=%s assertion_file=%s PASS\n' "$revision" "$assertion_fixture" \
+        | tee -a "$metadata_file"
+done
+
+if ! pg_command createdb "$fresh_database" >>"$setup_log" 2>&1; then
+    echo "migration-rehearsal: failed to create fresh candidate database" >&2
+    bounded_log "$setup_log"
+    exit 1
+fi
+fresh_database_created=1
+candidate_ihp_schema="$candidate_ihp_source/ihp-ide/data/IHPSchema.sql"
+if ! pg_command psql -d "$fresh_database" -X -q -v ON_ERROR_STOP=1 \
+        -f "$candidate_ihp_schema" >>"$setup_log" 2>&1 \
+    || ! pg_command psql -d "$fresh_database" -X -q -v ON_ERROR_STOP=1 \
+        -f Application/Schema.sql >>"$setup_log" 2>&1; then
+    echo "migration-rehearsal: failed to load fresh candidate IHP/application schema" >&2
+    bounded_log "$setup_log"
+    exit 1
+fi
+
+normalized_schema_dump() {
+    local database_name="$1"
+    local output_file="$2"
+    pg_command pg_dump -d "$database_name" --schema-only --no-owner --no-privileges \
+        --exclude-table=schema_migrations 2>>"$verification_log" \
+        | LC_ALL=C awk '
+            /^\\(un)?restrict / { next }
+            /^-- Dumped from database version / { next }
+            /^-- Dumped by pg_dump version / { next }
+            { print }
+        ' > "$output_file"
+}
+
+if ! normalized_schema_dump "$fresh_database" "$run_dir/fresh-schema.dump" \
+    || ! normalized_schema_dump "$database" "$run_dir/upgraded-schema.dump"; then
+    echo "migration-rehearsal: failed to inspect database schemas" >&2
+    bounded_log "$verification_log"
+    exit 1
+fi
+if ! diff -U 20 --label candidate-fresh --label migrated-upgrade \
+    "$run_dir/fresh-schema.dump" "$run_dir/upgraded-schema.dump" \
+    > "$run_dir/schema.diff.full"; then
+    head -c 65536 "$run_dir/schema.diff.full" > "$run_dir/schema.diff"
+    echo "migration-rehearsal: FAIL schema_convergence=diverged (schema_migrations excluded; pg_dump headers and restrict tokens normalized)" >&2
+    bounded_log "$run_dir/schema.diff"
+    exit 1
+fi
+printf 'schema_convergence=pass\n' | tee -a "$metadata_file"
+echo "migration-rehearsal: PASS predecessor=$predecessor_commit candidate=$candidate_commit applied=${applied_csv:-none} assertions=${#assertion_revisions[@]}"
 completed=1

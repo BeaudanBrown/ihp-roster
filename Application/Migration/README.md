@@ -29,8 +29,10 @@ issue-recorded reason none is needed) is incomplete.
 After schema changes, regenerate types and typecheck. For parser-sensitive
 changes, apply the fresh schema locally, restart/wait for IHP, and inspect the
 resulting database shape. The enum commit-boundary check gives fast author
-feedback; the real-runner migration rehearsal remains authoritative.
-Migration-specific tests and operator checks remain mandatory.
+feedback; the real-runner migration rehearsal remains authoritative. Its schema
+normalization and focused data-fixture convention are documented in
+`Rehearsal/README.md`. Migration-specific tests and operator checks remain
+mandatory.
 
 ```bash
 bash ./bin/in-env migration-enum-commit-boundary-check
