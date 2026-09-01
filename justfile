@@ -13,7 +13,7 @@ dev:
     dev-foreground
 
 ddev:
-    dev-foreground-stripe-tunnel
+    IHP_ROSTER_DEV_OBSERVABILITY=1 dev-foreground-stripe-tunnel
 
 stop:
     dev-stop
