@@ -319,7 +319,6 @@ Application/Helper/XeroTimesheetReadiness.hs	production	runtime	Main	Reachable f
 Application/InvitationDelivery/Email.hs	production	runtime	Main	Reachable from Main
 Application/InvitationDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/InvitationDelivery/Types.hs	production	runtime	Main	Reachable from Main
-Application/InvitationEligibility.hs	production	runtime	Main	Reachable from Main
 Application/Job/App.hs	production	runtime	Main	Reachable from Main
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
 Application/Operator/Error.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
@@ -552,7 +551,6 @@ Web/View/Passkeys/NewSetup.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/SetupModal.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/StepUp.hs	production	runtime	Main	Reachable from Main
 Web/View/PasswordResets/Edit.hs	production	runtime	Main	Reachable from Main
-Web/View/PasswordResets/New.hs	production	runtime	Main	Reachable from Main
 Web/View/Prelude.hs	production	runtime	Main	Reachable from Main
 Web/View/Profiles/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterTemplates/ApplicationConfirmation.hs	production	runtime	Main	Reachable from Main
