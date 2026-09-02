@@ -38,7 +38,9 @@ data AuthController
     deriving (Eq, Show, Data)
 
 data PasswordResetsController
-    = NewPasswordResetAction
+    = NewPasswordResetRequestAction
+    | CreatePasswordResetRequestAction
+    | NewPasswordResetAction
     | UpdatePasswordResetAction
     deriving (Eq, Show, Data)
 

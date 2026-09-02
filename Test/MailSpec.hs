@@ -292,7 +292,7 @@ tests = aroundAll withDatabaseTestContext do
                 fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
                 text mail `shouldSatisfy` isInfixOf "Set up a new device passkey for your Bepis account:"
                 text mail `shouldSatisfy` isInfixOf "https://app.example/NewPasskeySetup?token=test"
-                text mail `shouldSatisfy` isInfixOf "This link expires in one hour and can only be used once."
+                text mail `shouldSatisfy` isInfixOf "This link expires in six hours and can only be used once."
                 text mail `shouldSatisfy` isInfixOf "contact support@example.com."
 
         it "renders password reset mail with session and passkey consequences" $ withContext do
@@ -305,6 +305,7 @@ tests = aroundAll withDatabaseTestContext do
                             , fromAddress = "accounts@example.com"
                             , replyToAddress = "support@example.com"
                             , supportEmail = "support@example.com"
+                            , initiatedByAccountHolder = True
                             }
                 let ?context = ?mocking
 
@@ -314,7 +315,9 @@ tests = aroundAll withDatabaseTestContext do
                 addressName from `shouldBe` Just "Bepis"
                 addressEmail from `shouldBe` "accounts@example.com"
                 fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
+                text mail `shouldSatisfy` isInfixOf "A password reset was requested for your Bepis account"
                 text mail `shouldSatisfy` isInfixOf "https://app.example/NewPasswordReset?token=test"
+                text mail `shouldSatisfy` isInfixOf "This link expires in six hours and can only be used once."
                 text mail `shouldSatisfy` isInfixOf "signs your account out on all devices"
                 text mail `shouldSatisfy` isInfixOf "Your passkeys remain available"
                 text mail `shouldSatisfy` isInfixOf "contact support@example.com."

@@ -14,7 +14,7 @@ import Control.Monad (void)
 import Web.Controller.Prelude
 
 passkeySetupTokenLifetime :: NominalDiffTime
-passkeySetupTokenLifetime = 60 * 60
+passkeySetupTokenLifetime = accountRecoveryTokenLifetime
 
 issuePasskeySetupToken ::
     (?modelContext :: ModelContext) =>

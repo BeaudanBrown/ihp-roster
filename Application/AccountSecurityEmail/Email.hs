@@ -113,6 +113,7 @@ loadPasswordResetMail recipientAccountId recipientAddress tokenId maybeVenueId s
                                         , fromAddress = settings.mailFromAddress
                                         , replyToAddress = settings.mailReplyToAddress
                                         , supportEmail = settings.mailSupportEmail
+                                        , initiatedByAccountHolder = token.requestedByUserId == Just token.userId
                                         }
 
 loadPasskeySetupMail ::
@@ -195,8 +196,27 @@ passwordResetTokenAuthorityIsCurrent ::
     (?modelContext :: ModelContext) =>
     PasswordResetToken ->
     IO Bool
-passwordResetTokenAuthorityIsCurrent token =
-    staffCredentialAuthorityIsCurrent token.userId token.requestedByUserId token.venueId
+passwordResetTokenAuthorityIsCurrent token
+    | token.requestedByUserId == Just token.userId =
+        selfPasswordResetAuthorityIsCurrent token.userId token.venueId
+    | otherwise =
+        staffCredentialAuthorityIsCurrent token.userId token.requestedByUserId token.venueId
+
+selfPasswordResetAuthorityIsCurrent ::
+    (?modelContext :: ModelContext) =>
+    UUID ->
+    UUID ->
+    IO Bool
+selfPasswordResetAuthorityIsCurrent userId venueId = do
+    maybeUser <- fetchOneOrNothing (Id userId :: Id User)
+    venueIsActive <- query @Venue
+        |> filterWhere (#id, Id venueId)
+        |> filterWhere (#closedAt, Nothing)
+        |> fetchExists
+    membershipIsActive <- activeVenueMembershipExists venueId userId Nothing
+    pure case maybeUser of
+        Just user -> isNothing user.deactivatedAt && user.platformRole /= Just SuperAdmin && venueIsActive && membershipIsActive
+        Nothing   -> False
 
 passkeySetupTokenAuthorityIsCurrent ::
     (?modelContext :: ModelContext) =>

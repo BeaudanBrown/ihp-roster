@@ -3,6 +3,7 @@ module Web.Controller.PasswordResets where
 import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecipient,
                                                passwordResetTokenAuthorityIsCurrent)
 import Application.Helper.Audit
+import Application.Helper.EmailVerification (issueEmailVerificationWithCooldown)
 import Application.Helper.PasswordResetTokens
 import Application.PasswordReset.Mutations (withPasswordResetCompletionLock)
 import Control.Monad (void)
@@ -10,9 +11,23 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.View.PasswordResets.Edit
+import Web.View.PasswordResets.New
 
 instance Controller PasswordResetsController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
+
+    action currentAction@NewPasswordResetRequestAction = runBepis currentAction BepisFormAction do
+        render NewView
+
+    action currentAction@CreatePasswordResetRequestAction = runBepis currentAction BepisMutationAction do
+        let submittedEmail = Text.strip (paramOrDefault @Text "" "email")
+        when (not (Text.null submittedEmail) && Text.length submittedEmail <= 254) do
+            maybeUser <- query @User
+                |> filterWhereCaseInsensitive (#email, submittedEmail)
+                |> fetchOneOrNothing
+            forM_ maybeUser requestAccountRecovery
+        setSuccessMessage genericPasswordResetRequestMessage
+        redirectTo NewPasswordResetRequestAction
 
     action currentAction@NewPasswordResetAction = runBepis currentAction BepisFormAction do
         rawToken <- passwordResetTokenParamOrInvalid
@@ -49,6 +64,8 @@ instance Controller PasswordResetsController where
                                     now <- getCurrentTime
                                     updatedUser <- targetUser
                                         |> set #passwordHash passwordHash
+                                        |> set #failedLoginAttempts 0
+                                        |> set #lockedAt Nothing
                                         |> incrementField #sessionVersion
                                         |> updateRecord
                                     _ <- lockedToken
@@ -74,6 +91,42 @@ instance Controller PasswordResetsController where
                         setSuccessMessage "Password reset. Sign in with your new password."
                         redirectTo NewSessionAction
                     else invalidPasswordResetLink
+
+requestAccountRecovery :: (?modelContext :: ModelContext) => User -> IO ()
+requestAccountRecovery user
+    | isJust user.deactivatedAt = pure ()
+    | user.platformRole == Just SuperAdmin = pure ()
+    | otherwise = do
+        maybeVenueId <- fetchSelfServiceRecoveryVenueId user
+        forM_ maybeVenueId \venueId ->
+            if isNothing user.emailVerifiedAt
+                then void (issueEmailVerificationWithCooldown user)
+                else void (issuePasswordResetTokenWithCooldown user venueId)
+
+fetchSelfServiceRecoveryVenueId :: (?modelContext :: ModelContext) => User -> IO (Maybe (Id Venue))
+fetchSelfServiceRecoveryVenueId user = do
+    memberships <- query @VenueMembership
+        |> filterWhere (#userId, unpackId user.id)
+        |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
+        |> orderByAsc #createdAt
+        |> fetch
+    firstActiveVenue memberships
+  where
+    firstActiveVenue [] = pure Nothing
+    firstActiveVenue (membership : remaining) = do
+        maybeVenue <- query @Venue
+            |> filterWhere (#id, Id membership.venueId)
+            |> filterWhere (#status, Active)
+            |> filterWhere (#closedAt, Nothing)
+            |> fetchOneOrNothing
+        case maybeVenue of
+            Just venue -> pure (Just venue.id)
+            Nothing    -> firstActiveVenue remaining
+
+genericPasswordResetRequestMessage :: Text
+genericPasswordResetRequestMessage =
+    "If an eligible account matches that email, a recovery message will be queued shortly."
 
 fetchActivePasswordResetTarget :: (?modelContext :: ModelContext) => PasswordResetToken -> IO (Maybe User)
 fetchActivePasswordResetTarget resetToken = do

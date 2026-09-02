@@ -789,11 +789,70 @@ tests = aroundAll withDatabaseTestContext do
                 query @PasswordResetToken |> fetchCount `shouldReturn` 0
                 query @AuditEvent |> fetchCount `shouldReturn` 0
 
-        it "resets a password once, preserves passkeys, and revokes existing sessions" $ withContext do
+        it "offers enumeration-safe self-service recovery for eligible verified and unverified accounts" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Self-service Recovery Venue"
+                verified <- createUserRecord "self-recovery-verified@example.com" "staff" True
+                unverified <- createUserRecord "self-recovery-unverified@example.com" "staff" True
+                    >>= updateRecord . set #emailVerifiedAt Nothing
+                deactivated <- createUserRecord "self-recovery-deactivated@example.com" "staff" True
+                superAdmin <- createUserRecordWithPlatformRole "self-recovery-founder@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue verified Worker
+                _ <- createVenueMembershipRecord venue unverified Worker
+                _ <- createVenueMembershipRecord venue deactivated Worker
+                now <- getCurrentTime
+                _ <- deactivated |> set #deactivatedAt (Just now) |> updateRecord
+
+                responses <- forM
+                    [ verified.email
+                    , unverified.email
+                    , deactivated.email
+                    , superAdmin.email
+                    , "self-recovery-unknown@example.com"
+                    ] \email -> callActionWithParams CreatePasswordResetRequestAction [("email", cs email)]
+
+                forM_ responses \response -> do
+                    response `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewPasswordResetRequest"
+                resetToken <- query @PasswordResetToken |> fetchOne
+                resetToken.userId `shouldBe` unpackId verified.id
+                resetToken.requestedByUserId `shouldBe` Just (unpackId verified.id)
+                resetToken.venueId `shouldBe` unpackId venue.id
+                verificationToken <- query @EmailVerificationToken |> fetchOne
+                verificationToken.userId `shouldBe` unpackId unverified.id
+                query @PasswordResetToken |> fetchCount `shouldReturn` 1
+                query @EmailVerificationToken |> fetchCount `shouldReturn` 1
+
+        it "applies the five-minute cooldown to password recovery and verification resend" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Recovery Cooldown Venue"
+                verified <- createUserRecord "recovery-cooldown@example.com" "staff" True
+                unverified <- createUserRecord "verification-cooldown@example.com" "staff" True
+                    >>= updateRecord . set #emailVerifiedAt Nothing
+                _ <- createVenueMembershipRecord venue verified Worker
+                _ <- createVenueMembershipRecord venue unverified Worker
+
+                replicateM_ 2 $
+                    callActionWithParams CreatePasswordResetRequestAction [("email", cs verified.email)]
+                replicateM_ 2 $
+                    callActionWithParams ResendVerificationAction [("email", cs unverified.email)]
+                query @PasswordResetToken |> fetchCount `shouldReturn` 1
+                query @EmailVerificationToken |> fetchCount `shouldReturn` 1
+
+                now <- getCurrentTime
+                verificationToken <- query @EmailVerificationToken |> fetchOne
+                _ <- verificationToken |> set #createdAt (addUTCTime (-301) now) |> updateRecord
+                _ <- callActionWithParams ResendVerificationAction [("email", cs unverified.email)]
+                query @EmailVerificationToken |> fetchCount `shouldReturn` 2
+
+        it "resets a password once, clears lockout, preserves passkeys, and revokes existing sessions" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Password Reset Completion Venue"
                 admin <- createUserRecord "password-reset-requester@example.com" "admin" True
                 target <- createUserRecord "password-reset-completion@example.com" "staff" True
+                    >>= updateRecord . set #failedLoginAttempts 10 . set #lockedAt (Just (UTCTime (fromGregorian 2025 1 1) 0))
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createVenueMembershipRecord venue target Worker
                 passkey <- createTestPasskeyRecord target "Preserved passkey"
@@ -823,6 +882,8 @@ tests = aroundAll withDatabaseTestContext do
                 updatedUser <- fetch target.id
                 verifyPassword updatedUser "replacement-password" `shouldBe` True
                 updatedUser.sessionVersion `shouldBe` 1
+                updatedUser.failedLoginAttempts `shouldBe` 0
+                updatedUser.lockedAt `shouldBe` Nothing
                 query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists `shouldReturn` True
                 consumedToken <- fetch resetToken.id
                 consumedToken.consumedAt `shouldSatisfy` isJust
