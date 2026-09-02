@@ -361,12 +361,6 @@ currentUserCanSendStaffCredentialLink =
     currentUserAccountSecurityContextAllowed
         && (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin)
 
-ensureNotImpersonatingAccountSecurity :: (?context :: ControllerContext, ?request :: Request) => IO ()
-ensureNotImpersonatingAccountSecurity =
-    redirectPermissionDeniedUnless
-        (not currentUserIsImpersonating)
-        "Exit support impersonation before managing sign-in or account security."
-
 fetchAuthenticatedUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
 fetchAuthenticatedUserPasskeys =
     query @Passkey
