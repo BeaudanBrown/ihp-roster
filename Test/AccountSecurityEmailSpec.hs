@@ -103,6 +103,24 @@ tests = aroundAll withDatabaseTestContext do
                     tshow appJob.payload `shouldSatisfy` not . Text.isInfixOf passkeyRawToken
                     tshow appJob.payload `shouldSatisfy` not . Text.isInfixOf "token="
 
+        it "uses one six-hour lifetime for password and passkey recovery links" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Credential Lifetime Venue"
+                admin <- createUserRecord "credential-lifetime-admin@example.com" "admin" True
+                target <- createUserRecord "credential-lifetime-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                beforeIssue <- getCurrentTime
+
+                (passwordToken, _) <- issuePasswordResetToken target admin.id venue.id
+                (passkeyToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery target (Just admin.id) (Just venue.id)
+
+                passwordResetTokenLifetime `shouldBe` accountRecoveryTokenLifetime
+                passkeySetupTokenLifetime `shouldBe` accountRecoveryTokenLifetime
+                accountRecoveryTokenLifetime `shouldBe` 60 * 60 * 6
+                diffUTCTime passwordToken.expiresAt beforeIssue `shouldSatisfy` (>= accountRecoveryTokenLifetime)
+                diffUTCTime passkeyToken.expiresAt beforeIssue `shouldSatisfy` (>= accountRecoveryTokenLifetime)
+
         it "generates current one-time URLs only from eligible token records at delivery" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Credential Projection Venue"

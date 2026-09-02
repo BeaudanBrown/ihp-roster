@@ -51,6 +51,9 @@ renderForm user = [hsx|
                 required="required"
             />
         </div>
+        <div class="d-flex justify-content-end">
+            <a href={NewPasswordResetRequestAction} class="small">Forgot password?</a>
+        </div>
         <div class="d-grid mt-4">
             <button type="submit" class="btn btn-primary">Sign In</button>
         </div>

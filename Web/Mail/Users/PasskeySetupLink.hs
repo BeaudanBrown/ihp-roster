@@ -28,7 +28,7 @@ instance BuildMail PasskeySetupLinkMail where
     html PasskeySetupLinkMail { setupUrl, purposeLabel, supportEmail } = [hsx|
         <p>{purposeLabel} for your Bepis account.</p>
         <p><a href={setupUrl}>Set up passkey</a></p>
-        <p>This link expires in one hour and can only be used once.</p>
+        <p>This link expires in six hours and can only be used once.</p>
         <hr/>
         <p>
             You’re receiving this because this email address is associated with a Bepis account, venue, or invitation.
@@ -39,5 +39,5 @@ instance BuildMail PasskeySetupLinkMail where
     text PasskeySetupLinkMail { setupUrl, purposeLabel, supportEmail } =
         purposeLabel <> " for your Bepis account:\n\n"
             <> setupUrl
-            <> "\n\nThis link expires in one hour and can only be used once."
+            <> "\n\nThis link expires in six hours and can only be used once."
             <> supportFooterText supportEmail

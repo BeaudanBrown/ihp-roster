@@ -4,7 +4,7 @@ import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecip
 import Application.AccountSecurityEmail.Mutations (withEmailVerificationTokenLock)
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
-                                             issueEmailVerification)
+                                             issueEmailVerificationWithCooldown)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode (..),
                                                             passkeySetupPromptModeValue)
 import Application.Helper.Profiling (isRequestProfilingEnabled,
@@ -178,11 +178,13 @@ instance Controller SessionsController where
                 |> filterWhereCaseInsensitive (#email, submittedEmail)
                 |> fetchOneOrNothing
         case maybeUser of
-            Just user | isNothing user.emailVerifiedAt -> do
-                void (issueEmailVerification user)
-                setSuccessMessage "Verification email queued and should arrive shortly."
-            _ ->
-                setSuccessMessage "If that account exists and still needs verification, a new email has been queued."
+            Just user
+                | isNothing user.emailVerifiedAt
+                , isNothing user.deactivatedAt
+                , user.platformRole /= Just SuperAdmin ->
+                    void (issueEmailVerificationWithCooldown user)
+            _ -> pure ()
+        setSuccessMessage "If that account exists and still needs verification, a new email has been queued."
         setSession pendingVerificationEmailSessionKey submittedEmail
         redirectTo NewSessionAction
 

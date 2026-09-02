@@ -1,5 +1,7 @@
 module Application.AccountSecurityEmail.Types
     ( PasskeySetupTokenPurpose (..)
+    , accountRecoveryRequestCooldown
+    , accountRecoveryTokenLifetime
     , emailVerificationMailKind
     , isAccountSecurityMailKind
     , passkeySetupMailKind
@@ -16,6 +18,12 @@ data PasskeySetupTokenPurpose
     | StaffNewDevicePasskeySetup
     | StaffPasskeyRecovery
     deriving (Eq, Show)
+
+accountRecoveryTokenLifetime :: NominalDiffTime
+accountRecoveryTokenLifetime = 60 * 60 * 6
+
+accountRecoveryRequestCooldown :: NominalDiffTime
+accountRecoveryRequestCooldown = 60 * 5
 
 emailVerificationMailKind :: Text
 emailVerificationMailKind = "account_email_verification"

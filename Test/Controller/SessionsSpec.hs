@@ -40,6 +40,15 @@ tests = aroundAll withDatabaseTestContext do
             response `responseBodyShouldNotContain` "Need venue access?"
             response `responseBodyShouldNotContain` "Request an invitation"
             response `responseBodyShouldNotContain` "/helpers.js"
+            response `responseBodyShouldContain` "Forgot password?"
+            response `responseBodyShouldContain` "NewPasswordResetRequest"
+
+        it "renders the public password recovery form" $ withContext do
+            response <- callAction NewPasswordResetRequestAction
+            response `responseStatusShouldBe` status200
+            response `responseBodyShouldContain` "Forgot password"
+            response `responseBodyShouldContain` "Send recovery email"
+            response `responseBodyShouldContain` "CreatePasswordResetRequest"
 
         it "redirects successful logins to the roster week flow" $ withContext do
             Sessions.afterLoginRedirectPath @User `shouldBe` pathTo RosterWeeksAction
