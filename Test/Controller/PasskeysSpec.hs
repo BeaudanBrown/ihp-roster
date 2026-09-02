@@ -753,6 +753,66 @@ tests = aroundAll withDatabaseTestContext do
                 resetToken.userId `shouldBe` unpackId target.id
                 resetToken.venueId `shouldBe` unpackId venue.id
 
+        it "lets a passkey-verified super admin impersonating an owner send all credential links as the real actor" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Impersonated Owner Credential Actions Venue"
+                founder <- createUserRecordWithPlatformRole "credential-owner-founder@example.com" "staff" (Just SuperAdmin) True
+                effectiveOwner <- createUserRecord "credential-effective-owner@example.com" "staff" True
+                target <- createUserRecord "credential-owner-action-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue effectiveOwner VenueOwner
+                _ <- createVenueMembershipRecord venue target Worker
+                _ <- createStaffRecord venue (Just effectiveOwner) "Effective" "Owner"
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+
+                responses <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams StartSupportImpersonationAction [("userId", cs (inputValue effectiveOwner.id))]
+                    sequence
+                        [ callAction (SendStaffPasskeySetupEmailAction targetStaff.id)
+                        , callAction (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
+                        , callAction (SendStaffPasswordResetEmailAction targetStaff.id)
+                        ]
+
+                forM_ responses (`responseStatusShouldBe` status302)
+                setupPurposes <- map (.purpose) <$> (query @PasskeySetupToken |> fetch)
+                setupPurposes `shouldMatchList` ["staff_new_device", "staff_recovery"]
+                resetToken <- query @PasswordResetToken |> fetchOne
+                resetToken.requestedByUserId `shouldBe` Just (unpackId founder.id)
+                credentialAudits <- query @AuditEvent
+                    |> filterWhereIn (#eventType,
+                        [ "staff_passkey_setup_requested"
+                        , "staff_passkey_recovery_requested"
+                        , "staff_password_reset_requested"
+                        ])
+                    |> fetch
+                length credentialAudits `shouldBe` 3
+                map (.actorUserId) credentialAudits `shouldSatisfy` all (== unpackId founder.id)
+
+        it "denies credential sends while a super admin impersonates a venue admin" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Impersonated Admin Credential Denial Venue"
+                founder <- createUserRecordWithPlatformRole "credential-admin-founder@example.com" "staff" (Just SuperAdmin) True
+                effectiveAdmin <- createUserRecord "credential-effective-admin@example.com" "staff" True
+                target <- createUserRecord "credential-admin-action-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue effectiveAdmin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                _ <- createStaffRecord venue (Just effectiveAdmin) "Effective" "Admin"
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams StartSupportImpersonationAction [("userId", cs (inputValue effectiveAdmin.id))]
+                    callAction (SendStaffPasswordResetEmailAction targetStaff.id)
+
+                response `responseStatusShouldBe` status302
+                query @PasswordResetToken |> fetchCount `shouldReturn` 0
+
         it "rejects cross-venue and inactive staff credential targets" $ withContext do
             withCleanDb do
                 setEnv "DISABLE_EMAIL_DELIVERY" "1"

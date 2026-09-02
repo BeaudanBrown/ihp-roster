@@ -145,7 +145,7 @@ instance Controller StaffController where
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
         let staffLeaveSectionVisible = hasRole Manager
-        let staffCredentialControlsAllowed = currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueAdmin)
+        let staffCredentialControlsAllowed = currentUserCanSendStaffCredentialLink
         let staffEditContext = StaffEditRenderContext { .. }
         let staffEditBodyContext = StaffEditBodyRenderContext { .. }
         if isHtmxRequest
@@ -214,7 +214,7 @@ instance Controller StaffController where
                             Left _           -> []
                 _ -> fetchStaffShiftPreferenceSelections staff
         let staffLeaveSectionVisible = hasRole Manager
-        let staffCredentialControlsAllowed = currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueAdmin)
+        let staffCredentialControlsAllowed = currentUserCanSendStaffCredentialLink
         let staffEditContext = StaffEditRenderContext { selectedRosterGroupIds = currentSelectedRosterGroupIds, .. }
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 let renderedStaffEditContext =

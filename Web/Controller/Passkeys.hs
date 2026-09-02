@@ -12,7 +12,9 @@ instance Controller PasskeysController where
     beforeAction = bepisBeforeAction BepisAuthenticatedController do
         annotateTelemetryAction
         ensureIsUser
-        ensureNotImpersonatingAccountSecurity
+        redirectPermissionDeniedUnless
+            (not currentUserIsImpersonating || (currentUserCanUseOwnerImpersonationAccountSecurity && passkeysActionAllowsOwnerImpersonation ?theAction))
+            "Exit support impersonation before managing sign-in or account security."
 
     action currentAction@PasskeyStepUpAction = runBepis currentAction BepisPageAction do
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
@@ -20,7 +22,7 @@ instance Controller PasskeysController where
         strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
         unless (strongAuthenticationRequired || isJust stepUpRedirectTo) do
             redirectTo RosterWeeksAction
-        passkeys <- fetchCurrentUserPasskeys
+        passkeys <- fetchAuthenticatedUserPasskeys
         when (null passkeys) do
             redirectTo PasskeySetupAction
         render StepUpView { .. }
@@ -34,7 +36,7 @@ instance Controller PasskeysController where
                     setHeader ("HX-Redirect", cs (pathTo RosterWeeksAction))
                     renderPlain ""
                 else redirectTo RosterWeeksAction
-        passkeys <- fetchCurrentUserPasskeys
+        passkeys <- fetchAuthenticatedUserPasskeys
         when (null passkeys) do
             if isHtmxRequest
                 then do
@@ -130,6 +132,13 @@ instance Controller PasskeysController where
         deleteRecord passkey
         setSuccessMessage "Passkey removed."
         redirectToPath managementPath
+
+passkeysActionAllowsOwnerImpersonation :: PasskeysController -> Bool
+passkeysActionAllowsOwnerImpersonation PasskeyStepUpAction = True
+passkeysActionAllowsOwnerImpersonation ShowPasskeyStepUpDialogAction = True
+passkeysActionAllowsOwnerImpersonation PasskeySetupAction = True
+passkeysActionAllowsOwnerImpersonation DismissMandatoryPasskeySetupAction = True
+passkeysActionAllowsOwnerImpersonation _ = False
 
 safeLocalRedirect :: Text -> Text
 safeLocalRedirect value
