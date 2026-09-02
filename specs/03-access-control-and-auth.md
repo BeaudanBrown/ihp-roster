@@ -123,6 +123,7 @@ The product must not rely on global in-app business roles without venue boundari
 - Public self-registration is not part of the near-term operating model.
 - If public self-registration is retained for any reason, it must not grant privileged venue roles automatically.
 - Default first-client workflow is founder-managed venue creation and invitation.
+- Account-creation invitations reject an email that already belongs to a user or has an active pending invitation in another onboarding flow, using the same general conflict message. Reissuing an ordinary invitation for the same venue/email, or an owner-onboarding invitation for the same email, revokes prior pending links before creating the replacement so only the newest link remains valid. Cross-venue pending invitations are not revoked by another venue.
 - Venue business roles belong to `venue_memberships`, not `users`. Their closed vocabulary is the schema-generated `venue_role_enum`; application authorization and presentation operate on those generated values directly.
 
 ## Authentication requirements

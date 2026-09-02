@@ -9,6 +9,7 @@ module Application.VenueInvitation.Mutations
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
@@ -70,7 +71,7 @@ lockVenueInvitationEmail :: (?modelContext :: ModelContext) => Text -> IO ()
 lockVenueInvitationEmail email = do
     lockResults :: [PG.Only Bool] <- sqlQuery
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS venue_invitation_email_lock"
-        (PG.Only email)
+        (PG.Only (Text.toCaseFold (Text.strip email)))
     unless (lockResults == [PG.Only True]) do
         externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock venue invitation email"
 

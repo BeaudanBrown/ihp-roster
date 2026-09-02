@@ -19,12 +19,14 @@ import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIs
                                                      venueOnboardingInvitationLifetime)
 import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
+import Application.InvitationEligibility
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
                                             fetchPublicHolidayCoverage)
 import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
                                        publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
 import Application.Support.LiveUpdates
+import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnosticError (..),
                                                fetchXeroTimesheetDiagnostic)
@@ -137,27 +139,33 @@ instance Controller SupportController where
             |> ifValid \case
                 Left onboardingInvitation -> render IndexView { .. }
                 Right onboardingInvitation -> do
-                    duplicateExists <- pendingVenueOnboardingInvitationExists onboardingInvitation.email
-                    if duplicateExists
-                        then do
-                            let onboardingInvitationWithDuplicateError = onboardingInvitation
-                                    |> validateField #email (const (Failure "There is already a pending owner invite for this email."))
-                            render IndexView { onboardingInvitation = onboardingInvitationWithDuplicateError, .. }
-                        else do
-                            invitation <- withTransaction do
-                                createdInvitation <- onboardingInvitation
-                                    |> set #invitedByUserId (Just (unpackId currentUser.id))
-                                    |> set #status (InvitationStatusEnumPending)
-                                    |> set #deliveryStatus (Queued)
-                                    |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
-                                    |> createRecord
-                                void (enqueueVenueOnboardingInvitationEmail (Just currentUser.id) createdInvitation)
-                                pure createdInvitation
+                    creation <- withTransaction $
+                        withVenueInvitationEmailLockInCurrentTransaction onboardingInvitation.email do
+                            createdAt <- getCurrentTime
+                            accountExists <- registeredInvitationAccountExists onboardingInvitation.email
+                            activeVenueInvitations <- activeVenueInvitationsForEmail createdAt onboardingInvitation.email
+                            if accountExists || not (null activeVenueInvitations)
+                                then pure (Left accountInvitationConflictMessage)
+                                else do
+                                    revokePendingVenueOnboardingInvitations onboardingInvitation.email Nothing createdAt
+                                    createdInvitation <- onboardingInvitation
+                                        |> set #invitedByUserId (Just (unpackId currentUser.id))
+                                        |> set #status (InvitationStatusEnumPending)
+                                        |> set #deliveryStatus (Queued)
+                                        |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime createdAt))
+                                        |> createRecord
+                                    void (enqueueVenueOnboardingInvitationEmail (Just currentUser.id) createdInvitation)
+                                    pure (Right createdInvitation)
+                    case creation of
+                        Left conflictMessage -> do
+                            let onboardingInvitationWithConflict = onboardingInvitation
+                                    |> validateField #email (const (Failure conflictMessage))
+                            render IndexView { onboardingInvitation = onboardingInvitationWithConflict, .. }
+                        Right invitation -> do
                             setSuccessMessage ("Venue owner invitation queued for " <> invitation.email <> " and should arrive shortly")
                             redirectTo SupportAction
 
     action currentAction@RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId } = runBepis currentAction BepisMutationAction do
-        now <- getCurrentTime
         invitationForDefaultEmail <- query @VenueOnboardingInvitation
             |> filterWhere (#id, onboardingInvitationId)
             |> fetchOneOrNothing
@@ -181,20 +189,21 @@ instance Controller SupportController where
                     case invitationOrNothing of
                         Nothing -> pure OnboardingRenewalUnavailable
                         Just invitationToReplace -> do
-                            matchingInvitations <- fetchPendingVenueOnboardingInvitationsExcept replacementForm.email invitationToReplace.id
                             renewedAt <- getCurrentTime
-                            if any (venueOnboardingInvitationIsActive renewedAt) matchingInvitations
+                            accountExists <- registeredInvitationAccountExists replacementForm.email
+                            activeVenueInvitations <- activeVenueInvitationsForEmail renewedAt replacementForm.email
+                            if accountExists || not (null activeVenueInvitations)
                                 then pure OnboardingRenewalEmailConflict
                                 else do
-                                    forM_ (invitationToReplace : matchingInvitations) \invitation ->
-                                        void $
-                                            invitation
-                                                |> set #status (Revoked)
-                                                |> set #updatedAt renewedAt
-                                                |> updateRecord
+                                    revokePendingVenueOnboardingInvitations replacementForm.email (Just invitationToReplace.id) renewedAt
+                                    void $
+                                        invitationToReplace
+                                            |> set #status (Revoked)
+                                            |> set #updatedAt renewedAt
+                                            |> updateRecord
                                     replacement <- replacementForm
                                         |> set #invitedByUserId (Just (unpackId currentUser.id))
-                                        |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
+                                        |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime renewedAt))
                                         |> createRecord
                                     void (enqueueVenueOnboardingInvitationEmail (Just currentUser.id) replacement)
                                     pure (OnboardingRenewed replacement)
@@ -204,7 +213,7 @@ instance Controller SupportController where
                     OnboardingRenewalUnavailable ->
                         setErrorMessage "Only pending, unaccepted owner invitations can be renewed."
                     OnboardingRenewalEmailConflict ->
-                        setErrorMessage "There is already a pending owner invite for this email."
+                        setErrorMessage accountInvitationConflictMessage
             _ ->
                 setErrorMessage "Enter a valid owner email address."
         redirectTo SupportAction
@@ -409,26 +418,24 @@ fetchVenueOnboardingInvitations =
         |> orderByDesc #createdAt
         |> fetch
 
-pendingVenueOnboardingInvitationExists :: (?modelContext :: ModelContext) => Text -> IO Bool
-pendingVenueOnboardingInvitationExists email = do
-    pendingInvitations <- fetchPendingVenueOnboardingInvitations
-    pure (any (hasNormalizedOnboardingEmail email) pendingInvitations)
-
-fetchPendingVenueOnboardingInvitationsExcept :: (?modelContext :: ModelContext) => Text -> Id VenueOnboardingInvitation -> IO [VenueOnboardingInvitation]
-fetchPendingVenueOnboardingInvitationsExcept email excludedInvitationId = do
-    pendingInvitations <- fetchPendingVenueOnboardingInvitations
-    pure (filter (\invitation -> invitation.id /= excludedInvitationId && hasNormalizedOnboardingEmail email invitation) pendingInvitations)
-
-fetchPendingVenueOnboardingInvitations :: (?modelContext :: ModelContext) => IO [VenueOnboardingInvitation]
-fetchPendingVenueOnboardingInvitations =
-    query @VenueOnboardingInvitation
+revokePendingVenueOnboardingInvitations ::
+    (?modelContext :: ModelContext) =>
+    Text ->
+    Maybe (Id VenueOnboardingInvitation) ->
+    UTCTime ->
+    IO ()
+revokePendingVenueOnboardingInvitations email excludedInvitationId revokedAt = do
+    pendingInvitations <- query @VenueOnboardingInvitation
+        |> filterWhereCaseInsensitive (#email, email)
         |> filterWhere (#status, InvitationStatusEnumPending)
         |> filterWhere (#acceptedAt, Nothing)
         |> fetch
-
-hasNormalizedOnboardingEmail :: Text -> VenueOnboardingInvitation -> Bool
-hasNormalizedOnboardingEmail email invitation =
-    Text.toLower (Text.strip email) == Text.toLower (Text.strip invitation.email)
+    forM_ pendingInvitations \invitation ->
+        when (Just invitation.id /= excludedInvitationId) do
+            invitation
+                |> set #status (Revoked)
+                |> set #updatedAt revokedAt
+                |> updateRecordDiscardResult
 
 fetchFwcMapdAwardRatesSectionData ::
     (?modelContext :: ModelContext) =>

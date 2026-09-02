@@ -6,6 +6,7 @@ module Application.VenueOnboardingInvitation.Mutations
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
@@ -31,7 +32,7 @@ withVenueOnboardingInvitationRenewalLock invitationId correctedEmail action =
     withTransaction do
         emailLockResults :: [PG.Only Bool] <- sqlQuery
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS onboarding_email_lock"
-            (PG.Only correctedEmail)
+            (PG.Only (Text.toCaseFold (Text.strip correctedEmail)))
         unless (emailLockResults == [PG.Only True]) do
             externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock onboarding invitation renewal email"
         lockVenueOnboardingInvitation invitationId action

@@ -36,6 +36,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
+import Application.InvitationEligibility
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction,
                                     withStaffRemovalLockInCurrentTransaction)
 import Application.VenueInvitation.Mutations (withTrialStaffInvitationLockInCurrentTransaction,
@@ -77,15 +78,16 @@ createTrialStaffInvitationMutation staff email
                     |> filterWhere (#staffId, Just lockedStaff.id)
                     |> filterWhere (#status, InvitationStatusEnumPending)
                     |> fetchOneOrNothing
-                existingUser <- query @User
-                    |> filterWhere (#email, email)
-                    |> fetchOneOrNothing
-                case (existingPendingInvitation, existingUser) of
-                    (Just _, _) -> pure (Left "Renew the existing trial staff invitation instead of creating another link.")
-                    (_, Just _) -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
-                    _ | not (isAdoptableTrialStaff lockedStaff) -> pure (Left "Only active trial staff without a linked login can be invited.")
-                    _ -> do
-                        now <- getCurrentTime
+                now <- getCurrentTime
+                accountExists <- registeredInvitationAccountExists email
+                activeVenueInvitations <- activeVenueInvitationsForEmail now email
+                activeOnboardingInvitations <- activeVenueOnboardingInvitationsForEmail now email
+                let conflictingVenueInvitations = filter ((/= Just lockedStaff.id) . (.staffId)) activeVenueInvitations
+                case existingPendingInvitation of
+                    Just _ -> pure (Left "Renew the existing trial staff invitation instead of creating another link.")
+                    Nothing | accountExists || not (null conflictingVenueInvitations) || not (null activeOnboardingInvitations) -> pure (Left accountInvitationConflictMessage)
+                    Nothing | not (isAdoptableTrialStaff lockedStaff) -> pure (Left "Only active trial staff without a linked login can be invited.")
+                    Nothing -> do
                         invitation <- newRecord @VenueInvitation
                             |> set #venueId (unpackId currentVenueId)
                             |> set #invitedByUserId (Just (unpackId currentUser.id))
@@ -127,12 +129,14 @@ renewTrialStaffInvitationMutation staff invitation correctedEmail
                         else if not (isAdoptableTrialStaff lockedStaff)
                             then pure (Left "Only active trial staff without a linked login can be invited.")
                         else do
-                            existingUser <- query @User
-                                |> filterWhere (#email, correctedEmail)
-                                |> fetchOneOrNothing
-                            case existingUser of
-                                Just _ -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
-                                Nothing -> Right <$> replaceTrialStaffInvitation lockedStaff lockedInvitation correctedEmail
+                            now <- getCurrentTime
+                            accountExists <- registeredInvitationAccountExists correctedEmail
+                            activeVenueInvitations <- activeVenueInvitationsForEmail now correctedEmail
+                            activeOnboardingInvitations <- activeVenueOnboardingInvitationsForEmail now correctedEmail
+                            let conflictingVenueInvitations = filter ((/= lockedInvitation.id) . (.id)) activeVenueInvitations
+                            if accountExists || not (null conflictingVenueInvitations) || not (null activeOnboardingInvitations)
+                                then pure (Left accountInvitationConflictMessage)
+                                else Right <$> replaceTrialStaffInvitation lockedStaff lockedInvitation correctedEmail
             pure $
                 case maybeRenewal of
                     Nothing -> Left "That invitation is no longer available to renew."

@@ -924,6 +924,62 @@ tests = aroundAll withDatabaseTestContext do
                 duplicateCreatedShiftType <- query @ShiftType |> filterWhere (#name, "Another Manual Colour Shift") |> fetchOne
                 duplicateCreatedShiftType.colourKey `shouldBe` firstShiftType.colourKey
 
+        it "replaces same-venue invitations so only the newest link remains pending" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invite Replacement Venue"
+                admin <- createUserRecord "admin-invite-replacement@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                original <- createVenueInvitationRecord venue (Just admin) "replace-worker@example.com" Worker
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isDefault, True)
+                    |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateVenueInvitationAction
+                        [ ("email", "REPLACE-worker@example.com")
+                        , ("rosterGroupId", idToParam rosterGroup.id)
+                        ]
+
+                response `responseStatusShouldBe` status302
+                replaced <- fetch original.id
+                replaced.status `shouldBe` Revoked
+                pending <- query @VenueInvitation
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#status, InvitationStatusEnumPending)
+                    |> fetch
+                length pending `shouldBe` 1
+                map (Text.toCaseFold . (.email)) pending `shouldBe` ["replace-worker@example.com"]
+
+        it "uses one generic conflict for registered accounts and another venue's pending invitation" $ withContext do
+            withCleanDb do
+                currentVenue <- createVenueWithConfig "Admin Invite Conflict Current Venue"
+                otherVenue <- createVenueWithConfig "Admin Invite Conflict Other Venue"
+                admin <- createUserRecord "admin-invite-conflict@example.com" "staff" True
+                registered <- createUserRecord "registered-invite-conflict@example.com" "staff" True
+                _ <- createVenueMembershipRecord currentVenue admin VenueAdmin
+                _ <- createVenueInvitationRecord otherVenue Nothing "pending-invite-conflict@example.com" Worker
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId currentVenue.id)
+                    |> filterWhere (#isDefault, True)
+                    |> fetchOne
+
+                responses <- withPasskeyVerifiedUserAndCurrentVenue admin currentVenue.id do
+                    forM [registered.email, "pending-invite-conflict@example.com"] \email ->
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams CreateVenueInvitationAction
+                                [ ("email", cs email)
+                                , ("rosterGroupId", idToParam rosterGroup.id)
+                                ]
+
+                forM_ responses \response -> do
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "This email already has an account or pending invitation."
+                query @VenueInvitation
+                    |> filterWhere (#venueId, unpackId currentVenue.id)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
         it "directs generic invites for active trial staff email to the trial renewal workflow" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Trial Email Guard Venue"
