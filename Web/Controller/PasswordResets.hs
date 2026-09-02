@@ -11,7 +11,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.View.PasswordResets.Edit
-import Web.View.PasswordResets.New
 
 instance Controller PasswordResetsController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction

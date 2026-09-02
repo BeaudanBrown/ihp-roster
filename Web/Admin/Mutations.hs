@@ -47,7 +47,6 @@ import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
-import Application.InvitationEligibility
 import Application.PayAssignment (selectableShiftAssignmentMode)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction,
                                               withVenueInvitationRenewalLockInCurrentTransaction)
