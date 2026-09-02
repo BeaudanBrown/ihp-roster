@@ -39,14 +39,15 @@ import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
                                         syncVenueDefaultRosterGroupToTopActive)
+import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
                                             blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey)
-import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
+import Application.InvitationEligibility
 import Application.PayAssignment (selectableShiftAssignmentMode)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction,
                                               withVenueInvitationRenewalLockInCurrentTransaction)
@@ -148,28 +149,35 @@ createVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :
 createVenueInvitationMutation email = do
     creation <-
         withDurableLiveMutationOutcome publicationFor $
-            withVenueInvitationEmailLockInCurrentTransaction (Text.toCaseFold email) do
+            withVenueInvitationEmailLockInCurrentTransaction email do
+                now <- getCurrentTime
+                activeVenueInvitations <- activeVenueInvitationsForEmail now email
+                activeOnboardingInvitations <- activeVenueOnboardingInvitationsForEmail now email
+                accountExists <- registeredInvitationAccountExists email
                 staffLinkedInvitations <- query @VenueInvitation
                     |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhereCaseInsensitive (#email, email)
                     |> filterWhereNot (#staffId, Nothing)
                     |> fetch
-                let matchingInvitations = filter ((== Text.toCaseFold email) . Text.toCaseFold . (.email)) staffLinkedInvitations
-                matchingTrialStaff <- forM (mapMaybe (.staffId) matchingInvitations) fetch
+                matchingTrialStaff <- forM (mapMaybe (.staffId) staffLinkedInvitations) fetch
+                let hasOtherVenueInvitation = any ((/= unpackId currentVenueId) . (.venueId)) activeVenueInvitations
                 if any isAdoptableTrialStaff matchingTrialStaff
                     then pure (Left "Use the trial-staff renewal workflow for this active trial staff email.")
-                    else do
-                        now <- getCurrentTime
-                        invitation <- newRecord @VenueInvitation
-                            |> set #venueId (unpackId currentVenueId)
-                            |> set #invitedByUserId (Just (unpackId currentUser.id))
-                            |> set #email email
-                            |> set #inviteRole (Worker)
-                            |> set #status (InvitationStatusEnumPending)
-                            |> set #deliveryStatus (Queued)
-                            |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
-                            |> createRecord
-                        void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
-                        pure (Right invitation)
+                    else if accountExists || not (null activeOnboardingInvitations) || hasOtherVenueInvitation
+                        then pure (Left accountInvitationConflictMessage)
+                        else do
+                            revokePendingOrdinaryVenueInvitations email Nothing
+                            invitation <- newRecord @VenueInvitation
+                                |> set #venueId (unpackId currentVenueId)
+                                |> set #invitedByUserId (Just (unpackId currentUser.id))
+                                |> set #email email
+                                |> set #inviteRole (Worker)
+                                |> set #status (InvitationStatusEnumPending)
+                                |> set #deliveryStatus (Queued)
+                                |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+                                |> createRecord
+                            void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
+                            pure (Right invitation)
     pure (fmap (\invitation -> liveMutationResult invitation resources) creation)
     where
         resources = [adminInvitesResource (unpackId currentVenueId)]
@@ -190,7 +198,17 @@ renewVenueInvitationMutation invitation correctedEmail
                         lockedInvitation <- fetch invitation.id
                         if not (invitationStatusAllowsRenewal lockedInvitation.status)
                             then pure (Left "Only pending invitations can be renewed.")
-                            else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
+                            else do
+                                now <- getCurrentTime
+                                accountExists <- registeredInvitationAccountExists correctedEmail
+                                activeOnboardingInvitations <- activeVenueOnboardingInvitationsForEmail now correctedEmail
+                                activeVenueInvitations <- activeVenueInvitationsForEmail now correctedEmail
+                                let conflictingVenueInvitations = filter
+                                        (\candidate -> candidate.id /= lockedInvitation.id && (candidate.venueId /= unpackId currentVenueId || isJust candidate.staffId))
+                                        activeVenueInvitations
+                                if accountExists || not (null activeOnboardingInvitations) || not (null conflictingVenueInvitations)
+                                    then pure (Left accountInvitationConflictMessage)
+                                    else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
         pure case maybeRenewal of
             Nothing -> Left "That invitation is no longer available to renew."
             Just (Left message) -> Left message
@@ -204,6 +222,7 @@ renewVenueInvitationMutation invitation correctedEmail
 replaceVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> Text -> IO VenueInvitation
 replaceVenueInvitation invitation correctedEmail = do
     now <- getCurrentTime
+    revokePendingOrdinaryVenueInvitations correctedEmail (Just invitation.id)
     _ <- invitation
         |> set #status (Revoked)
         |> updateRecord
@@ -218,6 +237,20 @@ replaceVenueInvitation invitation correctedEmail = do
         |> createRecord
     void (enqueueVenueInvitationEmail (Just currentUser.id) replacement)
     pure replacement
+
+revokePendingOrdinaryVenueInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> Maybe (Id VenueInvitation) -> IO ()
+revokePendingOrdinaryVenueInvitations email excludedInvitationId = do
+    pendingInvitations <- query @VenueInvitation
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhereCaseInsensitive (#email, email)
+        |> filterWhere (#status, InvitationStatusEnumPending)
+        |> filterWhere (#staffId, Nothing)
+        |> fetch
+    forM_ pendingInvitations \pendingInvitation ->
+        when (Just pendingInvitation.id /= excludedInvitationId) do
+            pendingInvitation
+                |> set #status (Revoked)
+                |> updateRecordDiscardResult
 
 revokeVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> IO (LiveMutationResult VenueInvitation)
 revokeVenueInvitationMutation invitation =

@@ -498,6 +498,24 @@ tests = aroundAll withDatabaseTestContext do
                     let remaining = diffUTCTime expiresAt beforeCreate
                      in remaining > 13 * 24 * 60 * 60 && remaining <= 14 * 24 * 60 * 60 + 5)
 
+        it "rejects registered accounts and ordinary pending invitations with one owner-invite conflict" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Owner Invite Conflict Home Venue"
+                invitedVenue <- createVenueWithConfig "Owner Invite Conflict Invited Venue"
+                founder <- createUserRecordWithPlatformRole "founder-owner-conflict@example.com" "staff" (Just SuperAdmin) True
+                registered <- createUserRecord "registered-owner-conflict@example.com" "staff" True
+                _ <- createVenueMembershipRecord homeVenue founder VenueOwner
+                _ <- createVenueInvitationRecord invitedVenue Nothing "pending-owner-conflict@example.com" Worker
+
+                responses <- withPasskeyVerifiedUser founder do
+                    forM [registered.email, "pending-owner-conflict@example.com"] \email ->
+                        callActionWithParams CreateSupportVenueOnboardingInvitationAction [("email", cs email)]
+
+                forM_ responses \response -> do
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "This email already has an account or pending invitation."
+                query @VenueOnboardingInvitation |> fetchCount >>= (`shouldBe` 0)
+
         it "renews an owner onboarding invitation with a corrected two-week replacement" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
@@ -599,12 +617,11 @@ tests = aroundAll withDatabaseTestContext do
                 originals <- query @VenueOnboardingInvitation
                     |> filterWhereIn (#id, [firstOriginal.id, secondOriginal.id])
                     |> fetch
-                length (filter ((== "revoked") . inputValue . (.status)) originals) `shouldBe` 1
-                length (filter ((== "pending") . inputValue . (.status)) originals) `shouldBe` 1
+                length (filter ((== "revoked") . inputValue . (.status)) originals) `shouldBe` 2
                 query @AppJob
                     |> filterWhere (#relatedTable, Just "venue_onboarding_invitations")
                     |> fetchCount
-                    >>= (`shouldBe` 1)
+                    >>= (`shouldBe` 2)
 
         it "serializes owner acceptance against renewal so only one link can win" $ withContext do
             withCleanDb do
@@ -683,7 +700,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchCount
                     >>= (`shouldBe` 1)
 
-        it "keeps the original invitation active when the corrected email already has a pending invite" $ withContext do
+        it "replaces existing pending owner invitations when renewing to the same email" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-conflicting-owner-renewal@example.com" "staff" (Just SuperAdmin) True
@@ -696,10 +713,12 @@ tests = aroundAll withDatabaseTestContext do
                         [("email", "EXISTING-owner@example.com")]
 
                 response `responseStatusShouldBe` status302
-                unchangedOriginal <- fetch original.id
-                inputValue unchangedOriginal.status `shouldBe` "pending"
-                query @VenueOnboardingInvitation |> fetchCount >>= (`shouldBe` 2)
-                query @AppJob |> filterWhere (#relatedTable, Just "venue_onboarding_invitations") |> fetchCount >>= (`shouldBe` 0)
+                replacedOriginal <- fetch original.id
+                inputValue replacedOriginal.status `shouldBe` "revoked"
+                invitations <- query @VenueOnboardingInvitation |> fetch
+                length invitations `shouldBe` 3
+                length (filter ((== InvitationStatusEnumPending) . (.status)) invitations) `shouldBe` 1
+                query @AppJob |> filterWhere (#relatedTable, Just "venue_onboarding_invitations") |> fetchCount >>= (`shouldBe` 1)
 
         it "rejects blank, malformed, and oversized corrected emails without revoking the original" $ withContext do
             withCleanDb do
@@ -795,7 +814,7 @@ tests = aroundAll withDatabaseTestContext do
                 query @VenueOnboardingInvitation |> fetchCount >>= (`shouldBe` 1)
                 query @AppJob |> filterWhere (#relatedTable, Just "venue_onboarding_invitations") |> fetchCount >>= (`shouldBe` 0)
 
-        it "normalizes and rejects duplicate pending venue owner onboarding invitations" $ withContext do
+        it "normalizes and replaces duplicate pending venue owner onboarding invitations" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-duplicate-owner-invite@example.com" "staff" (Just SuperAdmin) True
@@ -807,13 +826,12 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("email", "  DUPLICATE-OWNER@example.com  ")
                         ]
 
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "There is already a pending owner invite for this email."
-                pendingInvitations <- query @VenueOnboardingInvitation
-                    |> filterWhere (#status, InvitationStatusEnumPending)
-                    |> fetch
-                let invitationCount = length (filter ((== "duplicate-owner@example.com") . Text.toLower . Text.strip . (.email)) pendingInvitations)
-                invitationCount `shouldBe` 1
+                response `responseStatusShouldBe` status302
+                invitations <- query @VenueOnboardingInvitation |> fetch
+                length invitations `shouldBe` 2
+                let matchingInvitations = filter ((== "duplicate-owner@example.com") . Text.toLower . Text.strip . (.email)) invitations
+                length (filter ((== InvitationStatusEnumPending) . (.status)) matchingInvitations) `shouldBe` 1
+                length (filter ((== Revoked) . (.status)) matchingInvitations) `shouldBe` 1
 
         it "allows a new venue owner onboarding invitation after the prior invite was accepted" $ withContext do
             withCleanDb do

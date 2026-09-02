@@ -5,6 +5,7 @@ module Application.VenueOnboardingInvitation.Mutations
     , withVenueOnboardingInvitationRenewalLock
     ) where
 
+import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
@@ -30,7 +31,7 @@ withVenueOnboardingInvitationRenewalLock invitationId correctedEmail action =
     withTransaction do
         emailLockResults :: [PG.Only Bool] <- sqlQuery
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS onboarding_email_lock"
-            (PG.Only correctedEmail)
+            (PG.Only (Text.toCaseFold (Text.strip correctedEmail)))
         unless (emailLockResults == [PG.Only True]) do
             error "Unable to lock onboarding invitation renewal email"
         lockVenueOnboardingInvitation invitationId action
