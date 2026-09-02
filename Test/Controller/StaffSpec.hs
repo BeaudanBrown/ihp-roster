@@ -2057,6 +2057,28 @@ tests = aroundAll withDatabaseTestContext do
                 preservedMembership <- fetch targetMembership.id
                 preservedMembership.venueRole `shouldBe` Worker
 
+        it "shows credential controls to a super admin impersonating a venue owner" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonated Owner Credential Venue"
+                founder <- createUserRecordWithPlatformRole "staff-owner-founder@example.com" "staff" (Just SuperAdmin) True
+                effectiveOwner <- createUserRecord "staff-effective-owner@example.com" "staff" True
+                targetUser <- createUserRecord "staff-owner-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue effectiveOwner VenueOwner
+                _ <- createVenueMembershipRecord venue targetUser Worker
+                _ <- createStaffRecord venue (Just effectiveOwner) "Effective" "Owner"
+                targetStaff <- createStaffRecord venue (Just targetUser) "Credential" "Target"
+
+                editResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue effectiveOwner.id))]
+                    callActionWithParams (EditStaffAction targetStaff.id) [("anchorDate", "2025-01-06")]
+
+                editResponse `responseStatusShouldBe` status200
+                editResponse `responseBodyShouldContain` "Email passkey setup"
+                editResponse `responseBodyShouldContain` "Email recovery link"
+                editResponse `responseBodyShouldContain` "Email password reset"
+
         it "shows active imported Xero pay items in the staff pay override dropdown" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Imported Pay Item Venue"

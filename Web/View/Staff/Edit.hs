@@ -2,8 +2,7 @@
 
 module Web.View.Staff.Edit where
 
-import Application.Helper.Controller (currentUserIsImpersonating,
-                                      currentUserIsUnimpersonatedSuperAdmin,
+import Application.Helper.Controller (currentUserCanSendStaffCredentialLink,
                                       currentVenueId, hasRole)
 import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationOverlay,
                                                      CreateTrialStaffOverlay,
@@ -398,7 +397,7 @@ renderLinkedLoginSummary (Just email) = [hsx|
 renderStaffPasskeySetupControls :: Staff -> Maybe Text -> Day -> Maybe (Id RosterGroup) -> Html
 renderStaffPasskeySetupControls _ Nothing _ _ = mempty
 renderStaffPasskeySetupControls staff (Just _) anchorDate maybeRosterGroupId
-    | currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueAdmin) = [hsx|
+    | currentUserCanSendStaffCredentialLink = [hsx|
         <div class="d-flex flex-wrap gap-2">
             <form method="POST" action={SendStaffPasskeySetupEmailAction staff.id} class="d-inline">
                 {renderStaffPasskeyReturnInputs anchorDate maybeRosterGroupId}

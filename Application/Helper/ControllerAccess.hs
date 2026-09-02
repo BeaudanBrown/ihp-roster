@@ -346,20 +346,38 @@ ensureStaffSelfServiceAccess = do
     redirectPermissionDeniedUnless currentUserCanUseStaffSelfService "Use the support page for super admin access."
     emitScopeFact (BepisRoleScopeFact BepisStaffRole) "staff-self-service"
 
+currentUserCanUseOwnerImpersonationAccountSecurity :: (?context :: ControllerContext) => Bool
+currentUserCanUseOwnerImpersonationAccountSecurity =
+    currentUserIsSuperAdmin
+        && currentUserIsImpersonating
+        && effectiveVenueRoleOrNothing == Just VenueOwner
+
+currentUserAccountSecurityContextAllowed :: (?context :: ControllerContext) => Bool
+currentUserAccountSecurityContextAllowed =
+    not currentUserIsImpersonating || currentUserCanUseOwnerImpersonationAccountSecurity
+
+currentUserCanSendStaffCredentialLink :: (?context :: ControllerContext) => Bool
+currentUserCanSendStaffCredentialLink =
+    currentUserAccountSecurityContextAllowed
+        && (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin)
+
 ensureNotImpersonatingAccountSecurity :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureNotImpersonatingAccountSecurity =
     redirectPermissionDeniedUnless
         (not currentUserIsImpersonating)
         "Exit support impersonation before managing sign-in or account security."
 
+fetchAuthenticatedUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
+fetchAuthenticatedUserPasskeys =
+    query @Passkey
+        |> filterWhere (#userId, unpackId authenticatedCurrentUser.id)
+        |> orderByAsc #createdAt
+        |> fetch
+
 fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
 fetchCurrentUserPasskeys
     | currentUserIsImpersonating = pure []
-    | otherwise =
-        query @Passkey
-            |> filterWhere (#userId, unpackId authenticatedCurrentUser.id)
-            |> orderByAsc #createdAt
-            |> fetch
+    | otherwise = fetchAuthenticatedUserPasskeys
 
 fetchCurrentUserStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe Staff)
 fetchCurrentUserStaff =

@@ -34,7 +34,8 @@ import Web.View.Passkeys.NewSetup
 instance Controller AuthController where
     beforeAction = bepisBeforeAction BepisPublicController do
         annotateTelemetryAction
-        accessDeniedUnless (not currentUserIsImpersonating)
+        accessDeniedUnless
+            (not currentUserIsImpersonating || (currentUserCanUseOwnerImpersonationAccountSecurity && authActionAllowsOwnerImpersonation ?theAction))
 
     action currentAction@BeginPasskeyRegistrationAction = runBepis currentAction BepisMutationAction do
         ensureIsUser
@@ -200,7 +201,7 @@ instance Controller AuthController where
 
     action currentAction@BeginPasskeyStepUpAuthenticationAction = runBepis currentAction BepisMutationAction do
         ensureIsUser
-        passkeys <- fetchCurrentUserPasskeys
+        passkeys <- fetchAuthenticatedUserPasskeys
         when (null passkeys) do
             auditPasskeyStepUpFailure "no_passkey"
             jsonError status422 "Add a passkey before verifying privileged access."
@@ -506,6 +507,13 @@ clearSetupRegistrationSession = do
     deleteSession setupRegistrationChallengeSessionKey
     deleteSession setupRegistrationTokenIdSessionKey
     deleteSession setupRegistrationUserIdSessionKey
+
+authActionAllowsOwnerImpersonation :: AuthController -> Bool
+authActionAllowsOwnerImpersonation BeginPasskeyRegistrationAction = True
+authActionAllowsOwnerImpersonation FinishPasskeyRegistrationAction = True
+authActionAllowsOwnerImpersonation BeginPasskeyStepUpAuthenticationAction = True
+authActionAllowsOwnerImpersonation FinishPasskeyStepUpAuthenticationAction = True
+authActionAllowsOwnerImpersonation _ = False
 
 jsonError :: (?request :: Request) => Status -> Text -> IO a
 jsonError statusCode errorMessage =

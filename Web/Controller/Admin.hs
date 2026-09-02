@@ -143,9 +143,8 @@ ensureCanSendStaffCredentialLink ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 ensureCanSendStaffCredentialLink = do
-    ensureNotImpersonatingAccountSecurity
     redirectPermissionDeniedUnless
-        (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin)
+        currentUserCanSendStaffCredentialLink
         "Only a venue admin, venue owner, or super admin can send account recovery links."
     ensureFreshPasskeyReadyFor staffPasskeyReturnPath
 
