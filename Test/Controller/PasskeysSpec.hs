@@ -894,9 +894,9 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue verified Worker
                 _ <- createVenueMembershipRecord venue unverified Worker
 
-                replicateM_ 2 $
+                forM_ [1 :: Int, 2] \_ ->
                     callActionWithParams CreatePasswordResetRequestAction [("email", cs verified.email)]
-                replicateM_ 2 $
+                forM_ [1 :: Int, 2] \_ ->
                     callActionWithParams ResendVerificationAction [("email", cs unverified.email)]
                 query @PasswordResetToken |> fetchCount `shouldReturn` 1
                 query @EmailVerificationToken |> fetchCount `shouldReturn` 1
