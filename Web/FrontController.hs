@@ -4,6 +4,7 @@ import Application.Billing.Checkout (venueSubscriptionIsLive)
 import Application.Billing.Stripe (BillingNavigationContext (..),
                                    StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
+import Application.Helper.BrowserFailure (isBrowserPageRequest)
 import Application.Helper.Controller (clearCurrentUserPasskeyVerification,
                                       currentUserIsSuperAdmin,
                                       currentVenueOrNothing,
@@ -80,7 +81,7 @@ instance FrontController WebApplication where
         , webSocketAppWithCustomPath @LiveUpdatesWSApp (cs liveUpdateSocketPathSegment)
         -- Generator Marker
         ]
-        <> [catchAll NotFoundRecoveryAction | isStaleBrowserPageRequest ?request]
+        <> [catchAll NotFoundRecoveryAction | isBrowserPageRequest ?request]
 
 instance InitControllerContext WebApplication where
     initContext = do

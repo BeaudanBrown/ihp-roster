@@ -1327,7 +1327,7 @@ sourceTimesheetWarningToast shouldWarn =
 
 resolveRosterPageGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe (RosterGroup, Bool))
 resolveRosterPageGroup = do
-    let requestedRosterGroupId = paramOrNothing "rosterGroupId"
+    requestedRosterGroupId <- parseOptionalRosterGroupIdParam
     rosterGroups <- fetchViewableRosterGroups
     pure $ case requestedRosterGroupId of
         Nothing -> (\rosterGroup -> (rosterGroup, True)) <$> listToMaybe rosterGroups
@@ -1338,11 +1338,20 @@ resolveRosterPageGroup = do
 
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup = do
-    let requestedRosterGroupId = paramOrNothing "rosterGroupId"
+    requestedRosterGroupId <- parseOptionalRosterGroupIdParam
     rosterGroups <- fetchViewableRosterGroups
     let maybeRosterGroup = maybe (listToMaybe rosterGroups) (\rosterGroupId -> find ((== rosterGroupId) . (.id)) rosterGroups) requestedRosterGroupId
     accessDeniedUnless (isJust maybeRosterGroup)
     pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
+
+parseOptionalRosterGroupIdParam :: (?request :: Request) => IO (Maybe (Id RosterGroup))
+parseOptionalRosterGroupIdParam =
+    case paramOrNothing @Text "rosterGroupId" of
+        Nothing -> pure Nothing
+        Just value ->
+            case parseUUIDText value of
+                Just rosterGroupId -> pure (Just (Id rosterGroupId))
+                Nothing -> respondRosterBadRequest "Invalid roster group parameter."
 
 renderNoRosterGroupPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
 renderNoRosterGroupPage = do

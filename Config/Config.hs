@@ -1,5 +1,6 @@
 module Config where
 
+import Application.Helper.BrowserFailure (browserFailurePageMiddleware)
 import Application.Helper.LiveUpdate.DurableListener (startDurableInvalidationListener)
 import Application.Helper.Profiling (profilingMiddleware)
 import Application.Helper.Telemetry (telemetryMiddleware)
@@ -32,7 +33,7 @@ config = do
             , credentials = smtpCredentials
             , encryption = smtpEncryption
             }
-    option $ CustomMiddleware (telemetryMiddleware . profilingMiddleware)
+    option $ CustomMiddleware (browserFailurePageMiddleware . telemetryMiddleware . profilingMiddleware)
     addInitializer (startDurableInvalidationListener dispatchDurableInvalidation)
 
     pure ()

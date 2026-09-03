@@ -84,6 +84,21 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Mon 06/01"
                 response `responseBodyShouldContain` "Sun 12/01"
 
+        it "rejects a malformed roster group bookmark without raising a server error" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-malformed-group@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", cs (show (testAnchorForOffset 0)))
+                        , ("rosterGroupId", "e3179940-4716-405e-b433-70aaa33a4f7")
+                        ]
+
+                response `responseStatusShouldBe` status400
+                response `responseBodyShouldContain` "Invalid roster group parameter."
+
         it "visiting a sparse window does not materialize dated days" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
