@@ -9,6 +9,7 @@ data WebApplication = WebApplication deriving (Eq, Show)
 
 data StaticController
     = WelcomeAction
+    | NotFoundRecoveryAction
     | InstallAppAction
     | PublicBillingSupportAction
     | LegalTermsAction

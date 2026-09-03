@@ -80,6 +80,7 @@ instance FrontController WebApplication where
         , webSocketAppWithCustomPath @LiveUpdatesWSApp (cs liveUpdateSocketPathSegment)
         -- Generator Marker
         ]
+        <> [catchAll NotFoundRecoveryAction | isStaleBrowserPageRequest ?request]
 
 instance InitControllerContext WebApplication where
     initContext = do
