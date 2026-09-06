@@ -39,6 +39,16 @@
                     pkgs.gh
                     pkgs.lsof
                     pkgs.procps
+                    # flock protects workspace, database, and generated-state operations.
+                    pkgs.util-linux
+                    # Offline API contracts and workbook verification invoke python3.
+                    pkgs.python3
+                    # Browser export checks inspect downloaded XLSX archives.
+                    pkgs.unzip
+                    # Repository authority checks invoke rg directly.
+                    pkgs.ripgrep
+                    # Full verification invokes isolated Nix package checks.
+                    pkgs.nix
                     pkgs.graphviz
                     pkgs.opentelemetry-collector-contrib
                     pkgs.tempo

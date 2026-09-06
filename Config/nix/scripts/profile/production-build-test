@@ -79,10 +79,12 @@ JSON
         fi
         printf 'fixture build complete\n' >&2
         ;;
-    'path-info --json '*)
-        cat <<'JSON'
-[{"path":"$app_output","narSize":1234,"closureSize":5678}]
-JSON
+    'path-info --json -S $app_output')
+        if [ "\${FAKE_NIX_PATH_INFO_OBJECT:-}" = 1 ]; then
+            printf '%s\n' '{"$app_output":{"narSize":1234,"closureSize":5678}}'
+        else
+            printf '%s\n' '[{"path":"$app_output","narSize":1234,"closureSize":5678}]'
+        fi
         ;;
     *)
         echo "unexpected nix arguments: \$*" >&2
@@ -133,6 +135,18 @@ if find "$result_dir" -type f -size +5M | grep -q .; then
     echo "production-build-profile-test: profile artifacts are not bounded" >&2
     exit 1
 fi
+
+# Nix versions return either an array or a store-path-keyed object. The
+# exact command fixture above rejects unsupported format-selection flags.
+PATH="$fake_bin:$PATH" \
+FAKE_NIX_PATH_INFO_OBJECT=1 \
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --output-dir "$fixture_root/object-path-info" \
+    --no-rebuild
+jq -e '
+    .app_library.nar_size_bytes == 1234 and
+    .app_library.closure_size_bytes == 5678
+' "$fixture_root/object-path-info/profile.json" >/dev/null
 
 static_only_dir="$fixture_root/static-only"
 rm "$app_output/lib/Application/Helper/One.dyn_hi" "$app_output/lib/libHSapp-lib.so"

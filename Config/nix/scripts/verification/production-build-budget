@@ -13,7 +13,7 @@ trap cleanup EXIT
 if [ -z "$profile" ]; then
     temporary="$(mktemp -d)"
     if ! production-build-profile --output-dir "$temporary" --no-rebuild; then
-        echo "production-build-budget-check: current app-lib output is absent; run production-package-smoke first" >&2
+        echo "production-build-budget-check: could not profile current app-lib output; see the profiling error above" >&2
         exit 1
     fi
     profile="$temporary/profile.json"
