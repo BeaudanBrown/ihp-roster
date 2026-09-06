@@ -354,14 +354,14 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 74
+        length actionDeclarations `shouldBe` 76
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 69
+        length generatedActionOperations `shouldBe` 71
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 69
+            `shouldBe` 71
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 69
+            `shouldBe` 71
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
             `shouldBe` 49
         let actionIdentity registration =
@@ -407,6 +407,8 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("admin-shift-types", "autosave-shift-type-name")
                 , ("admin-shift-types", "autosave-shift-type-selection")
                 , ("admin-xero", "sync-xero-payroll-reference-data")
+                , ("feedback", "vote-feedback")
+                , ("feedback", "unvote-feedback")
                 , ("feedback-moderation", "archive-feedback")
                 , ("feedback-moderation", "edit-feedback")
                 , ("feedback-moderation", "publish-feedback")

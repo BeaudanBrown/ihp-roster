@@ -1,4 +1,5 @@
 import { surfaceFragmentKeyIdentity, surfaceFragmentKeysEqual, type FrontendSurfaceMountedFragmentConfig, type SurfaceScope } from "../generated/contracts";
+import { createFocusedFieldProtection } from "../live-updates/focus";
 import { createLiveUpdateConnection } from "../live-updates/connection";
 import { createLiveUpdateInvalidationRuntime, type LiveUpdateVersionStore } from "../live-updates/invalidation";
 import type { LiveFragmentRefresher } from "../live-updates/refresh";
@@ -14,6 +15,54 @@ import {
     serverPayloadFromHtmxTriggeredEvent,
 } from "../live-updates/protocol";
 import { assertDeepEqual, assertEqual, test } from "./harness";
+
+test("fragment replacement preserves native keyed focus and viewport position without restoring stale values", () => {
+    const originalElement = globalThis.HTMLElement;
+    let active: MiniFocusElement | null = null;
+    const scrolls: ScrollToOptions[] = [];
+    const nodes = new Map<string, MiniFocusElement>();
+    class MiniFocusElement {
+        children: MiniFocusElement[] = [];
+        constructor(readonly id: string, readonly top = 0) {}
+        contains(node: MiniFocusElement): boolean { return this === node || this.children.includes(node); }
+        getBoundingClientRect(): { top: number; left: number } { return { top: this.top, left: 0 }; }
+        focus(options: FocusOptions): void { assertEqual(options.preventScroll, true); active = this; }
+    }
+    Object.defineProperty(globalThis, "HTMLElement", { configurable: true, value: MiniFocusElement });
+    try {
+        const doc = { get activeElement() { return active; }, getElementById: (id: string) => nodes.get(id) ?? null } as unknown as Document;
+        const win = { scrollBy: (options: ScrollToOptions) => scrolls.push(options) } as unknown as Window;
+        const protection = createFocusedFieldProtection(win, doc);
+        const oldRoot = new MiniFocusElement("root");
+        const oldControl = new MiniFocusElement("stable-control", 100);
+        oldRoot.children.push(oldControl);
+        active = oldControl;
+        const restore = protection.captureReplacementFocus(oldRoot as unknown as Element);
+        const nextRoot = new MiniFocusElement("root");
+        const nextControl = new MiniFocusElement("stable-control", 400);
+        nextRoot.children.push(nextControl);
+        nodes.set(nextControl.id, nextControl);
+        active = null;
+        restore(nextRoot as unknown as Element);
+        assertEqual(active, nextControl);
+        assertDeepEqual(scrolls, [{ top: 300, left: 0, behavior: "instant" }]);
+        // A user who moved outside the fragment before swap retains that focus.
+        const outside = new MiniFocusElement("outside");
+        active = outside;
+        protection.captureReplacementFocus(oldRoot as unknown as Element)(nextRoot as unknown as Element);
+        assertEqual(active, outside);
+        // Never transfer focus to a same-id node outside the replacement owner.
+        active = oldControl;
+        const removed = protection.captureReplacementFocus(oldRoot as unknown as Element);
+        nextRoot.children = [];
+        active = null;
+        removed(nextRoot as unknown as Element);
+        assertEqual(active, null);
+        assertEqual(scrolls.length, 1);
+    } finally {
+        Object.defineProperty(globalThis, "HTMLElement", { configurable: true, value: originalElement });
+    }
+});
 
 const scope: SurfaceScope = {
     surface: "timesheets",

@@ -15,12 +15,25 @@ no longer loads feedback records or exposes feedback controls.
   not the founder's selected support venue.
 - `LiveUpdates` and `Surface/Feedback` own public/review/count fragments. Public
   reads remain global even though subscription authorization uses the current
-  venue; the shared resource is deliberately not venue-keyed.
+  venue; the shared resource is deliberately not venue-keyed. Vote changes also
+  invalidate the founder review list, but not its unrelated Private-count badge.
+
+Votes belong to the authenticated global account, including during support
+impersonation; switching venues or effective identities cannot create extra
+voting identities. The public projection exposes only a count and whether that
+account has voted. Explicit vote/unvote commands converge under repeated or
+concurrent submission, rather than blindly inverting stale browser state.
+Replayed commands refetch current cards without recording a duplicate audit.
+
+`Web/View/Feedback/Card` owns native accessible vote controls. Their stable IDs
+allow the generic live-update focus owner to retain keyboard focus and viewport
+position while Haskell reorders the list; no browser vote state or sort logic
+is authoritative.
 
 New submissions use the existing [email-delivery boundary](../EmailDelivery/SPEC.md).
 Moderation does not send submitter notifications. No feedback data is removed by
 moving the review interface: legacy notes and diagnostics remain private.
 
 Focused verification: `hspec-test --match Feedback --match SupportController` and
-`e2e e2e/feedback-moderation.spec.ts e2e/feedback-diagnostics.spec.ts` through
+`e2e e2e/feedback-voting.spec.ts e2e/feedback-moderation.spec.ts e2e/feedback-diagnostics.spec.ts` through
 `bin/in-env`.

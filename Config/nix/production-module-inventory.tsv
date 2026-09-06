@@ -559,6 +559,7 @@ Web/View/Admin/Xero/TimesheetPreparation.hs	production	runtime	Main	Reachable fr
 Web/View/Admin/Xero/TimesheetPreparation/Review.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation/StaffMappings.hs	production	runtime	Main	Reachable from Main
 Web/View/Billing/Index.hs	production	runtime	Main	Reachable from Main
+Web/View/Feedback/Card.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Management.hs	production	runtime	Main	Reachable from Main

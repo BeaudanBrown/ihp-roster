@@ -11,7 +11,9 @@ module Application.Helper.FrontendContract.Surface.Feedback.Generated.Action
     , EditFeedbackActionOperation
     , PublishFeedbackActionOperation
     , RestoreFeedbackActionOperation
+    , UnvoteFeedbackActionOperation
     , UpdateFeedbackActionOperation
+    , VoteFeedbackActionOperation
     , archiveFeedbackAction
     , archiveFeedbackActionFields
     , editFeedbackAction
@@ -21,8 +23,12 @@ module Application.Helper.FrontendContract.Surface.Feedback.Generated.Action
     , publishFeedbackActionFields
     , restoreFeedbackAction
     , restoreFeedbackActionFields
+    , unvoteFeedbackAction
+    , unvoteFeedbackActionFields
     , updateFeedbackAction
     , updateFeedbackActionFields
+    , voteFeedbackAction
+    , voteFeedbackActionFields
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -126,6 +132,25 @@ restoreFeedbackAction :: ActionFields RestoreFeedbackActionOperation -> Frontend
 restoreFeedbackAction =
     frontendSurfaceActionFromEvidence restoreFeedbackActionEvidence
 
+data UnvoteFeedbackActionOperation
+
+type instance ActionSurface UnvoteFeedbackActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.FeedbackAdapterFamily)
+type instance ActionMarker UnvoteFeedbackActionOperation = Types1.UnvoteFeedback
+type instance ActionFieldSpecs UnvoteFeedbackActionOperation =
+    '[]
+
+unvoteFeedbackActionFields :: ActionFields UnvoteFeedbackActionOperation
+unvoteFeedbackActionFields =
+    noActionFields
+
+unvoteFeedbackActionEvidence :: ActionEvidence UnvoteFeedbackActionOperation
+unvoteFeedbackActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "UnvoteFeedback" "unvote-feedback" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+unvoteFeedbackAction :: ActionFields UnvoteFeedbackActionOperation -> FrontendSurfaceAction
+unvoteFeedbackAction =
+    frontendSurfaceActionFromEvidence unvoteFeedbackActionEvidence
+
 data UpdateFeedbackActionOperation
 
 type instance ActionSurface UpdateFeedbackActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.FeedbackModerationAdapterFamily)
@@ -163,3 +188,22 @@ parseUpdateFeedbackActionParams ::
 parseUpdateFeedbackActionParams =
     parseActionParams
         @UpdateFeedbackActionOperation
+
+data VoteFeedbackActionOperation
+
+type instance ActionSurface VoteFeedbackActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.FeedbackAdapterFamily)
+type instance ActionMarker VoteFeedbackActionOperation = Types1.VoteFeedback
+type instance ActionFieldSpecs VoteFeedbackActionOperation =
+    '[]
+
+voteFeedbackActionFields :: ActionFields VoteFeedbackActionOperation
+voteFeedbackActionFields =
+    noActionFields
+
+voteFeedbackActionEvidence :: ActionEvidence VoteFeedbackActionOperation
+voteFeedbackActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "VoteFeedback" "vote-feedback" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "this:drop" []))])
+
+voteFeedbackAction :: ActionFields VoteFeedbackActionOperation -> FrontendSurfaceAction
+voteFeedbackAction =
+    frontendSurfaceActionFromEvidence voteFeedbackActionEvidence

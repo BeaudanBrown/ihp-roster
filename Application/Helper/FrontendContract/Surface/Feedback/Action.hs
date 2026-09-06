@@ -1,5 +1,7 @@
 module Application.Helper.FrontendContract.Surface.Feedback.Action
     ( UpdateFeedbackActionOperation
+    , voteFeedbackAction, voteFeedbackActionFields
+    , unvoteFeedbackAction, unvoteFeedbackActionFields
     , archiveFeedbackAction, archiveFeedbackActionFields
     , editFeedbackAction, editFeedbackActionFields
     , publishFeedbackAction, publishFeedbackActionFields

@@ -60,6 +60,8 @@ auditEventWireContract =
     , (FeedbackPublishedAudit, "feedback_published")
     , (FeedbackArchivedAudit, "feedback_archived")
     , (FeedbackRestoredAudit, "feedback_restored")
+    , (FeedbackVotedAudit, "feedback_voted")
+    , (FeedbackUnvotedAudit, "feedback_unvoted")
     ]
 
 auditSourceChannelWireContract :: [(AuditSourceChannel, Text)]

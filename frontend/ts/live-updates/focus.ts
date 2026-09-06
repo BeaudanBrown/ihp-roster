@@ -10,6 +10,7 @@ export type FocusedFieldProtection = {
     hasProtectedActiveInput(target: HTMLElement, fragment: LiveUpdateFragmentWithState | undefined): boolean;
     captureDeferredState(target: HTMLElement, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState;
     restoreDeferredState(fragment: LiveUpdateFragmentWithState): void;
+    captureReplacementFocus(target: Element): (replacement: Element) => void;
 };
 
 export function createFocusedFieldProtection(targetWindow: Window, targetDocument: Document): FocusedFieldProtection {
@@ -86,6 +87,24 @@ export function createFocusedFieldProtection(targetWindow: Window, targetDocumen
     }
 
     return {
+        // Capture at swap time, not request time: a slow response must not
+        // reclaim focus from a control the user moved to while awaiting it.
+        // Stable native ids are Haskell-owned; no feature selectors or state
+        // enter this generic replacement mechanic.
+        captureReplacementFocus(target) {
+            const active = targetDocument.activeElement;
+            if (!(active instanceof HTMLElement) || !active.id || !target.contains(active)) return () => undefined;
+            const id = active.id;
+            const before = active.getBoundingClientRect();
+            return (replacement) => {
+                const next = targetDocument.getElementById(id);
+                if (!(next instanceof HTMLElement) || !replacement.contains(next)) return;
+                next.focus({ preventScroll: true });
+                if (targetDocument.activeElement !== next) return;
+                const after = next.getBoundingClientRect();
+                targetWindow.scrollBy({ top: after.top - before.top, left: after.left - before.left, behavior: "instant" });
+            };
+        },
         hasProtectedActiveInput(target, fragment) {
             return Boolean(matchingProtection(fragment)?.hasActiveInput(target));
         },

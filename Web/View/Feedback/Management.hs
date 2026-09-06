@@ -6,6 +6,7 @@ import qualified Application.Helper.FrontendContract.Surface.Feedback.Action as 
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.FeedbackType (feedbackTypeLabel)
+import Web.View.Feedback.Card (renderFeedbackVote)
 import Web.View.Prelude
 
 feedbackActionRoute :: FeedbackController -> FrontendSurfaceActionRoute
@@ -39,6 +40,7 @@ renderManagementCard card = renderAppPanel (defaultAppPanelConfig [hsx|
         <h3 class="h5">{item.title}</h3>
         <p class="text-muted">{feedbackTypeLabel item.feedbackType} · Submitted {dateTime item.createdAt}</p>
         <p>{item.content}</p>
+        {maybe mempty renderFeedbackVote card.publicCard}
         <details>
             <summary>Private submission details</summary>
             <dl>

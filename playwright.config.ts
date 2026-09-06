@@ -22,6 +22,7 @@ const mobileTestFiles = [
     /.*pwa-install\.spec\.ts/,
     /.*feedback-diagnostics\.spec\.ts/,
     /.*feedback-moderation\.spec\.ts/,
+    /.*feedback-voting\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
     /.*roster-template-modals\.spec\.ts/,
     ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),

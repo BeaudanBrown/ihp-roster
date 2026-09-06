@@ -28,6 +28,10 @@ instance AutoRoute E2ETestController where
 instance AutoRoute AdminController
 instance AutoRoute FeedbackController where
     allowedMethodsForAction actionName = case actionName of
+        -- Handle read-method rejection in the controller: IHP's automatic
+        -- UnexpectedMethodException renders a 500 instead of a controlled 405.
+        "VoteFeedbackAction" -> [GET, HEAD, POST]
+        "UnvoteFeedbackAction" -> [GET, HEAD, POST]
         "CreateFeedbackAction" -> [POST]
         "UpdateFeedbackAction" -> [POST]
         "PublishFeedbackAction" -> [POST]

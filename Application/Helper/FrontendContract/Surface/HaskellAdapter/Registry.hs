@@ -251,6 +251,10 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DeleteUnavailabilityBlackout
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.VoteFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field vote consumes its route id and authenticated global account")
+    , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.UnvoteFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field unvote consumes its route id and authenticated global account")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.EditFeedback
         (requestAdapterOperationsWithoutParser "The zero-field dialog consumes its route id")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.UpdateFeedback allRequestAdapterOperations

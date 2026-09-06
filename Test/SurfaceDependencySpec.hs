@@ -424,7 +424,7 @@ tests = do
             let plannedIds resources scope candidates = map (.mountedFragmentTargetId) (planMountedFragments resources scope candidates)
             plannedIds boardResources publicScope feedbackMountedFragments `shouldBe` ["feedback-cards"]
             plannedIds reviewResources publicScope feedbackMountedFragments `shouldBe` []
-            plannedIds boardResources feedbackPlatformLiveScope feedbackModerationMountedFragments `shouldBe` []
+            plannedIds boardResources feedbackPlatformLiveScope feedbackModerationMountedFragments `shouldBe` ["feedback-review"]
             plannedIds reviewResources feedbackPlatformLiveScope feedbackModerationMountedFragments
                 `shouldBe` ["feedback-review", "feedback-desktop-count", "feedback-mobile-count"]
             passiveFragmentKeys boardResources publicScope feedbackMountedFragments

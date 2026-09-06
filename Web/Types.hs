@@ -213,6 +213,8 @@ data FeedbackController
     | NewFeedbackAction
     | CreateFeedbackAction
     | ShowFeedbackBoardAction
+    | VoteFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | UnvoteFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | ShowFeedbackReviewAction
     | ShowFeedbackDesktopCountAction
     | ShowFeedbackMobileCountAction

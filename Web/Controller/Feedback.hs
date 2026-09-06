@@ -12,7 +12,7 @@ import qualified Application.Helper.FrontendContract.Surface.Feedback as Surface
 import qualified Application.Helper.FrontendContract.Surface.Feedback.Action as Action
 import Application.Helper.FrontendContract.Surface.Feedback.Live
 import Application.Helper.SurfaceResource
-import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh, setActorLocalFragmentsRefresh)
 import Application.Helper.Controller (boundedText, normalizeTextField)
 import Application.Helper.FrontendContract.AppShell (ContentField, FeedbackTitleField,
                                                      FeedbackTypeField, SubmitFeedback)
@@ -27,7 +27,10 @@ import Application.Helper.View (ToastOverlayPosition (..),
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import OpenTelemetry.Attributes (toAttribute)
+import qualified Network.Wai as Wai
+import Network.HTTP.Types.Status (status405)
 import Web.Controller.Prelude
+import Web.View.Feedback.Card (renderPublicFeedbackCards)
 import Web.View.Feedback.Index
 import Web.View.Feedback.New
 import Web.View.Feedback.Edit
@@ -40,12 +43,20 @@ instance Controller FeedbackController where
         ensureCurrentVenueOrSupportRedirect
 
     action currentAction@FeedbackAction = runBepis currentAction BepisPageAction do
-        cards <- fetchPublicFeedbackCards
+        cards <- fetchPublicFeedbackCards authenticatedCurrentUser.id
         managementCards <- if currentUserIsUnimpersonatedSuperAdmin then Just <$> fetchManagementFeedbackCards else pure Nothing
         render IndexView { .. }
 
     action currentAction@ShowFeedbackBoardAction = runBepis currentAction BepisPageAction do
-        fetchPublicFeedbackCards >>= respondHtml . renderPublicFeedbackCards
+        fetchPublicFeedbackCards authenticatedCurrentUser.id >>= respondHtml . renderPublicFeedbackCards
+
+    action currentAction@VoteFeedbackAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
+        ensureVotePost
+        Mutations.voteFeedback feedbackItemId >>= respondVoteResult
+
+    action currentAction@UnvoteFeedbackAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
+        ensureVotePost
+        Mutations.unvoteFeedback feedbackItemId >>= respondVoteResult
 
     action currentAction@ShowFeedbackReviewAction = runBepis currentAction BepisPageAction do
         fetchManagementFeedbackCards >>= respondHtml . renderFeedbackManagement
@@ -176,6 +187,29 @@ respondEditFeedback :: (?context :: ControllerContext, ?modelContext :: ModelCon
 respondEditFeedback feedbackItem = if isHtmxRequest
     then respondHtml (renderEditFeedbackDialog feedbackItem)
     else render EditView { .. }
+
+ensureVotePost :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureVotePost = unless (Wai.requestMethod ?request == "POST") $
+    respondAndExit (Wai.responseLBS status405 [("Allow", "POST"), ("Content-Type", "text/plain")] "Use POST to change a vote.")
+
+respondVoteResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LiveMutationResult (Either FeedbackMutationError ()) -> IO ()
+respondVoteResult result = case result.liveMutationValue of
+    Left _ -> do
+        -- Do not reveal whether an opaque id is missing, Private or Archived.
+        -- Refetch the actor's visible board when a stale card lost eligibility.
+        if isHtmxRequest
+            then do
+                setHeader ("HX-Reswap", "none")
+                if currentUserIsUnimpersonatedSuperAdmin
+                    then setActorLocalFragmentsRefresh feedbackPlatformLiveScope [feedbackReviewLiveFragment]
+                    else setActorLocalFragmentsRefresh (feedbackVenueLiveScope (unpackId currentVenueId)) [feedbackBoardLiveFragment]
+                respondHtml (renderToastOob ToastBottomCenter (errorToast "This feedback is no longer available for voting."))
+            else setErrorMessage "This feedback is no longer available for voting." >> redirectTo FeedbackAction
+    Right () -> if isHtmxRequest
+        then do
+            setFeedbackActorRefresh result
+            respondHtml mempty
+        else setSuccessMessage "Vote saved." >> redirectTo FeedbackAction
 
 respondModerationResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LiveMutationResult (Either FeedbackMutationError UserFeedbackItem) -> IO ()
 respondModerationResult result = case result.liveMutationValue of

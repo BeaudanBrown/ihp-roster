@@ -44,6 +44,15 @@ test('moderates Feedback with actor and passive plain-fragment refreshes', async
         await expect(page.locator('#feedback-desktop-count')).toHaveText(initialCount === 1 ? '' : String(initialCount - 1), { timeout: E2E_TIMEOUT.assertion });
         await expect(card.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0);
 
+        const founderVote = card.getByRole('button', { name: `Vote for ${title}`, exact: true });
+        await expect(founderVote).toHaveAttribute('aria-pressed', 'false');
+        await founderVote.click();
+        await expect(founderVote).toHaveAttribute('aria-pressed', 'true');
+        await expect(viewer.locator('#feedback-cards')).toContainText('2 votes');
+        await founderVote.click();
+        await expect(founderVote).toHaveAttribute('aria-pressed', 'false');
+        await expect(viewer.locator('#feedback-cards')).toContainText('1 votes');
+
         await card.getByRole('link', { name: 'Edit', exact: true }).click();
         await expect(page.locator('#feedback-edit-form')).toBeVisible();
         await page.getByLabel('Description', { exact: true }).fill('Revised public description');

@@ -96,7 +96,13 @@ matches mounted scopes.
 `focus.ts` is the sole focused-field replacement owner. It applies the exact
 Haskell-declared protection, keeps only the latest deferred refresh, refetches on
 blur, and restores configured field state. Replace-policy fragments refresh
-immediately. Reconnect/version-gap resync uses the same path and protection.
+immediately. Immediately before replacement, the focus owner captures a focused
+native element's stable server-rendered ID and viewport position. If that same
+ID remains inside the replacement, it restores focus without copying old field
+values and compensates window scroll for movement. A control outside the replaced
+region never loses focus to an earlier request's initiator; removed controls do
+not redirect focus to unrelated same-ID nodes. Reconnect/version-gap resync uses
+the same path and protection.
 
 UI-region lifecycle is opt-in only for server-declared fragment roots. Ordinary
 forms, dialogs/pickers/toasts, navigation swaps, autosave controls, and one-off

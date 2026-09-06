@@ -2,8 +2,11 @@ module Test.Controller.FeedbackSpec where
 
 import Application.EmailDelivery (emailDeliveryJobKind)
 import Application.Feedback.Domain (publishFeedback, archiveFeedback, addFeedbackVote)
+import qualified Application.Feedback.Mutations as FeedbackMutations
+import Control.Concurrent.Async (concurrently)
 import Application.Feedback.ReadModel (PublicFeedbackCard (..), fetchPublicFeedbackCards)
 import Application.Helper.FrontendContract.Surface.Feedback.Live (feedbackPlatformLiveScope)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Web.SurfaceInvalidation (authorizeSurfaceScope)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
@@ -281,6 +284,103 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "My hidden submission"
                 response `responseBodyShouldContain` "No public feedback yet"
 
+        it "converges cross-venue votes by account, refreshes actors, and reverses without duplicate audits" $ withContext do
+            withCleanDb do
+                origin <- createVenueWithConfig "Vote origin"
+                elsewhere <- createVenueWithConfig "Voter venue"
+                author <- createUserRecord "vote-author@example.com" "staff" True
+                voter <- createUserRecord "global-voter@example.com" "staff" True
+                _ <- createVenueMembershipRecord origin voter Worker
+                _ <- createVenueMembershipRecord elsewhere voter VenueOwner
+                item <- feedbackFixture origin author "Global vote target"
+                now <- getCurrentTime
+                Right _ <- publishFeedback item.id author.id now
+                withPasskeyVerifiedUserAndCurrentVenue voter elsewhere.id $ withCurrentControllerContext do
+                    (first, second) <- concurrently (FeedbackMutations.voteFeedback item.id) (FeedbackMutations.voteFeedback item.id)
+                    first.liveMutationValue `shouldBe` Right ()
+                    second.liveMutationValue `shouldBe` Right ()
+                forM_ [elsewhere, origin] \venue -> withPasskeyVerifiedUserAndCurrentVenue voter venue.id do
+                    response <- withRequestHeaders [("HX-Request", "true")] (callAction (VoteFeedbackAction item.id))
+                    response `responseStatusShouldBe` status200
+                    lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                    lookup "HX-Trigger" (responseHeaders response) `shouldSatisfy` isJust
+                    response `responseBodyShouldNotContain` "Global vote target"
+                    board <- callAction ShowFeedbackBoardAction
+                    board `responseBodyShouldContain` "aria-pressed=\"true\""
+                    board `responseBodyShouldContain` "2 votes"
+                    board `responseBodyShouldNotContain` "Secret support note"
+                query @FeedbackVote |> fetchCount >>= (`shouldBe` 2)
+                query @AuditEvent |> filterWhere (#targetId, unpackId item.id) |> fetchCount >>= (`shouldBe` 1)
+                withPasskeyVerifiedUserAndCurrentVenue voter elsewhere.id do
+                    forM_ [1 :: Int, 2] \_ -> callAction (UnvoteFeedbackAction item.id)
+                    board <- callAction ShowFeedbackBoardAction
+                    board `responseBodyShouldContain` "aria-pressed=\"false\""
+                    board `responseBodyShouldContain` "1 votes"
+                events <- query @AuditEvent |> filterWhere (#targetId, unpackId item.id) |> fetch
+                length events `shouldBe` 2
+                map (.venueId) events `shouldBe` replicate 2 (unpackId origin.id)
+                map (.actorUserId) events `shouldBe` replicate 2 (unpackId voter.id)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 6)
+
+        it "rolls back vote creation and audit if the durable event fails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Vote rollback"
+                author <- createUserRecord "rollback-vote-author@example.com" "staff" True
+                voter <- createUserRecord "rollback-voter@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue voter Worker
+                item <- feedbackFixture venue author "Vote rollback target"
+                now <- getCurrentTime
+                Right _ <- publishFeedback item.id author.id now
+                let installFailure = do
+                        sqlExecDiscardResult "CREATE FUNCTION reject_vote_event() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced vote failure''; END' LANGUAGE plpgsql" ()
+                        sqlExecDiscardResult "CREATE TRIGGER reject_vote_event BEFORE INSERT ON live_invalidation_events FOR EACH ROW EXECUTE FUNCTION reject_vote_event()" ()
+                let removeFailure = do
+                        sqlExecDiscardResult "DROP TRIGGER IF EXISTS reject_vote_event ON live_invalidation_events" ()
+                        sqlExecDiscardResult "DROP FUNCTION IF EXISTS reject_vote_event()" ()
+                Exception.bracket_ installFailure removeFailure do
+                    result <- Exception.try @Exception.SomeException $ withPasskeyVerifiedUserAndCurrentVenue voter venue.id $
+                        withCurrentControllerContext (FeedbackMutations.voteFeedback item.id)
+                    result `shouldSatisfy` either (const True) (const False)
+                query @FeedbackVote |> filterWhere (#userId, unpackId voter.id) |> fetchCount >>= (`shouldBe` 0)
+                query @AuditEvent |> filterWhere (#targetId, unpackId item.id) |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+
+        it "rejects missing, private and archived vote commands identically without durable writes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Ineligible voting"
+                voter <- createUserRecord "ineligible-voter@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue voter Worker
+                privateItem <- feedbackFixture venue voter "Private secret"
+                archivedItem <- feedbackFixture venue voter "Archived secret"
+                now <- getCurrentTime
+                Right _ <- archiveFeedback archivedItem.id voter.id now
+                withPasskeyVerifiedUserAndCurrentVenue voter venue.id do
+                    forM_ [privateItem.id, archivedItem.id, "00000000-0000-0000-0000-000000009999"] \itemId ->
+                        forM_ [VoteFeedbackAction itemId, UnvoteFeedbackAction itemId] \route -> do
+                            response <- withRequestHeaders [("HX-Request", "true")] (callAction route)
+                            response `responseStatusShouldBe` status200
+                            response `responseBodyShouldContain` "no longer available for voting"
+                            response `responseBodyShouldNotContain` "secret"
+                query @FeedbackVote |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+
+        it "keeps voting tied to the actual global account during impersonation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonated voting"
+                founder <- createUserRecordWithPlatformRole "voting-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "voting-effective@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                item <- feedbackFixture venue worker "Account identity"
+                now <- getCurrentTime
+                Right _ <- publishFeedback item.id founder.id now
+                withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams StartSupportImpersonationAction [("userId", cs (inputValue worker.id))]
+                    _ <- callAction (VoteFeedbackAction item.id)
+                    _ <- callAction (UnvoteFeedbackAction item.id)
+                    pure ()
+                votes <- query @FeedbackVote |> fetch
+                map (.userId) votes `shouldBe` [unpackId worker.id]
+
         it "orders global cards by votes then publication time" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Ordering venue"
@@ -294,9 +394,10 @@ tests = aroundAll withDatabaseTestContext do
                 Right _ <- publishFeedback newer.id moderator.id (UTCTime (fromGregorian 2026 9 2) 0)
                 Right _ <- publishFeedback newest.id moderator.id (UTCTime (fromGregorian 2026 9 3) 0)
                 Right _ <- addFeedbackVote older.id voter.id
-                cards <- fetchPublicFeedbackCards
+                cards <- fetchPublicFeedbackCards voter.id
                 map (.title) cards `shouldBe` ["Older popular idea", "Newest idea", "Newer idea"]
                 map (.voteCount) cards `shouldBe` [2, 1, 1]
+                map (.viewerHasVoted) cards `shouldBe` [True, False, False]
 
         it "uses ordinary privacy and effective submitter identity during support impersonation" $ withContext do
             withCleanDb do

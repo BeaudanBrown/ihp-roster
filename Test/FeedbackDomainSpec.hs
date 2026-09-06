@@ -69,6 +69,27 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchCount
                     >>= (`shouldBe` 1)
 
+        it "serializes concurrent removal and opposing account vote commands" $ withContext do
+            withCleanDb do
+                (feedback, author, moderator) <- privateFeedbackFixture
+                now <- getCurrentTime
+                Right _ <- publishFeedback feedback.id moderator.id now
+                (first, second) <- concurrently
+                    (removeFeedbackVote feedback.id author.id)
+                    (removeFeedbackVote feedback.id author.id)
+                length (filter (== Right ()) [first, second]) `shouldBe` 1
+                length (filter (== Left FeedbackVoteNotFound) [first, second]) `shouldBe` 1
+                query @FeedbackVote |> fetchCount >>= (`shouldBe` 0)
+                (added, removed) <- concurrently
+                    (addFeedbackVote feedback.id author.id)
+                    (removeFeedbackVote feedback.id author.id)
+                added `shouldSatisfy` isRight
+                count <- query @FeedbackVote |> fetchCount
+                case removed of
+                    Right () -> count `shouldBe` 0
+                    Left FeedbackVoteNotFound -> count `shouldBe` 1
+                    other -> expectationFailure (cs (show other))
+
         it "converges publish and archive races on lifecycle vote invariants" $ withContext do
             withCleanDb do
                 (feedback, _, moderator) <- privateFeedbackFixture

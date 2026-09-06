@@ -51,6 +51,7 @@ export function createLiveFragmentRefresher(options: {
             return;
         }
 
+        const restoreFocus = focus.captureReplacementFocus(target);
         target.replaceWith(nextNode);
         targetWindow.htmx?.process?.(nextNode);
         targetWindow.appPageLifecycle?.dispatchPageReady?.({
@@ -58,6 +59,7 @@ export function createLiveFragmentRefresher(options: {
             target: nextNode,
             isFullPage: false,
         });
+        restoreFocus(nextNode);
         endPerfSpan(perfSpan, { outcome: "swapped", nextTagName: nextNode.tagName });
     }
 

@@ -4,6 +4,7 @@ module Application.Feedback.ReadModel
     ) where
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Generated.Types
@@ -19,10 +20,11 @@ data PublicFeedbackCard = PublicFeedbackCard
     , feedbackType :: FeedbackTypeEnum
     , submittedAt :: UTCTime
     , voteCount :: Int
+    , viewerHasVoted :: Bool
     } deriving (Eq, Show)
 
-fetchPublicFeedbackCards :: (?modelContext :: ModelContext) => IO [PublicFeedbackCard]
-fetchPublicFeedbackCards = do
+fetchPublicFeedbackCards :: (?modelContext :: ModelContext) => Id User -> IO [PublicFeedbackCard]
+fetchPublicFeedbackCards viewerId = do
     items <- query @UserFeedbackItem
         |> filterWhere (#lifecycle, Public)
         |> fetch
@@ -31,13 +33,15 @@ fetchPublicFeedbackCards = do
         |> fetch
     let counts = Map.fromListWith (+) [(vote.feedbackItemId, 1 :: Int) | vote <- votes]
     let count item = Map.findWithDefault 0 (unpackId item.id) counts
-    pure $ map (project count) $ sortOn (\item -> (Down (count item), Down item.publishedAt, item.id)) items
+    let votedIds = Set.fromList (map (.feedbackItemId) (filter (\vote -> vote.userId == unpackId viewerId) votes))
+    pure $ map (project count votedIds) $ sortOn (\item -> (Down (count item), Down item.publishedAt, item.id)) items
   where
-    project count item = PublicFeedbackCard
+    project count votedIds item = PublicFeedbackCard
         { feedbackId = item.id
         , title = item.title
         , description = item.content
         , feedbackType = item.feedbackType
         , submittedAt = item.createdAt
         , voteCount = count item
+        , viewerHasVoted = unpackId item.id `Set.member` votedIds
         }
