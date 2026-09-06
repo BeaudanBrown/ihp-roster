@@ -16,6 +16,8 @@ esbuild frontend/ts/tests/main.ts \
     --format=esm \
     --target=node22 \
     --outfile="$tmp_dir/frontend-tests.mjs" \
+    --metafile="$tmp_dir/frontend-tests.meta.json" \
     --log-level=warning
 
+node scripts/frontend-test-registration.mjs "$tmp_dir/frontend-tests.meta.json"
 node "$tmp_dir/frontend-tests.mjs"

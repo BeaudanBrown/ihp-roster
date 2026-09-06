@@ -15,6 +15,7 @@ echo "verify-tooling: checker parser and publication fixtures"
 weeder-policy-test
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
 http-polling-policy-test
+node --test scripts/frontend-test-registration.test.mjs
 node --test scripts/documentation/check.test.mjs
 node --test scripts/migration-enum-commit-boundary.test.mjs
 node --test scripts/migration-rehearsal-ci.test.mjs
