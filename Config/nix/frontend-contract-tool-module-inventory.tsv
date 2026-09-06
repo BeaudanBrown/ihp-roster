@@ -34,7 +34,6 @@ Application/Helper/FrontendContract/Contracts.hs	tooling-only	Application.Script
 Application/Helper/FrontendContract/Core.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/DSL.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Error.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
-Application/Helper/FrontendContract/FeedbackDiagnostics.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/HorizontalScroll.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Interaction.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/IR.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling

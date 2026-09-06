@@ -209,7 +209,8 @@ data AdminController
     deriving (Eq, Show, Data)
 
 data FeedbackController
-    = NewFeedbackAction
+    = FeedbackAction
+    | NewFeedbackAction
     | CreateFeedbackAction
     deriving (Eq, Show, Data)
 

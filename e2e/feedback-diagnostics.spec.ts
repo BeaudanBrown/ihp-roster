@@ -1,75 +1,84 @@
 import { expect, test } from '@playwright/test';
-import {
-    feedbackDevicePixelRatioInputDomAttr,
-    feedbackDisplayModeInputDomAttr,
-    feedbackViewportHeightInputDomAttr,
-    feedbackViewportWidthInputDomAttr,
-} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, uniqueE2EValue } from './support/runtime';
 import { loginAs } from './support/session';
+import { runSql } from './support/database';
 
-const diagnosticSelectors = {
-    viewportWidth: `[${feedbackViewportWidthInputDomAttr}]`,
-    viewportHeight: `[${feedbackViewportHeightInputDomAttr}]`,
-    devicePixelRatio: `[${feedbackDevicePixelRatioInputDomAttr}]`,
-    displayMode: `[${feedbackDisplayModeInputDomAttr}]`,
-};
-
-test.describe('Feedback diagnostics', () => {
-    test('submits bounded browser diagnostics for the originating page', async ({ page }) => {
+test.describe('Private Feedback submission', () => {
+    test('navigates to the board and submits only editorial fields for review', async ({ page }, testInfo) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/LeaveRequests?feedbackToken=must-not-be-collected', '#leave-requests-content');
-
-        await page.getByRole('button', { name: 'feedback', exact: true }).click();
+        await gotoWhenReady(page, '/Feedback', '#feedback-cards');
+        const title = uniqueE2EValue('private-title');
+        await expect(page.getByRole('heading', { name: 'Feedback', exact: true })).toBeVisible();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        await page.screenshot({ path: testInfo.outputPath('feedback-board.png'), fullPage: true });
+        await testInfo.attach('Feedback board', { path: testInfo.outputPath('feedback-board.png'), contentType: 'image/png' });
+        await page.getByRole('link', { name: 'Add feedback', exact: true }).click();
         await expect(page.locator('#feedback-form')).toBeVisible({ timeout: E2E_TIMEOUT.action });
-
-        const viewport = page.viewportSize();
-        expect(viewport).not.toBeNull();
-        await expect(page.locator(diagnosticSelectors.viewportWidth)).toHaveValue(String(viewport!.width));
-        await expect(page.locator(diagnosticSelectors.viewportHeight)).toHaveValue(String(viewport!.height));
-        await expect(page.locator(diagnosticSelectors.displayMode)).toHaveValue('browser');
-
-        const expectedPixelRatio = await page.evaluate(() => String(window.devicePixelRatio));
-        await expect(page.locator(diagnosticSelectors.devicePixelRatio)).toHaveValue(expectedPixelRatio);
-
-        await page.locator('#feedback-content').fill(uniqueE2EValue('feedback-diagnostics'));
+        await page.getByLabel('Title', { exact: true }).fill(title);
+        await page.getByLabel('Description', { exact: true }).fill('A private suggestion for review.');
+        await page.screenshot({ path: testInfo.outputPath('feedback-dialog.png'), fullPage: true });
+        await testInfo.attach('Feedback dialog', { path: testInfo.outputPath('feedback-dialog.png'), contentType: 'image/png' });
         const requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST' && request.url().includes('/CreateFeedback'),
         );
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         const request = await requestPromise;
         const params = new URLSearchParams(request.postData() ?? '');
-
-        expect(new URL(request.headers()['referer']).pathname).toBe('/LeaveRequests');
-        expect(params.get('feedbackViewportWidth')).toBe(String(viewport!.width));
-        expect(params.get('feedbackViewportHeight')).toBe(String(viewport!.height));
-        expect(params.get('feedbackDevicePixelRatio')).toBe(expectedPixelRatio);
-        expect(params.get('feedbackDisplayMode')).toBe('browser');
+        expect([...params.keys()].sort()).toEqual(['content', 'feedbackTitle', 'feedbackType']);
+        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty({ timeout: E2E_TIMEOUT.assertion });
+        await expect(page.getByText('Thanks — your feedback was submitted for review.', { exact: true })).toBeVisible();
+        await gotoWhenReady(page, '/Feedback', '#feedback-cards');
+        await expect(page.locator('#feedback-cards')).not.toContainText(title);
     });
 
-    test('submits successfully without JavaScript or diagnostics', async ({ browser, page }) => {
+    test('renders responsive public cards without private provenance', async ({ page }, testInfo) => {
+        const itemId = 'fb504000-0000-4000-8000-000000000001';
+        runSql(`
+            DELETE FROM user_feedback_items WHERE id = '${itemId}';
+            INSERT INTO user_feedback_items (id, venue_id, submitted_by_user_id, title, content, lifecycle, published_at, published_by_user_id, support_note, submitted_path)
+            SELECT '${itemId}', membership.venue_id, account.id,
+                'A shared improvement for everyone', 'Long description: ${'unbroken'.repeat(30)}',
+                'public', '2026-09-01 12:00:00+00', account.id, 'Secret retained note', '/private-origin'
+            FROM users AS account JOIN venue_memberships AS membership ON membership.user_id = account.id
+            WHERE account.email = 'e2e-test@example.com' LIMIT 1;
+        `);
+        try {
+            await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+            await gotoWhenReady(page, '/Feedback', '#feedback-cards');
+            const cards = page.locator('#feedback-cards');
+            await expect(cards.getByRole('heading', { name: 'A shared improvement for everyone' })).toBeVisible();
+            for (const secret of ['Secret retained note', '/private-origin', 'e2e-test@example.com']) {
+                await expect(cards).not.toContainText(secret);
+            }
+            expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+            await page.screenshot({ path: testInfo.outputPath('feedback-public.png'), fullPage: true });
+            await testInfo.attach('Public Feedback cards', { path: testInfo.outputPath('feedback-public.png'), contentType: 'image/png' });
+        } finally {
+            runSql(`DELETE FROM user_feedback_items WHERE id = '${itemId}';`);
+        }
+    });
+
+    test('submits successfully without JavaScript and keeps the submission private', async ({ browser, page }) => {
         test.setTimeout(E2E_TIMEOUT.slowTest);
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         const cookies = await page.context().cookies();
-        const noJavaScriptContext = await browser.newContext({ javaScriptEnabled: false });
-        await noJavaScriptContext.addCookies(cookies);
-        const noJavaScriptPage = await noJavaScriptContext.newPage();
-
+        const context = await browser.newContext({ javaScriptEnabled: false });
+        await context.addCookies(cookies);
+        const nativePage = await context.newPage();
         try {
-            await gotoWhenReady(noJavaScriptPage, '/NewFeedback', '#feedback-form');
-            await expect(noJavaScriptPage.locator(diagnosticSelectors.viewportWidth)).toHaveValue('');
-            await expect(noJavaScriptPage.locator(diagnosticSelectors.viewportHeight)).toHaveValue('');
-            await expect(noJavaScriptPage.locator(diagnosticSelectors.devicePixelRatio)).toHaveValue('');
-            await expect(noJavaScriptPage.locator(diagnosticSelectors.displayMode)).toHaveValue('');
-
-            await noJavaScriptPage.locator('#feedback-content').fill(uniqueE2EValue('feedback-no-js'));
-            await noJavaScriptPage.locator('button[type="submit"][form="feedback-form"]').click();
-
-            await expect(noJavaScriptPage).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
-            await expect(noJavaScriptPage.locator('#feedback-form')).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
+            await gotoWhenReady(nativePage, '/Feedback', '#feedback-cards');
+            await nativePage.getByRole('link', { name: 'Add feedback', exact: true }).click();
+            await expect(nativePage.locator('#feedback-form')).toBeVisible();
+            const title = uniqueE2EValue('feedback-native');
+            await nativePage.getByLabel('Title', { exact: true }).fill(title);
+            await nativePage.getByLabel('Description', { exact: true }).fill('Native submission remains private.');
+            await nativePage.locator('button[type="submit"][form="feedback-form"]').click();
+            await expect(nativePage).toHaveURL(/\/Feedback$/, { timeout: E2E_TIMEOUT.navigation });
+            await expect(nativePage.locator('#feedback-cards')).toBeVisible();
+            await expect(nativePage.locator('#feedback-cards')).not.toContainText(title);
         } finally {
-            await noJavaScriptContext.close();
+            await context.close();
         }
     });
 });

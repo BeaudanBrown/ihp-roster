@@ -949,21 +949,6 @@ export const pwaInstallResultStateDomAttr = "data-bepis-pwa-install-result-state
 
 export const pwaInstalledStatusDomAttr = "data-bepis-pwa-installed-status" as const;
 
-export type FeedbackDisplayMode =
-    "browser"
-  | "standalone";
-export function isFeedbackDisplayMode(value: unknown): value is FeedbackDisplayMode {
-    return typeof value === "string" && ["browser", "standalone"].includes(value);
-}
-
-export const feedbackViewportWidthInputDomAttr = "data-bepis-feedback-viewport-width-input" as const;
-
-export const feedbackViewportHeightInputDomAttr = "data-bepis-feedback-viewport-height-input" as const;
-
-export const feedbackDevicePixelRatioInputDomAttr = "data-bepis-feedback-device-pixel-ratio-input" as const;
-
-export const feedbackDisplayModeInputDomAttr = "data-bepis-feedback-display-mode-input" as const;
-
 export type XeroCandidateFilterConfig = { searchProjection: string };
 export function isXeroCandidateFilterConfig(value: unknown): value is XeroCandidateFilterConfig {
     return isRecord(value) && hasExactKeys(value, ["searchProjection"], ["searchProjection"]) && (typeof value["searchProjection"] === "string");

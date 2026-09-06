@@ -56,13 +56,13 @@ Data.List	base	Application/Helper/Profiling.hs via Main
 Data.List.NonEmpty	base	Web/Controller/Auth.hs via Main
 Data.Map.Strict	containers	Application/Helper/Profiling.hs via Main
 Data.Maybe	base	Web/Controller/RosterWeeks.hs via Main
-Data.Ord	base	Web/LeaveRequests/SelfService.hs via Main
+Data.Ord	base	Application/Feedback/ReadModel.hs via Main
 Data.Ratio	base	Application/Helper/Export/Render.hs via Main
 Data.Scientific	scientific	Application/Helper/LiveUpdate/DurableCodec.hs via Main
 Data.Set	containers	Web/SurfaceInvalidation.hs via Main
 Data.Text	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding	text	Application/Helper/Telemetry.hs via Main
-Data.Text.Encoding.Error	text	Web/Controller/Feedback.hs via Main
+Data.Text.Encoding.Error	text	Application/Helper/FrontendContract/Surface/Request.hs via Main
 Data.Text.IO	text	Web/FrontController.hs via Main
 Data.Text.Lazy.Encoding	text	Application/Helper/Profiling.hs via Main
 Data.Time	time	Web/Controller/RosterWeeks.hs via Main
@@ -161,7 +161,6 @@ Text.Blaze	blaze-markup	Application/Helper/FrontendContract/AppShell/Runtime.hs 
 Text.Blaze.Html	blaze-html	Application/Helper/Profiling.hs via Main
 Text.Blaze.Html.Renderer.Utf8	blaze-html	Application/Helper/Profiling.hs via Main
 Text.Blaze.Html5	blaze-html	Web/View/Layout.hs via Main
-Text.Blaze.Html5.Attributes	blaze-html	Application/Helper/FrontendContract/FeedbackDiagnostics/Runtime.hs via Main
 Text.Blaze.Internal	blaze-markup	Application/Helper/FrontendContract/AppShell/Runtime.hs via Main
 Text.Printf	base	Application/Helper/Export/HourlyBreakdown.hs via Main
 Text.Read	base	Application/Helper/Telemetry.hs via Main

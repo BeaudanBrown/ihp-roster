@@ -38,9 +38,10 @@ Application/Error/Transaction.hs	production	runtime	Main	Reachable from Main
 Application/Error/Types.hs	production	runtime	Main	Reachable from Main
 Application/Error/Types/Internal.hs	production	runtime	Main	Reachable from Main
 Application/Error/Wire.hs	production	runtime	Main	Reachable from Main
-Application/Feedback/Domain.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/Domain.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Feedback/Email.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Notification.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/ReadModel.hs	production	runtime	Main	Reachable from Main
 Application/Fixture.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/DevFixtures.hs	development	development-fixture	-	Synthetic local development data only
 Application/Fixture/DevFixtures/Deterministic.hs	development	development-fixture	-	Synthetic local development data only
@@ -98,8 +99,6 @@ Application/Helper/FrontendContract/Contracts.hs	development	build-tooling	-	Gen
 Application/Helper/FrontendContract/Core.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/DSL.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Error.hs	production	runtime	Main	Reachable from Main
-Application/Helper/FrontendContract/FeedbackDiagnostics.hs	production	runtime	Main	Reachable from Main
-Application/Helper/FrontendContract/FeedbackDiagnostics/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/HorizontalScroll.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/HorizontalScroll/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Htmx.hs	production	runtime	Main	Reachable from Main
@@ -549,6 +548,7 @@ Web/View/Admin/Xero/TimesheetPreparation.hs	production	runtime	Main	Reachable fr
 Web/View/Admin/Xero/TimesheetPreparation/Review.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation/StaffMappings.hs	production	runtime	Main	Reachable from Main
 Web/View/Billing/Index.hs	production	runtime	Main	Reachable from Main
+Web/View/Feedback/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/New.hs	production	runtime	Main	Reachable from Main
 Web/View/Help/Show.hs	production	runtime	Main	Reachable from Main
 Web/View/Layout.hs	production	runtime	Main	Reachable from Main

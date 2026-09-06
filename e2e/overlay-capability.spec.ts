@@ -31,7 +31,7 @@ async function observeDialogDismissals(page: Page) {
 }
 
 async function openFeedbackDialog(page: Page) {
-    const launcher = page.getByRole('button', { name: 'feedback', exact: true });
+    const launcher = page.getByRole('link', { name: 'Add feedback', exact: true });
     await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
     await launcher.click();
     await expect(page.locator(dialogSelector)).toBeVisible({ timeout: E2E_TIMEOUT.action });
@@ -40,7 +40,7 @@ async function openFeedbackDialog(page: Page) {
 test.describe('Generated overlay capability', () => {
     test.beforeEach(async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/Feedback', '#feedback-cards');
     });
 
     test('preserves dialog submit, HTMX clear, body locking, toast, and accessibility behavior', async ({ page }) => {
@@ -59,6 +59,7 @@ test.describe('Generated overlay capability', () => {
         expect(rawSubmitConfig).not.toBeNull();
         expect(JSON.parse(rawSubmitConfig!)).toEqual({ loadingLabel: 'Working...' });
 
+        await page.locator('#feedback-title').fill('Overlay submission');
         await page.locator('#feedback-content').fill(uniqueE2EValue('overlay-capability'));
         let releaseRequest: () => void = () => undefined;
         const requestGate = new Promise<void>((resolve) => {
@@ -88,7 +89,7 @@ test.describe('Generated overlay capability', () => {
         await expect(page.locator('body')).not.toHaveClass(/modal-open/);
 
         const toast = page.locator(`${toastHostSelector} [${toastMountDomAttr}]`);
-        await expect(toast).toContainText('Thanks — your feedback was sent.', { timeout: E2E_TIMEOUT.assertion });
+        await expect(toast).toContainText('Thanks — your feedback was submitted for review.', { timeout: E2E_TIMEOUT.assertion });
         const rawToastConfig = await toast.getAttribute(toastConfigDomAttr);
         expect(rawToastConfig).not.toBeNull();
         expect(JSON.parse(rawToastConfig!)).toEqual({ autoHideMs: 3200 });

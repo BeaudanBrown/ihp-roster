@@ -12,8 +12,7 @@ import Application.Helper.Controller (EffectiveUser (..),
                                       currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
-import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog,
-                                                     SubmitPasskeyProtectedAction)
+import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
@@ -68,7 +67,7 @@ renderAppHeader =
                     <div class="app-header-desktop-actions d-none d-xl-flex align-items-center gap-2 ms-auto">
                         {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch" "support-venue-switch-form")}
                         {renderWhenAudience SupportAudience (renderSupportImpersonationSwitcher "support-impersonation-user" "support-impersonation-switch-form")}
-                        {renderWhenAudience StaffProfileAudience renderDesktopFeedbackButton}
+                        {renderDesktopFeedbackButton}
                         <div class="navbar-nav app-header-nav d-flex flex-row gap-1 align-items-center">
                             {renderDesktopNavLinks}
                         </div>
@@ -99,39 +98,20 @@ renderAppHeader =
                     <nav class="app-mobile-nav-list" aria-label="Application installation">
                         {renderMobileNavLink "Install Bepis" "bi-phone" (pathTo InstallAppAction) ["/InstallApp"]}
                     </nav>
-                    {renderWhenAudience StaffProfileAudience renderMobileFeedbackButton}
+                    {renderMobileFeedbackButton}
                     {renderMobileLogoutForm}
                 </div>
             </div>
         |]
         Nothing -> mempty
 
-renderDesktopFeedbackButton :: Html
+renderDesktopFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopFeedbackButton =
-    renderFeedbackOverlayButton
-        "btn btn-outline-info btn-sm app-header-nav-item"
-        "bi bi-chat-dots"
-        "feedback"
+    renderDesktopNavLink "feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]
 
-renderMobileFeedbackButton :: Html
+renderMobileFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
 renderMobileFeedbackButton =
-    renderFeedbackOverlayButton
-        "app-mobile-nav-link"
-        "bi bi-chat-dots app-mobile-nav-icon"
-        "Feedback"
-
-renderFeedbackOverlayButton :: Text -> Text -> Text -> Html
-renderFeedbackOverlayButton buttonClasses iconClasses label =
-    applyAppShellActionAttrs
-        (appShellActionByMarker @OpenFeedbackDialog)
-        ((defaultAppShellActionRoute (pathTo NewFeedbackAction))
-            { appShellActionRouteExtraAttrs = [ ("class", buttonClasses)
-                , ("type", "button")
-                ]
-            })
-        (Html5.button $ do
-            [hsx|<i class={iconClasses} aria-hidden="true"></i>|]
-            [hsx|<span>{label}</span>|])
+    renderMobileNavLink "Feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|

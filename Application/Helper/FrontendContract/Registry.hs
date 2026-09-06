@@ -16,7 +16,6 @@ import Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.ClosedScalars
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Error
-import Application.Helper.FrontendContract.FeedbackDiagnostics
 import Application.Helper.FrontendContract.HorizontalScroll
 import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
@@ -56,7 +55,6 @@ type RegisteredFrontendContracts =
      , HorizontalScrollContract
      , PasskeyContract
      , PwaInstallContract
-     , FeedbackDiagnosticsContract
      , XeroCandidateFilterContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]

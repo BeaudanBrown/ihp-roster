@@ -2,20 +2,14 @@
 
 module Web.View.Feedback.New where
 
-import Application.Helper.FrontendContract.AppShell (ContentField,
-                                                     FeedbackDevicePixelRatioField,
-                                                     FeedbackDisplayModeField,
-                                                     FeedbackTypeField,
-                                                     FeedbackViewportHeightField,
-                                                     FeedbackViewportWidthField,
-                                                     SubmitFeedback)
+import Application.Helper.FrontendContract.AppShell (ContentField, FeedbackTitleField,
+                                                     FeedbackTypeField, SubmitFeedback)
 import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
                                                              appShellActionFields,
                                                              appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
-import Application.Helper.FrontendContract.FeedbackDiagnostics.Runtime (renderFeedbackDiagnosticInputs)
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
 import Web.View.Prelude
@@ -27,7 +21,7 @@ newtype NewView = NewView
 instance View NewView where
     html NewView { .. } =
         renderPageDialogModal
-            (pathTo RosterWeeksAction)
+            (pathTo FeedbackAction)
             (feedbackDialogConfig PageOverlayForm feedbackItem)
 
 feedbackFormId :: Text
@@ -40,7 +34,7 @@ renderNewFeedbackDialog feedbackItem =
 feedbackDialogConfig :: OverlayFormMode -> UserFeedbackItem -> DialogOverlayConfig
 feedbackDialogConfig formMode feedbackItem =
     defaultDialogOverlayConfig
-            "Send Feedback"
+            "Add feedback"
             (renderFeedbackForm formMode feedbackItem)
             (defaultOverlayButtons feedbackFormId)
 
@@ -68,17 +62,20 @@ renderFeedbackForm formMode feedbackItem =
         appShellActionFields @SubmitFeedback
             (surfaceField @FeedbackTypeField feedbackItem.feedbackType)
             ( surfaceField @ContentField feedbackItem.content
-                &: surfaceOptionalField @FeedbackViewportWidthField Nothing
-                &: surfaceOptionalField @FeedbackViewportHeightField Nothing
-                &: surfaceOptionalField @FeedbackDevicePixelRatioField Nothing
-                &: surfaceOptionalField @FeedbackDisplayModeField Nothing
+                &: surfaceField @FeedbackTitleField feedbackItem.title
                 &: noSurfaceFields
             )
 
 renderFeedbackFormFields :: AppShellActionFields SubmitFeedback -> UserFeedbackItem -> Html
 renderFeedbackFormFields fields feedbackItem = [hsx|
-    {renderFeedbackDiagnosticInputs fields}
     <div class="app-form-width">
+        <div class="mb-3">
+            <label class="form-label" for="feedback-title">Title</label>
+            <input id="feedback-title" name={surfaceFieldNameFrom @FeedbackTitleField fields}
+                value={feedbackItem.title} type="text" maxlength="120" required="required"
+                class={classes [("form-control", True), ("is-invalid", feedbackHasErrorFor feedbackItem "title")]} />
+            {renderFeedbackFieldError feedbackItem "title"}
+        </div>
         <div class="mb-3">
             <label class="form-label" for="feedback-type">Type</label>
             <select id="feedback-type" name={surfaceFieldNameFrom @FeedbackTypeField fields} class={classes [("form-select", True), ("is-invalid", feedbackHasErrorFor feedbackItem "feedbackType")]}>
@@ -90,11 +87,13 @@ renderFeedbackFormFields fields feedbackItem = [hsx|
         </div>
 
         <div class="mb-3">
-            <label class="form-label" for="feedback-content">Feedback</label>
+            <label class="form-label" for="feedback-content">Description</label>
             <textarea
                 id="feedback-content"
                 name={surfaceFieldNameFrom @ContentField fields}
                 rows="6"
+                minlength="3"
+                maxlength="3000"
                 class={classes [("form-control", True), ("is-invalid", feedbackHasErrorFor feedbackItem "content")]}
                 required="required"
             >{feedbackItem.content}</textarea>

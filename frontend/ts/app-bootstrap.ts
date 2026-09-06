@@ -1,4 +1,3 @@
-import { initializeFeedbackDiagnostics } from "./feedback-diagnostics";
 import { pageReadyEvent } from "./generated/contracts";
 import { isDocument, isHTMLElement } from "./shared/dom";
 import { detailRoot, detailTarget } from "./shared/lifecycle";
@@ -51,11 +50,6 @@ export function pageReadyDetailFrom(detail: PageReadyDetailInput): PageReadyDeta
         eventName: pageReadyEventName,
         dispatchPageReady,
     };
-
-    document.addEventListener(pageReadyEventName, function (event) {
-        const target = normalizeTarget(detailTarget(event, "target"));
-        initializeFeedbackDiagnostics(target);
-    });
 
     document.addEventListener("DOMContentLoaded", function () {
         dispatchPageReady({

@@ -20,6 +20,7 @@ if (!['fast', 'full'].includes(e2eTier)) {
 const mobileTestFiles = [
     /.*mobile-experience\.spec\.ts/,
     /.*pwa-install\.spec\.ts/,
+    /.*feedback-diagnostics\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
     /.*roster-template-modals\.spec\.ts/,
     ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),

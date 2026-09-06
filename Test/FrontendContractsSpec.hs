@@ -319,6 +319,7 @@ tests = describe "Frontend contract generator foundation" do
                 parseAppShellActionParamPairs @AppShell.SubmitFeedback
                     [ ("feedbackType", Just "suggestion")
                     , ("content", Just "Typed feedback")
+                    , ("feedbackTitle", Just "Typed title")
                     ]
         fmap (surfaceFieldValue @AppShell.FeedbackTypeField) parsedFeedback
             `shouldBe` Right Suggestion
@@ -384,10 +385,7 @@ tests = describe "Frontend contract generator foundation" do
         fmap (fmap (.fieldName) . (.appShellActionFields)) submitFeedbackAction `shouldBe` Just
             [ "feedbackType"
             , "content"
-            , "feedbackViewportWidth"
-            , "feedbackViewportHeight"
-            , "feedbackDevicePixelRatio"
-            , "feedbackDisplayMode"
+            , "feedbackTitle"
             ]
         fmap (.appShellActionOptions) submitFeedbackAction
             `shouldBe` Just
