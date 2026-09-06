@@ -1130,6 +1130,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #title "Clearer publish button"
                     |> set #feedbackType Bug
                     |> set #status "new"
                     |> set #priority "normal"
@@ -1157,6 +1158,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #title "Diagnostics are available"
                     |> set #feedbackType Bug
                     |> set #status "new"
                     |> set #priority "normal"
@@ -1192,6 +1194,7 @@ tests = aroundAll withDatabaseTestContext do
                 feedbackItem <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #title "Clearer copy action"
                     |> set #feedbackType Suggestion
                     |> set #status "new"
                     |> set #priority "normal"

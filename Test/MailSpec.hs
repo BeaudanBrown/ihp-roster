@@ -173,6 +173,7 @@ tests = aroundAll withDatabaseTestContext do
                         newRecord @UserFeedbackItem
                             |> set #venueId (unpackId venue.id)
                             |> set #submittedByUserId (unpackId submitter.id)
+                            |> set #title "Escaped feedback context"
                             |> set #feedbackType Bug
                             |> set #content "<script>alert('escaped')</script>\nSecond line"
                             |> set #submittedRole (Just "worker")

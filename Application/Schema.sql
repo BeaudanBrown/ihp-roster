@@ -50,6 +50,7 @@ CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
 CREATE TYPE roster_day_publication_state_enum AS ENUM ('draft', 'published');
 CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
 CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
+CREATE TYPE feedback_lifecycle_enum AS ENUM ('private', 'public', 'archived');
 CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
 CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');
 CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');
@@ -1079,7 +1080,13 @@ CREATE TABLE user_feedback_items (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     submitted_by_user_id UUID NOT NULL,
+    title TEXT NOT NULL,
     feedback_type feedback_type_enum DEFAULT 'bug' NOT NULL,
+    lifecycle feedback_lifecycle_enum DEFAULT 'private' NOT NULL,
+    published_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    published_by_user_id UUID DEFAULT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
     status TEXT DEFAULT 'new' NOT NULL,
     priority TEXT DEFAULT 'normal' NOT NULL,
     content TEXT NOT NULL,
@@ -1100,10 +1107,18 @@ CREATE TABLE user_feedback_items (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (submitted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT user_feedback_items_published_by_fk FOREIGN KEY (published_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT user_feedback_items_archived_by_fk FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (read_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (resolved_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((status = 'new') OR (status = 'triaged') OR (status = 'planned') OR (status = 'in_progress') OR (status = 'done') OR (status = 'closed')),
     CHECK ((priority = 'low') OR (priority = 'normal') OR (priority = 'high')),
+    CONSTRAINT user_feedback_items_title_check CHECK ((char_length(regexp_replace(title, '[[:space:]]', '', 'g')) >= 1) AND (char_length(title) <= 120)),
+    CONSTRAINT user_feedback_items_lifecycle_facts_check CHECK (
+        (lifecycle = 'private' AND published_at IS NULL AND published_by_user_id IS NULL AND archived_at IS NULL AND archived_by_user_id IS NULL)
+        OR (lifecycle = 'public' AND published_at IS NOT NULL AND published_by_user_id IS NOT NULL AND archived_at IS NULL AND archived_by_user_id IS NULL)
+        OR (lifecycle = 'archived' AND archived_at IS NOT NULL AND archived_by_user_id IS NOT NULL AND ((published_at IS NULL AND published_by_user_id IS NULL) OR (published_at IS NOT NULL AND published_by_user_id IS NOT NULL)))
+    ),
     CHECK (char_length(content) >= 3),
     CHECK (char_length(content) <= 3000),
     CHECK (submitted_path IS NULL OR ((char_length(submitted_path) > 0) AND (char_length(submitted_path) <= 500))),
@@ -1120,6 +1135,47 @@ CREATE TABLE user_feedback_items (
 );
 CREATE INDEX user_feedback_items_unread_idx ON user_feedback_items (created_at) WHERE read_at IS NULL;
 CREATE INDEX user_feedback_items_venue_created_at_idx ON user_feedback_items (venue_id, created_at);
+CREATE INDEX user_feedback_items_public_order_idx ON user_feedback_items (published_at DESC, id) WHERE lifecycle = 'public';
+CREATE TABLE feedback_votes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    feedback_item_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (feedback_item_id) REFERENCES user_feedback_items (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT feedback_votes_item_user_key UNIQUE (feedback_item_id, user_id)
+);
+CREATE INDEX feedback_votes_item_created_idx ON feedback_votes (feedback_item_id, created_at, id);
+
+CREATE FUNCTION enforce_feedback_vote_public_lifecycle()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM user_feedback_items
+        WHERE id = NEW.feedback_item_id AND lifecycle = 'public'
+        FOR UPDATE
+    ) THEN
+        RAISE EXCEPTION 'feedback votes require a public feedback item';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER enforce_feedback_votes_public_lifecycle BEFORE INSERT OR UPDATE ON feedback_votes FOR EACH ROW EXECUTE FUNCTION enforce_feedback_vote_public_lifecycle();
+
+CREATE FUNCTION enforce_feedback_nonpublic_has_no_votes()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.lifecycle <> 'public' AND EXISTS (
+        SELECT 1 FROM feedback_votes WHERE feedback_item_id = NEW.id
+    ) THEN
+        RAISE EXCEPTION 'private or archived feedback cannot retain votes';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER enforce_feedback_nonpublic_has_no_votes BEFORE INSERT OR UPDATE ON user_feedback_items FOR EACH ROW EXECUTE FUNCTION enforce_feedback_nonpublic_has_no_votes();
+
 CREATE TABLE payroll_workbook_configurations (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,

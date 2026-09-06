@@ -225,6 +225,7 @@ createQueuedFeedback recipientEmail = do
         newRecord @UserFeedbackItem
             |> set #venueId (unpackId venue.id)
             |> set #submittedByUserId (unpackId submitter.id)
+            |> set #title "Feedback delivery test"
             |> set #feedbackType Bug
             |> set #status "new"
             |> set #priority "normal"

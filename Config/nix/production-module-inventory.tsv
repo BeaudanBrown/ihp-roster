@@ -38,6 +38,7 @@ Application/Error/Transaction.hs	production	runtime	Main	Reachable from Main
 Application/Error/Types.hs	production	runtime	Main	Reachable from Main
 Application/Error/Types/Internal.hs	production	runtime	Main	Reachable from Main
 Application/Error/Wire.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/Domain.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Email.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Notification.hs	production	runtime	Main	Reachable from Main
 Application/Fixture.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure

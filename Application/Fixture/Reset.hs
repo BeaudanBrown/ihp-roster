@@ -64,6 +64,7 @@ applicationTableNames =
     , "leave_request_events"
     , "unavailability_blackouts"
     , "audit_events"
+    , "feedback_votes"
     , "user_feedback_items"
     , "payroll_workbook_configurations"
     , "payroll_workbook_configuration_families"

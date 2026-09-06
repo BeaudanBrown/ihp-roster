@@ -1,5 +1,6 @@
 module Web.Controller.Feedback where
 
+import Application.Feedback.Domain (deriveFeedbackTitle)
 import Application.Feedback.Notification (enqueueFeedbackNotificationJobs,
                                           feedbackSubmittedMailKind)
 import Application.Helper.Controller (boundedText, normalizeTextField)
@@ -84,7 +85,9 @@ buildNewFeedbackItem =
     newRecord @UserFeedbackItem
         |> set #venueId (coerce currentVenueId)
         |> set #submittedByUserId (coerce currentUser.id)
+        |> set #title ""
         |> set #feedbackType Bug
+        |> set #lifecycle Private
         |> set #status "new"
         |> set #priority "normal"
         |> set #content ""
@@ -93,7 +96,8 @@ buildSubmittedFeedbackItem :: (?context :: ControllerContext, ?request :: Reques
 buildSubmittedFeedbackItem fields =
     buildNewFeedbackItem
         |> set #feedbackType (surfaceFieldValue @FeedbackTypeField fields)
-        |> set #content (surfaceFieldValue @ContentField fields)
+        |> set #title (deriveFeedbackTitle submittedContent)
+        |> set #content submittedContent
         |> normalizeTextField #content
         |> validateField #content nonEmpty
         |> validateField #content feedbackContentMinLength
@@ -107,6 +111,7 @@ buildSubmittedFeedbackItem fields =
         |> set #deviceClass (viewportDeviceClass viewportWidth)
         |> set #displayMode displayMode
   where
+    submittedContent = Text.strip (surfaceFieldValue @ContentField fields)
     viewportWidth = parseBoundedNumber 1 10000 (surfaceFieldValue @FeedbackViewportWidthField fields)
     viewportHeight = parseBoundedNumber 1 10000 (surfaceFieldValue @FeedbackViewportHeightField fields)
     devicePixelRatio = parseBoundedNumber 0 100 (surfaceFieldValue @FeedbackDevicePixelRatioField fields) >>= positiveOnly
