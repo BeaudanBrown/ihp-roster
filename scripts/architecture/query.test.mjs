@@ -49,6 +49,7 @@ test("focused queries reject stale facts and leave current facts untouched", (t)
     schema: { tables: [], enums: [] },
     web: { controllers: [], handlers: [], controllerPolicies: [] },
     modules: [],
+    workflowBoundaries: { modules: [], exceptions: [], violations: [] },
     realtime: { surfaces: [], references: [] },
     frontend: { contracts: { sources: [], generated: [], consumers: [] } },
   };
@@ -58,6 +59,20 @@ test("focused queries reject stale facts and leave current facts untouched", (t)
   const currentResult = runQuery(fixtureRoot, { name: "conventions", args: {} });
   assert.equal(currentResult.status, 0, currentResult.stderr || currentResult.stdout);
   assert.equal(fs.readFileSync(factsPath, "utf8"), currentFacts, "current facts should not be regenerated");
+
+  facts.workflowBoundaries.violations.push({
+    rule: "response-mutation-dependency", owner: "Pilot", source: { path: "Web/Pilot/Responses.hs", line: 7 },
+    message: "Web.Pilot.Responses must not import Web.Pilot.Mutations",
+  });
+  fs.writeFileSync(factsPath, JSON.stringify(facts));
+  const violationResult = runQuery(fixtureRoot, { name: "conventions", args: { failOnViolations: true } });
+  assert.equal(violationResult.status, 1);
+  const report = JSON.parse(violationResult.stdout);
+  assert.equal(report.metrics.errors, 1);
+  assert.match(violationResult.stdout, /response-mutation-dependency/);
+  assert.match(violationResult.stdout, /Web\/Pilot\/Responses.hs:7/);
+  assert.match(violationResult.stdout, /Pilot/);
+  fs.writeFileSync(factsPath, currentFacts);
 
   fs.appendFileSync(schemaPath, "-- representative source mutation\n");
   const staleSourceResult = runQuery(fixtureRoot, { name: "conventions", args: {} });

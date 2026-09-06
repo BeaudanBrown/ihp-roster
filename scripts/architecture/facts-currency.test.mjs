@@ -7,4 +7,5 @@ test("architecture fact inputs use authored frontend sources instead of generate
   assert.ok(inputs.some((file) => file.startsWith("frontend/ts/") && file.endsWith(".ts")));
   assert.equal(inputs.some((file) => file.startsWith("static/") && file.endsWith(".js")), false);
   assert.ok(inputs.includes("output/architecture/bepis-contracts.json"));
+  assert.ok(inputs.includes("scripts/architecture/workflow-boundaries.mjs"));
 });

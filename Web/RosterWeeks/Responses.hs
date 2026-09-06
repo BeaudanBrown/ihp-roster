@@ -1,3 +1,5 @@
+{-# LANGUAGE ExplicitNamespaces #-}
+
 module Web.RosterWeeks.Responses
     ( respondToRosterSlotMutation
     , respondToRosterSlotMove
@@ -45,7 +47,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,
                                         rosterSurfaceScope)
-import Web.RosterWeeks.Mutations (RosterSlotMutationResult)
+import Web.RosterWeeks.Mutations (type RosterSlotMutationResult)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
                                     rosterMutationMountedProjections,

@@ -18,6 +18,7 @@ const explicitFactInputs = [
   "scripts/architecture/shared.mjs",
   "scripts/architecture/wiring-policy.mjs",
   "scripts/architecture/wiring-source.mjs",
+  "scripts/architecture/workflow-boundaries.mjs",
 ];
 
 function unique(values) {

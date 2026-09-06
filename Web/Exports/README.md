@@ -39,5 +39,8 @@ in `Test/PayrollWorkbookConfigurationSpec.hs`, and existing Exports/Users tests.
 For browser integration run the export download and authorization Playwright
 specs after verifying the current worktree's runtime identity.
 
-See [export contracts](../../Application/Helper/Export/SPEC.md) and
-[controller rules](../Controller/AGENTS.md).
+See [export contracts](../../Application/Helper/Export/SPEC.md) and the shared
+[workflow role contract](../Controller/AGENTS.md#feature-workflow-contract).
+`architecture-facts` and the `conventions` query check the adopted import roles;
+keep request parsing and dialog models here without importing response or
+passive-publisher owners into the workflow.

@@ -84,6 +84,12 @@ result or moving all request handling into a feature module. `Responses` owns
 completion HTML/headers and delegates every layout decision to `Projection`;
 move/duplicate/assignment/delete retain their existing operation owners.
 
+Follow the shared [workflow role contract](../Controller/AGENTS.md#feature-workflow-contract).
+The adopted import guard permits `Responses` to import only the named committed
+mutation result type, with an accountable exception; do not broaden that import
+to mutation functions. Existing shift-dialog rendering inside `ShiftWorkflow`
+remains legitimate, not a reason to add a pass-through view layer.
+
 ## Roster Enum Authority
 
 `RosterLayoutModeEnum` remains nominal through roster decisions. Use the

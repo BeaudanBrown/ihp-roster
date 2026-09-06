@@ -4,6 +4,7 @@ import { architectureFactFingerprint } from "./facts-currency.mjs";
 import { fileHash, listFiles, outputDir, readText, repoRoot, writeJson } from "./shared.mjs";
 import { parseLayoutPolicy } from "./layout-policy.mjs";
 import { wiringRegistryPolicy } from "./wiring-policy.mjs";
+import { inspectWorkflowBoundaries } from "./workflow-boundaries.mjs";
 import { parseControllerMounts, parseControllerRoutes, parseFrontendLayoutScripts } from "./wiring-source.mjs";
 
 function lineNumberAt(text, index) {
@@ -423,6 +424,7 @@ const facts = {
   modules: parseHaskellModules(),
   realtime: parseRealtime(allReferenceFiles),
   wiringRegistryPolicy,
+  workflowBoundaries: inspectWorkflowBoundaries(),
   frontend: {
     ...parseFrontendWiring(),
     contracts: {

@@ -28,6 +28,7 @@ esbuild .pi/extensions/observability.ts --bundle --platform=node --format=esm \
 migration-enum-commit-boundary-real-runner-test
 migration-rehearsal-test
 bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/wiring-registry-test"
+node --test scripts/architecture/workflow-boundaries.test.mjs
 node --test scripts/architecture/enum-authority.test.mjs
 node --test scripts/architecture/facts-currency.test.mjs
 node --test scripts/architecture/layout-policy.test.mjs

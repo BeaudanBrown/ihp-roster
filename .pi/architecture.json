@@ -27,6 +27,10 @@
       "description": "Test closed controller and global frontend wiring registry parity diagnostics.",
       "command": ["bash", "./bin/in-env", "architecture-wiring-registry-test"]
     },
+    "workflow-boundaries-test": {
+      "description": "Test adopted workflow import boundaries, type-only exceptions and diagnostics.",
+      "command": ["bash", "./bin/in-env", "node", "--test", "scripts/architecture/workflow-boundaries.test.mjs"]
+    },
     "schema": {
       "description": "Generate database schema DOT/SVG diagrams from Application/Schema.sql.",
       "command": ["bash", "./bin/in-env", "architecture-schema"]
@@ -86,7 +90,7 @@
     },
     "conventions": {
       "description": "Report Bepis wrapper and architecture convention drift.",
-      "intent": "Detect migrated controllers that bypass Bepis action wrappers and report rollout coverage for unmigrated controllers.",
+      "intent": "Detect Bepis action wrapper drift and adopted workflow import-boundary violations; report accountable owners and source evidence.",
       "capabilities": ["controller-actions", "typed-wrapper-coverage", "convention-checks", "metrics"],
       "command": ["bash", "./bin/in-env", "architecture-query"],
       "parameters": {

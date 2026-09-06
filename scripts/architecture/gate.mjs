@@ -5,6 +5,7 @@ import { checkProductionEnumAuthority } from "./enum-authority.mjs";
 import { checkLayoutPolicy } from "./layout-policy.mjs";
 import { repoRoot } from "./shared.mjs";
 import { checkWiringRegistries } from "./wiring-registry.mjs";
+import { workflowViolationMessage } from "./workflow-boundaries.mjs";
 
 const factsPath = path.join(repoRoot, "output/architecture/facts.json");
 if (!fs.existsSync(factsPath)) {
@@ -19,6 +20,7 @@ const errors = [
   ...checkWiringRegistries(facts),
   ...checkLayoutPolicy(facts.frontend?.layoutPolicy),
   ...checkProductionEnumAuthority(),
+  ...(facts.workflowBoundaries?.violations.map(workflowViolationMessage) ?? ["Missing workflow boundary evidence; run architecture-facts"]),
 ];
 
 for (const controller of facts.web.controllers || []) {
