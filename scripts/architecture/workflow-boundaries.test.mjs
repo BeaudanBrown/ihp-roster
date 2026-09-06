@@ -104,4 +104,7 @@ test("both delivered pilots and the existing Billing phase adapter fit the impor
   const result = inspectWorkflowBoundaries();
   assert.deepEqual(result.violations, []);
   assert.ok(result.modules.some(({ module }) => module === "Application.Billing.Checkout"));
+  for (const name of ["EntryWorkflow", "Responses", "Mutations"]) {
+    assert.ok(result.modules.some(({ module, owner }) => module === `Web.Timesheets.${name}` && owner === "Timesheets"));
+  }
 });

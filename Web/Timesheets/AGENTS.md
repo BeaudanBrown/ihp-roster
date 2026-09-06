@@ -8,7 +8,15 @@ Read this before editing timesheet controllers, views, or helpers.
 - Keep week path generation in `Paths.hs`.
 - Keep direct read-model construction in `Projection.hs`; do not reintroduce shared surface projection caching.
 - Keep HTMX/OOB response shape in `Responses.hs`; successful actor refreshes should go through the shared typed fragment helper, not local OOB-only fragment helpers.
-- Keep parsing and validation helpers in `Validation.hs`.
+- Keep parsing and validation helpers in `Validation.hs`. Ordinary edits must
+  use its opaque edit intent; callers never supply approval-reset policy.
+- Keep ordinary operations in `EntryWorkflow.hs` and completion/calendar HTTP in
+  `Responses.hs`. Preserve staged scope checks before mutation-calendar parsing.
+  The canonical request context is response state, not authorization evidence.
+- Catch typed calendar conflicts outside the durable transaction only; returning
+  `Left` inside it does not roll back. Preserve the inner approval rollback.
+- Adopted import roles are checked by `scripts/architecture/workflow-boundaries.mjs`;
+  do not import response owners into workflows or HTTP views into mutations.
 - Roster-derived suggestions are transient projection values; persist only an
   explicitly created `TimesheetEntry` with immutable source provenance.
 - Suggestions must use the same parameterized `renderTimesheetCard` markup as

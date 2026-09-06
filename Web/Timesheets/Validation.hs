@@ -1,5 +1,10 @@
 module Web.Timesheets.Validation
-    ( buildTimesheetEntry
+    ( TimesheetCalendarConflict (..)
+    , TimesheetEditIntent
+    , originalTimesheetEntry
+    , submittedTimesheetEntry
+    , prepareTimesheetEdit
+    , buildTimesheetEntry
     , ensureRosterDerivedIdentityUnchanged
     , ensureShiftTypeAllowed
     , ensureShiftTypeAllowedForExisting
@@ -18,6 +23,7 @@ import Application.PayAssignment (ShiftPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
+import qualified Control.Exception as Exception
 import Data.Either (fromRight)
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
@@ -25,6 +31,33 @@ import Data.Time.LocalTime (LocalTime (..), TimeOfDay)
 import qualified Data.UUID as UUID
 import qualified Prelude
 import Web.Controller.Prelude
+
+-- Thrown under the calendar lock; mutation owners catch only after their
+-- transaction unwinds. Returning Left inside that transaction would not roll back.
+data TimesheetCalendarConflict = TimesheetCalendarChanged
+    deriving stock (Eq, Show)
+
+instance Exception.Exception TimesheetCalendarConflict
+
+-- Constructed only after ordinary form validation and identity/eligibility checks.
+-- The mutation derives approval reset; callers cannot supply that decision.
+data TimesheetEditIntent = TimesheetEditIntent TimesheetEntry TimesheetEntry
+
+originalTimesheetEntry :: TimesheetEditIntent -> TimesheetEntry
+originalTimesheetEntry (TimesheetEditIntent original _) = original
+
+submittedTimesheetEntry :: TimesheetEditIntent -> TimesheetEntry
+submittedTimesheetEntry (TimesheetEditIntent _ submitted) = submitted
+
+prepareTimesheetEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe UUID.UUID -> TimesheetEntry -> IO (Either TimesheetEntry TimesheetEditIntent)
+prepareTimesheetEdit venueConfig viewerStaffId existingEntry =
+    buildTimesheetEntry venueConfig viewerStaffId existingEntry |> ifValid \case
+        Left invalidEntry -> pure (Left invalidEntry)
+        Right submittedEntry -> do
+            ensureRosterDerivedIdentityUnchanged existingEntry submittedEntry
+            ensureStaffAssignmentAllowedForExisting existingEntry submittedEntry.staffId
+            ensureShiftTypeAllowedForExisting existingEntry submittedEntry.shiftTypeId
+            pure (Right (TimesheetEditIntent existingEntry submittedEntry))
 
 ensureTimesheetVisibility :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
 ensureTimesheetVisibility entry =

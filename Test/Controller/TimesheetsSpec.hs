@@ -39,6 +39,7 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID
 import Generated.Types
+import IHP.Controller.Response (ResponseException (..))
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
@@ -55,8 +56,14 @@ import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Timesheets.FrontendSurface
-import Web.Timesheets.Mutations (materializeTimesheetSuggestionMutation,
-                                 timesheetEntryTouchedResourcesForScopes)
+import Web.Timesheets.Mutations (approveTimesheetEntryMutation,
+                                 createTimesheetEntryMutation,
+                                 deleteTimesheetEntryMutation,
+                                 materializeAndApproveTimesheetSuggestionMutation,
+                                 materializeTimesheetSuggestionMutation,
+                                 timesheetEntryTouchedResourcesForScopes,
+                                 unapproveTimesheetEntryMutation,
+                                 updateTimesheetEntryMutation)
 import Web.Timesheets.Projection (TimesheetFormContext (..),
                                   TimesheetFormReferences (..),
                                   TimesheetProjectionFragment (..),
@@ -64,8 +71,11 @@ import Web.Timesheets.Projection (TimesheetFormContext (..),
                                   fetchTimesheetFormContext,
                                   fetchTimesheetSuggestionForRosterSlot,
                                   noReferencedTimesheetOptions)
+import Web.Timesheets.Responses (requireTimesheetCalendarResult)
 import Web.Timesheets.Suggestion (TimesheetSuggestion (..),
                                   newTimesheetEntryFromSuggestion)
+import Web.Timesheets.Validation (TimesheetCalendarConflict (..),
+                                  prepareTimesheetEdit)
 import Web.Types
 import qualified Web.View.Timesheets.Index as TimesheetsView
 
@@ -299,6 +309,89 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
                 response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "returns typed locked-calendar failures before effects and preserves native/HTMX conflict responses" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Locked Timesheet Calendar"
+                manager <- createUserRecord "locked-calendar-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue Nothing "Locked" "Calendar"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                let scope = TimesheetWeekScopeValue (unpackId venue.id) (fromGregorian 2025 1 6) (fromGregorian 2025 1 13) 0
+                withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                        let submittedRequest = ?request { queryString =
+                                [ ("staffId", Just (idToParam staff.id))
+                                , ("shiftTypeId", Just (cs (tshow entry.shiftTypeId)))
+                                , ("workedOn", Just "2025-01-07")
+                                , ("startTime", Just "09:00")
+                                , ("endTime", Just "18:00")
+                                ] }
+                        let ?request = submittedRequest
+                        editIntent <- prepareTimesheetEdit venueConfig Nothing entry >>= \case
+                            Left _ -> expectationFailure "Expected validated edit intent" >> error "unreachable"
+                            Right intent -> pure intent
+                        outcomes <- sequence
+                            [ fmap (fmap (const ())) (updateTimesheetEntryMutation scope editIntent)
+                            , fmap (fmap (const ())) (createTimesheetEntryMutation scope entry)
+                            , fmap (fmap (const ())) (deleteTimesheetEntryMutation scope entry)
+                            , fmap (fmap (const ())) (approveTimesheetEntryMutation scope entry)
+                            , fmap (fmap (const ())) (unapproveTimesheetEntryMutation scope entry)
+                            ]
+                        outcomes `shouldBe` replicate 5 (Left TimesheetCalendarChanged)
+                        forM_ [(False, status403), (True, status409)] \(htmx, expectedStatus) -> do
+                            withRequestHeaders (if htmx then [("HX-Request", "true")] else []) do
+                                response <- withCurrentControllerContext $
+                                    Exception.try @ResponseException (requireTimesheetCalendarResult (Left TimesheetCalendarChanged :: Either TimesheetCalendarConflict ()))
+                                case response of
+                                    Right () -> expectationFailure "Expected terminal calendar response"
+                                    Left (ResponseException rejected) -> do
+                                        rejected `responseStatusShouldBe` expectedStatus
+                                        lookup "HX-Refresh" (responseHeaders rejected) `shouldBe` if htmx then Just "true" else Nothing
+                unchanged <- fetch entry.id
+                unchanged.deletedAt `shouldBe` Nothing
+                unchanged.startsAt `shouldBe` entry.startsAt
+                unchanged.endsAt `shouldBe` entry.endsAt
+                unchanged.isApproved `shouldBe` entry.isApproved
+                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+
+        it "keeps native stale-calendar redirect ahead of malformed form fields without effects" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Native stale timesheet"
+                manager <- createUserRecord "native-stale-timesheet@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("anchorDate", "2025-01-06")
+                        , ("rosterCalendarRevision", "0")
+                        , ("staffId", "malformed")
+                        , ("hadBreak", "malformed")
+                        ]
+                response `responseStatusShouldBe` status302
+                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Nothing
+                lookup "Location" (responseHeaders response) `shouldSatisfy` maybe False (Text.isInfixOf "2025-01-06" . cs)
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
+
+        it "denies foreign entry edits before parsing the missing mutation calendar" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet authorized venue"
+                foreignVenue <- createVenueWithConfig "Timesheet foreign venue"
+                manager <- createUserRecord "foreign-timesheet-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord foreignVenue Nothing "Foreign" "Staff"
+                entry <- createTimesheetEntryRecord foreignVenue staff (fromGregorian 2025 1 7)
+                forM_ [[], [("HX-Request", "true")]] \headers -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders headers do
+                            callActionWithParams (UpdateTimesheetEntryAction entry.id) [("staffId", "malformed")]
+                    response `responseStatusShouldBe` status403
+                unchanged <- fetch entry.id
+                unchanged.startsAt `shouldBe` entry.startsAt
+                unchanged.staffId `shouldBe` entry.staffId
+                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
 
         it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do
             response <- callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) }
@@ -1060,7 +1153,7 @@ tests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
                         materializeTimesheetSuggestionMutation scope eligibleSuggestion tamperedEntry
-                lockedRevalidation `shouldBe` Nothing
+                lockedRevalidation `shouldBe` Right Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
                 suppressedStaff <- fetch rosterOnlyStaff.id
@@ -1627,8 +1720,29 @@ tests = aroundAll withDatabaseTestContext do
                         let scope = TimesheetWeekScopeValue (unpackId scenario.scenarioVenue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
                         materializeTimesheetSuggestionMutation scope suggestion entry
 
-                materializationResult `shouldBe` Nothing
+                materializationResult `shouldBe` Right Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "returns typed locked-calendar failures for both suggestion paths without materialization or publication" $ withContext do
+            withCleanDb do
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Locked Suggestion Calendar" (Just "locked-suggestion-manager@example.com") "locked-suggestion-calendar@example.com" "Calendar" "Suggestion"
+                    , suggestionActor = SuggestionManager
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) 480
+                    }
+                eventCount <- query @LiveInvalidationEvent |> fetchCount
+                withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    withCurrentControllerContext do
+                        suggestion <- fetchTimesheetSuggestionForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected suggestion" >> error "unreachable") pure
+                        let entry = newTimesheetEntryFromSuggestion (unpackId scenario.scenarioVenue.id) suggestion
+                        let scope = TimesheetWeekScopeValue (unpackId scenario.scenarioVenue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 0
+                        materializeTimesheetSuggestionMutation scope suggestion entry `shouldReturn` Left TimesheetCalendarChanged
+                        materializeAndApproveTimesheetSuggestionMutation scope suggestion entry `shouldReturn` Left TimesheetCalendarChanged
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` eventCount)
 
         it "materializes a suggestion idempotently under concurrent submissions" $ withContext do
             withCleanDb do
@@ -2139,6 +2253,10 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseStatusShouldBe` status302
                 staffCommentedEntry <- fetch entry.id
                 staffCommentedEntry.isApproved `shouldBe` True
+                staffCommentedEntry.activePayCalculationId `shouldBe` entry.activePayCalculationId
+                staffCommentedEntry.staffPayVersionId `shouldBe` entry.staffPayVersionId
+                staffCommentedEntry.shiftTypePayVersionId `shouldBe` entry.shiftTypePayVersionId
+                staffCommentedEntry.approvedAt `shouldBe` entry.approvedAt
                 staffCommentedEntry.approvedByUserId `shouldBe` Just (unpackId manager.id)
                 staffCommentedEntry.staffComment `shouldBe` Just "Rooks staff note"
                 staffCommentedEntry.managerNote `shouldBe` Nothing
