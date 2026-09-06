@@ -71,7 +71,7 @@ import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, listToMaybe,
+import Data.Maybe (fromJust, fromMaybe, isJust, listToMaybe,
                    mapMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -108,7 +108,12 @@ import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterDeleteSlotUrl,
                               rosterTimelineWindowUrl, rosterWindowUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
-import Web.RosterWeeks.Responses (respondWithRosterContent,
+import Web.RosterWeeks.Responses (respondToRosterSlotMutation,
+                                  respondToRosterSlotMove,
+                                  respondToRosterTimelineSlotMove,
+                                  respondToRosterSlotUpdate,
+                                  respondToRosterShiftEdit,
+                                  respondWithRosterContent,
                                   respondWithRosterContentError,
                                   respondWithRosterContentUpdate,
                                   respondWithRosterDialogOverlay,
@@ -226,10 +231,6 @@ rosterCopyBoundaryErrorMessage (BoundaryUnsupportedTimezone _) = "This venue tim
 rosterCopyBoundaryErrorMessage BoundaryBreakNotContained = "The copied break would fall outside its shift."
 rosterCopyBoundaryErrorMessage BoundaryBreakShapeInvalid = "The copied break boundaries are incomplete."
 rosterCopyBoundaryErrorMessage BoundaryShiftShapeInvalid = "The copied shift boundaries are incomplete."
-
-rosterMutationMountedProjections :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterMutationProjection -> IO [RosterProjectionFragment]
-rosterMutationMountedProjections mutationProjection =
-    flip rosterMutationProjectionFragments mutationProjection <$> fetchCurrentRosterLayoutMode
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -1059,34 +1060,9 @@ instance Controller RosterWeeksController where
         authorizeRosterSlotCreateContext scope rosterDay rowIndex
         slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
         authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
-        let rosterGroupId = scope.rosterWindowRosterGroupId
-        existingSlot <- query @RosterSlot
-            |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-            |> filterWhere (#rosterLaneId, unpackId slotDefinition.id)
-            |> filterWhere (#rowIndex, rowIndex)
-            |> filterWhere (#deletedAt, Nothing)
-            |> fetchOneOrNothing
-        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay existingSlot rosterShiftDialogSubmissionFromRequest
-        case validation of
+        createRosterShift scope rosterDay slotDefinition rowIndex rosterShiftDialogSubmissionFromRequest >>= \case
             Left values -> renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex values
-            Right valid -> do
-                let newSlot =
-                        fromMaybe
-                            ( newRecord @RosterSlot
-                            |> set #rosterDayId (unpackId rosterDay.id)
-                            |> set #rosterLaneId (unpackId slotDefinition.id)
-                            |> set #slotSortOrder slotDefinition.sortOrder
-                            |> set #rowIndex rowIndex
-                            )
-                            existingSlot
-                            |> applyValidatedRosterShift valid
-                mutationResult <- saveRosterSlotMutation scope rosterDay existingSlot newSlot
-                case mutationResult of
-                    Left message ->
-                        renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex
-                            (rosterShiftDialogValuesFromSlot newSlot) { rosterShiftFormError = Just message }
-                    Right mutationResult ->
-                        respondToRosterSlotMutation scope rosterDay rowIndex mutationResult "Roster shift saved."
+            Right mutationResult -> respondToRosterSlotMutation scope rosterDay rowIndex mutationResult "Roster shift saved."
 
     action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -1097,40 +1073,9 @@ instance Controller RosterWeeksController where
         scope <- rosterMutationScopeForDay rosterDay
         requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @UpdateRosterShiftOverlay)
         authorizeRosterSlotEditContext scope rosterSlot rosterDay
-        let rosterGroupId = scope.rosterWindowRosterGroupId
-        if rosterDay.publicationState == Published
-            then do
-                validation <- validateLiveOpenShiftFill rosterGroupId rosterSlot rosterShiftDialogSubmissionFromRequest
-                case validation of
-                    Left values -> renderRosterShiftDialogForEdit scope rosterSlot rosterDay values
-                    Right assignment -> do
-                        let updatedSlot = applyRosterShiftAssignment assignment rosterSlot
-                        mutationResult <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot True
-                        case mutationResult of
-                            Left message ->
-                                renderRosterShiftDialogForEdit scope rosterSlot rosterDay
-                                    (rosterShiftDialogValuesFromSlot rosterSlot) { rosterShiftFormError = Just message }
-                            Right mutationResult -> do
-                                let previousStaffId = mutationResult.liveMutationValue.rosterSlotMutationPreviousStaffId
-                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek scope (catMaybes [previousStaffId, updatedSlot.staffId])
-                                let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                                respondToRosterSlotUpdate scope mutationResult impactedRowKeys False
-            else do
-                validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay (Just rosterSlot) rosterShiftDialogSubmissionFromRequest
-                case validation of
-                    Left values -> renderRosterShiftDialogForEdit scope rosterSlot rosterDay values
-                    Right valid -> do
-                        let updatedSlot = applyValidatedRosterShift valid rosterSlot
-                        mutationResult <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot False
-                        case mutationResult of
-                            Left message ->
-                                renderRosterShiftDialogForEdit scope rosterSlot rosterDay
-                                    (rosterShiftDialogValuesFromSlot updatedSlot) { rosterShiftFormError = Just message }
-                            Right mutationResult -> do
-                                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek scope (catMaybes [previousStaffId, updatedSlot.staffId])
-                                let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                                respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
+        editRosterShift scope rosterDay rosterSlot rosterShiftDialogSubmissionFromRequest >>= \case
+            Left values -> renderRosterShiftDialogForEdit scope rosterSlot rosterDay values
+            Right completion -> respondToRosterShiftEdit scope completion
 
     action currentAction@ShowRosterSlotDeleteConfirmationAction { rosterSlotId } = runBepis currentAction BepisFormAction do
         ensureManagerRole
@@ -1272,53 +1217,6 @@ respondWithRosterShiftCreateDialogOob scope rosterDay slotDefinition rowIndex va
 renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> RosterShiftDialogValues -> IO ()
 renderRosterShiftDialogForEdit scope rosterSlot rosterDay values =
     respondHtmlProfiled =<< rosterShiftDialogForEditHtml scope rosterSlot rosterDay values
-
-respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
-respondToRosterSlotMutation scope rosterDay rowIndex mutationResult successMessage = do
-    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation [(unpackId rosterDay.id, rowIndex)])
-    if isHtmxRequest
-        then
-            respondWithRosterResourceInvalidation
-                scope
-                mutationResult.liveMutationTouchedResources
-                mountedProjections
-                (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast successMessage))
-        else do
-            setSuccessMessage successMessage
-            redirectToRosterWindow scope
-
-respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterSlotMove scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
-    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
-    respondWithRosterResourceInvalidation
-        scope
-        mutationResult.liveMutationTouchedResources
-        mountedProjections
-        (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
-
-respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
-respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged = do
-    mountedProjections <- rosterMutationMountedProjections RosterTimelineMutation
-    respondWithRosterResourceInvalidation
-        scope
-        mutationResult.liveMutationTouchedResources
-        mountedProjections
-        (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
-
-respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
-    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
-    respondWithRosterResourceInvalidation
-        scope
-        mutationResult.liveMutationTouchedResources
-        mountedProjections
-        (renderDialogOverlayClearOob <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
-
-sourceTimesheetWarningToast :: (?context :: ControllerContext, ?request :: Request) => Bool -> Blaze.Html
-sourceTimesheetWarningToast shouldWarn =
-    if shouldWarn
-        then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
-        else mempty
 
 resolveRosterPageGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe (RosterGroup, Bool))
 resolveRosterPageGroup = do
@@ -1595,24 +1493,6 @@ renderRosterWeekOverviewFragment weekStartDate rosterGroupId = do
     let focusDate = initialOverviewFocusDate weekStartDate todayDate
     weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate)
     pure (renderWeekOverviewPanelFragment rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
-
-fetchRelatedSlotsForStaffIdsInRosterWeek :: (?modelContext :: ModelContext) => RosterWindowScope -> [UUID.UUID] -> IO [RosterSlot]
-fetchRelatedSlotsForStaffIdsInRosterWeek scope staffIds =
-    if null staffIds
-        then pure []
-        else do
-            rosterDays <- query @RosterDay
-                |> filterWhere (#rosterGroupId, unpackId scope.rosterWindowRosterGroupId)
-                |> filterWhereGreaterThanOrEqualTo (#operationalDate, scope.rosterWindowStart)
-                |> filterWhereLessThan (#operationalDate, scope.rosterWindowEnd)
-                |> fetch
-            if null rosterDays
-                then pure []
-                else query @RosterSlot
-                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
-                    |> filterWhereIn (#staffId, map Just (nub staffIds))
-                    |> filterWhere (#deletedAt, Nothing)
-                    |> fetch
 
 respondToRosterSlotDefinitionError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
 respondToRosterSlotDefinitionError scope errorMessage =

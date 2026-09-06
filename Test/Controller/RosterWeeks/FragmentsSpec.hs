@@ -933,6 +933,40 @@ tests = aroundAll withDatabaseTestContext do
                 updatedDay <- fetch rosterDay.id
                 updatedDay.rowCount `shouldBe` 4
 
+        forM_ [False, True] \htmx ->
+            it ("preserves create reuse and update completion without a native redirect, HTMX=" <> cs (show htmx)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Shift completion venue"
+                    manager <- createUserRecord "shift-completion-manager@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue manager Manager
+                    staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                    shiftType <- ensureVenueDefaultShiftType venue
+                    rosterWeek <- createRosterWeekRecord venue 0 False
+                    rosterDay <- createRosterDayRecord rosterWeek 0
+                    slotName <- fetchSlotNameRecord venue "Early"
+                    slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                    let submit action = withUserAndCurrentVenue manager venue.id do
+                            withRequestHeaders (if htmx then [("HX-Request", "true")] else []) do
+                                callRosterSlotActionWithParams action (fullShiftParams staffMember shiftType)
+                    created <- submit (CreateRosterSlotAction rosterDay.id (Id slot.rosterLaneId) 0)
+                    created `responseStatusShouldBe` (if htmx then status200 else status302)
+                    lookup "HX-Reswap" (responseHeaders created) `shouldBe` (if htmx then Just "none" else Nothing)
+                    if htmx
+                        then do
+                            created `responseBodyShouldContain` "Roster shift saved."
+                            created `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                            lookup "Location" (responseHeaders created) `shouldBe` Nothing
+                        else lookup "Location" (responseHeaders created) `shouldSatisfy` isJust
+                    slots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
+                    map (.id) slots `shouldBe` [slot.id]
+                    updated <- submit (UpdateRosterSlotAction slot.id)
+                    updated `responseStatusShouldBe` status200
+                    lookup "HX-Reswap" (responseHeaders updated) `shouldBe` Just "none"
+                    lookup "Location" (responseHeaders updated) `shouldBe` Nothing
+                    updated `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                    updated `responseBodyShouldNotContain` "app-toast-success"
+                    updated `responseBodyShouldNotContain` "The timesheet snapshot was not changed."
+
         it "extends day row count when creating a complete slot beyond the current rows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

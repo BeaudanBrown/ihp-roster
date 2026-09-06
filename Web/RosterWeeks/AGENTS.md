@@ -33,8 +33,15 @@ or roster views.
 - General roster workflow/domain helpers belong in `Service.hs` unless they are
   shared across features. Interaction-specific drop token/scope/placement/DST
   resolution belongs in `DropWorkflow.hs`; shift-dialog context, data,
-  validation, and application belong in `ShiftWorkflow.hs`. Controllers retain
-  authorization, request adaptation, mutation calls, and response selection.
+  validation, and complete create/edit operations belong in `ShiftWorkflow.hs`.
+  Controllers retain authorization, staged request adaptation, and response
+  selection. Do not reconstruct a shift, choose Published-fill permission, or
+  query post-save impacted rows in the controller; invoke `createRosterShift`
+  or `editRosterShift` after the existing scope/placement checks.
+- Keep shift completion construction in `Responses.hs`, including response-only
+  move/duplicate/assignment/delete consumers. Update and Published fill have no
+  success toast or native redirect; Published fill suppresses source-Timesheet
+  warnings. Preserve dialog-clear before feedback and requester-only extras.
 - View-only rendering helpers belong under `Web/View/RosterWeeks/` or
   `Application/Helper/View/*` when shared.
 

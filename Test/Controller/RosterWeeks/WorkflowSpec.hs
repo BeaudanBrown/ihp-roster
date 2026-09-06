@@ -37,7 +37,7 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.RosterWeeks.DateRange (rosterWindowScopeForAnchor)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..), rosterWindowScopeForAnchor)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
                             rosterDaySectionDomId, rosterGridFrameFragmentId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
@@ -53,12 +53,14 @@ import Web.RosterWeeks.Service (RosterCopyError (..), RosterCopyFault (..),
                                 rosterSlotHasValidStartEnd,
                                 withRosterCopyTransaction)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftDialogSubmission (..),
+                                      RosterShiftEditCompletion (..),
+                                      editRosterShift,
                                       applyValidatedRosterShift,
                                       validateRosterShiftDialogSubmission)
 import Web.Routes
 import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
 import Web.Types
-import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..))
+import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..), rosterShiftDialogValuesFromSlot)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -796,6 +798,11 @@ tests = aroundAll withDatabaseTestContext do
                         callRosterSlotActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam staffMember.id)]
 
                 fillResponse `responseStatusShouldBe` status200
+                lookup "HX-Reswap" (responseHeaders fillResponse) `shouldBe` Just "none"
+                lookup "Location" (responseHeaders fillResponse) `shouldBe` Nothing
+                fillResponse `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                fillResponse `responseBodyShouldNotContain` "app-toast-success"
+                fillResponse `responseBodyShouldNotContain` "The timesheet snapshot was not changed."
                 filledSlot <- fetch openSlot.id
                 filledSlot.assignmentState `shouldBe` "staff"
                 filledSlot.staffId `shouldBe` Just (unpackId staffMember.id)
@@ -809,6 +816,54 @@ tests = aroundAll withDatabaseTestContext do
                 afterFill <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 afterFill `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
+
+        it "completes only one Published fill from two stale workflow snapshots" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale fill workflow"
+                manager <- createUserRecord "stale-fill-workflow@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                original <- createRosterSlotRecord rosterDay slotName Nothing 0
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let scope = rosterWindowScopeForAnchor venueConfig (Id rosterWeek.fixtureRosterGroupId) rosterDay.operationalDate
+                let submission staffMember = RosterShiftDialogSubmission
+                        { submittedRosterShiftStaffId = Just (tshow staffMember.id)
+                        , submittedRosterShiftStartTime = Nothing
+                        , submittedRosterShiftEndTime = Nothing
+                        , submittedRosterShiftTypeId = Nothing
+                        , submittedRosterShiftStartOccurrence = ""
+                        , submittedRosterShiftEndOccurrence = ""
+                        }
+                let requestWithCalendar = ?request { queryString = [("rosterCalendarRevision", Just "1")] }
+                let ?request = requestWithCalendar
+                (first, stale) <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        first <- editRosterShift scope rosterDay original (submission alpha)
+                        stale <- editRosterShift scope rosterDay original (submission bravo)
+                        pure (first, stale)
+                case first of
+                    Left values -> expectationFailure ("Expected first fill to commit: " <> cs (tshow (values.rosterShiftFormError, values.rosterShiftStaffError)))
+                    Right completion -> do
+                        completion.rosterShiftEditWarnSourceTimesheetUnchanged `shouldBe` False
+                        completion.rosterShiftEditImpactedRows `shouldBe` [(original.rosterDayId, original.rowIndex)]
+                        completion.rosterShiftEditMutation.liveMutationTouchedResources `shouldSatisfy`
+                            Set.member (timesheetWeekResource (unpackId venue.id) scope.rosterWindowStart scope.rosterWindowEnd)
+                case stale of
+                    Left values -> do
+                        values.rosterShiftFormError `shouldBe` Just "The selected staff member or roster shift is no longer available for rostering."
+                        -- Published persistence failure restores the original Open assignment.
+                        values.rosterShiftSelectedAssignment `shouldBe` (rosterShiftDialogValuesFromSlot original).rosterShiftSelectedAssignment
+                    Right _ -> expectationFailure "Expected stale fill to reject"
+                persisted <- fetch original.id
+                persisted.staffId `shouldBe` Just (unpackId alpha.id)
+                persisted.startsAt `shouldBe` original.startsAt
+                persisted.endsAt `shouldBe` original.endsAt
+                query @LiveInvalidationEvent |> filterWhere (#source, "roster.slot.update") |> fetchCount >>= (`shouldBe` 1)
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "rejects roster shift deletion without calendar context as a controlled bad request" $ withContext do
             withCleanDb do
@@ -852,6 +907,17 @@ tests = aroundAll withDatabaseTestContext do
                             (UpdateRosterSlotAction openSlot.id)
                             [("staffId", idToParam staffMember.id), ("startTime", "10:00")]
                 tampered `responseBodyShouldContain` "Only Staff can be changed while filling a Published Open shift."
+
+                -- Presence, not value, protects Published clocks and shift type.
+                forM_ ["startTime", "endTime", "shiftTypeId"] \field -> do
+                    blankProtected <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callRosterSlotActionWithParams
+                                (UpdateRosterSlotAction openSlot.id)
+                                [("staffId", idToParam staffMember.id), (field, "")]
+                    blankProtected `responseStatusShouldBe` status200
+                    blankProtected `responseBodyShouldContain` "Only Staff can be changed while filling a Published Open shift."
+                    lookup "HX-Trigger" (responseHeaders blankProtected) `shouldBe` Nothing
 
                 invalidPay <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -2260,6 +2326,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed."
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                lookup "Location" (responseHeaders response) `shouldBe` Nothing
+                response `responseBodyShouldNotContain` "app-toast-success"
+                warningBody <- cs <$> responseBody response
+                let (beforeWarning, _) = Text.breakOn "A timesheet entry was already created" warningBody
+                beforeWarning `shouldSatisfy` Text.isInfixOf "hx-swap-oob=\"innerHTML\""
                 unchangedEntry <- fetch entry.id
                 unchangedEntry.staffId `shouldBe` unpackId alpha.id
                 testStartTime unchangedEntry `shouldBe` timeOfDay 22 0

@@ -1,5 +1,10 @@
 module Web.RosterWeeks.Responses
-    ( respondWithRosterContent
+    ( respondToRosterSlotMutation
+    , respondToRosterSlotMove
+    , respondToRosterTimelineSlotMove
+    , respondToRosterSlotUpdate
+    , respondToRosterShiftEdit
+    , respondWithRosterContent
     , respondWithRosterContentError
     , respondWithRosterContentOob
     , respondWithRosterContentUpdate
@@ -22,7 +27,7 @@ import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchViewableRosterGroup,
                                         fetchViewableRosterGroups)
-import Application.Helper.SurfaceResource (SurfaceResourceValue)
+import Application.Helper.SurfaceResource (LiveMutationResult (..), SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
@@ -30,6 +35,7 @@ import Application.Helper.View (ToastOverlayConfig,
                                 successToast)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
+import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
@@ -39,7 +45,12 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,
                                         rosterSurfaceScope)
-import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
+import Web.RosterWeeks.Mutations (RosterSlotMutationResult)
+import Web.RosterWeeks.Paths (rosterWindowUrl)
+import Web.RosterWeeks.Projection (RosterMutationProjection (..),
+                                    rosterMutationMountedProjections,
+                                    rosterGridInnerAndStaffPanelFragments)
+import Web.RosterWeeks.ShiftWorkflow (RosterShiftEditCompletion (..))
 import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
                                    fetchVisibleRosterReadModel,
                                    renderRosterProjectionFragmentWithMode,
@@ -51,6 +62,57 @@ import Web.RosterWeeks.Types (RosterGridRenderModel (..),
 import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragmentOob)
+
+respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
+respondToRosterSlotMutation scope rosterDay rowIndex mutationResult successMessage = do
+    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation [(unpackId rosterDay.id, rowIndex)])
+    if isHtmxRequest
+        then
+            respondWithRosterResourceInvalidation
+                scope
+                mutationResult.liveMutationTouchedResources
+                mountedProjections
+                (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast successMessage))
+        else do
+            setSuccessMessage successMessage
+            redirectToPath (rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId)
+
+respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotMove scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
+    respondWithRosterResourceInvalidation
+        scope
+        mutationResult.liveMutationTouchedResources
+        mountedProjections
+        (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+
+respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
+respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged = do
+    mountedProjections <- rosterMutationMountedProjections RosterTimelineMutation
+    respondWithRosterResourceInvalidation
+        scope
+        mutationResult.liveMutationTouchedResources
+        mountedProjections
+        (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+
+respondToRosterShiftEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterShiftEditCompletion -> IO ()
+respondToRosterShiftEdit scope completion =
+    respondToRosterSlotUpdate scope completion.rosterShiftEditMutation completion.rosterShiftEditImpactedRows completion.rosterShiftEditWarnSourceTimesheetUnchanged
+
+respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
+    respondWithRosterResourceInvalidation
+        scope
+        mutationResult.liveMutationTouchedResources
+        mountedProjections
+        (renderDialogOverlayClearOob <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+
+sourceTimesheetWarningToast :: (?context :: ControllerContext, ?request :: Request) => Bool -> Blaze.Html
+sourceTimesheetWarningToast shouldWarn =
+    if shouldWarn
+        then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
+        else mempty
 
 respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()
 respondWithRosterContent scope = do

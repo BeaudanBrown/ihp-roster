@@ -15,8 +15,8 @@ mutation invocation, and response selection; HSX lives in
 - `FrontendSurface.hs` and `SurfaceInvalidation.hs` — typed fragments,
   resources, interactions, and live fanout.
 - `Mutations.hs` and `Service.hs` — roster writes and shared domain policy.
-- `ShiftWorkflow.hs` and `DropWorkflow.hs` — dialog and drag/drop request
-  resolution before mutation.
+- `ShiftWorkflow.hs` — complete dialog create/edit operations and continuations;
+  `DropWorkflow.hs` — drag/drop request resolution before mutation.
 - `TemplateCapture.hs` and `TemplateApplication.hs` — date-native detached
   Week capture and locked Week application.
 - `Responses.hs`, `Paths.hs`, and `Dom.hs` — response shape, canonical URLs, and
@@ -40,7 +40,7 @@ inventory here.
 - `Web/RosterWeeks/Service.hs` - roster workflow/domain service helpers.
 - `Web/RosterWeeks/TemplateApplication.hs` - authoritative Week-template preview, Melbourne boundary resolution, stale-assignment cleanup, locking, and atomic Draft-window replacement.
 - `Web/RosterWeeks/DropWorkflow.hs` - typed opaque drop-token parsing, venue/group/week resolution, sparse placement, no-op/delete decisions, and Melbourne repeated-time boundary preparation for move, duplicate, timeline, and staff drops.
-- `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
+- `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog context/render data, complete create/edit operations, field/DST validation, mutation selection, and post-commit row impact.
 - `Web/View/RosterWeeks/` - HSX rendering.
 
 ## Date-Native Authority
@@ -60,6 +60,29 @@ row layouts add precise day/row fragments, day-column layouts retain the shared
 inner-grid/staff projection, and timeline mutations select the toolbar, frame,
 and staff panel. Response helpers continue to own HTMX resource invalidation and
 feedback; controllers do not reconstruct layout-dependent fragment lists.
+
+## Shift Operation Interface
+
+`createRosterShift` accepts the checked window/day/lane/row and raw dialog
+submission; it hides existing-cell lookup/reuse, validation, application and the
+existing save mutation. `editRosterShift` accepts the checked window/day/slot
+and submission; it derives Draft edit versus Published Open fill, restores the
+correct rejection values, invokes the existing update mutation and prepares
+post-commit row impact. A rejection is dialog values; success is the committed
+mutation result, with edit impact and warning policy ready for `Responses`.
+
+The input records are snapshots, not new authorization or freshness evidence.
+Controllers retain the ordered access and calendar/placement checks and sparse
+materialization because those precede field validation. Do not merge that
+materialization into the save transaction or eagerly move request parsing ahead
+of an earlier denial. `Mutations` still owns locks, revalidation and durable
+publication; post-save impact reads must stay outside its transaction.
+
+This deliberately small interface removes attempted-record assembly and
+Published permission flags from callers without imposing a universal workflow
+result or moving all request handling into a feature module. `Responses` owns
+completion HTML/headers and delegates every layout decision to `Projection`;
+move/duplicate/assignment/delete retain their existing operation owners.
 
 ## Roster Enum Authority
 

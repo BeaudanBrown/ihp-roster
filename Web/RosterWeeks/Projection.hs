@@ -6,6 +6,7 @@ module Web.RosterWeeks.Projection
     , rosterGridInnerAndStaffPanelFragments
     , rosterGridStructuralAndStaffPanelFragments
     , rosterGridStructuralFragments
+    , rosterMutationMountedProjections
     , rosterMutationProjectionFragments
     , rosterDaySectionFragment
     , rosterRowFragment
@@ -13,7 +14,8 @@ module Web.RosterWeeks.Projection
     , rosterStaffPanelFragment
     ) where
 
-import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns)
+import Application.Helper.UserPreferences (fetchCurrentRosterLayoutMode,
+                                           rosterLayoutModeIsDayColumns)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Types
@@ -24,6 +26,10 @@ data RosterMutationProjection
     | RosterRowsMutation ![(UUID.UUID, Int)]
     | RosterTimelineMutation
     deriving (Eq, Show)
+
+rosterMutationMountedProjections :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterMutationProjection -> IO [RosterProjectionFragment]
+rosterMutationMountedProjections mutationProjection =
+    flip rosterMutationProjectionFragments mutationProjection <$> fetchCurrentRosterLayoutMode
 
 rosterMutationProjectionFragments :: RosterLayoutModeEnum -> RosterMutationProjection -> [RosterProjectionFragment]
 rosterMutationProjectionFragments layoutMode mutationProjection =
