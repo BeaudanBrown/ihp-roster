@@ -17,6 +17,7 @@ download authorization, and controller-facing orchestration.
 - `Render.hs` — CSV/ZIP formatting and output safety.
 - `Persistence.hs` — job lifecycle, authorization, and audit.
 - `Application/Helper/Export.hs` — compatibility facade only.
+- [Web export workflows](../../../Web/Exports/README.md) — saved-configuration request adaptation and completion; Application persistence remains free of HTTP/view dependencies.
 
 ## Spreadsheet Compatibility Verification
 

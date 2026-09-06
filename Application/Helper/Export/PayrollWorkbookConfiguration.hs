@@ -23,6 +23,7 @@ import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenueId,
                                              currentVenueOrNothing)
 import Application.Helper.Export.PayrollWorkbook
+import Application.Helper.Hasql (isUniqueViolation)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.List as List
@@ -30,9 +31,8 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Traversable (traverse)
 import qualified Generated.Types as Types
-import qualified Hasql.Errors as Hasql
 import IHP.ControllerPrelude
-import IHP.ModelSupport.Types (HasqlSessionError (..))
+import IHP.ModelSupport.Types (HasqlSessionError)
 
 -- | Boundary input remains textual so unsupported persisted/UI values are
 -- rejected by the same total parser used by workbook definitions.
@@ -127,17 +127,7 @@ createSavedPayrollWorkbookConfigurationWithPersistence persist input
                         |> set #definitionVersion definition.payrollWorkbookDefinitionVersion
                         |> set #createdByUserId (unpackId authenticatedCurrentUser.id)
                         |> createRecord
-                let familyRecords =
-                        zipWith
-                            (\position family ->
-                                newRecord @Types.PayrollWorkbookConfigurationFamily
-                                    |> set #configurationId (unpackId configuration.id)
-                                    |> set #familyKey (payrollWorkbookSheetFamilyKey family)
-                                    |> set #position position
-                            )
-                            [0 ..]
-                            definition.payrollWorkbookDefinitionSheetFamilies
-                _ <- mapM createRecord familyRecords
+                createConfigurationFamilyRecords configuration definition.payrollWorkbookDefinitionSheetFamilies
                 pure
                     SavedPayrollWorkbookConfiguration
                         { savedPayrollWorkbookConfigurationRecord = configuration
@@ -358,21 +348,3 @@ savedDefinition configuration families =
 
 sortConfigurations :: [Types.PayrollWorkbookConfiguration] -> [Types.PayrollWorkbookConfiguration]
 sortConfigurations = List.sortOn (Text.toCaseFold . (.name))
-
-isUniqueViolation :: HasqlSessionError -> Bool
-isUniqueViolation (HasqlSessionError sessionError) =
-    case sessionError of
-        Hasql.StatementSessionError _ _ _ _ _ statementError -> statementErrorIsUniqueViolation statementError
-        Hasql.ScriptSessionError _ serverError -> serverErrorIsUniqueViolation serverError
-        Hasql.ConnectionSessionError _ -> False
-        Hasql.MissingTypesSessionError _ -> False
-        Hasql.DriverSessionError _ -> False
-  where
-    statementErrorIsUniqueViolation (Hasql.ServerStatementError serverError) = serverErrorIsUniqueViolation serverError
-    statementErrorIsUniqueViolation (Hasql.UnexpectedRowCountStatementError _ _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnCountStatementError _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnTypeStatementError _ _ _) = False
-    statementErrorIsUniqueViolation (Hasql.RowStatementError _ _) = False
-    statementErrorIsUniqueViolation (Hasql.UnexpectedResultStatementError _) = False
-
-    serverErrorIsUniqueViolation (Hasql.ServerError code _ _ _ _) = code == "23505"
