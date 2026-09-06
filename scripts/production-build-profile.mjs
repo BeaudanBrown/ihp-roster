@@ -163,7 +163,7 @@ function artifactSummary(files, root) {
 }
 
 function pathInfo(outputPath) {
-    const raw = readJsonCommand("nix", ["path-info", "--json", "--json-format", "1", "-S", outputPath]);
+    const raw = readJsonCommand("nix", ["path-info", "--json", "-S", outputPath]);
     if (Array.isArray(raw)) return raw[0];
     return raw[outputPath] ?? Object.values(raw)[0];
 }
