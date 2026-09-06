@@ -409,7 +409,7 @@ if [ "$command_name" = orient ]; then
             approvalRules: [
                 "Wait for the user to choose an issue before beginning work.",
                 "Commit and present verification evidence before requesting approval to close.",
-                "Close only after approval, then refresh orientation and wait again."
+                "Close only after approval, then refresh orientation; proceed with an explicitly selected next issue, otherwise request selection."
             ]
         }')"
 
@@ -432,7 +432,7 @@ if [ "$command_name" = orient ]; then
     jq -r '.issues.blocked[] | "  #\(.number) \(.title) [blocked by \([.blockedBy[].number | "#\(.)"] | join(", "))]"' <<<"$result"
     echo "Wait for the user; do not begin, close, or move issues automatically."
     echo "After implementation: commit, present verification evidence, and request approval before closure."
-    echo "After approved closure: run epic-worktree orient again and wait."
+    echo "After approved closure: refresh orientation; proceed with an explicitly selected next issue, otherwise request selection."
     exit 0
 fi
 
