@@ -1,6 +1,6 @@
 module Test.PayrollWorkbookConfigurationSpec where
 
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException, bracket_, try)
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft, isRight)
 import qualified Data.Text as Text
@@ -10,7 +10,8 @@ import Generated.Types
 import qualified Hasql.Session as HasqlSession
 import IHP.Controller.Context (ControllerContext)
 import IHP.ControllerPrelude
-import IHP.ModelSupport.Types (ModelContext (transactionRunner),
+import IHP.ModelSupport.Types (HasqlSessionError (..),
+                               ModelContext (transactionRunner),
                                TransactionRunner (runInTransaction))
 import IHP.Test.Mocking (MockContext, withContext, withUser)
 import qualified Network.Wai as Wai
@@ -19,6 +20,9 @@ import Test.Hspec
 import Application.Helper.ControllerContext (currentVenueSessionKey)
 import Application.Helper.Export
 import Test.Support
+import Web.Exports.Mutations (createPayrollWorkbookConfigurationMutation,
+                              deletePayrollWorkbookConfigurationMutation,
+                              updatePayrollWorkbookConfigurationMutation)
 import Web.FrontController ()
 import Web.Types (WebApplication)
 
@@ -243,6 +247,58 @@ tests = aroundAll withDatabaseTestContext do
                         , "definitionVersion" Aeson..= (1 :: Int)
                         , "sheetFamilies" Aeson..= (["employee-pay-bucket-wages", "summary"] :: [Text])
                         ]
+
+        it "lets non-unique family failures escape and rolls back durable creation, provisioning and replacement" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Workbook family rollback"
+                admin <- createUserRecord "workbook-family-rollback@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                saved <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Original" 1 ["summary"])) >>= expectRight
+                let configurationId = saved.savedPayrollWorkbookConfigurationRecord.id
+                let installFailure = do
+                        sqlExecDiscardResult "CREATE FUNCTION test_reject_workbook_family() RETURNS trigger AS 'BEGIN IF NEW.position = 1 THEN RAISE EXCEPTION ''forced second family failure'' USING ERRCODE = ''23514''; END IF; RETURN NEW; END' LANGUAGE plpgsql" ()
+                        sqlExecDiscardResult "CREATE TRIGGER test_reject_workbook_family BEFORE INSERT ON payroll_workbook_configuration_families FOR EACH ROW EXECUTE FUNCTION test_reject_workbook_family()" ()
+                let removeFailure = do
+                        sqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_workbook_family ON payroll_workbook_configuration_families" ()
+                        sqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_workbook_family()" ()
+                bracket_ installFailure removeFailure do
+                    asCurrentVenueUser admin venue.id (createPayrollWorkbookConfigurationMutation (newConfiguration "Durable" 1 ["shift-type-wages", "summary"]))
+                        `shouldThrow` (\(_ :: HasqlSessionError) -> True)
+                    withTransaction (createStandardPayrollWorkbookConfigurationInCurrentTransaction venue admin)
+                        `shouldThrow` (\(_ :: HasqlSessionError) -> True)
+                    asCurrentVenueUser admin venue.id (updatePayrollWorkbookConfigurationMutation configurationId (updateConfiguration "Changed" 1 ["shift-type-wages", "summary"] 0))
+                        `shouldThrow` (\(_ :: HasqlSessionError) -> True)
+                asCurrentVenueUser admin venue.id listSavedPayrollWorkbookConfigurations `shouldReturn` Right [saved]
+                query @PayrollWorkbookConfigurationFamily |> fetchCount `shouldReturn` 1
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` 0
+                query @AuditEvent |> fetchCount `shouldReturn` 0
+
+        it "rolls back complete saved mutations when their outbox publication fails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Workbook outbox rollback"
+                admin <- createUserRecord "workbook-outbox-rollback@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                saved <- asCurrentVenueUser admin venue.id (createSavedPayrollWorkbookConfiguration (newConfiguration "Original" 1 ["summary"])) >>= expectRight
+                let configurationId = saved.savedPayrollWorkbookConfigurationRecord.id
+                let installFailure = do
+                        sqlExecDiscardResult "CREATE FUNCTION test_reject_workbook_publication() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced workbook publication failure''; END' LANGUAGE plpgsql" ()
+                        sqlExecDiscardResult "CREATE TRIGGER test_reject_workbook_publication BEFORE INSERT ON live_invalidation_event_resources FOR EACH ROW EXECUTE FUNCTION test_reject_workbook_publication()" ()
+                let removeFailure = do
+                        sqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_workbook_publication ON live_invalidation_event_resources" ()
+                        sqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_workbook_publication()" ()
+                bracket_ installFailure removeFailure do
+                    asCurrentVenueUser admin venue.id (createPayrollWorkbookConfigurationMutation (newConfiguration "Created" 1 ["shift-type-wages", "summary"]))
+                        `shouldThrow` (\(_ :: HasqlSessionError) -> True)
+                    asCurrentVenueUser admin venue.id (updatePayrollWorkbookConfigurationMutation configurationId (updateConfiguration "Changed" 1 ["shift-type-wages", "summary"] 0))
+                        `shouldThrow` (\(_ :: HasqlSessionError) -> True)
+                    asCurrentVenueUser admin venue.id (deletePayrollWorkbookConfigurationMutation configurationId)
+                        `shouldThrow` (\(_ :: HasqlSessionError) -> True)
+                asCurrentVenueUser admin venue.id listSavedPayrollWorkbookConfigurations `shouldReturn` Right [saved]
+                query @PayrollWorkbookConfigurationFamily |> fetchCount `shouldReturn` 1
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` 0
+                query @LiveInvalidationEventResource |> fetchCount `shouldReturn` 0
+                query @LiveResourceVersion |> fetchCount `shouldReturn` 0
+                query @AuditEvent |> fetchCount `shouldReturn` 0
 
         it "applies additively to a representative pre-configuration schema without changing customer rows" $ withContext do
             withCleanDb do
