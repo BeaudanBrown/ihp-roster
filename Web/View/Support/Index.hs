@@ -4,9 +4,6 @@
 
 module Web.View.Support.Index where
 
-import Application.Helper.Feedback (allowedFeedbackPriorities,
-                                    allowedFeedbackStatuses)
-import Application.Helper.FeedbackType (feedbackTypeLabel)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
@@ -51,17 +48,9 @@ data IndexView = IndexView
     , publicHolidayCoverage         :: [PublicHolidayCoverageYear]
     , latestPublicHolidayRefreshJob :: Maybe AppJob
     , activePublicHolidayRefreshJob :: Maybe AppJob
-    , feedbackRows                  :: [SupportFeedbackRow]
-    , unreadFeedbackCount           :: Int
     , xeroDiagnosticSubmissionId    :: Text
     , xeroTimesheetDiagnostic       :: Maybe XeroTimesheetDiagnostic
     , xeroTimesheetDiagnosticError  :: Maybe Text
-    }
-
-data SupportFeedbackRow = SupportFeedbackRow
-    { supportFeedbackItem      :: UserFeedbackItem
-    , supportFeedbackVenueName :: Text
-    , supportFeedbackSubmitter :: Text
     }
 
 instance View IndexView where
@@ -90,8 +79,6 @@ instance View IndexView where
                         </form>
                         {renderVenueOnboardingInvitationList now onboardingInvitations}
                     |]
-            feedbackPanel =
-                renderFeedbackPanel unreadFeedbackCount feedbackRows
             xeroDiagnosticPanel =
                 renderXeroTimesheetDiagnosticPanel xeroDiagnosticSubmissionId xeroTimesheetDiagnostic xeroTimesheetDiagnosticError
             signInMethodsPanel =
@@ -118,7 +105,6 @@ instance View IndexView where
                     , appPageWidthClass = ""
                     , appPageBody = [hsx|
                         <div class="app-page-stack">
-                            {feedbackPanel}
                             {xeroDiagnosticPanel}
                             {signInMethodsPanel}
                             {awardRatesPanel}
@@ -241,199 +227,6 @@ renderXeroDiagnosticPayItemStatus line
     | not line.diagnosticLinePayItemFound = [hsx|<span class="badge text-bg-danger">not found</span>|]
     | line.diagnosticLineActive == Just True && line.diagnosticLineProviderAvailable == Just True = [hsx|<span class="badge text-bg-success">active</span>|]
     | otherwise = [hsx|<span class="badge text-bg-warning">unavailable</span>|]
-
-renderFeedbackPanel :: Int -> [SupportFeedbackRow] -> Html
-renderFeedbackPanel unreadCount feedbackRows =
-    renderAppPanel AppPanelConfig
-        { appPanelTitle = Just "User Feedback"
-        , appPanelDescription = Just "Issues and suggestions submitted from inside the app."
-        , appPanelHasActions = unreadCount > 0
-        , appPanelActions = renderMarkAllFeedbackReadForm unreadCount
-        , appPanelHasCustomHeader = False
-        , appPanelCustomHeader = mempty
-        , appPanelClass = ""
-        , appPanelBodyClass = ""
-        , appPanelBody = [hsx|
-            <div class="d-flex flex-column gap-3">
-                <div class="small app-muted">
-                    Unread feedback: <span class="fw-semibold">{tshow unreadCount}</span>
-                </div>
-                {if null feedbackRows then renderEmptyState "No feedback submitted yet." else renderFeedbackTable feedbackRows}
-            </div>
-        |]
-        }
-
-renderMarkAllFeedbackReadForm :: Int -> Html
-renderMarkAllFeedbackReadForm unreadCount
-    | unreadCount <= 0 = mempty
-    | otherwise = [hsx|
-        <form method="POST" action={MarkAllFeedbackReadAction}>
-            <button type="submit" class="btn btn-outline-secondary btn-sm">Mark all read</button>
-        </form>
-    |]
-
-renderFeedbackTable :: [SupportFeedbackRow] -> Html
-renderFeedbackTable feedbackRows = [hsx|
-    <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Status</th>
-                    <th>Type</th>
-                    <th>Priority</th>
-                    <th>Venue</th>
-                    <th>Submitted By</th>
-                    <th>Feedback</th>
-                    <th>Submitted</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {forEach feedbackRows renderFeedbackRow}
-            </tbody>
-        </table>
-    </div>
-|]
-
-renderFeedbackRow :: SupportFeedbackRow -> Html
-renderFeedbackRow SupportFeedbackRow { supportFeedbackItem = feedbackItem, supportFeedbackVenueName, supportFeedbackSubmitter } = [hsx|
-    <tr class={classes [("table-warning", isNothing feedbackItem.readAt)]}>
-        <td>
-            {renderFeedbackReadBadge feedbackItem}
-            <div class="mt-1">{renderFeedbackStatusForm feedbackItem}</div>
-        </td>
-        <td>{renderFeedbackTypeBadge feedbackItem.feedbackType}</td>
-        <td>{renderFeedbackPriorityForm feedbackItem}</td>
-        <td>{supportFeedbackVenueName}</td>
-        <td>{supportFeedbackSubmitter}</td>
-        <td class="feedback-content-cell">
-            <details>
-                <summary>{feedbackContentPreview feedbackItem.content}</summary>
-                <div class="mt-2 text-break">{feedbackItem.content}</div>
-                {renderFeedbackDiagnostics supportFeedbackVenueName feedbackItem}
-                {renderSupportNoteForm feedbackItem}
-            </details>
-        </td>
-        <td>{formatTimestamp feedbackItem.createdAt}</td>
-        <td>{renderMarkFeedbackReadForm feedbackItem}</td>
-    </tr>
-|]
-
-renderFeedbackReadBadge :: UserFeedbackItem -> Html
-renderFeedbackReadBadge feedbackItem
-    | isNothing feedbackItem.readAt = [hsx|<span class="badge text-bg-danger">unread</span>|]
-    | otherwise = [hsx|<span class="badge text-bg-secondary">read</span>|]
-
-renderFeedbackTypeBadge :: FeedbackTypeEnum -> Html
-renderFeedbackTypeBadge feedbackType = [hsx|<span class="badge text-bg-info">{feedbackTypeLabel feedbackType}</span>|]
-
-renderFeedbackStatusForm :: UserFeedbackItem -> Html
-renderFeedbackStatusForm feedbackItem = [hsx|
-    <form method="POST" action={UpdateFeedbackStatusAction feedbackItem.id}>
-        <label class="visually-hidden" for={feedbackControlId "status" feedbackItem.id}>Status</label>
-        <select id={feedbackControlId "status" feedbackItem.id} name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-            {forEach allowedFeedbackStatuses (renderFeedbackSelectOption feedbackItem.status)}
-        </select>
-    </form>
-|]
-
-renderFeedbackPriorityForm :: UserFeedbackItem -> Html
-renderFeedbackPriorityForm feedbackItem = [hsx|
-    <form method="POST" action={UpdateFeedbackPriorityAction feedbackItem.id}>
-        <label class="visually-hidden" for={feedbackControlId "priority" feedbackItem.id}>Priority</label>
-        <select id={feedbackControlId "priority" feedbackItem.id} name="priority" class="form-select form-select-sm" onchange="this.form.submit()">
-            {forEach allowedFeedbackPriorities (renderFeedbackSelectOption feedbackItem.priority)}
-        </select>
-    </form>
-|]
-
-renderFeedbackSelectOption :: Text -> Text -> Html
-renderFeedbackSelectOption current value = [hsx|
-    <option value={value} selected={current == value}>{feedbackOptionLabel value}</option>
-|]
-
-feedbackOptionLabel :: Text -> Text
-feedbackOptionLabel = Text.replace "_" " "
-
-renderMarkFeedbackReadForm :: UserFeedbackItem -> Html
-renderMarkFeedbackReadForm feedbackItem
-    | isJust feedbackItem.readAt = mempty
-    | otherwise = [hsx|
-        <form method="POST" action={MarkFeedbackReadAction feedbackItem.id}>
-            <button type="submit" class="btn btn-outline-secondary btn-sm">Mark read</button>
-        </form>
-    |]
-
-renderSupportNoteForm :: UserFeedbackItem -> Html
-renderSupportNoteForm feedbackItem = [hsx|
-    <form method="POST" action={UpdateFeedbackSupportNoteAction feedbackItem.id} class="mt-3">
-        <label class="form-label small" for={feedbackControlId "note" feedbackItem.id}>Support note</label>
-        <textarea id={feedbackControlId "note" feedbackItem.id} name="supportNote" rows="2" class="form-control form-control-sm">{fromMaybe "" feedbackItem.supportNote}</textarea>
-        <button type="submit" class="btn btn-outline-secondary btn-sm mt-2">Save note</button>
-    </form>
-|]
-
-renderFeedbackDiagnostics :: Text -> UserFeedbackItem -> Html
-renderFeedbackDiagnostics venueName feedbackItem = [hsx|
-    <details class="mt-3" data-feedback-diagnostics="true">
-        <summary>Info</summary>
-        <dl class="row small mb-0 mt-2">
-            {renderFeedbackDiagnostic "Page" feedbackItem.submittedPath}
-            {renderFeedbackDiagnostic "Venue" (Just venueName)}
-            {renderFeedbackDiagnostic "Submitter role" (feedbackRoleLabel <$> feedbackItem.submittedRole)}
-            {renderFeedbackDiagnostic "User-Agent" feedbackItem.userAgent}
-            {renderFeedbackDiagnostic "Viewport" (renderViewport feedbackItem.viewportWidth feedbackItem.viewportHeight)}
-            {renderFeedbackDiagnostic "Device pixel ratio" (tshow <$> feedbackItem.devicePixelRatio)}
-            {renderFeedbackDiagnostic "Device class" (feedbackDeviceClassLabel <$> feedbackItem.deviceClass)}
-            {renderFeedbackDiagnostic "App mode" (feedbackDisplayModeLabel <$> feedbackItem.displayMode)}
-        </dl>
-    </details>
-|]
-
-renderFeedbackDiagnostic :: Text -> Maybe Text -> Html
-renderFeedbackDiagnostic label maybeValue = [hsx|
-    <dt class="col-sm-4">{label}</dt>
-    <dd class="col-sm-8 text-break">{fromMaybe "Not reported" maybeValue}</dd>
-|]
-
-renderViewport :: Maybe Int -> Maybe Int -> Maybe Text
-renderViewport (Just width) (Just height) = Just (tshow width <> " × " <> tshow height)
-renderViewport _ _ = Nothing
-
-feedbackRoleLabel :: Text -> Text
-feedbackRoleLabel role =
-    case role of
-        "worker"              -> "Worker"
-        "supervisor"          -> "Supervisor"
-        "manager"             -> "Manager"
-        "venue_admin"         -> "Venue admin"
-        "venue_owner"         -> "Venue owner"
-        "support_super_admin" -> "Support super admin"
-        _                     -> role
-
-feedbackDeviceClassLabel :: Text -> Text
-feedbackDeviceClassLabel deviceClass =
-    case deviceClass of
-        "mobile"  -> "Mobile"
-        "desktop" -> "Desktop"
-        _         -> deviceClass
-
-feedbackDisplayModeLabel :: Text -> Text
-feedbackDisplayModeLabel displayMode =
-    case displayMode of
-        "standalone" -> "Standalone PWA"
-        "browser"    -> "Browser"
-        _            -> displayMode
-
-feedbackContentPreview :: Text -> Text
-feedbackContentPreview content =
-    let stripped = Text.strip content
-     in if Text.length stripped > 120
-            then Text.take 117 stripped <> "..."
-            else stripped
-
-feedbackControlId :: Text -> Id UserFeedbackItem -> Text
-feedbackControlId prefix feedbackItemId = prefix <> "-" <> inputValue feedbackItemId
 
 renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|

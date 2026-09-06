@@ -47,8 +47,8 @@ delivery. Feedback persistence and all recipient jobs commit in one transaction.
 The job stores the feedback row ID rather than feedback content. Delivery loads the
 feedback, venue, submitter, and venue timezone, then renders explicit HTML and plain
 text with escaped feedback content, triage diagnostics, an explicitly labelled
-venue-local timestamp, and the general Support URL. Sender and reply-to remain
-system-controlled.
+venue-local timestamp, and the Feedback review URL. Sender and reply-to remain
+system-controlled. Moderation does not enqueue submitter notifications.
 
 ## Wage-source alert mail kinds
 

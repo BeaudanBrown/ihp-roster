@@ -55,7 +55,7 @@ authorizeSurfaceScopeRequirement (RequireCurrentVenueAdminRosterGroup venueId ro
             pure (hasRosterGroupAccess && hasRole VenueAdmin)
         else pure False
 authorizeSurfaceScopeRequirement RequireSupportSuperAdmin =
-    pure currentUserIsSuperAdmin
+    pure currentUserIsUnimpersonatedSuperAdmin
 
 currentVenueMatches :: (?context :: ControllerContext) => UUID.UUID -> Bool
 currentVenueMatches venueId =

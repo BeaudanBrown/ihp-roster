@@ -38,8 +38,11 @@ Application/Error/Transaction.hs	production	runtime	Main	Reachable from Main
 Application/Error/Types.hs	production	runtime	Main	Reachable from Main
 Application/Error/Types/Internal.hs	production	runtime	Main	Reachable from Main
 Application/Error/Wire.hs	production	runtime	Main	Reachable from Main
-Application/Feedback/Domain.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Feedback/Domain.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Email.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/LiveUpdates.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/Management.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Notification.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/ReadModel.hs	production	runtime	Main	Reachable from Main
 Application/Fixture.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
@@ -143,6 +146,14 @@ Application/Helper/FrontendContract/Surface/DSL.hs	production	runtime	Main	Reach
 Application/Helper/FrontendContract/Surface/DependencyPlanner.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Diagnostics.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Dto.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback/Action.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback/Generated/Action.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback/Generated/Live.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback/Generated/Resource.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback/HaskellAdapter.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback/Live.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Feedback/Resource.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/FragmentRender.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/HaskellAdapter/Association.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/HaskellAdapter/Core.hs	production	runtime	Main	Reachable from Main
@@ -548,7 +559,9 @@ Web/View/Admin/Xero/TimesheetPreparation.hs	production	runtime	Main	Reachable fr
 Web/View/Admin/Xero/TimesheetPreparation/Review.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation/StaffMappings.hs	production	runtime	Main	Reachable from Main
 Web/View/Billing/Index.hs	production	runtime	Main	Reachable from Main
+Web/View/Feedback/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/Index.hs	production	runtime	Main	Reachable from Main
+Web/View/Feedback/Management.hs	production	runtime	Main	Reachable from Main
 Web/View/Feedback/New.hs	production	runtime	Main	Reachable from Main
 Web/View/Help/Show.hs	production	runtime	Main	Reachable from Main
 Web/View/Layout.hs	production	runtime	Main	Reachable from Main

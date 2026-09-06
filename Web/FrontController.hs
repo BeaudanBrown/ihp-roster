@@ -8,8 +8,7 @@ import Application.Helper.Controller (clearCurrentUserPasskeyVerification,
                                       currentUserIsSuperAdmin,
                                       currentVenueOrNothing,
                                       currentVenueSessionKey)
-import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
-                                    fetchSupportUnreadFeedbackCount)
+import Application.Helper.Feedback (PrivateFeedbackCount (..), fetchPrivateFeedbackCount)
 import Application.Helper.Impersonation (clearImpersonationReturnFallback,
                                          effectiveUserSessionKey,
                                          impersonationSessionIdSessionKey,
@@ -129,8 +128,8 @@ initBillingNavigationContext =
 initFeedbackContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initFeedbackContext =
     profileActionSpan "context.feedback.init" do
-        unreadCount <-
-            if currentUserIsSuperAdmin
-                then profileActionSpan "context.feedback.fetch_support_unread_count" fetchSupportUnreadFeedbackCount
-                else pure (SupportUnreadFeedbackCount 0)
-        putContext unreadCount
+        privateCount <-
+            if currentUserIsUnimpersonatedSuperAdmin
+                then profileActionSpan "context.feedback.fetch_private_count" fetchPrivateFeedbackCount
+                else pure (PrivateFeedbackCount 0)
+        putContext privateCount

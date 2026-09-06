@@ -212,6 +212,15 @@ data FeedbackController
     = FeedbackAction
     | NewFeedbackAction
     | CreateFeedbackAction
+    | ShowFeedbackBoardAction
+    | ShowFeedbackReviewAction
+    | ShowFeedbackDesktopCountAction
+    | ShowFeedbackMobileCountAction
+    | EditFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | UpdateFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | PublishFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | ArchiveFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | RestoreFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     deriving (Eq, Show, Data)
 
 data HelpController
@@ -227,11 +236,6 @@ data SupportController
     | RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId :: !(Id VenueOnboardingInvitation) }
     | CreateFwcMapdRefreshJobAction
     | CreatePublicHolidayRefreshJobAction
-    | MarkFeedbackReadAction { feedbackItemId :: !(Id UserFeedbackItem) }
-    | MarkAllFeedbackReadAction
-    | UpdateFeedbackStatusAction { feedbackItemId :: !(Id UserFeedbackItem) }
-    | UpdateFeedbackPriorityAction { feedbackItemId :: !(Id UserFeedbackItem) }
-    | UpdateFeedbackSupportNoteAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | StartSupportImpersonationAction
     | ExitSupportImpersonationAction
     | SwitchSupportImpersonationAction

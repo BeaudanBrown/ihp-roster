@@ -1122,7 +1122,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Support venue"
                 response `responseBodyShouldNotContain` "Support mode"
 
-        it "shows submitted feedback without the submit-feedback button for super admins" $ withContext do
+        it "removes feedback review from Support while retaining the Feedback navigation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Support Venue"
                 submitter <- createUserRecord "feedback-support-user@example.com" "staff" True
@@ -1141,16 +1141,16 @@ tests = aroundAll withDatabaseTestContext do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "User Feedback"
-                response `responseBodyShouldContain` "Roster page needs a clearer publish button"
-                response `responseBodyShouldContain` "feedback-support-user@example.com"
-                response `responseBodyShouldContain` "Unread feedback: <span class=\"fw-semibold\">1</span>"
-                response `responseBodyShouldContain` ">Info</summary>"
-                response `responseBodyShouldContain` "Page</dt>"
-                response `responseBodyShouldContain` "Not reported"
+                response `responseBodyShouldNotContain` "User Feedback"
+                response `responseBodyShouldNotContain` "Roster page needs a clearer publish button"
+                response `responseBodyShouldNotContain` "feedback-support-user@example.com"
+                response `responseBodyShouldNotContain` "Unread feedback"
+                response `responseBodyShouldContain` "href=\"/Feedback\""
+                forM_ ["MarkFeedbackRead", "MarkAllFeedbackRead", "UpdateFeedbackStatus", "UpdateFeedbackPriority", "UpdateFeedbackSupportNote"] \retired ->
+                    response `responseBodyShouldNotContain` retired
                 response `responseBodyShouldNotContain` "hx-get=\"/NewFeedback\""
 
-        it "shows captured feedback diagnostics inline" $ withContext do
+        it "does not project retained feedback diagnostics on Support" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Diagnostics Venue"
                 submitter <- createUserRecord "feedback-diagnostics-user@example.com" "staff" True
@@ -1177,37 +1177,10 @@ tests = aroundAll withDatabaseTestContext do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Feedback Diagnostics Venue"
-                response `responseBodyShouldContain` "/LeaveRequests"
-                response `responseBodyShouldContain` "FeedbackBrowser/1.0"
-                response `responseBodyShouldContain` "Venue admin"
-                response `responseBodyShouldContain` "390 × 844"
-                response `responseBodyShouldContain` "2.625"
-                response `responseBodyShouldContain` "Mobile"
-                response `responseBodyShouldContain` "Standalone PWA"
-
-        it "marks feedback read for super admins" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Feedback Read Venue"
-                submitter <- createUserRecord "feedback-read-user@example.com" "staff" True
-                superAdmin <- createUserRecordWithPlatformRole "feedback-read-super@example.com" "staff" (Just SuperAdmin) True
-                feedbackItem <- newRecord @UserFeedbackItem
-                    |> set #venueId (unpackId venue.id)
-                    |> set #submittedByUserId (unpackId submitter.id)
-                    |> set #title "Clearer copy action"
-                    |> set #feedbackType Suggestion
-                    |> set #status "new"
-                    |> set #priority "normal"
-                    |> set #content "Make the copy week action clearer"
-                    |> createRecord
-
-                response <- withPasskeyVerifiedUser superAdmin do
-                    callAction (MarkFeedbackReadAction feedbackItem.id)
-
-                response `responseStatusShouldBe` status302
-                updatedFeedback <- fetch feedbackItem.id
-                updatedFeedback.readAt `shouldSatisfy` isJust
-                updatedFeedback.readByUserId `shouldBe` Just (unpackId superAdmin.id)
+                response `responseBodyShouldNotContain` "Diagnostics are available"
+                response `responseBodyShouldNotContain` "FeedbackBrowser/1.0"
+                response `responseBodyShouldNotContain` "2.625"
+                response `responseBodyShouldNotContain` "feedback-diagnostics-user@example.com"
 
         it "routes support refresh mutations through touched resources" $ withContext do
             withCleanDb do

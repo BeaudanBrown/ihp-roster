@@ -363,7 +363,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
             `shouldBe` 69
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 48
+            `shouldBe` 49
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -407,6 +407,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("admin-shift-types", "autosave-shift-type-name")
                 , ("admin-shift-types", "autosave-shift-type-selection")
                 , ("admin-xero", "sync-xero-payroll-reference-data")
+                , ("feedback-moderation", "archive-feedback")
+                , ("feedback-moderation", "edit-feedback")
+                , ("feedback-moderation", "publish-feedback")
+                , ("feedback-moderation", "restore-feedback")
                 ]
 
         intentDeclarations <-
@@ -443,6 +447,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 map (.generatedModuleName) generatedModules
                     `shouldBe`
                         [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Feedback.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Roster.Generated.Action"

@@ -3,6 +3,9 @@ module Test.Controller.FeedbackSpec where
 import Application.EmailDelivery (emailDeliveryJobKind)
 import Application.Feedback.Domain (publishFeedback, archiveFeedback, addFeedbackVote)
 import Application.Feedback.ReadModel (PublicFeedbackCard (..), fetchPublicFeedbackCards)
+import Application.Helper.FrontendContract.Surface.Feedback.Live (feedbackPlatformLiveScope)
+import Web.SurfaceInvalidation (authorizeSurfaceScope)
+import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Text as Text
@@ -254,14 +257,16 @@ tests = aroundAll withDatabaseTestContext do
                     forM_ ["Secret private title", "Secret archived title", "secret-author@example.com", "Secret origin venue", "Secret support note", "/secret-path", tshow privateItem.id, tshow archivedItem.id] \secret ->
                         response `responseBodyShouldNotContain` secret
 
-        it "shows the empty board and navigation to platform support without membership" $ withContext do
+        it "shows empty management sections and navigation to platform support without membership" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support board venue"
                 moderator <- createUserRecordWithPlatformRole "board-support@example.com" "staff" (Just SuperAdmin) True
                 response <- withPasskeyVerifiedUserAndCurrentVenue moderator venue.id do
                     callAction FeedbackAction
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "No public feedback yet"
+                response `responseBodyShouldContain` "Private (0)"
+                response `responseBodyShouldContain` "Public (0)"
+                response `responseBodyShouldContain` "Archived (0)"
                 response `responseBodyShouldContain` "href=\"/Feedback\""
                 response `responseBodyShouldContain` "href=\"/NewFeedback\""
 
@@ -327,6 +332,159 @@ tests = aroundAll withDatabaseTestContext do
                             ([("feedbackType", "bug"), ("content", "Valid description")] <> maybe [] (\value -> [("feedbackTitle", cs value)]) title)
                     response `responseStatusShouldBe` status200
                     query @UserFeedbackItem |> fetchCount >>= (`shouldBe` 0)
+
+        it "renders all management rows and retained metadata only to the unimpersonated founder" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Management origin"
+                otherVenue <- createVenueWithConfig "Unrelated support venue"
+                author <- createUserRecord "management-author@example.com" "staff" True
+                founder <- createUserRecordWithPlatformRole "management-founder@example.com" "staff" (Just SuperAdmin) True
+                forM_ [1..51 :: Int] \index -> feedbackFixture venue author ("Private card " <> tshow index)
+                withPasskeyVerifiedUserAndCurrentVenue founder otherVenue.id do
+                    response <- callAction FeedbackAction
+                    response `responseBodyShouldContain` "Private (51)"
+                    response `responseBodyShouldContain` "Private card 1"
+                    response `responseBodyShouldContain` "Private card 51"
+                    response `responseBodyShouldContain` "management-author@example.com"
+                    response `responseBodyShouldContain` "Secret support note"
+                    response `responseBodyShouldContain` "/secret-path"
+                    response `responseBodyShouldContain` "Management origin"
+                    response `responseBodyShouldContain` "hx-get=\"/EditFeedback"
+                    countResponse <- callAction ShowFeedbackDesktopCountAction
+                    countResponse `responseBodyShouldContain` ">51</span>"
+                    countResponse `responseBodyShouldNotContain` "hx-swap-oob"
+                    review <- callAction ShowFeedbackReviewAction
+                    review `responseBodyShouldContain` "Private (51)"
+                    review `responseBodyShouldNotContain` "<!DOCTYPE"
+                    withCurrentControllerContext (authorizeSurfaceScope feedbackPlatformLiveScope) `shouldReturn` True
+
+        forM_ [Worker, Supervisor, Manager, VenueAdmin, VenueOwner] \role ->
+            it ("denies moderation endpoints and subscriptions to " <> cs (tshow role)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Authority venue"
+                    user <- createUserRecord "moderation-denied@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue user role
+                    item <- feedbackFixture venue user "Do not publish"
+                    withPasskeyVerifiedUserAndCurrentVenue user venue.id do
+                        forM_ (moderationRoutes item.id) \route -> do
+                            response <- callAction route
+                            response `responseStatusShouldBe` status403
+                            response `responseBodyShouldNotContain` "Secret support note"
+                        withCurrentControllerContext (authorizeSurfaceScope feedbackPlatformLiveScope) `shouldReturn` False
+                    saved <- fetch item.id
+                    saved.lifecycle `shouldBe` Private
+                    query @FeedbackVote |> fetchCount >>= (`shouldBe` 0)
+                    query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+
+        it "excludes an actual founder impersonating an ordinary effective user from every moderation route" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation moderation"
+                founder <- createUserRecordWithPlatformRole "moderation-actual@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "moderation-effective@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                item <- feedbackFixture venue worker "Private under impersonation"
+                withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams StartSupportImpersonationAction [("userId", cs (inputValue worker.id))]
+                    forM_ (moderationRoutes item.id) \route -> do
+                        response <- callAction route
+                        response `responseStatusShouldBe` status403
+                        response `responseBodyShouldNotContain` "Secret support note"
+                    withCurrentControllerContext (authorizeSurfaceScope feedbackPlatformLiveScope) `shouldReturn` False
+
+        it "commits editorial transitions, votes, audit provenance and actor invalidations together" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Moderated origin"
+                otherVenue <- createVenueWithConfig "Current support venue"
+                author <- createUserRecord "lifecycle-author@example.com" "staff" True
+                founder <- createUserRecordWithPlatformRole "lifecycle-founder@example.com" "staff" (Just SuperAdmin) True
+                item <- feedbackFixture venue author "Editorial original"
+                withPasskeyVerifiedUserAndCurrentVenue founder otherVenue.id do
+                    response <- withRequestHeaders [("HX-Request", "true")] (callAction (PublishFeedbackAction item.id))
+                    response `responseStatusShouldBe` status200
+                    lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                    lookup "HX-Trigger" (responseHeaders response) `shouldSatisfy` isJust
+                    response `responseBodyShouldNotContain` "Editorial original"
+                    published <- fetch item.id
+                    published.lifecycle `shouldBe` Public
+                    published.publishedByUserId `shouldBe` Just (unpackId founder.id)
+                    vote <- query @FeedbackVote |> fetchOne
+                    vote.userId `shouldBe` unpackId author.id
+                    _ <- callActionWithParams (UpdateFeedbackAction item.id)
+                        [("feedbackTitle", "  Edited title  "), ("feedbackContent", "Edited description"), ("feedbackType", "suggestion")]
+                    edited <- fetch item.id
+                    edited.title `shouldBe` "Edited title"
+                    edited.feedbackType `shouldBe` Suggestion
+                    query @FeedbackVote |> fetchCount >>= (`shouldBe` 1)
+                    publicReview <- callAction ShowFeedbackReviewAction
+                    publicReview `responseBodyShouldContain` "All votes will be removed."
+                    _ <- callAction (ArchiveFeedbackAction item.id)
+                    archived <- fetch item.id
+                    archived.lifecycle `shouldBe` Archived
+                    archived.archivedByUserId `shouldBe` Just (unpackId founder.id)
+                    query @FeedbackVote |> fetchCount >>= (`shouldBe` 0)
+                    _ <- callAction (RestoreFeedbackAction item.id)
+                    restored <- fetch item.id
+                    restored.lifecycle `shouldBe` Private
+                    restored.publishedAt `shouldBe` Nothing
+                    restored.publishedByUserId `shouldBe` Nothing
+                    restored.archivedAt `shouldBe` Nothing
+                    restored.archivedByUserId `shouldBe` Nothing
+                    _ <- callAction (PublishFeedbackAction item.id)
+                    query @FeedbackVote |> fetchCount >>= (`shouldBe` 1)
+                    events <- query @AuditEvent |> filterWhere (#targetId, unpackId item.id) |> fetch
+                    length events `shouldBe` 5
+                    map (.venueId) events `shouldBe` replicate 5 (unpackId venue.id)
+                    map (.actorUserId) events `shouldBe` replicate 5 (unpackId founder.id)
+                    query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 5)
+                    _ <- callAction (PublishFeedbackAction item.id)
+                    query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 5)
+
+        it "rolls back publication, the automatic vote and audit when durable handoff fails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Publication rollback"
+                founder <- createUserRecordWithPlatformRole "rollback-founder@example.com" "staff" (Just SuperAdmin) True
+                item <- feedbackFixture venue founder "Must stay private"
+                let installFailure = do
+                        sqlExecDiscardResult "CREATE FUNCTION reject_feedback_event() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced feedback publication failure''; END' LANGUAGE plpgsql" ()
+                        sqlExecDiscardResult "CREATE TRIGGER reject_feedback_event BEFORE INSERT ON live_invalidation_events FOR EACH ROW EXECUTE FUNCTION reject_feedback_event()" ()
+                let removeFailure = do
+                        sqlExecDiscardResult "DROP TRIGGER IF EXISTS reject_feedback_event ON live_invalidation_events" ()
+                        sqlExecDiscardResult "DROP FUNCTION IF EXISTS reject_feedback_event()" ()
+                Exception.bracket_ installFailure removeFailure do
+                    _ <- Exception.try @Exception.SomeException $ withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                        callAction (PublishFeedbackAction item.id)
+                    pure ()
+                saved <- fetch item.id
+                saved.lifecycle `shouldBe` Private
+                saved.publishedAt `shouldBe` Nothing
+                query @FeedbackVote |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+                query @AuditEvent |> filterWhere (#targetId, unpackId item.id) |> fetchCount >>= (`shouldBe` 0)
+
+        forM_ [ [], [("feedbackTitle", ""), ("feedbackContent", "valid"), ("feedbackType", "bug")]
+              , [("feedbackTitle", "valid"), ("feedbackContent", "ab"), ("feedbackType", "bug")]
+              , [("feedbackTitle", "valid"), ("feedbackContent", "valid"), ("feedbackType", "invalid")]
+              , [("feedbackTitle", cs (Text.replicate 121 "x")), ("feedbackContent", "valid"), ("feedbackType", "bug")]
+              , [("feedbackTitle", "valid"), ("feedbackContent", cs (Text.replicate 3001 "x")), ("feedbackType", "bug")]
+              ] \params ->
+            it ("validates editorial input without publishing facts: " <> cs (tshow (map fst params))) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Editorial validation"
+                    founder <- createUserRecordWithPlatformRole "editor-validation@example.com" "staff" (Just SuperAdmin) True
+                    item <- feedbackFixture venue founder "Unchanged title"
+                    response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                        withRequestHeaders [("HX-Request", "true")] (callActionWithParams (UpdateFeedbackAction item.id) params)
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "feedback-edit-form"
+                    response `responseBodyShouldContain` "invalid-feedback"
+                    saved <- fetch item.id
+                    saved.title `shouldBe` "Unchanged title"
+                    query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+                    query @AuditEvent |> filterWhere (#targetId, unpackId item.id) |> fetchCount >>= (`shouldBe` 0)
+
+moderationRoutes :: Id UserFeedbackItem -> [FeedbackController]
+moderationRoutes itemId = [ShowFeedbackReviewAction, ShowFeedbackDesktopCountAction, ShowFeedbackMobileCountAction,
+    EditFeedbackAction itemId, UpdateFeedbackAction itemId, PublishFeedbackAction itemId, ArchiveFeedbackAction itemId, RestoreFeedbackAction itemId]
 
 feedbackFixture :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO UserFeedbackItem
 feedbackFixture venue author title = newRecord @UserFeedbackItem

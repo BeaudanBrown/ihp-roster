@@ -192,7 +192,7 @@ tests = aroundAll withDatabaseTestContext do
                             , venue
                             , submitter
                             , venueTimezone = "Australia/Melbourne"
-                            , supportUrl = "https://app.example/Support"
+                            , feedbackUrl = "https://app.example/Feedback"
                             , fromAddress = "noreply@example.com"
                             , replyToAddress = "support@example.com"
                             }
@@ -211,7 +211,7 @@ tests = aroundAll withDatabaseTestContext do
                 text mail `shouldSatisfy` isInfixOf "Submission-time role: worker"
                 text mail `shouldSatisfy` isInfixOf "Submitted: 2026-08-20 13:15:00 Australia/Melbourne"
                 text mail `shouldSatisfy` isInfixOf "<script>alert('escaped')</script>\nSecond line"
-                text mail `shouldSatisfy` isInfixOf "Open Bepis Support: https://app.example/Support"
+                text mail `shouldSatisfy` isInfixOf "Review Bepis Feedback: https://app.example/Feedback"
 
         it "renders distinct safe wage-source failure and stale alerts" $ withContext do
             let detectedAt = UTCTime (fromGregorian 2026 8 20) 0

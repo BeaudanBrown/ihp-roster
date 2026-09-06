@@ -157,11 +157,11 @@ System.IO.Unsafe	base	Application/Helper/Telemetry.hs via Main
 System.Process	process	Application/StaffDocuments/RsaExtraction.hs via Main
 System.Random	random	Application/Xero/ReferenceSyncJob.hs via Main
 System.Timeout	base	Application/Helper/Telemetry.hs via Main
-Text.Blaze	blaze-markup	Application/Helper/FrontendContract/AppShell/Runtime.hs via Main
+Text.Blaze	blaze-markup	Application/Helper/FrontendContract/Surface/Runtime.hs via Main
 Text.Blaze.Html	blaze-html	Application/Helper/Profiling.hs via Main
 Text.Blaze.Html.Renderer.Utf8	blaze-html	Application/Helper/Profiling.hs via Main
 Text.Blaze.Html5	blaze-html	Web/View/Layout.hs via Main
-Text.Blaze.Internal	blaze-markup	Application/Helper/FrontendContract/AppShell/Runtime.hs via Main
+Text.Blaze.Internal	blaze-markup	Application/Helper/FrontendContract/Surface/Runtime.hs via Main
 Text.Printf	base	Application/Helper/Export/HourlyBreakdown.hs via Main
 Text.Read	base	Application/Helper/Telemetry.hs via Main
 Text.XML	xml-conduit	Application/Helper/Export/PayrollWorkbook.hs via Main

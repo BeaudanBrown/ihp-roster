@@ -1,11 +1,18 @@
 module Web.View.Feedback.Index where
 
 import Application.Feedback.ReadModel (PublicFeedbackCard (..))
+import Application.Feedback.Management (ManagementFeedbackCard)
+import Application.Feedback.LiveUpdates
+import Application.Helper.ControllerContext (currentVenueId)
+import qualified Application.Helper.FrontendContract.Surface.Feedback as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFragmentTargetId, noSurfaceFields)
+import Web.View.Feedback.Management (renderFeedbackManagement)
 import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..), appShellActionByMarker, renderAppShellActionLink)
 import Web.View.Prelude
 
-newtype IndexView = IndexView { cards :: [PublicFeedbackCard] }
+data IndexView = IndexView { cards :: [PublicFeedbackCard], managementCards :: Maybe [ManagementFeedbackCard] }
 
 instance View IndexView where
     html IndexView { .. } = renderAppPage AppPageConfig
@@ -14,7 +21,9 @@ instance View IndexView where
         , appPageActions = renderAddFeedback
         , appPageHelpTopic = Nothing
         , appPageWidthClass = ""
-        , appPageBody = renderPublicFeedbackCards cards
+        , appPageBody = case managementCards of
+            Just managed -> renderFrontendSurfaceMount feedbackModerationSurface (renderFeedbackManagement managed)
+            Nothing -> renderFrontendSurfaceMount (feedbackSurface (unpackId currentVenueId)) (renderPublicFeedbackCards cards)
         }
 
 renderAddFeedback :: Html
@@ -31,7 +40,7 @@ renderAddFeedback = renderAppShellActionLink
 
 renderPublicFeedbackCards :: [PublicFeedbackCard] -> Html
 renderPublicFeedbackCards cards = [hsx|
-    <div id="feedback-cards" class="d-flex flex-column gap-3">
+    <div id={surfaceFragmentTargetId @Surface.FeedbackSurface @Surface.FeedbackBoard noSurfaceFields} class="d-flex flex-column gap-3">
         {content}
     </div>
 |]

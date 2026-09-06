@@ -1,8 +1,14 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, Html) where
+module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, renderFeedbackDesktopCount, renderFeedbackMobileCount, Html) where
 
 import Application.Billing.Stripe (BillingNavigationContext (..))
+import Application.Helper.Feedback (PrivateFeedbackCount (..))
+import Application.Feedback.LiveUpdates (feedbackDesktopCountSurface, feedbackMobileCountSurface)
+import qualified Application.Helper.FrontendContract.Surface.Feedback as FeedbackSurface
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFragmentTargetId, noSurfaceFields)
+import Application.Helper.ControllerContext (currentUserIsUnimpersonatedSuperAdmin)
 import Application.Helper.Controller (EffectiveUser (..),
                                       ImpersonationRequestContext (..),
                                       SupportImpersonationOption (..),
@@ -106,12 +112,39 @@ renderAppHeader =
         Nothing -> mempty
 
 renderDesktopFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
-renderDesktopFeedbackButton =
-    renderDesktopNavLink "feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]
+renderDesktopFeedbackButton = [hsx|
+    <div class="d-flex align-items-center gap-1">
+        {renderDesktopNavLink "feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]}
+        {when currentUserIsUnimpersonatedSuperAdmin (renderFrontendSurfaceMount feedbackDesktopCountSurface (renderFeedbackDesktopCount privateFeedbackCount))}
+    </div>
+|]
 
 renderMobileFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
-renderMobileFeedbackButton =
-    renderMobileNavLink "Feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]
+renderMobileFeedbackButton = [hsx|
+    <div class="d-flex align-items-center gap-1">
+        {renderMobileNavLink "Feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]}
+        {when currentUserIsUnimpersonatedSuperAdmin (renderFrontendSurfaceMount feedbackMobileCountSurface (renderFeedbackMobileCount privateFeedbackCount))}
+    </div>
+|]
+
+privateFeedbackCount :: (?context :: ControllerContext) => Int
+privateFeedbackCount = case fromFrozenContext @PrivateFeedbackCount of
+    PrivateFeedbackCount count -> count
+
+renderFeedbackDesktopCount :: Int -> Html
+renderFeedbackDesktopCount count = [hsx|
+    <span id={surfaceFragmentTargetId @FeedbackSurface.FeedbackModerationSurface @FeedbackSurface.FeedbackDesktopCount noSurfaceFields}>{renderPrivateFeedbackBadge count}</span>
+|]
+
+renderFeedbackMobileCount :: Int -> Html
+renderFeedbackMobileCount count = [hsx|
+    <span id={surfaceFragmentTargetId @FeedbackSurface.FeedbackModerationSurface @FeedbackSurface.FeedbackMobileCount noSurfaceFields}>{renderPrivateFeedbackBadge count}</span>
+|]
+
+renderPrivateFeedbackBadge :: Int -> Html
+renderPrivateFeedbackBadge count = when (count > 0) [hsx|
+    <span class="badge text-bg-danger" aria-label="Private feedback awaiting review">{count}</span>
+|]
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|

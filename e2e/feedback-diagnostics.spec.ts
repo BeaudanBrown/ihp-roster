@@ -67,7 +67,10 @@ test.describe('Private Feedback submission', () => {
         await context.addCookies(cookies);
         const nativePage = await context.newPage();
         try {
-            await gotoWhenReady(nativePage, '/Feedback', '#feedback-cards');
+            // The ordinary session above warmed the runtime. A no-JS browser
+            // cannot acknowledge the live subscriptions awaited by gotoWhenReady.
+            await nativePage.goto('/Feedback');
+            await expect(nativePage.locator('#feedback-cards')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
             await nativePage.getByRole('link', { name: 'Add feedback', exact: true }).click();
             await expect(nativePage.locator('#feedback-form')).toBeVisible();
             const title = uniqueE2EValue('feedback-native');

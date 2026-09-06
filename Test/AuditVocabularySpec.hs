@@ -55,6 +55,11 @@ auditEventWireContract =
     , (XeroConnectionFailedAudit, "xero_connection_failed")
     , (XeroReferenceSyncSucceededAudit, "xero_reference_sync_succeeded")
     , (XeroReferenceSyncFailedAudit, "xero_reference_sync_failed")
+    , (FeedbackSubmittedAudit, "feedback_submitted")
+    , (FeedbackEditedAudit, "feedback_edited")
+    , (FeedbackPublishedAudit, "feedback_published")
+    , (FeedbackArchivedAudit, "feedback_archived")
+    , (FeedbackRestoredAudit, "feedback_restored")
     ]
 
 auditSourceChannelWireContract :: [(AuditSourceChannel, Text)]

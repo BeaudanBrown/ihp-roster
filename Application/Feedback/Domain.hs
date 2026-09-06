@@ -127,9 +127,14 @@ removeFeedbackVote feedbackId userId =
 -- QueryBuilder cannot express SELECT FOR UPDATE. Locking the parent row is the
 -- single concurrency primitive: publish/archive/restore/vote races converge on
 -- the lifecycle observed after the preceding transaction commits.
-withLockedFeedback :: (?modelContext :: ModelContext) => Id UserFeedbackItem -> ((?modelContext :: ModelContext) => UserFeedbackItem -> IO (Either FeedbackMutationError result)) -> IO (Either FeedbackMutationError result)
+withLockedFeedback :: forall result. (?modelContext :: ModelContext) => Id UserFeedbackItem -> ((?modelContext :: ModelContext) => UserFeedbackItem -> IO (Either FeedbackMutationError result)) -> IO (Either FeedbackMutationError result)
 withLockedFeedback feedbackId action =
-    withTransaction do
+    -- The live mutation boundary also owns audit/outbox writes. Reuse its
+    -- transaction; standalone domain callers still acquire an atomic boundary.
+    if isJust ?modelContext.transactionRunner then lockAndRun else withTransaction lockAndRun
+  where
+    lockAndRun :: (?modelContext :: ModelContext) => IO (Either FeedbackMutationError result)
+    lockAndRun = do
         lockedIds :: [PG.Only UUID] <- sqlQuery
             "SELECT id FROM user_feedback_items WHERE id = ? FOR UPDATE"
             (PG.Only (unpackId feedbackId))

@@ -41,7 +41,7 @@ loadFeedbackNotificationMail recipientAddress feedbackId settings appBaseUrl = d
                 , venue
                 , submitter
                 , venueTimezone = venueConfig.timezone
-                , supportUrl = stripTrailingSlash appBaseUrl <> pathTo SupportAction
+                , feedbackUrl = stripTrailingSlash appBaseUrl <> pathTo FeedbackAction
                 , fromAddress = settings.mailFromAddress
                 , replyToAddress = settings.mailReplyToAddress
                 }

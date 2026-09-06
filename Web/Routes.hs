@@ -26,7 +26,14 @@ instance AutoRoute E2ETestController where
 
     customPathTo MarkE2EPasskeyVerifiedAction = Just "/__e2e/mark-passkey-verified"
 instance AutoRoute AdminController
-instance AutoRoute FeedbackController
+instance AutoRoute FeedbackController where
+    allowedMethodsForAction actionName = case actionName of
+        "CreateFeedbackAction" -> [POST]
+        "UpdateFeedbackAction" -> [POST]
+        "PublishFeedbackAction" -> [POST]
+        "ArchiveFeedbackAction" -> [POST]
+        "RestoreFeedbackAction" -> [POST]
+        _ -> [GET, HEAD]
 instance AutoRoute HelpController
 instance AutoRoute SupportController
 instance AutoRoute StaffController

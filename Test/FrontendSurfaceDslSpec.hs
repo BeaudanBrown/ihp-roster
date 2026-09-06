@@ -851,6 +851,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "self-service-leave"
                        , "billing"
                        , "support"
+                       , "feedback"
+                       , "feedback-moderation"
                        , "profile"
                        , "staff"
                        , "admin-page"

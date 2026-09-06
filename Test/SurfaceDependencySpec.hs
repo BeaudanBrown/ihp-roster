@@ -1,5 +1,8 @@
 module Test.SurfaceDependencySpec where
 
+import Application.Feedback.LiveUpdates
+import Application.Helper.FrontendContract.Surface.Feedback.Live
+import Application.Helper.FrontendContract.Surface.Feedback.Resource
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
@@ -413,6 +416,28 @@ tests = do
                     [ RosterLive.rosterDaySectionLiveFragment ancestorDayUuid
                     , RosterLive.rosterRowLiveFragment childDayUuid 2
                     ]
+
+        it "plans Feedback public and private resources across actor and passive mounts without crossing mount ownership" do
+            let publicScope = feedbackVenueLiveScope (fromWords 9 0 0 0)
+            let boardResources = Set.singleton feedbackBoardResource
+            let reviewResources = Set.singleton feedbackReviewResource
+            let plannedIds resources scope candidates = map (.mountedFragmentTargetId) (planMountedFragments resources scope candidates)
+            plannedIds boardResources publicScope feedbackMountedFragments `shouldBe` ["feedback-cards"]
+            plannedIds reviewResources publicScope feedbackMountedFragments `shouldBe` []
+            plannedIds boardResources feedbackPlatformLiveScope feedbackModerationMountedFragments `shouldBe` []
+            plannedIds reviewResources feedbackPlatformLiveScope feedbackModerationMountedFragments
+                `shouldBe` ["feedback-review", "feedback-desktop-count", "feedback-mobile-count"]
+            passiveFragmentKeys boardResources publicScope feedbackMountedFragments
+                `shouldBe` map (.mountedFragmentKey) feedbackMountedFragments
+            Set.fromList (passiveFragmentKeys reviewResources feedbackPlatformLiveScope feedbackModerationMountedFragments)
+                `shouldBe` Set.fromList (map (.mountedFragmentKey) feedbackModerationMountedFragments)
+            let reviewMount = feedbackModerationSurface.surfaceImplMountConfig
+            let desktopMount = feedbackDesktopCountSurface.surfaceImplMountConfig
+            let mobileMount = feedbackMobileCountSurface.surfaceImplMountConfig
+            map (.mountedFragmentTargetId) reviewMount.mountFragments `shouldBe` ["feedback-review"]
+            map (.mountedFragmentTargetId) desktopMount.mountFragments `shouldBe` ["feedback-desktop-count"]
+            map (.mountedFragmentTargetId) mobileMount.mountFragments `shouldBe` ["feedback-mobile-count"]
+            map (.mountKey) [reviewMount, desktopMount, mobileMount] `shouldBe` ["primary", "desktop-header", "mobile-header"]
 
         it "selects support fragments through generated dependencies" do
             let awardRatesFragments = planMountedFragments (Set.fromList [supportAwardRatesResource]) supportSurfaceScope supportCandidateMountedFragments
