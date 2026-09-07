@@ -122,8 +122,9 @@ the payload before browser effects. `WireUnknown` is not an escape hatch for
 app-owned records.
 
 Names derive from marker types through `Application.Helper.FrontendContract.Naming`.
-Prefer descriptive markers and generated names. Exact-name overrides require a
-specific guardrail need.
+Prefer descriptive markers and generated names. Surface names have no exact-name
+override; reflection derives them from markers and checked IR validates naming
+collisions in their owning namespaces.
 
 Marker ownership is compile-time authority. A marker from another Surface, an
 incomplete or reordered bundle, a wrong presence/wire/Haskell type, or a bundle

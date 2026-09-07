@@ -4,22 +4,15 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.Naming
-    ( ExactNameAllowlistEntry (..)
-    , FrontendSurfaceNameContext (..)
-    , FrontendSurfaceNameError (..)
-    , NameCollision (..)
+    ( FrontendSurfaceNameContext (..)
     , deriveDomAttributeName
     , deriveDomAttributeTypeName
     , deriveEventName
     , deriveFrontendSurfaceName
     , deriveFrontendSurfaceTypeName
-    , deriveFrontendSurfaceTypeNameWithExact
     , deriveJsonFieldName
     , deriveSurfaceBrowserAttributeName
-    , deriveWireTagName
     , nameToKebab
-    , nameToSnake
-    , validateFrontendSurfaceNameCollisions
     , wordsFromTypeName
     ) where
 
@@ -52,30 +45,6 @@ data FrontendSurfaceNameContext
     | EventName
     deriving (Eq, Ord, Show)
 
-data ExactNameAllowlistEntry = ExactNameAllowlistEntry
-    { exactNameContext :: !FrontendSurfaceNameContext
-    , exactNameMarker  :: !Text
-    , exactNameValue   :: !Text
-    , exactNameReason  :: !Text
-    }
-    deriving (Eq, Show)
-
-data NameCollision = NameCollision
-    { collisionNamespace :: !Text
-    , collisionName      :: !Text
-    , collisionMarkers   :: ![Text]
-    }
-    deriving (Eq, Show)
-
-data FrontendSurfaceNameError
-    = UnauthorizedExactName
-        { exactNameContext   :: !FrontendSurfaceNameContext
-        , exactNameMarker    :: !Text
-        , exactNameRequested :: !Text
-        }
-    | FrontendSurfaceNameCollisions ![NameCollision]
-    deriving (Eq, Show)
-
 deriveFrontendSurfaceName :: FrontendSurfaceNameContext -> Text -> Text
 deriveFrontendSurfaceName context marker =
     case context of
@@ -87,19 +56,6 @@ deriveFrontendSurfaceName context marker =
 deriveFrontendSurfaceTypeName :: forall marker. Typeable marker => FrontendSurfaceNameContext -> Text
 deriveFrontendSurfaceTypeName context =
     deriveFrontendSurfaceName context (markerTypeName @marker)
-
-deriveFrontendSurfaceTypeNameWithExact ::
-    forall marker exactName.
-    (Typeable marker, KnownSymbol exactName) =>
-    [ExactNameAllowlistEntry] ->
-    FrontendSurfaceNameContext ->
-    Either FrontendSurfaceNameError Text
-deriveFrontendSurfaceTypeNameWithExact allowlist context =
-    deriveFrontendSurfaceNameWithExact allowlist context (markerTypeName @marker) (Just (cs (symbolVal (Proxy @exactName))))
-
-deriveWireTagName :: FrontendSurfaceNameContext -> Text -> Text
-deriveWireTagName context marker =
-    Text.intercalate "_" (stripContextSuffix context (wordsFromTypeName marker))
 
 deriveJsonFieldName :: Text -> Text
 deriveJsonFieldName = deriveFrontendSurfaceName FieldName
@@ -122,68 +78,12 @@ deriveEventName :: Text -> Text -> Text
 deriveEventName namespace marker =
     namespace <> ":" <> deriveFrontendSurfaceName EventName marker
 
-deriveFrontendSurfaceNameWithExact ::
-    [ExactNameAllowlistEntry] ->
-    FrontendSurfaceNameContext ->
-    Text ->
-    Maybe Text ->
-    Either FrontendSurfaceNameError Text
-deriveFrontendSurfaceNameWithExact allowlist context marker maybeExact =
-    case maybeExact of
-        Nothing -> Right (deriveFrontendSurfaceName context marker)
-        Just requested
-            | exactNameAllowed requested -> Right requested
-            | otherwise -> Left UnauthorizedExactName
-                { exactNameContext = context
-                , exactNameMarker = marker
-                , exactNameRequested = requested
-                }
-    where
-        exactNameAllowed requested =
-            any
-                (\entry ->
-                    entry.exactNameContext == context
-                        && entry.exactNameMarker == marker
-                        && entry.exactNameValue == requested
-                        && not (Text.null entry.exactNameReason)
-                )
-                allowlist
-
-validateFrontendSurfaceNameCollisions :: [(Text, Text, Text)] -> Either FrontendSurfaceNameError ()
-validateFrontendSurfaceNameCollisions entries =
-    case collisions of
-        [] -> Right ()
-        _  -> Left (FrontendSurfaceNameCollisions collisions)
-    where
-        grouped =
-            entries
-                |> List.sortOn (\(namespace, generatedName, marker) -> (namespace, generatedName, marker))
-                |> List.groupBy (\(leftNamespace, leftName, _) (rightNamespace, rightName, _) -> leftNamespace == rightNamespace && leftName == rightName)
-        collisions =
-            grouped
-                |> mapMaybe collisionFromGroup
-        collisionFromGroup group =
-            case group of
-                [] -> Nothing
-                ((namespace, generatedName, _) : _) ->
-                    let markers = List.nub [marker | (_, _, marker) <- group]
-                     in if length markers > 1
-                            then Just NameCollision
-                                { collisionNamespace = namespace
-                                , collisionName = generatedName
-                                , collisionMarkers = markers
-                                }
-                            else Nothing
-
 markerTypeName :: forall marker. Typeable marker => Text
 markerTypeName =
     cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))
 
 nameToKebab :: Text -> Text
 nameToKebab = Text.intercalate "-" . wordsFromTypeName
-
-nameToSnake :: Text -> Text
-nameToSnake = Text.intercalate "_" . wordsFromTypeName
 
 wordsFromTypeName :: Text -> [Text]
 wordsFromTypeName name =
