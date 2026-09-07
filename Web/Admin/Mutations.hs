@@ -41,9 +41,6 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
                                         syncVenueDefaultRosterGroupToTopActive)
 import Application.Helper.Staff (isAdoptableTrialStaff)
-import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
-                                            blankShiftTypeColourKey,
-                                            normalizeShiftTypeColourKey)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
@@ -299,11 +296,10 @@ moveRosterGroupMutation _rosterGroup direction =
         syncVenueDefaultRosterGroupToTopActive currentVenueId
         pure (liveMutationResult () [adminRosterGroupsResource (unpackId currentVenueId)])
 
-createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey =
+createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly colourKey =
     withDurableLiveMutation "admin.shift_type.create" do
         sortOrder <- nextShiftTypeSortOrder
-        colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
         now <- getCurrentTime
         let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
         shiftType <- newRecord @ShiftType
@@ -323,15 +319,14 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
         let payResources = shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
         pure (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
-updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey =
+updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly colourKey =
     withDurableLiveMutation "admin.shift_type.update" do
         now <- getCurrentTime
         sortOrder <-
             if not shiftType.isActive && isActive
                 then nextShiftTypeSortOrder
                 else pure shiftType.sortOrder
-        colourKey <- resolveSubmittedShiftTypeColourKey (Just shiftType.id) isActive maybeSubmittedColourKey shiftType.colourKey
         let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
         updatedShiftType <- shiftType
             |> set #name name
@@ -353,12 +348,6 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
                     then shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
                     else []
         pure (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
-
-resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe ShiftTypeColourKeyEnum -> ShiftTypeColourKeyEnum -> IO ShiftTypeColourKeyEnum
-resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
-    case maybeSubmittedColourKey of
-        Nothing -> assignShiftTypeColourKey currentVenueId maybeCurrentShiftTypeId isActive fallbackColourKey
-        Just submittedColourKey -> pure (normalizeShiftTypeColourKey submittedColourKey)
 
 moveShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Int -> IO (LiveMutationResult ())
 moveShiftTypeMutation shiftType direction =

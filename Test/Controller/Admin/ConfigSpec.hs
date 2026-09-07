@@ -848,6 +848,73 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldNotContain` "Default reusable"
                 pageResponse `responseBodyShouldNotContain` "(in use)"
 
+        it "reports pay and colour transport errors before name validation without effects" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invalid Shift Colour Venue"
+                admin <- createUserRecord "admin-invalid-shift-colours@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Original Shift"
+                    >>= updateRecord . set #colourKey Palette3
+                versionCount <- query @ShiftTypePayVersion |> fetchCount
+                let invalidColourError = "colourKey must be one of: no_colour, palette_1, palette_2, palette_3, palette_4, palette_5, palette_6, palette_7, palette_8, palette_9, palette_10"
+                forM_ [CreateShiftTypeAction, UpdateShiftTypeAction shiftType.id] \action ->
+                    forM_
+                        [ ([], "colourKey is required by the Surface request contract")
+                        , ([("colourKey", "")], invalidColourError)
+                        , ([("colourKey", "palette-3")], invalidColourError)
+                        ] \(colourParams, expectedError) -> do
+                        (response, errorMessage) <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            response <- callActionWithParams action
+                                ([ ("showInactiveShiftTypes", "false")
+                                 , ("name", "")
+                                 , ("payRateSelection", "invalid")
+                                 , ("isActive", "false")
+                                 ] <> colourParams)
+                            -- IHP's request session holds the flash error across the redirect.
+                            errorMessage <- getSession @Text "flashErrorMessage"
+                            pure (response, errorMessage)
+                        response `responseStatusShouldBe` status302
+                        errorMessage `shouldBe` Just ("Check the submitted fields: payRateSelection Choose a pay rate from the list, or leave the default selected.; " <> expectedError)
+                        unchanged <- fetch shiftType.id
+                        unchanged.name `shouldBe` "Original Shift"
+                        unchanged.isActive `shouldBe` True
+                        unchanged.colourKey `shouldBe` Palette3
+                        query @ShiftType |> fetchCount `shouldReturn` 1
+                        query @ShiftTypePayVersion |> fetchCount `shouldReturn` versionCount
+                        query @AuditEvent |> fetchCount `shouldReturn` 0
+                        query @LiveInvalidationEvent |> fetchCount `shouldReturn` 0
+
+        it "preserves submitted shift colours across activation changes and allows explicit clearing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Shift Colour State Venue"
+                admin <- createUserRecord "admin-state-shift-colours@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Same Shift"
+                    >>= updateRecord . set #colourKey Palette3
+                versionCount <- query @ShiftTypePayVersion |> fetchCount
+                forM_
+                    [ ("false", False, "palette_3", Palette3, 1)
+                    , ("true", True, "palette_3", Palette3, 2)
+                    , ("true", True, "no_colour", NoColour, 3)
+                    ] \(activeParam, expectedActive, colourParam, expectedColour, eventCount) -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callActionWithParams (UpdateShiftTypeAction shiftType.id)
+                            [ ("showInactiveShiftTypes", "true")
+                            , ("name", "Same Shift")
+                            , ("payRateSelection", cs ("award:" <> tshow level.id))
+                            , ("colourKey", colourParam)
+                            , ("isActive", activeParam)
+                            ]
+                    response `responseStatusShouldBe` status302
+                    updated <- fetch shiftType.id
+                    updated.isActive `shouldBe` expectedActive
+                    updated.colourKey `shouldBe` expectedColour
+                    query @ShiftTypePayVersion |> fetchCount `shouldReturn` versionCount
+                    query @AuditEvent |> fetchCount `shouldReturn` 0
+                    query @LiveInvalidationEvent |> fetchCount `shouldReturn` eventCount
+
         it "keeps colours when reactivated shift types collide with active types" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Shift Reactivation Colour Venue"
