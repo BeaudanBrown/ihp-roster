@@ -7,6 +7,9 @@ import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
 import Control.Exception (bracket_)
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.List as List
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
@@ -15,7 +18,7 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as Text
 import Data.Time.Calendar (addDays, fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -211,6 +214,65 @@ tests = aroundAll withDatabaseTestContext do
                     query @AuditEvent |> fetchCount `shouldReturn` 1
                     query @LiveInvalidationEvent |> fetchCount `shouldReturn` 1
 
+        it "preserves hourly completion metadata, expiry, audit count and sealed entry snapshots" $ withContext do
+            forM_ [(HourlyBreakdownZip, "hourly_breakdown_zip", "hourly_staff_hours"), (HourlyWageTotalsZip, "hourly_wage_totals_zip", "hourly_wage_totals")] \(kind, persistedKind, fileStem) ->
+                withCleanDb do
+                    fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                    entries <- query @TimesheetEntry
+                        |> filterWhere (#venueId, unpackId fixture.venue.id)
+                        |> filterWhere (#isApproved, True)
+                        |> fetch
+                    let manifests = List.sort (List.nub
+                            [ "staff:" <> tshow staffVersion <> ";shift:" <> tshow shiftVersion
+                            | entry <- entries
+                            , Just staffVersion <- [entry.staffPayVersionId]
+                            , Just shiftVersion <- [entry.shiftTypePayVersionId]
+                            ])
+                    length entries `shouldBe` 6
+                    before <- getCurrentTime
+                    job <- generatePayrollExportJob fixture.admin fixture.venue kind
+                    after <- getCurrentTime
+                    job.exportType `shouldBe` persistedKind
+                    job.scope `shouldBe` Aeson.object
+                        [ "rangeStart" Aeson..= goldenWeekStart
+                        , "rangeEnd" Aeson..= goldenWeekEnd
+                        , "approvedOnly" Aeson..= True
+                        , "entryCount" Aeson..= (6 :: Int)
+                        , "fileCount" Aeson..= (7 :: Int)
+                        , "configuredWindowStartMinute" Aeson..= (360 :: Int)
+                        , "configuredWindowEndMinute" Aeson..= (345 :: Int)
+                        , "effectiveWindowStartHour" Aeson..= (6 :: Int)
+                        , "effectiveWindowEndHour" Aeson..= (30 :: Int)
+                        , "versionManifests" Aeson..= manifests
+                        ]
+                    job.fileName `shouldBe` Just (fileStem <> "-2025-01-07-to-2025-01-13.zip")
+                    job.contentType `shouldBe` Just "application/zip"
+                    job.fileEncoding `shouldBe` "base64"
+                    job.payConfigVersionManifest `shouldBe` Just "mixed"
+                    job.expiresAt `shouldSatisfy` (>= addUTCTime 86400 before)
+                    job.expiresAt `shouldSatisfy` (<= addUTCTime 86400 after)
+                    snapshots <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId job.id) |> fetch
+                    List.sort (map (.timesheetEntryId) snapshots) `shouldBe` List.sort (map (unpackId . (.id)) entries)
+                    forM_ entries \entry -> do
+                        let matching = filter ((== unpackId entry.id) . (.timesheetEntryId)) snapshots
+                        map (\snapshot -> (Just snapshot.staffPayVersionId, Just snapshot.shiftTypePayVersionId, snapshot.entryUpdatedAtAtExport, Just snapshot.entryApprovedAtAtExport)) matching
+                            `shouldBe` [(entry.staffPayVersionId, entry.shiftTypePayVersionId, entry.updatedAt, entry.approvedAt)]
+                    audits <- query @AuditEvent |> filterWhere (#targetId, unpackId job.id) |> fetch
+                    map (.eventType) audits `shouldBe` ["export_generated"]
+                    map (.payload) audits `shouldBe`
+                        [ Aeson.object
+                            [ "exportType" Aeson..= persistedKind
+                            , "rangeStart" Aeson..= goldenWeekStart
+                            , "rangeEnd" Aeson..= goldenWeekEnd
+                            , "entryCount" Aeson..= (6 :: Int)
+                            , "fileCount" Aeson..= (7 :: Int)
+                            , "effectiveWindowStartHour" Aeson..= (6 :: Int)
+                            , "effectiveWindowEndHour" Aeson..= (30 :: Int)
+                            , "payConfigVersionManifest" Aeson..= ("mixed" :: Text)
+                            , "deliveryMethod" Aeson..= ("browser_download" :: Text)
+                            ]
+                        ]
+
         it "renders the canonical Payroll Workbook deterministically through the fixed export lifecycle" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
@@ -219,6 +281,14 @@ tests = aroundAll withDatabaseTestContext do
 
                 firstWorkbook.id `shouldNotBe` secondWorkbook.id
                 firstWorkbook.fileContents `shouldBe` secondWorkbook.fileContents
+                -- Scope version and audit version are intentionally different.
+                case firstWorkbook.scope of
+                    Aeson.Object fields -> KeyMap.lookup "workbookVersion" fields `shouldBe` Just (Aeson.Number 2)
+                    _ -> expectationFailure "Expected workbook scope object"
+                audit <- query @AuditEvent |> filterWhere (#targetId, unpackId firstWorkbook.id) |> fetchOne
+                case audit.payload of
+                    Aeson.Object fields -> KeyMap.lookup "workbookVersion" fields `shouldBe` Just (Aeson.Number 1)
+                    _ -> expectationFailure "Expected workbook audit object"
                 let workbookBytes =
                         firstWorkbook.fileContents
                             |> fromMaybe (error "expected Payroll Workbook bytes")

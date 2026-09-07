@@ -5,8 +5,9 @@ import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Types
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Types (Pair)
 import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -22,11 +23,12 @@ persistReadyExportJob ::
     Text ->
     Maybe Text ->
     UTCTime ->
-    Aeson.Value ->
+    Int ->
+    [Pair] ->
     IO ExportJob
-persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt auditPayload = do
+persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
-    persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt auditPayload
+    persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails
 
 persistReadyExportJobForEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -41,10 +43,20 @@ persistReadyExportJobForEntries ::
     Text ->
     Maybe Text ->
     UTCTime ->
-    Aeson.Value ->
+    Int ->
+    [Pair] ->
     IO ExportJob
-persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt auditPayload = do
-    exportJob <-
+persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails = do
+    exportJob <- createPendingExportJob exportType rangeStart rangeEnd finalScope expiresAt
+    completeExportJob entries exportJob finalScope fileName contentType fileEncoding fileContents exportVersionManifest entryCount auditDetails
+
+newExportExpiry :: IO UTCTime
+newExportExpiry = addUTCTime exportExpirySeconds <$> getCurrentTime
+
+createPendingExportJob ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Text -> Day -> Day -> Aeson.Value -> UTCTime -> IO ExportJob
+createPendingExportJob exportType rangeStart rangeEnd initialScope expiresAt =
         newRecord @ExportJob
             |> set #venueId (unpackId currentVenueId)
             |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
@@ -53,14 +65,18 @@ persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScop
             |> set #schemaVersion exportSchemaVersion
             |> set #rangeStart (Just rangeStart)
             |> set #rangeEnd (Just rangeEnd)
-            |> set #scope finalScope
+            |> set #scope initialScope
             |> set #deliveryMethod browserDownloadMethod
             |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= auditSourceChannelText requestAuditSourceChannel])
             |> set #expiresAt expiresAt
             |> createRecord
 
+completeExportJob ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    [TimesheetEntry] -> ExportJob -> Aeson.Value -> Text -> Text -> Text -> Text -> Maybe Text -> Int -> [Pair] -> IO ExportJob
+completeExportJob entries pendingJob finalScope fileName contentType fileEncoding fileContents exportVersionManifest entryCount auditDetails = do
     exportJob <-
-        exportJob
+        pendingJob
             |> set #status (exportJobStatusToText ExportReady)
             |> set #payConfigVersionManifest exportVersionManifest
             |> set #scope finalScope
@@ -76,7 +92,14 @@ persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScop
         ExportGeneratedAudit
         "export_jobs"
         (unpackId (get #id exportJob))
-        auditPayload
+        (Aeson.object
+            ([ "exportType" Aeson..= exportJob.exportType
+             , "rangeStart" Aeson..= exportJob.rangeStart
+             , "rangeEnd" Aeson..= exportJob.rangeEnd
+             , "entryCount" Aeson..= entryCount
+             , "payConfigVersionManifest" Aeson..= exportVersionManifest
+             , "deliveryMethod" Aeson..= exportJob.deliveryMethod
+             ] <> auditDetails))
 
     pure exportJob
 

@@ -1,4 +1,7 @@
-module Application.Helper.Export.Service where
+module Application.Helper.Export.Service
+    ( requestFixedExport
+    , requestPayrollWorkbookXlsxExportWithDefinition
+    ) where
 
 import Application.Helper.Controller
 import Application.Helper.Export.Definitions
@@ -14,7 +17,6 @@ import Application.Helper.Telemetry (withExportTelemetrySpan)
 import Application.VenueTime.Model (decodeTimesheetTiming)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
-import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.Either (isRight)
@@ -22,7 +24,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
-import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -40,8 +41,8 @@ requestFixedExport exportType rangeStart rangeEnd =
             else case exportType of
                 ApprovedTimesheetsCsv -> requestApprovedTimesheetsCsvExport rangeStart rangeEnd
                 StaffPayCsv -> requestFixedStaffPayCsvExport rangeStart rangeEnd
-                HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
-                HourlyWageTotalsZip -> requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd
+                HourlyBreakdownZip -> requestHourlyZipExport StaffHoursZip rangeStart rangeEnd
+                HourlyWageTotalsZip -> requestHourlyZipExport WageTotalsZip rangeStart rangeEnd
                 PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
                 PayrollWorkbookXlsx -> requestPayrollWorkbookXlsxExport rangeStart rangeEnd
 
@@ -84,7 +85,7 @@ requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd = 
                             Right workbook -> persistModel definition includedEntries versionManifestsByEntryId factModel workbook
   where
     persistModel definition includedEntries versionManifestsByEntryId factModel workbook = do
-        now <- getCurrentTime
+        expiresAt <- newExportExpiry
         let exportType = exportJobTypeToText PayrollWorkbookXlsx
         let fileName = "payroll_workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
         let hourlyModel = payrollWorkbookHourlyModelFromFacts factModel
@@ -121,20 +122,14 @@ requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd = 
                 "base64"
                 workbookContents
                 exportVersionManifest
-                (addUTCTime exportExpirySeconds now)
-                (Aeson.object
-                    [ "exportType" Aeson..= exportType
-                    , "rangeStart" Aeson..= rangeStart
-                    , "rangeEnd" Aeson..= rangeEnd
-                    , "entryCount" Aeson..= length includedEntries
-                    , "rowCount" Aeson..= rowCount
-                    , "workbookVersion" Aeson..= (1 :: Int)
-                    , "definitionKey" Aeson..= definition.payrollWorkbookDefinitionKey
-                    , "definitionVersion" Aeson..= definition.payrollWorkbookDefinitionVersion
-                    , "sheetFamilies" Aeson..= definitionSnapshot
-                    , "payConfigVersionManifest" Aeson..= exportVersionManifest
-                    , "deliveryMethod" Aeson..= browserDownloadMethod
-                    ])
+                expiresAt
+                (length includedEntries)
+                [ "rowCount" Aeson..= rowCount
+                , "workbookVersion" Aeson..= (1 :: Int)
+                , "definitionKey" Aeson..= definition.payrollWorkbookDefinitionKey
+                , "definitionVersion" Aeson..= definition.payrollWorkbookDefinitionVersion
+                , "sheetFamilies" Aeson..= definitionSnapshot
+                ]
         pure (Right exportJob)
 
 invalidTimesheetTimingExportMessage :: Text
@@ -178,8 +173,7 @@ persistFixedStaffPayExport ::
     [StaffPayCsvPayload] ->
     IO ExportJob
 persistFixedStaffPayExport rangeStart rangeEnd payloads = do
-    now <- getCurrentTime
-    let expiresAt = addUTCTime exportExpirySeconds now
+    expiresAt <- newExportExpiry
     let exportType = exportJobTypeToText StaffPayCsv
     let versionManifests = List.sort (List.nub (concatMap (.versionManifests) payloads))
     let exportVersionManifest = collapseVersionManifests versionManifests
@@ -226,152 +220,77 @@ persistFixedStaffPayExport rangeStart rangeEnd payloads = do
         fileContents
         exportVersionManifest
         expiresAt
-        (Aeson.object
-            [ "exportType" Aeson..= exportType
-            , "rangeStart" Aeson..= rangeStart
-            , "rangeEnd" Aeson..= rangeEnd
-            , "entryCount" Aeson..= entryCount
-            , "rowCount" Aeson..= rowCount
-            , "payConfigVersionManifest" Aeson..= exportVersionManifest
-            , "deliveryMethod" Aeson..= browserDownloadMethod
-            ])
+        entryCount
+        [ "rowCount" Aeson..= rowCount
+        ]
 
-requestFixedHourlyBreakdownZipExport ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Day ->
-    Day ->
-    IO (Either Text ExportJob)
-requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
-    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
-    venueConfig <- fetchVenueConfig
-    enforcement <- enforceExportEntries entries
-    case enforcement of
-        Left message -> pure (Left message)
-        Right () -> case buildHourlyReportWindow venueConfig entries of
-            Left _       -> pure (Left invalidTimesheetTimingExportMessage)
-            Right window -> requestWithEnforcedEntries venueConfig window entries
-  where
-    requestWithEnforcedEntries venueConfig window entries = do
-        activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
-        reportShiftTypes <- fetchReportShiftTypes entries
-        shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
-        versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
-        let dates = [rangeStart .. rangeEnd]
-        let columns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes entries shiftLabelsByEntryId
-        let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
-        let exportVersionManifest = collapseVersionManifests versionManifests
-        let fileName = "hourly_staff_hours-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
-        let fileContents =
-                renderTextZipBase64
-                    [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_staff_hours.csv", renderHourlyBreakdownDateCsv date window columns entries)
-                    | date <- dates
-                    ]
-        exportJob <- do
-            now <- getCurrentTime
-            persistReadyExportJob
-                (exportJobTypeToText HourlyBreakdownZip)
-                rangeStart
-                rangeEnd
-                (Aeson.object
-                    [ "rangeStart" Aeson..= rangeStart
-                    , "rangeEnd" Aeson..= rangeEnd
-                    , "approvedOnly" Aeson..= True
-                    , "entryCount" Aeson..= length entries
-                    , "fileCount" Aeson..= length dates
-                    , "configuredWindowStartMinute" Aeson..= venueConfig.timePickerStartMinuteOfDay
-                    , "configuredWindowEndMinute" Aeson..= venueConfig.timePickerFinalSelectableMinuteOfDay
-                    , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
-                    , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
-                    , "versionManifests" Aeson..= versionManifests
-                    ])
-                fileName
-                "application/zip"
-                "base64"
-                fileContents
-                exportVersionManifest
-                (addUTCTime exportExpirySeconds now)
-                (Aeson.object
-                    [ "exportType" Aeson..= exportJobTypeToText HourlyBreakdownZip
-                    , "rangeStart" Aeson..= rangeStart
-                    , "rangeEnd" Aeson..= rangeEnd
-                    , "entryCount" Aeson..= length entries
-                    , "fileCount" Aeson..= length dates
-                    , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
-                    , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
-                    , "payConfigVersionManifest" Aeson..= exportVersionManifest
-                    , "deliveryMethod" Aeson..= browserDownloadMethod
-                    ])
-        pure (Right exportJob)
+data HourlyZipKind = StaffHoursZip | WageTotalsZip
 
-requestFixedHourlyWageTotalsZipExport ::
+-- Both formats enforce the same sealed entries and perform the same ordered
+-- reads. Wage allocation remains an explicit additional failure boundary.
+requestHourlyZipExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Day ->
-    Day ->
-    IO (Either Text ExportJob)
-requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd = do
+    HourlyZipKind -> Day -> Day -> IO (Either Text ExportJob)
+requestHourlyZipExport kind rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     venueConfig <- fetchVenueConfig
     enforceFinalWageEntries entries >>= \case
         Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
         Right calculations -> case buildHourlyReportWindow venueConfig entries of
-            Left _       -> pure (Left invalidTimesheetTimingExportMessage)
-            Right window -> requestWithCalculations venueConfig window entries calculations
-  where
-    requestWithCalculations venueConfig window entries calculations = do
-        activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
-        reportShiftTypes <- fetchReportShiftTypes entries
-        shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
-        versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
-        let dates = [rangeStart .. rangeEnd]
-        let columns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes entries shiftLabelsByEntryId
-        let calculationsByEntryId = calculationMap entries calculations
-        case buildHourlyWageCents entries calculationsByEntryId of
-            Left message -> pure (Left ("Hourly wage totals blocked: " <> message))
-            Right wageCents -> do
+            Left _ -> pure (Left invalidTimesheetTimingExportMessage)
+            Right window -> do
+                activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
+                reportShiftTypes <- fetchReportShiftTypes entries
+                shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
+                versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
+                let columns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes entries shiftLabelsByEntryId
                 let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
-                let exportVersionManifest = collapseVersionManifests versionManifests
-                let fileName = "hourly_wage_totals-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
-                let fileContents =
-                        renderTextZipBase64
-                            [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_wage_totals.csv", renderHourlyWageTotalsDateCsv date window columns wageCents)
-                            | date <- dates
+                let persistZip exportKind archiveStem dailySuffix renderDate = do
+                        let dates = [rangeStart .. rangeEnd]
+                        let exportVersionManifest = collapseVersionManifests versionManifests
+                        let fileName = archiveStem <> "-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
+                        let fileContents = renderTextZipBase64
+                                [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_" <> dailySuffix <> ".csv", renderDate date)
+                                | date <- dates
+                                ]
+                        expiresAt <- newExportExpiry
+                        persistReadyExportJob
+                            (exportJobTypeToText exportKind)
+                            rangeStart
+                            rangeEnd
+                            (Aeson.object
+                                [ "rangeStart" Aeson..= rangeStart
+                                , "rangeEnd" Aeson..= rangeEnd
+                                , "approvedOnly" Aeson..= True
+                                , "entryCount" Aeson..= length entries
+                                , "fileCount" Aeson..= length dates
+                                , "configuredWindowStartMinute" Aeson..= venueConfig.timePickerStartMinuteOfDay
+                                , "configuredWindowEndMinute" Aeson..= venueConfig.timePickerFinalSelectableMinuteOfDay
+                                , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
+                                , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
+                                , "versionManifests" Aeson..= versionManifests
+                                ])
+                            fileName
+                            "application/zip"
+                            "base64"
+                            fileContents
+                            exportVersionManifest
+                            expiresAt
+                            (length entries)
+                            [ "fileCount" Aeson..= length dates
+                            , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
+                            , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
                             ]
-                exportJob <- do
-                    now <- getCurrentTime
-                    persistReadyExportJob
-                        (exportJobTypeToText HourlyWageTotalsZip)
-                        rangeStart
-                        rangeEnd
-                        (Aeson.object
-                            [ "rangeStart" Aeson..= rangeStart
-                            , "rangeEnd" Aeson..= rangeEnd
-                            , "approvedOnly" Aeson..= True
-                            , "entryCount" Aeson..= length entries
-                            , "fileCount" Aeson..= length dates
-                            , "configuredWindowStartMinute" Aeson..= venueConfig.timePickerStartMinuteOfDay
-                            , "configuredWindowEndMinute" Aeson..= venueConfig.timePickerFinalSelectableMinuteOfDay
-                            , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
-                            , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
-                            , "versionManifests" Aeson..= versionManifests
-                            ])
-                        fileName
-                        "application/zip"
-                        "base64"
-                        fileContents
-                        exportVersionManifest
-                        (addUTCTime exportExpirySeconds now)
-                        (Aeson.object
-                            [ "exportType" Aeson..= exportJobTypeToText HourlyWageTotalsZip
-                            , "rangeStart" Aeson..= rangeStart
-                            , "rangeEnd" Aeson..= rangeEnd
-                            , "entryCount" Aeson..= length entries
-                            , "fileCount" Aeson..= length dates
-                            , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
-                            , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
-                            , "payConfigVersionManifest" Aeson..= exportVersionManifest
-                            , "deliveryMethod" Aeson..= browserDownloadMethod
-                            ])
-                pure (Right exportJob)
+                case kind of
+                    StaffHoursZip ->
+                        Right <$> persistZip HourlyBreakdownZip "hourly_staff_hours" "staff_hours"
+                            (\date -> renderHourlyBreakdownDateCsv date window columns entries)
+                    WageTotalsZip ->
+                        case buildHourlyWageCents entries (calculationMap entries calculations) of
+                            Left message -> pure (Left ("Hourly wage totals blocked: " <> message))
+                            Right wageCents ->
+                                Right <$> persistZip HourlyWageTotalsZip "hourly_wage_totals" "wage_totals"
+                                    (\date -> renderHourlyWageTotalsDateCsv date window columns wageCents)
 
 requestFixedPayrollEarningsCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -399,7 +318,7 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
             let exportVersionManifest = collapseVersionManifests versionManifests
             let fileName = "payroll_earnings-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
             exportJob <- do
-                now <- getCurrentTime
+                expiresAt <- newExportExpiry
                 persistReadyExportJob
                     (exportJobTypeToText PayrollEarningsCsv)
                     rangeStart
@@ -417,16 +336,10 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
                     "utf8"
                     (renderPayrollEarningsCsv records)
                     exportVersionManifest
-                    (addUTCTime exportExpirySeconds now)
-                    (Aeson.object
-                        [ "exportType" Aeson..= exportJobTypeToText PayrollEarningsCsv
-                        , "rangeStart" Aeson..= rangeStart
-                        , "rangeEnd" Aeson..= rangeEnd
-                        , "entryCount" Aeson..= length filteredEntries
-                        , "rowCount" Aeson..= length records
-                        , "payConfigVersionManifest" Aeson..= exportVersionManifest
-                        , "deliveryMethod" Aeson..= browserDownloadMethod
-                        ])
+                    expiresAt
+                    (length filteredEntries)
+                    [ "rowCount" Aeson..= length records
+                    ]
             pure (Right exportJob)
 
 requestApprovedTimesheetsCsvExport ::
@@ -445,8 +358,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
     attachTiming entry = (entry,) <$> decodeTimesheetTiming entry
     persistExport entriesWithTiming = do
         let entries = map fst entriesWithTiming
-        now <- getCurrentTime
-        let expiresAt = addUTCTime exportExpirySeconds now
+        expiresAt <- newExportExpiry
         let exportType = exportJobTypeToText ApprovedTimesheetsCsv
         let initialScope =
                 Aeson.object
@@ -454,20 +366,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
                     , "rangeEnd" Aeson..= rangeEnd
                     , "approvedOnly" Aeson..= True
                     ]
-        exportJob <-
-            newRecord @ExportJob
-                |> set #venueId (unpackId currentVenueId)
-                |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
-                |> set #exportType exportType
-                |> set #status (exportJobStatusToText ExportPending)
-                |> set #schemaVersion exportSchemaVersion
-                |> set #rangeStart (Just rangeStart)
-                |> set #rangeEnd (Just rangeEnd)
-                |> set #scope initialScope
-                |> set #deliveryMethod browserDownloadMethod
-                |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= auditSourceChannelText requestAuditSourceChannel])
-                |> set #expiresAt expiresAt
-                |> createRecord
+        exportJob <- createPendingExportJob exportType rangeStart rangeEnd initialScope expiresAt
 
         staffById <- fetchStaffMap entries
         approversById <- fetchApproverMap entries
@@ -484,34 +383,10 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
                     , "entryCount" Aeson..= length entries
                     , "versionManifests" Aeson..= versionManifests
                     ]
-        exportJob <-
-            exportJob
-                |> set #status (exportJobStatusToText ExportReady)
-                |> set #payConfigVersionManifest exportVersionManifest
-                |> set #scope finalScope
-                |> set #fileName (Just fileName)
-                |> set #contentType (Just "text/csv; charset=utf-8")
-                |> set #fileEncoding "utf8"
-                |> set #fileContents (Just csvContents)
-                |> updateRecord
-
-        recordExportJobEntries exportJob entries
-
-        void $ recordCurrentUserAuditEvent
-            ExportGeneratedAudit
-            "export_jobs"
-            (unpackId (get #id exportJob))
-            (Aeson.object
-                [ "exportType" Aeson..= exportType
-                , "rangeStart" Aeson..= rangeStart
-                , "rangeEnd" Aeson..= rangeEnd
-                , "entryCount" Aeson..= length entries
-                , "payConfigVersionManifest" Aeson..= exportVersionManifest
-                , "deliveryMethod" Aeson..= exportJob.deliveryMethod
-                ]
-            )
-
-        pure exportJob
+        completeExportJob entries exportJob finalScope fileName
+            "text/csv; charset=utf-8" "utf8" csvContents exportVersionManifest
+            (length entries)
+            []
 
 enforceExportEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Either Text ())
 enforceExportEntries entries =
