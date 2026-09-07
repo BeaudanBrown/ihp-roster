@@ -10,7 +10,6 @@ mutation invocation, and response selection; HSX lives in
 
 ## Start Here
 
-
 - `DirectReadModel.hs` and `RenderData.hs` — authoritative page/fragment data.
 - `FrontendSurface.hs` and `SurfaceInvalidation.hs` — typed fragments,
   resources, interactions, and live fanout.
@@ -19,8 +18,8 @@ mutation invocation, and response selection; HSX lives in
   `DropWorkflow.hs` — drag/drop request resolution before mutation.
 - `TemplateCapture.hs` and `TemplateApplication.hs` — date-native detached
   Week capture and locked Week application.
-- `Responses.hs`, `Paths.hs`, and `Dom.hs` — response shape, canonical URLs, and
-  stable DOM identity.
+- `Projection.hs` and `Responses.hs` — layout-dependent mutation projection
+  and response shape; `Paths.hs` and `Dom.hs` — canonical URLs and DOM identity.
 - `Capabilities.hs`, `Filters.hs`, `WageFilter.hs`, and `Overview.hs` —
   authorization/presentation projections.
 - `Application/RosterNotification/` — immutable notification snapshots and
@@ -29,27 +28,15 @@ mutation invocation, and response selection; HSX lives in
 Follow imports from these seams rather than maintaining a module or feature
 inventory here.
 
-- `Web/Controller/RosterWeeks.hs` - controller actions.
-- `Web/RosterWeeks/DirectReadModel.hs` - canonical direct database/read-model construction for every roster layout and fragment.
-- `Web/RosterWeeks/RenderData.hs` - view-facing render data and fragment rendering helpers.
-- `Web/RosterWeeks/Projection.hs` - typed mutation-to-mounted-fragment projection across row, column, and timeline layouts.
-- `Web/RosterWeeks/Responses.hs` - HTMX/OOB response helpers.
-- `Web/RosterWeeks/FrontendSurface.hs` - FrontendSurface contract/runtime bridge, fragment metadata, live dependencies, and interaction shell helpers for the week grid and single-day timeline surfaces.
-- `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
-- `Web/RosterWeeks/Dom.hs` - stable DOM ids/selectors.
-- `Web/RosterWeeks/Service.hs` - roster workflow/domain service helpers.
-- `Web/RosterWeeks/TemplateApplication.hs` - authoritative Week-template preview, Melbourne boundary resolution, stale-assignment cleanup, locking, and atomic Draft-window replacement.
-- `Web/RosterWeeks/DropWorkflow.hs` - typed opaque drop-token parsing, venue/group/week resolution, sparse placement, no-op/delete decisions, and Melbourne repeated-time boundary preparation for move, duplicate, timeline, and staff drops.
-- `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog context/render data, complete create/edit operations, field/DST validation, mutation selection, and post-commit row impact.
-- `Web/View/RosterWeeks/` - HSX rendering.
-
 ## Date-Native Authority
 
 Runtime modules accept explicit `RosterWindowScope` values and read
 `RosterDay.operationalDate`. Date-local `RosterLane` and `RosterSlot` rows own
 layout and shift placement; publication is derived from the dated days in the
-selected roster-group window. Persisted roster-week identity, offsets, and
-compatibility projections were retired by issue #374. Do not reintroduce offset
+selected roster-group window. The [current schema](../../Application/Schema.sql)
+has no persisted roster-week identity or offset compatibility projections;
+[migration 1788100000](../../Application/Migration/1788100000.sql) records their
+removal. This is source state, not deployment evidence. Do not reintroduce offset
 persistence or derive runtime authority from historical migrations.
 
 ## Mutation Projection Contract

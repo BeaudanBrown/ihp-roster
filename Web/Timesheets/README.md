@@ -79,9 +79,12 @@ reimplemented by the workflow.
 
 Timesheet reads, mutations, responses, and invalidations use explicit
 `TimesheetWeekScopeValue` `[windowStart, windowEnd)` dates. They must not consume
-retained roster offsets. The temporary rollback schema is isolated behind the
-Roster compatibility modules and allowlist; destructive removal remains gated
-by issue #374.
+roster offsets. The [current schema](../../Application/Schema.sql) no longer has
+the roster compatibility identity removed by
+[migration 1788100000](../../Application/Migration/1788100000.sql). Immutable
+Timesheet source snapshots and payroll evidence remain retained; they are not
+routing authority. Historical migration and recovery requirements remain valid,
+and source retirement does not establish deployment state.
 
 ## Related Docs
 

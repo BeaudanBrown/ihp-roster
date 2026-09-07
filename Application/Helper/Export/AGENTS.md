@@ -18,8 +18,11 @@ Read this before editing fixed export helpers or export tests.
 - ZIP contents are base64 in `export_jobs.file_contents`.
 - `day_names.weekday_index` is real SQL weekday numbering; report columns must
   still follow the selected week order.
-- Do not reintroduce report-definition lookup, bootstrap, or filtering; the
-  legacy tables remain only until their dedicated schema-retirement change.
+- Do not reintroduce report-definition lookup, bootstrap, or filtering. The
+  tables are absent from the [current schema](../../Schema.sql);
+  [migration 1783899114](../../Migration/1783899114.sql) records their retirement
+  with operator/backup gates. This is not deployment evidence and does not
+  retire callable fixed exports or historical download/recovery contracts.
 
 ## Verification
 
