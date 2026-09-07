@@ -55,7 +55,10 @@ launches every allowlisted executable.
 `baselines/production-build/final-regression-budget.json` owns stable ceilings
 for app-lib self-size, module count, artifact kinds/counts (including symlinked
 artifacts), production module, direct-package, and executable inventories, and
-a 600 MiB aggregate installed `.hi` limit.
+a 600 MiB aggregate installed `.hi` limit. Its `measurement_profile` retains the
+complete build baseline; `module_count_inspection_profile` is supplementary
+realized-output evidence for count-only reconciliation, not a build-time or
+memory baseline.
 `production-build-budget-check` applies them to an explicit profile, or to the
 current realized app-lib after `production-package-smoke`. The default interface
 ceiling is 16 MiB. Exact, reason-bearing Roster paths have explicit per-file
