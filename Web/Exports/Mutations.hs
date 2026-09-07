@@ -27,7 +27,9 @@ requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: Controll
 requestFixedExportWithPayrollWorkbookDefinitionMutation definition rangeStart rangeEnd =
     requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd)
 
-requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Either Text ExportJob) -> IO (Either Text (LiveMutationResult ExportJob))
+-- Keep the database context abstract until the durable transaction supplies it;
+-- a pre-built IO action would perform export writes on the outer connection.
+requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ((?modelContext :: ModelContext) => IO (Either Text ExportJob)) -> IO (Either Text (LiveMutationResult ExportJob))
 requestExportMutation requestExport = do
     outcome <-
         withDurableLiveMutationOutcome publicationFor requestExport

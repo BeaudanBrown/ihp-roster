@@ -5,6 +5,7 @@ import Application.Helper.Export
 import Application.WageEngine (AwardClassification (..))
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
+import Control.Exception (bracket_)
 import Control.Monad (void)
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
@@ -22,9 +23,10 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Hspec
+import IHP.ModelSupport (unsafeSqlExecDiscardResult)
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition)
-import Network.HTTP.Types.Status (status200, status302)
+import Network.HTTP.Types.Status (status200, status302, status500)
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
@@ -173,6 +175,41 @@ tests = aroundAll withDatabaseTestContext do
                 extractZipTextFile wagePath firstWageTotals `shouldBe` expectedWageTotals
                 secondStaffHours.fileContents `shouldBe` firstStaffHours.fileContents
                 secondWageTotals.fileContents `shouldBe` firstWageTotals.fileContents
+
+        forM_
+            [ ("audit insertion", "CREATE TRIGGER test_reject_export_completion BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION test_reject_export_completion()", "DROP TRIGGER IF EXISTS test_reject_export_completion ON audit_events")
+            , ("outbox publication", "CREATE TRIGGER test_reject_export_completion BEFORE INSERT ON live_invalidation_event_resources FOR EACH ROW EXECUTE FUNCTION test_reject_export_completion()", "DROP TRIGGER IF EXISTS test_reject_export_completion ON live_invalidation_event_resources")
+            ] \(failureStage, installTrigger, removeTrigger) ->
+            it ("rolls back fixed export completion when its " <> failureStage <> " fails") $ withContext do
+                withCleanDb do
+                    fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                    let installFailure = do
+                            unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_export_completion() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced export completion failure''; END' LANGUAGE plpgsql" ()
+                            unsafeSqlExecDiscardResult installTrigger ()
+                    let removeFailure = do
+                            unsafeSqlExecDiscardResult removeTrigger ()
+                            unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_export_completion()" ()
+                    bracket_ installFailure removeFailure do
+                        forM_ [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] \kind -> do
+                            response <- withPasskeyVerifiedUserAndCurrentVenue fixture.admin fixture.venue.id
+                                (callActionWithParams CreateExportJobAction
+                                    [ ("exportType", cs (exportJobTypeToText kind))
+                                    , ("rangeStart", "2025-01-07")
+                                    , ("rangeEnd", "2025-01-13")
+                                    ])
+                            response `responseStatusShouldBe` status500
+                            query @ExportJob |> fetchCount `shouldReturn` 0
+                            query @ExportJobEntry |> fetchCount `shouldReturn` 0
+                            query @AuditEvent |> fetchCount `shouldReturn` 0
+                            query @LiveInvalidationEvent |> fetchCount `shouldReturn` 0
+                            query @LiveInvalidationEventResource |> fetchCount `shouldReturn` 0
+                            query @LiveResourceVersion |> fetchCount `shouldReturn` 0
+                    -- Once the fault is removed, the same request commits once.
+                    _ <- generatePayrollExportJob fixture.admin fixture.venue ApprovedTimesheetsCsv
+                    query @ExportJob |> fetchCount `shouldReturn` 1
+                    query @ExportJobEntry |> fetchCount `shouldReturn` 6
+                    query @AuditEvent |> fetchCount `shouldReturn` 1
+                    query @LiveInvalidationEvent |> fetchCount `shouldReturn` 1
 
         it "renders the canonical Payroll Workbook deterministically through the fixed export lifecycle" $ withContext do
             withCleanDb do
