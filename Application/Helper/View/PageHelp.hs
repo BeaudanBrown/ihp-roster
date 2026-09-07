@@ -283,6 +283,16 @@ pageHelpTopics =
             [ iconItem HelpSupportOnly "bi-clipboard-data" "Timesheet diagnostic" "Compare a submitted draft safely" "Switch to the affected venue, copy the Bepis submission ID from the submission record, then run the Xero Timesheet Diagnostic on Support after fresh passkey verification. It compares the persisted request and response with the current Xero draft using redacted references and does not write payroll data."
             ]
         ]
+    , topic "feedback" "Feedback"
+        [ section HelpEveryone "Feedback"
+            [ iconItem HelpEveryone "bi-chat-left-text" "Review" "Private submission" "New feedback is private until reviewed. Public cards never identify the submitter or venue. Moderation does not send submitter notifications."
+            , iconItem HelpEveryone "bi-hand-thumbs-up" "Votes" "One account, one vote" "Votes are shared across venues and reversible. Cards update automatically and rank by vote count, then publication time. Publishing includes the submitter's vote."
+            ]
+        , section HelpSupportOnly "Moderation"
+            [ iconItem HelpSupportOnly "bi-shield-lock" "Authority" "Platform review" "Only an unimpersonated platform super admin can inspect private submissions and retained details. Venue roles do not grant moderation access."
+            , iconItem HelpSupportOnly "bi-archive" "Lifecycle" "Archive and restore" "Archiving removes every vote. Restore returns an item to Private; publishing again starts with only the submitter's automatic vote. Feedback review lives here, not on Support."
+            ]
+        ]
     , topic "billing" "Billing"
         [ section HelpOwnerOnly "Billing tasks"
             [ iconItem HelpOwnerOnly "bi-receipt" "Status" "Understand your subscription" "Review whether this venue has a live subscription, the AUD 100 monthly plan, current billing period, and any cancellation notice. If it is not live, Bepis asks you to support development by subscribing. Status viewing does not require a fresh passkey check."

@@ -33,6 +33,14 @@ tests = do
                             length actualItems `shouldSatisfy` (> length expectedItems)
                         else actualItems `shouldBe` expectedItems
 
+    describe "Feedback help authority" do
+        it "keeps private moderation help out of ordinary and impersonated views" do
+            feedback <- requireTopic (PageHelpTopicId "feedback")
+            let sectionTitles context = map (.pageHelpSectionTitle) (filterPageHelpTopic context feedback).pageHelpTopicSections
+            sectionTitles defaultPageHelpContext `shouldBe` ["Feedback"]
+            sectionTitles (ownerContext { pageHelpIsFounder = True, pageHelpIsImpersonating = True }) `shouldBe` ["Founder support", "Feedback"]
+            sectionTitles supportContext `shouldBe` ["Feedback", "Moderation"]
+
     describe "page help audience policy" do
         forM_ audienceCases \(label, context, expected) ->
             it label do

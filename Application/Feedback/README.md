@@ -17,6 +17,8 @@ no longer loads feedback records or exposes feedback controls.
   reads remain global even though subscription authorization uses the current
   venue; the shared resource is deliberately not venue-keyed. Vote changes also
   invalidate the founder review list, but not its unrelated Private-count badge.
+  Private-only edits, archives and restorations emit review resources only: even
+  a public invalidation would leak the existence of private moderation activity.
 
 Votes belong to the authenticated global account, including during support
 impersonation; switching venues or effective identities cannot create extra
@@ -35,5 +37,5 @@ Moderation does not send submitter notifications. No feedback data is removed by
 moving the review interface: legacy notes and diagnostics remain private.
 
 Focused verification: `hspec-test --match Feedback --match SupportController` and
-`e2e e2e/feedback-voting.spec.ts e2e/feedback-moderation.spec.ts e2e/feedback-diagnostics.spec.ts` through
+`e2e e2e/feedback-acceptance.spec.ts e2e/feedback-voting.spec.ts e2e/feedback-moderation.spec.ts e2e/feedback-diagnostics.spec.ts` through
 `bin/in-env`.

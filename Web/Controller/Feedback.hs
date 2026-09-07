@@ -1,40 +1,45 @@
 module Web.Controller.Feedback where
 
-import Application.Feedback.ReadModel (fetchPublicFeedbackCards)
-import Application.Feedback.Notification (feedbackSubmittedMailKind)
-import Application.Feedback.Management
-import Application.Helper.Feedback (PrivateFeedbackCount (..), fetchPrivateFeedbackCount)
-import Web.View.Layout (renderFeedbackDesktopCount, renderFeedbackMobileCount)
-import Application.Feedback.LiveUpdates
-import qualified Application.Feedback.Mutations as Mutations
 import Application.Feedback.Domain (FeedbackMutationError (..))
+import Application.Feedback.LiveUpdates
+import Application.Feedback.Management
+import qualified Application.Feedback.Mutations as Mutations
+import Application.Feedback.Notification (feedbackSubmittedMailKind)
+import Application.Feedback.ReadModel (fetchPublicFeedbackCards)
+import Application.Helper.Controller (boundedText, normalizeTextField)
+import Application.Helper.Feedback (PrivateFeedbackCount (..),
+                                    fetchPrivateFeedbackCount)
+import Application.Helper.FrontendContract.AppShell (ContentField,
+                                                     FeedbackTitleField,
+                                                     FeedbackTypeField,
+                                                     SubmitFeedback)
+import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
+                                                             parseAppShellActionParams)
 import qualified Application.Helper.FrontendContract.Surface.Feedback as Surface
 import qualified Application.Helper.FrontendContract.Surface.Feedback.Action as Action
 import Application.Helper.FrontendContract.Surface.Feedback.Live
-import Application.Helper.SurfaceResource
-import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh, setActorLocalFragmentsRefresh)
-import Application.Helper.Controller (boundedText, normalizeTextField)
-import Application.Helper.FrontendContract.AppShell (ContentField, FeedbackTitleField,
-                                                     FeedbackTypeField, SubmitFeedback)
-import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
-                                                             parseAppShellActionParams)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
-import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue, surfaceFieldNameFrom)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom,
+                                                           surfaceFieldValue)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
+                                      setActorLocalFragmentsRefresh)
+import Application.Helper.SurfaceResource
 import Application.Helper.Telemetry (addTelemetryEvent)
 import Application.Helper.View (ToastOverlayPosition (..),
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast, errorToast)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
-import OpenTelemetry.Attributes (toAttribute)
-import qualified Network.Wai as Wai
 import Network.HTTP.Types.Status (status405)
+import qualified Network.Wai as Wai
+import OpenTelemetry.Attributes (toAttribute)
 import Web.Controller.Prelude
 import Web.View.Feedback.Card (renderPublicFeedbackCards)
-import Web.View.Feedback.Index
-import Web.View.Feedback.New
 import Web.View.Feedback.Edit
+import Web.View.Feedback.Index
 import Web.View.Feedback.Management (renderFeedbackManagement)
+import Web.View.Feedback.New
+import Web.View.Layout (renderFeedbackDesktopCount, renderFeedbackMobileCount)
 
 instance Controller FeedbackController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -116,12 +121,10 @@ instance Controller FeedbackController where
         case parseAppShellActionParams @SubmitFeedback of
             Left errors -> do
                 let errorSummary = surfaceRequestFieldErrorsMessage errors
-                let feedbackItem =
-                        if "feedbackType" `Text.isInfixOf` errorSummary
-                            then buildNewFeedbackItem |> attachFailure #feedbackType "Choose a feedback type"
-                            else if "feedbackTitle" `Text.isInfixOf` errorSummary
-                                then buildNewFeedbackItem |> attachFailure #title "Please enter a title"
-                                else buildNewFeedbackItem |> attachFailure #content "Please enter at least 3 characters"
+                let feedbackItem
+                        | "feedbackType" `Text.isInfixOf` errorSummary = buildNewFeedbackItem |> attachFailure #feedbackType "Choose a feedback type"
+                        | "feedbackTitle" `Text.isInfixOf` errorSummary = buildNewFeedbackItem |> attachFailure #title "Please enter a title"
+                        | otherwise = buildNewFeedbackItem |> attachFailure #content "Please enter at least 3 characters"
                 renderInvalidFeedback feedbackItem
             Right fields -> do
                 let feedbackItem = buildSubmittedFeedbackItem fields
@@ -181,7 +184,7 @@ withEditableFeedback itemId useFeedback = do
     item <- query @UserFeedbackItem |> filterWhere (#id, itemId) |> fetchOneOrNothing
     case item of
         Just feedback | feedback.lifecycle /= Archived -> useFeedback feedback
-        _ -> renderNotFound
+        _                                              -> renderNotFound
 
 respondEditFeedback :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UserFeedbackItem -> IO ()
 respondEditFeedback feedbackItem = if isHtmxRequest

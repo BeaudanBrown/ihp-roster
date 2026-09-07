@@ -44,3 +44,15 @@ VALUES
     ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'suggestion', 'done', 'high', E'  \n First retained line  \nmore', '/legacy', 'private operator note', '2025-01-01T00:00:00Z', '2025-02-01T00:00:00Z'),
     ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'bug', 'new', 'normal', E' \n\t', NULL, NULL, '2025-03-01T00:00:00Z', '2025-03-01T00:00:00Z'),
     ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', 'other', 'triaged', 'low', E'\f\f\f', NULL, 'retained whitespace case', '2025-04-01T00:00:00Z', '2025-04-01T00:00:00Z');
+
+UPDATE user_feedback_items SET
+    user_agent = 'Legacy browser <private>', submitted_role = 'manager',
+    viewport_width = 390, viewport_height = 844, device_pixel_ratio = 2.625,
+    device_class = 'mobile', display_mode = 'standalone',
+    read_at = '2025-01-02T00:00:00Z', read_by_user_id = '10000000-0000-0000-0000-000000000002',
+    resolved_at = '2025-02-01T00:00:00Z', resolved_by_user_id = '10000000-0000-0000-0000-000000000003'
+WHERE id = '30000000-0000-0000-0000-000000000001';
+
+INSERT INTO user_feedback_items (id, venue_id, submitted_by_user_id, content)
+VALUES ('30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001',
+        '10000000-0000-0000-0000-000000000001', repeat('界', 130));

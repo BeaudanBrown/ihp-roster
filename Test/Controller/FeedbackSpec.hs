@@ -1,16 +1,19 @@
 module Test.Controller.FeedbackSpec where
 
 import Application.EmailDelivery (emailDeliveryJobKind)
-import Application.Feedback.Domain (publishFeedback, archiveFeedback, addFeedbackVote)
+import Application.Feedback.Domain (addFeedbackVote, archiveFeedback,
+                                    publishFeedback)
 import qualified Application.Feedback.Mutations as FeedbackMutations
-import Control.Concurrent.Async (concurrently)
-import Application.Feedback.ReadModel (PublicFeedbackCard (..), fetchPublicFeedbackCards)
+import Application.Feedback.ReadModel (PublicFeedbackCard (..),
+                                       fetchPublicFeedbackCards)
 import Application.Helper.FrontendContract.Surface.Feedback.Live (feedbackPlatformLiveScope)
+import Application.Helper.FrontendContract.Surface.Feedback.Resource
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Web.SurfaceInvalidation (authorizeSurfaceScope)
+import Control.Concurrent.Async (concurrently)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (UTCTime (..), fromGregorian)
 import Generated.Types
@@ -23,6 +26,7 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.Feedback ()
 import Web.FrontController ()
+import Web.SurfaceInvalidation (authorizeSurfaceScope)
 import Web.Types
 
 tests :: Spec
@@ -491,6 +495,28 @@ tests = aroundAll withDatabaseTestContext do
                         response `responseStatusShouldBe` status403
                         response `responseBodyShouldNotContain` "Secret support note"
                     withCurrentControllerContext (authorizeSurfaceScope feedbackPlatformLiveScope) `shouldReturn` False
+
+        it "never exposes private-only moderation activity through public resources or ordering" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Private activity origin"
+                founder <- createUserRecordWithPlatformRole "private-activity-founder@example.com" "staff" (Just SuperAdmin) True
+                author <- createUserRecord "private-activity-author@example.com" "staff" True
+                item <- feedbackFixture venue author "Invisible review"
+                withPasskeyVerifiedUserAndCurrentVenue founder venue.id $ withCurrentControllerContext do
+                    let onlyPrivate result = result.liveMutationTouchedResources `shouldBe` Set.singleton feedbackReviewResource
+                    let publiclyChanged result = result.liveMutationTouchedResources `shouldBe` Set.fromList [feedbackBoardResource, feedbackReviewResource]
+                    FeedbackMutations.editFeedback item.id "Still private" "Retained private description" Suggestion >>= onlyPrivate
+                    FeedbackMutations.archiveFeedback item.id >>= onlyPrivate
+                    FeedbackMutations.restoreFeedback item.id >>= onlyPrivate
+                    fetchPublicFeedbackCards author.id `shouldReturn` []
+                    FeedbackMutations.publishFeedback item.id >>= publiclyChanged
+                    FeedbackMutations.editFeedback item.id "Public revision" "Public description revised" Bug >>= publiclyChanged
+                    FeedbackMutations.archiveFeedback item.id >>= publiclyChanged
+                    FeedbackMutations.restoreFeedback item.id >>= onlyPrivate
+                    fetchPublicFeedbackCards author.id `shouldReturn` []
+                    FeedbackMutations.publishFeedback item.id >>= publiclyChanged
+                votes <- query @FeedbackVote |> fetch
+                map (.userId) votes `shouldBe` [unpackId author.id]
 
         it "commits editorial transitions, votes, audit provenance and actor invalidations together" $ withContext do
             withCleanDb do

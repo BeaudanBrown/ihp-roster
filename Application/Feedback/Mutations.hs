@@ -14,7 +14,8 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (withDurableLiveMutation, withDurableLiveMutationOutcome)
+import Web.SurfaceInvalidation (withDurableLiveMutation,
+                                withDurableLiveMutationOutcome)
 
 type FeedbackMutationContext = (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request)
 
@@ -75,7 +76,12 @@ moderate eventType mutation = withDurableLiveMutationOutcome publication do
         Left _ -> pure (liveMutationResult result [])
         Right item -> do
             recordFeedbackAudit eventType item
-            pure (liveMutationResult result [feedbackBoardResource, feedbackReviewResource])
+            -- A private-only edit/archive/restore must not even announce board
+            -- activity to ordinary subscribers. Archive retains publication
+            -- facts, so its locked result tells us whether a public card left.
+            let affectsPublicBoard = item.lifecycle == Public
+                    || (item.lifecycle == Archived && isJust item.publishedAt)
+            pure (liveMutationResult result (feedbackReviewResource : [feedbackBoardResource | affectsPublicBoard]))
   where
     publication result
         | Set.null result.liveMutationTouchedResources = Nothing

@@ -12,7 +12,8 @@ import Generated.Types
 import qualified Hasql.Session as HasqlSession
 import IHP.ControllerPrelude
 import IHP.ModelSupport (sqlExecDiscardResult, sqlQuery, unpackId)
-import IHP.ModelSupport.Types (ModelContext (transactionRunner), TransactionRunner (runInTransaction))
+import IHP.ModelSupport.Types (ModelContext (transactionRunner),
+                               TransactionRunner (runInTransaction))
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
@@ -177,7 +178,10 @@ tests = aroundAll withDatabaseTestContext do
                     Nothing -> error "Feedback migration fixture requires a transaction runner"
                     Just runner -> do
                         runInTransaction runner (HasqlSession.script predecessor)
+                        before :: [Only Text] <- sqlQuery "SELECT to_jsonb(item)::text FROM user_feedback_items item ORDER BY id" ()
                         runInTransaction runner (HasqlSession.script migration)
+                        after :: [Only Text] <- sqlQuery "SELECT (to_jsonb(item) - ARRAY['title','lifecycle','published_at','published_by_user_id','archived_at','archived_by_user_id'])::text FROM user_feedback_items item ORDER BY id" ()
+                        after `shouldBe` before
                 rows :: [(Text, Text, Text, Text, Maybe Text)] <- sqlQuery
                     "SELECT title, lifecycle::text, content, status, submitted_path FROM user_feedback_items ORDER BY id"
                     ()
@@ -185,6 +189,7 @@ tests = aroundAll withDatabaseTestContext do
                     [ ("First retained line", "private", "  \n First retained line  \nmore", "done", Just "/legacy")
                     , ("Untitled feedback", "private", " \n\t", "new", Nothing)
                     , ("Untitled feedback", "private", "\f\f\f", "triaged", Nothing)
+                    , (Text.replicate 120 "界", "private", Text.replicate 130 "界", "new", Nothing)
                     ]
                 sqlExecDiscardResult "SET LOCAL search_path TO public" ()
                 sqlExecDiscardResult "DROP SCHEMA feedback_migration_503 CASCADE" ()
@@ -205,6 +210,6 @@ privateFeedbackFixture = do
     pure (feedback, submitter, moderator)
 
 voteOutcome :: Either FeedbackMutationError FeedbackVote -> Text
-voteOutcome (Right _) = "created"
+voteOutcome (Right _)                   = "created"
 voteOutcome (Left FeedbackAlreadyVoted) = "duplicate"
-voteOutcome other = "unexpected:" <> tshow other
+voteOutcome other                       = "unexpected:" <> tshow other
