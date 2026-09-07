@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, loginAsPrivilegedUserWithSeededPasskeySession, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { loginAsPrivilegedUserWithSeededPasskeySession } from './support/passkeys';
+import { runSql } from './support/database';
 
 const itemId = 'fb505000-0000-4000-8000-000000000001';
 const title = 'E2E moderated feedback';

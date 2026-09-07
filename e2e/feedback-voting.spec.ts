@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { runSql } from './support/database';
 
 const targetId = 'fb506000-0000-4000-8000-000000000001';
 const targetTitle = 'E2E vote ordering 1';

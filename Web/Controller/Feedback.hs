@@ -25,9 +25,9 @@ import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.SurfaceResource
 import Application.Helper.Telemetry (addTelemetryEvent)
-import Application.Helper.View (ToastOverlayPosition (..),
+import Application.Helper.View (ToastOverlayPosition (..), errorToast,
                                 renderDialogOverlayClearOob, renderToastOob,
-                                successToast, errorToast)
+                                successToast)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Network.HTTP.Types.Status (status405)

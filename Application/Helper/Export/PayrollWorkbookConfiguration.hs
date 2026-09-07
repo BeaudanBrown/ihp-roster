@@ -243,7 +243,7 @@ createConfigurationFamilyRecords configuration families = do
                 )
                 [0 ..]
                 families
-    void (mapM createRecord familyRecords)
+    mapM_ createRecord familyRecords
 
 payrollWorkbookConfigurationPersistenceError :: Text -> HasqlSessionError -> Maybe PayrollWorkbookConfigurationError
 payrollWorkbookConfigurationPersistenceError normalizedName sessionError

@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { E2E_TIMEOUT, gotoWhenReady, loginAs, loginAsPrivilegedUserWithSeededPasskeySession, querySql, runSql, uniqueE2EValue } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady, uniqueE2EValue } from './support/runtime';
+import { loginAs } from './support/session';
+import { loginAsPrivilegedUserWithSeededPasskeySession } from './support/passkeys';
+import { querySql, runSql } from './support/database';
 
 const voterId = 'fb507000-0000-4000-8000-000000000001';
 const privateId = 'fb507000-0000-4000-8000-000000000002';

@@ -9,6 +9,8 @@ module Application.Feedback.Domain
     , updateFeedbackEditorial
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (PersistedRuntimeInvariant),
+                                  throwExternalRuntimeMessage)
 import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
@@ -141,7 +143,7 @@ withLockedFeedback feedbackId action =
         case lockedIds of
             [] -> pure (Left FeedbackNotFound)
             [_] -> fetch feedbackId >>= action
-            _ -> error "feedback primary-key lock returned multiple rows"
+            _ -> throwExternalRuntimeMessage PersistedRuntimeInvariant "feedback primary-key lock returned multiple rows"
 
 validateEditorial :: Text -> Text -> Either FeedbackMutationError (Text, Text)
 validateEditorial rawTitle rawContent
