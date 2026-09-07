@@ -30,7 +30,7 @@ import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.LeaveRequests.AvailabilityWarnings
 import Web.LeaveRequests.Blackouts
@@ -129,13 +129,13 @@ buildLeaveStaffPanelEntries today staffMembers leaveRequests = do
         | staff <- eligibleStaff
         ]
 
-renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsFragment -> IO (Maybe Blaze.Html)
+renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsFragment -> IO (Maybe Markup.Html)
 renderLeaveRequestsFragment fragment =
     profileActionSpan "leave.read_model.render_fragment" do
         readModel <- fetchLeaveRequestsReadModel
         pure (renderLeaveRequestsFragmentFromReadModel FragmentPlain readModel fragment)
 
-renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Blaze.Html
+renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Markup.Html
 renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
     Just $ case fragment of
         LeaveRequestsContent ->

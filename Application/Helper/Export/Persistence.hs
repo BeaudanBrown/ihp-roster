@@ -100,7 +100,7 @@ recordExportJobEntries exportJob entries =
 
 
 authorizeExportDownload ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
     Id ExportJob ->
     UUID ->
     IO ExportJob

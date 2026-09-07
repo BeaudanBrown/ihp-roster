@@ -119,7 +119,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         fields :: IntentFields RosterIntent.SetRosterLayoutModeIntentOperation
         fields = RosterIntent.setRosterLayoutModeIntentFields layoutMode
         inputHtml = [hsx|
-            <input type="radio"
+            <input {...(SurfaceInteraction.frontendSurfaceActivationRefAttrs rosterLayoutModeActivationRef)} type="radio"
                    class="btn-check"
                    name={surfaceFieldNameFrom @Surface.RosterLayoutMode fields}
                    id={inputId}
@@ -127,7 +127,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
                    checked={selectedLayoutMode == layoutMode} />
         |]
      in [hsx|
-        {SurfaceInteraction.withFrontendSurfaceActivationRef rosterLayoutModeActivationRef inputHtml}
+        {inputHtml}
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 

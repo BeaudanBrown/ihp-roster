@@ -9,7 +9,7 @@ import Application.WageSourceAlert.Types
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.MailPrelude
-import qualified Text.Blaze.Html5 as Html
+import qualified IHP.HSX.Markup as Markup
 import Web.Mail.Shared
 
 
@@ -81,26 +81,22 @@ failureTextFields snapshot
         , "Refresh class: " <> maybe "unknown" refreshTriggerClassText snapshot.refreshTriggerClass
         ]
 
-failureHtmlFields :: WageSourceAlertSnapshot -> Html.Html
+failureHtmlFields :: WageSourceAlertSnapshot -> Markup.Html
 failureHtmlFields snapshot
     | snapshot.alertKind /= RefreshFailedAlert = mempty
-    | otherwise =
-        Html.dt "Refresh job ID"
-            <> Html.dd (Html.toHtml (tshow snapshot.sourceJobId))
-            <> Html.dt "Refresh class"
-            <> Html.dd (Html.toHtml (maybe "unknown" refreshTriggerClassText snapshot.refreshTriggerClass))
+    | otherwise = [hsx|<dt>Refresh job ID</dt><dd>{tshow snapshot.sourceJobId}</dd><dt>Refresh class</dt><dd>{maybe "unknown" refreshTriggerClassText snapshot.refreshTriggerClass}</dd>|]
 
-affectedYearsHtml :: [Integer] -> Html.Html
+affectedYearsHtml :: [Integer] -> Markup.Html
 affectedYearsHtml years =
-    maybe mempty (\value -> Html.dt "Affected years" <> Html.dd (Html.toHtml value)) (renderYears years)
+    maybe mempty (\value -> [hsx|<dt>Affected years</dt><dd>{value}</dd>|]) (renderYears years)
 
-latestSuccessHtml :: Maybe UTCTime -> Html.Html
+latestSuccessHtml :: Maybe UTCTime -> Markup.Html
 latestSuccessHtml =
-    maybe mempty (\value -> Html.dt "Latest valid success" <> Html.dd (Html.toHtml (formatMelbourneTimestamp value)))
+    maybe mempty (\value -> [hsx|<dt>Latest valid success</dt><dd>{formatMelbourneTimestamp value}</dd>|])
 
-annualBoundaryHtml :: Maybe Day -> Html.Html
+annualBoundaryHtml :: Maybe Day -> Markup.Html
 annualBoundaryHtml =
-    maybe mempty (\value -> Html.dt "Annual refresh required on or after" <> Html.dd (Html.toHtml (tshow value)))
+    maybe mempty (\value -> [hsx|<dt>Annual refresh required on or after</dt><dd>{tshow value}</dd>|])
 
 optionalLine :: Text -> Maybe Text -> [Text]
 optionalLine label = maybe [] (\value -> [label <> ": " <> value])

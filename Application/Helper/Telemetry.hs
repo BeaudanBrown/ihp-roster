@@ -35,7 +35,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import IHP.Controller.Response (ResponseException)
+import IHP.Controller.Response (EarlyReturnException)
 import IHP.Prelude
 import Network.HTTP.Types.Header (Header)
 import qualified Network.Wai as Wai
@@ -169,6 +169,7 @@ withProviderTelemetrySpan provider operation method succeeded action =
         actionResult <- Exception.try action
         case actionResult of
             Left exception
+                | isJust (Exception.fromException @EarlyReturnException exception) -> Exception.throwIO (exception :: SomeException)
                 | SafeException.isAsyncException exception -> Exception.throwIO (exception :: SomeException)
                 | otherwise -> do
                     addProviderTelemetryStatusClass "unavailable"
@@ -209,6 +210,7 @@ withClassifiedTelemetrySpan spanKind name attributes succeeded action =
                     IORef.writeIORef actionResultRef (Just actionResult)
                     case actionResult of
                         Left exception
+                            | isJust (Exception.fromException @EarlyReturnException exception) -> recordOutcome True
                             | SafeException.isAsyncException exception -> pure ()
                             | otherwise -> recordOutcome False
                         Right value -> recordOutcome (succeeded value)
@@ -231,17 +233,10 @@ withClassifiedTelemetrySpan spanKind name attributes succeeded action =
 
 withTelemetrySpanAttributes :: forall a. Text -> [(Text, Attribute)] -> IO a -> IO a
 withTelemetrySpanAttributes name attributes action =
-    if not telemetryEnabledFlag
-        then action
-        else do
-            tracerProvider <- Otel.getGlobalTracerProvider
-            let tracer = Otel.makeTracer tracerProvider "ihp-roster" Otel.tracerOptions
-            -- IHP uses ResponseException for successful response control flow.
-            -- Catch it inside inSpan so the SDK does not classify it as an error.
-            result <- Otel.inSpan tracer name (spanArguments attributes) (try action :: IO (Either ResponseException a))
-            case result of
-                Left responseException -> Exception.throwIO responseException
-                Right value            -> pure value
+    -- Close spans before propagating explicit early-return control. Genuine
+    -- failures receive a bounded outcome/status, never SDK exception payloads
+    -- that could contain SQL, provider data or request/session values.
+    withClassifiedTelemetrySpan Otel.Internal name attributes (const True) action
 
 spanArguments :: [(Text, Attribute)] -> Otel.SpanArguments
 spanArguments attributes =

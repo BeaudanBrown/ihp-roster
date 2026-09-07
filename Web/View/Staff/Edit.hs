@@ -11,7 +11,7 @@ import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationO
                                                      UpdateStaffShiftPreferencesOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
                                                              defaultAppShellActionRoute)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
@@ -239,10 +239,7 @@ renderStaffRemovalPanel staff staffRemovalAllowed anchorDate maybeRosterGroupId
             <> maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId
     removalUrl = appendQueryParams (pathTo (NewRemoveStaffAction staff.id)) removalReturnParams
     removalButton =
-        applyAppShellActionAttrs
-            (appShellActionByMarker @OpenStaffRemovalDialog)
-            removalDialogRoute
-            [hsx|<a href={removalUrl} class="btn btn-outline-danger">Remove staff member</a>|]
+        [hsx|<a {...(appShellActionAttrs (appShellActionByMarker @OpenStaffRemovalDialog) removalDialogRoute)} href={removalUrl} class="btn btn-outline-danger">Remove staff member</a>|]
     removalDialogRoute = ((defaultAppShellActionRoute (removalUrl))
         { appShellActionRouteStandardUrl = Just removalUrl
         })
@@ -481,11 +478,8 @@ renderTrialStaffInvitationForm now staff pendingInvitations maybeError submitted
 
 renderCreateTrialStaffInvitationForm :: Staff -> Maybe Text -> Maybe Text -> Day -> Maybe (Id RosterGroup) -> Html
 renderCreateTrialStaffInvitationForm staff maybeError submittedEmail anchorDate maybeRosterGroupId =
-    applyAppShellActionAttrs
-        (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
-        (trialInvitationSubmitRoute (pathTo (CreateTrialStaffInvitationAction staff.id)) [("id", "trial-staff-invite-form")])
-        [hsx|
-            <form method="POST" action={pathTo (CreateTrialStaffInvitationAction staff.id)}>
+    [hsx|
+            <form {...(appShellActionAttrs (appShellActionByMarker @CreateTrialStaffInvitationOverlay) (trialInvitationSubmitRoute (pathTo (CreateTrialStaffInvitationAction staff.id)) [("id", "trial-staff-invite-form")]))} method="POST" action={pathTo (CreateTrialStaffInvitationAction staff.id)}>
                 {renderAnchorDateHiddenInput anchorDate}
                 {renderRosterGroupHiddenInput maybeRosterGroupId}
                 <p class="app-muted mb-3">Send an invite link so {staff.firstName} {staff.lastName} can claim this trial staff profile.</p>
@@ -533,11 +527,8 @@ renderPendingTrialInvitationRow now invitation = [hsx|
 
 renderRenewTrialInvitationForm :: VenueInvitation -> Html
 renderRenewTrialInvitationForm invitation =
-    applyAppShellActionAttrs
-        (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
-        (trialInvitationSubmitRoute (pathTo (RenewTrialStaffInvitationAction invitation.id)) [("class", "mb-0")])
-        [hsx|
-            <form method="POST" action={pathTo (RenewTrialStaffInvitationAction invitation.id)}>
+    [hsx|
+            <form {...(appShellActionAttrs (appShellActionByMarker @CreateTrialStaffInvitationOverlay) (trialInvitationSubmitRoute (pathTo (RenewTrialStaffInvitationAction invitation.id)) [("class", "mb-0")]))} method="POST" action={pathTo (RenewTrialStaffInvitationAction invitation.id)}>
                 <div class="input-group input-group-sm">
                     <input type="email" class="form-control" name="invitationEmail" value={invitation.email} required="required" aria-label="Renewal email" />
                     <button type="submit" class="btn btn-outline-primary">Renew</button>

@@ -20,6 +20,7 @@ import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withTelemetrySpanAttributes)
 import Data.Data (Data, showConstr, toConstr)
 import GHC.Generics (Generic)
+import IHP.ControllerSupport (Respond)
 import IHP.Prelude
 import Network.Wai (Request)
 import OpenTelemetry.Attributes (toAttribute)
@@ -35,7 +36,7 @@ data BepisActionInfo = BepisActionInfo
     }
     deriving (Eq, Show, Generic)
 
-runBepis :: (Data action, ?request :: Request) => action -> BepisOperationKind -> IO a -> IO a
+runBepis :: (Data action, ?request :: Request, ?respond :: Respond) => action -> BepisOperationKind -> IO a -> IO a
 runBepis action operationKind =
     bepisActionSpan BepisActionInfo
         { actionName = bepisActionName action
@@ -44,7 +45,7 @@ runBepis action operationKind =
         , sourceNote = Nothing
         }
 
-bepisActionSpan :: (?request :: Request) => BepisActionInfo -> IO a -> IO a
+bepisActionSpan :: (?request :: Request, ?respond :: Respond) => BepisActionInfo -> IO a -> IO a
 bepisActionSpan info action =
     withSynchronousAppErrorFallback
         (runBepisActionSpan info action)

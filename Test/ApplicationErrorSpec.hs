@@ -22,9 +22,13 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isLeft)
+import Data.IORef (newIORef, modifyIORef', readIORef)
+import qualified Data.Vault.Lazy as Vault
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
-import IHP.Controller.Response (ResponseException (..))
+import IHP.Controller.Response (EarlyReturnException, responseHeadersVaultKey, respondWith)
+import IHP.ControllerSupport (Respond)
+import Network.Wai.Internal (ResponseReceived (..))
 import IHP.ModelSupport (RecordNotFoundException (..))
 import IHP.Prelude
 import Network.HTTP.Types (status422, status500)
@@ -188,11 +192,12 @@ tests = describe "typed application errors" do
         LBS.toStrict (simpleBody htmxResponse) `shouldNotSatisfy` ByteString.isInfixOf "<!doctype html>"
 
     it "preserves IHP response control and asynchronous cancellation" do
-        responseResult <- Exception.try @ResponseException $
+        (responseResult, responses) <- captureStoppedResponses Wai.defaultRequest $
             withSynchronousAppErrorFallback
                 (respondAndStop (Wai.responseLBS status422 [] "kept"))
                 (const (pure ()))
         responseResult `shouldSatisfy` isLeft
+        length responses `shouldBe` 1
 
         notFoundResult <- Exception.try @RecordNotFoundException $
             withSynchronousAppErrorFallback
@@ -213,17 +218,44 @@ tests = describe "typed application errors" do
         fallback `shouldBe` "We couldn't complete that request. Please try again."
 
     it "installs the safe fallback at the production Bepis action boundary" do
-        let ?request = Wai.defaultRequest { Wai.requestHeaders = [("Accept", "application/json")] }
-        result <- Exception.try @ResponseException $
+        let request = Wai.defaultRequest { Wai.requestHeaders = [("Accept", "application/json")] }
+        (result, responses) <- captureStoppedResponses request $
             runBepis BoundaryFixtureAction BepisIntegrationAction $
-                Exception.throwIO (userError "private action detail")
-        case result of
-            Left (ResponseException response) -> do
+                (Exception.throwIO (userError "private action detail") :: IO ())
+        result `shouldSatisfy` isLeft
+        case responses of
+            [response] -> do
                 rendered <- runErrorResponse response
                 simpleStatus rendered `shouldBe` status500
                 LBS.toStrict (simpleBody rendered) `shouldSatisfy` ByteString.isInfixOf "application.error.foundation.foundation/unexpected-synchronous-error"
                 LBS.toStrict (simpleBody rendered) `shouldNotSatisfy` ByteString.isInfixOf "private action detail"
-            Right () -> expectationFailure "unexpected action exception was not converted"
+            _ -> expectationFailure "expected exactly one safe fallback response"
+
+    it "sends a terminal helper once without executing its continuation" do
+        continued <- newIORef False
+        (result, responses) <- captureStoppedResponses Wai.defaultRequest do
+            terminateAfterIhpResponseControl (respondWith (Wai.responseLBS status422 [] "kept"))
+            modifyIORef' continued (const True)
+        result `shouldSatisfy` isLeft
+        readIORef continued `shouldReturn` False
+        case responses of
+            [response] -> do
+                rendered <- runErrorResponse response
+                simpleStatus rendered `shouldBe` status422
+                simpleBody rendered `shouldBe` "kept"
+            _ -> expectationFailure "expected exactly one terminal response"
+
+captureStoppedResponses :: Wai.Request -> ((?request :: Wai.Request, ?respond :: Respond) => IO a) -> IO (Either EarlyReturnException a, [Wai.Response])
+captureStoppedResponses request action = do
+    responses <- newIORef []
+    headers <- newIORef []
+    let ?request = request { Wai.vault = Vault.insert responseHeadersVaultKey headers request.vault }
+    let ?respond = \response -> do
+            modifyIORef' responses (response :)
+            pure ResponseReceived
+    result <- Exception.try @EarlyReturnException action
+    captured <- reverse <$> readIORef responses
+    pure (result, captured)
 
 runErrorResponse :: Wai.Response -> IO SResponse
 runErrorResponse response = runSession (request defaultRequest) app

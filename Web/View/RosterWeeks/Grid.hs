@@ -26,10 +26,6 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
-import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
@@ -680,8 +676,11 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         compactSlots = if rosterDay.isClosed then [] else compactDayColumnSlots dayModel.daySlotNames [(slot, timingOutcome slot) | slot <- daySlots]
         maybeCreateTarget = if rosterDay.isClosed then Nothing else firstAvailableDayColumnTarget dayModel.daySlotNames rosterDay dayModel.dayCalendarRevision daySlots
         dayDropzoneKey = "day:" <> tshow rosterDay.id
+        dropzoneAttrs = if dayIsEditable && not rosterDay.isClosed
+            then SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayColumnDropzoneRef dayDropzoneKey
+            else []
         columnHtml = [hsx|
-            <section id={rosterDaySectionDomId rosterDay.id}
+            <section {...dropzoneAttrs} id={rosterDaySectionDomId rosterDay.id}
                      data-roster-day-section="true"
                      role="group"
                      hx-swap-oob={maybeSwapOob}
@@ -704,9 +703,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                 </div>
             </section>
         |]
-     in if dayIsEditable && not rosterDay.isClosed
-            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayColumnDropzoneRef dayDropzoneKey columnHtml
-            else columnHtml
+     in columnHtml
 
 compactDayColumnSlots :: [RosterWindowLane] -> [(RosterSlot, Either RosterShiftIntegrityError ValidatedRosterShiftTiming)] -> [RosterSlot]
 compactDayColumnSlots slotNames slotsWithTiming =

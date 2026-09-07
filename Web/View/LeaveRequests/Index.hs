@@ -8,7 +8,7 @@ import Application.Helper.Controller (leaveRequestIsArchivedOn)
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffEditDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
                                                              defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
@@ -245,12 +245,8 @@ renderLeaveStaffPanel staffMembers entries = [hsx|
 
 renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> LeaveStaffPanelEntry -> Html
 renderLeaveStaffPanelEntry staffMembers entry =
-    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource leaveStaffPeriodsLinkedHighlight staffKey $
-        applyAppShellActionAttrs
-            (appShellActionByMarker @OpenRosterStaffEditDialog)
-            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
-            [hsx|
-                <tr class="app-side-panel-entry leave-staff-panel-entry" role="button" tabindex="0"
+    [hsx|
+                <tr {...entryAttrs} class="app-side-panel-entry leave-staff-panel-entry" role="button" tabindex="0"
                     {...leaveStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelPeriodCount entry.panelPendingCount}>
                     <th scope="row" class="app-side-panel-cell app-side-panel-name"><span class="app-side-panel-name-primary">{staffName}</span></th>
                     <td class="app-side-panel-cell app-side-panel-role">{roleLabel}</td>
@@ -259,12 +255,15 @@ renderLeaveStaffPanelEntry staffMembers entry =
                 </tr>
             |]
   where
+    entryAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs leaveStaffPeriodsLinkedHighlight staffKey
+        <> appShellActionAttrs (appShellActionByMarker @OpenRosterStaffEditDialog)
+            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
     staffKey = "staff:" <> tshow entry.panelStaff.id
     staffName = staffDisplayName staffMembers entry.panelStaff
     roleLabel = Text.toTitle (Text.replace "_" " " entry.panelStaffRole)
     locateButton =
-        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin leaveStaffPeriodsLinkedHighlight staffKey [hsx|
-            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button leave-staff-locate-button"
+        [hsx|
+            <button {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs leaveStaffPeriodsLinkedHighlight staffKey)} type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button leave-staff-locate-button"
                     aria-label={"Locate unavailable periods for " <> staffName} aria-pressed="false">
                 {renderSidePanelLocateIcon}
             </button>

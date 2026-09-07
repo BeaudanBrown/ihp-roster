@@ -19,7 +19,6 @@ import Application.Helper.Controller (EffectiveUser (..),
 import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.View
@@ -30,7 +29,6 @@ import IHP.ControllerSupport (ControllerContext, getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
 import qualified Network.Wai as Wai
-import qualified Text.Blaze.Html5 as Html5
 import Web.Routes
 import Web.Types
 

@@ -5,7 +5,6 @@ module Web.Mail.Shared
     ) where
 
 import IHP.MailPrelude
-import qualified Text.Blaze.Html5 as Html
 
 bepisFrom :: Text -> Address
 bepisFrom fromAddress =

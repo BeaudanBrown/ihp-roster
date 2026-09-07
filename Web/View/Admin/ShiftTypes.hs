@@ -11,7 +11,7 @@ import qualified Application.Helper.FrontendContract.Surface.Admin.Action as Adm
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
-                                                            applyFrontendSurfaceActionAttrs,
+                                                            frontendSurfaceActionAttrs,
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
@@ -139,8 +139,8 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
         autosaveSelectionFields = AdminAction.autosaveShiftTypeSelectionActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
         autosaveNameFields = AdminAction.autosaveShiftTypeNameActionFields showInactive shiftType.name selectedPayRate shiftType.colourKey shiftType.isActive
         autosaveSelectionAction = AdminAction.autosaveShiftTypeSelectionAction autosaveSelectionFields
-        autosaveNameInput = applyFrontendSurfaceActionAttrs (AdminAction.autosaveShiftTypeNameAction autosaveNameFields) (autosaveNameRoute shiftType) [hsx|
-            <input class="form-control"
+        autosaveNameInput = [hsx|
+            <input {...(frontendSurfaceActionAttrs (AdminAction.autosaveShiftTypeNameAction autosaveNameFields) (autosaveNameRoute shiftType))} class="form-control"
                    type="text"
                    name={surfaceFieldNameFrom @Surface.Name fields}
                    value={shiftType.name}
@@ -165,13 +165,13 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
 renderPayRateSelect :: SurfaceFieldBundleOf (ActionFieldSpecs AdminAction.CreateShiftTypeActionOperation) fields => fields -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderPayRateSelect fields fieldId selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Pay Rate</label>
-    {renderSelect selectBody}
+    {selectBody}
 |]
     where
         selectBody = [hsx|
             <select id={fieldId}
                     class="form-select"
-                    name={surfaceFieldNameFrom @Surface.PayRateSelection fields}>
+                    name={surfaceFieldNameFrom @Surface.PayRateSelection fields} {...autosaveAttrs}>
                 <option value="" selected={selectedMode == StaffDefault}>Use staff default pay rate</option>
                 <option value="roster-only" selected={selectedMode == RosterOnly}>No Timesheets (roster only)</option>
                 {renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId}
@@ -179,9 +179,7 @@ renderPayRateSelect fields fieldId selectedMode selectedAwardLevelId selectedImp
             </select>
             {renderShiftPayAssignmentWarning selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels importedPayItems}
         |]
-        renderSelect selectHtml = case maybeAutosave of
-            Just (action, route) -> applyFrontendSurfaceActionAttrs action route selectHtml
-            Nothing -> selectHtml
+        autosaveAttrs = maybe [] (uncurry frontendSurfaceActionAttrs) maybeAutosave
 
 renderShiftPayAssignmentWarning :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [XeroImportedPayItem] -> Html
 renderShiftPayAssignmentWarning selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels importedPayItems
@@ -210,7 +208,7 @@ renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
 renderShiftTypeColourSelect :: SurfaceFieldBundleOf (ActionFieldSpecs AdminAction.CreateShiftTypeActionOperation) fields => fields -> Text -> ShiftTypeColourKeyEnum -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderShiftTypeColourSelect fields fieldId selectedColourKey maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Optional Colour</label>
-    {renderSelect selectBody}
+    {selectBody}
 |]
     where
         effectiveSelectedColourKey = selectedColourKey
@@ -218,14 +216,12 @@ renderShiftTypeColourSelect fields fieldId selectedColourKey maybeAutosave = [hs
             <select id={fieldId}
                     class="form-select admin-shift-colour-select"
                     name={surfaceFieldNameFrom @Surface.ColourKey fields}
-                    data-roster-shift-colour={shiftTypeColourKeyCssValue effectiveSelectedColourKey}>
+                    data-roster-shift-colour={shiftTypeColourKeyCssValue effectiveSelectedColourKey} {...autosaveAttrs}>
                 {renderBlankShiftTypeColourOption effectiveSelectedColourKey}
                 {forEach (drop 1 (allEnumValues @ShiftTypeColourKeyEnum)) (renderShiftTypeColourOption effectiveSelectedColourKey)}
             </select>
         |]
-        renderSelect selectHtml = case maybeAutosave of
-            Just (action, route) -> applyFrontendSurfaceActionAttrs action route selectHtml
-            Nothing -> selectHtml
+        autosaveAttrs = maybe [] (uncurry frontendSurfaceActionAttrs) maybeAutosave
 
 renderBlankShiftTypeColourOption :: ShiftTypeColourKeyEnum -> Html
 renderBlankShiftTypeColourOption selectedColourKey = [hsx|

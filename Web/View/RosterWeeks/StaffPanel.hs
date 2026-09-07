@@ -10,7 +10,7 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog
                                                      OpenTrialStaffInvitationDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionHtmxControl)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
@@ -280,13 +280,12 @@ renderRosterStaffPanelEntry panelStaffMembers anchorDate currentRosterGroupId en
 renderRosterStaffPanelEntryRow :: Day -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow anchorDate currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
     let staffKey = "staff:" <> tshow entry.staff.id
-     in SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef staffKey $
-        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterStaffLinkedHighlight staffKey $
-            applyAppShellActionAttrs
-                (appShellActionByMarker @OpenRosterStaffEditDialog)
+        attributes = SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterStaffDragSourceRef staffKey
+            <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterStaffLinkedHighlight staffKey
+            <> appShellActionAttrs (appShellActionByMarker @OpenRosterStaffEditDialog)
                 (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("anchorDate", tshow anchorDate), ("rosterGroupId", tshow currentRosterGroupId)]))
-                [hsx|
-                    <tr class="app-side-panel-entry roster-staff-panel-entry"
+     in [hsx|
+                    <tr {...attributes} class="app-side-panel-entry roster-staff-panel-entry"
                     {...rosterStaffPanelSortRowAttrs staffKey staffDisplayLabel staffRoleLabel entry.assignedShiftCount entry.staff.idealShiftsPerWeek}
                     aria-disabled="false"
                     role="button"
@@ -313,8 +312,8 @@ renderRosterStaffPanelEntryCell _ _ _ _ entry RosterStaffShiftsColumn = [hsx|
 |]
 renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionColumn =
     let locateButton =
-            SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin rosterStaffLinkedHighlight ("staff:" <> tshow entry.staff.id) [hsx|
-                <button type="button"
+            [hsx|
+                <button {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs rosterStaffLinkedHighlight ("staff:" <> tshow entry.staff.id))} type="button"
                         class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button roster-staff-locate-button"
                         aria-label={"Locate shifts for " <> staffDisplayLabel}
                         aria-pressed="false">

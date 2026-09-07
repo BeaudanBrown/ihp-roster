@@ -77,7 +77,7 @@ materializeRosterWindowMutation scope =
     withRosterWindowMutationLock scope $
         materializeRosterWindow scope
 
-ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Either Text (LiveMutationResult (RosterWindowState, Bool)))
+ensureRosterWeekExistsMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Either Text (LiveMutationResult (RosterWindowState, Bool)))
 ensureRosterWeekExistsMutation scope =
     withDurableLiveMutationOutcome publicationFor do
         materialized <- withRosterWindowMutationLock scope do
@@ -102,7 +102,7 @@ ensureRosterWeekExistsMutation scope =
     publicationFor _ = Nothing
 
 copyRosterWindowFromSourceMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     ShiftCopyOccurrenceSelections ->
     Id RosterGroup ->
     Day ->
@@ -136,7 +136,7 @@ copyRosterWindowFromSourceMutation selections rosterGroupId sourceStart targetSt
                 _ <- persistDurableInvalidationInCurrentTransaction "roster.window.copy" result.liveMutationTouchedResources
                 pure (Right result)
 
-toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowState -> Bool -> IO (Either Text (LiveMutationResult RosterWindowState))
+toggleRosterWeekLiveStatusMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowState -> Bool -> IO (Either Text (LiveMutationResult RosterWindowState))
 toggleRosterWeekLiveStatusMutation scope windowState nextLiveStatus =
     withDurableRosterMutation "roster.window.publication_status" do
         result <- withRosterWindowMutationLock scope do
@@ -181,7 +181,7 @@ data RosterWindowMutationAccess
     = RequireDraftWindow
     | RequirePublishedWindow
 
-withRosterWindowPublicationAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowMutationAccess -> IO (Either Text value) -> IO (Either Text value)
+withRosterWindowPublicationAccess :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowMutationAccess -> IO (Either Text value) -> IO (Either Text value)
 withRosterWindowPublicationAccess scope requiredAccess action =
     withRosterWindowMutationLock scope do
         venueConfig <- fetchVenueConfig
@@ -199,14 +199,14 @@ withRosterWindowPublicationAccess scope requiredAccess action =
                         | not isPublishedWindow -> pure (Left rosterSlotStaffUnavailableMessage)
                     _ -> action
 
-draftRosterWindowErrorUnderLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe Text)
+draftRosterWindowErrorUnderLock :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe Text)
 draftRosterWindowErrorUnderLock scope = do
     venueConfig <- fetchVenueConfig
     window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
     calendarError <- requestRosterCalendarRevisionError venueConfig
     pure (calendarError <|> guardPublishedWindow window)
 
-requestRosterCalendarRevisionError :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> IO (Maybe Text)
+requestRosterCalendarRevisionError :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => VenueConfig -> IO (Maybe Text)
 requestRosterCalendarRevisionError venueConfig =
     case paramOrNothing @Int "rosterCalendarRevision" of
         Nothing -> staleCalendarError "The roster calendar context is missing. Review the refreshed window and try again."
@@ -233,7 +233,7 @@ guardPublishedWindow window
 publishedRosterReadOnlyMessage :: Text
 publishedRosterReadOnlyMessage = "Published roster windows are read-only. Return it to Draft to make changes."
 
-appendRosterWindowLaneMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO (Either Text (LiveMutationResult RosterLane))
+appendRosterWindowLaneMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO (Either Text (LiveMutationResult RosterLane))
 appendRosterWindowLaneMutation scope laneName =
     withDurableRosterMutation "roster.lane.append" do
         result <- withRosterWindowMutationLock scope do
@@ -242,7 +242,7 @@ appendRosterWindowLaneMutation scope laneName =
                 Nothing -> appendRosterWindowLane scope laneName
         traverse (\lane -> rosterMutationResult lane (pure (rosterSlotsStructureTouchedResources scope))) result
 
-removeRosterWindowLaneMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Id RosterLane -> IO (Either Text (LiveMutationResult ()))
+removeRosterWindowLaneMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Id RosterLane -> IO (Either Text (LiveMutationResult ()))
 removeRosterWindowLaneMutation scope laneId =
     withDurableRosterMutation "roster.lane.remove" do
         result <- withRosterWindowMutationLock scope do
@@ -251,7 +251,7 @@ removeRosterWindowLaneMutation scope laneId =
                 Nothing -> removeRosterWindowLane scope laneId currentUser.id
         traverse (\() -> rosterMutationResult () (pure (rosterSlotsStructureTouchedResources scope))) result
 
-repackRosterWindowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Either Text (LiveMutationResult ()))
+repackRosterWindowMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Either Text (LiveMutationResult ()))
 repackRosterWindowMutation scope =
     withDurableRosterMutation "roster.window.repack" do
         result <- withRosterWindowMutationLock scope do
@@ -260,7 +260,7 @@ repackRosterWindowMutation scope =
                 Nothing -> repackRosterWindow scope >> pure (Right ())
         traverse (\() -> rosterMutationResult () (pure (rosterSlotsStructureTouchedResources scope))) result
 
-toggleRosterDayClosedMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Bool -> Int -> IO (Either Text (LiveMutationResult RosterDay))
+toggleRosterDayClosedMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Bool -> Int -> IO (Either Text (LiveMutationResult RosterDay))
 toggleRosterDayClosedMutation scope rosterDay nextClosedState minimumRows =
     withDurableRosterMutation "roster.day.closed" do
         result <- withRosterWindowMutationLock scope do
@@ -273,7 +273,7 @@ toggleRosterDayClosedMutation scope rosterDay nextClosedState minimumRows =
                     Right <$> (currentDay |> set #isClosed nextClosedState |> updateRecord)
         traverse (\updatedDay -> rosterMutationResult updatedDay (pure (rosterDayTouchedResources scope rosterDay))) result
 
-addRosterDayRowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> IO (Either Text (LiveMutationResult RosterDay))
+addRosterDayRowMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> IO (Either Text (LiveMutationResult RosterDay))
 addRosterDayRowMutation scope rosterDay =
     withDurableRosterMutation "roster.day.row_add" do
         result <- withRosterWindowMutationLock scope do
@@ -284,7 +284,7 @@ addRosterDayRowMutation scope rosterDay =
                     Right <$> (currentDay |> set #rowCount (currentDay.rowCount + 1) |> updateRecord)
         traverse (\updatedDay -> rosterMutationResult updatedDay (pure (rosterDayTouchedResources scope rosterDay))) result
 
-removeRosterDayRowByLanesMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> IO (Either Text (LiveMutationResult ()))
+removeRosterDayRowByLanesMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> IO (Either Text (LiveMutationResult ()))
 removeRosterDayRowByLanesMutation scope rosterDay =
     withDurableRosterMutation "roster.row.remove" do
         result <- withRosterWindowMutationLock scope do
@@ -299,7 +299,7 @@ withRosterSlotStaffLocks rosterSlots action = do
     maybeResult <- withStaffOperationalLocksInCurrentTransaction staffIds action
     pure (fromMaybe (Left rosterSlotStaffUnavailableMessage) maybeResult)
 
-withRosterWindowSlotStaffLocks :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowMutationAccess -> [RosterSlot] -> IO (Either Text value) -> IO (Either Text value)
+withRosterWindowSlotStaffLocks :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowMutationAccess -> [RosterSlot] -> IO (Either Text value) -> IO (Either Text value)
 withRosterWindowSlotStaffLocks scope requiredAccess rosterSlots action =
     withRosterWindowPublicationAccess scope requiredAccess $
         withRosterSlotStaffLocks rosterSlots action
@@ -318,7 +318,7 @@ rosterSlotStillMatches expectedSlot = do
 rosterSlotStaffUnavailableMessage :: Text
 rosterSlotStaffUnavailableMessage = "The selected staff member or roster shift is no longer available for rostering."
 
-saveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Maybe RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+saveRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Maybe RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 saveRosterSlotMutation scope rosterDay existingSlot newSlot =
     withDurableRosterMutation "roster.slot.save" do
         persistenceResult <- withRosterWindowSlotStaffLocks scope RequireDraftWindow (newSlot : maybeToList existingSlot) do
@@ -345,7 +345,7 @@ saveRosterSlotMutation scope rosterDay existingSlot newSlot =
                 mutationResult <- rosterMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) (rosterSlotMutationTouchedResources scope rosterDay (Just persistedSlot))
                 pure (Right mutationResult)
 
-moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+moveRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 moveRosterSlotMutation scope sourceRosterDay targetRosterDay originalSlot updatedSlot =
     withDurableRosterMutation "roster.slot.move" do
         persistenceResult <- withRosterWindowSlotStaffLocks scope RequireDraftWindow [originalSlot, updatedSlot] do
@@ -380,7 +380,7 @@ moveRosterSlotMutation scope sourceRosterDay targetRosterDay originalSlot update
                         (nub (sourceResources <> targetResources))
                 pure (Right mutationResult)
 
-updateRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterSlot -> Bool -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+updateRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterSlot -> Bool -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 updateRosterSlotMutation scope rosterDay originalSlot updatedSlot allowPublishedOpenFill =
     withDurableRosterMutation "roster.slot.update" do
         let requiredAccess = if allowPublishedOpenFill then RequirePublishedWindow else RequireDraftWindow
@@ -409,7 +409,7 @@ updateRosterSlotMutation scope rosterDay originalSlot updatedSlot allowPublished
                 pure (Right mutationResult)
 
 
-deleteRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+deleteRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
 deleteRosterSlotMutation scope rosterDay rosterSlot =
     withDurableRosterMutation "roster.slot.delete" do
         deletionResult <- withRosterWindowSlotStaffLocks scope RequireDraftWindow [rosterSlot] do

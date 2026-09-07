@@ -21,14 +21,12 @@ import Data.IORef
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import qualified Data.Text.Lazy.Encoding as LazyTextEncoding
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Data.Vault.Lazy as Vault
 import GHC.Clock (getMonotonicTimeNSec)
-import IHP.ControllerSupport (ControllerContext)
 import IHP.Controller.Render (renderHtml, respondHtml)
-import IHP.ControllerSupport (Respond, respondAndExitWithHeaders)
+import IHP.ControllerSupport (ControllerContext, Respond, ResponseReceived, respondWith)
 import IHP.Prelude
 import IHP.ViewSupport (View)
 import Network.HTTP.Types (status200)
@@ -38,8 +36,7 @@ import qualified Network.Wai as Wai
 import OpenTelemetry.Attributes (Attribute, toAttribute)
 import qualified System.Environment as Environment
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Text.Blaze.Html as Blaze
-import qualified Text.Blaze.Html.Renderer.Utf8 as BlazeUtf8
+import qualified IHP.HSX.Markup as Markup
 
 data RequestProfile = RequestProfile
     { requestProfileId :: !Text
@@ -84,14 +81,14 @@ profileCounter name amount = do
     forEach maybeProfile \_ ->
         appendActiveRenderCounter name amount
 
-profileRenderCounter :: (?context :: ControllerContext) => Text -> Int -> Blaze.Html
+profileRenderCounter :: (?context :: ControllerContext) => Text -> Int -> Markup.Html
 profileRenderCounter name amount =
     unsafePerformIO do
         profileCounter name amount
         pure mempty
 {-# NOINLINE profileRenderCounter #-}
 
-profileHtmlComponent :: (?context :: ControllerContext) => Text -> Blaze.Html -> Blaze.Html
+profileHtmlComponent :: (?context :: ControllerContext) => Text -> Markup.Html -> Markup.Html
 profileHtmlComponent name html =
     unsafePerformIO do
         maybeProfile <- currentRequestProfileFromVault ?context
@@ -101,7 +98,7 @@ profileHtmlComponent name html =
                 withTelemetrySpanAttributes name [("bepis.profile.diagnostic", toAttribute True)] do
                     withRenderCounterScope \counterRef -> do
                         startedAtNs <- getMonotonicTimeNSec
-                        let !htmlBytes = BlazeUtf8.renderHtml html
+                        let !htmlBytes = Markup.renderMarkup html
                         byteCount <- evaluate (LByteString.length htmlBytes)
                         completedAtNs <- getMonotonicTimeNSec
                         counters <- readIORef counterRef
@@ -117,15 +114,15 @@ profileHtmlComponent name html =
                                 , durationMs = durationBetweenMs startedAtNs completedAtNs
                                 , detail = Nothing
                                 }
-                        pure (Blaze.preEscapedToHtml (LazyTextEncoding.decodeUtf8 htmlBytes))
+                        pure (mconcat (map Markup.rawByteString (LByteString.toChunks htmlBytes)))
 {-# NOINLINE profileHtmlComponent #-}
 
-renderProfiled :: (View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
+renderProfiled :: (View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 renderProfiled view = do
     html <- profileActionSpan "render.ihp_view" (renderHtml view)
     respondHtmlProfiled html
 
-respondHtmlProfiled :: (?context :: ControllerContext, ?request :: Request) => Blaze.Html -> IO ()
+respondHtmlProfiled :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Markup.Html -> IO ResponseReceived
 respondHtmlProfiled html =
     annotateHtmlResponse do
         maybeProfile <- currentRequestProfileFromVault ?context
@@ -135,7 +132,7 @@ respondHtmlProfiled html =
                 (htmlBytes, byteCount) <-
                     withTelemetrySpanAttributes "render.respond_html" [("bepis.profile.diagnostic", toAttribute True)] do
                         startedAtNs <- getMonotonicTimeNSec
-                        let !htmlBytes = BlazeUtf8.renderHtml html
+                        let !htmlBytes = Markup.renderMarkup html
                         byteCount <- evaluate (LByteString.length htmlBytes)
                         completedAtNs <- getMonotonicTimeNSec
                         addTelemetryAttributes [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
@@ -147,7 +144,7 @@ respondHtmlProfiled html =
                                 , detail = Nothing
                                 }
                         pure (htmlBytes, byteCount)
-                respondAndExitWithHeaders $
+                respondWith $
                     responseLBS
                         status200
                         [ (hContentType, "text/html; charset=utf-8")

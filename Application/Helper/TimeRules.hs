@@ -236,7 +236,7 @@ operationalDayForUtcTime :: (?modelContext :: ModelContext) => VenueConfig -> UT
 operationalDayForUtcTime venueConfig utcTime =
     pure (fromRight (utctDay utcTime) (currentOperationalDayForVenueOutcome venueConfig utcTime))
 
-ensureEditWindowOrManager :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO ()
+ensureEditWindowOrManager :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> IO ()
 ensureEditWindowOrManager workedOn =
     unless (hasRole Manager) do
         config <- fetchVenueConfig

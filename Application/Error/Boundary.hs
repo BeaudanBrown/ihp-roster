@@ -23,7 +23,8 @@ import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
-import IHP.Controller.Response (ResponseException (..))
+import IHP.Controller.Response (EarlyReturnException, earlyReturn, respondAndExit)
+import IHP.ControllerSupport (Respond, ResponseReceived)
 import IHP.ModelSupport (RecordNotFoundException)
 import IHP.Prelude
 import Network.HTTP.Types (Status, status422, status500)
@@ -76,20 +77,17 @@ appErrorStatus appError =
         Blocking -> status422
         Critical -> status500
 
--- | Polymorphic response control: throwing 'ResponseException' is IHP's normal
--- action-stop mechanism, so callers never need an @error "unreachable"@ tail.
-respondAndStop :: Response -> IO value
-respondAndStop = Exception.throwIO . ResponseException
+-- | Send exactly once through IHP's header-aware callback and leave the action.
+-- The early-return token must escape transaction/error boundaries unchanged.
+respondAndStop :: (?request :: Request, ?respond :: Respond) => Response -> IO value
+respondAndStop = respondAndExit
 
--- | Lift IHP helpers whose legacy type is @IO ()@ into explicit polymorphic
--- response control. The fallback is reached only if an IHP helper violates its
--- contract and returns instead of throwing 'ResponseException'.
-terminateAfterIhpResponseControl :: IO () -> IO value
-terminateAfterIhpResponseControl responseControl = do
-    responseControl
-    respondAndStop (responseLBS status500 [(hContentType, "text/plain; charset=utf-8")] "Bepis could not complete this response.")
+-- | Turn a terminal response helper into an intentional mid-handler exit.
+-- There is no fallback response: the callback has already sent the response.
+terminateAfterIhpResponseControl :: IO ResponseReceived -> IO value
+terminateAfterIhpResponseControl = earlyReturn
 
-respondWithAppErrorAndStop :: AppErrorRequestKind -> AppError -> IO value
+respondWithAppErrorAndStop :: (?request :: Request, ?respond :: Respond) => AppErrorRequestKind -> AppError -> IO value
 respondWithAppErrorAndStop requestKind appError = do
     recordAppError appError
     respondAndStop case requestKind of
@@ -97,7 +95,7 @@ respondWithAppErrorAndStop requestKind appError = do
         HtmxRequest -> appErrorHtmxResponse appError
         JsonRequest -> appErrorJsonResponse appError
 
-runAppResultBoundary :: AppErrorRequestKind -> IO (AppResult value) -> (value -> IO response) -> IO response
+runAppResultBoundary :: (?request :: Request, ?respond :: Respond) => AppErrorRequestKind -> IO (AppResult value) -> (value -> IO response) -> IO response
 runAppResultBoundary requestKind operation onSuccess = do
     operation >>= \case
         Right value -> onSuccess value
@@ -113,6 +111,6 @@ withSynchronousAppErrorFallback action onFallback =
             else onFallback (projectDomainError UnexpectedSynchronousError)
   where
     mustRethrow exception =
-        isJust (Exception.fromException @ResponseException exception)
+        isJust (Exception.fromException @EarlyReturnException exception)
             || isJust (Exception.fromException @Exception.SomeAsyncException exception)
             || isJust (Exception.fromException @RecordNotFoundException exception)

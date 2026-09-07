@@ -45,7 +45,7 @@ import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Set as Set
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
 import Web.RosterWeeks.DateRange (RosterWindowScope (..),
@@ -84,7 +84,7 @@ data RosterShiftEditCompletion = RosterShiftEditCompletion
     , rosterShiftEditWarnSourceTimesheetUnchanged :: !Bool
     }
 
-createRosterShift :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues (LiveMutationResult RosterSlotMutationResult))
+createRosterShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues (LiveMutationResult RosterSlotMutationResult))
 createRosterShift scope rosterDay slotDefinition rowIndex submission = do
     existingSlot <- query @RosterSlot
         |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -111,7 +111,7 @@ createRosterShift scope rosterDay slotDefinition rowIndex submission = do
                 Left message -> Left (rosterShiftDialogValuesFromSlot newSlot) { rosterShiftFormError = Just message }
                 Right result -> Right result
 
-editRosterShift :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues RosterShiftEditCompletion)
+editRosterShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues RosterShiftEditCompletion)
 editRosterShift scope rosterDay rosterSlot submission = do
     -- Published fill restores the original values on persistence rejection;
     -- Draft edit restores the attempted values. Keep that distinction here.
@@ -169,7 +169,7 @@ fetchRosterSlotEditContext :: (?modelContext :: ModelContext) => RosterSlot -> I
 fetchRosterSlotEditContext rosterSlot =
     fetch (coerce rosterSlot.rosterDayId :: Id RosterDay)
 
-rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogValues -> IO Markup.Html
 rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = do
     (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff scope.rosterWindowRosterGroupId Nothing
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
@@ -197,7 +197,7 @@ rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = 
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
-rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> RosterShiftDialogValues -> IO Markup.Html
 rosterShiftDialogForEditHtml scope rosterSlot rosterDay values = do
     (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff scope.rosterWindowRosterGroupId rosterSlot.staffId
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog

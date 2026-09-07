@@ -7,9 +7,10 @@ view work. Import `Web.View.Prelude`; keep shared helpers in focused
 ## HSX And Forms
 
 Use `[hsx|...|]`, valid closed HTML, typed action values, and existing render
-helpers. A Blaze decorator cannot decorate an HSX fragment reduced to static
-pre-rendered text; keep a genuinely dynamic root expression or build that root
-with Blaze, then pin it with a render test.
+helpers. IHP 1.6 HSX uses direct-builder markup, not Blaze. Attach typed helper
+attribute pairs with HSX spreads while constructing the intended root; do not
+decorate rendered markup or serialize/reinsert HTML to attach attributes. Pin
+root placement, escaping, Boolean omission, and native transport with render tests.
 
 HTML form attributes are browser UX, not validation. Controllers must enforce
 required fields, typed parsing, bounds, and venue scope. Build query strings

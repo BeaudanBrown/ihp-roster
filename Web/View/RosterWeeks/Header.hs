@@ -36,6 +36,7 @@ renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWindowS
 renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
     let toolbarHtml = renderWeekToolbar WeekToolbarConfig
             { weekToolbarVariant = WeekToolbarRoster
+            , weekToolbarRootAttrs = dropzoneAttrs
             , weekToolbarAriaLabel = "Roster week controls"
             , weekToolbarExtraClass = "roster-grid-header app-side-panel-header"
             , weekToolbarPrimary = renderLiveToggle maybeRosterWeek weekStartDate rosterCalendarRevision currentRosterGroup viewCapabilities
@@ -44,10 +45,10 @@ renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup
             , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
             , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
             }
-        deleteDropzoneKey = "delete" :: Text
-     in if currentUserIsManager && maybe False (not . (.windowIsPublished)) maybeRosterWeek
-            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDeleteShiftDropzoneRef deleteDropzoneKey toolbarHtml
-            else toolbarHtml
+        dropzoneAttrs = if currentUserIsManager && maybe False (not . (.windowIsPublished)) maybeRosterWeek
+            then SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDeleteShiftDropzoneRef "delete"
+            else []
+     in toolbarHtml
 
 renderRosterSidePanelToggle :: Html
 renderRosterSidePanelToggle = renderSidePanelToggle rosterSidePanelRenderAttrs

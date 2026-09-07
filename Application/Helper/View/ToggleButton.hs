@@ -18,10 +18,6 @@ module Application.Helper.View.ToggleButton
 import Application.Helper.FrontendContract.Toggle.Runtime
 import qualified Data.Text as Text
 import IHP.ViewPrelude
-import Text.Blaze (toValue, (!))
-import qualified Text.Blaze.Html as Blaze
-import qualified Text.Blaze.Html5 as Html5
-import Text.Blaze.Internal (customAttribute, textTag)
 
 data AppToggleButtonLabel
     = AppToggleStaticLabel !Html
@@ -63,16 +59,7 @@ defaultAppToggleStateButtonConfig inputId fieldBinding checked checkedLabel unch
 
 renderAppToggleButton :: AppToggleButtonConfig -> Html
 renderAppToggleButton config@AppToggleButtonConfig { .. } =
-    applyAttributes
-        (Html5.label $ do
-            renderAppToggleTransport config
-            renderAppToggleInput config
-            renderAppToggleLabel appToggleChecked appToggleLabel)
-        [ attr "class" (appToggleButtonClasses config)
-        , attr "for" appToggleInputId
-        , attr toggleDom.toggleRootAttribute transportKey
-        , attr "aria-pressed" (boolAttr appToggleChecked)
-        ]
+    [hsx|<label class={appToggleButtonClasses config} for={appToggleInputId} {...[(toggleDom.toggleRootAttribute, transportKey)]} aria-pressed={boolAttr appToggleChecked}>{renderAppToggleTransport config}{renderAppToggleInput config}{renderAppToggleLabel appToggleChecked appToggleLabel}</label>|]
   where
     toggleDom = canonicalToggleDomAttributes
     transportKey = toggleTransportKey appToggleInputId
@@ -85,11 +72,10 @@ renderAppToggleLabel checked AppToggleStateLabels { .. } =
 
 renderStateLabel :: TogglePresentationState -> Bool -> Html -> Html
 renderStateLabel state visible label =
-    applyAttributes
-        (Html5.span label)
-        [ attr canonicalToggleDomAttributes.toggleLabelStateAttribute (togglePresentationStateValue state)
-        , hiddenAttr (not visible)
-        ]
+    [hsx|<span {...attributes}>{label}</span>|]
+  where
+    attributes = [(canonicalToggleDomAttributes.toggleLabelStateAttribute, togglePresentationStateValue state)]
+        <> hiddenAttr (not visible)
 
 -- | Render a non-interactive hidden field through the same typed field mapping
 -- used by toggle controls. This is for retained repeated values that have no
@@ -98,24 +84,15 @@ renderAppToggleHiddenField :: ToggleFieldBinding -> Bool -> Html
 renderAppToggleHiddenField fieldBinding checked =
     case toggleTargetForState fieldBinding (togglePresentationState checked) of
         ToggleTargetValue value ->
-            applyAttributes Html5.input
-                [ attr "type" "hidden"
-                , attr "name" (toggleFieldName fieldBinding)
-                , attr "value" value
-                ]
+            [hsx|<input type="hidden" name={toggleFieldName fieldBinding} value={value}/>|]
         ToggleTargetOmitted -> mempty
 
 renderAppToggleTransport :: AppToggleButtonConfig -> Html
 renderAppToggleTransport AppToggleButtonConfig { appToggleInputId, appToggleFieldBinding, appToggleChecked } =
-    applyAttributes
-        Html5.input
-        [ attr "type" "hidden"
-        , attr "name" (toggleFieldName appToggleFieldBinding)
-        , attr "value" transportValue
-        , attr canonicalToggleDomAttributes.toggleTransportAttribute (toggleTransportKey appToggleInputId)
-        , disabledAttr transportOmitted
-        ]
+    [hsx|<input type="hidden" name={toggleFieldName appToggleFieldBinding} value={transportValue} {...attributes}/>|]
   where
+    attributes = [(canonicalToggleDomAttributes.toggleTransportAttribute, toggleTransportKey appToggleInputId)]
+        <> disabledAttr transportOmitted
     target = toggleTargetForState appToggleFieldBinding (togglePresentationState appToggleChecked)
     (transportValue, transportOmitted) = case target of
         ToggleTargetValue value -> (value, False)
@@ -123,54 +100,41 @@ renderAppToggleTransport AppToggleButtonConfig { appToggleInputId, appToggleFiel
 
 renderAppToggleInput :: AppToggleButtonConfig -> Html
 renderAppToggleInput config@AppToggleButtonConfig { .. } =
-    applyAttributes
-        Html5.input
-        [ attr "id" appToggleInputId
-        , attr "class" (appToggleInputClasses config)
-        , attr "type" "checkbox"
-        , maybeAttr "role" (switchRoleAttr appToggleRoleSwitch)
-        , maybeAttr "aria-checked" (switchAriaCheckedAttr appToggleRoleSwitch appToggleChecked)
-        , maybeAttr "aria-controls" (toggleBreakRegionId <$> appToggleBreakRegion)
-        , checkedAttr appToggleChecked
-        , attr canonicalToggleDomAttributes.toggleInputAttribute (toggleTransportKey appToggleInputId)
-        , attr canonicalToggleDomAttributes.toggleConfigAttribute
-            (toggleConfigJson appToggleInputId appToggleFieldBinding appToggleChecked appToggleSubmitPolicy appToggleBreakRegion)
-        ]
+    [hsx|<input id={appToggleInputId} class={appToggleInputClasses config} type="checkbox" {...attributes}/>|]
+  where
+    attributes = maybeAttr "role" (switchRoleAttr appToggleRoleSwitch)
+        <> maybeAttr "aria-checked" (switchAriaCheckedAttr appToggleRoleSwitch appToggleChecked)
+        <> maybeAttr "aria-controls" (toggleBreakRegionId <$> appToggleBreakRegion)
+        <> checkedAttr appToggleChecked
+        <> [ (canonicalToggleDomAttributes.toggleInputAttribute, toggleTransportKey appToggleInputId)
+           , (canonicalToggleDomAttributes.toggleConfigAttribute,
+                toggleConfigJson appToggleInputId appToggleFieldBinding appToggleChecked appToggleSubmitPolicy appToggleBreakRegion)
+           ]
 
 -- | Render the native fieldset controlled by a toggle. The generated opaque key
 -- is the browser relationship; the id is retained only for aria-controls.
 renderAppToggleBreakRegion :: ToggleBreakRegion -> Bool -> Text -> Html -> Html
 renderAppToggleBreakRegion region enabled className body =
-    applyAttributes
-        (Html5.fieldset body)
-        [ attr "id" (toggleBreakRegionId region)
-        , attr "class" className
-        , attr canonicalToggleDomAttributes.toggleBreakRegionAttribute (toggleBreakRegionKey region)
-        , disabledAttr (not enabled)
-        , attr "aria-disabled" (boolAttr (not enabled))
-        ]
+    [hsx|<fieldset id={toggleBreakRegionId region} class={className} {...attributes} aria-disabled={boolAttr (not enabled)}>{body}</fieldset>|]
+  where
+    attributes = [(canonicalToggleDomAttributes.toggleBreakRegionAttribute, toggleBreakRegionKey region)]
+        <> disabledAttr (not enabled)
 
-applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
-applyAttributes = foldl' (!)
+maybeAttr :: Text -> Maybe Text -> [(Text, Text)]
+maybeAttr _ Nothing         = []
+maybeAttr name (Just value) = [(name, value)]
 
-attr :: Text -> Text -> Blaze.Attribute
-attr name value = customAttribute (textTag name) (toValue value)
+checkedAttr :: Bool -> [(Text, Text)]
+checkedAttr True  = [("checked", "checked")]
+checkedAttr False = []
 
-maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
-maybeAttr _ Nothing         = mempty
-maybeAttr name (Just value) = attr name value
+disabledAttr :: Bool -> [(Text, Text)]
+disabledAttr True  = [("disabled", "disabled")]
+disabledAttr False = []
 
-checkedAttr :: Bool -> Blaze.Attribute
-checkedAttr True  = attr "checked" "checked"
-checkedAttr False = mempty
-
-disabledAttr :: Bool -> Blaze.Attribute
-disabledAttr True  = attr "disabled" "disabled"
-disabledAttr False = mempty
-
-hiddenAttr :: Bool -> Blaze.Attribute
-hiddenAttr True  = attr "hidden" "hidden"
-hiddenAttr False = mempty
+hiddenAttr :: Bool -> [(Text, Text)]
+hiddenAttr True  = [("hidden", "hidden")]
+hiddenAttr False = []
 
 appToggleButtonClasses :: AppToggleButtonConfig -> Text
 appToggleButtonClasses AppToggleButtonConfig { appToggleButtonClass } =

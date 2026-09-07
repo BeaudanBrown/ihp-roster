@@ -19,7 +19,7 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , appShellActionByMarker
     , defaultAppShellActionRoute
     , appShellActionHtmxAttrPairs
-    , applyAppShellActionAttrs
+    , appShellActionAttrs
     , renderAppShellActionForm
     , renderAppShellActionHtmxControl
     , renderAppShellActionLink
@@ -38,11 +38,7 @@ import Data.Kind (Type)
 import Data.Typeable (Typeable)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 import IHP.ViewPrelude
-import Text.Blaze (toValue)
-import qualified Text.Blaze.Html as Blaze
-import Text.Blaze.Html ((!))
-import qualified Text.Blaze.Html5 as Html5
-import Text.Blaze.Internal (customAttribute, textTag)
+import qualified IHP.HSX.Markup as Markup
 
 newtype AppShellFieldValue = AppShellFieldValue
     { appShellFieldValuePair :: (Text, Text)
@@ -107,35 +103,28 @@ appShellActionByMarker ::
     AppShellActionIR
 appShellActionByMarker = reflectAppShellActionPrimitive @(FindAppShellAction marker RegisteredFrontendContracts)
 
-applyAppShellActionAttrs :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
-applyAppShellActionAttrs action route element =
-    applyAttributes element (fmap (uncurry attr) (appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route))
+-- Spread the typed contract onto the caller's root while it is constructed;
+-- direct-builder markup cannot be decorated after rendering.
+appShellActionAttrs :: AppShellActionIR -> AppShellActionRoute -> [(Text, Text)]
+appShellActionAttrs action route = appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route
 
-renderAppShellActionForm :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
+renderAppShellActionForm :: AppShellActionIR -> AppShellActionRoute -> Markup.Html -> Markup.Html
 renderAppShellActionForm action route body =
-    applyAttributes
-        (Html5.form $ do
-            forM_ route.appShellActionRouteFields renderHiddenField
-            body)
-        ( standardFormAttrs method url
-            <> fmap (uncurry attr) (appShellActionHtmxAttrPairs action route)
-            <> fmap (uncurry attr) (routeExtraAttrPairs route)
-        )
+    [hsx|<form {...attributes}>{forEach route.appShellActionRouteFields renderHiddenField}{body}</form>|]
     where
-        method = appShellActionMethod action
+        attributes = standardFormAttrs (appShellActionMethod action) url <> appShellActionAttrs action route
         url = fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl
 
-renderAppShellActionLink :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
+renderAppShellActionLink :: AppShellActionIR -> AppShellActionRoute -> Markup.Html -> Markup.Html
 renderAppShellActionLink action route body =
-    applyAttributes
-        (Html5.a $ body)
-        ( attr "href" (fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl)
-            : fmap (uncurry attr) (appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route)
-        )
+    [hsx|<a {...attributes}>{body}</a>|]
+    where
+        attributes = ("href", fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl)
+            : appShellActionAttrs action route
 
-renderAppShellActionHtmxControl :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
+renderAppShellActionHtmxControl :: AppShellActionIR -> AppShellActionRoute -> Markup.Html -> Markup.Html
 renderAppShellActionHtmxControl action route body =
-    applyAttributes (Html5.span body) (fmap (uncurry attr) (appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route))
+    [hsx|<span {...(appShellActionAttrs action route)}>{body}</span>|]
 
 appShellActionHtmxAttrPairs :: AppShellActionIR -> AppShellActionRoute -> [(Text, Text)]
 appShellActionHtmxAttrPairs action route =
@@ -153,10 +142,10 @@ appShellActionMethod action =
     where
         metadata = Htmx.htmxActionMetadataFromOptions action.appShellActionOptions
 
-standardFormAttrs :: Htmx.HtmxMethod -> Text -> [Blaze.Attribute]
+standardFormAttrs :: Htmx.HtmxMethod -> Text -> [(Text, Text)]
 standardFormAttrs method url =
-    [ attr "method" (Htmx.htmxStandardMethodText method)
-    , attr "action" url
+    [ ("method", Htmx.htmxStandardMethodText method)
+    , ("action", url)
     ]
 
 routeExtraAttrPairs :: AppShellActionRoute -> [(Text, Text)]
@@ -168,16 +157,6 @@ customHtmxAttrPairs action metadata route =
     where
         renderCustom custom = Htmx.htmxCustomAttrPairs metadata action.appShellActionName custom.appShellCustomHtmxAttrMarker custom.appShellCustomHtmxAttrValues
 
-renderHiddenField :: AppShellFieldValue -> Blaze.Html
+renderHiddenField :: AppShellFieldValue -> Markup.Html
 renderHiddenField (AppShellFieldValue (fieldName, fieldValue)) =
-    Html5.input
-        ! attr "type" "hidden"
-        ! attr "name" fieldName
-        ! attr "value" fieldValue
-
-applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
-applyAttributes = foldl' (!)
-
-attr :: Text -> Text -> Html5.Attribute
-attr name value =
-    customAttribute (textTag name) (toValue value)
+    [hsx|<input type="hidden" name={fieldName} value={fieldValue}/>|]

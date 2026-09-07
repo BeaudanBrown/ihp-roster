@@ -11,7 +11,7 @@ import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
                                                      OpenTimesheetEntryDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
@@ -221,6 +221,7 @@ renderTimesheetWeekHeader :: (?context :: ControllerContext) => Day -> Day -> Ma
 renderTimesheetWeekHeader weekStartDate today wageEstimates filters =
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarTimesheets
+        , weekToolbarRootAttrs = []
         , weekToolbarAriaLabel = "Timesheet week controls"
         , weekToolbarExtraClass = "timesheet-week-header app-side-panel-header"
         , weekToolbarPrimary = mempty
@@ -355,12 +356,8 @@ renderTimesheetStaffPanel staffMembers entries = [hsx|
 
 renderTimesheetStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> TimesheetStaffPanelEntry -> Html
 renderTimesheetStaffPanelEntry staffMembers entry =
-    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource timesheetStaffCardsLinkedHighlight staffKey $
-        applyAppShellActionAttrs
-            (appShellActionByMarker @OpenRosterStaffEditDialog)
-            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
-            [hsx|
-                <tr class="app-side-panel-entry timesheet-staff-panel-entry" role="button" tabindex="0"
+    [hsx|
+                <tr {...entryAttrs} class="app-side-panel-entry timesheet-staff-panel-entry" role="button" tabindex="0"
                     {...timesheetStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelEntryCount entry.panelApprovedCount}>
                     <th scope="row" class="app-side-panel-cell app-side-panel-name"><span class="app-side-panel-name-primary">{staffName}</span></th>
                     <td class="app-side-panel-cell app-side-panel-role">{roleLabel}</td>
@@ -369,12 +366,15 @@ renderTimesheetStaffPanelEntry staffMembers entry =
                 </tr>
             |]
   where
+    entryAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs timesheetStaffCardsLinkedHighlight staffKey
+        <> appShellActionAttrs (appShellActionByMarker @OpenRosterStaffEditDialog)
+            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
     staffKey = "staff:" <> tshow entry.panelStaff.id
     staffName = staffDisplayName staffMembers entry.panelStaff
     roleLabel = maybe (Text.toTitle (Text.replace "_" " " entry.panelStaffRole)) venueRoleLabel (parseVenueRole entry.panelStaffRole)
     locateButton =
-        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin timesheetStaffCardsLinkedHighlight staffKey [hsx|
-            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button timesheet-staff-locate-button"
+        [hsx|
+            <button {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs timesheetStaffCardsLinkedHighlight staffKey)} type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button timesheet-staff-locate-button"
                     aria-label={"Locate entries for " <> staffName} aria-pressed="false">
                 {renderSidePanelLocateIcon}
             </button>
@@ -653,14 +653,10 @@ renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, da
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Text -> Maybe Text -> Html -> Html -> Html
 renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } entry timingOutcome cardClass suggestionId cardOverlay cardAction =
-    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember
-        timesheetStaffCardsLinkedHighlight
-        ("staff:" <> tshow entry.staffId)
-        Nothing
-        card
+    card
   where
     card = [hsx|
-        <article class={cardClass}
+        <article {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs timesheetStaffCardsLinkedHighlight ("staff:" <> tshow entry.staffId) Nothing)} class={cardClass}
                  data-timesheet-entry-approved={boolParam entry.isApproved}
                  data-timesheet-suggestion-id={suggestionId}>
             {cardOverlay}

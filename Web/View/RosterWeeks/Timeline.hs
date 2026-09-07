@@ -44,7 +44,7 @@ import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
-                                        applyRosterShiftDialogLauncherAttrs,
+                                        rosterShiftDialogLauncherAttrs,
                                         rosterSlotDialogUrl)
 
 renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDay -> Html
@@ -164,8 +164,8 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
 
 renderTimelineDropzone :: TimelineWindow -> (Int, Text) -> Html
 renderTimelineDropzone timelineWindow (minute, targetKey) =
-    SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayTimelineDropzoneRef targetKey [hsx|
-        <div class="roster-day-timeline-dropzone"
+    [hsx|
+        <div {...(SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDayTimelineDropzoneRef targetKey)} class="roster-day-timeline-dropzone"
              style={timelineDropzoneStyle timelineWindow minute}
              data-roster-timeline-minute={tshow minute}
              aria-label={"Move shift to " <> minuteLabel minute}>
@@ -180,7 +180,7 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
         shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
         groupKey = "existing:" <> tshow timelineShiftSlot.id
         shiftArticle = [hsx|
-            <article class={classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable && not timelineShiftTimingInvalid), ("is-roster-shift-timing-invalid", timelineShiftTimingInvalid)]}
+            <article {...launcherAttrs} class={classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable && not timelineShiftTimingInvalid), ("is-roster-shift-timing-invalid", timelineShiftTimingInvalid)]}
                      tabindex={if canLaunch then ("0" :: Text) else ""}
                      aria-label={if isOpen then ("Open shift" :: Text) else staffLabel}>
                 <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel}{timingIssue}</div>
@@ -191,21 +191,22 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
         timingIssue = if timelineShiftTimingInvalid
             then [hsx|<span class="roster-shift-timing-issue text-warning" data-roster-timing-issue="true" title="Timing needs repair">!</span>|]
             else mempty
-        launchableArticle =
+        launcherAttrs =
             if canLaunch
-                then applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision)) shiftArticle
-                else shiftArticle
+                then rosterShiftDialogLauncherAttrs (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision))
+                else []
         card = [hsx|
-            <div class="roster-day-timeline-shift-position"
+            <div {...cardAttrs} class="roster-day-timeline-shift-position"
                  style={timelineShiftStyle timelineWindow timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}>
-                {launchableArticle}
+                {shiftArticle}
             </div>
         |]
-     in if editable && not timelineShiftTimingInvalid
-            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDayTimelineSourceRef groupKey $
-                SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterDayTimelineShiftGroupLinkedHighlight groupKey $
-                    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember rosterDayTimelineShiftGroupLinkedHighlight groupKey Nothing card
-            else card
+        cardAttrs = if editable && not timelineShiftTimingInvalid
+            then SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterDayTimelineSourceRef groupKey
+                <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey
+                <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs rosterDayTimelineShiftGroupLinkedHighlight groupKey Nothing
+            else []
+     in card
 
 staffTimelineLabel :: Staff -> Text
 staffTimelineLabel staff =

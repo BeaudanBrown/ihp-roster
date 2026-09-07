@@ -177,7 +177,7 @@ upsertCurrentUserShowWageEstimates showWageEstimates = do
                 |> createRecord
 
 upsertCurrentUserHighlightOwnLiveShifts ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
     Bool ->
     IO UserPreference
 upsertCurrentUserHighlightOwnLiveShifts highlightOwnLiveShifts = do

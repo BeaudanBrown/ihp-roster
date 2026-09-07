@@ -1,4 +1,4 @@
-module Application.Helper.Authentication (authenticationMiddleware) where
+module Application.Helper.Authentication (bepisAuthenticationMiddleware) where
 
 import Application.Helper.ControllerAccess (clearCurrentUserPasskeyVerification)
 import Application.Helper.ControllerContext (currentVenueSessionKey)
@@ -20,8 +20,8 @@ import Web.Types ()
 -- fetches become anonymous without logging query text, cookie data or exceptions.
 -- Version validation and cookie clearing happen BEFORE handing off the request:
 -- deleting a cookie alone cannot revoke IHP's already loaded immutable vault user.
-authenticationMiddleware :: Wai.Middleware
-authenticationMiddleware =
+bepisAuthenticationMiddleware :: Wai.Middleware
+bepisAuthenticationMiddleware =
     userIdMiddleware (sessionKey @User)
         . authMiddlewareWith currentUserVaultKey loadUser
         . validateAuthenticatedRequest

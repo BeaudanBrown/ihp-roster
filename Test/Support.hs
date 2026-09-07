@@ -10,7 +10,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       initImpersonationContext,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
-import Application.Helper.Authentication (authenticationMiddleware)
+import Application.Helper.Authentication (bepisAuthenticationMiddleware)
 import Application.Helper.ControllerContext (initCurrentVenueContext, venueRequestStateMiddleware)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
@@ -314,7 +314,7 @@ withControllerTestContext ::
     IO a
 withControllerTestContext action =
     withSessionValues [] do
-        request <- applyTestRequestMiddleware (venueRequestStateMiddleware . authenticationMiddleware) ?request
+        request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware) ?request
         let ?context = request
         let ?request = request
         action
@@ -324,7 +324,7 @@ withCurrentControllerContext ::
     ((?context :: ControllerContext, ?request :: Wai.Request) => IO a) ->
     IO a
 withCurrentControllerContext action = do
-    request <- applyTestRequestMiddleware (venueRequestStateMiddleware . authenticationMiddleware) ?request
+    request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware) ?request
     let ?context = request
     let ?request = request
     initCurrentVenueContext
@@ -749,7 +749,7 @@ withSessionValues initialValues callback = do
         -- the synthetic session at its test override seam, then run REAL auth
         -- again rather than injecting a user that bypasses revocation checks.
         sessionAuthentication store app request respond =
-            authenticationMiddleware app
+            bepisAuthenticationMiddleware app
                 (request { Wai.vault = Vault.insert sessionVaultKey (newSession store) request.vault })
                 respond
 

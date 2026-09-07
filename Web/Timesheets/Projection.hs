@@ -62,7 +62,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.Timesheets.Filters
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
@@ -486,17 +486,17 @@ viewerHasTimesheetSuggestionOnDay staffFilterId operationalDate = do
     suggestions <- fetchAuthorizedTimesheetSuggestionsForWindow operationalDate (addDays 1 operationalDate) staffFilterId
     pure (any ((== operationalDate) . timesheetSuggestionOperationalDate) suggestions)
 
-renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> TimesheetProjectionFragment -> IO (Maybe Blaze.Html)
+renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> TimesheetProjectionFragment -> IO (Maybe Markup.Html)
 renderTimesheetProjectionFragment requestKey fragment =
     profileActionSpan "timesheets.read_model.render_fragment" do
         projection <- fetchTimesheetWeekProjection requestKey
         pure (renderTimesheetWeekProjectionFragment projection fragment)
 
-renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
+renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Markup.Html
 renderTimesheetWeekProjectionFragment =
     renderTimesheetProjectionFragmentFromProjection FragmentPlain
 
-renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
+renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Markup.Html
 renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
     case fragment of
         TimesheetProjectionToolbar ->

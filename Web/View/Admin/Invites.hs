@@ -16,9 +16,6 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
-import qualified Text.Blaze.Html as Blaze
-import Text.Blaze.Html ((!))
-import qualified Text.Blaze.Html5 as Html5
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminInvitesSurfaceImpl)
 import Web.View.Admin.Common
@@ -66,19 +63,11 @@ renderInvitesSectionFragment =
 renderInvitesSectionFragmentWithSwap :: Maybe Text -> UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragmentWithSwap maybeSwapOob now invitations rosterGroupId =
     renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
-        Html5.div
-            ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment noSurfaceFields)
-            ! maybeAttr "hx-swap-oob" maybeSwapOob
-            ! uiRegionTransitionAttrs UiRegionTransitionFade
-            $ renderInvitesSection now invitations rosterGroupId
-
-attr :: Text -> Text -> Blaze.Attribute
-attr name value =
-    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
-
-maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
-maybeAttr _ Nothing         = mempty
-maybeAttr name (Just value) = attr name value
+        [hsx|<div {...attributes}>{renderInvitesSection now invitations rosterGroupId}</div>|]
+  where
+    attributes = [("id", surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment noSurfaceFields)]
+        <> maybe [] (\value -> [("hx-swap-oob", value)]) maybeSwapOob
+        <> uiRegionTransitionAttrs UiRegionTransitionFade
 
 renderInviteTable :: UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInviteTable now invitations rosterGroupId = [hsx|

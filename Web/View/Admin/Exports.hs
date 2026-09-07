@@ -10,7 +10,7 @@ import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
                                                              defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -21,7 +21,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import qualified Text.Blaze.Html5 as Html5
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImplForWindow)
 import Web.View.Admin.Common
@@ -143,30 +142,33 @@ savedConfigurationSummary configuration =
 
 renderAddExportButton :: ReportWeekSelection -> Html
 renderAddExportButton selection =
-    applyAppShellActionAttrs
+    [hsx|<button {...attributes}>Create new export</button>|]
+  where
+    attributes = appShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
         (exportDialogActionRoute
             (pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart)))
             "btn btn-outline-primary")
-        (Html5.button "Create new export")
 
 renderEditExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderEditExportButton selection configuration =
-    applyAppShellActionAttrs
+    [hsx|<button {...attributes}>Edit</button>|]
+  where
+    attributes = appShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
         (exportDialogActionRoute
             (pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
             "btn btn-outline-secondary")
-        (Html5.button "Edit")
 
 renderDeleteExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderDeleteExportButton selection configuration =
-    applyAppShellActionAttrs
+    [hsx|<button {...attributes}>Delete</button>|]
+  where
+    attributes = appShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDeleteDialog)
         (exportDialogActionRoute
             (pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
             "btn btn-outline-danger")
-        (Html5.button "Delete")
 
 exportDialogActionRoute :: Text -> Text -> AppShellActionRoute
 exportDialogActionRoute url buttonClass =

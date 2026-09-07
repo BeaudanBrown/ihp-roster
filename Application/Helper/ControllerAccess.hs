@@ -71,19 +71,19 @@ isOperationallyActive
     | otherwise =
         maybe False requiredProfileFieldsCompleted <$> fetchCurrentUserStaff
 
-ensureProfileCompleted :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensureProfileCompleted :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 ensureProfileCompleted = do
     isActive <- isOperationallyActive
     unless isActive do
         withRequestContext do
             setErrorMessage "Please complete your profile to continue."
-            redirectTo EditProfileAction
+            earlyReturn (redirectTo EditProfileAction)
 
 hasRole :: (?context :: ControllerContext) => VenueRoleEnum -> Bool
 hasRole minimumRole =
     currentUserIsUnimpersonatedSuperAdmin || maybe False (`hasVenueRole` minimumRole) effectiveVenueRoleOrNothing
 
-ensureCurrentVenueOrSupportRedirect :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureCurrentVenueOrSupportRedirect :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureCurrentVenueOrSupportRedirect =
     case currentVenueOrNothing of
         Just _ -> do
@@ -92,16 +92,16 @@ ensureCurrentVenueOrSupportRedirect =
             emitImpersonationScopeFactWhenActive
         Nothing | currentUserIsSuperAdmin -> do
             emitScopeFact BepisSupportScopeFact "support-access"
-            redirectTo SupportAction
+            earlyReturn (redirectTo SupportAction)
         Nothing -> redirectPermissionDeniedToFallback "You do not have access to that venue."
 
-redirectPermissionDeniedToFallback :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectPermissionDeniedToFallback :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
 redirectPermissionDeniedToFallback message = do
     setErrorMessage message
     when (isJust currentUserOrNothing && not currentUserIsSuperAdmin && isNothing currentVenueOrNothing) do
         deleteSession (LoginSupport.sessionKey @User)
         deleteSession currentVenueSessionKey
-    redirectToPath permissionDeniedFallbackPath
+    earlyReturn (redirectToPath permissionDeniedFallbackPath)
 
 permissionDeniedFallbackPath :: (?context :: ControllerContext) => Text
 permissionDeniedFallbackPath
@@ -109,11 +109,11 @@ permissionDeniedFallbackPath
     | isJust currentVenueOrNothing = pathTo RosterWeeksAction
     | otherwise = pathTo NewSessionAction
 
-redirectPermissionDeniedUnless :: (?context :: ControllerContext, ?request :: Request) => Bool -> Text -> IO ()
+redirectPermissionDeniedUnless :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Bool -> Text -> IO ()
 redirectPermissionDeniedUnless allowed message =
     unless allowed (redirectPermissionDeniedToFallback message)
 
-ensureCurrentVenue :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureCurrentVenue :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureCurrentVenue = do
     redirectPermissionDeniedUnless (isJust currentVenueOrNothing) "You do not have access to that venue."
     emitScopeFact BepisCurrentVenueScopeFact "current-venue"
@@ -130,7 +130,7 @@ isCurrentVenueManuallyReadOnly
                 |> fetchOneOrNothing
         pure (maybe False (.manualReadOnly) maybeControl)
 
-ensureVenueWritable :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureVenueWritable :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureVenueWritable = do
     isReadOnly <- isCurrentVenueManuallyReadOnly
     redirectPermissionDeniedUnless
@@ -138,22 +138,22 @@ ensureVenueWritable = do
         "This venue is temporarily read-only. The venue owner can manage billing to restore write access."
     emitScopeFact BepisVenueWritableScopeFact "venue-writable"
 
-ensureManagerRole :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureManagerRole :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureManagerRole = do
     redirectPermissionDeniedUnless (hasRole Manager) "You need manager access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisManagerRole) "manager-role"
 
-ensureAdminRoleAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureAdminRoleAccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureAdminRoleAccess = do
     redirectPermissionDeniedUnless (hasRole VenueAdmin) "You need admin access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisAdminRole) "admin-role"
 
-ensureAdminRole :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureAdminRole :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 ensureAdminRole = do
     ensureAdminRoleAccess
     ensurePrivilegedPasskeyReady
 
-ensureSupportAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureSupportAccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureSupportAccess = do
     redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
     emitScopeFact BepisSupportScopeFact "support-access"
@@ -181,7 +181,7 @@ currentUserHasPasskey =
         |> filterWhere (#userId, unpackId authenticatedCurrentUser.id)
         |> fetchExists
 
-ensurePrivilegedPasskeySetupComplete :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensurePrivilegedPasskeySetupComplete :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 ensurePrivilegedPasskeySetupComplete = do
     strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
     when strongAuthenticationRequired do
@@ -193,10 +193,10 @@ ensurePrivilegedPasskeySetupComplete = do
                     if isHtmxRequest
                         then do
                             setHeader ("HX-Redirect", cs setupPath)
-                            renderPlain ""
+                            earlyReturn (renderPlain "")
                         else do
                             setErrorMessage "Venue admins and owners must add a passkey before continuing."
-                            redirectToPath setupPath
+                            earlyReturn (redirectToPath setupPath)
 
 isCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO Bool
 isCurrentUserPasskeyVerified =
@@ -246,16 +246,16 @@ clearCurrentUserPasskeyVerification = do
     deleteSession passkeyVerifiedAtSessionKey
     clearCurrentUserPasskeyRecoveryVerification
 
-ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensurePrivilegedPasskeyReady = do
     strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
     when strongAuthenticationRequired ensureFreshPasskeyReady
 
-ensureFreshPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureFreshPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureFreshPasskeyReady =
     ensureFreshPasskeyReadyFor currentRequestPath
 
-ensureFreshPasskeyReadyFor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
+ensureFreshPasskeyReadyFor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
 ensureFreshPasskeyReadyFor redirectPath = do
     hasPasskey <- currentUserHasPasskey
     if not hasPasskey
@@ -264,21 +264,21 @@ ensureFreshPasskeyReadyFor redirectPath = do
             if isHtmxRequest
                 then do
                     setHeader ("HX-Redirect", cs (pathTo PasskeySetupAction))
-                    renderPlain ""
-                else redirectTo PasskeySetupAction
+                    earlyReturn (renderPlain "")
+                else earlyReturn (redirectTo PasskeySetupAction)
         else ensureFreshPasskeyVerifiedFor redirectPath
 
-ensureFreshPasskeyVerifiedFor :: (?context :: ControllerContext) => Text -> IO ()
+ensureFreshPasskeyVerifiedFor :: (?context :: ControllerContext, ?respond :: Respond) => Text -> IO ()
 ensureFreshPasskeyVerifiedFor redirectPath = do
     verified <- isCurrentUserPasskeyVerified
     unless verified do
         withRequestContext do
             setSession passkeyStepUpRedirectSessionKey (safePasskeyReturnPathOrRoster redirectPath)
             if isHtmxRequest
-                then redirectTo ShowPasskeyStepUpDialogAction
+                then earlyReturn (redirectTo ShowPasskeyStepUpDialogAction)
                 else do
                     setErrorMessage "Verify with your passkey to continue."
-                    redirectTo PasskeyStepUpAction
+                    earlyReturn (redirectTo PasskeyStepUpAction)
 
 
 currentRequestPath :: (?request :: Request) => Text
@@ -341,7 +341,7 @@ parsePasskeyVerifiedAt value = do
 currentUserCanUseStaffSelfService :: (?context :: ControllerContext) => Bool
 currentUserCanUseStaffSelfService = not currentUserIsUnimpersonatedSuperAdmin
 
-ensureStaffSelfServiceAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureStaffSelfServiceAccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureStaffSelfServiceAccess = do
     redirectPermissionDeniedUnless currentUserCanUseStaffSelfService "Use the support page for super admin access."
     emitScopeFact (BepisRoleScopeFact BepisStaffRole) "staff-self-service"
@@ -382,9 +382,9 @@ fetchCurrentUserStaff =
 
 
 
-ensureRecordInCurrentVenue :: (?context :: ControllerContext) => UUID -> IO ()
+ensureRecordInCurrentVenue :: (?context :: ControllerContext, ?respond :: Respond) => UUID -> IO ()
 ensureRecordInCurrentVenue venueId = do
-    accessDeniedUnless (venueId == unpackId currentVenueId)
+    withRequestContext (accessDeniedUnless (venueId == unpackId currentVenueId))
     emitScopeFact (BepisRecordVenueScopeFact "current-venue-record") "record-in-current-venue"
 
 emitSupportModeScopeFactWhenActive :: (?context :: ControllerContext) => IO ()

@@ -8,7 +8,7 @@ import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.MailPrelude
-import qualified Text.Blaze.Html5 as Html
+import qualified IHP.HSX.Markup as Markup
 import Web.Mail.Shared
 
 
@@ -85,9 +85,9 @@ feedbackTypeLabel = \case
 optionalLine :: Text -> Maybe Text -> [Text]
 optionalLine label = maybe [] (\value -> [label <> ": " <> value])
 
-optionalHtmlField :: Text -> Maybe Text -> Html.Html
+optionalHtmlField :: Text -> Maybe Text -> Markup.Html
 optionalHtmlField label =
-    maybe mempty (\value -> Html.dt (Html.toHtml label) <> Html.dd (Html.toHtml value))
+    maybe mempty (\value -> [hsx|<dt>{label}</dt><dd>{value}</dd>|])
 
 formatFeedbackSubmittedAt :: Text -> UTCTime -> Text
 formatFeedbackSubmittedAt timezone submittedAt

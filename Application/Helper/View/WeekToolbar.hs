@@ -23,6 +23,7 @@ instance Eq WeekToolbarVariant where
 
 data WeekToolbarConfig = WeekToolbarConfig
     { weekToolbarVariant    :: !WeekToolbarVariant
+    , weekToolbarRootAttrs  :: ![(Text, Text)]
     , weekToolbarAriaLabel  :: !Text
     , weekToolbarExtraClass :: !Text
     , weekToolbarPrimary    :: !Html
@@ -60,8 +61,8 @@ renderWeekNavigationGroup WeekNavigationConfig { weekNavigationAriaLabel, weekNa
 |]
 
 renderWeekToolbar :: WeekToolbarConfig -> Html
-renderWeekToolbar WeekToolbarConfig { weekToolbarVariant, weekToolbarAriaLabel, weekToolbarExtraClass, weekToolbarPrimary, weekToolbarReset, weekToolbarNavigation, weekToolbarSettings, weekToolbarAuxiliary } = [hsx|
-    <div class={toolbarClass}
+renderWeekToolbar WeekToolbarConfig { weekToolbarVariant, weekToolbarRootAttrs, weekToolbarAriaLabel, weekToolbarExtraClass, weekToolbarPrimary, weekToolbarReset, weekToolbarNavigation, weekToolbarSettings, weekToolbarAuxiliary } = [hsx|
+    <div {...weekToolbarRootAttrs} class={toolbarClass}
          role="navigation"
          aria-label={weekToolbarAriaLabel}
          data-week-toolbar={variantName}>

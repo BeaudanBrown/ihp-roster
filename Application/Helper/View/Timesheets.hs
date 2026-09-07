@@ -43,6 +43,7 @@ import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (LocalTime (..))
 import Generated.Types
+import IHP.ControllerSupport (ControllerContext)
 import IHP.ViewPrelude
 import Web.Types
 

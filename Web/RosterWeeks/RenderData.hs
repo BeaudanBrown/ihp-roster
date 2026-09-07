@@ -39,7 +39,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (isNothing)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
@@ -77,7 +77,7 @@ fetchRosterPublicHolidayMap venueConfig weekStartDate = do
             | holiday <- holidays
             ]
 
-renderVisibleRosterReadModelFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
+renderVisibleRosterReadModelFragment :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Markup.Html)
 renderVisibleRosterReadModelFragment scope fragment =
     profileActionSpan "roster.read_model.render_fragment" do
         case fragment of
@@ -89,11 +89,11 @@ renderVisibleRosterReadModelFragment scope fragment =
                 Just <$> renderRosterContentFromProjection rosterGroups (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") currentRosterGroupOrNothing) rosterData
             _ -> renderVisibleRosterFragment scope fragment
 
-renderRosterProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Blaze.Html
+renderRosterProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Markup.Html
 renderRosterProjectionFragment =
     renderRosterProjectionFragmentWithMode FragmentPlain
 
-renderRosterProjectionFragmentWithMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => FragmentRenderMode -> Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Blaze.Html
+renderRosterProjectionFragmentWithMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => FragmentRenderMode -> Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Markup.Html
 renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
     case fragment of
         RosterProjectionContent ->
@@ -172,7 +172,7 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
                         then renderHiddenDraftSlotsGridFragmentWithSwap swapAttr projection.rosterDays
                         else renderrosterSlotsGridLiveFragmentWithSwap swapAttr projection.rosterEndTimesEnabled viewCapabilities.canManageRosterColumns visibleRosterWeek projection.orderedSlotNames dayModel projection.rosterDays
 
-renderRosterContentFromProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [RosterGroup] -> RosterGroup -> Maybe RosterRenderData -> IO Blaze.Html
+renderRosterContentFromProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [RosterGroup] -> RosterGroup -> Maybe RosterRenderData -> IO Markup.Html
 renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> pure [hsx|<div id="roster-content"></div>|]
@@ -269,7 +269,7 @@ rosterDayRenderModelFromProjection RosterRenderData { rosterWeek, weekStartDate,
         , dayPublishAttempted = False
         }
 
-renderRosterStaffPanelFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> Maybe RosterRenderData -> Blaze.Html
+renderRosterStaffPanelFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> Maybe RosterRenderData -> Markup.Html
 renderRosterStaffPanelFromProjectionWithMode renderMode rosterData =
     case rosterData of
         Nothing -> mempty
@@ -300,19 +300,19 @@ rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWe
         , staffPanelNotificationPanelData = notificationPanelData
         }
 
-renderRequestedRowFragmentFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterRenderData -> UUID.UUID -> Int -> Maybe Blaze.Html
+renderRequestedRowFragmentFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterRenderData -> UUID.UUID -> Int -> Maybe Markup.Html
 renderRequestedRowFragmentFromProjectionWithMode renderMode RosterRenderData { rosterWeek, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } rosterDayId rowIndex =
     case renderMode of
         FragmentPlain -> renderRequestedRowFragment (hasRole Manager && maybe False (not . (.windowIsPublished)) rosterWeek) weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayId, rowIndex)
         FragmentOob _ -> renderRequestedRow weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayId, rowIndex)
 
-renderRequestedDaySectionFragmentFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterRenderData -> UUID.UUID -> Maybe Blaze.Html
+renderRequestedDaySectionFragmentFromProjectionWithMode :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterRenderData -> UUID.UUID -> Maybe Markup.Html
 renderRequestedDaySectionFragmentFromProjectionWithMode renderMode RosterRenderData { rosterWeek, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } rosterDayId =
     case renderMode of
         FragmentPlain -> renderRequestedDaySectionFragment (hasRole Manager && maybe False (not . (.windowIsPublished)) rosterWeek) weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayId
         FragmentOob _ -> renderRequestedDaySection weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayId
 
-fetchVisibleRosterReadModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterRenderData)
+fetchVisibleRosterReadModel :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterRenderData)
 fetchVisibleRosterReadModel scope = profileActionSpan "roster.read_model.fetch_visible" do
     rosterGroupIsViewable <- isJust <$> fetchViewableRosterGroup scope.rosterWindowRosterGroupId
     accessDeniedUnless rosterGroupIsViewable
@@ -335,7 +335,7 @@ fetchVisibleRosterReadModel scope = profileActionSpan "roster.read_model.fetch_v
                         }
         _ -> rosterDataOrNothing
 
-fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterRenderData)
+fetchRosterRenderData :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterRenderData)
 fetchRosterRenderData scope = do
     venueConfig <- profileActionSpan "roster.direct.fetch_venue_config" fetchVenueConfig
     accessDeniedUnless (rosterWindowScopeMatchesConfig venueConfig scope)
@@ -438,7 +438,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLive
                             , quickToolsHighlightOwnLiveShifts = highlightOwnLiveShifts
                             }
 
-fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterWindowState)
+fetchVisibleRosterWeek :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterWindowState)
 fetchVisibleRosterWeek scope = do
     rosterGroupIsViewable <- isJust <$> fetchViewableRosterGroup scope.rosterWindowRosterGroupId
     accessDeniedUnless rosterGroupIsViewable
@@ -473,7 +473,7 @@ buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts =
         , rosterTimingBySlotId = Map.fromList [(unpackId slot.id, decodeRosterShiftTiming slot) | slot <- visibleSlots]
         }
 
-renderVisibleRosterFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
+renderVisibleRosterFragment :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Markup.Html)
 renderVisibleRosterFragment scope fragment = do
     visibleRosterWeek <- fetchVisibleRosterWeek scope
     case visibleRosterWeek of
@@ -545,7 +545,7 @@ renderVisibleRosterFragment scope fragment = do
                     pure (renderRequestedDaySectionFragment (hasRole Manager && not rosterWeek.windowIsPublished) weekStartDate venueConfig.rosterCalendarRevision facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes facts.baseAllSlots slotConflicts renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid)
 
 
-fetchVisibleRosterStaffPanelRenderModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> RosterWindowScope -> IO RosterStaffPanelRenderModel
+fetchVisibleRosterStaffPanelRenderModel :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> RosterWindowScope -> IO RosterStaffPanelRenderModel
 fetchVisibleRosterStaffPanelRenderModel panelScope scope = do
     let rosterGroupId = scope.rosterWindowRosterGroupId
     visibleRosterWeek <- fetchVisibleRosterWeek scope
@@ -589,7 +589,7 @@ fetchVisibleRosterStaffPanelRenderModel panelScope scope = do
         , staffPanelNotificationPanelData = notificationPanelData
         }
 
-renderRequestedRow :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
+renderRequestedRow :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Markup.Html
 renderRequestedRow weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
     dayRows <- Map.lookup rosterDayUuid renderIndexes.rosterDayRowsByDayId
@@ -600,7 +600,7 @@ renderRequestedRow weekStartDate calendarRevision orderedSlotNames assignmentFil
     let date = rosterDay.operationalDate
     pure (renderRowOob RosterRowRenderModel { rowIsEditable = True, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowShiftTypes = shiftTypes, rowDate = date, rowDayIndex = fromInteger (Calendar.diffDays date weekStartDate), rowRosterDay = rosterDay, rowCalendarRevision = calendarRevision, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes, rowRosterLayoutMode = rosterLayoutMode, rowRosterEndTimesEnabled = rosterEndTimesEnabled, rowPublishAttempted = False } (rowPosition, (targetRowIndex, rowSlots)))
 
-renderRequestedRowFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
+renderRequestedRowFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Markup.Html
 renderRequestedRowFragment isEditable weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
     dayRows <- Map.lookup rosterDayUuid renderIndexes.rosterDayRowsByDayId
@@ -611,12 +611,12 @@ renderRequestedRowFragment isEditable weekStartDate calendarRevision orderedSlot
     let date = rosterDay.operationalDate
     pure (renderRowFragment RosterRowRenderModel { rowIsEditable = isEditable, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowShiftTypes = shiftTypes, rowDate = date, rowDayIndex = fromInteger (Calendar.diffDays date weekStartDate), rowRosterDay = rosterDay, rowCalendarRevision = calendarRevision, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes, rowRosterLayoutMode = rosterLayoutMode, rowRosterEndTimesEnabled = rosterEndTimesEnabled, rowPublishAttempted = False } (rowPosition, (targetRowIndex, rowSlots)))
 
-renderRequestedDaySection :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Blaze.Html
+renderRequestedDaySection :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Markup.Html
 renderRequestedDaySection weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
     pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = True, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayShiftTypes = shiftTypes, dayWeekStartDate = weekStartDate, dayCalendarRevision = calendarRevision, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes, dayRosterLayoutMode = rosterLayoutMode, dayRosterEndTimesEnabled = rosterEndTimesEnabled, dayRosterWagePrediction = rosterWagePrediction, dayShowWageEstimates = showWageEstimates, dayShowRosterWarnings = showRosterWarnings, dayPublicHolidays = rosterPublicHolidays, dayPublishAttempted = False } rosterDay)
 
-renderRequestedDaySectionFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Blaze.Html
+renderRequestedDaySectionFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> Int -> [RosterWindowLane] -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Map.Map Calendar.Day Text -> UUID.UUID -> Maybe Markup.Html
 renderRequestedDaySectionFragment isEditable weekStartDate calendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
     pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = isEditable, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayShiftTypes = shiftTypes, dayWeekStartDate = weekStartDate, dayCalendarRevision = calendarRevision, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes, dayRosterLayoutMode = rosterLayoutMode, dayRosterEndTimesEnabled = rosterEndTimesEnabled, dayRosterWagePrediction = rosterWagePrediction, dayShowWageEstimates = showWageEstimates, dayShowRosterWarnings = showRosterWarnings, dayPublicHolidays = rosterPublicHolidays, dayPublishAttempted = False } rosterDay)

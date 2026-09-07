@@ -51,7 +51,7 @@ originalTimesheetEntry (TimesheetEditIntent original _) = original
 submittedTimesheetEntry :: TimesheetEditIntent -> TimesheetEntry
 submittedTimesheetEntry (TimesheetEditIntent _ submitted) = submitted
 
-prepareTimesheetEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe UUID.UUID -> TimesheetEntry -> IO (Either TimesheetEntry TimesheetEditIntent)
+prepareTimesheetEdit :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe UUID.UUID -> TimesheetEntry -> IO (Either TimesheetEntry TimesheetEditIntent)
 prepareTimesheetEdit venueConfig viewerStaffId existingEntry =
     buildTimesheetEntry venueConfig viewerStaffId existingEntry |> ifValid \case
         Left invalidEntry -> pure (Left invalidEntry)
@@ -61,7 +61,7 @@ prepareTimesheetEdit venueConfig viewerStaffId existingEntry =
             ensureShiftTypeAllowedForExisting existingEntry submittedEntry.shiftTypeId
             pure (Right (TimesheetEditIntent existingEntry submittedEntry))
 
-ensureTimesheetVisibility :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
+ensureTimesheetVisibility :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
 ensureTimesheetVisibility entry =
     if isJust entry.deletedAt
         then accessDeniedUnless False
@@ -71,14 +71,14 @@ ensureTimesheetVisibility entry =
                 let ownsEntry = maybe False (\staff -> unpackId (get #id staff) == entry.staffId) maybeStaff
                 accessDeniedUnless ownsEntry
 
-ensureRosterDerivedIdentityUnchanged :: (?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry -> IO ()
+ensureRosterDerivedIdentityUnchanged :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry -> IO ()
 ensureRosterDerivedIdentityUnchanged existingEntry updatedEntry =
     when (isJust existingEntry.sourceRosterSlotId) do
         accessDeniedUnless (timesheetEntryOperationalDate updatedEntry == timesheetEntryOperationalDate existingEntry)
         accessDeniedUnless (updatedEntry.timezone == existingEntry.timezone)
         accessDeniedUnless (updatedEntry.sourceRosterSlotId == existingEntry.sourceRosterSlotId)
 
-ensureStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
+ensureStaffAssignmentAllowed :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
 ensureStaffAssignmentAllowed staffId = timesheetStaffAssignmentAllowed staffId >>= accessDeniedUnless
 
 timesheetStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
@@ -94,12 +94,12 @@ timesheetStaffAssignmentAllowed staffId = do
             maybeCurrentStaff <- fetchCurrentUserStaff
             pure (maybe False (\staff -> unpackId (get #id staff) == staffId) maybeCurrentStaff)
 
-ensureStaffAssignmentAllowedForExisting :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
+ensureStaffAssignmentAllowedForExisting :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
 ensureStaffAssignmentAllowedForExisting existingEntry staffId
     | existingEntry.staffId == staffId = pure ()
     | otherwise = ensureStaffAssignmentAllowed staffId
 
-ensureShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
+ensureShiftTypeAllowed :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
 ensureShiftTypeAllowed shiftTypeId = timesheetShiftTypeAllowed shiftTypeId >>= accessDeniedUnless
 
 timesheetShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
@@ -121,7 +121,7 @@ shiftPayAssignment :: ShiftType -> ShiftPayAssignment
 shiftPayAssignment shiftType =
     ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
 
-ensureShiftTypeAllowedForExisting :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
+ensureShiftTypeAllowedForExisting :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
 ensureShiftTypeAllowedForExisting existingEntry shiftTypeId
     | existingEntry.shiftTypeId == shiftTypeId = pure ()
     | otherwise = ensureShiftTypeAllowed shiftTypeId

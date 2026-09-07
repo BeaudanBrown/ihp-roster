@@ -16,7 +16,7 @@ import Application.Helper.FrontendContract.AppShell.Request (appShellActionField
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              RegisteredAppShellAction,
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
@@ -214,7 +214,13 @@ renderExcludedSheets sheetFieldName draft = [hsx|
 
 renderDraftControl :: forall (marker :: Type). (Typeable marker, RegisteredAppShellAction marker) => Text -> ExportsController -> PayrollWorkbookSheetFamily -> Text -> Text -> Text -> Bool -> Html
 renderDraftControl sheetFieldName action family label ariaLabel buttonClass disabled =
-    applyAppShellActionAttrs
+    [hsx|
+        <button type="button" class={buttonClass} aria-label={ariaLabel} disabled={disabled} {...attributes}>
+            {label}
+        </button>
+    |]
+  where
+    attributes = appShellActionAttrs
         (appShellActionByMarker @marker)
         AppShellActionRoute
             { appShellActionRouteUrl =
@@ -226,14 +232,6 @@ renderDraftControl sheetFieldName action family label ariaLabel buttonClass disa
             , appShellActionRouteStandardUrl = Nothing
             , appShellActionRouteExtraAttrs = []
             }
-        [hsx|
-            <button type="button"
-                    class={buttonClass}
-                    aria-label={ariaLabel}
-                    disabled={disabled}>
-                {label}
-            </button>
-        |]
 
 encodedFamilies :: [PayrollWorkbookSheetFamily] -> Text
 encodedFamilies families =

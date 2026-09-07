@@ -2,7 +2,7 @@ module Config where
 
 import Application.Helper.FrontendContract.Registry (ensureRegisteredFrontendContract)
 import Application.Helper.LiveUpdate.DurableListener (startDurableInvalidationListener)
-import Application.Helper.Authentication (authenticationMiddleware)
+import Application.Helper.Authentication (bepisAuthenticationMiddleware)
 import Application.Helper.ControllerContext (venueRequestStateMiddleware)
 import Application.Helper.Profiling (profilingMiddleware)
 import Application.Helper.Telemetry (telemetryMiddleware)
@@ -36,7 +36,7 @@ config = do
             , encryption = smtpEncryption
             }
     option $ CustomMiddleware (telemetryMiddleware . profilingMiddleware . venueRequestStateMiddleware)
-    option $ AuthMiddleware authenticationMiddleware
+    option $ AuthMiddleware bepisAuthenticationMiddleware
     addInitializer ensureRegisteredFrontendContract
     addInitializer (startDurableInvalidationListener dispatchDurableInvalidation)
 
