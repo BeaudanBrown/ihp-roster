@@ -469,6 +469,8 @@ Web/LeaveRequests/Blackouts.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/ReadModel.hs	production	runtime	Main	Reachable from Main
+Web/LeaveRequests/Request.hs	production	runtime	Main	Reachable from Main
+Web/LeaveRequests/Responses.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/SelfService.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Billing/Notification.hs	production	runtime	Main	Reachable from Main
 Web/Mail/FeedbackNotification.hs	production	runtime	Main	Reachable from Main

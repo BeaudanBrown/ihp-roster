@@ -673,6 +673,26 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "data-disable-javascript-submission"
 
+        it "rejects foreign staff context before malformed submission fields for native and HTMX requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave authorized venue"
+                foreignVenue <- createVenueWithConfig "Leave foreign venue"
+                manager <- createUserRecord "foreign-leave-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord foreignVenue Nothing "Foreign" "Staff"
+                forM_ [[], [("HX-Request", "true")]] \headers -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders headers do
+                            callActionWithParams CreateLeaveRequestAction
+                                [ ("responseContext", "staff")
+                                , ("staffId", idToParam staff.id)
+                                , ("startDate", "malformed")
+                                ]
+                    response `responseStatusShouldBe` status403
+                query @LeaveRequest |> fetchCount >>= (`shouldBe` 0)
+                query @LeaveRequestEvent |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+
         it "rejects missing required leave dates without creating a row" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Required Venue"
