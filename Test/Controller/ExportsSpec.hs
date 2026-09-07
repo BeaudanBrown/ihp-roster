@@ -1,7 +1,6 @@
 module Test.Controller.ExportsSpec where
 
 import Application.Fixture.PayrollFixtures (createAndApproveEntry,
-                                            createPayrollSnapshot,
                                             seedWeekDayNames)
 import Application.Helper.Export
 import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
@@ -139,27 +138,27 @@ tests = aroundAll withDatabaseTestContext do
                         dayNames
                             |> find (\dayName -> dayName.weekdayIndex == 5)
                             |> fromMaybe (error "Missing Friday day name")
-                overrideRule <- createPayLevelDayRuleRecord barShift friday levelTwo
+                _ <- createPayLevelDayRuleRecord barShift friday levelTwo
                 staffUser <- createUserRecord "payroll-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
-                snapshot <- createPayrollSnapshot venue admin [levelOne, levelTwo] [barShift] dayNames [overrideRule]
 
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 17 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 10) snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 10) admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                         , setTestStartTime (TimeOfDay 19 0 0)
                         , setTestEndTime (TimeOfDay 1 0 0)
                     ]
-                _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 10 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -188,23 +187,23 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Shared Level Payroll Venue"
                 admin <- createUserRecord "shared-level-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
                 floorShift <- createShiftTypeRecord venue levelOne "Floor"
                 staffUser <- createUserRecord "shared-level-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
-                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift, floorShift] dayNames []
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 11 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId floorShift.id)
                     , setTestStartTime (TimeOfDay 12 0 0)
                     , setTestEndTime (TimeOfDay 15 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -227,7 +226,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Imported Payroll Venue"
                 admin <- createUserRecord "imported-payroll-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 importedItem <- createImportedXeroPayItemRecord venue admin "Xero Weekend Rate" "weekend-rate" 52
                 shiftType <- createShiftTypeRecord venue levelOne "Bar"
@@ -237,12 +236,12 @@ tests = aroundAll withDatabaseTestContext do
                         . set #importedXeroPayItemId (Just importedItem.id)
                 staffUser <- createUserRecord "imported-payroll-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
-                snapshot <- createPayrollSnapshot venue admin [levelOne] [shiftType] dayNames []
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 17 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -264,23 +263,23 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Payroll Range Venue"
                 admin <- createUserRecord "payroll-range-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
                 staffUser <- createUserRecord "payroll-range-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
-                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift] dayNames []
 
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 17 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 10 0 0)
                     , setTestEndTime (TimeOfDay 13 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -304,23 +303,23 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Payroll Multi Week Venue"
                 admin <- createUserRecord "payroll-multi-week-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
                 staffUser <- createUserRecord "payroll-multi-week-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
-                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift] dayNames []
 
-                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 10 0 0)
                     , setTestEndTime (TimeOfDay 13 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 15) snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 15) admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 17 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -365,14 +364,13 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Payroll Earnings Venue"
                 admin <- createUserRecord "payroll-earnings-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecordWithRates venue "LVL 1" 30 0 0 1.25 1.5 1.75
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
                 kitchenShift <- createShiftTypeRecord venue levelOne "Kitchen"
                 staffUser <- createUserRecord "payroll-earnings-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Rae" "Worker"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
-                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift, kitchenShift] dayNames []
                 _ <- newRecord @PublicHoliday
                     |> set #jurisdiction "VIC"
                     |> set #holidayDate (fromGregorian 2025 1 10)
@@ -380,31 +378,32 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #isRegional False
                     |> createRecord
 
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 13 0 0)
                     , setTestEndTime (TimeOfDay 15 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 10) snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 10) admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 13 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 11) snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 11) admin approvedAt
                     [ set #shiftTypeId (unpackId kitchenShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 11 0 0)
                     ]
-                _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 10 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -459,17 +458,17 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Hourly Repeating Quantity Venue"
                 admin <- createUserRecord "hourly-repeating-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 staff <- createStaffRecord venue Nothing "Rae" "Repeating"
-                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                entry <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 11 1 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 calculationResult <- loadApprovedTimesheetPayCalculation entry
                 let calculation = case calculationResult of
@@ -517,7 +516,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Hourly Venue"
                 admin <- createUserRecord "hourly-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 barLevel <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1.25 1.5 1.75
                 floorLevel <- createPayLevelRecordWithRates venue "Floor Level" 28 0 0 1.25 1.5 1.75
                 barShift <- createShiftTypeRecord venue barLevel "Bar" >>= updateRecord . set #sortOrder 10
@@ -528,18 +527,18 @@ tests = aroundAll withDatabaseTestContext do
                 map (.hourlyShiftTypeLabel) reservedColumns `shouldBe` ["Time (1)", "Total (1)"]
                 staffUser <- createUserRecord "hourly-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Nia" "Night"
-                snapshot <- createPayrollSnapshot venue admin [barLevel, floorLevel] [barShift, floorShift] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                barEntry <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                barEntry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 8 0 0)
                     , setTestEndTime (TimeOfDay 10 30 0)
                     ]
-                floorEntry <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                floorEntry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId floorShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 11 0 0)
                     ]
+                assertSealedPayrollEntries venue
                 archivedFloorShift <-
                     floorShift
                         |> set #name "Renamed archived Floor"
@@ -651,17 +650,17 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Hourly Wage Attribution Venue"
                 admin <- createUserRecord "hourly-attribution-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 level <- createPayLevelRecordWithRates venue "Bar Level" 30 2.5 3 1 1.5 1.75
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 staff <- createStaffRecord venue Nothing "Ari" "Attribution"
-                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 18 30 0)
                     , setTestEndTime (TimeOfDay 20 15 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -692,13 +691,12 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Hourly Missed Break Venue"
                 admin <- createUserRecord "hourly-missed-break-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 staff <- createStaffRecord venue Nothing "Mia" "Mealbreak"
-                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 16 0 0)
@@ -707,6 +705,7 @@ tests = aroundAll withDatabaseTestContext do
                     , setTestBreakStartTime (Just (TimeOfDay 15 15 0))
                     , setTestBreakEndTime (Just (TimeOfDay 15 30 0))
                     ]
+                assertSealedPayrollEntries venue
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -776,30 +775,30 @@ tests = aroundAll withDatabaseTestContext do
                 emptyJobs <- query @ExportJob |> fetch
                 emptyJobs `shouldBe` []
 
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 level <- createPayLevelRecordWithRates venue "Workbook Level" 30 2.5 3 1 1.5 1.75
                 shiftType <- createShiftTypeRecord venue level "Workbook Shift"
                 secondShiftType <- createShiftTypeRecord venue level "Workbook Kitchen"
                 staffUser <- createUserRecord "payroll-workbook-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Pay" "Roll"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Excluded"
-                snapshot <- createPayrollSnapshot venue admin [level] [shiftType, secondShiftType] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 18 30 0)
                     , setTestEndTime (TimeOfDay 20 15 0)
                     ]
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId secondShiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 10 0 0)
                     ]
-                _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue trialStaff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 10 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
@@ -865,18 +864,18 @@ tests = aroundAll withDatabaseTestContext do
                 otherAdmin <- createUserRecord "configured-payroll-workbook-other@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createVenueMembershipRecord otherVenue otherAdmin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 level <- createPayLevelRecordWithRates venue "Configured Workbook Level" 30 2.5 3 1 1.5 1.75
                 shiftType <- createShiftTypeRecord venue level "Configured Workbook Shift"
                 staffUser <- createUserRecord "configured-payroll-workbook-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Configured" "Staff"
-                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 createConfigurationResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreatePayrollWorkbookConfigurationAction
@@ -991,7 +990,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Blocked Payroll Workbook Venue"
                 admin <- createUserRecord "blocked-payroll-workbook@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 level <- createPayLevelRecord venue "Fallback Level"
                 importedItem <- createImportedXeroPayItemRecord venue admin "Pinned Workbook Rate" "pinned-workbook-rate" 52
                 shiftType <- createShiftTypeRecord venue level "Imported Workbook Shift"
@@ -1001,13 +1000,13 @@ tests = aroundAll withDatabaseTestContext do
                         . set #importedXeroPayItemId (Just importedItem.id)
                 staffUser <- createUserRecord "blocked-payroll-workbook-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Source" "Blocked"
-                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
+                assertSealedPayrollEntries venue
                 _ <- importedItem
                     |> set #providerAvailable False
                     |> set #providerUnavailableAt (Just (addUTCTime 60 approvedAt))
@@ -1160,17 +1159,17 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Manager Venue"
                 manager <- createUserRecord "exports-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
-                dayNames <- seedWeekDayNames venue
+                _ <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "Level 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
                 staff <- createStaffRecord venue Nothing "Mira" "Worker"
-                snapshot <- createPayrollSnapshot venue manager [levelOne] [barShift] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot manager approvedAt
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch manager approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
+                assertSealedPayrollEntries venue
 
                 pageResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction ExportJobsAction

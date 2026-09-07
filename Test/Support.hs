@@ -59,7 +59,7 @@ import qualified Network.Wai.Session.Maybe as WaiSession
 import System.Environment (lookupEnv, setEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
-import Test.Hspec (Expectation, shouldBe)
+import Test.Hspec (Expectation, shouldBe, shouldSatisfy)
 import Test.Support.Environment (withEnvironmentVariable)
 import Web.FrontController ()
 import Web.Types
@@ -88,6 +88,38 @@ callActionWithQueryParams controller params = do
     readIORef responses >>= \case
         [response] -> pure response
         _ -> fail "GET controller action must send exactly one response"
+
+-- Check persisted approval authority before any golden/output assertion. These
+-- checks deliberately do not derive expected financial output from the renderer.
+assertSealedPayrollEntries :: (?modelContext :: ModelContext) => Venue -> IO ()
+assertSealedPayrollEntries venue = do
+    entries <- query @TimesheetEntry
+        |> filterWhere (#venueId, unpackId venue.id)
+        |> filterWhere (#isApproved, True)
+        |> fetch
+    entries `shouldSatisfy` (not . null)
+    forM_ entries \entry -> do
+        calculation <- query @TimesheetPayCalculation
+            |> filterWhere (#timesheetEntryId, unpackId entry.id)
+            |> fetchOne
+        entry.activePayCalculationId `shouldBe` Just calculation.id
+        entry.staffPayVersionId `shouldBe` Just calculation.staffPayVersionId
+        entry.shiftTypePayVersionId `shouldBe` Just calculation.shiftTypePayVersionId
+        entry.approvedAt `shouldBe` Just calculation.approvedAt
+        entry.approvedByUserId `shouldBe` Just calculation.approvedByUserId
+        calculation.operationalDate `shouldBe` entry.operationalDate
+        calculation.venueTimezone `shouldBe` entry.timezone
+        calculation.sealedAt `shouldSatisfy` isJust
+        staffVersion <- fetch (Id calculation.staffPayVersionId :: Id StaffPayVersion)
+        shiftVersion <- fetch (Id calculation.shiftTypePayVersionId :: Id ShiftTypePayVersion)
+        staffVersion.staffId `shouldBe` entry.staffId
+        shiftVersion.shiftTypeId `shouldBe` entry.shiftTypeId
+        staffVersion.venueId `shouldBe` unpackId venue.id
+        shiftVersion.venueId `shouldBe` unpackId venue.id
+        staffVersion.lockedAt `shouldSatisfy` isJust
+        shiftVersion.lockedAt `shouldSatisfy` isJust
+        staffVersion.lockedByUserId `shouldBe` entry.approvedByUserId
+        shiftVersion.lockedByUserId `shouldBe` entry.approvedByUserId
 
 actionResponsesShouldHaveStatus :: Status -> [(Text, IO Wai.Response)] -> Expectation
 actionResponsesShouldHaveStatus expectedStatus actions = do

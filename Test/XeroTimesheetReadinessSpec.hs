@@ -567,7 +567,7 @@ tests = do
                         |> createRecord
                 _ <- createReadinessXeroEmployee fixture "employee-imported" (Just "calendar-ready")
                 now <- getCurrentTime
-                importedEntry <- createAndApproveEntry fixture.venue importedStaff (fromGregorian 2026 4 27) () fixture.owner now []
+                importedEntry <- createAndApproveEntry fixture.venue importedStaff (fromGregorian 2026 4 27) fixture.owner now []
                 importedEntry.staffPayVersionId `shouldSatisfy` isJust
                 let request = fixture.request { readinessSkippedStaffIds = [unpackId fixture.staff.id] }
 
@@ -631,7 +631,7 @@ tests = do
                         |> createRecord
                 _ <- createReadinessXeroEmployee fixture "employee-previous" (Just "calendar-ready")
                 now <- getCurrentTime
-                _ <- createAndApproveEntry fixture.venue previousStaff (fromGregorian 2026 4 28) () fixture.owner now []
+                _ <- createAndApproveEntry fixture.venue previousStaff (fromGregorian 2026 4 28) fixture.owner now []
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 

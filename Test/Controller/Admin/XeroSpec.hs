@@ -1456,7 +1456,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 awardLevel <- query @AwardLevel |> fetchOne
                 unmappedStaff <- Preview.createMappedStaff fixture.venue awardLevel "Fresh" "Unmapped"
                 approvedAt <- getCurrentTime
-                _ <- createAndApproveEntry fixture.venue unmappedStaff fixture.periodStart () fixture.owner approvedAt []
+                _ <- createAndApproveEntry fixture.venue unmappedStaff fixture.periodStart fixture.owner approvedAt []
                 now <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
 
@@ -1592,7 +1592,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 _ <- firstEntry |> set #endsAt (addUTCTime 30 firstEntry.endsAt) |> updateRecord
                 markOtherFixtureStaffNotPaid fixture
                 now <- getCurrentTime
-                _ <- createAndApproveEntry fixture.venue fixture.staffA (addDays (-60) fixture.periodStart) () fixture.owner now []
+                _ <- createAndApproveEntry fixture.venue fixture.staffA (addDays (-60) fixture.periodStart) fixture.owner now []
                 employeeB <-
                     query @XeroEmployee
                         |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
@@ -1684,7 +1684,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         fixture.venue
                         fixture.staffA
                         fixture.periodStart
-                        ()
                         fixture.owner
                         approvedAt
                         [set #shiftTypeId entry.shiftTypeId]

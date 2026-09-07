@@ -25,16 +25,13 @@ import IHP.Prelude
 data CanonicalPayrollFixture = CanonicalPayrollFixture
     { venue        :: !Venue
     , admin        :: !User
-    , dayNames     :: ![DayName]
     , levelOne     :: !AwardLevel
-    , levelTwo     :: !AwardLevel
     , barShift     :: !ShiftType
     , floorShift   :: !ShiftType
     , kitchenShift :: !ShiftType
     , avaStaff     :: !Staff
     , kaiStaff     :: !Staff
     , trialStaff   :: !Staff
-    , snapshot     :: !()
     , approvedAt   :: !UTCTime
     }
 
@@ -91,17 +88,18 @@ dayNameForWeekday dayNames weekdayIndex =
         (MissingFixtureReference ("day name for weekday index " <> tshow weekdayIndex))
         (find (\dayName -> dayName.weekdayIndex == weekdayIndex) dayNames)
 
+-- | Build and lock real staff/shift versions through the production approval
+-- builders, then seal the calculation. No separate snapshot setup is required.
 createAndApproveEntry ::
     (?modelContext :: ModelContext) =>
     Venue ->
     Staff ->
     Day ->
-    () ->
     User ->
     UTCTime ->
     [TimesheetFixtureValues -> TimesheetFixtureValues] ->
     IO TimesheetEntry
-createAndApproveEntry venue staff workedOn _snapshot admin approvedAt transforms = do
+createAndApproveEntry venue staff workedOn admin approvedAt transforms = do
     ensureFreshWageSourceFacts workedOn
     entry <- createTimesheetEntryRecord venue staff workedOn
     transformedEntry <- requireFixtureResult (applyTimesheetFixtureTransforms workedOn transforms entry)
@@ -177,31 +175,6 @@ applyTimesheetFixtureTransforms workedOn transforms entry = do
             |> applyTimesheetEntryBoundaries boundaries
         )
 
-createPayrollSnapshot ::
-    (?modelContext :: ModelContext) =>
-    Venue ->
-    User ->
-    [AwardLevel] ->
-    [ShiftType] ->
-    [DayName] ->
-    [ShiftType] ->
-    IO ()
-createPayrollSnapshot venue admin payLevels shiftTypes dayNames rules =
-    createPayrollSnapshotWithVersion venue admin 1 payLevels shiftTypes dayNames rules
-
-createPayrollSnapshotWithVersion ::
-    (?modelContext :: ModelContext) =>
-    Venue ->
-    User ->
-    Int ->
-    [AwardLevel] ->
-    [ShiftType] ->
-    [DayName] ->
-    [ShiftType] ->
-    IO ()
-createPayrollSnapshotWithVersion _venue _admin _versionNumber _awardLevels _shiftTypes _dayNames _rules =
-    pure ()
-
 fixtureWeekdayIndex :: Day -> Int
 fixtureWeekdayIndex day = case dayOfWeek day of
     Sunday    -> 0
@@ -230,36 +203,35 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
     floorShift <- createShiftTypeRecord venue levelOne "Floor" >>= updateRecord . set #sortOrder 20
     kitchenShift <- createShiftTypeRecord venue levelOne "Kitchen" >>= updateRecord . set #sortOrder 30
     friday <- requireFixtureResult (dayNameForWeekday dayNames 5)
-    overrideRule <- createPayLevelDayRuleRecord barShift friday levelTwo
+    _ <- createPayLevelDayRuleRecord barShift friday levelTwo
     avaUser <- createUserRecord "payroll-parity-ava@example.com" "staff" True
     kaiUser <- createUserRecord "payroll-parity-kai@example.com" "staff" True
     avaStaff <- createPlaceholderStaffRecord venue (Just avaUser) "Ava" "Worker"
     kaiStaff <- createPlaceholderStaffRecord venue (Just kaiUser) "Kai" "Cook"
     trialStaff <- createPlaceholderStaffRecord venue Nothing "Trial" "Worker"
-    snapshot <- createPayrollSnapshot venue admin [levelOne, levelTwo] [barShift, floorShift, kitchenShift] dayNames [overrideRule]
     let approvedAt = UTCTime (dayAtOffset 6) (secondsToDiffTime 3600)
 
-    _ <- createAndApproveEntry venue avaStaff fixtureWeekStart snapshot admin approvedAt
+    _ <- createAndApproveEntry venue avaStaff fixtureWeekStart admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , set #startTime (TimeOfDay 8 0 0)
         , set #endTime (TimeOfDay 10 30 0)
         ]
-    _ <- createAndApproveEntry venue avaStaff fixtureWeekStart snapshot admin approvedAt
+    _ <- createAndApproveEntry venue avaStaff fixtureWeekStart admin approvedAt
         [ set #shiftTypeId (unpackId floorShift.id)
         , set #startTime (TimeOfDay 9 0 0)
         , set #endTime (TimeOfDay 11 0 0)
         ]
-    _ <- createAndApproveEntry venue kaiStaff (dayAtOffset 1) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue kaiStaff (dayAtOffset 1) admin approvedAt
         [ set #shiftTypeId (unpackId kitchenShift.id)
         , set #startTime (TimeOfDay 10 0 0)
         , set #endTime (TimeOfDay 14 0 0)
         ]
-    _ <- createAndApproveEntry venue avaStaff (dayAtOffset 4) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue avaStaff (dayAtOffset 4) admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , set #startTime (TimeOfDay 19 0 0)
         , set #endTime (TimeOfDay 1 0 0)
         ]
-    _ <- createAndApproveEntry venue avaStaff (dayAtOffset 5) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue avaStaff (dayAtOffset 5) admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , set #startTime (TimeOfDay 9 0 0)
         , set #endTime (TimeOfDay 13 0 0)
@@ -268,7 +240,7 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
         , set #breakStartTime (Just (TimeOfDay 11 0 0))
         , set #breakEndTime (Just (TimeOfDay 11 30 0))
         ]
-    _ <- createAndApproveEntry venue trialStaff fixtureWeekStart snapshot admin approvedAt
+    _ <- createAndApproveEntry venue trialStaff fixtureWeekStart admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , set #startTime (TimeOfDay 10 0 0)
         , set #endTime (TimeOfDay 12 0 0)
@@ -287,15 +259,12 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
         CanonicalPayrollFixture
             { venue
             , admin
-            , dayNames
             , levelOne
-            , levelTwo
             , barShift
             , floorShift
             , kitchenShift
             , avaStaff
             , kaiStaff
             , trialStaff
-            , snapshot
             , approvedAt
             }

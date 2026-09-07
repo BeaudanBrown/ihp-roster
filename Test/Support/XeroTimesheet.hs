@@ -213,7 +213,7 @@ createMappedStaff venue awardLevel firstName lastName = do
 createFixtureEntry :: (?modelContext :: ModelContext) => Venue -> User -> (FixtureStaff -> Staff) -> ShiftType -> Day -> EntrySpec -> IO TimesheetEntry
 createFixtureEntry venue owner resolveStaff shiftType periodStart spec = do
     approvedAt <- getCurrentTime
-    createAndApproveEntry venue (resolveStaff spec.entryStaff) (addDays spec.entryDayOffset periodStart) () owner approvedAt (entryTransforms shiftType spec)
+    createAndApproveEntry venue (resolveStaff spec.entryStaff) (addDays spec.entryDayOffset periodStart) owner approvedAt (entryTransforms shiftType spec)
 
 entryTransforms :: ShiftType -> EntrySpec -> [TimesheetFixtureValues -> TimesheetFixtureValues]
 entryTransforms shiftType spec =
