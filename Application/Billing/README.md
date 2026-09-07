@@ -34,59 +34,22 @@ reviewed fixtures.
 
 ## Provider Workflow Variant
 
-`Web.Billing.Mutations.startOrResumeBillingCheckoutMutation` supplies the
-focused transaction runner and customer-created audit callback to
-`Checkout.startOrResumeCheckoutForPrincipalWithTransaction`. This existing
-interface fits the [controller workflow roles](../../Web/Controller/AGENTS.md#feature-workflow-contract)
-without a universal transaction or effect typeclass.
+[Web.Billing.Mutations](../../Web/Billing/Mutations.hs) composes durable effects
+with the existing [Checkout](Checkout.hs) phase interface. Follow the
+[controller workflow roles](../../Web/Controller/AGENTS.md#feature-workflow-contract),
+not an encompassing form transaction or a new provider abstraction.
 
-Preparation locks the venue, checks eligibility/open attempts, resolves Price,
-creates or reuses the Customer, and commits the durable attempt. **Customer
-creation is already a provider call during preparation.** Execution reacquires
-the venue lock, revalidates the current attempt and creates/retrieves its exact
-Session. Expiry/restart commits its replacement before recursion. Session
-creation uses the committed attempt's idempotency key; do not move it ahead of
-that commit or move provider execution outside its existing serialization.
+Preparation is not side-effect-free: Customer creation already calls the
+provider. Session creation depends on a committed attempt; an execution rollback
+does not undo preparation, and outcome selection controls publication rather
+than rollback. Preserve this distinction from signed-webhook transactions.
 
-Provider rejection may commit sanitized diagnostics; an escaping execution
-exception rolls back that phase, not preparation. The phase outcome selector
-controls durable publication, not rollback. Customer-created audit stays inside
-preparation; the response completion's successful-start audit stays after
-committed Checkout and exact hosted-URL validation, before redirect. Actual actor and
-effective payer remain distinct, with shared request-context audit provenance.
-
-This is not the webhook variant: signed ingress validates raw signature before
-JSON and applies its local transaction before returning success. Neither variant
-requires moving HTTP/HSX into Application modules. The existing IHP context and
-provider adapter imports are legitimate; import checks are not purity checks.
-The read-model/response interfaces preserve these phase boundaries and the
-owner/support and return-correlation rules in `SPEC.md`; they do not introduce a
-new payment workflow or mutation result type.
-
-## Request-Side Interfaces
-
-`fetchBillingViewModel` serves both page and live-fragment consumers after the
-shared access policy. It preserves query order, latest-five founder histories,
-owner diagnostic exclusion, unhealthy-configuration behavior and exact processed
-event/attempt/subscription correlation. The existing view model remains owned by
-`Web/View/Billing/Index.hs`; it is not a new provider representation. Return and
-cancel lookups have intentionally different Session requirements, and neither
-browser return establishes provider state.
-
-Completion consumers accept existing Checkout, Portal and reconciliation
-results. Portal correlation/host validators remain in `Application.Billing.Stripe`;
-response completion invokes them before its original request audit and terminal
-native/HTMX redirect. Reconciliation completion preserves its audit after enqueue,
-including already-active jobs. These are existing request-completion effects,
-not new subscription mutations, and must not move into Checkout preparation or
-be repeated after a rendering failure. Shared provenance comes from initialized
-request context at each real audit call.
-
-Do not consolidate the controller's staged owner/email/configuration checks or
-move provider calls into response modules. Dormant manual read-only adaptation
-and its mutation remain separate. Adopted read-model/response/mutation imports
-are checked by `scripts/architecture/workflow-boundaries.mjs` without claiming
-transitive purity or a universal provider layer.
+The [read model](../../Web/Billing/ReadModel.hs) and
+[response consumers](../../Web/Billing/Responses.hs) retain request-side
+correlation and completion ownership, including post-provider request audits;
+they do not replace payment authority. See [SPEC.md](SPEC.md) for authorization,
+correlation, privacy and provider-phase contracts, and the implementing modules
+for query limits, audit placement and exact response sequencing.
 
 ## Related Docs
 

@@ -35,7 +35,13 @@ direct_throw_owners = {
     'Application/Bepis/Action.hs': {'runBepisActionSpan'},
     'Application/Helper/Telemetry.hs': {'withClassifiedTelemetrySpan', 'withTelemetrySpanAttributes'},
     'Application/TimesheetApproval.hs': {'refreshProblemApprovalWithAudit'},
-    'Web/Timesheets/Mutations.hs': {'approveTimesheetEntryInCurrentTransaction'},
+    # Calendar conflict must unwind the durable transaction before the exact
+    # typed catch. TimesheetsController tests all seven stale mutation paths
+    # with no writes/publication; approval retains its separate rollback owner.
+    'Web/Timesheets/Mutations.hs': {
+        'approveTimesheetEntryInCurrentTransaction',
+        'withTimesheetCalendarMutationLock',
+    },
 }
 direct_pure_throw_owners = {
     'Application/Error/Startup.hs': {'throwStartupException'},

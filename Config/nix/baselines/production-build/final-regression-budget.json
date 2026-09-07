@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "issue": 455,
-  "authority": "Stable production app-library and inventory regression ceilings reconciled after merging the observability staging line with the behavior-preserving maintenance audit's focused shared boundary modules; measured memory is opt-in and builder-specific",
+  "issue": 519,
+  "authority": "Stable ceilings reconciled for epic 508's seven inventoried runtime owners: Web/Billing/{ReadModel,Responses}, Web/Exports/{Responses,WorkbookConfigurations}, Web/LeaveRequests/{Request,Responses}, Web/Timesheets/EntryWorkflow. Optimized package measured 561 modules/interfaces and 562 production rows. Prior byte/interface/dependency/executable ceilings remain unchanged; memory is opt-in and builder-specific",
   "measurement_profile": "Config/nix/baselines/production-build/epic-444-final-xero-management.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 554,
+    "module_count_max": 561,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -57,7 +57,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 554, "bytes_max": 629145600 },
+      ".hi": { "count": 561, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -66,7 +66,7 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 555,
+    "module_rows_max": 562,
     "dependency_packages_max": 45,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
