@@ -86,10 +86,8 @@ cross-module safety and payroll contracts.
   `LVL n`, and suffix display collisions without merging authority. Exactly
   three hidden columns map each visible staff column to its Excel column
   reference, Staff ID, and stable pay-bucket key. Each roster-week Summary has
-  no title or totals. In definition-based workbooks its formulas aggregate
-  paid-hour Data facts directly, so Summary remains valid when the Staff Hours
-  family is omitted; the legacy compatibility renderer resolves the transposed
-  Hours cells by stable model keys.
+  no title or totals. Its formulas aggregate paid-hour Data facts directly, so
+  Summary remains valid when the Staff Hours family is omitted.
   Weekdays use Ord/7-12/12+ buckets; Saturday and Sunday use Ord/12+, with every
   next-day hour in 12+. Shift-type sheets transpose hourly facts into ordered
   approval-pinned shift-type columns, aggregate repeated civil-hour occurrences,

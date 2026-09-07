@@ -8,7 +8,6 @@ module Application.Helper.Export.PayrollWorkbookModel
     , PayrollWorkbookPayBucketKey (..)
     , PayrollWorkbookRow (..)
     , buildPayrollWorkbookFactModel
-    , buildPayrollWorkbookHourlyModel
     , payrollWorkbookHourlyModelFromFacts
     ) where
 
@@ -112,43 +111,6 @@ data AccumulatedRow = AccumulatedRow
     , accumulatedWageCents      :: !(Map.Map PayrollWorkbookHourSlot Integer)
     , accumulatedEntryIds       :: !(Set.Set UUID)
     }
-
-buildPayrollWorkbookHourlyModel ::
-    Day ->
-    Day ->
-    VenueConfig ->
-    [TimesheetEntry] ->
-    Map.Map UUID Staff ->
-    Map.Map UUID PayrollWorkbookPayBucket ->
-    Map.Map UUID WageCalculation ->
-    Either Text PayrollWorkbookHourlyModel
-buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffById payBucketsByEntryId calculationsByEntryId =
-    payrollWorkbookHourlyModelFromFacts
-        <$> buildPayrollWorkbookFactModel
-            rangeStart
-            rangeEnd
-            venueConfig
-            entries
-            staffById
-            payBucketsByEntryId
-            fallbackShiftLabels
-            fallbackShiftTypeColumns
-            calculationsByEntryId
-  where
-    fallbackShiftLabels =
-        Map.fromList
-            [ (unpackId entry.id, tshow entry.shiftTypeId)
-            | entry <- entries
-            ]
-    fallbackShiftTypeColumns =
-        Map.fromList
-            [ ( entry.shiftTypeId
-              , HourlyShiftTypeColumn entry.shiftTypeId (Map.findWithDefault (tshow entry.shiftTypeId) (unpackId entry.id) fallbackShiftLabels)
-              )
-            | entry <- entries
-            ]
-            |> Map.elems
-            |> List.sortOn (\column -> (column.hourlyShiftTypeLabel, column.hourlyShiftTypeId))
 
 buildPayrollWorkbookFactModel ::
     Day ->
