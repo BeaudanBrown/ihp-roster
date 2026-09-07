@@ -106,7 +106,7 @@ fetchApprovedEntryStaffHoursLabels entries =
 
 fetchApprovedEntryPayrollPayBuckets :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID PayrollWorkbookPayBucket)
 fetchApprovedEntryPayrollPayBuckets entries =
-    fmap (Map.mapMaybe (\selection -> selection)) (fetchApprovedEntryPayrollPayBucketSelections entries)
+    fmap (Map.mapMaybe IHP.ControllerPrelude.id) (fetchApprovedEntryPayrollPayBucketSelections entries)
 
 fetchApprovedEntryPayrollPayBucketSelections :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID (Maybe PayrollWorkbookPayBucket))
 fetchApprovedEntryPayrollPayBucketSelections entries = do
