@@ -15,6 +15,12 @@ Read this before editing shared view helpers under `Application/Helper/View/`.
   Bootstrap markup and native/ARIA state in these focused adapters; do not add
   handwritten overlay `data-*` names or move request semantics out of typed
   AppShell/Surface Action helpers.
+  Launcher pointer-dismiss cleanup opts in through `dialogPointerDismissBlurAttrs`;
+  keep that choice beside the typed launcher, never inferred from its CSS class.
+  Overlay owns document-lifetime tracking: any keydown cancels it, replacements
+  and pointerdowns elsewhere retain it. Final dismissal reads the latest tracked
+  launcher on the next frame and blurs only if it is connected and still focused;
+  this is not a per-dialog opener snapshot.
 - Time-picker helpers consume `FrontendContract.TimePicker.Runtime` for the
   generated modal/field/internal roles and exact field/option payloads. Keep
   ranges, steps, option labels, empty-state copy, and initial native/ARIA state

@@ -8,6 +8,7 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , dialogFocusRegionAttrs
     , dialogKeyboardAttrs
     , dialogMountAttrs
+    , dialogPointerDismissBlurAttrs
     , dialogSubmitAttrs
     , navigationLoadingAttrs
     , toastCloseAttrs
@@ -37,6 +38,7 @@ data OverlayDom = OverlayDom
     , overlayDialogBlockingAttribute     :: !Text
     , overlayDialogKeyboardAttribute     :: !Text
     , overlayDialogFocusRegionAttribute  :: !Text
+    , overlayDialogPointerDismissBlurAttribute :: !Text
     , overlayNavigationLoadingAttribute  :: !Text
     , overlayNavigationConfigAttribute   :: !Text
     , overlayToastMountAttribute         :: !Text
@@ -58,6 +60,7 @@ canonicalOverlayDom = OverlayDom
     , overlayDialogBlockingAttribute = domAttrValue @Contract.DialogBlocking
     , overlayDialogKeyboardAttribute = domAttrValue @Contract.DialogKeyboard
     , overlayDialogFocusRegionAttribute = domAttrValue @Contract.DialogFocusRegion
+    , overlayDialogPointerDismissBlurAttribute = domAttrValue @Contract.DialogPointerDismissBlur
     , overlayNavigationLoadingAttribute = domAttrValue @Contract.NavigationLoading
     , overlayNavigationConfigAttribute = domAttrValue @Contract.NavigationLoadingConfig
     , overlayToastMountAttribute = domAttrValue @Contract.ToastMount
@@ -79,6 +82,10 @@ dialogKeyboardAttrs = roleAttrs canonicalOverlayDom.overlayDialogKeyboardAttribu
 
 dialogFocusRegionAttrs :: [(Text, Text)]
 dialogFocusRegionAttrs = roleAttrs canonicalOverlayDom.overlayDialogFocusRegionAttribute
+
+-- | Opt in only this launcher to next-frame pointer-dismiss focus cleanup.
+dialogPointerDismissBlurAttrs :: [(Text, Text)]
+dialogPointerDismissBlurAttrs = roleAttrs canonicalOverlayDom.overlayDialogPointerDismissBlurAttribute
 
 dialogSubmitAttrs :: Text -> [(Text, Text)]
 dialogSubmitAttrs loadingLabel =

@@ -1317,6 +1317,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` cs (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
                 response `responseBodyShouldContain` cs (pathTo NewTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
+                response `responseBodyShouldContain` "data-bepis-dialog-pointer-dismiss-blur=\"true\""
                 response `responseBodyShouldContain` "timesheet-shape-bar"
                 response `responseBodyShouldContain` "timesheet-shape-segment-shift"
                 response `responseBodyShouldContain` "timesheet-shape-segment-break"
@@ -2202,6 +2203,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWindow?anchorDate=2024-12-30&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWindow?anchorDate=2025-01-13&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
+                response `responseBodyShouldContain` "data-bepis-dialog-pointer-dismiss-blur=\"true\""
                 response `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entryA.id))
 
         it "renders a shape bar for valid after-midnight timesheet entries" $ withContext do

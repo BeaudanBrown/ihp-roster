@@ -4,7 +4,7 @@ module Test.OverlaySpec where
 
 import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime
-import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
+import Application.Helper.FrontendContract.Overlay.Runtime (dialogPointerDismissBlurAttrs, navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
 import Application.Helper.View.Toast
@@ -23,6 +23,9 @@ import Text.Megaparsec.Pos (initialPos)
 pureTests :: Spec
 pureTests = do
     describe "Overlay contract attributes" do
+        it "renders the exact generated pointer-dismiss opt-in role" do
+            dialogPointerDismissBlurAttrs `shouldBe` [("data-bepis-dialog-pointer-dismiss-blur", "true")]
+
         it "renders exact generated navigation-loading configuration" do
             navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
                 `shouldBe`

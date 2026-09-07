@@ -465,6 +465,8 @@ export const dialogKeyboardDomAttr = "data-bepis-dialog-keyboard" as const;
 
 export const dialogFocusRegionDomAttr = "data-bepis-dialog-focus-region" as const;
 
+export const dialogPointerDismissBlurDomAttr = "data-bepis-dialog-pointer-dismiss-blur" as const;
+
 export const navigationLoadingDomAttr = "data-bepis-navigation-loading" as const;
 
 export const navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config" as const;
@@ -1481,8 +1483,6 @@ export type DefaultStaffAwardLevelId = FrontendContractUuid;
 export type PayrollWorkbookConfigurationId = FrontendContractUuid;
 export type ReferenceSyncJobId = FrontendContractUuid;
 export type EditStaffId = FrontendContractUuid;
-
-export const timesheetWeekShellDomToken = "timesheet-week-shell" as const;
 
 export const timesheetsTimesheetStaffPanelSortRootDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-root" as const;
 export const timesheetsTimesheetStaffPanelSortRowDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-row" as const;

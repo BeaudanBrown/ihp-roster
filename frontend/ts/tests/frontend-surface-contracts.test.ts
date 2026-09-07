@@ -19,7 +19,6 @@ import {
     rosterStaffPanelTabDomAttr,
     rosterSelfServicePanelTabDomAttr,
     parseRosterStaffPanelSortRow,
-    timesheetWeekShellDomToken,
     type TimesheetsSurfaceFragmentKey,
 } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
@@ -140,10 +139,6 @@ test("generated tab-set registry owns roster tab keys and default", () => {
     assertEqual(selfServiceTabs?.tabRoleAttribute, rosterSelfServicePanelTabDomAttr);
     assertDeepEqual(selfServiceTabs?.keys, ["quick-tools", "settings"]);
     assertEqual(selfServiceTabs?.defaultKey, "quick-tools");
-});
-
-test("browser-reachable surface DOM tokens are generated as tree-shakeable feature constants", () => {
-    assertEqual(timesheetWeekShellDomToken, "timesheet-week-shell");
 });
 
 test("browser-reachable production surface fragment types remain consumable", () => {

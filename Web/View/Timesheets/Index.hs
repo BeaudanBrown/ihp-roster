@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
+import Application.Helper.FrontendContract.Overlay.Runtime (dialogPointerDismissBlurAttrs)
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
@@ -630,7 +631,7 @@ renderSuggestionCardOverlayLink workedOn editUrl =
     renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
         ((defaultAppShellActionRoute (editUrl))
-            { appShellActionRouteExtraAttrs = [ ("class", "timesheet-entry-card-link")
+            { appShellActionRouteExtraAttrs = dialogPointerDismissBlurAttrs <> [ ("class", "timesheet-entry-card-link")
                 , ("aria-label", "Adjust rostered timesheet suggestion for " <> tshow workedOn)
                 ]
             })
@@ -702,7 +703,7 @@ renderEntryCardOverlayLink entry canEdit editUrl
         renderAppShellActionLink
             (appShellActionByMarker @EditTimesheetEntryDialog)
             ((defaultAppShellActionRoute (editUrl))
-                { appShellActionRouteExtraAttrs = [ ("class", "timesheet-entry-card-link")
+                { appShellActionRouteExtraAttrs = dialogPointerDismissBlurAttrs <> [ ("class", "timesheet-entry-card-link")
                     , ("aria-label", "Edit timesheet entry for " <> tshow (timesheetEntryOperationalDate entry))
                     ]
                 })

@@ -1,3 +1,32 @@
+import { dialogDismissedEvent, dialogPointerDismissBlurDomAttr } from "../generated/contracts";
+import { closestHTMLElement } from "../shared/dom";
+
+// Listeners belong to the document lifetime, not to replaceable dialog mounts.
+const pointerDismissOwners = new WeakSet<Document>();
+
+export function installPointerDismissFocusCleanup(owner: Document): void {
+    const view = owner.defaultView;
+    if (view === null || pointerDismissOwners.has(owner)) return;
+    pointerDismissOwners.add(owner);
+    let pointerOpenedLauncher: HTMLElement | null = null;
+
+    owner.addEventListener("pointerdown", (event) => {
+        const launcher = closestHTMLElement(event.target, `[${dialogPointerDismissBlurDomAttr}]`);
+        if (launcher !== null) pointerOpenedLauncher = launcher;
+    }, true);
+    owner.addEventListener("keydown", () => { pointerOpenedLauncher = null; }, true);
+    owner.addEventListener(dialogDismissedEvent, (event) => {
+        const detail = dialogDismissedDetail(event);
+        if (detail === null || detail.replacement !== null || pointerOpenedLauncher === null) return;
+        view.requestAnimationFrame(() => {
+            // Read at frame time: an intervening keydown must cancel the blur.
+            const launcher = pointerOpenedLauncher;
+            pointerOpenedLauncher = null;
+            if (launcher !== null && owner.contains(launcher) && owner.activeElement === launcher) launcher.blur();
+        });
+    });
+}
+
 export interface DialogDismissedDetail {
     dialog: Element;
     replacement: Element | null;

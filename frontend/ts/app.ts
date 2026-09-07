@@ -12,7 +12,6 @@ import "./app-toasts";
 import "./app-time-picker";
 import "./app-horizontal-scroll";
 import "./app-roster";
-import "./app-timesheets";
 import "./app-xero";
 import "./app-toggle-buttons";
 import "./app-preferences";

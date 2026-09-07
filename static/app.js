@@ -190,6 +190,7 @@
   var dialogBlockingDomAttr = "data-bepis-dialog-blocking";
   var dialogKeyboardDomAttr = "data-bepis-dialog-keyboard";
   var dialogFocusRegionDomAttr = "data-bepis-dialog-focus-region";
+  var dialogPointerDismissBlurDomAttr = "data-bepis-dialog-pointer-dismiss-blur";
   var navigationLoadingDomAttr = "data-bepis-navigation-loading";
   var navigationLoadingConfigDomAttr = "data-bepis-navigation-loading-config";
   var toastMountDomAttr = "data-bepis-toast-mount";
@@ -578,7 +579,6 @@
   function isAdminXeroAdminXeroScopeScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
-  var timesheetWeekShellDomToken = "timesheet-week-shell";
   var timesheetsTimesheetStaffPanelSortRootDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-root";
   var timesheetsTimesheetStaffPanelSortRowDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-row";
   var timesheetsTimesheetStaffPanelSortControlDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-control";
@@ -1184,6 +1184,29 @@
   enableDatePickers();
 
   // frontend/ts/dialog-overlays/lifecycle.ts
+  var pointerDismissOwners = /* @__PURE__ */ new WeakSet();
+  function installPointerDismissFocusCleanup(owner) {
+    const view = owner.defaultView;
+    if (view === null || pointerDismissOwners.has(owner)) return;
+    pointerDismissOwners.add(owner);
+    let pointerOpenedLauncher = null;
+    owner.addEventListener("pointerdown", (event) => {
+      const launcher = closestHTMLElement(event.target, `[${dialogPointerDismissBlurDomAttr}]`);
+      if (launcher !== null) pointerOpenedLauncher = launcher;
+    }, true);
+    owner.addEventListener("keydown", () => {
+      pointerOpenedLauncher = null;
+    }, true);
+    owner.addEventListener(dialogDismissedEvent, (event) => {
+      const detail = dialogDismissedDetail(event);
+      if (detail === null || detail.replacement !== null || pointerOpenedLauncher === null) return;
+      view.requestAnimationFrame(() => {
+        const launcher = pointerOpenedLauncher;
+        pointerOpenedLauncher = null;
+        if (launcher !== null && owner.contains(launcher) && owner.activeElement === launcher) launcher.blur();
+      });
+    });
+  }
   function dialogDismissedDetail(event) {
     if (!(event instanceof CustomEvent)) return null;
     const detail = event.detail;
@@ -4602,6 +4625,7 @@
     if (typeof window === "undefined") return;
     const mountId = dialogOverlayMountDomId;
     const dismissalLifecycle = createDialogDismissalLifecycle(dialogDismissedEvent);
+    installPointerDismissFocusCleanup(document);
     const blockingBackgroundInertStates = /* @__PURE__ */ new Map();
     let blockingDialogReturnFocus = null;
     function getMount() {
@@ -6993,39 +7017,6 @@
   enableRosterImageExport();
   var rosterWageFilter = enableRosterWageFilter();
   enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });
-
-  // frontend/ts/app-timesheets.ts
-  var entryLinkSelector = `#${timesheetWeekShellDomToken} .timesheet-entry-card-link`;
-  var pointerOpenedEntryLink = null;
-  function clearTrackedEntryLink() {
-    pointerOpenedEntryLink = null;
-  }
-  function blurTrackedEntryLinkIfFocused() {
-    const linkEl = pointerOpenedEntryLink;
-    clearTrackedEntryLink();
-    if (!(linkEl instanceof HTMLElement)) return;
-    if (!document.contains(linkEl)) return;
-    if (document.activeElement === linkEl) {
-      linkEl.blur();
-    }
-  }
-  function blurPointerOpenedTimesheetEntryAfterDialogClose() {
-    if (typeof window === "undefined") return;
-    document.addEventListener("pointerdown", (event) => {
-      if (!(event.target instanceof Element)) return;
-      const linkEl = event.target.closest(entryLinkSelector);
-      if (linkEl instanceof HTMLElement) {
-        pointerOpenedEntryLink = linkEl;
-      }
-    }, true);
-    document.addEventListener("keydown", clearTrackedEntryLink, true);
-    document.addEventListener(dialogDismissedEvent, (event) => {
-      const detail = dialogDismissedDetail(event);
-      if (detail === null || detail.replacement !== null || pointerOpenedEntryLink === null) return;
-      window.requestAnimationFrame(blurTrackedEntryLinkIfFocused);
-    });
-  }
-  blurPointerOpenedTimesheetEntryAfterDialogClose();
 
   // frontend/ts/xero-candidate-filter/configuration.ts
   function parseXeroCandidateFilterConfiguration(raw) {

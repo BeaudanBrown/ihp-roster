@@ -99,6 +99,7 @@ instance InputValue FixtureDensity where
 
 data BrowserFixture
 data BrowserFixtureScope
+data BrowserFixtureShell
 data BrowserFixturePayload
 data BrowserFixturePayloadLabel
 data BrowserFixtureTypeOnlyPayload
@@ -151,6 +152,7 @@ data DuplicateModeValue
 type BrowserFixtureSurface =
     Surface BrowserFixture
         '[ Scope BrowserFixtureScope '[] '[ 'NoAuth ]
+         , BrowserDomToken BrowserFixtureShell
          , BrowserInboundDto BrowserFixturePayload
             '[ Field BrowserFixturePayloadLabel 'WireText ]
          , BrowserTypeDto BrowserFixtureTypeOnlyPayload
@@ -920,6 +922,11 @@ tests = describe "FrontendSurface DSL foundation" do
                 , HtmxOption (HtmxActionCustomHtmxIR "fixture-panel-custom-htmx" "test fixture covers auditable custom HTMX metadata")
                 ]
 
+    it "emits browser DOM tokens only for explicitly browser-reachable declarations" do
+        browserFixtureTypeScript `shouldContainText` "export const browserFixtureShellDomToken = \"browser-fixture-shell\" as const;"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "export const timesheetWeekShellDomToken"
+        (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
+
     it "reflects the registered timesheets surface into checked contract IR" do
         let surface = expectSurface "timesheets" registeredFrontendSurfaceContractIR
 
@@ -927,7 +934,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.scopeOptions) surface.surfaceScopes `shouldBe` [[AuthorizeCurrentVenueIR "venueId"]]
         map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
         map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"]
-        surface.surfaceBrowserDomTokens `shouldBe` ["timesheet-week-shell"]
+        surface.surfaceBrowserDomTokens `shouldBe` []
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
             |> fmap (.fragmentParams)

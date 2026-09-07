@@ -17,7 +17,7 @@ import {
     type DialogSubmitConfig,
     type NavigationLoadingConfig,
 } from "./generated/contracts";
-import { createDialogDismissalLifecycle } from "./dialog-overlays/lifecycle";
+import { createDialogDismissalLifecycle, installPointerDismissFocusCleanup } from "./dialog-overlays/lifecycle";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailRoot, detailTarget } from "./shared/lifecycle";
 
@@ -170,6 +170,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
 
     const mountId = dialogOverlayMountDomId;
     const dismissalLifecycle = createDialogDismissalLifecycle(dialogDismissedEvent);
+    installPointerDismissFocusCleanup(document);
     const blockingBackgroundInertStates = new Map<HTMLElement, boolean>();
     let blockingDialogReturnFocus: HTMLElement | null = null;
 
