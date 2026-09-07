@@ -43,6 +43,11 @@ data OverlayFormMode
     = HtmxOverlayForm
     | PageOverlayForm
 
+-- Only close navigation and generated form transport differ by rendering context.
+data OverlayButtonContext
+    = MountedOverlayButton
+    | PageOverlayButton !Text
+
 data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
@@ -155,22 +160,28 @@ renderDialogOverlayFooter startButtons buttons
     | otherwise = [hsx|
         <div class="modal-footer app-modal-footer">
             <div class="app-modal-footer-start">
-                {forEach startButtons renderDialogOverlayButton}
+                {forEach startButtons (renderOverlayButton MountedOverlayButton)}
             </div>
             <div class="app-modal-footer-end">
-                {forEach buttons renderDialogOverlayButton}
+                {forEach buttons (renderOverlayButton MountedOverlayButton)}
             </div>
         </div>
     |]
 
-renderDialogOverlayButton :: OverlayButton -> Html
-renderDialogOverlayButton button =
+renderOverlayButton :: OverlayButtonContext -> OverlayButton -> Html
+renderOverlayButton context button =
     case button.overlayButtonAction of
-        OverlayCloseAction -> [hsx|
-            <button type="button" class={button.overlayButtonClass} {...dialogCloseAttrs}>
-                {button.overlayButtonLabel}
-            </button>
-        |]
+        OverlayCloseAction -> case context of
+            MountedOverlayButton -> [hsx|
+                <button type="button" class={button.overlayButtonClass} {...dialogCloseAttrs}>
+                    {button.overlayButtonLabel}
+                </button>
+            |]
+            PageOverlayButton closeUrl -> [hsx|
+                <a href={closeUrl} class={button.overlayButtonClass}>
+                    {button.overlayButtonLabel}
+                </a>
+            |]
         OverlaySubmitFormAction formId -> [hsx|
             <button type="submit"
                     class={button.overlayButtonClass}
@@ -218,22 +229,31 @@ renderDialogOverlayButton button =
                 </button>
             </form>
         |]
-        GeneratedDialogFormAction appShellAction route hiddenFields _maybeConfirm ->
-            renderAppShellActionForm
-                appShellAction
-                route
-                    { appShellActionRouteFields = route.appShellActionRouteFields <> fmap AppShellFieldValue hiddenFields
-                    , appShellActionRouteExtraAttrs =
-                        route.appShellActionRouteExtraAttrs
-                            <> [ ("class", "app-modal-footer-form")
-
-                               ]
-                    }
-                [hsx|
+        GeneratedDialogFormAction appShellAction route hiddenFields maybeConfirm -> case context of
+            MountedOverlayButton ->
+                renderAppShellActionForm
+                    appShellAction
+                    route
+                        { appShellActionRouteFields = route.appShellActionRouteFields <> fmap AppShellFieldValue hiddenFields
+                        , appShellActionRouteExtraAttrs =
+                            route.appShellActionRouteExtraAttrs <> [("class", "app-modal-footer-form")]
+                        }
+                    [hsx|
+                        <button type="submit" class={button.overlayButtonClass}>
+                            {button.overlayButtonLabel}
+                        </button>
+                    |]
+            PageOverlayButton _ -> [hsx|
+                <form method="POST"
+                      action={fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl}
+                      class="app-modal-footer-form"
+                      onsubmit={confirmSubmitAttribute maybeConfirm}>
+                    {forEach (route.appShellActionRouteFields <> fmap AppShellFieldValue hiddenFields) renderGeneratedOverlayFormHiddenField}
                     <button type="submit" class={button.overlayButtonClass}>
                         {button.overlayButtonLabel}
                     </button>
-                |]
+                </form>
+            |]
 
 renderOverlayFormHiddenField :: (Text, Text) -> Html
 renderOverlayFormHiddenField (fieldName, fieldValue) = [hsx|
@@ -280,76 +300,10 @@ renderPageDialogFooter closeUrl startButtons buttons
     | otherwise = [hsx|
         <div class="app-modal-footer app-modal-footer-inner">
             <div class="app-modal-footer-start">
-                {forEach startButtons (renderPageDialogButton closeUrl)}
+                {forEach startButtons (renderOverlayButton (PageOverlayButton closeUrl))}
             </div>
             <div class="app-modal-footer-end">
-                {forEach buttons (renderPageDialogButton closeUrl)}
+                {forEach buttons (renderOverlayButton (PageOverlayButton closeUrl))}
             </div>
         </div>
     |]
-
-renderPageDialogButton :: Text -> OverlayButton -> Html
-renderPageDialogButton closeUrl button =
-    case button.overlayButtonAction of
-        OverlayCloseAction -> [hsx|
-            <a href={closeUrl} class={button.overlayButtonClass}>
-                {button.overlayButtonLabel}
-            </a>
-        |]
-        OverlaySubmitFormAction formId -> [hsx|
-            <button type="submit"
-                    class={button.overlayButtonClass}
-                    form={formId}
-                    {...dialogSubmitAttrs "Working..."}>
-                {button.overlayButtonLabel}
-            </button>
-        |]
-        OverlaySubmitFormLoadingAction formId loadingLabel -> [hsx|
-            <button type="submit"
-                    class={button.overlayButtonClass}
-                    form={formId}
-                    {...dialogSubmitAttrs loadingLabel}>
-                {button.overlayButtonLabel}
-            </button>
-        |]
-        OverlayNavigateAction targetUrl -> [hsx|
-            <a href={targetUrl} class={button.overlayButtonClass}>
-                {button.overlayButtonLabel}
-            </a>
-        |]
-        DialogFormAction method targetUrl fields maybeConfirm -> [hsx|
-            <form method="POST"
-                  action={targetUrl}
-                  class="app-modal-footer-form"
-                  onsubmit={confirmSubmitAttribute maybeConfirm}>
-                <input type="hidden" name="_method" value={method} />
-                {forEach fields renderOverlayFormHiddenField}
-                <button type="submit" class={button.overlayButtonClass}>
-                    {button.overlayButtonLabel}
-                </button>
-            </form>
-        |]
-        DialogNavigationLoadingFormAction method targetUrl fields maybeConfirm loadingTitle loadingMessage -> [hsx|
-            <form method="POST"
-                  action={targetUrl}
-                  class="app-modal-footer-form"
-                  onsubmit={confirmSubmitAttribute maybeConfirm}
-                  {...navigationLoadingAttrs loadingTitle loadingMessage}>
-                <input type="hidden" name="_method" value={method} />
-                {forEach fields renderOverlayFormHiddenField}
-                <button type="submit" class={button.overlayButtonClass}>
-                    {button.overlayButtonLabel}
-                </button>
-            </form>
-        |]
-        GeneratedDialogFormAction _appShellAction route hiddenFields maybeConfirm -> [hsx|
-            <form method="POST"
-                  action={fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl}
-                  class="app-modal-footer-form"
-                  onsubmit={confirmSubmitAttribute maybeConfirm}>
-                {forEach (route.appShellActionRouteFields <> fmap AppShellFieldValue hiddenFields) renderGeneratedOverlayFormHiddenField}
-                <button type="submit" class={button.overlayButtonClass}>
-                    {button.overlayButtonLabel}
-                </button>
-            </form>
-        |]
