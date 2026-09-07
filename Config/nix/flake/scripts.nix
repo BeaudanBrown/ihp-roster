@@ -52,7 +52,8 @@ in
     processes = {
         # Replace IHP's static devenv processes so `devenv up` receives the
         # same workspace-specific ports as dev-start and dev-foreground.
-        ihp = pkgs.lib.mkForce (script ../scripts/dev/app);
+        web = pkgs.lib.mkForce (script ../scripts/dev/app);
+        worker = pkgs.lib.mkForce (script ../scripts/dev/worker);
         hoogle = pkgs.lib.mkForce {
             exec = ''
                 repo_root="$(git rev-parse --show-toplevel)"
@@ -69,6 +70,7 @@ in
         workspace-pi-test = script ../scripts/dev/pi-test;
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
         dev-app = script ../scripts/dev/app;
+        dev-worker = script ../scripts/dev/worker;
         dev-workspace-info = script ../scripts/dev/workspace-info;
         dev-workspace-test = script ../scripts/dev/workspace-test;
         in-env-test = script ../scripts/dev/in-env-test;
@@ -162,6 +164,7 @@ in
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         billing-contract-check = script ../scripts/verification/billing-contract-check;
         deployment-module-check = script ../scripts/verification/deployment-module-check;
+        ihp-compatibility-check = script ../scripts/verification/ihp-compatibility-check;
         observability-production-check = script ../scripts/verification/observability-production-check;
         observability-backend-smoke = script ../scripts/verification/observability-backend-smoke;
         otel-recent = script ../scripts/observability/recent;

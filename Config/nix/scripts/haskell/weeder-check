@@ -19,7 +19,7 @@ ihp_roster_prepare_ghc_build_dir "$weeder_build_dir" "$ghc_opts"
 mkdir -p "$hie_dir"
 source_inventory="$weeder_build_dir/weeder-sources.txt"
 {
-    printf '%s\n' Main.hs
+    printf '%s\n' Main.hs WorkerMain.hs
     find Application Web Test Config build/Generated \
         -type f -name '*.hs' \
         ! -path 'Test/CompileFail/*' \
@@ -29,6 +29,7 @@ source_inventory="$weeder_build_dir/weeder-sources.txt"
 mapfile -t source_files < "$source_inventory"
 for required_source in \
     Main.hs \
+    WorkerMain.hs \
     Web/FrontController.hs \
     Test/HspecMain.hs \
     Application/Script/SeedProfile.hs \

@@ -11,11 +11,13 @@ TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$(ihp_roster_verification_build_dir)}"
 # compiles only inventoried modules. Keep the production closure fresh whenever
 # the canonical Main target is checked so a new reachable module cannot pass
 # locally and disappear from the Nix production source.
+TARGETS=("$TARGET")
 if [ "$TARGET" = "Main.hs" ]; then
     node scripts/production-inventory.mjs --check
+    TARGETS+=(WorkerMain.hs)
 fi
 bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/module-name-check"
 ihp_roster_prepare_ghc_build_dir "$TYPECHECK_DIR" "$GHC_OPTS"
-exec ghc -no-link $GHC_OPTS "$TARGET" \
+exec ghc -no-link $GHC_OPTS "${TARGETS[@]}" \
     -odir "$TYPECHECK_DIR/obj" \
     -hidir "$TYPECHECK_DIR/hi"

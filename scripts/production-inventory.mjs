@@ -116,7 +116,7 @@ for (const executable of executableNames) {
 }
 if (!executableNames.has("RunProdServer") || !executableNames.has("RunJobs")) fail(`${executableInventoryPath}: app and worker runtime roots are required`);
 
-const haskellFiles = ["Main.hs", ...walk("Application"), ...walk("Web"), ...walk("Config")]
+const haskellFiles = ["Main.hs", "WorkerMain.hs", ...walk("Application"), ...walk("Web"), ...walk("Config")]
   .filter((file) => file.endsWith(".hs"));
 const modules = new Map();
 for (const file of haskellFiles) {
@@ -125,7 +125,7 @@ for (const file of haskellFiles) {
   if (modules.has(name)) fail(`duplicate local module ${name}: ${modules.get(name).file} and ${file}`);
   modules.set(name, { file, imports: imports(text, file) });
 }
-const roots = ["Main", "Config", ...productionScripts.map((row) => `Application.Script.${row.script}`)];
+const roots = ["Main", "WorkerMain", "Config", ...productionScripts.map((row) => `Application.Script.${row.script}`)];
 for (const rootModule of roots) if (!modules.has(rootModule)) fail(`missing production root module ${rootModule}`);
 const closureForRoot = (rootModule) => {
   const reached = new Set();
@@ -225,7 +225,7 @@ function exclusion(file) {
 const expectedRows = haskellFiles.sort().map((file) => {
   const name = [...modules].find(([, entry]) => entry.file === file)?.[0];
   const owner = reachableFrom.get(name);
-  if (owner) return { file, packaging: "production", category: owner === "Main" || owner === "Config" ? "runtime" : "operational-script-closure", owner, reason: `Reachable from ${owner}` };
+  if (owner) return { file, packaging: "production", category: ["Main", "WorkerMain", "Config"].includes(owner) ? "runtime" : "operational-script-closure", owner, reason: `Reachable from ${owner}` };
   const [category, reason] = exclusion(file);
   return { file, packaging: "development", category, owner: "-", reason };
 });

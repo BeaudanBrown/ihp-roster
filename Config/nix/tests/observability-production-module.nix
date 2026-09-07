@@ -64,6 +64,9 @@ assert builtins.all (evaluated: !(assertionsPass evaluated)) invalidConfiguratio
 assert cfg.services.tempo.enable;
 assert cfg.services.loki.enable;
 assert cfg.services.opentelemetry-collector.enable;
+assert collector.service.telemetry.metrics.readers == [ {
+  pull.exporter.prometheus = { host = "127.0.0.1"; port = 8888; };
+} ];
 assert collector.receivers.otlp.protocols.http.endpoint == "127.0.0.1:4318";
 assert collector.receivers.journald.units == [ "app.service" "worker.service" ];
 assert builtins.any (attribute: attribute.key == "service.name" && attribute.value == "ihp-roster") collector.processors."resource/logs".attributes;

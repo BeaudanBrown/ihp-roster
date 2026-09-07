@@ -185,7 +185,12 @@ let
       extensions = [ "health_check" "file_storage" ];
       telemetry = {
         logs.level = "info";
-        metrics.address = "127.0.0.1:${toString collectorCfg.metricsPort}";
+        metrics.readers = [ {
+          pull.exporter.prometheus = {
+            host = "127.0.0.1";
+            port = collectorCfg.metricsPort;
+          };
+        } ];
       };
       pipelines = {
         traces = {
@@ -1680,6 +1685,11 @@ in
       };
     })
     (mkIf tempoCfg.enable {
+      # The upstream NixOS module has no package option. Override only Tempo,
+      # keeping its pre-upgrade storage protocol until a dedicated migration.
+      nixpkgs.overlays = [ (_: prev: {
+        tempo = self.packages.${prev.stdenv.hostPlatform.system}.bepis-tempo;
+      }) ];
       services.tempo = {
         enable = true;
         settings = tempoSettings;

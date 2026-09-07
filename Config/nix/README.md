@@ -11,7 +11,7 @@ than every non-test source file.
 - `production-executable-inventory.tsv` owns every packaged binary—including
   the app and worker—and traces each to an exact NixOS consumer marker.
 - `production-module-inventory.tsv` is the reviewed, generated reachability
-  closure from `Main`, `Config`, and the production script roots. Every Haskell
+  closure from `Main`, `WorkerMain`, `Config`, and the production script roots. Every Haskell
   source under `Application/`, `Web/`, and `Config/` is classified. Production
   rows enter `project-source.nix`; development rows remain available from the
   working tree and devenv shell.
@@ -89,6 +89,34 @@ not be promoted merely to make a build pass. Promotion requires a concrete
 production runtime, deployment, maintenance, recovery, or recurring-service
 consumer.
 
+## IHP 1.6 integration
+
+`optimized-prod-server` and `unoptimized-prod-server` are explicit compatibility
+packages: the web/worker output plus the eight reviewed production scripts.
+Existing NixOS timer/recovery paths and environments remain valid; scripts build
+as independent upstream derivations, not part of the web/worker binary build.
+Dedicated `script-*` packages/apps are forced through the same managed
+NixSupport and telemetry wrappers, avoiding upstream's private unpatched import.
+
+`WorkerMain.hs` owns worker registration; `Main.hs` owns only web startup.
+Default typecheck and Weeder include both roots. `devenv up` has separate `web`
+and `worker` processes using workspace configuration; web-only dev-start,
+E2E and profile launchers do not implicitly start workers. Use `dev-worker`
+when independently exercising background delivery in a managed workspace.
+
+`ihp-compatibility-check` tests the patched framework's native PORT handling,
+app/tool conflicts, range rejection and wildcard bind, plus parity of all eight
+standalone and compatibility-package scripts. `verify-full` includes it.
+The WAI telemetry patch uses failing replacements so upstream source drift
+cannot silently reintroduce URL query strings.
+
+The IHP input brings a newer Collector schema; self-metrics remain loopback-only
+using a Prometheus reader. Tempo alone stays on the pre-upgrade package set
+(`nixpkgs-tempo`, exposed as `bepis-tempo`) in development and NixOS. Tempo 3's
+storage/retention migration is deliberately outside this upgrade's scope.
+`tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
+type for observability checks; it must never enter deployment host imports.
+
 ## Test-only Haskell dependencies
 
 `hspec`, `ihp-hspec`, and `QuickCheck` belong to `ihp.devHaskellPackages`, so
@@ -99,7 +127,7 @@ production module.
 
 Upstream IHP builds `app-lib.cabal` from every package registered in its GHC
 environment. `production-nix-support.nix` is the managed, fail-closed seam that
-requires exact dependency, app-library, and three executable-option markers
+requires exact dependency, app-library, shared executable-option, and telemetry entrypoint markers
 before transforming the pinned source. Production emits the unique packages from
 `production-package-dependency-inventory.tsv` instead; it never falls back to
 `ghc-pkg list`. During source generation, `ghc-pkg find-module` verifies that

@@ -7,6 +7,9 @@ devenv-script-freshness-check
 echo "verify-full: explicit production manifest authority"
 production-manifest-check
 
+echo "verify-full: IHP port and executable integration"
+ihp-compatibility-check
+
 echo "verify-full: production HTTP polling policy"
 http-repository-check
 

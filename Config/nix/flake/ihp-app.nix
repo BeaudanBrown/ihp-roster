@@ -9,7 +9,7 @@
             frontendContractToolGhc = pkgs.ghc.ghcWithPackages (p:
                 config.ihp.haskellPackages p ++ [ p.ihp-ide p.ihp-schema-compiler ]
             );
-            productionApp = optimized: import productionNixSupport {
+            productionServer = optimized: import productionNixSupport {
                 ihp = ihpSource;
                 haskellDeps = config.ihp.haskellPackages;
                 otherDeps = _: config.ihp.packages;
@@ -25,8 +25,42 @@
                 ihp-static = inputs'.ihp.packages.ihp-static;
                 static = config.packages.static;
             };
+            # Reviewed compatibility package: deployed timers and recovery commands
+            # retain their existing paths while upstream builds scripts independently.
+            productionApp = optimized:
+                let
+                    server = productionServer optimized;
+                    scripts = lib.mapAttrs (name: binary: pkgs.runCommand "bepis-script-${name}" {
+                        nativeBuildInputs = [ pkgs.makeWrapper ];
+                    } ''
+                        makeWrapper ${binary}/bin/${name} $out/bin/${name} \
+                            --set-default APP_STATIC ${config.packages.static} \
+                            --set-default IHP_STATIC ${inputs'.ihp.packages.ihp-static} \
+                            --prefix PATH : ${lib.makeBinPath config.ihp.packages}
+                    '') server.scriptBinaries;
+                in pkgs.symlinkJoin {
+                    name = "bepis-production-compat";
+                    paths = [ server ] ++ builtins.attrValues scripts;
+                    passthru = server.passthru // { scriptBinaries = scripts; };
+                };
+            optimizedApp = productionApp true;
+            unoptimizedApp = productionApp false;
+            scriptOutputs = if config.ihp.scripts.optimized then optimizedApp.scriptBinaries else unoptimizedApp.scriptBinaries;
         in
         {
+            imports = [ {
+                # Upstream closes over its own NixSupport import rather than the
+                # overridden server output. Force scripts through the managed seam.
+                packages = lib.mapAttrs' (name: binary:
+                    lib.nameValuePair "script-${name}" (lib.mkForce binary)
+                ) scriptOutputs;
+                apps = lib.mapAttrs' (name: binary:
+                    lib.nameValuePair "script-${name}" (lib.mkForce {
+                        type = "app";
+                        program = "${binary}/bin/${name}";
+                    })
+                ) scriptOutputs;
+            } ];
             ihp = {
                 appName = "app";
                 enable = true;
@@ -84,8 +118,11 @@
                 ];
             };
 
-            packages.optimized-prod-server = lib.mkForce (productionApp true);
-            packages.unoptimized-prod-server = lib.mkForce (productionApp false);
+            packages.bepis-tempo = (import inputs.nixpkgs-tempo {
+                system = pkgs.stdenv.hostPlatform.system;
+            }).tempo;
+            packages.optimized-prod-server = lib.mkForce optimizedApp;
+            packages.unoptimized-prod-server = lib.mkForce unoptimizedApp;
             # IHP's default schema derivation takes the complete projectPath as
             # src even though it installs only Schema.sql. Keep schema cache
             # ownership on the authoritative file itself.

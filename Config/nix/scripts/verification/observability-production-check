@@ -8,7 +8,9 @@ trap 'rm -rf "$tmp_dir"' EXIT
 module_json="$tmp_dir/module.json"
 nix eval --impure --json --file "$repo_root/Config/nix/tests/observability-production-module.nix" > "$module_json"
 
-nix eval --impure --json "$repo_root#nixosConfigurations.production.config" --apply '
+# Host storage is intentionally supplied only by the evaluation fixture; do not
+# make the placeholder production hardware configuration deployable for a test.
+nix eval --impure --json --file "$repo_root/Config/nix/tests/production-evaluation-config.nix" --apply '
   c: {
     production = c.services.ihpRoster.production;
     serviceName = c.services.ihp.additionalEnvVars.OTEL_SERVICE_NAME;

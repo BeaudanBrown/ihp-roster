@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "issue": 502,
-  "authority": "Count-only reconciliation of Feedback atop staging f9693f07, retaining epic 508's workflow owners and all staging ceilings: 17 Feedback runtime owners added and two retired diagnostics owners removed. Optimized merged package measured 576 modules/interfaces and 577 production rows at ed400abb. Byte/interface/dependency/executable ceilings remain unchanged; memory is opt-in and builder-specific",
+  "authority": "Count-only reconciliation of Feedback atop staging f9693f07, retaining epic 508's workflow owners and all staging ceilings: 17 Feedback runtime owners added and two retired diagnostics owners removed. Optimized merged package measured 576 modules/interfaces and 577 production rows at ed400abb. IHP 1.6 splits the existing worker registration into WorkerMain, adding one production row (578); no runtime feature added. Byte/interface/dependency/executable ceilings remain unchanged; memory is opt-in and builder-specific",
   "measurement_profile": "Config/nix/baselines/production-build/epic-444-final-xero-management.json",
   "module_count_inspection_profile": "Config/nix/baselines/production-build/epic-502-staging-rebase.json",
   "app_library": {
@@ -67,7 +67,7 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 577,
+    "module_rows_max": 578,
     "dependency_packages_max": 45,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",

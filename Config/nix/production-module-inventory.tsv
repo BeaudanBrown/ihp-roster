@@ -9,7 +9,7 @@ Application/Async/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Async/Error.hs	production	runtime	Main	Reachable from Main
 Application/Async/Payload.hs	production	runtime	Main	Reachable from Main
 Application/Async/Queue.hs	production	runtime	Main	Reachable from Main
-Application/Async/Registry.hs	production	runtime	Main	Reachable from Main
+Application/Async/Registry.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Bepis/Action.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Architecture.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Controller.hs	production	runtime	Main	Reachable from Main
@@ -330,7 +330,7 @@ Application/Helper/XeroTimesheetReadiness.hs	production	runtime	Main	Reachable f
 Application/InvitationDelivery/Email.hs	production	runtime	Main	Reachable from Main
 Application/InvitationDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/InvitationDelivery/Types.hs	production	runtime	Main	Reachable from Main
-Application/Job/App.hs	production	runtime	Main	Reachable from Main
+Application/Job/App.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
 Application/Operator/Error.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
@@ -405,7 +405,7 @@ Application/Xero/Admin/ReferenceData.hs	production	runtime	Main	Reachable from M
 Application/Xero/Admin/ReferenceSyncPolicy.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Connection.hs	production	runtime	Main	Reachable from Main
 Application/Xero/EmployeeId.hs	production	runtime	Main	Reachable from Main
-Application/Xero/Keepalive.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Keepalive.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Xero/PayrollSourceKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceCategory.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceDemand.hs	production	runtime	Main	Reachable from Main
@@ -605,4 +605,5 @@ Web/View/Timesheets/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/New.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/SuggestedNew.hs	production	runtime	Main	Reachable from Main
 Web/View/Users/New.hs	production	runtime	Main	Reachable from Main
-Web/Worker.hs	production	runtime	Main	Reachable from Main
+Web/Worker.hs	production	runtime	WorkerMain	Reachable from WorkerMain
+WorkerMain.hs	production	runtime	WorkerMain	Reachable from WorkerMain

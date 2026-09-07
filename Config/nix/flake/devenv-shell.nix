@@ -1,6 +1,6 @@
 { ... }:
 {
-    perSystem = { pkgs, inputs', ... }:
+    perSystem = { pkgs, inputs', config, ... }:
         let
             scriptDefinitions = import ./scripts.nix { inherit pkgs; };
             projectSource = import ./project-source.nix { inherit pkgs; };
@@ -51,7 +51,7 @@
                     pkgs.nix
                     pkgs.graphviz
                     pkgs.opentelemetry-collector-contrib
-                    pkgs.tempo
+                    config.packages.bepis-tempo
                     pkgs.grafana-loki
                     pkgs.grafana
                     pkgs.stripe-cli

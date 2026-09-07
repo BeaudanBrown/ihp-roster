@@ -110,8 +110,8 @@ IHP.Fetch	ihp	Application/Helper/LiveUpdate/DurableState.hs via Main
 IHP.FrameworkConfig	ihp	Main.hs via Main
 IHP.HaskellSupport	ihp	Application/VenueTime/Model.hs via Main
 IHP.InputValue	ihp	Application/Helper/Passkeys.hs via Main
-IHP.Job.Runner	ihp	Web/Worker.hs via Main
-IHP.Job.Types	ihp	Main.hs via Main
+IHP.Job.Runner	ihp	Web/Worker.hs via WorkerMain
+IHP.Job.Types	ihp	Application/Billing/Reconciliation.hs via Main
 IHP.LoginSupport.Helper.Controller	ihp	Web/FrontController.hs via Main
 IHP.LoginSupport.Middleware	ihp	Web/FrontController.hs via Main
 IHP.LoginSupport.Types	ihp	Web/Types.hs via Main
