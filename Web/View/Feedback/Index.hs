@@ -18,14 +18,19 @@ data IndexView = IndexView { cards :: [PublicFeedbackCard], managementCards :: M
 instance View IndexView where
     html IndexView { .. } = renderAppPage AppPageConfig
         { appPageTitle = "Feedback"
-        , appPageDescription = Just "Ideas and improvements shared across Bepis. New feedback is private until reviewed."
+        , appPageDescription = Nothing
         , appPageActions = renderAddFeedback
         , appPageHelpTopic = Just (PageHelpTopicId "feedback")
         , appPageWidthClass = ""
-        , appPageBody = case managementCards of
+        , appPageBody = renderAppPanel $ defaultAppPanelConfig [hsx|
+            <p>Share your thoughts about what features should be added to Bepis next!</p>
+            {feedbackList}
+        |]
+        }
+      where
+        feedbackList = case managementCards of
             Just managed -> renderFrontendSurfaceMount feedbackModerationSurface (renderFeedbackManagement managed)
             Nothing -> renderFrontendSurfaceMount (feedbackSurface (unpackId currentVenueId)) (renderPublicFeedbackCards cards)
-        }
 
 renderAddFeedback :: Html
 renderAddFeedback = renderAppShellActionLink

@@ -113,18 +113,20 @@ renderAppHeader =
 
 renderDesktopFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopFeedbackButton = [hsx|
-    <div class="d-flex align-items-center gap-1">
-        {renderDesktopNavLink "feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]}
+    <a class={desktopNavLinkClass ["/Feedback", "/NewFeedback"]} href={pathTo FeedbackAction} aria-current={navAriaCurrent ["/Feedback", "/NewFeedback"]}>
+        <i class="bi bi-chat-dots" aria-hidden="true"></i>
+        <span>feedback</span>
         {when currentUserIsUnimpersonatedSuperAdmin (renderFrontendSurfaceMount feedbackDesktopCountSurface (renderFeedbackDesktopCount privateFeedbackCount))}
-    </div>
+    </a>
 |]
 
 renderMobileFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
 renderMobileFeedbackButton = [hsx|
-    <div class="d-flex align-items-center gap-1">
-        {renderMobileNavLink "Feedback" "bi-chat-dots" (pathTo FeedbackAction) ["/Feedback", "/NewFeedback"]}
+    <a class={mobileNavLinkClass ["/Feedback", "/NewFeedback"]} href={pathTo FeedbackAction} aria-current={navAriaCurrent ["/Feedback", "/NewFeedback"]}>
+        <i class="bi bi-chat-dots app-mobile-nav-icon" aria-hidden="true"></i>
+        <span>Feedback</span>
         {when currentUserIsUnimpersonatedSuperAdmin (renderFrontendSurfaceMount feedbackMobileCountSurface (renderFeedbackMobileCount privateFeedbackCount))}
-    </div>
+    </a>
 |]
 
 privateFeedbackCount :: (?context :: ControllerContext) => Int

@@ -21,17 +21,19 @@ renderPublicFeedbackCards cards = [hsx|
         _ -> forEach cards renderPublicFeedbackCard
 
 renderPublicFeedbackCard :: PublicFeedbackCard -> Html
-renderPublicFeedbackCard card = renderAppPanel (defaultAppPanelConfig [hsx|
-    <article class="text-break">
-        <h2 class="h5">{card.title}</h2>
-        <div class="d-flex gap-3 flex-wrap text-muted mb-2">
-            <span>{Text.toTitle (feedbackTypeLabel card.feedbackType)}</span>
-            <span>Submitted {dateTime card.submittedAt}</span>
+renderPublicFeedbackCard card = [hsx|
+    <article class="border-bottom pb-3">
+        <div class="row g-3 align-items-start">
+            <div class="col text-break">
+                <p class="text-muted mb-2">{Text.toTitle (feedbackTypeLabel card.feedbackType)}</p>
+                <p class="mb-0">{card.description}</p>
+            </div>
+            <div class="col-auto ms-auto">
+                {renderFeedbackVote card}
+            </div>
         </div>
-        <p>{card.description}</p>
-        {renderFeedbackVote card}
     </article>
-|])
+|]
 
 -- Native stable identity lets the generic live-fragment focus owner preserve
 -- this control as server ordering changes. Only the viewer's own state crosses

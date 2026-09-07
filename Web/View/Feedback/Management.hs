@@ -17,8 +17,8 @@ feedbackActionRoute action = FrontendSurfaceActionRoute
 renderFeedbackManagement :: [ManagementFeedbackCard] -> Html
 renderFeedbackManagement cards = [hsx|
     <div id={surfaceFragmentTargetId @Surface.FeedbackModerationSurface @Surface.FeedbackReview noSurfaceFields} class="app-page-stack">
-        {section Private "Private"}
         {section Public "Public"}
+        {section Private "Private"}
         {section Archived "Archived"}
     </div>
 |]
@@ -28,38 +28,49 @@ renderFeedbackManagement cards = [hsx|
     section lifecycle label = [hsx|
         <section class="d-flex flex-column gap-3">
             <h2 class="h4">{label} ({length selected})</h2>
-            {if null selected then emptySection else forEach selected renderManagementCard}
+            {if null selected then emptySection else renderManagementTable label selected}
         </section>
     |]
       where
         selected = filter (\card -> card.item.lifecycle == lifecycle) cards
 
-renderManagementCard :: ManagementFeedbackCard -> Html
-renderManagementCard card = renderAppPanel (defaultAppPanelConfig [hsx|
-    <article class="text-break">
-        <h3 class="h5">{item.title}</h3>
-        <p class="text-muted">{feedbackTypeLabel item.feedbackType} · Submitted {dateTime item.createdAt}</p>
-        <p>{item.content}</p>
-        {maybe mempty renderFeedbackVote card.publicCard}
-        <details>
-            <summary>Private submission details</summary>
-            <dl>
-                <dt>Submitter</dt><dd>{card.submitterEmail}</dd>
-                <dt>Venue</dt><dd>{card.venueName}</dd>
-                <dt>Retained support note</dt><dd>{fromMaybe "None" item.supportNote}</dd>
-                <dt>Legacy page</dt><dd>{fromMaybe "Not captured" item.submittedPath}</dd>
-                <dt>Legacy role</dt><dd>{fromMaybe "Not captured" item.submittedRole}</dd>
-                <dt>Legacy User-Agent</dt><dd>{fromMaybe "Not captured" item.userAgent}</dd>
-                <dt>Legacy viewport width / height</dt><dd>{item.viewportWidth} / {item.viewportHeight}</dd>
-                <dt>Legacy pixel ratio</dt><dd>{item.devicePixelRatio}</dd>
-                <dt>Legacy device / display mode</dt><dd>{item.deviceClass} / {item.displayMode}</dd>
-            </dl>
-        </details>
-        <div class="d-flex gap-2 flex-wrap mt-3">{controls}</div>
-    </article>
-|])
+renderManagementTable :: Text -> [ManagementFeedbackCard] -> Html
+renderManagementTable label cards = [hsx|
+    <div class="table-responsive" role="region" aria-label={label <> " feedback"} tabindex="0">
+        <table class="table align-middle mb-0" aria-label={label <> " feedback"}>
+            <thead>
+                <tr>
+                    <th scope="col">Title</th>
+                    <th scope="col">Content</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Submitted</th>
+                    <th scope="col">Submitter</th>
+                    <th scope="col">Venue</th>
+                    <th scope="col">Votes</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>{forEach cards renderManagementRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderManagementRow :: ManagementFeedbackCard -> Html
+renderManagementRow card = [hsx|
+    <tr>
+        <th scope="row" class="text-break">{item.title}</th>
+        <td class="text-break">{item.content}</td>
+        <td>{feedbackTypeLabel item.feedbackType}</td>
+        <td class="text-nowrap">{dateTime item.createdAt}</td>
+        <td>{card.submitterEmail}</td>
+        <td>{card.venueName}</td>
+        <td>{votes}</td>
+        <td><div class="d-flex gap-2 flex-wrap">{controls}</div></td>
+    </tr>
+|]
   where
     item = card.item
+    votes = maybe [hsx|<span class="text-muted">Not available</span>|] renderFeedbackVote card.publicCard
     edit = renderFrontendSurfaceActionLink (Action.editFeedbackAction Action.editFeedbackActionFields)
         ((feedbackActionRoute (EditFeedbackAction item.id)) { actionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("data-turbolinks", "false")] }) [hsx|Edit|]
     publish = renderFrontendSurfaceActionForm (Action.publishFeedbackAction Action.publishFeedbackActionFields)
