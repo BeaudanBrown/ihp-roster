@@ -8,7 +8,7 @@ import qualified Data.Text.IO as TextIO
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
 import qualified Hasql.Session as HasqlSession
-import IHP.Controller.Context (ControllerContext)
+import IHP.ControllerSupport (ControllerContext)
 import IHP.ControllerPrelude
 import IHP.ModelSupport.Types (HasqlSessionError (..),
                                ModelContext (transactionRunner),

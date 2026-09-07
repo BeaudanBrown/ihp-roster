@@ -69,6 +69,7 @@ Application/FwcMapd/Sync.hs	production	runtime	Main	Reachable from Main
 Application/FwcMapd/Validation.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Audit.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Audit/Vocabulary.hs	production	runtime	Main	Reachable from Main
+Application/Helper/Authentication.hs	production	runtime	Main	Reachable from Main
 Application/Helper/ByteEncoding.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Conflict.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Controller.hs	production	runtime	Main	Reachable from Main

@@ -1,6 +1,5 @@
 module Application.Helper.Profiling
-    ( initRequestProfiling
-    , isRequestProfilingEnabled
+    ( isRequestProfilingEnabled
     , profileActionSpan
     , profileActionSpanWithDetail
     , profileHtmlComponent
@@ -27,7 +26,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Data.Vault.Lazy as Vault
 import GHC.Clock (getMonotonicTimeNSec)
-import IHP.Controller.Context (ControllerContext, maybeFromContext, putContext)
+import IHP.ControllerSupport (ControllerContext)
 import IHP.Controller.Render (renderHtml, respondHtml)
 import IHP.ControllerSupport (Respond, respondAndExitWithHeaders)
 import IHP.Prelude
@@ -75,28 +74,13 @@ profilingMiddleware app request respond = do
         finalizedResponse <- finalizeResponseProfileHeaders request' profileRef response
         respond finalizedResponse
 
-initRequestProfiling :: (?context :: ControllerContext) => IO ()
-initRequestProfiling = do
-    existingProfile :: Maybe RequestProfile <- maybeFromContext
-    case existingProfile of
-        Just _ -> pure ()
-        Nothing -> do
-            maybeProfile <- currentRequestProfileFromVault ?context.request
-            case maybeProfile of
-                Just profile -> putContext profile
-                Nothing -> do
-                    -- Fallback for controller tests or non-standard entrypoints that
-                    -- call initContext without the app middleware stack.
-                    maybeStandaloneProfile <- newRequestProfileIfEnabled
-                    forEach maybeStandaloneProfile putContext
-
 profileActionSpan :: (?context :: ControllerContext) => Text -> IO a -> IO a
 profileActionSpan name action =
     profileActionSpanWithDetail name (fmap (, Nothing) action)
 
 profileCounter :: (?context :: ControllerContext) => Text -> Int -> IO ()
 profileCounter name amount = do
-    maybeProfile :: Maybe RequestProfile <- maybeFromContext
+    maybeProfile <- currentRequestProfileFromVault ?context
     forEach maybeProfile \_ ->
         appendActiveRenderCounter name amount
 
@@ -110,7 +94,7 @@ profileRenderCounter name amount =
 profileHtmlComponent :: (?context :: ControllerContext) => Text -> Blaze.Html -> Blaze.Html
 profileHtmlComponent name html =
     unsafePerformIO do
-        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        maybeProfile <- currentRequestProfileFromVault ?context
         case maybeProfile of
             Nothing -> pure html
             Just profile ->
@@ -144,7 +128,7 @@ renderProfiled view = do
 respondHtmlProfiled :: (?context :: ControllerContext, ?request :: Request) => Blaze.Html -> IO ()
 respondHtmlProfiled html =
     annotateHtmlResponse do
-        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        maybeProfile <- currentRequestProfileFromVault ?context
         case maybeProfile of
             Nothing -> respondHtml html
             Just profile -> do
@@ -177,7 +161,7 @@ respondHtmlProfiled html =
                 else bepisHtmlResponse
 
 isProfilingHtmxRequest :: (?context :: ControllerContext) => Bool
-isProfilingHtmxRequest = lookup "HX-Request" ?context.request.requestHeaders == Just "true"
+isProfilingHtmxRequest = lookup "HX-Request" ?context.requestHeaders == Just "true"
 
 isRequestProfilingEnabled :: IO Bool
 isRequestProfilingEnabled = do
@@ -190,7 +174,7 @@ isRequestProfilingEnabled = do
 profileActionSpanWithDetail :: (?context :: ControllerContext) => Text -> IO (a, Maybe Text) -> IO a
 profileActionSpanWithDetail name action =
     withTelemetrySpan name do
-        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        maybeProfile <- currentRequestProfileFromVault ?context
         case maybeProfile of
             Nothing -> fst <$> action
             Just profile -> do

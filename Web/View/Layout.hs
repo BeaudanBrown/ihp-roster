@@ -2,13 +2,11 @@
 
 module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, renderFeedbackDesktopCount, renderFeedbackMobileCount, Html) where
 
-import Application.Billing.Stripe (BillingNavigationContext (..))
-import Application.Helper.Feedback (PrivateFeedbackCount (..))
 import Application.Feedback.LiveUpdates (feedbackDesktopCountSurface, feedbackMobileCountSurface)
 import qualified Application.Helper.FrontendContract.Surface.Feedback as FeedbackSurface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFragmentTargetId, noSurfaceFields)
-import Application.Helper.ControllerContext (currentUserIsUnimpersonatedSuperAdmin)
+import Application.Helper.ControllerContext (currentUserIsUnimpersonatedSuperAdmin, requestVenueState, RequestVenueState (..), BillingNavigationContext (..))
 import Application.Helper.Controller (EffectiveUser (..),
                                       ImpersonationRequestContext (..),
                                       SupportImpersonationOption (..),
@@ -28,7 +26,7 @@ import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
-import IHP.ControllerSupport (getRequestPathAndQuery)
+import IHP.ControllerSupport (ControllerContext, getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
 import qualified Network.Wai as Wai
@@ -130,8 +128,7 @@ renderMobileFeedbackButton = [hsx|
 |]
 
 privateFeedbackCount :: (?context :: ControllerContext) => Int
-privateFeedbackCount = case fromFrozenContext @PrivateFeedbackCount of
-    PrivateFeedbackCount count -> count
+privateFeedbackCount = requestVenueState.privateFeedback
 
 renderFeedbackDesktopCount :: Int -> Html
 renderFeedbackDesktopCount count = [hsx|
@@ -224,13 +221,13 @@ ownerBillingNavigationLabel
 
 billingSubscriptionIsLive :: (?context :: ControllerContext) => Bool
 billingSubscriptionIsLive =
-    (fromFrozenContext @BillingNavigationContext).ownerBillingSubscriptionIsLive
+    requestVenueState.billingNavigation.ownerBillingSubscriptionIsLive
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
 ownerBillingNavigationIsVisible =
     (not currentUserIsSupportAdmin || currentUserIsImpersonating)
         && currentUserIsVenueOwner
-        && (fromFrozenContext @BillingNavigationContext).ownerBillingNavigationVisible
+        && requestVenueState.billingNavigation.ownerBillingNavigationVisible
 
 renderDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html
 renderDesktopNavLink label iconClass url activePrefixes = [hsx|

@@ -7,7 +7,6 @@ module Application.Billing.Stripe
     , StripeDeploymentControls (..)
     , StripeHttpRequest (..)
     , StripeMode (..)
-    , BillingNavigationContext (..)
     , StripePortalSession (..)
     , StripePrice (..)
     , StripeRecurring (..)
@@ -98,12 +97,6 @@ data StripeDeploymentControls = StripeDeploymentControls
     { stripeBillingEnabled         :: !Bool
     , stripeCheckoutEnabled        :: !Bool
     , stripeOwnerNavigationVisible :: !Bool
-    }
-    deriving (Eq, Show)
-
-data BillingNavigationContext = BillingNavigationContext
-    { ownerBillingNavigationVisible  :: !Bool
-    , ownerBillingSubscriptionIsLive :: !Bool
     }
     deriving (Eq, Show)
 

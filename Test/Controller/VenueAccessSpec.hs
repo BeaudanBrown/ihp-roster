@@ -6,8 +6,8 @@ import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
 import Application.EmailDelivery
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
-import Application.Helper.Controller (currentVenueSessionKey,
-                                      initCurrentVenueContext)
+import Application.Helper.Controller (currentVenueSessionKey)
+import qualified Application.Helper.ControllerContext as RequestContext
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as LeaveLive
@@ -27,12 +27,11 @@ import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Generated.Types
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
-import IHP.Controller.Context (ControllerContext, newControllerContext)
+import IHP.ControllerSupport (ControllerContext)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
-import IHP.LoginSupport.Middleware (initAuthentication)
 import IHP.Prelude
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
@@ -57,6 +56,19 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Venue-scoped access control" do
+        it "keeps mutable venue state fresh and isolated between requests" $ withContext do
+            withControllerTestContext do
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
+                RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just Owner }
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Just Owner
+                withControllerTestContext do
+                    RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
+                    RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just Admin }
+                    RequestContext.currentVenueRoleOrNothing `shouldBe` Just Admin
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Just Owner
+                RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Nothing }
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
+
         it "keeps active membership batches empty-safe and venue-scoped" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Membership batch A"
@@ -1224,35 +1236,23 @@ withAuthenticatedControllerContext ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
     User ->
     Id Venue ->
-    ((?context :: ControllerContext) => IO result) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO result) ->
     IO result
 withAuthenticatedControllerContext user venueId action =
     withSessionValues
         [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
         , (currentVenueSessionKey, Serialize.encode venueId)
         ]
-        do
-            let ?frameworkConfig = config
-            controllerContext <- newControllerContext
-            let ?context = controllerContext
-            initAuthentication @User
-            initCurrentVenueContext
-            action
+        (withCurrentControllerContext action)
 
 withAuthenticatedControllerContextNoVenue ::
     forall result.
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
     User ->
-    ((?context :: ControllerContext) => IO result) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO result) ->
     IO result
 withAuthenticatedControllerContextNoVenue user action =
     withSessionValues
         [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
         ]
-        do
-            let ?frameworkConfig = config
-            controllerContext <- newControllerContext
-            let ?context = controllerContext
-            initAuthentication @User
-            initCurrentVenueContext
-            action
+        (withCurrentControllerContext action)

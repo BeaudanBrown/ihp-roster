@@ -17,11 +17,12 @@ authenticatedSessionVersionIsCurrent =
     case currentUserOrNothing @User of
         Nothing -> pure True
         Just user -> do
-            sessionVersion <- getSession @Int sessionVersionSessionKey
+            sessionVersion <- getSessionEither @Int sessionVersionSessionKey
             pure $
                 case sessionVersion of
-                    Nothing      -> user.sessionVersion == 0
-                    Just version -> version == user.sessionVersion
+                    Left NotFoundError -> user.sessionVersion == 0
+                    Left (ParseError _) -> False
+                    Right version -> version == user.sessionVersion
 
 markAuthenticatedSessionVersion :: (?context :: ControllerContext, ?request :: Request) => User -> IO ()
 markAuthenticatedSessionVersion user =

@@ -8,6 +8,10 @@ import Application.Helper.Controller (currentVenueSessionKey,
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
                                                             canonicalPasskeyDom)
 import Application.Helper.SessionVersion (sessionVersionSessionKey)
+import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
+import Web.SurfaceInvalidation (authorizeSurfaceScope)
+import Application.Helper.ControllerContext (currentVenueOrNothing, currentVenueMembershipOrNothing, currentImpersonationOrNothing)
+import qualified Data.UUID as UUID
 import Config
 import qualified Data.Serialize as Serialize
 import Data.Time.Clock (addUTCTime, getCurrentTime)
@@ -76,6 +80,57 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
+
+        it "accepts both raw UUID and legacy cereal authentication sessions" $ withContext do
+            withCleanDb do
+                user <- createUserRecord "session-encoding@example.com" "staff" True
+                forM_ [UUID.toASCIIBytes (unpackId user.id), Serialize.encode user.id] \encoded ->
+                    withSessionValues [(LoginSupport.sessionKey @User, encoded)] do
+                        withCurrentControllerContext do
+                            fmap (.id) (LoginSupport.currentUserOrNothing @User) `shouldBe` Just user.id
+
+        it "clears malformed authentication and dependent authority in the same request" $ withContext do
+            withCleanDb do
+                withSessionValues
+                    [ (LoginSupport.sessionKey @User, "malformed-user")
+                    , (passkeyVerifiedUserSessionKey, Serialize.encode ("stale-user" :: Text))
+                    ] do
+                        withCurrentControllerContext do
+                            LoginSupport.currentUserOrNothing @User `shouldBe` Nothing
+                            LoginSupport.currentUserIdOrNothing `shouldBe` Nothing
+                            currentVenueOrNothing `shouldBe` Nothing
+                            currentVenueMembershipOrNothing `shouldBe` Nothing
+                            currentImpersonationOrNothing `shouldBe` Nothing
+                            getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+
+        it "does not treat a malformed version as a legacy version-zero session" $ withContext do
+            withCleanDb do
+                user <- createUserRecord "malformed-version@example.com" "staff" True
+                withSessionValues
+                    [ (LoginSupport.sessionKey @User, UUID.toASCIIBytes (unpackId user.id))
+                    , (sessionVersionSessionKey, "malformed-version")
+                    ] do
+                        withCurrentControllerContext do
+                            LoginSupport.currentUserOrNothing @User `shouldBe` Nothing
+                            LoginSupport.currentUserIdOrNothing `shouldBe` Nothing
+
+        it "removes an already loaded revoked user before venue or socket authorization" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Revoked Loaded Authority"
+                user <- createUserRecordWithPlatformRole "revoked-loaded@example.com" "staff" (Just SuperAdmin) True
+                    >>= updateRecord . set #sessionVersion 1
+                _ <- createVenueMembershipRecord venue user Worker
+                withSessionValues
+                    [ (LoginSupport.sessionKey @User, UUID.toASCIIBytes (unpackId user.id))
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (sessionVersionSessionKey, Serialize.encode (0 :: Int))
+                    ] do
+                        withCurrentControllerContext do
+                            LoginSupport.currentUserOrNothing @User `shouldBe` Nothing
+                            LoginSupport.currentUserIdOrNothing `shouldBe` Nothing
+                            currentVenueOrNothing `shouldBe` Nothing
+                            currentVenueMembershipOrNothing `shouldBe` Nothing
+                            authorizeSurfaceScope SupportLive.supportPlatformLiveScope `shouldReturn` False
 
         it "accepts a session carrying the user's current session version" $ withContext do
             withCleanDb do

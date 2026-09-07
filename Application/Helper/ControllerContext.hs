@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -fno-cse -fno-full-laziness #-}
 
 module Application.Helper.ControllerContext where
 
@@ -6,9 +7,11 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeI
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import Generated.Types
-import IHP.Controller.Context (maybeFromContext, putContext)
+import Data.IORef (IORef, atomicModifyIORef', readIORef)
+import qualified Data.Vault.Lazy as Vault
+import IHP.RequestVault.Helper (insertNewIORefVaultMiddleware, lookupRequestVault)
 import IHP.ControllerPrelude
-import Network.Wai (Request)
+import Network.Wai (Request, Middleware)
 import System.IO.Unsafe (unsafePerformIO)
 import Web.Routes ()
 import Web.Types ()
@@ -17,20 +20,72 @@ import Application.Helper.ControllerSupport
 import Application.Helper.Profiling (profileActionSpan)
 import Application.Helper.Telemetry (withTelemetrySpan)
 
+-- Mutable application state is allocated once per request, never globally.
+-- Auth identity remains in IHP's immutable vault entries and is validated before
+-- this state is populated; venue/support mutations cannot replace auth identity.
+data RequestVenueState = RequestVenueState
+    { venue :: !(Maybe Venue)
+    , membership :: !(Maybe VenueMembership)
+    , role :: !(Maybe VenueRoleEnum)
+    , selection :: !CurrentVenueSelection
+    , supportVenues :: !SupportVenueOptions
+    , supportUsers :: !SupportImpersonationOptions
+    , impersonation :: !(Maybe ImpersonationRequestContext)
+    , effectiveStaff :: !EffectiveStaffContext
+    , returnFallback :: !ImpersonationReturnFallbackContext
+    , billingNavigation :: !BillingNavigationContext
+    , privateFeedback :: !Int
+    }
+
+-- Navigation facts, not a Stripe client dependency: generators also consume
+-- this context module and must not acquire provider IO through these fields.
+data BillingNavigationContext = BillingNavigationContext
+    { ownerBillingNavigationVisible :: !Bool
+    , ownerBillingSubscriptionIsLive :: !Bool
+    }
+    deriving (Eq, Show)
+
+requestVenueStateKey :: Vault.Key (IORef RequestVenueState)
+requestVenueStateKey = unsafePerformIO Vault.newKey
+{-# NOINLINE requestVenueStateKey #-}
+
+venueRequestStateMiddleware :: Middleware
+venueRequestStateMiddleware = insertNewIORefVaultMiddleware requestVenueStateKey RequestVenueState
+    { venue = Nothing
+    , membership = Nothing
+    , role = Nothing
+    , selection = CurrentVenueSelection Nothing Nothing
+    , supportVenues = SupportVenueOptions []
+    , supportUsers = SupportImpersonationOptions []
+    , impersonation = Nothing
+    , effectiveStaff = EffectiveStaffContext Nothing
+    , returnFallback = ImpersonationReturnFallbackContext False
+    , billingNavigation = BillingNavigationContext False False
+    , privateFeedback = 0
+    }
+
+requestVenueState :: (?context :: ControllerContext) => RequestVenueState
+requestVenueState = unsafePerformIO (readIORef (lookupRequestVault requestVenueStateKey ?context))
+{-# NOINLINE requestVenueState #-}
+
+modifyRequestVenueState :: (?context :: ControllerContext) => (RequestVenueState -> RequestVenueState) -> IO ()
+modifyRequestVenueState update =
+    atomicModifyIORef' (lookupRequestVault requestVenueStateKey ?context) (\state -> (update state, ()))
+
 currentVenueSessionKey :: ByteString
 currentVenueSessionKey = "currentVenueId"
 
 withRequestContext :: (?context :: ControllerContext) => ((?request :: Request) => value) -> value
 withRequestContext action =
-    let ?request = ?context.request
+    let ?request = ?context
     in action
 {-# INLINE withRequestContext #-}
 
 authenticatedCurrentUser :: (?context :: ControllerContext) => User
 authenticatedCurrentUser =
     fromMaybe
-        (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authenticatedCurrentUser: initAuthentication has not populated the current user")
-        (currentUserOrNothing @User)
+        (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authenticatedCurrentUser: authentication middleware has not populated the current user")
+        (withRequestContext (currentUserOrNothing @User))
 {-# INLINE authenticatedCurrentUser #-}
 
 newtype SupportVenueOptions = SupportVenueOptions { supportVenueOptions :: [Venue] }
@@ -50,10 +105,7 @@ data CurrentVenueSelection = CurrentVenueSelection
     }
 
 currentVenueSelection :: (?context :: ControllerContext) => CurrentVenueSelection
-currentVenueSelection =
-    fromMaybe
-        (CurrentVenueSelection Nothing Nothing)
-        (unsafePerformIO (maybeFromContext @CurrentVenueSelection))
+currentVenueSelection = requestVenueState.selection
 {-# NOINLINE currentVenueSelection #-}
 
 currentVenueSelectionIsExact :: (?context :: ControllerContext) => Bool
@@ -97,7 +149,7 @@ effectiveRequestUser =
         currentImpersonationOrNothing
 
 currentImpersonationOrNothing :: (?context :: ControllerContext) => Maybe ImpersonationRequestContext
-currentImpersonationOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe ImpersonationRequestContext))
+currentImpersonationOrNothing = requestVenueState.impersonation
 {-# NOINLINE currentImpersonationOrNothing #-}
 
 currentUserIsImpersonating :: (?context :: ControllerContext) => Bool
@@ -118,18 +170,16 @@ effectiveVenueRoleOrNothing =
 
 currentImpersonationReturnFallbackVisible :: (?context :: ControllerContext) => Bool
 currentImpersonationReturnFallbackVisible =
-    maybe False (.impersonationReturnFallbackVisible) (unsafePerformIO (maybeFromContext @ImpersonationReturnFallbackContext))
+    requestVenueState.returnFallback.impersonationReturnFallbackVisible
 {-# NOINLINE currentImpersonationReturnFallbackVisible #-}
 
 effectiveStaffOrNothing :: (?context :: ControllerContext) => Maybe Staff
 effectiveStaffOrNothing =
-    case unsafePerformIO (maybeFromContext @EffectiveStaffContext) of
-        Nothing -> Nothing
-        Just effectiveStaffContext -> effectiveStaffContext.effectiveStaffContextValue
+    requestVenueState.effectiveStaff.effectiveStaffContextValue
 {-# NOINLINE effectiveStaffOrNothing #-}
 
 currentVenueOrNothing :: (?context :: ControllerContext) => Maybe Venue
-currentVenueOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe Venue))
+currentVenueOrNothing = requestVenueState.venue
 {-# NOINLINE currentVenueOrNothing #-}
 
 currentVenue :: (?context :: ControllerContext) => Venue
@@ -140,19 +190,17 @@ currentVenueId :: (?context :: ControllerContext) => Id Venue
 currentVenueId = get #id currentVenue
 
 currentVenueMembershipOrNothing :: (?context :: ControllerContext) => Maybe VenueMembership
-currentVenueMembershipOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe VenueMembership))
+currentVenueMembershipOrNothing = requestVenueState.membership
 {-# NOINLINE currentVenueMembershipOrNothing #-}
 
 
 currentVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRoleEnum
-currentVenueRoleOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe VenueRoleEnum))
+currentVenueRoleOrNothing = requestVenueState.role
 {-# NOINLINE currentVenueRoleOrNothing #-}
 
 currentSupportVenueOptionsOrNothing :: (?context :: ControllerContext) => Maybe [Venue]
 currentSupportVenueOptionsOrNothing =
-    case unsafePerformIO (maybeFromContext @SupportVenueOptions) of
-        Nothing                           -> Nothing
-        Just (SupportVenueOptions venues) -> Just venues
+    Just requestVenueState.supportVenues.supportVenueOptions
 {-# NOINLINE currentSupportVenueOptionsOrNothing #-}
 
 currentSupportVenueOptions :: (?context :: ControllerContext) => [Venue]
@@ -160,14 +208,12 @@ currentSupportVenueOptions = fromMaybe [] currentSupportVenueOptionsOrNothing
 
 currentSupportImpersonationOptions :: (?context :: ControllerContext) => [SupportImpersonationOption]
 currentSupportImpersonationOptions =
-    case unsafePerformIO (maybeFromContext @SupportImpersonationOptions) of
-        Nothing                                        -> []
-        Just (SupportImpersonationOptions userOptions) -> userOptions
+    requestVenueState.supportUsers.supportImpersonationOptions
 {-# NOINLINE currentSupportImpersonationOptions #-}
 
 currentUserPlatformRoleOrNothing :: (?context :: ControllerContext) => Maybe PlatformRoleEnum
 currentUserPlatformRoleOrNothing =
-    currentUserOrNothing @User >>= \user ->
+    withRequestContext (currentUserOrNothing @User) >>= \user ->
         user.platformRole
 
 currentUserIsSuperAdmin :: (?context :: ControllerContext) => Bool
@@ -190,24 +236,28 @@ initCurrentVenueContext =
                     |> orderByAsc #createdAt
                     |> fetch
 
-        putContext (Nothing :: Maybe Venue)
-        putContext (Nothing :: Maybe VenueMembership)
-        putContext (Nothing :: Maybe VenueRoleEnum)
-        putContext (SupportVenueOptions supportVenues)
-        putContext (CurrentVenueSelection Nothing Nothing)
+        modifyRequestVenueState \state -> state
+            { venue = Nothing
+            , membership = Nothing
+            , role = Nothing
+            , supportVenues = SupportVenueOptions supportVenues
+            , selection = CurrentVenueSelection Nothing Nothing
+            }
 
-        forM_ (currentUserOrNothing @User) \user -> do
+        forM_ (withRequestContext (currentUserOrNothing @User)) \user -> do
             sessionVenueId <- withRequestContext (getSession @(Id Venue) currentVenueSessionKey)
             maybeVenueContext <- profileActionSpan "context.current_venue.resolve_for_user" (resolveVenueContextForUser sessionVenueId user)
             case maybeVenueContext of
                 Nothing -> do
-                    putContext (CurrentVenueSelection sessionVenueId Nothing)
+                    modifyRequestVenueState \state -> state { selection = CurrentVenueSelection sessionVenueId Nothing }
                     withRequestContext (deleteSession currentVenueSessionKey)
                 Just (membership, venue, role) -> do
-                    putContext (CurrentVenueSelection sessionVenueId (Just venue.id))
-                    putContext (Just venue)
-                    putContext membership
-                    putContext role
+                    modifyRequestVenueState \state -> state
+                        { selection = CurrentVenueSelection sessionVenueId (Just venue.id)
+                        , venue = Just venue
+                        , membership = membership
+                        , role = role
+                        }
                     withRequestContext (setSession currentVenueSessionKey (get #id venue))
 
 resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRoleEnum))

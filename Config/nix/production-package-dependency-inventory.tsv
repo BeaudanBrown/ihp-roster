@@ -40,7 +40,7 @@ Data.ByteString.Char8	bytestring	Application/Helper/Profiling/Runtime.hs via Mai
 Data.ByteString.Lazy	bytestring	Application/Helper/Profiling/Runtime.hs via Main
 Data.CaseInsensitive	case-insensitive	Application/Helper/Telemetry.hs via Main
 Data.Char	base	Application/Helper/Telemetry.hs via Main
-Data.Coerce	base	Web/Controller/Feedback.hs via Main
+Data.Coerce	base	Application/Helper/ControllerContext.hs via Main
 Data.Data	base	Application/Helper/Telemetry.hs via Main
 Data.Either	base	Application/Billing/Stripe.hs via Main
 Data.Fixed	base	Application/Helper/TimeRules.hs via Main
@@ -63,7 +63,7 @@ Data.Set	containers	Web/SurfaceInvalidation.hs via Main
 Data.Text	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding.Error	text	Application/Helper/FrontendContract/Surface/Request.hs via Main
-Data.Text.IO	text	Web/FrontController.hs via Main
+Data.Text.IO	text	Application/Helper/FrontendContract/Registry.hs via Main
 Data.Text.Lazy.Encoding	text	Application/Helper/Profiling.hs via Main
 Data.Time	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Calendar	time	Web/SurfaceInvalidation.hs via Main
@@ -97,12 +97,11 @@ Hasql.Errors	hasql	Application/Helper/Hasql.hs via Main
 IHP.AuthSupport.Authentication	ihp	Web/Controller/Sessions.hs via Main
 IHP.AuthSupport.Controller.Sessions	ihp	Web/Controller/Auth.hs via Main
 IHP.AuthSupport.Lockable	ihp	Web/Controller/Sessions.hs via Main
-IHP.Controller.Context	ihp	Web/FrontController.hs via Main
 IHP.Controller.Param	ihp	Application/Helper/FrontendContract/Surface/Request.hs via Main
 IHP.Controller.Render	ihp	Application/Helper/Profiling.hs via Main
 IHP.Controller.Response	ihp	Application/Helper/Telemetry.hs via Main
-IHP.Controller.Session	ihp	Web/FrontController.hs via Main
-IHP.ControllerPrelude	ihp	Application/Billing/Checkout.hs via Main
+IHP.Controller.Session	ihp	Application/Helper/Authentication.hs via Main
+IHP.ControllerPrelude	ihp	Application/Helper/Authentication.hs via Main
 IHP.ControllerSupport	ihp	Application/Helper/Profiling.hs via Main
 IHP.EnvVar	ihp	Config/Config.hs via Main
 IHP.Environment	ihp	Config/Config.hs via Main
@@ -112,8 +111,8 @@ IHP.HaskellSupport	ihp	Application/VenueTime/Model.hs via Main
 IHP.InputValue	ihp	Application/Helper/Passkeys.hs via Main
 IHP.Job.Runner	ihp	Web/Worker.hs via WorkerMain
 IHP.Job.Types	ihp	Application/Billing/Reconciliation.hs via Main
-IHP.LoginSupport.Helper.Controller	ihp	Web/FrontController.hs via Main
-IHP.LoginSupport.Middleware	ihp	Web/FrontController.hs via Main
+IHP.LoginSupport.Helper.Controller	ihp	Application/Helper/Authentication.hs via Main
+IHP.LoginSupport.Middleware	ihp	Application/Helper/Authentication.hs via Main
 IHP.LoginSupport.Types	ihp	Web/Types.hs via Main
 IHP.Mail	ihp-mail	Application/EmailDelivery.hs via Main
 IHP.Mail.Types	ihp-mail	Config/Config.hs via Main
@@ -122,6 +121,7 @@ IHP.ModelSupport	ihp	Web/Types.hs via Main
 IHP.ModelSupport.Types	ihp	Application/Helper/LiveUpdate/DurableState.hs via Main
 IHP.Prelude	ihp	Main.hs via Main
 IHP.QueryBuilder	ihp	Application/Helper/LiveUpdate/DurableState.hs via Main
+IHP.RequestVault.Helper	ihp	Application/Helper/ControllerContext.hs via Main
 IHP.Router.UrlGenerator	ihp	Web/Controller/Prelude.hs via Main
 IHP.RouterPrelude	ihp	Web/FrontController.hs via Main
 IHP.RouterSupport	ihp	Main.hs via Main

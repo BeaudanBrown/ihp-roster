@@ -10,7 +10,8 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       initImpersonationContext,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
-import Application.Helper.ControllerContext (initCurrentVenueContext)
+import Application.Helper.Authentication (authenticationMiddleware)
+import Application.Helper.ControllerContext (initCurrentVenueContext, venueRequestStateMiddleware)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
@@ -37,22 +38,21 @@ import qualified Data.Vault.Lazy as Vault
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
 import Generated.Types
 import GHC.Clock (getMonotonicTimeNSec)
-import IHP.Controller.Context (ControllerContext, newControllerContext)
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.ControllerPrelude
-import IHP.ControllerSupport (Respond)
+import IHP.ControllerSupport (ControllerContext, Respond)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.Log as Log
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
-import IHP.LoginSupport.Middleware (initAuthentication)
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 import IHP.Test.Mocking
-import Network.HTTP.Types (Status)
+import Network.HTTP.Types (Status, status200)
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
+import Network.Wai.Internal (ResponseReceived (..))
 import qualified Network.Wai.Session.Maybe as WaiSession
 import System.Environment (lookupEnv, setEnv)
 import qualified System.IO as IO
@@ -310,26 +310,36 @@ hspecResetMetricsFile = unsafePerformIO (lookupEnv "HSPEC_RESET_METRICS_FILE")
 
 withControllerTestContext ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?respond :: Respond) =>
-    ((?context :: ControllerContext) => IO a) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO a) ->
     IO a
 withControllerTestContext action =
     withSessionValues [] do
-        controllerContext <- newControllerContext
-        let ?context = controllerContext
+        request <- applyTestRequestMiddleware (venueRequestStateMiddleware . authenticationMiddleware) ?request
+        let ?context = request
+        let ?request = request
         action
 
 withCurrentControllerContext ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
-    ((?context :: ControllerContext) => IO a) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO a) ->
     IO a
 withCurrentControllerContext action = do
-    let ?frameworkConfig = config
-    controllerContext <- newControllerContext
-    let ?context = controllerContext
-    initAuthentication @User
+    request <- applyTestRequestMiddleware (venueRequestStateMiddleware . authenticationMiddleware) ?request
+    let ?context = request
+    let ?request = request
     initCurrentVenueContext
     initImpersonationContext
     action
+
+-- Preserve the fixture session vault while applying the real app auth boundary.
+-- Re-running IHP's full stack here would replace those synthetic session values.
+applyTestRequestMiddleware :: Wai.Middleware -> Wai.Request -> IO Wai.Request
+applyTestRequestMiddleware middleware request = do
+    captured <- newIORef request
+    _ <- middleware (\request' respond -> do
+        modifyIORef' captured (const request')
+        respond (Wai.responseLBS status200 [] "")) request (\_ -> pure ResponseReceived)
+    readIORef captured
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
@@ -732,7 +742,16 @@ withSessionValues initialValues callback = do
     callback
     where
         requestWithSession store =
-            ?request { Wai.vault = Vault.insert sessionVaultKey (newSession store) (Wai.vault ?request) }
+            ?request { Wai.vault = Vault.insert mockOverrideVaultKey (sessionAuthentication store)
+                (Vault.insert sessionVaultKey (newSession store) (Wai.vault ?request)) }
+
+        -- IHP 1.6 restores cookie sessions before controller dispatch. Install
+        -- the synthetic session at its test override seam, then run REAL auth
+        -- again rather than injecting a user that bypasses revocation checks.
+        sessionAuthentication store app request respond =
+            authenticationMiddleware app
+                (request { Wai.vault = Vault.insert sessionVaultKey (newSession store) request.vault })
+                respond
 
         newSession :: IORef (Map.Map ByteString.ByteString ByteString.ByteString) -> WaiSession.Session IO ByteString.ByteString ByteString.ByteString
         newSession store = (lookupSession store, insertSession store)

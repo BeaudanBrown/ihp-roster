@@ -1,28 +1,12 @@
 module Web.FrontController where
 
 import Application.Billing.Checkout (venueSubscriptionIsLive)
-import Application.Billing.Stripe (BillingNavigationContext (..),
-                                   StripeDeploymentControls (..),
+import Application.Billing.Stripe (StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
-import Application.Helper.Controller (clearCurrentUserPasskeyVerification,
-                                      currentUserIsSuperAdmin,
-                                      currentVenueOrNothing,
-                                      currentVenueSessionKey)
+import Application.Helper.Controller (currentUserIsSuperAdmin, currentVenueOrNothing)
 import Application.Helper.Feedback (PrivateFeedbackCount (..), fetchPrivateFeedbackCount)
-import Application.Helper.Impersonation (clearImpersonationReturnFallback,
-                                         effectiveUserSessionKey,
-                                         impersonationSessionIdSessionKey,
-                                         initImpersonationContext,
-                                         initSupportImpersonationOptions)
-import Application.Helper.Profiling (initRequestProfiling, profileActionSpan)
-import Application.Helper.SessionVersion (authenticatedSessionVersionIsCurrent,
-                                          clearAuthenticatedSessionVersion)
-import qualified Control.Exception as Exception
-import qualified Data.Text.IO as TextIO
-import IHP.Controller.Context (putContext)
-import IHP.Controller.Session (deleteSession)
-import IHP.LoginSupport.Helper.Controller (sessionKey)
-import IHP.LoginSupport.Middleware
+import Application.Helper.Impersonation (initImpersonationContext, initSupportImpersonationOptions)
+import Application.Helper.Profiling (profileActionSpan)
 import IHP.RouterPrelude
 import Web.Controller.Prelude
 import Web.View.Layout (defaultLayout)
@@ -83,41 +67,25 @@ instance FrontController WebApplication where
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        initRequestProfiling
-        authenticationResult <- Exception.try (initAuthentication @User) :: IO (Either Exception.SomeException ())
-        case authenticationResult of
-            Right () -> do
-                sessionVersionIsCurrent <- authenticatedSessionVersionIsCurrent
-                unless sessionVersionIsCurrent clearAuthenticatedSessionContext
-            Left exception -> do
-                TextIO.putStrLn ("auth_init_failure: " <> cs (Exception.displayException exception))
-                clearAuthenticatedSessionContext
+        -- Authentication and revocation run before this request reaches us;
+        -- only validated identity may populate venue and impersonation authority.
         initCurrentVenueContext
         initImpersonationContext
         initSupportImpersonationOptions
         initBillingNavigationContext
         initFeedbackContext
 
-clearAuthenticatedSessionContext :: (?context :: ControllerContext, ?request :: Request) => IO ()
-clearAuthenticatedSessionContext = do
-    deleteSession (sessionKey @User)
-    clearAuthenticatedSessionVersion
-    clearCurrentUserPasskeyVerification
-    deleteSession currentVenueSessionKey
-    deleteSession effectiveUserSessionKey
-    deleteSession impersonationSessionIdSessionKey
-    clearImpersonationReturnFallback
-    putContext (Nothing :: Maybe User)
-
 initBillingNavigationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initBillingNavigationContext =
     profileActionSpan "context.billing-navigation.init" do
         deploymentControls <- readStripeDeploymentControls
         maybeSubscription <- join <$> traverse fetchVenueSubscription currentVenueOrNothing
-        putContext BillingNavigationContext
-            { ownerBillingNavigationVisible =
-                either (const False) (.stripeOwnerNavigationVisible) deploymentControls
-            , ownerBillingSubscriptionIsLive = venueSubscriptionIsLive maybeSubscription
+        modifyRequestVenueState \state -> state
+            { billingNavigation = BillingNavigationContext
+                { ownerBillingNavigationVisible =
+                    either (const False) (.stripeOwnerNavigationVisible) deploymentControls
+                , ownerBillingSubscriptionIsLive = venueSubscriptionIsLive maybeSubscription
+                }
             }
   where
     fetchVenueSubscription venue =
@@ -128,8 +96,8 @@ initBillingNavigationContext =
 initFeedbackContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initFeedbackContext =
     profileActionSpan "context.feedback.init" do
-        privateCount <-
+        PrivateFeedbackCount privateCount <-
             if currentUserIsUnimpersonatedSuperAdmin
                 then profileActionSpan "context.feedback.fetch_private_count" fetchPrivateFeedbackCount
                 else pure (PrivateFeedbackCount 0)
-        putContext privateCount
+        modifyRequestVenueState \state -> state { privateFeedback = privateCount }
