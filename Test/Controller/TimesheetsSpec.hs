@@ -56,7 +56,8 @@ import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Timesheets.FrontendSurface
-import Web.Timesheets.Mutations (approveTimesheetEntryMutation,
+import Web.Timesheets.Mutations (TimesheetMaterializationKind (..),
+                                 approveTimesheetEntryMutation,
                                  createTimesheetEntryMutation,
                                  deleteTimesheetEntryMutation,
                                  materializeAndApproveTimesheetSuggestionMutation,
@@ -1461,6 +1462,8 @@ tests = aroundAll withDatabaseTestContext do
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
                 query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
                 query @TimesheetPayCalculation |> fetchCount >>= (`shouldBe` 0)
+                query @AuditEvent |> filterWhere (#eventType, auditEventTypeText TimesheetApprovedAudit) |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> filterWhere (#source, "timesheet.suggestion.approve") |> fetchCount >>= (`shouldBe` 0)
 
         it "preserves an authoritative repeated occurrence through a roster suggestion" $ withContext do
             withCleanDb do
@@ -1743,6 +1746,32 @@ tests = aroundAll withDatabaseTestContext do
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
                 query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` eventCount)
+
+        it "publishes convergent idempotent materialization without duplicate entry or version writes" $ withContext do
+            withCleanDb do
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Convergent Suggestion" Nothing "convergent-suggestion@example.com" "Convergent" "Worker"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = EnsureTimesheetProducing
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) 480
+                    }
+                withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    withCurrentControllerContext do
+                        suggestion <- fetchTimesheetSuggestionForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected suggestion" >> error "unreachable") pure
+                        let entry = newTimesheetEntryFromSuggestion (unpackId scenario.scenarioVenue.id) suggestion
+                        let scope = TimesheetWeekScopeValue (unpackId scenario.scenarioVenue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
+                        first <- materializeTimesheetSuggestionMutation scope suggestion entry
+                        repeated <- materializeTimesheetSuggestionMutation scope suggestion entry
+                        case (first, repeated) of
+                            (Right (Just (NewTimesheetSnapshot, created)), Right (Just (ExistingTimesheetSnapshot, existing))) -> do
+                                existing.liveMutationValue.id `shouldBe` created.liveMutationValue.id
+                                existing.liveMutationTouchedResources `shouldBe` created.liveMutationTouchedResources
+                            _ -> expectationFailure "Expected initial and idempotent materialization"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
+                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 1)
+                query @LiveInvalidationEvent |> filterWhere (#source, "timesheet.suggestion.create") |> fetchCount >>= (`shouldBe` 1)
+                query @LiveInvalidationEvent |> filterWhere (#source, "timesheet.suggestion.create.idempotent") |> fetchCount >>= (`shouldBe` 1)
 
         it "materializes a suggestion idempotently under concurrent submissions" $ withContext do
             withCleanDb do

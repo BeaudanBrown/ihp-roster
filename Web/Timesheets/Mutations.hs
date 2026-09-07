@@ -1,5 +1,6 @@
 module Web.Timesheets.Mutations
-    ( approveTimesheetEntryMutation
+    ( TimesheetMaterializationKind (..)
+    , approveTimesheetEntryMutation
     , createTimesheetEntryMutation
     , materializeAndApproveTimesheetSuggestionMutation
     , materializeTimesheetSuggestionMutation
@@ -64,9 +65,15 @@ createTimesheetEntryMutation scope timesheetEntry = Exception.try @TimesheetCale
             createdEntry <- createTimesheetEntryWithVersion timesheetEntry
             timesheetCreationResult createdEntry
 
-materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (Maybe (LiveMutationResult TimesheetEntry)))
+data TimesheetMaterializationKind = NewTimesheetSnapshot | ExistingTimesheetSnapshot
+    deriving stock (Eq, Show)
+
+materializationKind :: Bool -> TimesheetMaterializationKind
+materializationKind wasCreated = if wasCreated then NewTimesheetSnapshot else ExistingTimesheetSnapshot
+
+materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry)))
 materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
-    Exception.try @TimesheetCalendarConflict $ fmap (fmap snd) $
+    Exception.try @TimesheetCalendarConflict $ fmap (fmap (\(_, kind, result) -> (kind, result))) $
         withDurableLiveMutationOutcome publicationFor $
             withTimesheetCalendarMutationLock scope do
                 materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry >>= \case
@@ -74,11 +81,11 @@ materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
                     Just (materializedEntry, wasCreated) -> do
                         result <- timesheetCreationResult materializedEntry
                         let label = if wasCreated then "timesheet.suggestion.create" else "timesheet.suggestion.create.idempotent"
-                        pure (Just (label, result))
+                        pure (Just (label, materializationKind wasCreated, result))
   where
-    publicationFor = fmap (\(label, result) -> (label, result.liveMutationTouchedResources))
+    publicationFor = fmap (\(label, _, result) -> (label, result.liveMutationTouchedResources))
 
-materializeAndApproveTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (Maybe (LiveMutationResult TimesheetEntry))))
+materializeAndApproveTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry))))
 materializeAndApproveTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry = Exception.try @TimesheetCalendarConflict do
     approval <- Exception.try @TimesheetApprovalRollback $
         withDurableLiveMutationOutcome publicationFor $
@@ -86,16 +93,16 @@ materializeAndApproveTimesheetSuggestionMutation scope expectedSuggestion timesh
                 materialization <- materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry
                 case materialization of
                     Nothing -> pure Nothing
-                    Just (materializedEntry, _) -> do
+                    Just (materializedEntry, wasCreated) -> do
                         approvedEntry <- approveTimesheetEntryInCurrentTransaction materializedEntry
                         venueConfig <- fetchVenueConfig
                         activeScopes <- activeTimesheetWindowScopes
-                        pure (Just (liveMutationResult approvedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [approvedEntry])))
+                        pure (Just (materializationKind wasCreated, liveMutationResult approvedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [approvedEntry])))
     pure case approval of
         Left (TimesheetApprovalRollback appError) -> Left appError
         Right mutationResult                      -> Right mutationResult
   where
-    publicationFor = fmap (\result -> ("timesheet.suggestion.approve", result.liveMutationTouchedResources))
+    publicationFor = fmap (\(_, result) -> ("timesheet.suggestion.approve", result.liveMutationTouchedResources))
 
 materializeTimesheetSuggestionInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (TimesheetEntry, Bool))
 materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry = do

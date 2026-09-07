@@ -1,28 +1,22 @@
 module Web.Controller.Timesheets where
 
-import Application.Error.Types (appErrorSafeMessage)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
-import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
                                            upsertCurrentUserTimesheetShowSuggestions,
                                            upsertCurrentUserTimesheetShowWageEstimates)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime.Model
-import Network.HTTP.Types.Status (status409)
-import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.Timesheets.EntryWorkflow
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        timesheetsMountStateForFilters)
 import Web.Timesheets.Mutations
-import Web.Timesheets.Paths (editTimesheetEntryUrl,
-                             newTimesheetEntryFromSuggestionUrl,
-                             newTimesheetEntryUrl,
+import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
                              timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
@@ -30,11 +24,7 @@ import Web.Timesheets.Paths (editTimesheetEntryUrl,
                              timesheetWindowUrlWithFilters)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
-import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion,
-                                  timesheetSuggestionOperationalDate)
-import Web.Timesheets.Validation
 import Web.Timesheets.WageEstimates (canViewTimesheetWageEstimates)
-import Web.View.Timesheets.SuggestedNew
 
 reportTimesheetSurfaceRequestErrors ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -84,14 +74,6 @@ timesheetProjectionRequestForWindow windowStart staffFilterId =
         , projectionStaffFilterId = staffFilterId
         , projectionRosterGroupFilterId = Nothing
         }
-
-ensureTimesheetCreationTimingAvailable :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> Day -> Maybe UUID -> IO ()
-ensureTimesheetCreationTimingAvailable venueConfig windowStart staffFilterId =
-    case validatePersistedTimezone venueConfig.timezone of
-        Right () -> pure ()
-        Left _ -> do
-            setErrorMessage "Timesheet creation is unavailable until the venue timezone configuration is repaired."
-            redirectToTimesheetWindow windowStart staffFilterId
 
 instance Controller TimesheetsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -227,85 +209,14 @@ instance Controller TimesheetsController where
     action currentAction@NewTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisFormAction do
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        maybeSuggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlotId
-        case maybeSuggestion of
-            Nothing -> do
-                windowStart <- windowStartFromParamOrCurrent
-                setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
-                redirectToTimesheetWindow windowStart selectedStaffFilterId
-            Just suggestion -> do
-                when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-                    redirectToPath (newTimesheetEntryFromSuggestionUrl rosterSlotId (timesheetSuggestionOperationalDate suggestion) selectedStaffFilterId)
-                formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
-                ensureTimesheetCreationTimingAvailable formContext.formVenueConfig (timesheetSuggestionOperationalDate suggestion) selectedStaffFilterId
-                let timesheetEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
-                let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
-                let suggestedTimesheetRenderModel = SuggestedTimesheetRenderModel { .. }
-                if isHtmxRequest
-                    then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
-                    else render SuggestedNewView { .. }
+        prepareSuggestedTimesheetForm rosterSlotId selectedStaffFilterId (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId)
+            >>= respondWithSuggestedTimesheetForm selectedStaffFilterId
 
     action currentAction@CreateTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         state <- requireTimesheetSurfaceState parseCreateTimesheetEntryFromSuggestionState
-        timesheetScope <- requireCurrentTimesheetCalendar state
-        filters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
-        let selectedStaffFilterId = filters.filterStaffId
-        maybeSuggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlotId
-        case maybeSuggestion of
-            Nothing -> do
-                setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
-                redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
-            Just suggestion -> do
-                formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
-                let venueConfig = formContext.formVenueConfig
-                let currentViewerStaffId = formContext.formCurrentViewerStaffId
-                ensureTimesheetCreationTimingAvailable venueConfig timesheetScope.timesheetWindowStart selectedStaffFilterId
-                let suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
-                let timesheetEntry =
-                        if hasParam "startTime" || hasParam "hadBreak"
-                            then buildTimesheetEntry venueConfig currentViewerStaffId suggestedEntry
-                            else suggestedEntry
-                timesheetEntry
-                    |> ifValid \case
-                        Left timesheetEntry -> do
-                            let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
-                            let suggestedTimesheetRenderModel = SuggestedTimesheetRenderModel { .. }
-                            if isHtmxRequest
-                                then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
-                                else render SuggestedNewView { .. }
-                        Right validEntry -> do
-                            accessDeniedUnless (validEntry.staffId == suggestion.suggestionStaffId)
-                            accessDeniedUnless (validEntry.operationalDate == suggestion.suggestionOperationalDate)
-                            ensureStaffAssignmentAllowed validEntry.staffId
-                            ensureShiftTypeAllowed validEntry.shiftTypeId
-                            let shouldApproveSuggestion = hasRole Manager && paramOrDefault @Bool False "approveSuggestion"
-                            if shouldApproveSuggestion
-                                then materializeAndApproveTimesheetSuggestionMutation timesheetScope suggestion validEntry >>= requireTimesheetCalendarResult >>= \case
-                                    Left approvalError -> do
-                                        setErrorMessage (appErrorSafeMessage approvalError)
-                                        redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
-                                    Right Nothing -> do
-                                        setErrorMessage "That rostered shift changed before the timesheet entry was approved. Review the current suggestion and try again."
-                                        redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
-                                    Right (Just mutationResult) ->
-                                        if isHtmxRequest
-                                            then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Rostered timesheet entry approved" True
-                                            else do
-                                                setSuccessMessage "Rostered timesheet entry approved"
-                                                redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
-                                else do
-                                    materializationResult <- materializeTimesheetSuggestionMutation timesheetScope suggestion validEntry >>= requireTimesheetCalendarResult
-                                    case materializationResult of
-                                        Nothing -> do
-                                            setErrorMessage "That rostered shift changed before the timesheet entry was created. Review the current suggestion and try again."
-                                            redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
-                                        Just mutationResult ->
-                                            if isHtmxRequest
-                                                then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Rostered timesheet entry created" True
-                                                else do
-                                                    setSuccessMessage "Rostered timesheet entry created"
-                                                    redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
+        context <- requireTimesheetSurfaceContext state
+        createSuggestedTimesheetEntry context rosterSlotId >>= respondWithTimesheetSuggestionOutcome context
 
     action currentAction@EditTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisFormAction do
         timesheetEntry <- fetchEditableTimesheetEntry timesheetEntryId
@@ -336,25 +247,8 @@ instance Controller TimesheetsController where
         ensureRecordInCurrentVenue timesheetEntry.venueId
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         state <- requireTimesheetSurfaceState parseApproveTimesheetEntryState
-        timesheetScope <- requireCurrentTimesheetCalendar state
-        filters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
-        let selectedStaffFilterId = filters.filterStaffId
-        case decodeTimesheetTiming timesheetEntry of
-            Left _ ->
-                respondAndStop
-                    (Wai.responseLBS status409 [("Content-Type", "text/plain")] "Repair the Timesheet timing before approval.")
-            Right _ -> do
-                approval <- approveTimesheetEntryMutation timesheetScope timesheetEntry >>= requireTimesheetCalendarResult
-                case approval of
-                    Left appError -> do
-                        setErrorMessage (appErrorSafeMessage appError)
-                        redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
-                    Right mutationResult ->
-                        if isHtmxRequest
-                            then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
-                            else do
-                                setSuccessMessage "Timesheet entry approved"
-                                redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
+        context <- requireTimesheetSurfaceContext state
+        reviewTimesheetEntry context ApproveTimesheet timesheetEntry >>= respondWithTimesheetReviewOutcome context
 
     action currentAction@UnapproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisPageAction do
         ensureManagerRole
@@ -363,13 +257,5 @@ instance Controller TimesheetsController where
         ensureRecordInCurrentVenue timesheetEntry.venueId
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         state <- requireTimesheetSurfaceState parseUnapproveTimesheetEntryState
-        timesheetScope <- requireCurrentTimesheetCalendar state
-        filters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
-        let selectedStaffFilterId = filters.filterStaffId
-
-        mutationResult <- unapproveTimesheetEntryMutation timesheetScope timesheetEntry >>= requireTimesheetCalendarResult
-        if isHtmxRequest
-            then respondWithTimesheetMutationUpdate timesheetScope (timesheetsMountStateForFilters filters) mutationResult.liveMutationTouchedResources "Timesheet entry unapproved" False
-            else do
-                setSuccessMessage "Timesheet entry unapproved"
-                redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
+        context <- requireTimesheetSurfaceContext state
+        reviewTimesheetEntry context UnapproveTimesheet timesheetEntry >>= respondWithTimesheetReviewOutcome context

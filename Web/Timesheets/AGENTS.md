@@ -10,9 +10,13 @@ Read this before editing timesheet controllers, views, or helpers.
 - Keep HTMX/OOB response shape in `Responses.hs`; successful actor refreshes should go through the shared typed fragment helper, not local OOB-only fragment helpers.
 - Keep parsing and validation helpers in `Validation.hs`. Ordinary edits must
   use its opaque edit intent; callers never supply approval-reset policy.
-- Keep ordinary operations in `EntryWorkflow.hs` and completion/calendar HTTP in
+- Keep ordinary, suggestion and review operations in `EntryWorkflow.hs` and completion/calendar HTTP in
   `Responses.hs`. Preserve staged scope checks before mutation-calendar parsing.
   The canonical request context is response state, not authorization evidence.
+  Controllers must not branch on nested materialization/approval results.
+- Preserve both new and existing snapshot completion kinds and convergent retry
+  publication. Do not turn idempotency into unconditional event suppression.
+  Suggestion create-versus-approve parsing stays after form and eligibility checks.
 - Catch typed calendar conflicts outside the durable transaction only; returning
   `Left` inside it does not roll back. Preserve the inner approval rollback.
 - Adopted import roles are checked by `scripts/architecture/workflow-boundaries.mjs`;

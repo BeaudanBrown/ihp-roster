@@ -7,6 +7,8 @@ module Web.Timesheets.Validation
     , buildTimesheetEntry
     , ensureRosterDerivedIdentityUnchanged
     , ensureShiftTypeAllowed
+    , timesheetShiftTypeAllowed
+    , timesheetStaffAssignmentAllowed
     , ensureShiftTypeAllowedForExisting
     , ensureStaffAssignmentAllowed
     , ensureStaffAssignmentAllowedForExisting
@@ -77,16 +79,20 @@ ensureRosterDerivedIdentityUnchanged existingEntry updatedEntry =
         accessDeniedUnless (updatedEntry.sourceRosterSlotId == existingEntry.sourceRosterSlotId)
 
 ensureStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
-ensureStaffAssignmentAllowed staffId = do
+ensureStaffAssignmentAllowed staffId = timesheetStaffAssignmentAllowed staffId >>= accessDeniedUnless
+
+timesheetStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
+timesheetStaffAssignmentAllowed staffId = do
     maybeStaff <- query @Staff
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#id, Id staffId)
         |> fetchOneOrNothing
-    accessDeniedUnless (maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffPayAssignment staff)) maybeStaff)
-    unless (hasRole Manager) do
-        maybeCurrentStaff <- fetchCurrentUserStaff
-        let isOwnStaff = maybe False (\staff -> unpackId (get #id staff) == staffId) maybeCurrentStaff
-        accessDeniedUnless isOwnStaff
+    let eligible = maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffPayAssignment staff)) maybeStaff
+    if not eligible || hasRole Manager
+        then pure eligible
+        else do
+            maybeCurrentStaff <- fetchCurrentUserStaff
+            pure (maybe False (\staff -> unpackId (get #id staff) == staffId) maybeCurrentStaff)
 
 ensureStaffAssignmentAllowedForExisting :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
 ensureStaffAssignmentAllowedForExisting existingEntry staffId
@@ -94,7 +100,10 @@ ensureStaffAssignmentAllowedForExisting existingEntry staffId
     | otherwise = ensureStaffAssignmentAllowed staffId
 
 ensureShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
-ensureShiftTypeAllowed shiftTypeId = do
+ensureShiftTypeAllowed shiftTypeId = timesheetShiftTypeAllowed shiftTypeId >>= accessDeniedUnless
+
+timesheetShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
+timesheetShiftTypeAllowed shiftTypeId = do
     maybeShiftType <-
         query @ShiftType
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -102,7 +111,7 @@ ensureShiftTypeAllowed shiftTypeId = do
             |> filterWhere (#isActive, True)
             |> filterWhere (#archivedAt, Nothing)
             |> fetchOneOrNothing
-    accessDeniedUnless (maybe False (shiftAssignmentAllowsTimesheets . shiftPayAssignment) maybeShiftType)
+    pure (maybe False (shiftAssignmentAllowsTimesheets . shiftPayAssignment) maybeShiftType)
 
 staffPayAssignment :: Staff -> StaffPayAssignment
 staffPayAssignment staff =

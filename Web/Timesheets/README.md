@@ -12,8 +12,9 @@ owns lifecycle/access invocation, staged request adaptation and response selecti
 
 - `Projection.hs` — persisted-entry and suggestion read model.
 - `Suggestion.hs` — suggestion value and immutable snapshot conversion.
-- `EntryWorkflow.hs` — ordinary form reads/create/edit, authorized edit snapshots,
-  and shared canonical request context. Delete uses the already-deep mutation.
+- `EntryWorkflow.hs` — ordinary and suggested form reads/create/edit, typed
+  suggestion/review outcomes, authorized edit snapshots, and shared canonical
+  request context. Delete uses the already-deep mutation.
 - `Mutations.hs` — persistence, approval-reset decision, provenance, idempotency,
   calendar-lock rollback and invalidation.
 - `Validation.hs` — request validation and authoritative time boundaries.
@@ -47,9 +48,32 @@ The calendar guard throws under the existing lock; only an exact typed catch
 failure inside the transaction or catch IHP terminal/unexpected exceptions.
 The response adapter preserves locked conflicts as native 403 or HTMX 409 with
 `HX-Refresh`; early native stale-calendar checks still redirect instead.
-Suggestion/approval callers consume this outer result before their unchanged
-inner missing-source/approval outcomes. Their deeper workflows remain separate
-work; approval failures retain their own rollback exception.
+`EntryWorkflow` consumes calendar and inner approval/materialization results;
+controllers consume only closed feature outcomes. Approval failures retain their
+own rollback exception.
+
+## Suggestion And Review Operations
+
+`createSuggestedTimesheetEntry` owns scoped suggestion lookup, optional form
+application, source identity/eligibility checks and the late role-gated decision
+to create or atomically approve. `prepareSuggestedTimesheetForm` retains missing,
+canonical-redirect, invalid-timezone and ready-form distinctions. Neither flow
+moves parsing ahead of its former scope/calendar checks. Existing form parsers,
+transient suggestion conversion and focused projections remain authoritative.
+
+`reviewTimesheetEntry` takes an explicit approve/unapprove intent after the
+controller's manager, writable-venue and entry-scope checks and shared request
+adaptation. It owns the approval timing gate and converts engine/mutation
+results without HTTP. `Responses` translates the closed outcomes into the same
+safe errors, native redirects, HTMX actor refresh and dialog-clear choices.
+
+Materialization retains source-slot locking and revalidation. Its completion
+reports `NewTimesheetSnapshot` or `ExistingTimesheetSnapshot`; this distinction
+does not suppress the existing convergent idempotent publication. A later HTTP
+retry may instead find no eligible suggestion and use the unavailable response.
+Failed atomic approval leaves no newly created entry, version, approval audit,
+pay calculation or outbox event. The approval engine and sealed history are not
+reimplemented by the workflow.
 
 ## Date-Native Interface
 
