@@ -121,10 +121,12 @@ renderSidePanelTabs ariaLabel tabs = [hsx|
                 data-bs-toggle="tab"
                 data-bs-target={"#" <> tab.sidePanelTabPaneId}
                 aria-controls={tab.sidePanelTabPaneId}
+                aria-label={tab.sidePanelTabLabel}
+                title={tab.sidePanelTabLabel}
                 aria-selected={if tab.sidePanelTabIsSelected then ("true" :: Text) else "false"}
                 {...tab.sidePanelTabAttrs}>
             <i class={tab.sidePanelTabIconClass} aria-hidden="true"></i>
-            <span>{tab.sidePanelTabLabel}</span>
+            <span class="app-side-panel-tab-label" aria-hidden="true">{tab.sidePanelTabLabel}</span>
         </button>
     |]
 

@@ -17,10 +17,12 @@
 }
 
 .app-side-panel-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --app-side-panel-tab-gap: 0.35rem;
+    display: flex;
+    flex-wrap: nowrap;
     flex: 0 0 auto;
-    gap: 0.35rem;
+    min-width: 0;
+    gap: var(--app-side-panel-tab-gap);
     margin: -0.25rem -0.25rem 0.85rem;
     padding: 0.25rem;
     border: 1px solid var(--app-border-subtle);
@@ -29,15 +31,59 @@
 }
 
 .app-side-panel-tab {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.45rem;
+    flex: 0 0 var(--app-control-height-sm);
+    min-width: 0;
     min-height: var(--app-control-height-sm);
+    padding-inline: var(--app-space-2);
+    white-space: nowrap;
+    gap: 0;
+    transition: flex-grow 200ms ease;
     border-radius: 0.55rem !important;
     color: var(--app-muted);
     font-size: var(--text-sm);
     font-weight: 700;
+}
+
+.app-side-panel-tab + .app-side-panel-tab::before {
+    content: "";
+    position: absolute;
+    inset-block: var(--app-space-2);
+    inset-inline-start: calc(var(--app-side-panel-tab-gap) / -2 - 0.5px);
+    width: 1px;
+    background: var(--app-border-subtle);
+    pointer-events: none;
+}
+
+.app-side-panel-tab > i {
+    flex: 0 0 auto;
+}
+
+.app-side-panel-tab-label {
+    display: block;
+    min-width: 0;
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    margin-inline-start: 0;
+    transition: max-width 200ms ease, margin-inline-start 200ms ease, opacity 200ms ease;
+}
+
+.app-side-panel-tab.active .app-side-panel-tab-label {
+    max-width: 100%;
+    margin-inline-start: var(--app-space-2);
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-side-panel-tab,
+    .app-side-panel-tab-label {
+        transition: none;
+    }
 }
 
 .app-side-panel-tab:hover,
@@ -46,6 +92,7 @@
 }
 
 .app-side-panel-tab.active {
+    flex-grow: 1;
     background: var(--app-accent-soft) !important;
     color: var(--app-accent-hover) !important;
     box-shadow: inset 0 0 0 1px var(--app-accent-border-soft);
