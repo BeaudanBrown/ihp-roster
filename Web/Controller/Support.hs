@@ -465,6 +465,7 @@ supportReturnAuthority candidate
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId" = Just SupportReturnManager
     | returnPathIs "/EditProfile" && queryAllows ["section"] && returnQueryHas "section" "security" = Just SupportReturnFounder
     | returnPathIs "/EditProfile" && queryAllows ["section"] = Just SupportReturnProfile
+    | returnPathIs "/Feedback" && queryAllows [] = Just SupportReturnProfile
     | returnPathIs "/NewFeedback" && queryAllows [] = Just SupportReturnProfile
     | returnPathIs "/ShowPageHelp"
         && queryAllows ["topic"]
