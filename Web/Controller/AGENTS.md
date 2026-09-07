@@ -50,8 +50,10 @@ The delivered interfaces intentionally differ:
   cell reuse; edit derives Published fill and returns post-commit row impact.
   These records promise neither authorization nor freshness by themselves.
 - `Web.Billing.Mutations` composes Checkout's existing phase runner and audit
-  callback; see `Application/Billing/README.md`. Do not wrap the whole provider
-  operation in an ordinary-form transaction.
+  callback; `Web.Billing.ReadModel` hides owner/support and exact-return
+  assembly, while `Web.Billing.Responses` retains hosted completion validation,
+  request audits and HTTP. See `Application/Billing/README.md`. Do not wrap the
+  whole provider operation in an ordinary-form transaction.
 
 Preserve error and side-effect ordering when adopting this contract:
 

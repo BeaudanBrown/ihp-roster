@@ -427,6 +427,8 @@ Web/Admin/RosterWindowStartDay.hs	production	runtime	Main	Reachable from Main
 Web/Admin/Xero/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Billing/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Billing/Mutations.hs	production	runtime	Main	Reachable from Main
+Web/Billing/ReadModel.hs	production	runtime	Main	Reachable from Main
+Web/Billing/Responses.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Support.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero.hs	production	runtime	Main	Reachable from Main

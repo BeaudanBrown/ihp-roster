@@ -10,6 +10,8 @@ export const workflowRoles = [
   ["Web.Exports.Mutations", "mutation", "Exports"],
   ["Web.RosterWeeks.Mutations", "mutation", "Roster"],
   ["Web.Billing.Mutations", "mutation", "Billing"],
+  ["Web.Billing.ReadModel", "workflow", "Billing"],
+  ["Web.Billing.Responses", "response", "Billing"],
   ["Web.Timesheets.EntryWorkflow", "workflow", "Timesheets"],
   ["Web.Timesheets.Responses", "response", "Timesheets"],
   ["Web.Timesheets.Mutations", "mutation", "Timesheets"],

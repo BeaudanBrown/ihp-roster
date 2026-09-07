@@ -6,8 +6,12 @@ Read this before editing `Application/Billing/` or billing controllers.
 
 - Read `SPEC.md` and `RUNBOOK.md` first.
 - Keep Stripe API, webhook verification, idempotency, and response parsing in
-  application modules. Keep redirects, toasts, params, and permission response
-  choices in controllers.
+  application modules. Keep HTTP and permission response choices in Web:
+  controllers retain staged access/configuration/provider invocation;
+  `Web/Billing/ReadModel.hs` owns projection and return-correlation assembly;
+  `Web/Billing/Responses.hs` owns completion feedback, redirect validation and
+  existing post-provider request audits. Never wrap these in a new payment
+  transaction or move provider calls into response consumers.
 - Venue owners may use payment actions. Founder super admins in support mode may
   inspect billing and request reconciliation, but must never start Checkout or
   open a venue payer's Customer Portal. Venue authority comes from

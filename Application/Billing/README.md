@@ -8,9 +8,12 @@ mirrors, reconciliation, and lifecycle notifications. Billing identity is per
 venue; a payer shared by several venues never merges their Customers or
 Subscriptions.
 
-Controllers own HTTP authorization responses, redirects, fragments, and copy:
-`Web/Controller/Billing.hs` serves owner/support experiences and
-`Web/Controller/StripeWebhooks.hs` terminates signed provider ingress.
+`Web/Controller/Billing.hs` retains lifecycle, staged permission responses and
+provider invocation. `Web/Billing/ReadModel.hs` assembles owner/support projections
+and exact Checkout-return correlation; `Web/Billing/Responses.hs` consumes
+completion results, retaining hosted redirect validation, safe feedback and
+post-provider request audits. Views and the generated Billing Surface remain the
+rendering owners. `Web/Controller/StripeWebhooks.hs` terminates signed ingress.
 
 ## Start Here
 
@@ -48,16 +51,42 @@ that commit or move provider execution outside its existing serialization.
 Provider rejection may commit sanitized diagnostics; an escaping execution
 exception rolls back that phase, not preparation. The phase outcome selector
 controls durable publication, not rollback. Customer-created audit stays inside
-preparation; the controller's successful-start audit stays after committed
-Checkout and exact hosted-URL validation, before redirect. Actual actor and
+preparation; the response completion's successful-start audit stays after
+committed Checkout and exact hosted-URL validation, before redirect. Actual actor and
 effective payer remain distinct, with shared request-context audit provenance.
 
 This is not the webhook variant: signed ingress validates raw signature before
 JSON and applies its local transaction before returning success. Neither variant
 requires moving HTTP/HSX into Application modules. The existing IHP context and
 provider adapter imports are legitimate; import checks are not purity checks.
-Future read-model/response extraction must preserve these phase boundaries and
-the current owner/support and return-correlation rules in `SPEC.md`.
+The read-model/response interfaces preserve these phase boundaries and the
+owner/support and return-correlation rules in `SPEC.md`; they do not introduce a
+new payment workflow or mutation result type.
+
+## Request-Side Interfaces
+
+`fetchBillingViewModel` serves both page and live-fragment consumers after the
+shared access policy. It preserves query order, latest-five founder histories,
+owner diagnostic exclusion, unhealthy-configuration behavior and exact processed
+event/attempt/subscription correlation. The existing view model remains owned by
+`Web/View/Billing/Index.hs`; it is not a new provider representation. Return and
+cancel lookups have intentionally different Session requirements, and neither
+browser return establishes provider state.
+
+Completion consumers accept existing Checkout, Portal and reconciliation
+results. Portal correlation/host validators remain in `Application.Billing.Stripe`;
+response completion invokes them before its original request audit and terminal
+native/HTMX redirect. Reconciliation completion preserves its audit after enqueue,
+including already-active jobs. These are existing request-completion effects,
+not new subscription mutations, and must not move into Checkout preparation or
+be repeated after a rendering failure. Shared provenance comes from initialized
+request context at each real audit call.
+
+Do not consolidate the controller's staged owner/email/configuration checks or
+move provider calls into response modules. Dormant manual read-only adaptation
+and its mutation remain separate. Adopted read-model/response/mutation imports
+are checked by `scripts/architecture/workflow-boundaries.mjs` without claiming
+transitive purity or a universal provider layer.
 
 ## Related Docs
 

@@ -629,6 +629,23 @@ tests = aroundAll withDatabaseTestContext do
                 attempt.status `shouldBe` "open"
                 attempt.expiresAt `shouldSatisfy` isJust
 
+        it "returns an empty HTMX hosted Checkout redirect after recording the start audit" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing HTMX Checkout Venue"
+                owner <- createUserRecord "billing-htmx-checkout@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest (checkoutStripeClientExpectingCustomer "Billing HTMX Checkout Venue" "billing-htmx-checkout@example.com") do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction CreateBillingCheckoutSessionAction
+                response `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
+                lookup "Location" (responseHeaders response) `shouldBe` Nothing
+                responseBody response `shouldReturn` ""
+                query @BillingCheckoutAttempt |> fetchCount `shouldReturn` 1
+                query @AuditEvent |> filterWhere (#eventType, "billing_checkout_started") |> fetchCount `shouldReturn` 1
+
         it "uses the configured direct Price without a lookup before hosted Checkout" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Direct Price Checkout Venue"
@@ -929,6 +946,28 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "https://billing.stripe.com/p/session/bps_test_123"
+
+        it "returns an empty HTMX hosted Portal redirect after recording the start audit" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing HTMX Portal Venue"
+                owner <- createUserRecord "billing-htmx-portal@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- newRecord @VenueBillingCustomer
+                    |> set #venueId (unpackId venue.id)
+                    |> set #stripeCustomerId "cus_portal_123"
+                    |> set #livemode False
+                    |> createRecord
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest portalStripeClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction CreateBillingPortalSessionAction
+                response `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders response) `shouldBe` Just "https://billing.stripe.com/p/session/bps_test_123"
+                lookup "Location" (responseHeaders response) `shouldBe` Nothing
+                responseBody response `shouldReturn` ""
+                query @AuditEvent |> filterWhere (#eventType, "billing_portal_started") |> fetchCount `shouldReturn` 1
+                query @BillingCheckoutAttempt |> fetchCount `shouldReturn` 0
 
         it "uses a fresh idempotency request identifier for every Portal action" $ withContext do
             withCleanDb do
