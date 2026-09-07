@@ -61,7 +61,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "checked=\"checked\""
                 response `responseBodyShouldNotContain` "alert alert-warning"
 
-        it "renders one alphabetical Week-template library and disables Apply for any Published target day" $ withContext do
+        it "renders one alphabetical Week-template library with Apply available for Published targets" $ withContext do
             withCleanDb do
                 fixture <- controllerCaptureFixture "Controller template library"
                 let actor = rosterTemplateActor fixture.manager fixture.venue True
@@ -84,8 +84,8 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldContain` "Save current week as template"
                 html `shouldNotContain` "No templates are saved."
                 html `shouldContain` "1 shift(s)"
-                html `shouldContain` "at least one day in the viewed window is Published"
-                html `shouldContain` "disabled"
+                html `shouldNotContain` "Apply is unavailable"
+                html `shouldNotContain` "disabled=\"disabled\""
                 html `shouldNotContain` "Week snapshot"
                 html `shouldNotContain` "assignment mode"
                 Text.breakOn "alpha" htmlText `shouldSatisfy` (\(_, suffix) -> "Zulu" `Text.isInfixOf` suffix)

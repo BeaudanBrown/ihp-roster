@@ -12,6 +12,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.Helper.View.Overlay
+import qualified Data.Time.Format as Time
 import Web.RosterWeeks.Paths (rosterTemplateApplicationUrl)
 import Web.RosterWeeks.TemplateApplication
 import Web.View.Prelude
@@ -30,14 +31,12 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId previ
             ("Apply " <> preview.applicationPreviewTemplateName)
             [hsx|
             {forEach maybeMessage renderMessage}
-            <p>This will replace the entire viewed window’s operational structure.</p>
-            <p class="small text-muted">Publication remains Draft. Existing Timesheets and their source provenance are preserved.</p>
-            {renderShiftTypeRequirements preview actionFields}
-            {renderWarnings preview.applicationWarnings}
+            <p class="alert alert-warning">This will set this roster week to draft mode and replace it with the template. Any existing timesheets will remain unchanged.</p>
+            {renderExceptions preview}
             {renderFrontendSurfaceActionForm (RosterAction.applyRosterTemplateApplicationAction actionFields) actionRoute (renderApplicationFields rosterTemplateId preview actionFields)}
         |]
             [ dialogOverlayCloseButton "Cancel"
-            , dialogOverlaySubmitButton "Apply template" formId
+            , dialogOverlaySubmitButton "Approve" formId
             ])
   where
     formId = "roster-template-application-form"
@@ -62,14 +61,6 @@ renderApplicationFields rosterTemplateId preview fields = [hsx|
     {renderShiftTypeMappingInputs preview fields}
 |]
 
-renderShiftTypeRequirements preview _fields
-    | null preview.applicationShiftTypeRequirements = mempty
-    | otherwise = [hsx|
-        <div class="alert alert-warning">
-            <p class="mb-0">Map each unavailable Shift type before applying. These replacements permanently clean the saved template.</p>
-        </div>
-    |]
-
 renderShiftTypeMappingInputs preview fields =
     forEach preview.applicationShiftTypeRequirements \requirement -> [hsx|
         <div class="mb-3">
@@ -89,19 +80,41 @@ renderMappedOption selectedId shiftType
 renderMessage :: Text -> Html
 renderMessage message = [hsx|<p class="alert alert-danger">{message}</p>|]
 
-renderWarnings :: [RosterTemplateApplicationWarning] -> Html
-renderWarnings warnings = forEach warnings \warning -> [hsx|
-    <p class="alert alert-warning small">{warningCopy warning}</p>
-|]
+renderExceptions :: RosterTemplateApplicationPreview -> Html
+renderExceptions preview
+    | null assignments && null preview.applicationShiftTypeRequirements = mempty
+    | otherwise = [hsx|
+        <div class="alert alert-warning">
+            <p class="mb-2">Exceptions:</p>
+            <ul class="mb-0">
+                {forEach assignments renderAssignmentException}
+                {forEach preview.applicationShiftTypeRequirements renderShiftTypeException}
+            </ul>
+        </div>
+    |]
+  where
+    assignments = mapMaybe assignmentException preview.applicationWarnings
+    assignmentException = \case
+        RosterTemplateApplicationClearsWeek -> Nothing
+        RosterTemplateApplicationExistingTimesheetsRemain _ -> Nothing
+        RosterTemplateApplicationAssignmentConvertedToOpen _ name issue day count -> Just (name, issue, day, count)
+    renderShiftTypeException requirement = [hsx|
+        <li>{requirement.applicationStaleShiftTypeName} is unavailable; choose a replacement. This will also update the saved template.</li>
+    |]
 
-warningCopy :: RosterTemplateApplicationWarning -> Text
-warningCopy RosterTemplateApplicationClearsWeek = "Existing shifts and columns in the viewed week will be replaced."
-warningCopy (RosterTemplateApplicationExistingTimesheetsRemain count) = tshow count <> " existing Timesheet snapshot(s) remain unchanged with their source provenance."
-warningCopy (RosterTemplateApplicationAssignmentConvertedToOpen _ staffName issue count) =
-    staffName <> ": " <> issueCopy issue <> " (" <> tshow count <> " affected shift(s))."
+renderAssignmentException :: (Text, RosterTemplateApplicationAssignmentIssue, Day, Int) -> Html
+renderAssignmentException (name, issue, day, count) = [hsx|
+    <li>{name} {issueCopy issue} on {weekday}; {shiftCopy} will be marked Open in this roster week.{savedTemplateCopy}</li>
+|]
+  where
+    weekday = cs (Time.formatTime Time.defaultTimeLocale "%A" day) :: Text
+    shiftCopy = if count == 1 then "this shift" else "these " <> tshow count <> " shifts"
+    savedTemplateCopy = case issue of
+        RosterTemplateStaffOnApprovedLeave -> "" :: Text
+        _ -> " Invalid assignments for this person will also become Open in the saved template."
 
 issueCopy :: RosterTemplateApplicationAssignmentIssue -> Text
-issueCopy RosterTemplateStaffUnavailable = "Staff is inactive, archived, missing, or outside this venue; the saved template will be cleaned"
-issueCopy RosterTemplateStaffOutsideGroup = "Staff is outside this roster group; the saved template will be cleaned"
-issueCopy RosterTemplateStaffPayInvalid = "Staff or Shift type pay configuration is invalid; the saved template will be cleaned"
-issueCopy RosterTemplateStaffOnApprovedLeave = "Staff has approved leave on the target date; only this roster application will become Open"
+issueCopy RosterTemplateStaffUnavailable = "is inactive, archived, missing, or outside this venue"
+issueCopy RosterTemplateStaffOutsideGroup = "is no longer assigned to this roster group"
+issueCopy RosterTemplateStaffPayInvalid = "has invalid Staff or Shift type pay configuration"
+issueCopy RosterTemplateStaffOnApprovedLeave = "has approved leave"

@@ -35,7 +35,6 @@ renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWee
             <h2 id="roster-template-panel-heading" class="h5 mb-0">Templates</h2>
             {renderCaptureLauncher anchorDate rosterGroup.id}
         </div>
-        {renderPublishedTargetMessage maybeRosterWeek}
         <div class="mt-3" aria-label="Saved Week templates">
             {renderTemplateCards anchorDate calendarRevision rosterGroup maybeRosterWeek library}
         </div>
@@ -53,13 +52,6 @@ renderCaptureLauncher anchorDate rosterGroupId =
         { actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = [("id", rosterTemplateCaptureLauncherFormId), ("class", "app-side-panel-content-header-actions")]
         })
-
-renderPublishedTargetMessage :: Maybe RosterWindowState -> Html
-renderPublishedTargetMessage (Just rosterWeek)
-    | rosterWeek.windowHasPublishedDays = [hsx|
-        <div class="alert alert-info small mt-3 mb-0" role="status">Apply is unavailable because at least one day in the viewed window is Published. Return every day to Draft to apply a template.</div>
-    |]
-renderPublishedTargetMessage _ = mempty
 
 renderTemplateCards :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplateLibrary -> Html
 renderTemplateCards _ _ _ _ RosterTemplateLibrary { libraryTemplates = [] } = [hsx|<p class="small text-muted">No templates are saved.</p>|]
@@ -89,10 +81,10 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek shift
 |]
   where
     shiftCount = Map.findWithDefault 0 template.id shiftCounts
-    applicationAvailable = maybe False (not . (.windowHasPublishedDays)) maybeRosterWeek
+    applicationAvailable = isJust maybeRosterWeek
     applyTitle
         | applicationAvailable = "Apply " <> template.name
-        | otherwise = "Apply requires every day in the viewed window to be Draft"
+        | otherwise = "Apply requires a complete viewed roster window"
     previewForm
         | not applicationAvailable = mempty
         | otherwise = renderFrontendSurfaceActionForm (RosterAction.previewRosterTemplateApplicationAction previewFields) previewRoute [hsx|

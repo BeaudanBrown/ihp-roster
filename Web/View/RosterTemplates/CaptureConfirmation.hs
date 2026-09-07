@@ -21,6 +21,7 @@ import Application.Helper.FrontendContract.Toggle.Runtime (ToggleFieldBinding,
                                                            toggleTargetForState)
 import Application.Helper.View.Overlay
 import qualified Data.Text as Text
+import qualified Data.Time.Format as Time
 import IHP.ModelSupport (InputValue (..))
 import Web.RosterWeeks.Dom (rosterTemplateCaptureFormId,
                             rosterTemplateCaptureNameInputId,
@@ -52,7 +53,7 @@ renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submitte
                 </fieldset>
             |])
             [ dialogOverlayCloseButton "Cancel"
-            , dialogOverlaySubmitButton "Review template" rosterTemplateCaptureFormId
+            , dialogOverlaySubmitButton "Save template" rosterTemplateCaptureFormId
             ])
   where
     fields = RosterAction.previewRosterTemplateCaptureActionFields submittedName KeepValidStaffAssignments Nothing Nothing
@@ -89,14 +90,12 @@ renderRosterTemplateCaptureConfirmation rosterGroupId anchorDate _request previe
             "Save current week as template"
             [hsx|
             {forEach maybeMessage renderMessage}
-            {renderStaffWarnings preview.capturePreviewWarnings}
+            {renderCaptureExceptions anchorDate preview}
             {renderCaptureConfirmationForm rosterGroupId anchorDate preview}
         |]
             [ dialogOverlayCloseButton "Cancel"
-            , dialogOverlaySubmitButton (if mappingsComplete then "Save template" else "Review mappings") rosterTemplateCaptureFormId
+            , dialogOverlaySubmitButton "Save template" rosterTemplateCaptureFormId
             ])
-  where
-    mappingsComplete = isJust preview.capturePreviewContent
 
 renderCaptureConfirmationForm :: (?context :: ControllerContext) => Id RosterGroup -> Day -> RosterTemplateCapturePreview -> Html
 renderCaptureConfirmationForm rosterGroupId anchorDate preview
@@ -154,10 +153,7 @@ renderShiftTypeRequirements :: Text -> Text -> RosterTemplateCapturePreview -> H
 renderShiftTypeRequirements staleFieldName mappedFieldName preview
     | null preview.capturePreviewShiftTypeRequirements = mempty
     | otherwise = [hsx|
-        <div class="alert alert-warning">
-            <p class="mb-2">Map each unavailable Shift type before saving.</p>
-            {forEach preview.capturePreviewShiftTypeRequirements (renderShiftTypeRequirement staleFieldName mappedFieldName preview.capturePreviewAvailableShiftTypes)}
-        </div>
+        {forEach preview.capturePreviewShiftTypeRequirements (renderShiftTypeRequirement staleFieldName mappedFieldName preview.capturePreviewAvailableShiftTypes)}
     |]
 
 renderShiftTypeRequirement :: Text -> Text -> [ShiftType] -> RosterTemplateCaptureShiftTypeRequirement -> Html
@@ -177,20 +173,30 @@ renderMappedShiftTypeOption selectedId shiftType
     | selectedId == Just shiftType.id = [hsx|<option value={tshow shiftType.id} selected="selected">{shiftType.name}</option>|]
     | otherwise = [hsx|<option value={tshow shiftType.id}>{shiftType.name}</option>|]
 
-renderStaffWarnings :: [RosterTemplateCaptureWarning] -> Html
-renderStaffWarnings warnings
-    | null warnings = mempty
+renderCaptureExceptions :: Day -> RosterTemplateCapturePreview -> Html
+renderCaptureExceptions windowStart preview
+    | null preview.capturePreviewWarnings && null preview.capturePreviewShiftTypeRequirements = mempty
     | otherwise = [hsx|
         <div class="alert alert-warning">
-            <p>The following durable Staff assignments will become Open:</p>
-            <ul class="mb-0">{forEach warnings renderStaffWarning}</ul>
+            <p class="mb-2">Exceptions:</p>
+            <ul class="mb-0">
+                {forEach preview.capturePreviewWarnings (renderStaffWarning windowStart)}
+                {forEach preview.capturePreviewShiftTypeRequirements renderShiftTypeException}
+            </ul>
         </div>
     |]
+  where
+    renderShiftTypeException requirement = [hsx|
+        <li>{requirement.captureStaleShiftTypeName} is unavailable; choose a replacement for the saved template. The current roster will remain unchanged.</li>
+    |]
 
-renderStaffWarning :: RosterTemplateCaptureWarning -> Html
-renderStaffWarning warning = [hsx|
-    <li>{warning.captureWarningStaffName}: {staffIssueLabel warning.captureWarningIssue} ({warning.captureWarningCount} shift(s))</li>
+renderStaffWarning :: Day -> RosterTemplateCaptureWarning -> Html
+renderStaffWarning windowStart warning = [hsx|
+    <li>{warning.captureWarningStaffName} {staffIssueLabel warning.captureWarningIssue} on {weekday}; {shiftCopy} will be marked Open in the saved template. The current roster will remain unchanged.</li>
 |]
+  where
+    weekday = cs (Time.formatTime Time.defaultTimeLocale "%A" (addDays (toInteger warning.captureWarningDayIndex) windowStart)) :: Text
+    shiftCopy = if warning.captureWarningCount == 1 then "this shift" else "these " <> tshow warning.captureWarningCount <> " shifts"
 
 renderConfirmationInputs preview fields = [hsx|
     <input type="hidden" name={surfaceFieldNameFrom @Surface.ExpectedSourceRevision fields} value={preview.capturePreviewSourceRevision}/>
@@ -215,6 +221,6 @@ checkedToggleValue fieldBinding = case toggleTargetForState fieldBinding ToggleC
     ToggleTargetOmitted -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Warnings confirmation checked state must submit a value"
 
 staffIssueLabel :: RosterTemplateCaptureStaffIssue -> Text
-staffIssueLabel CaptureStaffUnavailable = "Staff is inactive, archived, missing, or outside this venue"
-staffIssueLabel CaptureStaffOutsideGroup = "Staff is no longer assigned to this roster group"
-staffIssueLabel CaptureStaffPayInvalid = "Staff or Shift type pay configuration is invalid"
+staffIssueLabel CaptureStaffUnavailable = "is inactive, archived, missing, or outside this venue"
+staffIssueLabel CaptureStaffOutsideGroup = "is no longer assigned to this roster group"
+staffIssueLabel CaptureStaffPayInvalid = "has invalid Staff or Shift type pay configuration"

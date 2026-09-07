@@ -153,7 +153,7 @@ tests = aroundAll withDatabaseTestContext do
                 map (.assignmentState) targetSlots `shouldBe` ["open"]
                 fmap (map (.assignmentState) . (.snapshotShifts)) refreshedTemplate `shouldBe` Just ["staff"]
                 preview.applicationWarnings `shouldContain`
-                    [RosterTemplateApplicationAssignmentConvertedToOpen staff.id "Leave Worker" RosterTemplateStaffOnApprovedLeave 1]
+                    [RosterTemplateApplicationAssignmentConvertedToOpen staff.id "Leave Worker" RosterTemplateStaffOnApprovedLeave assignedDate 1]
 
         it "invalidates confirmation when referenced Staff facts change" $ withContext do
             withCleanDb do
@@ -225,7 +225,7 @@ tests = aroundAll withDatabaseTestContext do
                 unmapped `shouldBe` Left (RosterTemplateApplicationShiftTypeMappingsRequired [staleShiftType.id])
                 mappingConflict `shouldBe` Left RosterTemplateApplicationTargetConflict
                 payReferenceConflict `shouldBe` Left RosterTemplateApplicationTargetConflict
-                blocked `shouldBe` Left RosterTemplateApplicationTargetLive
+                blocked `shouldBe` Left RosterTemplateApplicationTargetConflict
                 fmap (map (.shiftTypeId) . (.snapshotShifts)) retainedAfterRollback `shouldBe` Just [unpackId staleShiftType.id]
                 result.appliedTemplateChanged `shouldBe` True
                 map (.shiftTypeId) targetSlots `shouldBe` [Just (unpackId replacement.id)]
@@ -321,7 +321,7 @@ tests = aroundAll withDatabaseTestContext do
                     , rosterTemplateLibraryResource (unpackId rosterGroup.id)
                     ]
 
-        it "rejects Published and incomplete targets without mutating either side" $ withContext do
+        it "rejects incomplete targets and applies a mixed Published window as entirely Draft" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Snapshot target guards"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -334,14 +334,20 @@ tests = aroundAll withDatabaseTestContext do
                 incomplete <- previewRosterTemplateApplication actor (applicationRequest snapshot.snapshotTemplate.id targetWeek)
                 _ <- createNativeRosterDayRecord venue rosterGroup (addDays 6 targetWeek.fixtureWindowStart) 6
                 _ <- (days !! 0) |> set #publicationState Published |> updateRecord
-                published <- previewRosterTemplateApplication actor (applicationRequest snapshot.snapshotTemplate.id targetWeek)
+                let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
+                Right publishedPreview <- previewRosterTemplateApplication actor request
+                slotCountBefore <- query @RosterSlot |> fetchCount
+                Right _ <- applyRosterTemplateApplication actor request publishedPreview.applicationExpectedTargetRevision publishedPreview.applicationRosterCalendarRevision
+                targetDays <- query @RosterDay |> filterWhere (#rosterGroupId, unpackId rosterGroup.id) |> fetch
                 templateCount <- query @RosterTemplateShift |> fetchCount
                 slotCount <- query @RosterSlot |> fetchCount
 
                 incomplete `shouldBe` Left RosterTemplateApplicationInvalidTargetDay
-                published `shouldBe` Left RosterTemplateApplicationTargetLive
+                slotCountBefore `shouldBe` 0
+                length targetDays `shouldBe` 7
+                map (.publicationState) targetDays `shouldBe` replicate 7 Draft
                 templateCount `shouldBe` 1
-                slotCount `shouldBe` 0
+                slotCount `shouldBe` 1
 
         it "uses the first Melbourne occurrence and rejects nonexistent local times" $ withContext do
             withCleanDb do

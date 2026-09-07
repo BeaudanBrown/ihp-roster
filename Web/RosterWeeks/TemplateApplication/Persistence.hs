@@ -80,6 +80,7 @@ applyDayStates prepared = do
             Nothing -> pure ()
             Just templateDay ->
                 targetDay
+                    |> set #publicationState Draft
                     |> set #isClosed templateDay.isClosed
                     |> set #rowCount templateDay.rowCount
                     |> updateRecord

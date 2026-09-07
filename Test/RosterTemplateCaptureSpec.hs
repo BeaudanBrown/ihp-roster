@@ -105,7 +105,9 @@ tests = aroundAll withDatabaseTestContext do
                 confirmed <- confirmRosterTemplateCapture fixture.actor request preview.capturePreviewSourceRevision preview.capturePreviewCalendarRevision True
 
                 preview.capturePreviewWarnings `shouldBe`
-                    [RosterTemplateCaptureWarning fixture.staff.id "Template Worker" CaptureStaffOutsideGroup 2]
+                    [ RosterTemplateCaptureWarning fixture.staff.id "Template Worker" CaptureStaffOutsideGroup 2 1
+                    , RosterTemplateCaptureWarning fixture.staff.id "Template Worker" CaptureStaffOutsideGroup 3 1
+                    ]
                 unconfirmed `shouldBe` Left RosterTemplateCaptureConfirmationRequired
                 let Right snapshot = confirmed
                 map (.assignmentState) snapshot.snapshotShifts `shouldBe` ["open", "open"]

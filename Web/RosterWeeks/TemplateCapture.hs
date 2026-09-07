@@ -56,6 +56,7 @@ data RosterTemplateCaptureWarning = RosterTemplateCaptureWarning
     { captureWarningStaffId   :: !(Id Staff)
     , captureWarningStaffName :: !Text
     , captureWarningIssue     :: !RosterTemplateCaptureStaffIssue
+    , captureWarningDayIndex  :: !Int
     , captureWarningCount     :: !Int
     }
     deriving (Eq, Show)
@@ -444,10 +445,13 @@ validateCapturedAssignments rosterGroup shiftTypes shifts = do
             StaffAssignment staffId -> Just (staffId, capturedStaffIssue activeAwardIds activeImportedPayItemIds eligibleStaffIds rosterGroup (Map.lookup staffId staffById) (Map.lookup shift.inputShiftTypeId shiftTypeById))
         classifiedShifts = [(shift, classify shift) | shift <- shifts]
         issues = [(staffId, issue) | (_, Just (staffId, Just issue)) <- classifiedShifts]
-        issueCounts = Map.fromListWith (+) [((staffId, issue), 1 :: Int) | (staffId, issue) <- issues]
-        warningFor ((staffId, issue), count) =
-            RosterTemplateCaptureWarning staffId (staffDisplayName staffId (Map.lookup staffId staffById)) issue count
-        warnings = map warningFor (sortOn (\((staffId, issue), _) -> (staffDisplayName staffId (Map.lookup staffId staffById), issue)) (Map.toList issueCounts))
+        issueCounts = Map.fromListWith (+)
+            [ ((staffId, issue, shift.inputShiftDayIndex), 1 :: Int)
+            | (shift, Just (staffId, Just issue)) <- classifiedShifts
+            ]
+        warningFor ((staffId, issue, dayIndex), count) =
+            RosterTemplateCaptureWarning staffId (staffDisplayName staffId (Map.lookup staffId staffById)) issue dayIndex count
+        warnings = map warningFor (sortOn (\((staffId, issue, dayIndex), _) -> (staffDisplayName staffId (Map.lookup staffId staffById), dayIndex, issue)) (Map.toList issueCounts))
         invalidKeys = Set.fromList issues
         finalShifts =
             [ case classification of

@@ -176,9 +176,7 @@ prepareStructurallyValidContent request saved targetGroup = do
         |> filterWhereLessThan (#operationalDate, request.applicationTargetWindowEnd)
         |> orderByAsc #operationalDate
         |> fetch
-    if any ((== Published) . (.publicationState)) targetDays
-        then pure (Left RosterTemplateApplicationTargetLive)
-        else if map (.operationalDate) targetDays /= map (`addDays` request.applicationTargetWindowStart) [0 .. 6]
+    if map (.operationalDate) targetDays /= map (`addDays` request.applicationTargetWindowStart) [0 .. 6]
             then pure (Left RosterTemplateApplicationInvalidTargetDay)
             else do
                 shiftTypeResolution <- resolveApplicationShiftTypes request saved targetGroup
@@ -463,14 +461,14 @@ toPreview prepared =
         , resolvedAssignment = plan.preparedAssignment
         }
     groupedIssues = Map.fromListWith (+)
-        [ ((staffId, issue), 1 :: Int)
+        [ ((staffId, issue, plan.preparedTargetDay.operationalDate), 1 :: Int)
         | plan <- prepared.preparedShiftPlans
         , StaffAssignment staffId <- [templateShiftAssignment plan.preparedTemplateShift]
         , Just issue <- [plan.preparedAssignmentIssue]
         ]
     assignmentWarnings =
-        [ RosterTemplateApplicationAssignmentConvertedToOpen staffId (Map.findWithDefault "Unavailable Staff member" staffId prepared.preparedStaffNames) issue count
-        | ((staffId, issue), count) <- Map.toList groupedIssues
+        [ RosterTemplateApplicationAssignmentConvertedToOpen staffId (Map.findWithDefault "Unavailable Staff member" staffId prepared.preparedStaffNames) issue day count
+        | ((staffId, issue, day), count) <- Map.toList groupedIssues
         ]
     timesheetWarnings =
         [RosterTemplateApplicationExistingTimesheetsRemain (length prepared.preparedTimesheetEntries) | not (null prepared.preparedTimesheetEntries)]

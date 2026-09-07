@@ -25,6 +25,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
+import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
@@ -120,7 +121,7 @@ instance Controller RosterTemplatesController where
                 }
         respondHtml (renderRosterTemplateLibraryFragment scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized template library missing") maybeLibrary))
 
-    action currentAction@PreviewRosterTemplateCaptureAction { rosterGroupId } = runBepis currentAction BepisPageAction do
+    action currentAction@PreviewRosterTemplateCaptureAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         actor <- authorizedTemplateActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         scope <- rosterTemplateWindowScope rosterGroup
@@ -139,7 +140,13 @@ instance Controller RosterTemplatesController where
                             preview <- previewRosterTemplateCapture actor captureRequest
                             case preview of
                                 Left failure -> renderTemplateCaptureInput rosterGroupId scope (templateCaptureErrorMessage failure)
-                                Right capturePreview -> respondHtml (renderRosterTemplateCaptureConfirmation rosterGroupId scope.rosterWindowStart captureRequest capturePreview Nothing)
+                                Right capturePreview
+                                    | Wai.requestMethod ?request == "POST"
+                                    , null capturePreview.capturePreviewWarnings
+                                    , isJust capturePreview.capturePreviewContent ->
+                                        saveTemplateCapture actor rosterGroupId scope captureRequest
+                                            capturePreview.capturePreviewSourceRevision capturePreview.capturePreviewCalendarRevision False
+                                    | otherwise -> respondHtml (renderRosterTemplateCaptureConfirmation rosterGroupId scope.rosterWindowStart captureRequest capturePreview Nothing)
       where
         launcherFields = RosterAction.previewRosterTemplateCaptureActionFields "" KeepValidStaffAssignments Nothing Nothing
         submittedCaptureName = paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.TemplateName launcherFields))
@@ -162,14 +169,7 @@ instance Controller RosterTemplatesController where
                         let expectedSourceRevision = surfaceFieldValue @RosterSurface.ExpectedSourceRevision fields
                             expectedCalendarRevision = surfaceFieldValue @RosterSurface.RosterCalendarRevision fields
                             warningsConfirmed = surfaceFieldValue @RosterSurface.WarningsConfirmed fields
-                        created <- confirmRosterTemplateCaptureMutation actor captureRequest expectedSourceRevision expectedCalendarRevision warningsConfirmed
-                        case created of
-                            Right mutationResult
-                                | isHtmxRequest -> respondWithRosterTemplateCaptureUpdate scope mutationResult.liveMutationTouchedResources
-                                | otherwise -> do
-                                    setSuccessMessage "Template saved."
-                                    redirectToPath (rosterTemplateWindowUrl scope)
-                            Left failure -> rerenderTemplateCapture actor rosterGroupId scope captureRequest failure
+                        saveTemplateCapture actor rosterGroupId scope captureRequest expectedSourceRevision expectedCalendarRevision warningsConfirmed
 
     action currentAction@ConfirmDeleteRosterTemplateAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisPageAction do
         actor <- authorizedTemplateActor
@@ -197,6 +197,19 @@ instance Controller RosterTemplatesController where
                             setSuccessMessage "Template deleted."
                             redirectToPath (rosterTemplateWindowUrl scope)
             _ -> invalidTemplateDelete Nothing "The viewed roster context is missing."
+
+saveTemplateCapture ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
+    RosterTemplateActor -> Id RosterGroup -> RosterWindowScope -> RosterTemplateCaptureRequest -> Text -> Int -> Bool -> IO ()
+saveTemplateCapture actor rosterGroupId scope captureRequest expectedSourceRevision expectedCalendarRevision warningsConfirmed = do
+    created <- confirmRosterTemplateCaptureMutation actor captureRequest expectedSourceRevision expectedCalendarRevision warningsConfirmed
+    case created of
+        Right mutationResult
+            | isHtmxRequest -> respondWithRosterTemplateCaptureUpdate scope mutationResult.liveMutationTouchedResources
+            | otherwise -> do
+                setSuccessMessage "Template saved."
+                redirectToPath (rosterTemplateWindowUrl scope)
+        Left failure -> rerenderTemplateCapture actor rosterGroupId scope captureRequest failure
 
 resolveTemplateApplicationRequest ::
     (?modelContext :: ModelContext) =>
@@ -366,7 +379,6 @@ templateApplicationErrorMessage = \case
     RosterTemplateApplicationForbidden -> "You cannot apply roster templates."
     RosterTemplateApplicationNotFound -> "The template or target roster no longer exists."
     RosterTemplateApplicationScopeMismatch -> "The template does not belong to this roster group."
-    RosterTemplateApplicationTargetLive -> "Templates cannot be applied to a Published roster. Return it to Draft first."
     RosterTemplateApplicationInvalidTargetDay -> "Choose a valid viewed week."
     RosterTemplateApplicationScaleMismatch -> "Choose a target compatible with this template."
     RosterTemplateApplicationTargetConflict -> "The roster changed before the template could be applied. Review it and try again."

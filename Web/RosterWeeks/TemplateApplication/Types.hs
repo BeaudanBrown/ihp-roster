@@ -28,7 +28,7 @@ data RosterTemplateApplicationAssignmentIssue
 data RosterTemplateApplicationWarning
     = RosterTemplateApplicationClearsWeek
     | RosterTemplateApplicationExistingTimesheetsRemain !Int
-    | RosterTemplateApplicationAssignmentConvertedToOpen !(Id Staff) !Text !RosterTemplateApplicationAssignmentIssue !Int
+    | RosterTemplateApplicationAssignmentConvertedToOpen !(Id Staff) !Text !RosterTemplateApplicationAssignmentIssue !Day !Int
     deriving (Eq, Show)
 
 data RosterTemplateApplicationShiftTypeRequirement = RosterTemplateApplicationShiftTypeRequirement
@@ -82,7 +82,6 @@ data RosterTemplateApplicationError
     = RosterTemplateApplicationForbidden
     | RosterTemplateApplicationNotFound
     | RosterTemplateApplicationScopeMismatch
-    | RosterTemplateApplicationTargetLive
     | RosterTemplateApplicationInvalidTargetDay
     | RosterTemplateApplicationScaleMismatch
     | RosterTemplateApplicationTargetConflict
