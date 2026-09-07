@@ -314,19 +314,23 @@ export function firstRosterDayRemoveButton(page: Page) {
     return rosterDayRemoveButton(page);
 }
 
-async function submitRosterDayAction(button: Locator) {
+export async function submitRosterDayAction(button: Locator) {
     const page = button.page();
     const formAction = await button.locator('xpath=ancestor::form[1]').getAttribute('action');
     if (!formAction) throw new Error('Expected roster day action form');
     const isActionRequest = (request: Request) =>
         request.method() === 'POST' && request.url().endsWith(formAction);
     const response = await runActionUntilRequestStarts(page, isActionRequest, async () => {
-        await button.evaluate((element) => {
-            if (!(element instanceof HTMLButtonElement) || !element.isConnected || !element.form?.isConnected) {
-                throw new Error('Expected a connected roster day action button and form');
+        // A live refetch can detach a resolved handle. Check readiness and
+        // activate atomically; retry only before activation, never a sent POST.
+        await expect.poll(() => button.evaluate((element) => {
+            if (!(element instanceof HTMLButtonElement)) {
+                throw new Error('Expected roster day action button to be an HTMLButtonElement');
             }
+            if (!element.isConnected || !element.form?.isConnected || element.matches(':disabled')) return false;
             element.form.requestSubmit(element);
-        });
+            return true;
+        }), { timeout: E2E_TIMEOUT.action, message: 'Expected a connected, enabled roster day action' }).toBe(true);
     });
     expect(response.status(), await response.text()).toBe(200);
     // waitForResponse resolves before HTMX removes its request state. A second
