@@ -110,6 +110,23 @@ collation and existing ordering keys remain authoritative (`last_name` for staff
 `sort_order, created_at` for shift types); equal keys acquire no extra ID/name
 tie-breaker. The panel intentionally includes pay-invalid active group staff.
 
+## Conflict And Dialog-Option Authority
+
+`DirectReadModel.buildSlotConflictsDirect` and its targeted variant own the SQL
+conflict calculation and closed tag decoder. Inputs are the caller's already
+scoped fact/target slots; neither an unused group ID nor a week date adds scope
+validation. `Application.Helper.Conflict` retains only shared types, severity,
+ordering and primary selection. Invalid timing is handled by the live timing
+and rendering boundaries, not by a second conflict evaluator.
+
+Shift dialogs use `StaffOptions.buildRosterStaffOptionStates`. Preserve the
+existing distinction: dialog preferences/leave use Operational dates; conflict
+SQL uses the persisted local start date (falling back to Operational date).
+Dialog ideal filters hide at the threshold; conflict warnings require exceeding
+it. The schema allows one active preference window per staff/day; deleted
+history is not another active window. Do not infer policy equivalence from
+retired synthetic evaluators or SQL option builders.
+
 ## Boundaries
 
 

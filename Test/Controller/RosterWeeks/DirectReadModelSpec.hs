@@ -16,7 +16,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -31,7 +31,7 @@ import Web.RosterWeeks.DateRange (RosterWindowLane (..), RosterWindowScope (..),
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.RenderData
-import Web.RosterWeeks.StaffOptions (rosterAssignmentOptionStatesFor)
+import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates, rosterAssignmentOptionStatesFor)
 import Web.RosterWeeks.Types
 
 
@@ -207,12 +207,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 entries <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.windowScope
+                        (.panelStaff) . fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
 
                 let entry = fromJust (find ((== fixture.eligibleStaff.id) . (.staff.id)) entries)
                 entry.userRole `shouldBe` "manager"
 
-        it "derives direct assignment option hidden reasons from SQL facts" $ withContext do
+        it "derives live dialog assignment option hidden reasons from scoped inputs" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
 
@@ -225,7 +225,7 @@ tests = aroundAll withDatabaseTestContext do
                         _ <- createLeaveRequestRecord fixture.venue fixture.eligibleStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) LeaveRequestStatusEnumApproved
 
                         facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.windowScope
-                        states <- buildRosterStaffOptionStatesDirect allAssignmentFilters initialData.weekStartDate facts.baseVisibleSlots facts.baseStaffMembers
+                        states <- buildRosterStaffOptionStates allAssignmentFilters initialData.weekStartDate facts.baseRosterDays facts.baseVisibleSlots facts.baseStaffMembers
 
                         let targetState = fromJust (Map.lookup (coerce fixture.visibleSparseSlot.id, coerce fixture.eligibleStaff.id) states)
                         targetState.optionHidden `shouldBe` True
@@ -258,7 +258,7 @@ tests = aroundAll withDatabaseTestContext do
                         map (.predictionDayDate) (filter ((> 0) . (.predictionDayShiftCount)) prediction.predictionDays)
                             `shouldBe` [expectedDate]
 
-        it "uses the authoritative local start date for after-midnight preferences" $ withContext do
+        it "retains Operational-date dialog preferences and local-start-date conflict preferences after midnight" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
 
@@ -272,11 +272,11 @@ tests = aroundAll withDatabaseTestContext do
                                 . setTestRosterSlotBoundaries initialData.weekStartDate (TimeOfDay 1 0 0) (TimeOfDay 2 0 0)
                         _ <- createStaffShiftPreferenceRecord fixture.venue staff (weekdayIndexForDay (Calendar.addDays 1 initialData.weekStartDate)) 5 6
 
-                        states <- buildRosterStaffOptionStatesForSlotsDirect allAssignmentFilters initialData.weekStartDate [slot] [slot] [staff]
+                        states <- buildRosterStaffOptionStates allAssignmentFilters initialData.weekStartDate [openDay] [slot] [staff]
                         let targetState = fromJust (Map.lookup (coerce slot.id, coerce staff.id) states)
-                        targetState.optionHiddenByUnavailable `shouldBe` False
+                        targetState.optionHiddenByUnavailable `shouldBe` True
 
-                        conflicts <- buildSlotConflictsForSlotsDirect fixture.rosterGroup.id 0 initialData.weekStartDate [slot] [slot]
+                        conflicts <- buildSlotConflictsForSlotsDirect 0 [slot] [slot]
                         lookup slot.id conflicts `shouldNotSatisfy` hasConflictType ShiftPreferenceDayUnavailable
                         lookup slot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
 
@@ -287,9 +287,8 @@ tests = aroundAll withDatabaseTestContext do
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
                         (duplicateSlot, lateSlot, preferenceSlot) <- addDirectReadModelConflictFacts fixture
-                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
                         facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.windowScope
-                        conflicts <- buildSlotConflictsDirect fixture.rosterGroup.id 480 initialData.weekStartDate facts.baseVisibleSlots
+                        conflicts <- buildSlotConflictsDirect 480 facts.baseVisibleSlots
 
                         let allTypes = sort (concatMap (map (.conflictType) . snd) conflicts)
                         forM_ [DuplicateAssignment, LeaveConflict, LateToEarlyConflict, ShiftPreferenceDayUnavailable, ShiftPreferenceSlotMismatch, IdealShiftThresholdExceeded] $ \conflictType ->
@@ -298,6 +297,12 @@ tests = aroundAll withDatabaseTestContext do
                         lookup duplicateSlot.id conflicts `shouldSatisfy` hasConflictType DuplicateAssignment
                         lookup lateSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
                         lookup preferenceSlot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
+                        let ordered = fromMaybe [] (lookup fixture.visibleSparseSlot.id conflicts)
+                        map (.conflictType) ordered `shouldBe`
+                            [DuplicateAssignment, LeaveConflict, LateToEarlyConflict, ShiftPreferenceDayUnavailable, IdealShiftThresholdExceeded]
+                        map (.severity) ordered `shouldBe`
+                            [CriticalConflict, CriticalConflict, CriticalConflict, AdvisoryConflict, AdvisoryConflict]
+                        (conflictType <$> primaryConflict ordered) `shouldBe` Just DuplicateAssignment
 
         it "excludes Open shifts from wage estimates and conflict output" $ withContext do
             withCleanDb do
@@ -306,7 +311,7 @@ tests = aroundAll withDatabaseTestContext do
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
                         initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
-                        beforePanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.windowScope
+                        let beforePanelEntries = initialData.panelStaff
                         rosterDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
                         openSlot <- createRosterSlotRecord rosterDay fixture.earlySlotName Nothing 12
                         venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
@@ -317,12 +322,99 @@ tests = aroundAll withDatabaseTestContext do
                         prediction.predictionIncompleteShiftCount `shouldBe` 0
                         map (.predictionDayShiftCount) prediction.predictionDays `shouldBe` replicate 7 0
 
-                        conflicts <- buildSlotConflictsForSlotsDirect fixture.rosterGroup.id 60 initialData.weekStartDate [openSlot] [openSlot]
+                        conflicts <- buildSlotConflictsForSlotsDirect 60 [openSlot] [openSlot]
                         conflicts `shouldBe` []
 
-                        afterPanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.windowScope
+                        afterPanelEntries <- (.panelStaff) . fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
                         map (\entry -> (entry.staff.id, entry.assignedShiftCount)) afterPanelEntries
                             `shouldBe` map (\entry -> (entry.staff.id, entry.assignedShiftCount)) beforePanelEntries
+
+        it "checks inclusive active preference windows and ignores deleted history through live SQL" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        day <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        staff <- createStaffRecord fixture.venue Nothing "Window" "Preference"
+                            >>= updateRecord . set #idealShiftsPerWeek 7
+                        slot <- createRosterSlotRecord day fixture.earlySlotName (Just staff) 8
+                        _ <- createStaffShiftPreferenceRecord fixture.venue staff (weekdayIndexForDay day.operationalDate) 12 20
+                        forM_ [(TimeOfDay 11 59 0, True), (TimeOfDay 12 0 0, False), (TimeOfDay 17 0 0, False), (TimeOfDay 20 0 0, False), (TimeOfDay 20 1 0, True)] \(start, mismatch) -> do
+                            timed <- slot |> setTestRosterSlotBoundaries day.operationalDate start (TimeOfDay 23 0 0) |> updateRecord
+                            conflicts <- buildSlotConflictsDirect 0 [timed]
+                            map (.conflictType) (fromMaybe [] (lookup timed.id conflicts))
+                                `shouldBe` if mismatch then [ShiftPreferenceSlotMismatch] else []
+                        -- The schema permits only one active window per staff/day.
+                        -- Extra historical windows must not rescue an active mismatch.
+                        let now = UTCTime (Calendar.fromGregorian 2026 1 1) 0
+                        _ <- newRecord @StaffShiftPreference
+                            |> set #venueId (unpackId fixture.venue.id)
+                            |> set #staffId (unpackId staff.id)
+                            |> set #weekdayIndex (weekdayIndexForDay day.operationalDate)
+                            |> set #preferredStartHour 6
+                            |> set #preferredEndHour 10
+                            |> set #deletedAt (Just now)
+                            |> createRecord
+                        forM_ [(TimeOfDay 9 0 0, True), (TimeOfDay 17 0 0, False)] \(start, mismatch) -> do
+                            timed <- slot |> setTestRosterSlotBoundaries day.operationalDate start (TimeOfDay 23 0 0) |> updateRecord
+                            conflicts <- buildSlotConflictsDirect 0 [timed]
+                            map (.conflictType) (fromMaybe [] (lookup timed.id conflicts))
+                                `shouldBe` if mismatch then [ShiftPreferenceSlotMismatch] else []
+
+        it "retains exclusive leave, ideal limits and current-slot subtraction in surviving conflict and dialog paths" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        day <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        nextDay <- fetch (Id fixture.closedDaySlot.rosterDayId) >>= updateRecord . set #isClosed False
+                        staff <- createStaffRecord fixture.venue Nothing "Limits" "Staff"
+                            >>= updateRecord . set #idealShiftsPerWeek 2
+                        first <- createRosterSlotRecord day fixture.earlySlotName (Just staff) 8
+                        second <- createRosterSlotRecord nextDay fixture.earlySlotName (Just staff) 8
+                        open <- createRosterSlotRecord day fixture.earlySlotName Nothing 9
+                        forM_ [day, nextDay] \rosterDay ->
+                            createStaffShiftPreferenceRecord fixture.venue staff (weekdayIndexForDay rosterDay.operationalDate) 5 23
+                        leave <- createLeaveRequestRecord fixture.venue staff day.operationalDate nextDay.operationalDate LeaveRequestStatusEnumApproved
+                        conflicts <- buildSlotConflictsDirect 0 [first, second, open]
+                        map (.conflictType) (fromMaybe [] (lookup first.id conflicts)) `shouldBe` [LeaveConflict]
+                        lookup second.id conflicts `shouldBe` Nothing
+                        states <- buildRosterStaffOptionStates allAssignmentFilters day.operationalDate [day, nextDay] [first, second, open] [staff]
+                        let current = fromJust (Map.lookup (coerce first.id, coerce staff.id) states)
+                            availableAgain = fromJust (Map.lookup (coerce second.id, coerce staff.id) states)
+                            openState = fromJust (Map.lookup (coerce open.id, coerce staff.id) states)
+                        current.optionAssignedShiftCount `shouldBe` 2
+                        current.optionHiddenByIdeal `shouldBe` True
+                        current.optionHiddenByAssignedToday `shouldBe` False
+                        current.optionHiddenByLeave `shouldBe` True
+                        availableAgain.optionHiddenByLeave `shouldBe` False
+                        openState.optionHiddenByAssignedToday `shouldBe` True
+                        forM_ [LeaveRequestStatusEnumPending, LeaveRequestStatusEnumDenied] \status -> do
+                            _ <- leave |> set #status status |> updateRecord
+                            cleared <- buildSlotConflictsDirect 0 [first, second]
+                            cleared `shouldBe` []
+                        _ <- staff |> set #idealShiftsPerWeek 1 |> updateRecord
+                        exceeded <- buildSlotConflictsDirect 0 [first, second]
+                        map (map (.conflictType) . snd) exceeded `shouldBe` [[IdealShiftThresholdExceeded], [IdealShiftThresholdExceeded]]
+
+        it "uses elapsed gaps through both DST transitions and disables or includes the exact threshold" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        forM_ [Calendar.fromGregorian 2026 4 4, Calendar.fromGregorian 2026 10 3] \utcDay -> do
+                            window <- createRosterWindowRecordForRosterGroupAt fixture.venue fixture.rosterGroup (Calendar.addDays (-5) utcDay) False
+                            day <- createRosterDayRecord window 5
+                            first <- createRosterSlotRecord day fixture.earlySlotName (Just fixture.eligibleStaff) 0
+                            second <- createRosterSlotRecord day fixture.earlySlotName (Just fixture.eligibleStaff) 1
+                            let firstStart = UTCTime utcDay (secondsToDiffTime (15 * 3600 + 30 * 60))
+                                secondStart = addUTCTime 3600 firstStart
+                            firstTimed <- first |> set #startsAt (Just firstStart) |> set #endsAt (Just (addUTCTime 1800 firstStart)) |> updateRecord
+                            secondTimed <- second |> set #startsAt (Just secondStart) |> set #endsAt (Just (addUTCTime 1800 secondStart)) |> updateRecord
+                            forM_ [(0, False), (60, False), (61, True)] \(threshold, expected) -> do
+                                conflicts <- buildSlotConflictsDirect threshold [firstTimed, secondTimed]
+                                map (\slot -> hasConflictType LateToEarlyConflict (lookup slot.id conflicts)) [firstTimed, secondTimed]
+                                    `shouldBe` [expected, expected]
 
         it "evaluates late-to-early gaps from exact start instants" $ withContext do
             withCleanDb do
@@ -339,7 +431,7 @@ tests = aroundAll withDatabaseTestContext do
                             >>= updateRecord
                                 . setTestRosterSlotBoundaries initialData.weekStartDate (TimeOfDay 10 0 0) (TimeOfDay 10 30 0)
 
-                        conflicts <- buildSlotConflictsForSlotsDirect fixture.rosterGroup.id 60 initialData.weekStartDate [firstSlot, secondSlot] [firstSlot, secondSlot]
+                        conflicts <- buildSlotConflictsForSlotsDirect 60 [firstSlot, secondSlot] [firstSlot, secondSlot]
 
                         lookup firstSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
                         lookup secondSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict

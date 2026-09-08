@@ -6,8 +6,6 @@
 
 module Web.RosterWeeks.DirectReadModel
     ( RosterBaseFacts (..)
-    , buildRosterStaffOptionStatesDirect
-    , buildRosterStaffOptionStatesForSlotsDirect
     , buildSlotConflictsDirect
     , buildSlotConflictsForSlotsDirect
     , RosterConflictDecodeError (..)
@@ -15,14 +13,12 @@ module Web.RosterWeeks.DirectReadModel
     , unavailableRosterConflict
     , fetchRosterBaseFactsDirect
     , fetchRosterNotificationWindowDays
-    , fetchRosterStaffPanelEntriesDirect
     ) where
 
 import Application.Error.Domain
 import Application.Error.Telemetry (recordAppError)
 import Application.Helper.Conflict
 import Application.Helper.Profiling
-import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
 import Application.PayAssignment (PayAssignmentScope (..), PayReferenceRequirement (..), payAssignmentModesRequiring)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
@@ -30,7 +26,6 @@ import Data.List (nubBy)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import qualified Data.Text as Text
-import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import GHC.Generics (Generic)
@@ -38,7 +33,7 @@ import IHP.ModelSupport (columnNames, unsafeSqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
-import Web.RosterWeeks.StaffOptions
+import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
 import Web.RosterWeeks.Types
 
 fetchRosterNotificationWindowDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO [RosterDay]
@@ -145,18 +140,6 @@ fetchEligibleRosterGroupStaffDirect rosterGroupId =
         , payAssignmentModesRequiring StaffPayScope AvailableXeroReference
         )
 
-fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> RosterWindowScope -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntriesDirect panelScope scope = do
-    baseFactsOrNothing <- fetchRosterBaseFactsDirect scope
-    case baseFactsOrNothing of
-        Nothing -> pure []
-        Just baseFacts -> do
-            panelStaffMembers <-
-                case panelScope of
-                    RosterStaffPanelCurrentGroup -> pure baseFacts.basePanelStaff
-                    RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
-            fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers baseFacts.baseVisibleSlots
-
 fetchRosterSlotsInIdOrder :: (?modelContext :: ModelContext) => [PG.Only UUID.UUID] -> IO [RosterSlot]
 fetchRosterSlotsInIdOrder [] = pure []
 fetchRosterSlotsInIdOrder orderedIds = do
@@ -208,84 +191,12 @@ fetchCurrentVenueRosterShiftTypesDirect =
         |> orderByAsc #createdAt
         |> fetch
 
-buildRosterStaffOptionStatesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots =
-    buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate visibleSlots visibleSlots
+buildSlotConflictsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
+buildSlotConflictsDirect lateToEarlyMinStartGapMinutes visibleSlots =
+    buildSlotConflictsForSlotsDirect lateToEarlyMinStartGapMinutes visibleSlots visibleSlots
 
-buildRosterStaffOptionStatesForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStatesForSlotsDirect assignmentFilters _weekStartDate factSlots targetSlots staffMembers
-    | null targetSlots || null staffMembers = pure Map.empty
-    | otherwise =
-        Map.fromList . map optionStateEntry <$> (unsafeSqlQuery
-            "WITH params AS ( \
-            \    SELECT ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
-            \), fact_slots AS ( \
-            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.assignment_state, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date))::int AS weekday_index \
-            \    FROM roster_slots \
-            \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-            \    CROSS JOIN params \
-            \    WHERE roster_slots.id = ANY(?) AND roster_slots.deleted_at IS NULL \
-            \), target_slots AS ( \
-            \    SELECT id, roster_day_id, assignment_state, staff_id, roster_date, weekday_index FROM fact_slots WHERE id = ANY(?) \
-            \), staff_scope AS ( \
-            \    SELECT staff.id, staff.ideal_shifts_per_week FROM staff CROSS JOIN params WHERE staff.id = ANY(?) AND staff.venue_id = params.venue_id \
-            \), shift_counts AS ( \
-            \    SELECT staff_id, COUNT(*)::int AS assigned_count FROM fact_slots WHERE assignment_state = 'staff' AND staff_id IS NOT NULL GROUP BY staff_id \
-            \), day_counts AS ( \
-            \    SELECT roster_day_id, staff_id, COUNT(*)::int AS assigned_day_count FROM fact_slots WHERE assignment_state = 'staff' AND staff_id IS NOT NULL GROUP BY roster_day_id, staff_id \
-            \) \
-            \SELECT target_slots.id, staff_scope.id, COALESCE(shift_counts.assigned_count, 0)::int, \
-            \       ((CASE WHEN params.hide_ideal AND COALESCE(shift_counts.assigned_count, 0) >= staff_scope.ideal_shifts_per_week THEN 1 ELSE 0 END) + \
-            \        (CASE WHEN params.hide_unavailable AND NOT EXISTS ( \
-            \           SELECT 1 FROM staff_shift_preferences \
-            \           WHERE staff_shift_preferences.venue_id = params.venue_id AND staff_shift_preferences.staff_id = staff_scope.id \
-            \             AND staff_shift_preferences.weekday_index = target_slots.weekday_index AND staff_shift_preferences.deleted_at IS NULL \
-            \        ) THEN 2 ELSE 0 END) + \
-            \        (CASE WHEN params.hide_leave AND EXISTS ( \
-            \           SELECT 1 FROM leave_requests \
-            \           WHERE leave_requests.venue_id = params.venue_id AND leave_requests.staff_id = staff_scope.id AND leave_requests.status = 'approved' \
-            \             AND leave_requests.deleted_at IS NULL AND leave_requests.start_date <= target_slots.roster_date AND leave_requests.end_date > target_slots.roster_date \
-            \        ) THEN 4 ELSE 0 END) + \
-            \        (CASE WHEN params.hide_today AND (COALESCE(day_counts.assigned_day_count, 0) - CASE WHEN target_slots.staff_id = staff_scope.id THEN 1 ELSE 0 END) > 0 THEN 8 ELSE 0 END))::int \
-            \FROM target_slots \
-            \CROSS JOIN staff_scope \
-            \CROSS JOIN params \
-            \LEFT JOIN shift_counts ON shift_counts.staff_id = staff_scope.id \
-            \LEFT JOIN day_counts ON day_counts.roster_day_id = target_slots.roster_day_id AND day_counts.staff_id = staff_scope.id \
-            \ORDER BY target_slots.id, staff_scope.id"
-            ( unpackId currentVenueId
-            , assignmentFilters.hideStaffAtIdealShifts
-            , assignmentFilters.hideStaffUnavailable
-            , assignmentFilters.hideStaffOnApprovedLeave
-            , assignmentFilters.hideStaffAlreadyAssignedToday
-            , map (coerce . (.id)) factSlots :: [UUID.UUID]
-            , map (coerce . (.id)) targetSlots :: [UUID.UUID]
-            , map (coerce . (.id)) staffMembers :: [UUID.UUID]
-            ) :: IO [(UUID.UUID, UUID.UUID, Int, Int)])
-    where
-        optionStateEntry (slotId, staffId, assignedShiftCount, hiddenFlags) =
-            let hiddenByIdeal = hiddenFlags `mod` 2 == 1
-                hiddenByUnavailable = hiddenFlags `div` 2 `mod` 2 == 1
-                hiddenByLeave = hiddenFlags `div` 4 `mod` 2 == 1
-                hiddenByToday = hiddenFlags `div` 8 `mod` 2 == 1
-                hidden = hiddenFlags /= 0
-             in ( (slotId, staffId)
-                , RosterAssignmentOptionState
-                    { optionHidden = hidden
-                    , optionAssignedShiftCount = assignedShiftCount
-                    , optionHiddenByIdeal = hiddenByIdeal
-                    , optionHiddenByUnavailable = hiddenByUnavailable
-                    , optionHiddenByLeave = hiddenByLeave
-                    , optionHiddenByAssignedToday = hiddenByToday
-                    }
-                )
-
-buildSlotConflictsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflictsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots =
-    buildSlotConflictsForSlotsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots visibleSlots
-
-buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes _weekStartDate factSlots targetSlots
+buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> [RosterSlot] -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
+buildSlotConflictsForSlotsDirect lateToEarlyMinStartGapMinutes factSlots targetSlots
     | null assignedSlotIds || null targetSlotIds = pure []
     | otherwise = do
         rows <- (unsafeSqlQuery

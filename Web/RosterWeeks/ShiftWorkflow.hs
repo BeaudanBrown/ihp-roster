@@ -251,7 +251,7 @@ buildRosterShiftDialogStaffOptionStates rosterGroupId targetDay targetSlot staff
     let slotsForOptions = targetSlot : filter (\slot -> coerce slot.id /= targetSlotId) visibleSlots
     let targetDayId = unpackId targetDay.id
     let rosterDaysForOptions = targetDay : filter (\day -> coerce day.id /= targetDayId) rosterDays
-    optionStates <- buildRosterStaffOptionStates rosterGroupId assignmentFiltersForDialog weekStartDate rosterDaysForOptions slotsForOptions staffMembers
+    optionStates <- buildRosterStaffOptionStates assignmentFiltersForDialog weekStartDate rosterDaysForOptions slotsForOptions staffMembers
     pure $ Map.fromList
         [ (coerce staff.id, optionState)
         | staff <- staffMembers

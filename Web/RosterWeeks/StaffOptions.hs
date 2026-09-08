@@ -114,8 +114,8 @@ fetchAssignedRosterWeekStaff allSlots = do
                 |> orderBy #lastName
                 |> fetch
 
-buildRosterStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterAssignmentFilters -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers = do
+buildRosterStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
+buildRosterStaffOptionStates assignmentFilters weekStartDate rosterDays visibleSlots staffMembers = do
     let staffIds = map (coerce . (.id)) staffMembers
     if null staffIds
         then pure Map.empty
