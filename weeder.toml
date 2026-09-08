@@ -5,6 +5,8 @@ roots = [
     "^Test\\.HspecMain\\.main$",
     # E2E builds this mock server through -main-is outside the app graph.
     "^Test\\.StripeProcessMockMain\\.main$",
+    # Canonical E2E starts the isolated job worker via -main-is per shard.
+    "^Test\\.E2EWorkerMain\\.main$",
     "^Paths_.*",
     # IHP and project shell runners invoke one of these conventional script
     # entrypoints from generated wrapper mains; helper declarations remain

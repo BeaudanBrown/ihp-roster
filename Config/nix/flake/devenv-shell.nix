@@ -66,6 +66,7 @@
                     PLAYWRIGHT_BROWSERS_PATH = "${inputs'.playwright.packages.playwright-driver.browsers}";
                     PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
                     E2E_TYPESCRIPT_NODE_MODULES = "${e2eTypeScriptDependencies}/lib/node_modules";
+                    E2E_PLAYWRIGHT_NODE_MODULES = "${inputs'.playwright.packages.playwright-test}/lib/node_modules";
                     SMTP_HOST = "127.0.0.1";
                     SMTP_PORT = "1025";
                     SMTP_ENCRYPTION = "Unencrypted";

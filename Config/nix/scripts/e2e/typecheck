@@ -28,8 +28,10 @@ if [[ -z "$fixture" ]]; then
 fi
 
 : "${E2E_TYPESCRIPT_NODE_MODULES:?e2e-typecheck requires the project Nix environment}"
-playwright_package_json="$(node -p 'require.resolve("@playwright/test/package.json")')"
-playwright_node_modules="$(dirname "$(dirname "$(dirname "$playwright_package_json")")")"
+: "${E2E_PLAYWRIGHT_NODE_MODULES:?e2e-typecheck requires the pinned Playwright declarations}"
+# The CLI wrapper's NODE_PATH is private to that process. Resolve declarations
+# from the same pinned Nix package explicitly, never from ambient node_modules.
+playwright_node_modules="$E2E_PLAYWRIGHT_NODE_MODULES"
 node_types="$E2E_TYPESCRIPT_NODE_MODULES/@types"
 
 if [[ ! -f "$playwright_node_modules/@playwright/test/index.d.ts" ]]; then
