@@ -70,7 +70,14 @@ concrete resources. Bound cold historical queries only after preserving that
 cross-process authority. The
 generic planner contains no feature switches, custom dependencies, bridge
 conversions, or fanout callbacks. Background jobs use the same touched-resource
-boundary without request context.
+boundary through `Application.Helper.LiveUpdate.BackgroundMutation`, requiring
+only a model context. Request profiling/HTTP completion stays in
+`Web.SurfaceInvalidation`; shared sanitized telemetry lives in
+`Application.Helper.LiveUpdate.Diagnostics`. Both mutation entry points reuse
+`DurablePublisher` and bind the business action's transaction model context.
+A selector returning `Nothing` commits without publication, even for a `Left`
+value; exceptions roll back. Do not substitute generic outcome-based rollback
+or add a second dispatcher, resource registry, or transport.
 
 `setActorLiveResourcesRefresh` plans resource-backed actor updates.
 `setActorLocalFragmentsRefresh` is limited to requester-local workflows with no

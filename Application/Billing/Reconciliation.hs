@@ -30,7 +30,7 @@ import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 
 data BillingReconciliationFailure = BillingReconciliationFailure

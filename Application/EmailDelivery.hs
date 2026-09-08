@@ -51,7 +51,7 @@ import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Mail (sendMail)
 import IHP.MailPrelude (BuildMail)
 import IHP.ModelSupport (withTransaction)
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 
 data EmailDeliveryPayload = EmailDeliveryPayload

@@ -28,7 +28,7 @@ import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 
 data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary

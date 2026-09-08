@@ -33,7 +33,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import Network.HTTP.Simple
 import Text.Read (readMaybe)
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext)
 
 data DataVicHolidayRecord = DataVicHolidayRecord
     { arun          :: !(Maybe Text)

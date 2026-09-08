@@ -49,8 +49,9 @@ import System.Environment (getEnv)
 import System.Timeout (timeout)
 import Test.Hspec
 import Test.Support
-import Web.SurfaceInvalidation (dispatchDurableInvalidationWithBus,
-                                withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext,
+                                                        withDurableLiveMutationOutcomeWithoutContext)
+import Web.SurfaceInvalidation (dispatchDurableInvalidationWithBus)
 
 publishTestDurableInvalidation :: (?modelContext :: ModelContext) => Text -> Set.Set SurfaceResourceValue -> IO DurablePublication
 publishTestDurableInvalidation source resources = do
@@ -77,6 +78,18 @@ tests =
                     userCount `shouldBe` 1
                     eventCount `shouldBe` 1
                     versionCount `shouldBe` 1
+
+            it "commits an explicit non-publication outcome even when the value is Left" $ withContext do
+                withCleanDb do
+                    result <- withDurableLiveMutationOutcomeWithoutContext (const Nothing) do
+                        _ <- createUserRecord "atomic-no-publication@example.com" "staff" True
+                        pure (Left "retained outcome" :: Either Text ())
+                    result `shouldBe` Left "retained outcome"
+                    userCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM users WHERE email = 'atomic-no-publication@example.com'" ()
+                    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
+                    resourceCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_event_resources" ()
+                    versionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
+                    (userCount, eventCount, resourceCount, versionCount) `shouldBe` (1, 0, 0, 0)
 
             it "rolls back the business write when durable publication fails" $ withContext do
                 withCleanDb do

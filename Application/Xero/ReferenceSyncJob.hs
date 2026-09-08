@@ -48,7 +48,7 @@ import IHP.Job.Types
 import IHP.ModelSupport (unsafeSqlExec, unsafeSqlQuery)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (randomRIO)
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 
 data XeroReferenceDataSource = XeroReferenceDataSource

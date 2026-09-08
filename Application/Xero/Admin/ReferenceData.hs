@@ -34,7 +34,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 data XeroReferenceDataSyncResult = XeroReferenceDataSyncResult
     { referenceDataSyncRun                  :: XeroSyncRun

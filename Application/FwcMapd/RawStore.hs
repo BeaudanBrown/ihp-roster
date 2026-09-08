@@ -18,7 +18,7 @@ import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
-import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 fetchAndStore :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary
 fetchAndStore config = do

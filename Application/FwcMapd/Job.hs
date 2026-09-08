@@ -23,7 +23,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 data FwcMapdRefreshPayload = FwcMapdRefreshPayload
 
