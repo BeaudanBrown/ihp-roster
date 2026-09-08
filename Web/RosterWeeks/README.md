@@ -106,7 +106,7 @@ The active Templates-tab workflow accepts Week snapshots only.
 
 ## Template Application Contract
 
-Week application resolves the submitted ISO `anchorDate` to one exact seven-day roster-group scope. All seven Operational dates must exist and remain Draft. Saved weekday identity maps each snapshot day to the matching target date while preserving weekday meaning across venue window-order changes. The snapshot replaces all seven open/closed states, row counts, columns/order, and shifts; publication is never sourced from the template.
+Week application resolves the submitted ISO `anchorDate` to one exact seven-day roster-group scope. All seven Operational dates must exist, in Draft or Published state. After confirmation, application atomically returns all seven days to Draft alongside target replacement. Saved weekday identity maps each snapshot day to the matching target date while preserving weekday meaning across venue window-order changes. The snapshot replaces all seven open/closed states, row counts, columns/order, and shifts; publication is never sourced from the template.
 
 Preview binds template content, target content, calendar configuration, and current Staff, Shift-type, membership, approved-leave, award-level, and imported-pay-item facts. Confirmation date-locks the window, row-locks those references and relevant Timesheet snapshots, revalidates the bound revision, and performs target replacement plus any template cleanup in one transaction. Replaced roster shifts are soft-deleted, preserving materialized Timesheet values and source provenance.
 

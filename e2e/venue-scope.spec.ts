@@ -36,7 +36,7 @@ test.describe('Venue-scoped navigation', () => {
         await expect(page.locator('#timesheet-week-shell')).toContainText('Alpha Crew');
         await expect(page.locator('#timesheet-week-shell')).not.toContainText('Beta Crew');
 
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
         await expect(page.locator('#leave-requests-content')).toContainText('Alpha Crew');
         await expect(page.locator('#leave-requests-content')).not.toContainText('Beta Crew');
     });

@@ -35,7 +35,7 @@ async function waitForLeaveSubscription(page: Page) {
 
 async function loginManagerAndOpenLeave(page: Page) {
     await loginAs(page, managerCredentials.email, managerCredentials.password);
-    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
     await waitForLeaveSubscription(page);
 }
 
@@ -144,7 +144,7 @@ test.describe('Unavailable-staff threshold warnings', () => {
             await denyResponse.finished();
 
             await expect(passivePage.locator('#leave-availability-warnings')).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
-            await actorPage.locator('#leave-denied-heading button').click();
+            await actorPage.getByRole('tab', { name: 'Denied', exact: true }).click();
             await expect(actorPage.locator('#leave-requests-content article').filter({ hasText: alphaNote })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
             const approveResponsePromise = actorPage.waitForResponse((response) =>

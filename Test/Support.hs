@@ -49,6 +49,8 @@ import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 import IHP.Test.Mocking
+import IHP.Server (initMiddlewareStack)
+import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types (Status, status200)
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
@@ -61,6 +63,31 @@ import Test.Hspec (Expectation, shouldBe)
 import Test.Support.Environment (withEnvironmentVariable)
 import Web.FrontController ()
 import Web.Types
+
+-- IHP's callActionWithParams always sends POST. Use an actual query-string GET
+-- for read-only preview actions, preserving its middleware and auth overrides.
+callActionWithQueryParams :: forall application controller.
+    (Controller controller, ContextParameters application, Typeable application, Typeable controller) =>
+    controller -> [HTTP.SimpleQueryItem] -> IO Wai.Response
+callActionWithQueryParams controller params = do
+    let MockContext { frameworkConfig, modelContext, pgListener } = ?mocking
+    let request = ?request
+            { Wai.requestMethod = "GET"
+            , Wai.queryString = map (\(key, value) -> (key, Just value)) params
+            , Wai.rawQueryString = HTTP.renderSimpleQuery True params
+            }
+    let overrideMiddleware = fromMaybe Prelude.id (Vault.lookup mockOverrideVaultKey (Wai.vault request))
+    responses <- newIORef []
+    let capture response = modifyIORef' responses (response :) >> pure ResponseReceived
+    let controllerApp req respond = do
+            let ?request = req
+            let ?respond = respond
+            runActionWithNewContext controller
+    middleware <- initMiddlewareStack frameworkConfig modelContext pgListener
+    _ <- middleware (overrideMiddleware controllerApp) request capture
+    readIORef responses >>= \case
+        [response] -> pure response
+        _ -> fail "GET controller action must send exactly one response"
 
 actionResponsesShouldHaveStatus :: Status -> [(Text, IO Wai.Response)] -> Expectation
 actionResponsesShouldHaveStatus expectedStatus actions = do

@@ -439,7 +439,7 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseStatusShouldBe` status200
                     query @UserFeedbackItem |> fetchCount >>= (`shouldBe` 0)
 
-        it "renders all management rows and retained metadata only to the unimpersonated founder" $ withContext do
+        it "renders founder management rows without diagnostic metadata while retaining it in storage" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Management origin"
                 otherVenue <- createVenueWithConfig "Unrelated support venue"
@@ -452,8 +452,11 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` "Private card 1"
                     response `responseBodyShouldContain` "Private card 51"
                     response `responseBodyShouldContain` "management-author@example.com"
-                    response `responseBodyShouldContain` "Secret support note"
-                    response `responseBodyShouldContain` "/secret-path"
+                    response `responseBodyShouldNotContain` "Secret support note"
+                    response `responseBodyShouldNotContain` "/secret-path"
+                    retainedItems <- query @UserFeedbackItem |> fetch
+                    map (.supportNote) retainedItems `shouldBe` replicate 51 (Just "Secret support note")
+                    map (.submittedPath) retainedItems `shouldBe` replicate 51 (Just "/secret-path")
                     response `responseBodyShouldContain` "Management origin"
                     response `responseBodyShouldContain` "hx-get=\"/EditFeedback"
                     countResponse <- callAction ShowFeedbackDesktopCountAction

@@ -152,7 +152,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await loginManager(managerPage);
         await loginWorker(workerPage);
 
-        await gotoWhenReady(managerPage, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(managerPage, '/LeaveRequests', '#leave-requests-shell');
 
         const { startDate, endDate } = await currentBroadLeaveRange(workerPage);
 
@@ -265,7 +265,7 @@ test.describe('Live fragment multi-view coverage', () => {
                 LIMIT 1
             );
         `);
-        await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-shell');
 
         const pendingLeaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note }).filter({ hasText: 'Pending' });
 

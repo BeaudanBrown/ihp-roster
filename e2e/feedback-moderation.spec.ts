@@ -24,8 +24,8 @@ test('moderates Feedback with actor and passive plain-fragment refreshes', async
         await gotoWhenReady(page, '/Feedback', '#feedback-review');
         await loginAs(viewer, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(viewer, '/Feedback', '#feedback-cards');
-        await expect(viewer.locator('#feedback-cards')).not.toContainText(title);
-        const card = page.locator('#feedback-review article').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+        await expect(viewer.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
+        const card = page.locator('#feedback-review').getByRole('row').filter({ has: page.getByRole('rowheader', { name: title, exact: true }) });
         await expect(card.getByRole('button', { name: 'Publish', exact: true })).toBeVisible();
         const initialCount = Number(await page.locator('#feedback-desktop-count').textContent());
         expect(initialCount).toBeGreaterThan(0);
@@ -42,7 +42,7 @@ test('moderates Feedback with actor and passive plain-fragment refreshes', async
         const fragment = await publicRefetch;
         expect(fragment.status()).toBe(200);
         expect(await fragment.text()).not.toContain('hx-swap-oob');
-        await expect(viewer.locator('#feedback-cards')).toContainText(title, { timeout: E2E_TIMEOUT.assertion });
+        await expect(viewer.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(viewer.locator('#feedback-cards')).not.toContainText('Private retained provenance');
         await expect(viewer.locator('#feedback-cards')).not.toContainText('e2e-worker@example.com');
         await expect(page.locator('#feedback-desktop-count')).toHaveText(initialCount === 1 ? '' : String(initialCount - 1), { timeout: E2E_TIMEOUT.assertion });
@@ -68,11 +68,11 @@ test('moderates Feedback with actor and passive plain-fragment refreshes', async
         await card.locator('summary').filter({ hasText: /^Archive$/ }).click();
         await expect(card).toContainText('All votes will be removed.');
         await card.getByRole('button', { name: 'Confirm archive', exact: true }).click();
-        await expect(viewer.locator('#feedback-cards')).not.toContainText(title, { timeout: E2E_TIMEOUT.assertion });
+        await expect(viewer.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         await card.getByRole('button', { name: 'Restore', exact: true }).click();
         await expect(page.locator('#feedback-desktop-count')).toHaveText(String(initialCount), { timeout: E2E_TIMEOUT.assertion });
         await expect(card.getByRole('button', { name: 'Publish', exact: true })).toBeVisible();
-        await expect(viewer.locator('#feedback-cards')).not.toContainText(title);
+        await expect(viewer.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         await page.screenshot({ path: testInfo.outputPath('feedback-restored.png'), fullPage: true });
         await testInfo.attach('Feedback restored', { path: testInfo.outputPath('feedback-restored.png'), contentType: 'image/png' });
         await gotoWhenReady(page, '/Support', '#support-shell');

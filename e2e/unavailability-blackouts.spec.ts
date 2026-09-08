@@ -21,7 +21,7 @@ async function installSubscriptionObserver(page: Page) {
 }
 
 async function openLeaveSettings(page: Page) {
-    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
     await page.getByRole('tab', { name: 'Settings' }).click();
     await expect(page.locator('#unavailability-blackouts')).toBeVisible();
 }

@@ -5,7 +5,7 @@ import { loginAs } from './support/session';
 import { runSql } from './support/database';
 
 test.describe('unavailability archive pagination', () => {
-    test('updates archive rows without closing the archive accordion or reloading the page', async ({ page }) => {
+    test('updates archive rows without leaving the Archive tab or reloading the page', async ({ page }) => {
         runSql(`
             INSERT INTO leave_requests (id, venue_id, staff_id, start_date, end_date, status, notes, deleted_at, deleted_by_user_id, delete_reason)
             SELECT
@@ -34,24 +34,18 @@ test.describe('unavailability archive pagination', () => {
         `);
 
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 
-        const archiveToggle = page.locator('#leave-archive-heading .accordion-button');
-        if ((await archiveToggle.getAttribute('aria-expanded')) !== 'true') {
-            await archiveToggle.click();
-        }
-        await expect(archiveToggle).toHaveAttribute('aria-expanded', 'true', { timeout: E2E_TIMEOUT.action });
-        await expect(page.locator('#leave-pending-heading .accordion-button')).toHaveAttribute('aria-expanded', 'false', { timeout: E2E_TIMEOUT.action });
+        const archiveTab = page.getByRole('tab', { name: 'Archive', exact: true });
+        await archiveTab.click();
+        await expect(archiveTab).toHaveAttribute('aria-selected', 'true', { timeout: E2E_TIMEOUT.action });
+        await expect(page.getByRole('tab', { name: 'Pending', exact: true })).toHaveAttribute('aria-selected', 'false', { timeout: E2E_TIMEOUT.action });
 
         await page.evaluate(() => {
             (window as Window & { __archivePagerNoReload?: boolean }).__archivePagerNoReload = true;
         });
 
         const archivePageTwo = page.getByRole('link', { name: 'Archive page 2' }).first();
-        if ((await archivePageTwo.count()) === 0) {
-            await expect(page.locator('#leave-archive-heading .accordion-button')).toContainText('Archive');
-            return;
-        }
         await expect(archivePageTwo).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         await Promise.all([
@@ -69,10 +63,11 @@ test.describe('unavailability archive pagination', () => {
         ]);
 
         await expect.poll(
-            async () => page.locator('#leave-archive-heading .accordion-button').getAttribute('aria-expanded'),
+            async () => archiveTab.getAttribute('aria-selected'),
             { timeout: E2E_TIMEOUT.assertion },
         ).toBe('true');
-        await expect(page.locator('#leave-pending-heading .accordion-button')).toHaveAttribute('aria-expanded', 'false', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.getByRole('tab', { name: 'Pending', exact: true })).toHaveAttribute('aria-selected', 'false', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.getByRole('tabpanel', { name: 'Archive', exact: true })).toBeVisible();
         await expect(page.locator('#leave-archive-page-content')).toContainText('e2e-archive-pagination-12', { timeout: E2E_TIMEOUT.assertion });
         await expect.poll(
             async () => page.evaluate(() => (window as Window & { __archivePagerNoReload?: boolean }).__archivePagerNoReload === true),

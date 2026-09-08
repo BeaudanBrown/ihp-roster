@@ -26,7 +26,7 @@ import IHP.Prelude
 import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import Network.Wai (responseHeaders)
+import Network.Wai (Response, responseHeaders)
 import Test.Hspec
 import Test.Support
 import Test.Support.Concurrency (runConcurrentActionsFromBarrier)
@@ -36,6 +36,16 @@ import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
                                     leaveReviewTouchedResources)
 import Web.Routes
 import Web.Types
+import Web.View.LeaveRequests.Index (leavePendingCountFragmentId, leaveApprovedCountFragmentId, leaveDeniedCountFragmentId, leaveArchiveCountFragmentId)
+
+leaveTabCountShouldBe :: Response -> Text -> Text -> Int -> Expectation
+leaveTabCountShouldBe response label countId count = do
+    body <- responseBody response
+    let bodyText = cs (LByteString.unpack body)
+        tab = fst (Text.breakOn "</button>" (snd (Text.breakOn ("id=\"leave-" <> Text.toLower label <> "-tab\"") bodyText)))
+    tab `shouldSatisfy` Text.isInfixOf ("aria-label=\"" <> label <> "\"")
+    tab `shouldSatisfy` Text.isInfixOf ("aria-describedby=\"" <> countId <> "\"")
+    tab `shouldSatisfy` Text.isInfixOf ("id=\"" <> countId <> "\">" <> tshow count <> "</span>")
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -581,7 +591,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "class=\"app-panel-header app-side-panel-header\""
+                response `responseBodyShouldContain` "class=\"app-panel-header app-side-panel-header app-side-panel-header-tabs\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-toggle=\"true\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-tab=\"staff\""
@@ -631,7 +641,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (1)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 1
                 response `responseBodyShouldContain` "Approve"
                 response `responseBodyShouldContain` "hx-swap=\"none\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"approve-leave-request\""
@@ -713,7 +723,7 @@ tests = aroundAll withDatabaseTestContext do
                 leaveExists <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 leaveExists `shouldBe` False
 
-        it "renders manager accordion headings with counts inline after the title" $ withContext do
+        it "renders manager header tabs with accessible live counts" $ withContext do
             withCleanDb do
                 today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "Leave Venue"
@@ -731,10 +741,10 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (2)"
-                response `responseBodyShouldContain` "Approved (1)"
-                response `responseBodyShouldContain` "Denied (1)"
-                response `responseBodyShouldContain` "Archive (0)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 2
+                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 1
+                leaveTabCountShouldBe response "Denied" leaveDeniedCountFragmentId 1
+                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 0
                 response `responseBodyShouldNotContain` "Needs a decision"
                 response `responseBodyShouldNotContain` "Already confirmed"
                 response `responseBodyShouldNotContain` "Rejected requests"
@@ -758,16 +768,16 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (1)"
-                response `responseBodyShouldContain` "Approved (1)"
-                response `responseBodyShouldContain` "Denied (0)"
-                response `responseBodyShouldContain` "Archive (3)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 1
+                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 1
+                leaveTabCountShouldBe response "Denied" leaveDeniedCountFragmentId 0
+                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 3
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                     pendingSection = fst (Text.breakOn "id=\"leave-approved\"" (snd (Text.breakOn "id=\"leave-pending\"" bodyText)))
                     archiveSection = snd (Text.breakOn "id=\"leave-archive\"" bodyText)
-                Text.isInfixOf "aria-expanded=\"true\"" pendingSection `shouldBe` True
-                Text.isInfixOf "accordion-collapse collapse show" pendingSection `shouldBe` True
+                Text.isInfixOf "class=\"tab-pane active show\"" pendingSection `shouldBe` True
+                Text.isInfixOf "role=\"tabpanel\" aria-labelledby=\"leave-pending-tab\"" pendingSection `shouldBe` True
                 Text.isInfixOf ">Actions<" archiveSection `shouldBe` False
                 Text.isInfixOf ">Approve<" archiveSection `shouldBe` False
                 Text.isInfixOf ">Deny<" archiveSection `shouldBe` False
@@ -797,8 +807,8 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("archivePage", "2")]
 
                 firstPageResponse `responseStatusShouldBe` status200
-                firstPageResponse `responseBodyShouldContain` "Pending (1)"
-                firstPageResponse `responseBodyShouldContain` "Archive (12)"
+                leaveTabCountShouldBe firstPageResponse "Pending" leavePendingCountFragmentId 1
+                leaveTabCountShouldBe firstPageResponse "Archive" leaveArchiveCountFragmentId 12
                 firstPageResponse `responseBodyShouldContain` "archive-page-note-1"
                 firstPageResponse `responseBodyShouldContain` "archive-page-note-10"
                 firstPageResponse `responseBodyShouldNotContain` "archive-page-note-11"
@@ -807,8 +817,8 @@ tests = aroundAll withDatabaseTestContext do
                 firstPageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"archive-leave-requests-page\""
 
                 olderPageResponse `responseStatusShouldBe` status200
-                olderPageResponse `responseBodyShouldContain` "Pending (1)"
-                olderPageResponse `responseBodyShouldContain` "Archive (12)"
+                leaveTabCountShouldBe olderPageResponse "Pending" leavePendingCountFragmentId 1
+                leaveTabCountShouldBe olderPageResponse "Archive" leaveArchiveCountFragmentId 12
                 olderPageResponse `responseBodyShouldContain` "archive-page-note-11"
                 olderPageResponse `responseBodyShouldContain` "archive-page-note-12"
                 olderPageResponse `responseBodyShouldNotContain` "archive-page-note-10"
@@ -850,7 +860,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "id=\"leave-pending\""
                 response `responseBodyShouldNotContain` "id=\"leave-archive-collapse\""
 
-        it "renders manager accordions with zero counts instead of empty-state copy when there are no leave requests" $ withContext do
+        it "renders manager tabs with zero live counts instead of empty-state copy when there are no leave requests" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-manager-empty@example.com" "staff" True
@@ -860,10 +870,10 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (0)"
-                response `responseBodyShouldContain` "Approved (0)"
-                response `responseBodyShouldContain` "Denied (0)"
-                response `responseBodyShouldContain` "Archive (0)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 0
+                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 0
+                leaveTabCountShouldBe response "Denied" leaveDeniedCountFragmentId 0
+                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 0
                 response `responseBodyShouldNotContain` "No unavailable periods yet."
                 response `responseBodyShouldNotContain` "No requests in this section."
 

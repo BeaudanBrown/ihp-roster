@@ -157,7 +157,7 @@ test.describe('Mobile experience smoke', () => {
             await page.getByRole('link', { name: 'unavailability' }).click();
         }
         await expect(page).toHaveURL(/LeaveRequests/, { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('#leave-requests-content')).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Pending', exact: true })).toBeVisible();
 
         const reopenedDrawer = await openAuthenticatedNavIfCollapsed(page);
         if (reopenedDrawer) {
@@ -223,9 +223,9 @@ test.describe('Mobile experience smoke', () => {
 
     test('unavailability opens a phone-sized workflow dialog that fits the viewport', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 
-        await expect(page.locator('#leave-requests-content')).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Pending', exact: true })).toBeVisible();
         await expectNoHorizontalViewportOverflow(page);
 
         await openNewLeaveRequestDialog(page);

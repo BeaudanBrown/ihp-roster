@@ -388,7 +388,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
-        it "keeps the template library and Save visible while Published targets disable Apply" $ withContext do
+        it "keeps the empty template library and Save visible for Published targets" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Live template target"
                 manager <- createUserRecord "live-template-target@example.com" "staff" True
@@ -404,7 +404,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
                 response `responseBodyShouldContain` "id=\"roster-template-library-mount\""
                 response `responseBodyShouldContain` "Save current week as template"
-                response `responseBodyShouldContain` "at least one day in the viewed window is Published"
+                response `responseBodyShouldNotContain` "Apply is unavailable"
                 response `responseBodyShouldContain` "No templates are saved."
 
         it "keeps staff requiring pay remediation visible and editable in the roster staff panel" $ withContext do

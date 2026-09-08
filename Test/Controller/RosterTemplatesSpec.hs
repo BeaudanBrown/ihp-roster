@@ -168,7 +168,7 @@ tests = aroundAll withDatabaseTestContext do
                 fixture <- controllerCaptureFixture "Controller capture"
                 firstDay <- fixture.days !! 0 |> set #publicationState Published |> updateRecord
                 previewResponse <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
-                    callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                    callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
                         [ ("anchorDate", cs (tshow fixture.windowStart))
                         , (templateNameParam, "Mixed source")
                         , (captureAssignmentModeParam, "open")
@@ -195,11 +195,26 @@ tests = aroundAll withDatabaseTestContext do
                 retainedFirstDay.publicationState `shouldBe` Published
                 durableEventCount `shouldBe` 1
 
+        it "saves warning-free POST captures directly without a confirmation step" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Direct capture"
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Direct source")
+                        , (captureAssignmentModeParam, "open")
+                        ]
+                response `responseStatusShouldBe` status302
+                templates <- query @RosterTemplate |> fetch
+                map (.name) templates `shouldBe` ["Direct source"]
+                durableEventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE source = 'roster.template.capture'" ()
+                durableEventCount `shouldBe` 1
+
         it "rerenders authoritative requirements when source content changes after preview" $ withContext do
             withCleanDb do
                 fixture <- controllerCaptureFixture "Controller stale capture"
                 previewResponse <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
-                    callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                    callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
                         [ ("anchorDate", cs (tshow fixture.windowStart))
                         , (templateNameParam, "Stale source")
                         , (captureAssignmentModeParam, "open")
@@ -239,7 +254,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> createRecord
 
                 mappedPreview <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
-                    callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                    callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
                         [ ("anchorDate", cs (tshow fixture.windowStart))
                         , (templateNameParam, "Mapped controller source")
                         , (captureAssignmentModeParam, "keep_staff")
@@ -291,7 +306,7 @@ tests = aroundAll withDatabaseTestContext do
                         , (staleShiftTypeIdsParam, "not-a-uuid")
                         , (mappedShiftTypeIdsParam, "also-not-a-uuid")
                         ]
-                    validPreview <- callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                    validPreview <- callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
                         [("anchorDate", cs (tshow fixture.windowStart)), (templateNameParam, "Malformed revision"), (captureAssignmentModeParam, "open")]
                     expectedSourceRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedSourceRevision captureCreateTransportFields) validPreview
                     malformedRevision <- callActionWithParams CreateRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }

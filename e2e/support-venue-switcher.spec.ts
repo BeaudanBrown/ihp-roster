@@ -140,7 +140,7 @@ test.describe('Super-admin venue and user switchers', () => {
     test('shows a venue switcher in the header and switches active venue', async ({ page }) => {
         await loginAsSuperAdmin(page);
 
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
         await expect(page.locator('#support-venue-switch')).toBeVisible();
         await expect(page.locator('label[for="support-venue-switch"]')).toHaveText('Support venue');
         await expect(page.locator('label[for="support-venue-switch"]')).toBeVisible();

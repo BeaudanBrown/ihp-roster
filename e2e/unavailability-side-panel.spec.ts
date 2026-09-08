@@ -18,7 +18,7 @@ import { loginAs } from './support/session';
 
 async function openManagerUnavailability(page: Parameters<typeof loginAs>[0]) {
     await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 }
 
 test.describe('Unavailability shared SidePanel', () => {

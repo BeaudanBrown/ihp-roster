@@ -200,7 +200,7 @@ instance Controller RosterTemplatesController where
 
 saveTemplateCapture ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
-    RosterTemplateActor -> Id RosterGroup -> RosterWindowScope -> RosterTemplateCaptureRequest -> Text -> Int -> Bool -> IO ()
+    RosterTemplateActor -> Id RosterGroup -> RosterWindowScope -> RosterTemplateCaptureRequest -> Text -> Int -> Bool -> IO ResponseReceived
 saveTemplateCapture actor rosterGroupId scope captureRequest expectedSourceRevision expectedCalendarRevision warningsConfirmed = do
     created <- confirmRosterTemplateCaptureMutation actor captureRequest expectedSourceRevision expectedCalendarRevision warningsConfirmed
     case created of

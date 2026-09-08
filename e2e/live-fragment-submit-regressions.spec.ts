@@ -100,7 +100,7 @@ test.describe('HTMX submit regressions', () => {
 
     test('unavailable-period modal date fields get flatpickr after HTMX swap', async ({ page }) => {
         await login(page);
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 
         await openNewLeaveRequestDialog(page);
 
@@ -197,7 +197,7 @@ test.describe('HTMX submit regressions', () => {
         const note = `single-submit-leave-check-${testInfo.repeatEachIndex}-${Date.now()}`;
 
         await login(page);
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 
         await openNewLeaveRequestDialog(page);
         await setFlatpickrDate(page, '#startDate', '2026-03-21');

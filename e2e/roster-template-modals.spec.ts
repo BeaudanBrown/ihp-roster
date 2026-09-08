@@ -143,9 +143,8 @@ test.describe('Roster Week-template modals', () => {
             let dialog = page.getByRole('dialog', { name: 'Save current week as template' });
             await dialog.getByLabel('Template name').fill(templateName);
             await dialog.getByRole('radio', { name: 'Keep valid Staff assignments' }).check();
-            await dialog.getByRole('button', { name: 'Review template' }).click();
-            dialog = page.getByRole('dialog', { name: 'Save current week as template' });
             await dialog.getByRole('button', { name: 'Save template' }).click();
+            await expect(dialog).toBeHidden({ timeout: E2E_TIMEOUT.liveUpdate });
 
             const actorCard = page.locator('.roster-template-card').filter({ hasText: templateName });
             const viewerCard = viewerPage.locator('.roster-template-card').filter({ hasText: templateName });
@@ -162,7 +161,7 @@ test.describe('Roster Week-template modals', () => {
             await submitTemplateCardAction(applyButton, '/PreviewRosterTemplateApplication');
             dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await expect(dialog).toBeVisible();
-            await dialog.getByRole('button', { name: 'Apply template' }).click();
+            await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
             expect((await actorApplyRefresh).status()).toBe(200);
             expect((await passiveApplyRefresh).status()).toBe(200);
             await expect(dialog).toBeHidden({ timeout: E2E_TIMEOUT.liveUpdate });
@@ -259,7 +258,8 @@ test.describe('Roster Week-template modals', () => {
             await submitTemplateCardAction(card.getByRole('button', { name: `Apply ${templateName}` }), '/PreviewRosterTemplateApplication');
             let dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await expect(dialog).toBeVisible();
-            await expect(dialog).toContainText('Publication remains Draft');
+            await expect(dialog).toContainText('set this roster week to draft mode and replace it with the template');
+            await expect(dialog).toContainText('existing timesheets will remain unchanged');
             await dialog.getByRole('button', { name: 'Cancel' }).click();
             await expect(dialog).toBeHidden();
 
@@ -285,7 +285,7 @@ test.describe('Roster Week-template modals', () => {
         }
     });
 
-    test('keeps Save and Delete available while any Published target day disables Apply @canonical-mobile', async ({ page }) => {
+    test('requires confirmation to apply over Published days and returns the week to Draft @canonical-mobile', async ({ page }) => {
         const templateName = uniqueE2EValue('Published target');
         const windowStart = await ensureCompleteDraftWindow(page);
 
@@ -330,10 +330,35 @@ test.describe('Roster Week-template modals', () => {
             await openTemplatesTab(page);
 
             await expect(page.getByRole('button', { name: 'Save current week as template' })).toBeEnabled();
-            await expect(page.getByText('at least one day in the viewed window is Published')).toBeVisible();
             const card = page.locator('.roster-template-card').filter({ hasText: templateName });
-            await expect(card.getByRole('button', { name: `Apply ${templateName}` })).toBeDisabled();
+            await expect(card.getByRole('button', { name: `Apply ${templateName}` })).toBeEnabled();
             await expect(card.getByRole('button', { name: `Delete ${templateName}` })).toBeEnabled();
+            const publishedDays = () => querySql(`
+                SELECT count(*) FROM roster_days
+                WHERE roster_group_id = '${defaultE2ERosterGroupId}'
+                  AND operational_date >= DATE '${windowStart}'
+                  AND operational_date < DATE '${windowStart}' + 7
+                  AND publication_state = 'published';
+            `).trim();
+            const timesheetSnapshot = () => querySql(`
+                SELECT COALESCE(jsonb_agg(to_jsonb(entry) ORDER BY entry.id), '[]'::jsonb)
+                FROM timesheet_entries entry;
+            `).trim();
+            const originalTimesheets = timesheetSnapshot();
+            expect(publishedDays()).toBe('1');
+            await submitTemplateCardAction(card.getByRole('button', { name: `Apply ${templateName}` }), '/PreviewRosterTemplateApplication');
+            const dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
+            await expect(dialog).toContainText('set this roster week to draft mode');
+            await expect(dialog).toContainText('existing timesheets will remain unchanged');
+            expect(publishedDays()).toBe('1');
+            const applied = page.waitForResponse((response) =>
+                response.request().method() === 'POST' && response.url().includes('/ApplyRosterTemplate'),
+            );
+            await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
+            expect((await applied).status()).toBe(200);
+            await expect(dialog).toBeHidden();
+            expect(publishedDays()).toBe('0');
+            expect(timesheetSnapshot()).toBe(originalTimesheets);
         } finally {
             runSql(`
                 UPDATE roster_templates
@@ -360,17 +385,8 @@ test.describe('Roster Week-template modals', () => {
             await dialog.getByLabel('Template name').fill(templateName);
             await dialog.getByRole('radio', { name: 'Make every shift Open' }).check();
 
-            const previewResponsePromise = page.waitForResponse((response) =>
-                response.request().method() === 'POST' && response.url().includes('/PreviewRosterTemplateCapture'),
-            );
-            await dialog.getByRole('button', { name: 'Review template' }).click();
-            const previewResponse = await previewResponsePromise;
-            expect(previewResponse.status(), await previewResponse.text()).toBe(200);
-
-            dialog = page.getByRole('dialog', { name: 'Save current week as template' });
-            await expect(dialog).toBeVisible();
             const saveResponsePromise = page.waitForResponse((response) =>
-                response.request().method() === 'POST' && response.url().includes('/CreateRosterTemplateCapture'),
+                response.request().method() === 'POST' && response.url().includes('/PreviewRosterTemplateCapture'),
             );
             await dialog.getByRole('button', { name: 'Save template' }).click();
             const saveResponse = await saveResponsePromise;
@@ -387,13 +403,12 @@ test.describe('Roster Week-template modals', () => {
             const applyButton = card.getByRole('button', { name: `Apply ${templateName}` });
             await submitTemplateCardAction(applyButton, '/PreviewRosterTemplateApplication');
             dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
-            await expect(dialog).toContainText('entire viewed window’s operational structure');
-            await expect(dialog).toContainText('Publication remains Draft');
-            await expect(dialog).toContainText('Existing Timesheets');
+            await expect(dialog).toContainText('set this roster week to draft mode and replace it with the template');
+            await expect(dialog).toContainText('existing timesheets will remain unchanged');
             const applyResponsePromise = page.waitForResponse((response) =>
                 response.request().method() === 'POST' && response.url().includes('/ApplyRosterTemplate'),
             );
-            await dialog.getByRole('button', { name: 'Apply template' }).click();
+            await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
             const applyResponse = await applyResponsePromise;
             expect(applyResponse.status(), await applyResponse.text()).toBe(200);
             await expect(dialog).toBeHidden();

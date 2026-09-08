@@ -25,8 +25,8 @@ import Application.Helper.FrontendContract.Surface.Reflect (ReflectSidePanelPrim
 import Application.Helper.FrontendContract.Surface.SidePanel
 import Application.Helper.FrontendContract.Surface.Values (SurfaceSidePanelPrimitive)
 import qualified Data.Text as Text
+import qualified IHP.HSX.Markup as Markup
 import IHP.ViewPrelude
-import qualified Text.Blaze.Html as Blaze
 
 -- | Resolved generated marker attributes supplied by a feature adapter.
 data SidePanelRenderAttrs = SidePanelRenderAttrs
@@ -111,7 +111,7 @@ renderSidePanelCard config body = [hsx|
 renderSidePanelTabs :: Text -> [SidePanelTabConfig] -> Html
 renderSidePanelTabs ariaLabel tabs = renderSidePanelTabsWithBadges ariaLabel [(tab, mempty) | tab <- tabs]
 
-renderSidePanelTabsWithBadges :: Text -> [(SidePanelTabConfig, Blaze.Html)] -> Html
+renderSidePanelTabsWithBadges :: Text -> [(SidePanelTabConfig, Markup.Html)] -> Html
 renderSidePanelTabsWithBadges ariaLabel tabs = [hsx|
     <div class="nav nav-pills app-side-panel-tabs" role="tablist" aria-label={ariaLabel}>
         {forEach tabs renderTab}

@@ -29,7 +29,7 @@ test.describe('Private Feedback submission', () => {
         await expect(page.locator('#dialog-overlay-mount')).toBeEmpty({ timeout: E2E_TIMEOUT.assertion });
         await expect(page.getByText('Thanks — your feedback was submitted for review.', { exact: true })).toBeVisible();
         await gotoWhenReady(page, '/Feedback', '#feedback-cards');
-        await expect(page.locator('#feedback-cards')).not.toContainText(title);
+        await expect(page.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
     });
 
     test('renders responsive public cards without private provenance', async ({ page }, testInfo) => {
@@ -47,7 +47,7 @@ test.describe('Private Feedback submission', () => {
             await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
             await gotoWhenReady(page, '/Feedback', '#feedback-cards');
             const cards = page.locator('#feedback-cards');
-            await expect(cards.getByRole('heading', { name: 'A shared improvement for everyone' })).toBeVisible();
+            await expect(cards.getByRole('button', { name: 'Vote for A shared improvement for everyone', exact: true })).toBeVisible();
             for (const secret of ['Secret retained note', '/private-origin', 'e2e-test@example.com']) {
                 await expect(cards).not.toContainText(secret);
             }
@@ -79,7 +79,7 @@ test.describe('Private Feedback submission', () => {
             await nativePage.locator('button[type="submit"][form="feedback-form"]').click();
             await expect(nativePage).toHaveURL(/\/Feedback$/, { timeout: E2E_TIMEOUT.navigation });
             await expect(nativePage.locator('#feedback-cards')).toBeVisible();
-            await expect(nativePage.locator('#feedback-cards')).not.toContainText(title);
+            await expect(nativePage.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         } finally {
             await context.close();
         }

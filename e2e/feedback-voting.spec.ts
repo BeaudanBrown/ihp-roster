@@ -10,11 +10,13 @@ const prefix = 'fb506000-0000-4000-8000-';
 
 test('vote toggles reorder actor and passive cards while preserving keyboard focus and viewport', async ({ page, browser }, testInfo) => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
+    // Leave enough content above rank three for viewport preservation to be
+    // physically possible with the compact cards (scrollY cannot go negative).
     runSql(`
         DELETE FROM user_feedback_items WHERE id::text LIKE '${prefix}%';
         INSERT INTO user_feedback_items (id, venue_id, submitted_by_user_id, title, content, lifecycle, published_at, published_by_user_id)
         SELECT ('${prefix}' || lpad(n::text, 12, '0'))::uuid, membership.venue_id, account.id,
-               'E2E vote ordering ' || n, repeat('Shared global feedback description. ', 8), 'public',
+               'E2E vote ordering ' || n, repeat('Shared global feedback description. ', 16), 'public',
                '2026-09-01'::timestamptz + n * interval '1 minute', account.id
         FROM generate_series(1, 12) n CROSS JOIN users account
         JOIN venue_memberships membership ON membership.user_id = account.id
@@ -36,9 +38,9 @@ test('vote toggles reorder actor and passive cards while preserving keyboard foc
         await gotoWhenReady(viewer, '/Feedback', '#feedback-cards');
         const actorButton = page.getByRole('button', { name: `Vote for ${targetTitle}`, exact: true });
         const passiveButton = viewer.getByRole('button', { name: `Vote for ${targetTitle}`, exact: true });
-        const card = (owner: typeof page) => owner.locator('#feedback-cards article').filter({ has: owner.getByRole('heading', { name: targetTitle, exact: true }) });
-        const headings = (owner: typeof page) => owner.locator('#feedback-cards article h2').filter({ hasText: /^E2E vote ordering / });
-        await expect(headings(page).last()).toHaveText(targetTitle);
+        const card = (owner: typeof page) => owner.locator('#feedback-cards article').filter({ has: owner.getByRole('button', { name: `Vote for ${targetTitle}`, exact: true }) });
+        const voteControls = (owner: typeof page) => owner.locator('#feedback-cards').getByRole('button', { name: /^Vote for E2E vote ordering / });
+        await expect(voteControls(page).last()).toHaveAttribute('aria-label', `Vote for ${targetTitle}`);
         for (const button of [actorButton, passiveButton]) {
             await button.scrollIntoViewIfNeeded();
             await button.focus();
@@ -58,12 +60,14 @@ test('vote toggles reorder actor and passive cards while preserving keyboard foc
         await expect(passiveButton).toHaveAttribute('aria-pressed', 'false');
         for (const owner of [page, viewer]) {
             await expect(card(owner)).toContainText('2 votes');
-            await expect(headings(owner).nth(2)).toHaveText(targetTitle);
+            await expect(voteControls(owner).nth(2)).toHaveAttribute('aria-label', `Vote for ${targetTitle}`);
             await expect(card(owner)).toHaveCount(1);
             expect(await owner.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         }
         await expect(actorButton).toBeFocused();
         await expect(passiveButton).toBeFocused();
+        expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+        expect(await viewer.evaluate(() => scrollY)).toBeGreaterThan(0);
         expect(Math.abs((await actorButton.boundingBox())!.y - actorTop)).toBeLessThan(4);
         expect(Math.abs((await passiveButton.boundingBox())!.y - passiveTop)).toBeLessThan(4);
         await page.screenshot({ path: testInfo.outputPath('feedback-vote-rank.png') });
@@ -72,7 +76,7 @@ test('vote toggles reorder actor and passive cards while preserving keyboard foc
         await expect(actorButton).toHaveAttribute('aria-pressed', 'false');
         for (const owner of [page, viewer]) {
             await expect(card(owner)).toContainText('1 votes');
-            await expect(headings(owner).last()).toHaveText(targetTitle);
+            await expect(voteControls(owner).last()).toHaveAttribute('aria-label', `Vote for ${targetTitle}`);
         }
         await expect(actorButton).toBeFocused();
         expect(documentRequests).toBe(0);

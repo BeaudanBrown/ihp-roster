@@ -60,7 +60,7 @@ test('complete moderated journey preserves private data and private-only live ac
         const itemId = querySql(`SELECT id FROM user_feedback_items WHERE title = '${title}'`);
         expect(itemId).toMatch(/^[0-9a-f-]{36}$/);
         expect(querySql(`SELECT submitted_path IS NULL AND user_agent IS NULL AND submitted_role IS NULL AND viewport_width IS NULL AND viewport_height IS NULL AND device_pixel_ratio IS NULL AND device_class IS NULL AND display_mode IS NULL FROM user_feedback_items WHERE id = '${itemId}'`)).toBe('t');
-        const management = founder.locator('#feedback-review article').filter({ has: founder.getByRole('heading', { name: title, exact: true }) });
+        const management = founder.locator('#feedback-review').getByRole('row').filter({ has: founder.getByRole('rowheader', { name: title, exact: true }) });
         await expect(management).toBeVisible();
         await screenshot(founder, 'feedback-private-and-archived');
         const assertOrdinaryPrivacy = async (owner: Page) => {
@@ -82,7 +82,7 @@ test('complete moderated journey preserves private data and private-only live ac
         await management.getByRole('button', { name: 'Confirm archive', exact: true }).click();
         await management.getByRole('button', { name: 'Restore', exact: true }).click();
         await management.getByRole('button', { name: 'Publish', exact: true }).click();
-        await expect(voter.locator('#feedback-cards')).toContainText(title);
+        await expect(voter.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toBeVisible();
         const publicInvalidations = () => frames.map(raw => JSON.parse(raw)).filter(message => message.type === 'invalidate' && message.scope?.surface === 'feedback');
         await expect.poll(() => publicInvalidations().length, { timeout: E2E_TIMEOUT.assertion }).toBe(1);
         for (const raw of frames) for (const secret of [privateId, archivedId, 'Private operator sentinel', title]) expect(raw).not.toContain(secret);
@@ -104,7 +104,7 @@ test('complete moderated journey preserves private data and private-only live ac
         await expect(authorVote).toHaveAttribute('aria-pressed', 'true');
         await management.locator('summary').filter({ hasText: /^Archive$/ }).click();
         await management.getByRole('button', { name: 'Confirm archive', exact: true }).click();
-        await expect(voter.locator('#feedback-cards')).not.toContainText(title);
+        await expect(voter.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         expect(querySql(`SELECT count(*) FROM feedback_votes WHERE feedback_item_id = '${itemId}'`)).toBe('0');
         await screenshot(founder, 'feedback-archived');
         await management.getByRole('button', { name: 'Restore', exact: true }).click();
