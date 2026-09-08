@@ -30,7 +30,7 @@ import Network.Mail.Mime (Address (..))
 import Test.Hspec
 import Test.Support
 import Test.Support.EmailDelivery
-import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Mail.RosterNotification
 
 
@@ -162,7 +162,7 @@ tests = aroundAll withDatabaseTestContext do
                     Mail.text mail `shouldSatisfy` isInfixOf "Front counter"
                     Mail.text mail `shouldSatisfy` isInfixOf "Open coverage"
                     Mail.text mail `shouldSatisfy` not . isInfixOf "Private schedule"
-                    let renderedHtml = LazyText.toStrict (Blaze.renderHtml (Mail.html mail))
+                    let renderedHtml = LazyText.toStrict (Markup.renderMarkupLazyText (Mail.html mail))
                     renderedHtml `shouldSatisfy` isInfixOf "Open coverage"
                     renderedHtml `shouldSatisfy` isInfixOf "rosterGroupId=test"
 

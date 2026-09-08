@@ -11,8 +11,8 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Text.Blaze.Html (Html)
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 import Web.View.Admin.Xero.ImportedPayItems (renderXeroImportedPayItemImportDialog)
 
 pureTests :: Spec
@@ -88,7 +88,7 @@ candidate = XeroImportedPayItemCandidate
     }
 
 renderText :: Html -> Text
-renderText = cs . HtmlRenderer.renderHtml
+renderText = cs . HtmlRenderer.renderMarkupLazyText
 
 attrsTextLength :: [(Text, Text)] -> Int
 attrsTextLength = Text.length . Text.concat . fmap snd

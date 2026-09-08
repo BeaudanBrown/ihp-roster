@@ -32,6 +32,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
@@ -58,13 +59,13 @@ tests = aroundAll withDatabaseTestContext do
         it "keeps mutable venue state fresh and isolated between requests" $ withContext do
             withControllerTestContext do
                 RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
-                RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just Owner }
-                RequestContext.currentVenueRoleOrNothing `shouldBe` Just Owner
+                RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just VenueOwner }
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Just VenueOwner
                 withControllerTestContext do
                     RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
-                    RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just Admin }
-                    RequestContext.currentVenueRoleOrNothing `shouldBe` Just Admin
-                RequestContext.currentVenueRoleOrNothing `shouldBe` Just Owner
+                    RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just VenueAdmin }
+                    RequestContext.currentVenueRoleOrNothing `shouldBe` Just VenueAdmin
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Just VenueOwner
                 RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Nothing }
                 RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
 

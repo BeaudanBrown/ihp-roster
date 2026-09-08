@@ -3,6 +3,7 @@ module Test.BillingReadOnlySpec where
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)

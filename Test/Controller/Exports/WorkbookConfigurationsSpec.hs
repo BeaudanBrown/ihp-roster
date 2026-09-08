@@ -7,6 +7,7 @@ import Control.Monad (forM_, void)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status (status200, status302)
 import qualified Network.Wai as Wai

@@ -39,6 +39,7 @@ sampleWireValue = \case
     Contract.WireUuidIR -> Aeson.toJSON nil
     Contract.WireDayIR -> Aeson.String "2026-01-01"
     Contract.WireClosedIR {} -> Aeson.String "sample"
+    Contract.WireDomainIR {} -> Aeson.String "sample"
     Contract.WireUnknownIR -> Aeson.String "sample"
     Contract.WireListIR _ -> Aeson.Array mempty
     Contract.WireMapIR _ _ -> Aeson.Object mempty

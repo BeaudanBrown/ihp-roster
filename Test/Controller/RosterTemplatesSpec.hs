@@ -15,6 +15,7 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types hiding (createRosterTemplate)
 import IHP.ControllerPrelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai (Response, responseHeaders)

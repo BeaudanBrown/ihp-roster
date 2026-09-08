@@ -61,7 +61,7 @@ import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Action as FixtureAction
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Intent as FixtureIntent
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import qualified IHP.HSX.Markup as HtmlRenderer
 import Wai.Request.Params.Middleware (RequestBody (FormBody),
                                       requestBodyVaultKey)
 import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
@@ -772,7 +772,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
 renderIntentFormText :: FrontendSurfaceIntentForm -> Text
 renderIntentFormText intentForm =
-    cs (HtmlRenderer.renderHtml (renderFrontendSurfaceIntentForm intentForm mempty))
+    cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceIntentForm intentForm mempty))
 
 assertRosterIntentFormMetadata :: (Text, Text, Int) -> Text -> Expectation
 assertRosterIntentFormMetadata (intentName, actionUrl, expectedFieldCount) html = do

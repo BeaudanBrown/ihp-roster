@@ -324,7 +324,10 @@ withCurrentControllerContext ::
     ((?context :: ControllerContext, ?request :: Wai.Request) => IO a) ->
     IO a
 withCurrentControllerContext action = do
-    request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware) ?request
+    -- Match callAction's ordering: fixture overrides (including withUser) run
+    -- after authentication, before controller context initialization.
+    let overrideMiddleware = fromMaybe Prelude.id (Vault.lookup mockOverrideVaultKey (Wai.vault ?request))
+    request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware . overrideMiddleware) ?request
     let ?context = request
     let ?request = request
     initCurrentVenueContext

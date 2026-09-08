@@ -12,9 +12,8 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Text.Blaze.Html (Html)
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
-import qualified Text.Blaze.Html5 as Html5
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 
 pureTests :: Spec
 pureTests = do
@@ -82,8 +81,8 @@ databaseTests = aroundAll withDatabaseTestContext do
   where
     dialogConfig = defaultDialogOverlayConfig
             "Generated overlay"
-            (Html5.toHtml ("Body" :: Text))
+            (HtmlRenderer.toHtml ("Body" :: Text))
             (defaultOverlayButtons "generated-overlay-form")
 
 renderText :: Html -> Text
-renderText = cs . HtmlRenderer.renderHtml
+renderText = cs . HtmlRenderer.renderMarkupLazyText

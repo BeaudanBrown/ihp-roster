@@ -47,8 +47,8 @@ import IHP.Prelude
 import Test.Hspec
 import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
-import qualified Text.Blaze.Html5 as Html5
+import qualified IHP.HSX.Markup as HtmlRenderer
+import IHP.HSX.MarkupQQ (hsx)
 
 data TestLoad
 data TestPanel
@@ -773,7 +773,7 @@ tests = describe "FrontendSurface DSL foundation" do
                     )
                     [fragment]
         let config = impl.surfaceImplMountConfig
-        let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceMount impl (Html5.toHtml ("body" :: Text))))
+        let html = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceMount impl (HtmlRenderer.toHtml ("body" :: Text))))
         impl.surfaceImplName `shouldBe` "timesheets"
         surfaceActionNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.RefreshPanel `shouldBe` "refresh-panel"
         surfaceIntentNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard `shouldBe` "move-card"
@@ -802,7 +802,7 @@ tests = describe "FrontendSurface DSL foundation" do
                     noSurfaceFields
                     "/fixture/panel"
                     FrontendSurfaceReplace
-        let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        let html = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (HtmlRenderer.toHtml ("Loading" :: Text))))
         html `shouldContainText` "id=\"contract-fixture-panel\""
         html `shouldContainText` "class=\"col-12 col-xl-4 contract-fixture-side app-lazy-surface app-lazy-surface-compact app-lazy-surface-panel\""
         html `shouldContainText` "data-bepis-fragment=\"true\""
@@ -813,7 +813,7 @@ tests = describe "FrontendSurface DSL foundation" do
         html `shouldContainText` "hx-trigger=\"load\""
         html `shouldNotContainText` "data-bepis-surface-lazy"
 
-        let customPlaceholderHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        let customPlaceholderHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (HtmlRenderer.toHtml ("Loading" :: Text))))
         customPlaceholderHtml `shouldContainText` "class=\"col-12 col-xl-4 contract-fixture-side app-lazy-surface app-lazy-surface-custom app-lazy-surface-panel\""
 
     it "derives lazy trigger and placeholder defaults from existing primitive options" do
@@ -1359,9 +1359,9 @@ tests = describe "FrontendSurface DSL foundation" do
         let sourceRef = fromMaybe (error "missing source ref") (listToMaybe surface.surfaceSourceRefs)
         let dropzoneRef = fromMaybe (error "missing dropzone ref") (listToMaybe surface.surfaceDropzoneRefs)
         let activationRef = fromMaybe (error "missing activation ref") (listToMaybe surface.surfaceActivationRefs)
-        let sourceHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceSourceRef sourceRef "shift:1" (Html5.toHtml ("card" :: Text))))
-        let dropzoneHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceDropzoneRef dropzoneRef "slot:2" (Html5.toHtml ("slot" :: Text))))
-        let activationHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceActivationRef activationRef (Html5.toHtml ("mode" :: Text))))
+        let sourceHtml = cs (HtmlRenderer.renderMarkupLazyText (SurfaceInteraction.renderFrontendSurfaceSourceRef sourceRef "shift:1" (HtmlRenderer.toHtml ("card" :: Text))))
+        let dropzoneHtml = cs (HtmlRenderer.renderMarkupLazyText (SurfaceInteraction.renderFrontendSurfaceDropzoneRef dropzoneRef "slot:2" (HtmlRenderer.toHtml ("slot" :: Text))))
+        let activationHtml = cs (HtmlRenderer.renderMarkupLazyText (SurfaceInteraction.renderFrontendSurfaceActivationRef activationRef (HtmlRenderer.toHtml ("mode" :: Text))))
 
         sourceHtml `shouldContainText` "data-bepis-source-ref=\"shift-drag-source\""
         sourceHtml `shouldContainText` "data-bepis-source-key=\"shift:1\""
@@ -1373,9 +1373,12 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders linked-highlight roles with opaque membership and order keys" do
         let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
-        let sourceHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource highlight "opaque:staff" (Html5.div "source")))
-        let memberHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember highlight "opaque:staff" (Just "opaque:shift") (Html5.div "member")))
-        let pinHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin highlight "opaque:staff" (Html5.button "pin")))
+        let sourceAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs highlight "opaque:staff"
+        let memberAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs highlight "opaque:staff" (Just "opaque:shift")
+        let pinAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs highlight "opaque:staff"
+        let sourceHtml = cs (HtmlRenderer.renderMarkupLazyText [hsx|<div {...sourceAttrs}>source</div>|])
+        let memberHtml = cs (HtmlRenderer.renderMarkupLazyText [hsx|<div {...memberAttrs}>member</div>|])
+        let pinHtml = cs (HtmlRenderer.renderMarkupLazyText [hsx|<button {...pinAttrs}>pin</button>|])
 
         sourceHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-source=\"opaque:staff\""
         memberHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-member=\"opaque:staff\""
@@ -1406,9 +1409,9 @@ tests = describe "FrontendSurface DSL foundation" do
                 , actionRouteStandardUrl = Nothing
                 , actionRouteExtraAttrs = [("class", "surface-action-test")]
                 }
-        let formHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionFormWithHiddenFields action route (Html5.toHtml ("refresh" :: Text))))
-        let linkHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionLink action route (Html5.toHtml ("refresh" :: Text))))
-        let buttonHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionSubmitButton action route (Html5.toHtml ("refresh" :: Text))))
+        let formHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceActionFormWithHiddenFields action route (HtmlRenderer.toHtml ("refresh" :: Text))))
+        let linkHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceActionLink action route (HtmlRenderer.toHtml ("refresh" :: Text))))
+        let buttonHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceActionSubmitButton action route (HtmlRenderer.toHtml ("refresh" :: Text))))
 
         formHtml `shouldContainText` "method=\"post\""
         formHtml `shouldContainText` "action=\"/fixture/refresh-panel?routeContext=keep\""
@@ -1442,7 +1445,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 , htmxRequestSwap = "outerHTML"
                 }
         let intent = frontendSurfaceIntentForm @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard fields request
-        let intentHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceIntentForm intent (Html5.toHtml ("move" :: Text))))
+        let intentHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceIntentForm intent (HtmlRenderer.toHtml ("move" :: Text))))
 
         intentHtml `shouldContainText` "data-bepis-intent-form=\"move-card\""
         intentHtml `shouldContainText` "hx-target=\"#contract-fixture-panel\""

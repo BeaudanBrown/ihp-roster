@@ -17,7 +17,7 @@ import Network.Mail.Mime (Address (..))
 import Test.Hspec
 import Test.Support
 import Test.Support.Environment (withEnvironmentVariable)
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import qualified IHP.HSX.Markup as HtmlRenderer
 import Web.Mail.Billing.Notification
 import Web.Mail.FeedbackNotification
 import Web.Mail.StaffDocuments.RsaReminder
@@ -198,13 +198,14 @@ tests = aroundAll withDatabaseTestContext do
                             }
                 let ?context = ?mocking
                 let ?mail = mail
-                let renderedHtml = LazyText.toStrict (HtmlRenderer.renderHtml (html mail))
+                let renderedHtml = LazyText.toStrict (HtmlRenderer.renderMarkupLazyText (html mail))
 
                 addressEmail (to mail) `shouldBe` "support-recipient@example.com"
                 subject `shouldBe` "New Bepis feedback submitted"
                 addressEmail from `shouldBe` "noreply@example.com"
                 fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
-                renderedHtml `shouldSatisfy` isInfixOf "&lt;script&gt;alert(&#39;escaped&#39;)&lt;/script&gt;"
+                -- Direct markup preserves apostrophes in text nodes; tag delimiters remain escaped.
+                renderedHtml `shouldSatisfy` isInfixOf "&lt;script&gt;alert('escaped')&lt;/script&gt;"
                 renderedHtml `shouldSatisfy` (not . isInfixOf "<script>")
                 renderedHtml `shouldSatisfy` isInfixOf "Browser &lt;unsafe&gt;"
                 text mail `shouldSatisfy` isInfixOf "Type: Bug"

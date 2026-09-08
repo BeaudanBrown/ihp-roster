@@ -14,6 +14,7 @@ import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -365,7 +366,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` "Week actions"
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?"
-                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
+                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
                 response `responseBodyShouldContain` "Sort shifts"
                 response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "Roster columns"

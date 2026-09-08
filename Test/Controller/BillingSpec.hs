@@ -17,10 +17,11 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (FrameworkConfig, option, withFrameworkConfig)
+import IHP.FrameworkConfig (FrameworkConfig (..), withFrameworkConfig)
 import IHP.Job.Queue.Result (jobDidFail)
 import IHP.Job.Types (JobStatus (JobStatusFailed))
 import qualified IHP.Log as Log
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.URI as URI
@@ -49,15 +50,16 @@ startOrResumeCheckout stripeClient stripeConfig venue owner =
 withCapturedLogger :: (FrameworkConfig -> IO value) -> IO (value, Text)
 withCapturedLogger action = do
     capturedRef <- IORef.newIORef []
-    logger <-
-        Log.newLogger
-            def
-                { Log.destination =
-                    Log.Callback
-                        (\line -> IORef.modifyIORef' capturedRef (TextEncoding.decodeUtf8 (Log.fromLogStr line) :))
-                        (pure ())
-                }
-    result <- withFrameworkConfig (option logger >> config) action
+    result <- Exception.bracket
+        (Log.newLogger def
+            { Log.destination =
+                Log.Callback
+                    (\line -> IORef.modifyIORef' capturedRef (TextEncoding.decodeUtf8 (Log.fromLogStr line) :))
+                    (pure ())
+            })
+        Log.cleanup
+        \capturedLogger -> withFrameworkConfig config \frameworkConfig ->
+            action frameworkConfig { logger = Log.writeLog Log.Info capturedLogger }
     captured <- Text.concat . reverse <$> IORef.readIORef capturedRef
     pure (result, captured)
 

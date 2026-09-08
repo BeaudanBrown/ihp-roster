@@ -283,7 +283,7 @@ tests = aroundAll withDatabaseTestContext do
                         lookup firstSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
                         lookup secondSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
 
-addDirectReadModelConflictFacts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => DirectReadModelFixture -> IO (RosterSlot, RosterSlot, RosterSlot)
+addDirectReadModelConflictFacts :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => DirectReadModelFixture -> IO (RosterSlot, RosterSlot, RosterSlot)
 addDirectReadModelConflictFacts fixture = do
     initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
     openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay

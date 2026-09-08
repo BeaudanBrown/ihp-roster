@@ -28,6 +28,7 @@ import IHP.ControllerSupport (runActionWithNewContext)
 import IHP.FrameworkConfig (FrameworkConfig, withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusRunning, JobStatusSucceeded, JobStatusTimedOut))
 import IHP.Server (initMiddlewareStack)
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Status
@@ -749,8 +750,7 @@ tests = aroundAll withDatabaseTestContext do
         it "rejects invalid webhook signatures before parsing" $ withContext do
             withCleanDb do
                 response <- withStripeConfigForTest (Right testStripeConfig) do
-                    withRequestHeaders [("Stripe-Signature", "t=1700000000,v1=bad")] do
-                        callAction StripeWebhookAction
+                    callStripeWebhookWithJsonBody "not-json" "t=1700000000,v1=bad"
 
                 response `responseStatusShouldBe` status400
                 eventCount <- query @BillingEvent |> fetchCount
@@ -783,9 +783,9 @@ callStripeWebhookWithJsonBody rawBody signatureHeader = do
                     , ("Stripe-Signature", cs signatureHeader)
                     ] <> filter ((/= hContentType) . fst) (Wai.requestHeaders ?request)
                 }
-    responseRef <- IORef.newIORef Nothing
+    responseRef <- IORef.newIORef []
     let captureRespond response = do
-            IORef.writeIORef responseRef (Just response)
+            IORef.modifyIORef' responseRef (response :)
             pure ResponseReceived
     let mockSession = Vault.lookup sessionVaultKey (Wai.vault ?request)
     let controllerApp request respond = do
@@ -796,10 +796,14 @@ callStripeWebhookWithJsonBody rawBody signatureHeader = do
             let ?respond = respond
             runActionWithNewContext StripeWebhookAction
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener
-    _ <- middlewareStack controllerApp baseRequest captureRespond
-    IORef.readIORef responseRef >>= \case
-        Just response -> pure response
-        Nothing -> error "callStripeWebhookWithJsonBody: No response was returned by the controller"
+    result <- middlewareStack controllerApp baseRequest captureRespond
+    case result of
+        ResponseReceived -> pure ()
+    responses <- IORef.readIORef responseRef
+    length responses `shouldBe` 1
+    case responses of
+        [response] -> pure response
+        _ -> fail "callStripeWebhookWithJsonBody: Expected exactly one response"
 
 signedStripeHeader :: Text -> LByteString.ByteString -> IO Text
 signedStripeHeader webhookSecret rawBody = do

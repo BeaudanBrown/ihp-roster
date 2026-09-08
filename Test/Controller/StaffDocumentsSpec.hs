@@ -7,6 +7,7 @@ import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status

@@ -19,6 +19,7 @@ import Data.Time (UTCTime (..), fromGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)

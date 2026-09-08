@@ -22,6 +22,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
@@ -248,7 +249,7 @@ tests = aroundAll withDatabaseTestContext do
                     rendered `responseBodyShouldContain` user.email
 
         it "allows password login after verification" $ withContext do
-            withCleanDb do
+            withCleanDb $ withSessionValues [] do
                 venue <- createVenueWithConfig "Verified Login Venue"
                 user <- createUserRecord "verified-login@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker

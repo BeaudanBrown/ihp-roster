@@ -276,7 +276,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 queryLogger <- queryCaptureLogger capturedQueries
                 let originalModelContext = ?modelContext
                     observedBatch =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug queryLogger, ModelSupport.queryLoggingEnabled = True }
                          in evaluateUnsealedWagesWithPolicy DraftWageEvaluation rosterWideSubjects
                 batchOutcomes <- observedBatch
                 Log.cleanup queryLogger
@@ -388,7 +388,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 ledgerQueryLogger <- queryCaptureLogger capturedLedgerQueries
                 let originalModelContext = ?modelContext
                     observedLedgerLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = ledgerQueryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug ledgerQueryLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadApprovedTimesheetPayCalculations (replicate 1000 activeEntry)
                 bulkLoaded <- observedLedgerLoad
                 Log.cleanup ledgerQueryLogger
@@ -545,7 +545,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 let originalModelContext = ?modelContext
                     observedLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
                     observedLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug queryLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadWageEngineContextsWith
                                 (databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' databaseReads (<> [databaseRead])))
                                 [WageEngineEntryRequest (unpackId entry.id) | entry <- entries]
@@ -611,7 +611,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 let originalModelContext = ?modelContext
                     observedAdapterLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
                     observedAdapterLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = adapterLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug adapterLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadWageEngineContextsWith
                                 (databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' adapterReads (<> [databaseRead])))
                                 [WageEngineEntryRequest (unpackId entry.id) | entry <- approvedEntries]
@@ -625,7 +625,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 ledgerQueries <- newIORef ([] :: [Text])
                 ledgerLogger <- queryCaptureLogger ledgerQueries
                 let observedLedgerLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = ledgerLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug ledgerLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadApprovedTimesheetPayCalculations approvedEntries
                 calculations <- observedLedgerLoad
                 Log.cleanup ledgerLogger
@@ -696,7 +696,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 let originalModelContext = ?modelContext
                     observedLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
                     observedLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug queryLogger, ModelSupport.queryLoggingEnabled = True }
                          in let databaseSource = databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' databaseReads (<> [databaseRead]))
                                 countedSource = countBulkSourceCalls calls databaseSource
                              in loadWageEngineContextsWith countedSource requests

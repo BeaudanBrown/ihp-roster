@@ -9,6 +9,7 @@ import qualified Data.Text.IO as TextIO
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import IHP.ViewSupport (liveReloadWebsocketUrl)
 import Test.Hspec

@@ -23,7 +23,7 @@ import qualified IHP.ViewSupport as ViewSupport
 import Test.Hspec
 import Test.Support
 import Test.Support.EmailDelivery
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import qualified IHP.HSX.Markup as HtmlRenderer
 import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
 import Web.View.StaffDocuments.RsaScan
 
@@ -120,7 +120,7 @@ tests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         let view = ScanView { scanConfirmation = confirmation }
                         let ?view = view
-                        pure (LText.toStrict (HtmlRenderer.renderHtml (ViewSupport.html view)))
+                        pure (LText.toStrict (HtmlRenderer.renderMarkupLazyText (ViewSupport.html view)))
 
                 rendered `shouldSatisfy` Text.isInfixOf "does not exactly match selected staff member"
                 rendered `shouldSatisfy` Text.isInfixOf "Confirm RSA metadata"
