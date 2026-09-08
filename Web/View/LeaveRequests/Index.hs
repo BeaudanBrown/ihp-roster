@@ -28,6 +28,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import Application.Helper.FrontendContract.Surface.Values
 import Data.Coerce (coerce)
 import Data.List (sortOn)
@@ -115,7 +116,9 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelHasActions = False
                 , appPanelActions = mempty
                 , appPanelHasCustomHeader = True
-                , appPanelCustomHeader = renderSidePanelHeaderToggle leaveSidePanelRenderAttrs
+                , appPanelCustomHeader = if currentUserIsManager
+                    then renderLeaveRequestsHeader leaveRequests today archiveIsOpen
+                    else renderSidePanelHeaderToggle leaveSidePanelRenderAttrs
                 , appPanelClass = "overflow-hidden"
                 , appPanelBodyClass = ""
                 , appPanelBody = renderleaveRequestsContentLiveFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen warningThreshold warningPeriods
@@ -153,6 +156,45 @@ renderLeaveRequestsShell IndexView { .. } =
             {mountedPage}
         </section>
     |]
+
+renderLeaveRequestsHeader :: [LeaveRequest] -> Day -> Bool -> Html
+renderLeaveRequestsHeader leaveRequests today archiveIsOpen = [hsx|
+    <div class="app-panel-header app-side-panel-header app-side-panel-header-tabs">
+        {renderSidePanelTabsWithBadges "Unavailability sections" tabs}
+        {renderSidePanelToggle leaveSidePanelRenderAttrs}
+    </div>
+|]
+  where
+    tabs =
+        [ tab leavePendingSection "leave-pending" "Pending" "bi bi-hourglass-split"
+        , tab leaveApprovedSection "leave-approved" "Approved" "bi bi-check-circle"
+        , tab leaveDeniedSection "leave-denied" "Denied" "bi bi-x-circle"
+        , tab leaveArchiveSection "leave-archive" "Archive" "bi bi-archive"
+        ]
+    tab section paneId label icon =
+        ( SidePanelTabConfig
+            { sidePanelTabId = paneId <> "-tab"
+            , sidePanelTabPaneId = paneId
+            , sidePanelTabLabel = label
+            , sidePanelTabIconClass = icon
+            , sidePanelTabIsSelected = section == (if archiveIsOpen then leaveArchiveSection else leavePendingSection)
+            , sidePanelTabClass = "app-side-panel-tab-with-badge"
+            , sidePanelTabAttrs = leaveRequestTabAttrs archiveIsOpen section <> [("aria-describedby", leaveSectionCountFragmentId section)]
+            }
+        , [hsx|<span class="app-side-panel-tab-badge">{renderLeaveSectionCountLiveFragment section leaveRequests today}</span>|]
+        )
+
+-- Each page mounts one fixed-default variant; selection remains transient within that mount.
+leaveRequestTabAttrs :: Bool -> LeaveSectionValue -> [(Text, Text)]
+leaveRequestTabAttrs archiveIsOpen section = case (archiveIsOpen, section) of
+    (False, LeavePendingSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.PendingTabKey
+    (False, LeaveApprovedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.ApprovedTabKey
+    (False, LeaveDeniedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.DeniedTabKey
+    (False, LeaveArchiveSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.ArchiveTabKey
+    (True, LeavePendingSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.PendingTabKey
+    (True, LeaveApprovedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.ApprovedTabKey
+    (True, LeaveDeniedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.DeniedTabKey
+    (True, LeaveArchiveSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.ArchiveTabKey
 
 renderLeaveSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> [LeaveStaffPanelEntry] -> Html
 renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests staffMembers staffPanelEntries =
@@ -464,11 +506,11 @@ renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|
 
 renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
 renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen = [hsx|
-    <div class="accordion leave-request-accordion" id="leave-request-manager-sections">
-        {renderManagerSection "leave-pending" "Pending" leavePendingCountFragmentId leavePendingListFragmentId pendingRequests staffMembers currentViewerStaffId (not archiveIsOpen) True}
-        {renderManagerSection "leave-approved" "Approved" leaveApprovedCountFragmentId leaveApprovedListFragmentId approvedRequests staffMembers currentViewerStaffId False True}
-        {renderManagerSection "leave-denied" "Denied" leaveDeniedCountFragmentId leaveDeniedListFragmentId deniedRequests staffMembers currentViewerStaffId False True}
-        {renderArchiveSection archivePagination archivedPageRequests staffMembers currentViewerStaffId archiveIsOpen}
+    <div class="tab-content" id="leave-request-manager-sections">
+        {renderManagerSection "leave-pending" leavePendingListFragmentId pendingRequests staffMembers currentViewerStaffId (not archiveIsOpen)}
+        {renderManagerSection "leave-approved" leaveApprovedListFragmentId approvedRequests staffMembers currentViewerStaffId False}
+        {renderManagerSection "leave-denied" leaveDeniedListFragmentId deniedRequests staffMembers currentViewerStaffId False}
+        {renderRequestTabPane "leave-archive" archiveIsOpen (renderArchivePageContent Nothing archivePagination archivedPageRequests staffMembers currentViewerStaffId)}
     </div>
 |]
     where
@@ -527,35 +569,6 @@ buildArchivePagination requestedPage archivedRequests =
 archivePageItems :: ArchivePagination -> [LeaveRequest] -> [LeaveRequest]
 archivePageItems ArchivePagination { archivePaginationCurrentPage } =
     take archivePageSize . drop ((archivePaginationCurrentPage - 1) * archivePageSize)
-
-renderArchiveSection :: (?context :: ControllerContext) => ArchivePagination -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
-renderArchiveSection archivePagination@ArchivePagination { archivePaginationTotalItems } requests staffMembers currentViewerStaffId archiveIsOpen = [hsx|
-    <section class="accordion-item app-panel mb-3 leave-request-section" id="leave-archive">
-        <h2 class="accordion-header" id="leave-archive-heading">
-            <button
-                class={if archiveIsOpen then ("accordion-button" :: Text) else "accordion-button collapsed"}
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#leave-archive-collapse"
-                aria-expanded={if archiveIsOpen then ("true" :: Text) else "false"}
-                aria-controls="leave-archive-collapse"
-                aria-label="Archive"
-            >
-                <span class="leave-request-accordion-title" data-label={"Archive (" <> tshow archivePaginationTotalItems <> ")"}>Archive (<span id={leaveArchiveCountFragmentId}>{tshow archivePaginationTotalItems}</span>)</span>
-            </button>
-        </h2>
-        <div
-            id="leave-archive-collapse"
-            class={if archiveIsOpen then ("accordion-collapse collapse show" :: Text) else "accordion-collapse collapse"}
-            aria-labelledby="leave-archive-heading"
-            data-bs-parent="#leave-request-manager-sections"
-        >
-            <div class="accordion-body">
-                {renderArchivePageContent Nothing archivePagination requests staffMembers currentViewerStaffId}
-            </div>
-        </div>
-    </section>
-|]
 
 renderArchivePageContentOob :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Html
 renderArchivePageContentOob leaveRequests staffMembers currentViewerStaffId today archivePage =
@@ -675,20 +688,16 @@ renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archiveP
         href = appendQueryParams (pathTo LeaveRequestsAction) pageParam
         fragmentHref = appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) (pageParam <> [("swapOob", "true")])
 
-renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Bool -> Html
-renderManagerSection sectionId title countFragmentId listFragmentId requests staffMembers currentViewerStaffId isOpen showActions =
-    renderAppAccordionItem AppAccordionItemConfig
-        { appAccordionItemId = sectionId
-        , appAccordionItemParentId = "leave-request-manager-sections"
-        , appAccordionItemTitle = title
-        , appAccordionItemIsOpen = isOpen
-        , appAccordionItemClass = "leave-request-section"
-        , appAccordionItemBodyClass = ""
-        , appAccordionItemButtonContent = [hsx|
-            <span class="leave-request-accordion-title" data-label={title <> " (" <> tshow (length requests) <> ")"}>{title} ({renderManagerSectionCount countFragmentId requests})</span>
-        |]
-        , appAccordionItemBody = renderManagerSectionList listFragmentId requests staffMembers currentViewerStaffId showActions
-        }
+renderRequestTabPane :: Text -> Bool -> Html -> Html
+renderRequestTabPane paneId isSelected body = [hsx|
+    <section id={paneId} class={classes [("tab-pane", True), ("active show", isSelected)]} role="tabpanel" aria-labelledby={paneId <> "-tab"} tabindex="0">
+        {body}
+    </section>
+|]
+
+renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
+renderManagerSection paneId listFragmentId requests staffMembers currentViewerStaffId isSelected =
+    renderRequestTabPane paneId isSelected (renderManagerSectionList listFragmentId requests staffMembers currentViewerStaffId True)
 
 renderManagerSectionCount :: Text -> [LeaveRequest] -> Html
 renderManagerSectionCount countFragmentId requests = [hsx|

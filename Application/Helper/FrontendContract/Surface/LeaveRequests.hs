@@ -34,6 +34,12 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , NameSortKey
     , RoleSortKey
     , CountSortKey
+    , LeaveRequestTabs
+    , LeaveArchiveRequestTabs
+    , PendingTabKey
+    , ApprovedTabKey
+    , DeniedTabKey
+    , ArchiveTabKey
     , LeaveSidePanelTabs
     , LeaveSidePanelTabRole
     , StaffTabKey
@@ -122,6 +128,17 @@ data PendingCount
 data NameSortKey
 data RoleSortKey
 data CountSortKey
+
+-- Fixed-default variants let the server honour archive links without new browser logic.
+-- Only one variant is rendered per page; both use the same four panes.
+data LeaveRequestTabs
+data LeaveRequestTabRole
+data LeaveArchiveRequestTabs
+data LeaveArchiveRequestTabRole
+data PendingTabKey
+data ApprovedTabKey
+data DeniedTabKey
+data ArchiveTabKey
 
 data LeaveSidePanelTabs
 data LeaveSidePanelTabRole
@@ -256,6 +273,10 @@ type LeaveRequestsSurface =
              ]
             NameSortKey
             'SortAscending
+         , BrowserRole LeaveRequestTabRole
+         , TabSet LeaveRequestTabs LeaveRequestTabRole '[ PendingTabKey, ApprovedTabKey, DeniedTabKey, ArchiveTabKey ] PendingTabKey
+         , BrowserRole LeaveArchiveRequestTabRole
+         , TabSet LeaveArchiveRequestTabs LeaveArchiveRequestTabRole '[ PendingTabKey, ApprovedTabKey, DeniedTabKey, ArchiveTabKey ] ArchiveTabKey
          , BrowserRole LeaveSidePanelTabRole
          , TabSet LeaveSidePanelTabs LeaveSidePanelTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
          , BrowserRole LeaveSidePanelRootRole
