@@ -10,16 +10,16 @@ import Application.Helper.FrontendContract.DSL hiding (Enum)
 import qualified Application.Helper.FrontendContract.DSL as DSL
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Reflect
-import Application.Helper.FrontendContract.Registry (validateFrontendContractStartup,
-                                                     validateRegisteredFrontendContract)
+import Application.Helper.FrontendContract.Registry (validateFrontendContractStartup)
 import Application.Helper.FrontendContract.TypeScript
 import Application.Helper.FrontendContract.Wire.Carrier
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
-import Data.Either (isLeft, isRight)
+import Data.Either (isLeft)
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import qualified Data.UUID as UUID
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
@@ -46,6 +46,9 @@ data OpenDialog
 data OverlayRoot
 data DensityRecord
 data DensityField
+data NestedRecord
+data NestedValues
+data CompactClass
 
 data FixtureDensity
     = CompactDensity
@@ -72,6 +75,9 @@ type FixtureContracts =
          , GlobalSchema (Record DraftStaffRecord
             '[ Field StaffName 'WireText
              ])
+         , GlobalSchema (Record NestedRecord
+            '[ Field NestedValues ('WireOptional ('WireList ('WireNullable 'WireText)))
+             ])
          , BrowserInboundSchema (ClosedScalar FixtureDensity)
          , BrowserInboundSchema (Record DensityRecord '[Field DensityField ('WireClosed FixtureDensity)])
          , GlobalSchema (DSL.Enum StaffStatus '[ActiveStatus, InactiveStatus])
@@ -81,6 +87,7 @@ type FixtureContracts =
              ])
          , Event OpenDialog '[Field UserId 'WireUUID]
          , DomAttr OverlayRoot
+         , DomValue CompactClass "is-compact"
          ]
      ]
 
@@ -109,29 +116,29 @@ type WrongClosedScalarAuthorityContracts =
          ]
      ]
 
+type DuplicateFieldContracts =
+    '[ Global App '[GlobalSchema (Record DuplicateNameOne '[Field StaffName 'WireText, Field StaffName 'WireText])] ]
+
+type DuplicateValueContracts =
+    '[ Global App '[GlobalSchema (DSL.Enum StaffStatus '[ActiveStatus, ActiveStatus])] ]
+
+type DuplicateCaseContracts =
+    '[ Global App '[GlobalSchema (TaggedUnion StaffEvent '[Case CreatedCase '[], Case CreatedCase '[]])] ]
+
 tests :: Spec
 tests = describe "FrontendContract foundation" do
-    it "derives primitive TypeScript aliases from the wire primitive registry" do
-        let Right source = renderFrontendContractTypeScript (reflectFrontendContracts @FixtureContracts)
-        source `shouldContainText` "export type FrontendContractUuid = string;"
-        source `shouldContainText` "export type FrontendContractDay = string;"
-        source `shouldContainText` "userId: FrontendContractUuid"
-        source `shouldNotContainText` "FrontendSurfaceUUID"
-        source `shouldNotContainText` "FrontendSurfaceDay"
+    it "reflects fixture names, primitive kinds, ordered fields, recursive wires, presence and union cases into semantic IR" do
+        reflectFrontendContracts @FixtureContracts `shouldBe` expectedFixtureIR
 
-    it "reflects global roots without a parallel Surface authoring model" do
-        let contract = reflectFrontendContracts @FixtureContracts
-        fmap (.globalName) contract.contractGlobals `shouldBe` ["app"]
-        contract.contractSurfaces `shouldBe` []
-        case checkedFrontendContractIR contract of
-            Right _          -> pure ()
+    it "validates the reflected fixture without a parallel Surface authoring model" do
+        case checkedFrontendContractIR (reflectFrontendContracts @FixtureContracts) of
+            Right checked    -> frontendContractIR checked `shouldBe` expectedFixtureIR
             Left diagnostics -> expectationFailure (cs (show diagnostics))
 
     it "rejects invalid startup registries with deterministic diagnostics before traffic" do
         let invalidContract = reflectFrontendContracts @DuplicateContracts
         validateFrontendContractStartup invalidContract
             `shouldBe` Left "schema-name-collision: Duplicate schema name DuplicateName from DuplicateName\n"
-        validateRegisteredFrontendContract `shouldSatisfy` isRight
 
     it "validates duplicate declarations and unresolved refs" do
         validateFrontendContractIR (reflectFrontendContracts @DuplicateContracts)
@@ -144,12 +151,15 @@ tests = describe "FrontendContract foundation" do
             |> fmap (.diagnosticCode)
             `shouldContain` ["unregistered-closed-scalar"]
 
-    it "reflects DSL-owned closed scalars into exact typed Haskell and browser contracts" do
-        let contract = reflectFrontendContracts @FixtureContracts
-        let Right source = renderFrontendContractTypeScript contract
-        source `shouldContainText` "export type FixtureDensity =\n    \"compact\"\n  | \"comfortable\";"
-        source `shouldContainText` "export function parseFixtureDensity(value: unknown): FixtureDensity"
-        source `shouldContainText` "export type DensityRecord = { density: FixtureDensity };"
+    it "rejects duplicate fields, enum values and union cases at their semantic boundary" do
+        fmap (.diagnosticCode) (validateFrontendContractIR (reflectFrontendContracts @DuplicateFieldContracts))
+            `shouldBe` ["field-name-collision"]
+        fmap (.diagnosticCode) (validateFrontendContractIR (reflectFrontendContracts @DuplicateValueContracts))
+            `shouldBe` ["enum-value-collision"]
+        fmap (.diagnosticCode) (validateFrontendContractIR (reflectFrontendContracts @DuplicateCaseContracts))
+            `shouldBe` ["union-case-collision"]
+
+    it "reflects DSL-owned closed scalars into exact typed Haskell carriers" do
         let density :: WireSourceType ('WireClosed FixtureDensity)
             density = ComfortableDensity
         density `shouldBe` ComfortableDensity
@@ -222,21 +232,30 @@ tests = describe "FrontendContract foundation" do
                 [ "kind" Aeson..= ("carrier-created" :: Text)
                 , "carrierUserId" Aeson..= UUID.toText carrierUuid
                 ]
+        let deleted = taggedUnionValueIn @CarrierFixture.CarrierContracts @CarrierFixture.CarrierUnion @CarrierFixture.CarrierDeleted
+                (requiredField @CarrierFixture.CarrierUserId carrierUuid &: noFields)
+        deleted
+            `shouldBe` Aeson.object
+                [ "kind" Aeson..= ("carrier-deleted" :: Text)
+                , "carrierUserId" Aeson..= UUID.toText carrierUuid
+                ]
         parseCarrierUnion created `shouldBe` Right (ParsedCarrierCreated carrierUuid)
+        parseCarrierUnion deleted `shouldBe` Right (ParsedCarrierDeleted carrierUuid)
+        parseCarrierUnion (removeCarrierField "carrierUserId" deleted) `shouldSatisfy` isLeft
+        parseCarrierUnion (replaceCarrierField "carrierUserId" (Aeson.Bool True) deleted) `shouldSatisfy` isLeft
         parseCarrierUnion (Aeson.object ["kind" Aeson..= ("unknown" :: Text)]) `shouldSatisfy` isLeft
         parseCarrierUnion (addCarrierField "extra" Aeson.Null created) `shouldSatisfy` isLeft
 
-    it "renders TypeScript types, constants, guards, parsers, and encoders" do
-        let Right source = renderFrontendContractTypeScript (reflectFrontendContracts @FixtureContracts)
-        source `shouldContainText` "export type StaffRecord = { userId: FrontendContractUuid; staffName: string; favoriteDay?: FrontendContractDay; note: string | null };"
-        source `shouldContainText` "export type StaffStatus ="
-        source `shouldContainText` "  | \"inactive-status\";"
-        source `shouldContainText` "export type StaffEvent ="
-        source `shouldContainText` "{ tag: \"created-case\"; userId: FrontendContractUuid }"
-        source `shouldContainText` "export const openDialogEvent = \"bepis:open-dialog\" as const;"
-        source `shouldContainText` "export const overlayRootDomAttr = \"data-bepis-overlay-root\" as const;"
-        source `shouldContainText` "export function parseStaffRecord(value: unknown): StaffRecord"
-        source `shouldContainText` "export function encodeStaffRecord(value: StaffRecord): StaffRecord"
+    it "renders the representative fixture to the canonical TypeScript golden" do
+        source <- renderFixtureTypeScript (reflectFrontendContracts @FixtureContracts)
+        expected <- TextIO.readFile "Test/Fixtures/frontend-contract/representative.ts.golden"
+        -- splitOn preserves the final empty segment: line-local diffs still
+        -- enforce exact output, including the terminal newline.
+        Text.splitOn "\n" source `shouldBe` Text.splitOn "\n" expected
+
+    it "reports validation diagnostics instead of rendering invalid IR" do
+        renderFrontendContractTypeScript (reflectFrontendContracts @DuplicateContracts)
+            `shouldBe` Left "Duplicate schema name DuplicateName from DuplicateName"
 
 carrierUuid :: UUID.UUID
 carrierUuid =
@@ -290,8 +309,38 @@ removeCarrierField name = \case
 replaceCarrierField :: Text -> Aeson.Value -> Aeson.Value -> Aeson.Value
 replaceCarrierField = addCarrierField
 
-shouldContainText :: Text -> Text -> Expectation
-shouldContainText haystack needle = haystack `shouldSatisfy` (needle `isInfixOf`)
+renderFixtureTypeScript :: FrontendContractIR -> IO Text
+renderFixtureTypeScript contract =
+    case renderFrontendContractTypeScript contract of
+        Left diagnostics -> fail ("FrontendContract fixture renderer failed:\n" <> cs diagnostics)
+        Right source     -> pure source
 
-shouldNotContainText :: Text -> Text -> Expectation
-shouldNotContainText haystack needle = haystack `shouldSatisfy` not . (needle `isInfixOf`)
+-- Literal semantic oracle: no production registry, naming helper or renderer
+-- is used to construct the expected projection.
+expectedFixtureIR :: FrontendContractIR
+expectedFixtureIR = FrontendContractIR
+    [ GlobalIR "App" "app"
+        [ GlobalSchemaIR BrowserBidirectionalIR (RecordIR "StaffRecord" "StaffRecord"
+            [ FieldIR "UserId" "userId" WireUuidIR RequiredField
+            , FieldIR "StaffName" "staffName" WireTextIR RequiredField
+            , FieldIR "FavoriteDay" "favoriteDay" WireDayIR OptionalFieldPresence
+            , FieldIR "Note" "note" WireTextIR NullableFieldPresence
+            ])
+        , GlobalSchemaIR BrowserBidirectionalIR (RecordIR "DraftStaffRecord" "DraftStaffRecord"
+            [FieldIR "StaffName" "staffName" WireTextIR RequiredField])
+        , GlobalSchemaIR BrowserBidirectionalIR (RecordIR "NestedRecord" "NestedRecord"
+            [FieldIR "NestedValues" "nestedValues" (WireOptionalIR (WireListIR (WireNullableIR WireTextIR))) RequiredField])
+        , GlobalSchemaIR BrowserInboundIR (ClosedScalarIR "FixtureDensity" "FixtureDensity" ["compact", "comfortable"])
+        , GlobalSchemaIR BrowserInboundIR (RecordIR "DensityRecord" "DensityRecord"
+            [FieldIR "DensityField" "density" (WireClosedIR "FixtureDensity" "Test.FrontendContractSpec" "FixtureDensity") RequiredField])
+        , GlobalSchemaIR BrowserBidirectionalIR (EnumIR "StaffStatus" "StaffStatus" ["active-status", "inactive-status"])
+        , GlobalSchemaIR BrowserBidirectionalIR (TaggedUnionIR "StaffEvent" "StaffEvent" "tag"
+            [ UnionCaseIR "CreatedCase" "created-case" [FieldIR "UserId" "userId" WireUuidIR RequiredField]
+            , UnionCaseIR "DeletedCase" "deleted-case" [FieldIR "UserId" "userId" WireUuidIR RequiredField]
+            ])
+        , GlobalEventIR BrowserTypeOnlyIR "OpenDialog" "bepis:open-dialog" [FieldIR "UserId" "userId" WireUuidIR RequiredField]
+        , GlobalDomAttrIR "OverlayRoot" "data-bepis-overlay-root"
+        , GlobalDomValueIR "CompactClass" "is-compact"
+        ]
+    ]
+    []
