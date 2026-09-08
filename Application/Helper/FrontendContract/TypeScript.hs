@@ -147,7 +147,9 @@ renderTopLevelSurfaceFragmentKeyUnion surfaces =
            , "    return JSON.stringify(value) ?? \"null\";"
            , "}"
            , "export function surfaceFragmentKeyIdentity(value: SurfaceFragmentKey): string {"
-           , "    return __canonicalFrontendContractJson([value." <> semanticSurfaceFieldName <> ", value." <> semanticKindFieldName <> ", value." <> semanticParamsFieldName <> "]);"
+           , if all (null . (.surfaceFragments)) surfaces
+                then "    throw new Error(\"No Surface fragment keys are declared\");"
+                else "    return __canonicalFrontendContractJson([value." <> semanticSurfaceFieldName <> ", value." <> semanticKindFieldName <> ", value." <> semanticParamsFieldName <> "]);"
            , "}"
            , "export function surfaceFragmentKeysEqual(left: SurfaceFragmentKey, right: SurfaceFragmentKey): boolean {"
            , "    return surfaceFragmentKeyIdentity(left) === surfaceFragmentKeyIdentity(right);"
@@ -165,7 +167,9 @@ renderTopLevelStringUnion :: Text -> [Text] -> [Text]
 renderTopLevelStringUnion typeName rawValues =
     [ "export type " <> typeName <> " = " <> renderStringUnion values <> ";"
     , "export function is" <> typeName <> "(value: unknown): value is " <> typeName <> " {"
-    , "    return typeof value === \"string\" && [" <> Text.intercalate ", " (fmap quote values) <> "].includes(value);"
+    , if null values
+        then "    return false;"
+        else "    return typeof value === \"string\" && [" <> Text.intercalate ", " (fmap quote values) <> "].includes(value);"
     , "}"
     , ""
     ]
