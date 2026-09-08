@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "issue": 502,
-  "authority": "Count-only reconciliation of Feedback atop staging f9693f07, retaining epic 508's workflow owners and all staging ceilings: 17 Feedback runtime owners added and two retired diagnostics owners removed. Optimized merged package measured 576 modules/interfaces and 577 production rows at ed400abb. IHP 1.6 splits the existing worker registration into WorkerMain, adding one production row (578); the request-vault authentication boundary adds one further owner (579). No runtime feature added. Byte/interface/dependency/executable ceilings remain unchanged; memory is opt-in and builder-specific",
+  "authority": "Operator-approved IHP 1.6 count reconciliation for #545. Retained ed400abb inspection measured 576 interfaces; its module set is reconstructed from the committed production inventory (old store output unavailable), excluding Main and mapping Config/Config.hs to module Config. Eight Application.Script entrypoints now compile as separate deployed binaries instead of app-lib: BackfillTimesheetPayLedger, BillingReconciliationSweep, BootstrapAccount, FwcMapdRefreshSweep, LiveInvalidationOutboxPrune, PublicHolidayRefreshSweep, RsaReminderSweep, XeroKeepaliveSweep. WorkerMain and Application.Helper.Authentication add two installed interfaces: 576 - 8 + 2 = 570, inspected directly. All ten deployed executables passed smoke checks. Production rows remain 579. Direct package ceiling changes only 45 to 46 for the existing IHP.Router.UrlGenerator import now owned by split ihp-router. No runtime feature added; all byte/interface-size/executable ceilings unchanged. Memory remains opt-in and builder-specific.",
   "measurement_profile": "Config/nix/baselines/production-build/epic-444-final-xero-management.json",
-  "module_count_inspection_profile": "Config/nix/baselines/production-build/epic-502-staging-rebase.json",
+  "module_count_inspection_profile": "Config/nix/baselines/production-build/ihp-545-ihp-16.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 576,
+    "module_count_max": 570,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -58,7 +58,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 576, "bytes_max": 629145600 },
+      ".hi": { "count": 570, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -68,7 +68,7 @@
   },
   "production_inventory": {
     "module_rows_max": 579,
-    "dependency_packages_max": 45,
+    "dependency_packages_max": 46,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
     "dependency_inventory": "../../production-package-dependency-inventory.tsv",
