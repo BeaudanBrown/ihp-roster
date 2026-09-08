@@ -184,6 +184,7 @@ renderProfileSeedManifest plan =
         , "  \"seed\": " <> tshow plan.options.seedValue <> ","
         , "  \"currentWindowStart\": " <> jsonString (dateText plan.currentWindowStart) <> ","
         , "  \"options\": {"
+        , "    \"fixtureVersion\": 2,"
         , "    \"venues\": " <> tshow plan.options.venueCount <> ","
         , "    \"staffPerVenue\": " <> tshow plan.options.staffPerVenue <> ","
         , "    \"managersPerVenue\": " <> tshow plan.options.managerPerVenue <> ","
@@ -339,6 +340,9 @@ data ProfileTable
     | ProfilePasskeys
     | ProfileVenueConfig
     | ProfileVenueMemberships
+    | ProfileAwardLevels
+    | ProfileFwcPayRates
+    | ProfileAwardBaseRates
     | ProfileStaff
     | ProfileShiftTypes
     | ProfileDayNames
@@ -387,6 +391,9 @@ profileTableDescriptor profileTable =
         ProfilePasskeys -> descriptor "passkeys" "passkeys.csv" passkeyColumns passkeyRows
         ProfileVenueConfig -> descriptor "venue_config" "venue_config.csv" venueConfigColumns venueConfigRows
         ProfileVenueMemberships -> descriptor "venue_memberships" "venue_memberships.csv" venueMembershipColumns venueMembershipRows
+        ProfileAwardLevels -> descriptor "award_levels" "award_levels.csv" profileAwardLevelColumns profileAwardLevelRows
+        ProfileFwcPayRates -> descriptor "fwc_mapd_pay_rates" "fwc_mapd_pay_rates.csv" profileFwcPayRateColumns profileFwcPayRateRows
+        ProfileAwardBaseRates -> descriptor "award_level_base_rates" "award_level_base_rates.csv" profileAwardBaseRateColumns profileAwardBaseRateRows
         ProfileStaff -> descriptor "staff" "staff.csv" staffColumns staffRows
         ProfileShiftTypes -> descriptor "shift_types" "shift_types.csv" shiftTypeColumns shiftTypeRows
         ProfileDayNames -> descriptor "day_names" "day_names.csv" dayNameColumns dayNameRows
@@ -450,12 +457,12 @@ userColumns = ["id", "email", "password_hash", "user_role", "platform_role", "is
 passkeyColumns = ["id", "user_id", "credential_id", "public_key", "sign_count", "name", "created_at", "last_used_at", "updated_at"]
 venueConfigColumns = ["id", "venue_id", "timezone", "roster_week_starts_on", "late_to_early_min_start_gap_minutes", "staff_timesheet_edit_window_days"]
 venueMembershipColumns = ["id", "venue_id", "user_id", "venue_role", "is_active"]
-staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active"]
+staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active", "employment_basis", "pay_assignment_mode", "default_award_level_id"]
 
 shiftTypeColumns, dayNameColumns, staffPayVersionColumns, shiftTypePayVersionColumns :: [Text]
 shiftTypeColumns = ["id", "venue_id", "name", "sort_order", "override_award_level_id", "is_active"]
 dayNameColumns = ["id", "venue_id", "weekday_index", "name", "is_active"]
-staffPayVersionColumns = ["id", "venue_id", "staff_id", "default_award_level_id", "employment_basis", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
+staffPayVersionColumns = ["id", "venue_id", "staff_id", "default_award_level_id", "employment_basis", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id", "pay_assignment_mode"]
 shiftTypePayVersionColumns = ["id", "venue_id", "shift_type_id", "override_award_level_id", "payroll_label", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
 
 rosterGroupColumns, slotNameColumns, staffRosterGroupColumns :: [Text]
@@ -540,6 +547,24 @@ venueMembershipRows plan =
             | staffIndex <- staffIndexes plan
             ]
 
+-- Synthetic payroll facts, not externally sourced award data. The $30 base
+-- matches the existing sealed profile-seed-v1 earnings snapshots. Load before
+-- staff so explicit payable assignments satisfy their foreign keys.
+profileAwardLevelId, profileFwcPayRateId :: Text
+profileAwardLevelId = uuidText 30 0 0 0
+profileFwcPayRateId = uuidText 31 0 0 0
+
+profileAwardLevelColumns, profileFwcPayRateColumns, profileAwardBaseRateColumns :: [Text]
+profileAwardLevelColumns = ["id", "award_fixed_id", "classification_fixed_id", "classification", "is_active"]
+profileFwcPayRateColumns = ["id", "award_fixed_id", "classification_fixed_id", "classification", "base_rate", "base_rate_type"]
+profileAwardBaseRateColumns = ["id", "award_level_id", "employment_basis", "fwc_mapd_pay_rate_id", "hourly_rate", "rate_label", "operative_from"]
+
+profileAwardLevelRows, profileFwcPayRateRows, profileAwardBaseRateRows :: ProfileSeedPlan -> [[Maybe Text]]
+profileAwardLevelRows _ = [row [profileAwardLevelId, "9999001", "9999001", "Profile synthetic award", "true"]]
+profileFwcPayRateRows _ = [row [profileFwcPayRateId, "9999001", "9999001", "Profile synthetic award", "30", "hourly"]]
+profileAwardBaseRateRows plan =
+    [row [uuidText 32 0 0 0, profileAwardLevelId, "permanent", profileFwcPayRateId, "30", "Profile synthetic base", dateText (minimum (map (.windowStart) (profileWindows plan)))]]
+
 staffRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffRows plan =
     concatMap staffForVenue (venueIndexes plan)
@@ -557,6 +582,9 @@ staffRows plan =
                 , "0411111111"
                 , "0"
                 , "true"
+                , "permanent"
+                , "roster_only"
+                , nullText
                 ] :
             [ row
                 [ staffId venueIndex staffIndex
@@ -570,6 +598,9 @@ staffRows plan =
                 , "0411111111"
                 , tshow (1 + deterministicIndex plan [venueIndex, staffIndex, 14] 6)
                 , "true"
+                , "permanent"
+                , "award_rate"
+                , profileAwardLevelId
                 ]
             | staffIndex <- staffIndexes plan
             ]
@@ -592,7 +623,7 @@ dayNameRows plan =
 
 staffPayVersionRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffPayVersionRows plan =
-    [ row [staffPayVersionId venueIndex staffIndex, venueId venueIndex, staffId venueIndex staffIndex, nullText, "permanent", dateText (minimum (map (.windowStart) (profileWindows plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
+    [ row [staffPayVersionId venueIndex staffIndex, venueId venueIndex, staffId venueIndex staffIndex, profileAwardLevelId, "permanent", dateText (minimum (map (.windowStart) (profileWindows plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex, "award_rate"]
     | venueIndex <- venueIndexes plan
     , staffIndex <- staffIndexes plan
     ]

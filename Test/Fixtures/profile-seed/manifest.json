@@ -3,6 +3,7 @@
   "seed": 42,
   "currentWindowStart": "2025-03-10",
   "options": {
+    "fixtureVersion": 2,
     "venues": 1,
     "staffPerVenue": 2,
     "managersPerVenue": 1,
