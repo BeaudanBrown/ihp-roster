@@ -31,6 +31,9 @@ date-native-roster-readiness-test
 echo "verify-full: documentation links, anchors, archive inventory, and scoped retired terms"
 documentation-repository-check
 
+echo "verify-full: GHCi configuration bootstrap"
+ghci-config-test
+
 echo "verify-full: typecheck"
 typecheck
 

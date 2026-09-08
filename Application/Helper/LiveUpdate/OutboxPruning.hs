@@ -15,7 +15,7 @@ import Data.Int (Int64)
 import qualified Data.Text.IO as TextIO
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import qualified Database.PostgreSQL.Simple as PG
-import IHP.ModelSupport (sqlQueryScalar, withTransaction)
+import IHP.ModelSupport (unsafeSqlQueryScalar, withTransaction)
 import IHP.ModelSupport.Types (ModelContext)
 import IHP.Prelude
 
@@ -90,9 +90,9 @@ pruneBatch config cutoff =
         -- Deliberate focused raw-SQL boundary: QueryBuilder cannot express
         -- transaction-local timeouts plus ordered SKIP LOCKED deletion. The
         -- created_at/id order matches idx_live_invalidation_events_created_at.
-        _lockTimeout :: Text <- sqlQueryScalar "SELECT set_config('lock_timeout', '1s', true)" ()
-        _statementTimeout :: Text <- sqlQueryScalar "SELECT set_config('statement_timeout', '15s', true)" ()
-        sqlQueryScalar
+        _lockTimeout :: Text <- unsafeSqlQueryScalar "SELECT set_config('lock_timeout', '1s', true)" ()
+        _statementTimeout :: Text <- unsafeSqlQueryScalar "SELECT set_config('statement_timeout', '15s', true)" ()
+        unsafeSqlQueryScalar
             "WITH expired AS (\
             \ SELECT id FROM live_invalidation_events\
             \ WHERE created_at < ?\
@@ -113,12 +113,12 @@ retryablePruneFailure exception =
 
 collectSummary :: (?modelContext :: ModelContext) => UTCTime -> Int -> Int -> IO LiveInvalidationOutboxPruneSummary
 collectSummary cutoff deletedEventCount completedBatchCount = do
-    remainingExpiredEventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE created_at < ?" (PG.Only cutoff)
-    oldestEventCreatedAt :: Maybe UTCTime <- sqlQueryScalar "SELECT MIN(created_at) FROM live_invalidation_events" ()
-    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
-    eventResourceCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_event_resources" ()
-    resourceVersionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
-    eventTableSizeBytes :: Int64 <- sqlQueryScalar "SELECT pg_total_relation_size('live_invalidation_events')::BIGINT" ()
-    eventResourceTableSizeBytes :: Int64 <- sqlQueryScalar "SELECT pg_total_relation_size('live_invalidation_event_resources')::BIGINT" ()
-    resourceVersionTableSizeBytes :: Int64 <- sqlQueryScalar "SELECT pg_total_relation_size('live_resource_versions')::BIGINT" ()
+    remainingExpiredEventCount :: Int <- unsafeSqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE created_at < ?" (PG.Only cutoff)
+    oldestEventCreatedAt :: Maybe UTCTime <- unsafeSqlQueryScalar "SELECT MIN(created_at) FROM live_invalidation_events" ()
+    eventCount :: Int <- unsafeSqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
+    eventResourceCount :: Int <- unsafeSqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_event_resources" ()
+    resourceVersionCount :: Int <- unsafeSqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
+    eventTableSizeBytes :: Int64 <- unsafeSqlQueryScalar "SELECT pg_total_relation_size('live_invalidation_events')::BIGINT" ()
+    eventResourceTableSizeBytes :: Int64 <- unsafeSqlQueryScalar "SELECT pg_total_relation_size('live_invalidation_event_resources')::BIGINT" ()
+    resourceVersionTableSizeBytes :: Int64 <- unsafeSqlQueryScalar "SELECT pg_total_relation_size('live_resource_versions')::BIGINT" ()
     pure LiveInvalidationOutboxPruneSummary { .. }

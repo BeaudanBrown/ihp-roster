@@ -32,7 +32,10 @@ an Application query.
 Use IHP QueryBuilder for application queries. Isolate only an unavoidable,
 minimal locking/serialization primitive in a focused mutation module; keep
 business reads/writes in QueryBuilder and advisory-lock keys bounded and
-normalized.
+normalized. Explicit untyped primitives use IHP 1.6's `unsafeSql*` APIs with
+bound parameters: `unsafe` means no compile-time SQL schema checking, not
+permission to interpolate request values. Do not rewrite locking SQL or move
+transaction boundaries merely to migrate an API name.
 
 Payroll-adjacent data must preserve provenance. Audit event names/source
 channels are the closed typed contract in

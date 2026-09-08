@@ -19,7 +19,7 @@ withPasswordResetUserLock ::
     IO (Maybe result)
 withPasswordResetUserLock userId action =
     withTransaction do
-        lockedIds :: [PG.Only UUID] <- sqlQuery
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM users WHERE id = ? FOR UPDATE"
             (PG.Only userId)
         case lockedIds of
@@ -35,7 +35,7 @@ withPasswordResetCompletionLock ::
     IO (Maybe result)
 withPasswordResetCompletionLock userId tokenId action = do
     nestedResult <- withPasswordResetUserLock userId do
-        lockedIds :: [PG.Only UUID] <- sqlQuery
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM password_reset_tokens WHERE id = ? AND user_id = ? FOR UPDATE"
             (tokenId, userId)
         case lockedIds of

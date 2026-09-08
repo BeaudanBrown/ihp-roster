@@ -8,7 +8,7 @@ module Application.RosterPublication.Mutations
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, sqlExecDiscardResult, sqlQueryScalar,
+import IHP.ModelSupport (ModelContext, unsafeSqlExecDiscardResult, unsafeSqlQueryScalar,
                          unpackId, withTransaction)
 import IHP.Prelude
 
@@ -16,7 +16,7 @@ import IHP.Prelude
 -- set-based normalization beside the publication locks that serialize it.
 normalizePublishedRosterWindows :: (?modelContext :: ModelContext) => Id Venue -> Int -> IO ()
 normalizePublishedRosterWindows venueId rosterWeekStartsOn =
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "WITH published_groups AS ( \
         \    SELECT id, COUNT(*) OVER ( \
         \        PARTITION BY roster_group_id, \
@@ -35,7 +35,7 @@ normalizePublishedRosterWindows venueId rosterWeekStartsOn =
 withRosterCalendarLockInCurrentTransaction :: (?modelContext :: ModelContext) => Id Venue -> IO value -> IO value
 withRosterCalendarLockInCurrentTransaction venueId action = do
     let lockKey = "roster-calendar:" <> tshow venueId
-    _ :: Bool <- sqlQueryScalar
+    _ :: Bool <- unsafeSqlQueryScalar
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_calendar_lock"
         (PG.Only lockKey)
     action
@@ -48,7 +48,7 @@ withRosterWindowDateLockInCurrentTransaction :: (?modelContext :: ModelContext) 
 withRosterWindowDateLockInCurrentTransaction venueId rosterGroupId windowStart windowEnd action =
     withRosterCalendarLockInCurrentTransaction venueId do
         let lockKey = "roster-window-date:" <> tshow venueId <> ":" <> tshow rosterGroupId <> ":" <> tshow windowStart <> ":" <> tshow windowEnd
-        _ :: Bool <- sqlQueryScalar
+        _ :: Bool <- unsafeSqlQueryScalar
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_window_date_lock"
             (PG.Only lockKey)
         action

@@ -45,7 +45,7 @@ import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import IHP.ModelSupport (sqlExec, sqlQuery)
+import IHP.ModelSupport (unsafeSqlExec, unsafeSqlQuery)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (randomRIO)
 import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
@@ -662,7 +662,7 @@ acquireXeroReferenceSyncLease ::
     IO Bool
 acquireXeroReferenceSyncLease now appJob tenantId = do
     let expiresAt = addUTCTime xeroReferenceSyncLeaseSeconds now
-    leases <- sqlQuery
+    leases <- unsafeSqlQuery
         "INSERT INTO xero_reference_sync_leases (tenant_id, app_job_id, lease_expires_at) VALUES (?, ?, ?) ON CONFLICT (tenant_id) DO UPDATE SET app_job_id = EXCLUDED.app_job_id, lease_expires_at = EXCLUDED.lease_expires_at, updated_at = NOW() WHERE xero_reference_sync_leases.app_job_id IS NULL OR xero_reference_sync_leases.lease_expires_at <= ? OR xero_reference_sync_leases.app_job_id = EXCLUDED.app_job_id RETURNING id, tenant_id, app_job_id, lease_expires_at, next_request_not_before, created_at, updated_at"
         (tenantId, unpackId appJob.id, expiresAt, now)
     pure (not (null (leases :: [XeroReferenceSyncLease])))
@@ -684,7 +684,7 @@ recordXeroReferenceSyncNextRequestTime ::
     Text ->
     IO ()
 recordXeroReferenceSyncNextRequestTime nextRequestAt appJob tenantId =
-    void $ sqlExec
+    void $ unsafeSqlExec
         "UPDATE xero_reference_sync_leases SET next_request_not_before = ?, updated_at = NOW() WHERE tenant_id = ? AND app_job_id = ?"
         (nextRequestAt, tenantId, unpackId appJob.id)
 
@@ -694,7 +694,7 @@ releaseXeroReferenceSyncLease ::
     Text ->
     IO ()
 releaseXeroReferenceSyncLease appJob tenantId =
-    void $ sqlExec
+    void $ unsafeSqlExec
         "UPDATE xero_reference_sync_leases SET app_job_id = NULL, lease_expires_at = NOW(), updated_at = NOW() WHERE tenant_id = ? AND app_job_id = ?"
         (tenantId, unpackId appJob.id)
 

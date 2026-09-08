@@ -49,7 +49,7 @@ withTokenLock ::
     IO (Maybe result)
 withTokenLock lockQuery tokenId action =
     withTransaction do
-        lockedIds :: [PG.Only UUID] <- sqlQuery lockQuery (PG.Only tokenId)
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery lockQuery (PG.Only tokenId)
         case lockedIds of
             [_] -> Just <$> action
             []  -> pure Nothing

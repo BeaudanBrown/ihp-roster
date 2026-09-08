@@ -17,7 +17,7 @@ data BlackoutException = BlackoutException
 currentVenueCalendarDay :: (?modelContext :: ModelContext) => VenueConfig -> IO Day
 currentVenueCalendarDay venueConfig = do
     now <- getCurrentTime
-    localDay :: Day <- sqlQueryScalar
+    localDay :: Day <- unsafeSqlQueryScalar
         "SELECT (?::timestamptz AT TIME ZONE ?)::date"
         (now, venueConfig.timezone)
     pure localDay

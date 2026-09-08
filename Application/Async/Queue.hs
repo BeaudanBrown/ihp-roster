@@ -13,7 +13,7 @@ import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import IHP.ModelSupport (sqlQuery)
+import IHP.ModelSupport (unsafeSqlQuery)
 
 data AppJobRequest = AppJobRequest
     { jobKind              :: !Text
@@ -99,7 +99,7 @@ insertAppJobIgnoringActiveDedupeConflict ::
     AppJobRequest ->
     IO [AppJob]
 insertAppJobIgnoringActiveDedupeConflict request =
-    sqlQuery
+    unsafeSqlQuery
         "INSERT INTO app_jobs (job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, run_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?::timestamptz, NOW())) ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry') DO NOTHING RETURNING id, created_at, updated_at, status, last_error, attempts_count, locked_at, locked_by, run_at, job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, progress, result"
         ( request.jobKind
         , request.payload

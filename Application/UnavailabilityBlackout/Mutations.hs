@@ -19,7 +19,7 @@ blackoutOverlapError = "Blackout periods cannot overlap an existing active perio
 lockVenueUnavailabilityBlackoutInCurrentTransaction :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockVenueUnavailabilityBlackoutInCurrentTransaction venueId = do
     let lockKey = "unavailability-blackout:" <> UUID.toText venueId
-    lockResults :: [PG.Only Bool] <- sqlQuery
+    lockResults :: [PG.Only Bool] <- unsafeSqlQuery
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS unavailability_blackout_lock"
         (PG.Only lockKey)
     unless (lockResults == [PG.Only True]) do
@@ -61,7 +61,7 @@ updateUnavailabilityBlackoutInCurrentTransaction ::
     IO (Either Text UnavailabilityBlackout)
 updateUnavailabilityBlackoutInCurrentTransaction submitted = do
         lockVenueUnavailabilityBlackoutInCurrentTransaction submitted.venueId
-        lockedIds :: [PG.Only UUID] <- sqlQuery
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM unavailability_blackouts WHERE id = ? AND venue_id = ? FOR UPDATE"
             (unpackId submitted.id, submitted.venueId)
         case lockedIds of
@@ -80,7 +80,7 @@ deleteUnavailabilityBlackoutInCurrentTransaction ::
     IO Bool
 deleteUnavailabilityBlackoutInCurrentTransaction blackout = do
         lockVenueUnavailabilityBlackoutInCurrentTransaction blackout.venueId
-        lockedIds :: [PG.Only UUID] <- sqlQuery
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM unavailability_blackouts WHERE id = ? AND venue_id = ? FOR UPDATE"
             (unpackId blackout.id, blackout.venueId)
         case lockedIds of

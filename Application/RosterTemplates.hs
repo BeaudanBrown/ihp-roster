@@ -238,7 +238,7 @@ remediateRosterTemplateAssignmentsInCurrentTransaction actor snapshot invalidShi
         case maybeTemplate of
             Nothing -> pure (Left RosterTemplateNotFound)
             Just template -> do
-                _ :: Bool <- sqlQueryScalar
+                _ :: Bool <- unsafeSqlQueryScalar
                     "SELECT remediate_roster_template_assignments(?, ?)"
                     (unpackId template.id, map unpackId invalidShiftIds)
                 Right <$> loadRosterTemplate template

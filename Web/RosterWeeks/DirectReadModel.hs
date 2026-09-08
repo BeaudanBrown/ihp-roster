@@ -32,7 +32,7 @@ import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import GHC.Generics (Generic)
-import IHP.ModelSupport (sqlQuery)
+import IHP.ModelSupport (unsafeSqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
@@ -97,7 +97,7 @@ fetchRosterBaseFactsForScopeDirect scope =
                 , windowHasPublishedDays = any ((== Published) . (.publicationState)) rosterDays
                 }
         allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" do
-            orderedSlotIds :: [PG.Only UUID.UUID] <- sqlQuery
+            orderedSlotIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
                 "SELECT roster_slots.id \
                 \FROM roster_slots \
                 \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
@@ -131,7 +131,7 @@ fetchRosterBaseFactsForScopeDirect scope =
 
 fetchEligibleRosterGroupStaffDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
 fetchEligibleRosterGroupStaffDirect rosterGroupId = do
-    orderedStaffIds :: [PG.Only UUID.UUID] <- sqlQuery
+    orderedStaffIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
         "SELECT staff.id \
         \FROM staff \
         \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
@@ -182,7 +182,7 @@ fetchStaffInIdOrder orderedIds = do
 
 fetchRosterGroupStaffForPanelDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
 fetchRosterGroupStaffForPanelDirect rosterGroupId = do
-    orderedStaffIds :: [PG.Only UUID.UUID] <- sqlQuery
+    orderedStaffIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
         "SELECT staff.id \
         \FROM staff \
         \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
@@ -197,7 +197,7 @@ fetchRosterGroupStaffForPanelDirect rosterGroupId = do
 
 fetchCurrentVenueRosterShiftTypesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueRosterShiftTypesDirect = do
-    shiftTypeIds :: [PG.Only UUID.UUID] <- sqlQuery
+    shiftTypeIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
         "SELECT shift_types.id \
         \FROM shift_types \
         \WHERE shift_types.venue_id = ? \
@@ -221,7 +221,7 @@ buildRosterStaffOptionStatesForSlotsDirect :: (?context :: ControllerContext, ?m
 buildRosterStaffOptionStatesForSlotsDirect assignmentFilters _weekStartDate factSlots targetSlots staffMembers
     | null targetSlots || null staffMembers = pure Map.empty
     | otherwise =
-        Map.fromList . map optionStateEntry <$> (sqlQuery
+        Map.fromList . map optionStateEntry <$> (unsafeSqlQuery
             "WITH params AS ( \
             \    SELECT ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
             \), fact_slots AS ( \
@@ -293,7 +293,7 @@ buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContex
 buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes _weekStartDate factSlots targetSlots
     | null assignedSlotIds || null targetSlotIds = pure []
     | otherwise = do
-        rows <- (sqlQuery
+        rows <- (unsafeSqlQuery
             "WITH params AS ( \
             \    SELECT ?::uuid AS venue_id, ?::int AS late_gap_seconds \
             \), assigned_slots AS ( \

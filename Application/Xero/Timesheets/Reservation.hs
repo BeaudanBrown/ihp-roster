@@ -100,7 +100,7 @@ lockReservationSourceEntries reservations = do
     let expectedEntries = concatMap (.reservationSourceEntries) reservations
         entryIds = List.sort (List.nub (map (unpackId . (.id)) expectedEntries))
     lockedIds <- fmap concat $ forM entryIds \entryId ->
-        sqlQuery
+        unsafeSqlQuery
             "SELECT id FROM timesheet_entries WHERE id = ? FOR UPDATE"
             (PG.Only entryId)
     lockedEntries <- if null lockedIds
@@ -367,7 +367,7 @@ lockReservation ::
     IO ()
 lockReservation reservation = do
     locked :: [PG.Only Bool] <-
-        sqlQuery
+        unsafeSqlQuery
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS xero_timesheet_reservation_lock"
             (PG.Only (reservationLockKey reservation))
     unless (locked == [PG.Only True]) do

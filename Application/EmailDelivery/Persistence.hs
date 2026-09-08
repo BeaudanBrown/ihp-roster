@@ -6,7 +6,7 @@ module Application.EmailDelivery.Persistence
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlQuery)
+import IHP.ModelSupport (unsafeSqlQuery)
 
 
 data EmailDeliveryInsert = EmailDeliveryInsert
@@ -26,7 +26,7 @@ insertPermanentlyDeduplicatedEmailJob ::
     EmailDeliveryInsert ->
     IO [AppJob]
 insertPermanentlyDeduplicatedEmailJob request =
-    sqlQuery
+    unsafeSqlQuery
         "INSERT INTO app_jobs (job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, run_at) VALUES ('email_delivery', ?, 1, ?, ?, ?, ?, ?, NOW()) ON CONFLICT (dedupe_key) WHERE job_kind = 'email_delivery' AND dedupe_key IS NOT NULL DO NOTHING RETURNING id, created_at, updated_at, status, last_error, attempts_count, locked_at, locked_by, run_at, job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, progress, result"
         ( request.payload
         , request.requestedByUserId

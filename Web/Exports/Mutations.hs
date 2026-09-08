@@ -60,7 +60,7 @@ updatePayrollWorkbookConfigurationMutation configurationId input = do
     transactionResult :: Either HasqlSessionError (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration) <-
         Exception.try $
             withDurableLiveMutationOutcome publicationFor do
-                lockedRows :: [Only UUID] <- sqlQuery
+                lockedRows :: [Only UUID] <- unsafeSqlQuery
                     "SELECT id FROM payroll_workbook_configurations WHERE id = ? AND venue_id = ? FOR UPDATE"
                     (unpackId configurationId, unpackId currentVenueId)
                 if null lockedRows
@@ -85,7 +85,7 @@ deletePayrollWorkbookConfigurationMutation configurationId = do
             -- QueryBuilder has no row-lock combinator. Serialize concurrent
             -- delete confirmations so a request that becomes stale resolves to
             -- NotFound instead of attempting a second delete.
-            lockedRows :: [Only UUID] <- sqlQuery
+            lockedRows :: [Only UUID] <- unsafeSqlQuery
                 "SELECT id FROM payroll_workbook_configurations WHERE id = ? AND venue_id = ? FOR UPDATE"
                 (unpackId configurationId, unpackId currentVenueId)
             if null lockedRows

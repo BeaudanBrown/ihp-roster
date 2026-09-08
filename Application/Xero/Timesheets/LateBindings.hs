@@ -7,7 +7,7 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlQuery, unpackId)
+import IHP.ModelSupport (unsafeSqlQuery, unpackId)
 
 -- | A fully resolved provider-routing decision for one immutable sealed
 -- earnings component. Proposal construction is pure; persistence revalidates
@@ -32,7 +32,7 @@ persistLateXeroBindings connectionId proposals =
         lockedIds :: [Only UUID] <-
             if null componentIds
                 then pure []
-                else sqlQuery
+                else unsafeSqlQuery
                     "SELECT id FROM timesheet_pay_earnings_components WHERE id = ANY(?) ORDER BY id FOR UPDATE"
                     (Only componentIds)
         if map (\(Only value) -> value) lockedIds /= componentIds

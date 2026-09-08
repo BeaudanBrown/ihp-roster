@@ -15,7 +15,7 @@ import qualified Data.Text as Text
 import Data.UUID (UUID)
 import Database.PostgreSQL.Simple (Only (..))
 import GHC.Clock (getMonotonicTimeNSec)
-import IHP.ModelSupport (sqlExec, sqlQuery, sqlQueryScalar, withTransaction)
+import IHP.ModelSupport (unsafeSqlExec, unsafeSqlQuery, unsafeSqlQueryScalar, withTransaction)
 import IHP.Prelude
 
 -- | Sanitized persistence diagnostics.  No resource names or resource fields
@@ -54,13 +54,13 @@ persistDurableInvalidationInCurrentTransaction source resources = do
     -- ON CONFLICT version guard, and transactional NOTIFY as one primitive.
     -- Serialize sequence allocation through commit. A PostgreSQL sequence
     -- alone is not commit ordered, while retained-event replay is.
-    void (sqlQueryScalar "SELECT 1 FROM pg_advisory_xact_lock(?)" (Only durablePublicationLockKey) :: IO Int)
-    eventIds :: [(UUID, Int)] <- sqlQuery "INSERT INTO live_invalidation_events (source) VALUES (?) RETURNING id, sequence_number" (Only source)
+    void (unsafeSqlQueryScalar "SELECT 1 FROM pg_advisory_xact_lock(?)" (Only durablePublicationLockKey) :: IO Int)
+    eventIds :: [(UUID, Int)] <- unsafeSqlQuery "INSERT INTO live_invalidation_events (source) VALUES (?) RETURNING id, sequence_number" (Only source)
     (eventId, eventSequence) <- case eventIds of [value] -> pure value; _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "live invalidation event insert did not return one id"
     forM_ encoded \resource -> do
-        void $ sqlExec "INSERT INTO live_invalidation_event_resources (event_id, resource_key, resource_payload) VALUES (?, ?, ?::jsonb)" (eventId, resource.durableResourceKey, resource.durableResourcePayload)
-        void $ sqlExec "INSERT INTO live_resource_versions (resource_key, resource_payload, latest_event_id, latest_event_sequence) VALUES (?, ?::jsonb, ?, ?) ON CONFLICT (resource_key) DO UPDATE SET resource_payload = EXCLUDED.resource_payload, latest_event_id = EXCLUDED.latest_event_id, latest_event_sequence = EXCLUDED.latest_event_sequence, updated_at = NOW() WHERE live_resource_versions.latest_event_sequence < EXCLUDED.latest_event_sequence" (resource.durableResourceKey, resource.durableResourcePayload, eventId, eventSequence)
-    void (sqlQueryScalar "SELECT 1 FROM pg_notify('live_invalidation_events', ?)" (Only (tshow eventId)) :: IO Int)
+        void $ unsafeSqlExec "INSERT INTO live_invalidation_event_resources (event_id, resource_key, resource_payload) VALUES (?, ?, ?::jsonb)" (eventId, resource.durableResourceKey, resource.durableResourcePayload)
+        void $ unsafeSqlExec "INSERT INTO live_resource_versions (resource_key, resource_payload, latest_event_id, latest_event_sequence) VALUES (?, ?::jsonb, ?, ?) ON CONFLICT (resource_key) DO UPDATE SET resource_payload = EXCLUDED.resource_payload, latest_event_id = EXCLUDED.latest_event_id, latest_event_sequence = EXCLUDED.latest_event_sequence, updated_at = NOW() WHERE live_resource_versions.latest_event_sequence < EXCLUDED.latest_event_sequence" (resource.durableResourceKey, resource.durableResourcePayload, eventId, eventSequence)
+    void (unsafeSqlQueryScalar "SELECT 1 FROM pg_notify('live_invalidation_events', ?)" (Only (tshow eventId)) :: IO Int)
     completedAtNs <- getMonotonicTimeNSec
     pure DurablePublication
         { durablePublicationEventId = eventId

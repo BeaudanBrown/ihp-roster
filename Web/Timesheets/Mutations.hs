@@ -36,7 +36,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime)
 import Data.Tuple.Only (Only (..))
-import IHP.ModelSupport (sqlQuery)
+import IHP.ModelSupport (unsafeSqlQuery)
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)
@@ -151,7 +151,7 @@ timesheetTargetAllowsCreation entry = do
 lockRosterSlot :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockRosterSlot rosterSlotId = do
     _lockedRosterSlotIds :: [Only UUID] <-
-        sqlQuery
+        unsafeSqlQuery
             "SELECT id FROM roster_slots WHERE id = ? FOR UPDATE"
             (Only rosterSlotId)
     pure ()

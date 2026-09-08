@@ -59,7 +59,7 @@ withTrialStaffInvitationLockInCurrentTransaction ::
     IO (Maybe result)
 withTrialStaffInvitationLockInCurrentTransaction staffId email action = do
     lockVenueInvitationEmail email
-    lockedStaffIds :: [PG.Only UUID] <- sqlQuery
+    lockedStaffIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM staff WHERE id = ? FOR UPDATE"
         (PG.Only staffId)
     case lockedStaffIds of
@@ -69,7 +69,7 @@ withTrialStaffInvitationLockInCurrentTransaction staffId email action = do
 
 lockVenueInvitationEmail :: (?modelContext :: ModelContext) => Text -> IO ()
 lockVenueInvitationEmail email = do
-    lockResults :: [PG.Only Bool] <- sqlQuery
+    lockResults :: [PG.Only Bool] <- unsafeSqlQuery
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS venue_invitation_email_lock"
         (PG.Only (Text.toCaseFold (Text.strip email)))
     unless (lockResults == [PG.Only True]) do
@@ -77,7 +77,7 @@ lockVenueInvitationEmail email = do
 
 lockTrialStaff :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockTrialStaff staffId = do
-    lockedStaffIds :: [PG.Only UUID] <- sqlQuery
+    lockedStaffIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM staff WHERE id = ? FOR UPDATE"
         (PG.Only staffId)
     unless (lockedStaffIds == [PG.Only staffId]) do
@@ -89,7 +89,7 @@ lockVenueInvitation ::
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
 lockVenueInvitation invitationId action = do
-    lockedInvitationIds :: [PG.Only UUID] <- sqlQuery
+    lockedInvitationIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM venue_invitations WHERE id = ? FOR UPDATE"
         (PG.Only invitationId)
     case lockedInvitationIds of

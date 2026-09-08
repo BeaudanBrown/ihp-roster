@@ -100,9 +100,17 @@ NixSupport and telemetry wrappers, avoiding upstream's private unpatched import.
 
 `WorkerMain.hs` owns worker registration; `Main.hs` owns only web startup.
 Default typecheck and Weeder include both roots. `devenv up` has separate `web`
-and `worker` processes using workspace configuration; web-only dev-start,
-E2E and profile launchers do not implicitly start workers. Use `dev-worker`
-when independently exercising background delivery in a managed workspace.
+and `worker` processes using workspace configuration. Canonical E2E starts a
+separate worker per disposable shard and stops it before database disposal;
+web-only dev-start and profile launchers do not implicitly start workers. Use
+`dev-worker` when independently exercising background delivery in a managed
+workspace.
+
+`Config/ghci` bootstraps with qualified base imports before loading IHP's
+application configuration; it must also work with `NoImplicitPrelude` already
+active. `ghci-config-test` uses the real interpreter and a tiny configuration
+fixture, checking both execution markers and startup diagnostics because GHCi
+can return zero after a failed startup command. `verify-full` includes it.
 
 `ihp-compatibility-check` tests the patched framework's native PORT handling,
 app/tool conflicts, range rejection and wildcard bind, plus parity of all eight

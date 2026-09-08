@@ -30,7 +30,7 @@ withVenueOnboardingInvitationRenewalLock ::
     IO (Maybe result)
 withVenueOnboardingInvitationRenewalLock invitationId correctedEmail action =
     withTransaction do
-        emailLockResults :: [PG.Only Bool] <- sqlQuery
+        emailLockResults :: [PG.Only Bool] <- unsafeSqlQuery
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS onboarding_email_lock"
             (PG.Only (Text.toCaseFold (Text.strip correctedEmail)))
         unless (emailLockResults == [PG.Only True]) do
@@ -43,7 +43,7 @@ lockVenueOnboardingInvitation ::
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
 lockVenueOnboardingInvitation invitationId action = do
-    lockedIds :: [PG.Only UUID] <- sqlQuery
+    lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM venue_onboarding_invitations WHERE id = ? FOR UPDATE"
         (PG.Only invitationId)
     case lockedIds of

@@ -188,6 +188,7 @@ in
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;
+        ghci-config-test = script ../scripts/haskell/ghci-config-test;
         dev-db-reset = script ../scripts/db/reset-dev;
         dev-db-maintenance-test = script ../scripts/db/dev-maintenance-test;
         seed-dev = script ../scripts/db/seed-dev;

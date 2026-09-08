@@ -306,7 +306,7 @@ withRosterWindowSlotStaffLocks scope requiredAccess rosterSlots action =
 
 rosterSlotStillMatches :: (?modelContext :: ModelContext) => RosterSlot -> IO Bool
 rosterSlotStillMatches expectedSlot = do
-    _lockedSlotIds :: [PG.Only UUID] <- sqlQuery
+    _lockedSlotIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM roster_slots WHERE id = ? FOR UPDATE"
         (PG.Only (unpackId expectedSlot.id))
     maybeCurrentSlot <- query @RosterSlot

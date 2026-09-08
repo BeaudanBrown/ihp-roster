@@ -15,7 +15,7 @@ import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlQuery, unpackId, withTransaction)
+import IHP.ModelSupport (unsafeSqlQuery, unpackId, withTransaction)
 
 -- Authority checks belong to the calling controller. This module owns the
 -- persisted lifecycle state machine and serializes every item mutation.
@@ -137,7 +137,7 @@ withLockedFeedback feedbackId action =
   where
     lockAndRun :: (?modelContext :: ModelContext) => IO (Either FeedbackMutationError result)
     lockAndRun = do
-        lockedIds :: [PG.Only UUID] <- sqlQuery
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM user_feedback_items WHERE id = ? FOR UPDATE"
             (PG.Only (unpackId feedbackId))
         case lockedIds of

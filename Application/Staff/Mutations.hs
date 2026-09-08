@@ -29,7 +29,7 @@ withStaffRemovalLockInCurrentTransaction ::
     IO (Maybe result)
 withStaffRemovalLockInCurrentTransaction staffId action = do
         lockStaffOperationalKey staffId
-        lockedStaffIds :: [PG.Only UUID] <- sqlQuery
+        lockedStaffIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM staff WHERE id = ? FOR UPDATE"
             (PG.Only staffId)
         case lockedStaffIds of
@@ -40,7 +40,7 @@ withStaffRemovalLockInCurrentTransaction staffId action = do
 
 fetchMatchingStaffId :: (?modelContext :: ModelContext) => UUID -> IO (Maybe UUID)
 fetchMatchingStaffId staffId = do
-    matchingStaffIds :: [PG.Only UUID] <- sqlQuery
+    matchingStaffIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM staff WHERE id = ?"
         (PG.Only staffId)
     case matchingStaffIds of
@@ -52,7 +52,7 @@ fetchMatchingStaffId staffId = do
 lockStaffOperationalKey :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockStaffOperationalKey staffId = do
     let lockKey = "staff-operational:" <> UUID.toText staffId
-    lockResults :: [PG.Only Bool] <- sqlQuery
+    lockResults :: [PG.Only Bool] <- unsafeSqlQuery
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS staff_operational_lock"
         (PG.Only lockKey)
     unless (lockResults == [PG.Only True]) do

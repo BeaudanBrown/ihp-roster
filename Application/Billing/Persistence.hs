@@ -8,14 +8,14 @@ where
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Data.Tuple.Only (Only (..))
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlQuery)
+import IHP.ModelSupport (unsafeSqlQuery)
 
 -- An event-ID transaction lock makes duplicate delivery serialization
 -- independent of whether the event can be associated with a venue.
 lockStripeEventForWebhook :: (?modelContext :: ModelContext) => Text -> IO ()
 lockStripeEventForWebhook eventId = do
     lockResults :: [Only Bool] <-
-        sqlQuery
+        unsafeSqlQuery
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS event_lock"
             (Only eventId)
     unless (lockResults == [Only True]) do
@@ -27,7 +27,7 @@ lockStripeEventForWebhook eventId = do
 lockVenueForBilling :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockVenueForBilling venueId = do
     lockedVenueIds :: [Only UUID] <-
-        sqlQuery
+        unsafeSqlQuery
             "SELECT id FROM venues WHERE id = ? FOR UPDATE"
             (Only venueId)
     unless (length lockedVenueIds == 1) do

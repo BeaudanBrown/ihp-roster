@@ -34,7 +34,7 @@ import Data.UUID (UUID)
 import Generated.Types
 import qualified Hasql.Errors as Hasql
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlExecDiscardResult, sqlQuery)
+import IHP.ModelSupport (unsafeSqlExecDiscardResult, unsafeSqlQuery)
 import IHP.ModelSupport.Types (HasqlSessionError (..))
 
 -- The expected identity is rendered into each entry-specific Xero blocker.
@@ -84,7 +84,7 @@ refreshProblemApprovalWithAudit ::
 refreshProblemApprovalWithAudit actorUserId venueId entryId expected enrichAuditPayload auditSourceChannel = do
     result <- Exception.try @HasqlSessionError $ Exception.try @ApprovalEngineException $ withTransaction do
         -- A refresh may wait briefly for a concurrent refresh or reservation.
-        sqlExecDiscardResult "SET LOCAL lock_timeout = '5s'" ()
+        unsafeSqlExecDiscardResult "SET LOCAL lock_timeout = '5s'" ()
         maybeEntry <- query @TimesheetEntry |> filterWhere (#id, entryId) |> fetchOneOrNothing
         entry <- maybe (Exception.throwIO (ApprovalEngineException ApprovalEntryUnavailable)) pure maybeEntry
         when (entry.venueId /= unpackId venueId) (Exception.throwIO (ApprovalEngineException ApprovalEntryUnavailable))
@@ -107,7 +107,7 @@ runApprovalEngineInCurrentTransaction ::
     TimesheetEntry ->
     IO (Either TimesheetApprovalError ApprovalEngineResult)
 runApprovalEngineInCurrentTransaction actorUserId mode enrichAuditPayload auditSourceChannel entry = do
-    lockedEntryIds :: [Only UUID] <- sqlQuery
+    lockedEntryIds :: [Only UUID] <- unsafeSqlQuery
         "SELECT id FROM timesheet_entries WHERE id = ? ORDER BY id FOR UPDATE"
         (Only (unpackId entry.id))
     case listToMaybe lockedEntryIds of
