@@ -55,7 +55,13 @@ issue and, when cross-system design remains unresolved, a new workstream.
   successful category is reconciled and published independently, so a later
   category failure does not discard usable reference data. Complete aggregate
   freshness advances only when every category requested by that full refresh
-  succeeds. A failed full-refresh attempt retries only its failed categories,
+  succeeds. Production category and run writes hold the tenant lease, connection,
+  and run row locks through durable publication. The runtime clock is checked
+  after locking: expired/lost leases, superseded runs, and changed connection
+  credentials cannot publish delayed results. A rejected write leaves category
+  data/freshness and completion events untouched; outbox failure rolls back the
+  category or final run/freshness/audit transaction together.
+  A failed full-refresh attempt retries only its failed categories,
   while retaining the original aggregate request boundary. Jobs coalesce by
   compatible connection/category demand and are leased per Xero tenant. A Staff
   request joins an active full refresh whenever that job still includes pending

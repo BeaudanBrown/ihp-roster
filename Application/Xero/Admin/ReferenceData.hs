@@ -26,6 +26,7 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroReference
 import Application.Helper.SurfaceResource (liveMutationResult,
                                            liveMutationValue)
 import Application.Helper.Xero
+import Application.Xero.ReferenceSyncFence
 import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -136,7 +137,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
 completeXeroReferenceSyncRun ::
     (?modelContext :: ModelContext) =>
     Maybe UUID ->
-    XeroSyncRun ->
+    XeroReferenceSyncAttempt ->
     XeroConnection ->
     Bool ->
     [Text] ->
@@ -145,9 +146,11 @@ completeXeroReferenceSyncRun ::
     Int ->
     Int ->
     IO XeroReferenceDataSyncResult
-completeXeroReferenceSyncRun maybeActorUserId syncRun connection completesAggregateSnapshot completedCategories employeeCount earningsRateCount payrollCalendarCount accountCount = do
+completeXeroReferenceSyncRun maybeActorUserId attempt connection completesAggregateSnapshot completedCategories employeeCount earningsRateCount payrollCalendarCount accountCount = do
+    let syncRun = attempt.referenceSyncAttemptRun
     now <- getCurrentTime
     completedRun <- liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.data_completed" do
+        lockXeroReferenceSyncAttempt ReferenceSyncCompletion attempt connection
         activeSyncRun <- fetch syncRun.id
         when (activeSyncRun.syncStatus /= Running) $
             externalRuntimeInvariantFailure ProviderRuntimeInvariant "Xero reference sync run is no longer active."
@@ -190,11 +193,13 @@ completeXeroReferenceSyncRun maybeActorUserId syncRun connection completesAggreg
 
 completeXeroStaffReferenceDataSync ::
     (?modelContext :: ModelContext) =>
+    XeroReferenceSyncAttempt ->
     XeroConnection ->
     [XeroEmployeeRef] ->
     IO Int
-completeXeroStaffReferenceDataSync connection employees =
+completeXeroStaffReferenceDataSync attempt connection employees =
     liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.staff_completed" do
+        lockXeroReferenceSyncAttempt ReferenceSyncCompletion attempt connection
         now <- getCurrentTime
         mapM_ (upsertXeroEmployee connection now) employees
         reconcileXeroEmployeeProviderAvailability connection now employees
@@ -205,11 +210,13 @@ completeXeroStaffReferenceDataSync connection employees =
 
 completeXeroPayItemsReferenceDataSync ::
     (?modelContext :: ModelContext) =>
+    XeroReferenceSyncAttempt ->
     XeroConnection ->
     [XeroEarningsRateRef] ->
     IO Int
-completeXeroPayItemsReferenceDataSync connection earningsRates =
+completeXeroPayItemsReferenceDataSync attempt connection earningsRates =
     liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.pay_items_completed" do
+        lockXeroReferenceSyncAttempt ReferenceSyncCompletion attempt connection
         now <- getCurrentTime
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         reconcileXeroEarningsRateProviderAvailability connection now earningsRates
@@ -219,11 +226,13 @@ completeXeroPayItemsReferenceDataSync connection earningsRates =
 
 completeXeroPayrollCalendarsReferenceDataSync ::
     (?modelContext :: ModelContext) =>
+    XeroReferenceSyncAttempt ->
     XeroConnection ->
     [XeroPayrollCalendarRef] ->
     IO Int
-completeXeroPayrollCalendarsReferenceDataSync connection payrollCalendars =
+completeXeroPayrollCalendarsReferenceDataSync attempt connection payrollCalendars =
     liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.payroll_calendars_completed" do
+        lockXeroReferenceSyncAttempt ReferenceSyncCompletion attempt connection
         now <- getCurrentTime
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
         reconcileXeroPayrollCalendarProviderAvailability connection now payrollCalendars
@@ -233,12 +242,14 @@ completeXeroPayrollCalendarsReferenceDataSync connection payrollCalendars =
 completeXeroAccountsReferenceDataSync ::
     (?modelContext :: ModelContext) =>
     Maybe UUID ->
+    XeroReferenceSyncAttempt ->
     XeroConnection ->
     [XeroAccountRef] ->
     [XeroAccountRef] ->
     IO Int
-completeXeroAccountsReferenceDataSync maybeActorUserId connection accounts payrollSettingsAccounts =
+completeXeroAccountsReferenceDataSync maybeActorUserId attempt connection accounts payrollSettingsAccounts =
     liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.accounts_completed" do
+        lockXeroReferenceSyncAttempt ReferenceSyncCompletion attempt connection
         now <- getCurrentTime
         mapM_ (upsertXeroAccount connection now) accounts
         reconcileXeroAccountProviderAvailability connection now accounts
@@ -271,13 +282,15 @@ recordXeroReferenceCategorySuccess connection succeededAt category = do
 failXeroReferenceDataSync ::
     (?modelContext :: ModelContext) =>
     Maybe UUID ->
-    XeroSyncRun ->
+    XeroReferenceSyncAttempt ->
     XeroConnection ->
     Text ->
     IO (Either Text a)
-failXeroReferenceDataSync maybeActorUserId syncRun connection message = do
+failXeroReferenceDataSync maybeActorUserId attempt connection message = do
+    let syncRun = attempt.referenceSyncAttemptRun
     now <- getCurrentTime
     void $ withDurableLiveMutationWithoutContext "xero.reference_sync.failed" do
+        lockXeroReferenceSyncAttempt ReferenceSyncFailure attempt connection
         _ <-
             syncRun
                 |> set #syncStatus XeroSyncStatusEnumFailed

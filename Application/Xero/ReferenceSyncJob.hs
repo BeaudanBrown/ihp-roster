@@ -34,6 +34,7 @@ import Application.Xero.Admin.ReferenceData
 import Application.Xero.Admin.ReferenceSyncPolicy
 import Application.Xero.Connection
 import Application.Xero.ReferenceCategory
+import Application.Xero.ReferenceSyncFence
 import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
 import Control.Monad (join, void)
@@ -288,14 +289,15 @@ runLeasedReferenceSync ::
     IO ()
 runLeasedReferenceSync runtime source appJob payload connection = do
     syncRun <- startXeroReferenceDataSync connection
-    let runAttempt = do
+    let attempt = XeroReferenceSyncAttempt appJob syncRun runtime.currentReferenceSyncTime
+        runAttempt = do
             previousRequestStart <- fetchXeroReferenceSyncLastRequestStart connection.tenantId
             pacer <- newXeroReferencePacerAfter previousRequestStart
             refreshResult <- runReferencePhase runtime pacer appJob connection "refresh_access" (source.refreshReferenceAccess connection)
             case refreshResult of
                 Left err -> handleReferenceSyncFailure runtime appJob payload connection (Just syncRun) (XeroReferencePhaseFailure "refresh_access" err)
-                Right (refreshedConnection, accessToken) -> do
-                    outcomes <- runRequestedReferenceCategories runtime source pacer appJob refreshedConnection accessToken payload.requestedCategories
+                Right (refreshedConnection, accessToken) -> (do
+                    outcomes <- runRequestedReferenceCategories runtime source pacer appJob attempt refreshedConnection accessToken payload.requestedCategories
                     let failures = [failure | XeroReferenceCategoryFailed _ failure <- outcomes]
                         completedCategories = [category | XeroReferenceCategorySucceeded category _ <- outcomes]
                         counts = foldl combineXeroReferenceSyncCounts emptyXeroReferenceSyncCounts [categoryCounts | XeroReferenceCategorySucceeded _ categoryCounts <- outcomes]
@@ -312,7 +314,7 @@ runLeasedReferenceSync runtime source appJob payload connection = do
                             result <-
                                 completeXeroReferenceSyncRun
                                     appJob.requestedByUserId
-                                    syncRun
+                                    attempt
                                     refreshedConnection
                                     payload.completesFullSnapshot
                                     (map xeroReferenceSyncCategoryLabel completedCategories)
@@ -322,6 +324,7 @@ runLeasedReferenceSync runtime source appJob payload connection = do
                                     counts.accountCount
                             withReferenceSyncMutation "xero.reference_sync.completed" refreshedConnection.venueId (completeReferenceSyncJob appJob result completedCategories)
                             publishReferenceSyncTransition runtime "xero.reference_sync.completed" refreshedConnection.venueId
+                    ) `Exception.onException` terminalizeInterruptedReferenceSyncRun runtime appJob syncRun refreshedConnection
     runAttempt `Exception.onException` terminalizeInterruptedReferenceSyncRun runtime appJob syncRun connection
 
 terminalizeInterruptedReferenceSyncRun ::
@@ -337,7 +340,7 @@ terminalizeInterruptedReferenceSyncRun runtime appJob syncRun connection = do
         let interruption = XeroReferencePhaseFailure "worker" (XeroHttpError "Xero reference sync worker interrupted.")
             message = "Xero worker sync failed."
         updateReferenceSyncFailureProgress runtime appJob interruption
-        void (failXeroReferenceDataSync appJob.requestedByUserId latestRun connection message :: IO (Either Text ()))
+        void (failXeroReferenceDataSync appJob.requestedByUserId (XeroReferenceSyncAttempt appJob latestRun runtime.currentReferenceSyncTime) connection message :: IO (Either Text ()))
         publishReferenceSyncTransition runtime "xero.reference_sync.interrupted" connection.venueId
 
 runRequestedReferenceCategories ::
@@ -346,11 +349,12 @@ runRequestedReferenceCategories ::
     XeroReferenceDataSource ->
     XeroReferencePacer ->
     AppJob ->
+    XeroReferenceSyncAttempt ->
     XeroConnection ->
     Text ->
     Set.Set XeroReferenceSyncCategoryEnum ->
     IO [XeroReferenceCategoryOutcome]
-runRequestedReferenceCategories runtime source pacer appJob connection accessToken requestedCategories =
+runRequestedReferenceCategories runtime source pacer appJob attempt connection accessToken requestedCategories =
     forM (filter (`Set.member` requestedCategories) [XeroStaff, PayItems, PayrollCalendars, Accounts]) \category ->
         runReferenceCategory category
   where
@@ -360,7 +364,7 @@ runRequestedReferenceCategories runtime source pacer appJob connection accessTok
             >>= \case
                 Left err -> pure (categoryFailure XeroStaff "employees" err)
                 Right employees -> do
-                    count <- completeXeroStaffReferenceDataSync connection employees
+                    count <- completeXeroStaffReferenceDataSync attempt connection employees
                     pure (XeroReferenceCategorySucceeded XeroStaff emptyXeroReferenceSyncCounts { employeeCount = count })
     runReferenceCategory PayItems = do
         fetchPacedXeroEarningsRates
@@ -370,7 +374,7 @@ runRequestedReferenceCategories runtime source pacer appJob connection accessTok
             >>= \case
                 Left err -> pure (categoryFailure PayItems "pay_items" err)
                 Right earningsRates -> do
-                    count <- completeXeroPayItemsReferenceDataSync connection earningsRates
+                    count <- completeXeroPayItemsReferenceDataSync attempt connection earningsRates
                     pure (XeroReferenceCategorySucceeded PayItems emptyXeroReferenceSyncCounts { earningsRateCount = count })
     runReferenceCategory PayrollCalendars = do
         source.fetchReferencePayrollCalendars accessToken connection.tenantId
@@ -378,7 +382,7 @@ runRequestedReferenceCategories runtime source pacer appJob connection accessTok
             >>= \case
                 Left err -> pure (categoryFailure PayrollCalendars "payroll_calendars" err)
                 Right payrollCalendars -> do
-                    count <- completeXeroPayrollCalendarsReferenceDataSync connection payrollCalendars
+                    count <- completeXeroPayrollCalendarsReferenceDataSync attempt connection payrollCalendars
                     pure (XeroReferenceCategorySucceeded PayrollCalendars emptyXeroReferenceSyncCounts { payrollCalendarCount = count })
     runReferenceCategory Accounts = do
         source.fetchReferenceAccounts accessToken connection.tenantId
@@ -391,7 +395,7 @@ runRequestedReferenceCategories runtime source pacer appJob connection accessTok
                         >>= \case
                             Left err -> pure (categoryFailure Accounts "payroll_settings" err)
                             Right payrollSettingsAccounts -> do
-                                count <- completeXeroAccountsReferenceDataSync appJob.requestedByUserId connection accounts payrollSettingsAccounts
+                                count <- completeXeroAccountsReferenceDataSync appJob.requestedByUserId attempt connection accounts payrollSettingsAccounts
                                 pure (XeroReferenceCategorySucceeded Accounts emptyXeroReferenceSyncCounts { accountCount = count })
 
     categoryFailure category phase err =
@@ -430,7 +434,7 @@ handleReferenceSyncFailure ::
 handleReferenceSyncFailure runtime appJob payload connection maybeSyncRun failure = do
     let message = durableXeroReferenceSyncFailureMessage failure
     updateReferenceSyncFailureProgress runtime appJob failure
-    forM_ maybeSyncRun \syncRun -> void (failXeroReferenceDataSync appJob.requestedByUserId syncRun connection message)
+    forM_ maybeSyncRun \syncRun -> void (failXeroReferenceDataSync appJob.requestedByUserId (XeroReferenceSyncAttempt appJob syncRun runtime.currentReferenceSyncTime) connection message)
     publishReferenceSyncTransition runtime "xero.reference_sync.failed" connection.venueId
     now <- runtime.currentReferenceSyncTime
     jitterSeconds <- runtime.referenceSyncJitterSeconds

@@ -410,6 +410,7 @@ Application/Xero/Keepalive.hs	production	runtime	WorkerMain	Reachable from Worke
 Application/Xero/PayrollSourceKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceCategory.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceDemand.hs	production	runtime	Main	Reachable from Main
+Application/Xero/ReferenceSyncFence.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceSyncJob.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceSyncRequest.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceTrust.hs	production	runtime	Main	Reachable from Main
