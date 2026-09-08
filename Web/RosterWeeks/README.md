@@ -88,6 +88,28 @@ rendered text.
 
 The active Templates-tab workflow accepts Week snapshots only.
 
+## Eligibility Reads
+
+`Application.PayAssignment` owns the closed mode-to-reference requirement used
+by remediation and roster selection. Availability is not strict assignment-shape
+validation: preserve the existing legacy/remediation behavior, and leave save-time
+validation at its established boundary.
+
+Shift types use QueryBuilder for mode, venue, activity and ordering filters;
+static `EXISTS` reference subqueries remain because this IHP builder has no
+subquery API. Retain the planner's ability to hash reference inventories once,
+rather than substituting correlated `IN` scans.
+Group staff use one shared, typed SQL boundary: IHP's `innerJoin` requires equal
+field types, while generated `Staff.id` is `Id Staff` and group membership's
+`staffId` is `UUID`. That boundary selects generated-order columns, preserving
+migration-safe decoding without an ordered-ID refetch. Do not cast model types,
+fetch all inventory for Haskell filtering, or add per-row lookups to hide SQL.
+
+Each eligible-staff, panel-staff and shift-type read uses one query. Database
+collation and existing ordering keys remain authoritative (`last_name` for staff,
+`sort_order, created_at` for shift types); equal keys acquire no extra ID/name
+tie-breaker. The panel intentionally includes pay-invalid active group staff.
+
 ## Boundaries
 
 

@@ -90,6 +90,27 @@ tests = do
             shiftPayAssignmentRequiresRemediation [] [] (shiftAssignment StaffDefault Nothing Nothing) `shouldBe` False
             shiftPayAssignmentRequiresRemediation [] [] (shiftAssignment XeroRate Nothing (Just importedPayItemId)) `shouldBe` True
 
+        it "keeps reference remediation separate from shape validation across the complete mode universe" do
+            let modes = [minBound .. maxBound] :: [PayAssignmentModeEnum]
+            modes `shouldBe` [AwardRate, XeroRate, RosterOnly, StaffDefault, LegacyUnresolved]
+            forM_
+                [ (Nothing, Nothing, [True, True, False, True, True], [True, True, False, False, True])
+                , (Just testAwardLevelId, Nothing, [False, True, False, True, True], [False, True, False, False, True])
+                , (Nothing, Just importedPayItemId, [True, False, False, True, True], [True, False, False, False, True])
+                , (Just testAwardLevelId, Just importedPayItemId, [False, False, False, True, True], [False, False, False, False, True])
+                ] \(award, imported, staffExpected, shiftExpected) -> do
+                    map (\mode -> staffPayAssignmentRequiresRemediation [testAwardLevelId] [importedPayItemId] (staffAssignment mode award imported)) modes `shouldBe` staffExpected
+                    map (\mode -> shiftPayAssignmentRequiresRemediation [testAwardLevelId] [importedPayItemId] (shiftAssignment mode award imported)) modes `shouldBe` shiftExpected
+
+        it "supplies typed database eligibility modes from the same reference policy" do
+            payAssignmentModesRequiring StaffPayScope NoPayReference `shouldBe` [RosterOnly]
+            payAssignmentModesRequiring ShiftTypePayScope NoPayReference `shouldBe` [RosterOnly, StaffDefault]
+            forM_ [StaffPayScope, ShiftTypePayScope] \scope -> do
+                payAssignmentModesRequiring scope ActiveAwardReference `shouldBe` [AwardRate]
+                payAssignmentModesRequiring scope AvailableXeroReference `shouldBe` [XeroRate]
+            payAssignmentModesRequiring StaffPayScope UnselectableAssignment `shouldBe` [StaffDefault, LegacyUnresolved]
+            payAssignmentModesRequiring ShiftTypePayScope UnselectableAssignment `shouldBe` [LegacyUnresolved]
+
         it "surfaces migration-only and malformed configurations" do
             resolvePayAssignment
                 (staffAssignment LegacyUnresolved Nothing Nothing)

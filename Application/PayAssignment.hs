@@ -1,8 +1,13 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Application.PayAssignment
     ( StaffPayAssignment (..)
     , ShiftPayAssignment (..)
     , EffectivePayAssignment (..)
     , PayAssignmentError (..)
+    , PayAssignmentScope (..)
+    , PayReferenceRequirement (..)
+    , payAssignmentModesRequiring
     , resolvePayAssignment
     , staffAssignmentAllowsTimesheets
     , staffAssignmentSuppressesTimesheets
@@ -159,18 +164,41 @@ hasNoRate award xero = isNothing award && isNothing xero
 -- inventory. Callers supply active Award and venue-valid Xero ids.
 staffPayAssignmentRequiresRemediation :: [Id AwardLevel] -> [Id XeroImportedPayItem] -> StaffPayAssignment -> Bool
 staffPayAssignmentRequiresRemediation activeAwardIds activeXeroIds assignment =
-    case assignment.staffAssignmentMode of
-        LegacyUnresolved -> True
-        AwardRate -> maybe True (`notElem` activeAwardIds) assignment.staffAssignmentAwardLevelId
-        XeroRate -> maybe True (`notElem` activeXeroIds) assignment.staffAssignmentImportedPayItemId
-        RosterOnly -> False
-        StaffDefault -> True
+    requiresReferenceRemediation
+        (payReferenceRequirement StaffPayScope assignment.staffAssignmentMode)
+        activeAwardIds activeXeroIds assignment.staffAssignmentAwardLevelId assignment.staffAssignmentImportedPayItemId
 
 shiftPayAssignmentRequiresRemediation :: [Id AwardLevel] -> [Id XeroImportedPayItem] -> ShiftPayAssignment -> Bool
 shiftPayAssignmentRequiresRemediation activeAwardIds activeXeroIds assignment =
-    case assignment.shiftAssignmentMode of
-        AwardRate -> maybe True (`notElem` activeAwardIds) assignment.shiftAssignmentAwardLevelId
-        XeroRate -> maybe True (`notElem` activeXeroIds) assignment.shiftAssignmentImportedPayItemId
-        RosterOnly -> False
-        StaffDefault -> False
-        LegacyUnresolved -> True
+    requiresReferenceRemediation
+        (payReferenceRequirement ShiftTypePayScope assignment.shiftAssignmentMode)
+        activeAwardIds activeXeroIds assignment.shiftAssignmentAwardLevelId assignment.shiftAssignmentImportedPayItemId
+
+-- Reference availability is deliberately separate from strict assignment-shape
+-- validation above: preserve the remediation/read-model treatment of legacy data.
+data PayAssignmentScope = StaffPayScope | ShiftTypePayScope
+
+data PayReferenceRequirement = NoPayReference | ActiveAwardReference | AvailableXeroReference | UnselectableAssignment
+    deriving (Eq)
+
+payReferenceRequirement :: PayAssignmentScope -> PayAssignmentModeEnum -> PayReferenceRequirement
+payReferenceRequirement scope = \case
+    AwardRate -> ActiveAwardReference
+    XeroRate -> AvailableXeroReference
+    RosterOnly -> NoPayReference
+    LegacyUnresolved -> UnselectableAssignment
+    StaffDefault -> case scope of
+        StaffPayScope -> UnselectableAssignment
+        ShiftTypePayScope -> NoPayReference
+
+-- Database callers bind these typed modes, rather than maintaining enum strings.
+payAssignmentModesRequiring :: PayAssignmentScope -> PayReferenceRequirement -> [PayAssignmentModeEnum]
+payAssignmentModesRequiring scope requirement =
+    filter ((== requirement) . payReferenceRequirement scope) [minBound .. maxBound]
+
+requiresReferenceRemediation :: PayReferenceRequirement -> [Id AwardLevel] -> [Id XeroImportedPayItem] -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool
+requiresReferenceRemediation requirement awards imported awardId importedId = case requirement of
+    NoPayReference -> False
+    UnselectableAssignment -> True
+    ActiveAwardReference -> maybe True (`notElem` awards) awardId
+    AvailableXeroReference -> maybe True (`notElem` imported) importedId

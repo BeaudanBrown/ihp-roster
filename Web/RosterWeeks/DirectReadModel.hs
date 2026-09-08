@@ -23,16 +23,18 @@ import Application.Error.Telemetry (recordAppError)
 import Application.Helper.Conflict
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
+import Application.PayAssignment (PayAssignmentScope (..), PayReferenceRequirement (..), payAssignmentModesRequiring)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
 import Data.List (nubBy)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
+import qualified Data.Text as Text
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import GHC.Generics (Generic)
-import IHP.ModelSupport (unsafeSqlQuery)
+import IHP.ModelSupport (columnNames, unsafeSqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
@@ -130,23 +132,18 @@ fetchRosterBaseFactsForScopeDirect scope =
             }
 
 fetchEligibleRosterGroupStaffDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
-fetchEligibleRosterGroupStaffDirect rosterGroupId = do
-    orderedStaffIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
-        "SELECT staff.id \
-        \FROM staff \
-        \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
-        \WHERE staff_roster_groups.roster_group_id = ? \
-        \AND staff_roster_groups.deleted_at IS NULL \
-        \AND staff.venue_id = ? \
-        \AND staff.is_active = TRUE \
-        \AND staff.archived_at IS NULL \
-        \AND (staff.pay_assignment_mode = 'roster_only' \
-        \     OR (staff.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
-        \     OR (staff.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
+fetchEligibleRosterGroupStaffDirect rosterGroupId =
+    unsafeSqlQuery
+        (rosterGroupStaffSelect <> " AND (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) \
+        \     OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
+        \     OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
         \ ) \
-        \ORDER BY staff.last_name"
-        (unpackId rosterGroupId, unpackId currentVenueId)
-    fetchStaffInIdOrder orderedStaffIds
+        \ORDER BY staff.last_name")
+        ( unpackId rosterGroupId, unpackId currentVenueId
+        , payAssignmentModesRequiring StaffPayScope NoPayReference
+        , payAssignmentModesRequiring StaffPayScope ActiveAwardReference
+        , payAssignmentModesRequiring StaffPayScope AvailableXeroReference
+        )
 
 fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> RosterWindowScope -> IO [RosterStaffPanelEntry]
 fetchRosterStaffPanelEntriesDirect panelScope scope = do
@@ -169,49 +166,47 @@ fetchRosterSlotsInIdOrder orderedIds = do
     let recordsById = Map.fromList [(unpackId record.id, record) | record <- records]
     pure (mapMaybe (\(PG.Only recordId) -> Map.lookup recordId recordsById) orderedIds)
 
-fetchStaffInIdOrder :: (?modelContext :: ModelContext) => [PG.Only UUID.UUID] -> IO [Staff]
-fetchStaffInIdOrder [] = pure []
-fetchStaffInIdOrder orderedIds = do
-    records <- query @Staff
-        |> filterWhereIn (#id, [Id recordId | PG.Only recordId <- orderedIds])
-        |> fetch
-    let recordsById = Map.fromList [(unpackId record.id, record) | record <- records]
-    pure (mapMaybe (\(PG.Only recordId) -> Map.lookup recordId recordsById) orderedIds)
-
+-- IHP innerJoin requires identical field types, but this schema exposes Staff.id
+-- as Id Staff and StaffRosterGroup.staffId as UUID. Keep that join SQL-local;
+-- return generated-order columns directly, never physical-order SELECT * or an
+-- ordered-ID refetch. Membership multiplicity and PostgreSQL name ties survive.
+rosterGroupStaffSelect :: PG.Query
+rosterGroupStaffSelect =
+    "SELECT " <> fromString (cs (Text.intercalate ", " (map ("staff." <>) (columnNames @Staff)))) <>
+    " FROM staff \
+    \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
+    \WHERE staff_roster_groups.roster_group_id = ? \
+    \AND staff_roster_groups.deleted_at IS NULL \
+    \AND staff.venue_id = ? \
+    \AND staff.is_active = TRUE \
+    \AND staff.archived_at IS NULL"
 
 
 fetchRosterGroupStaffForPanelDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
-fetchRosterGroupStaffForPanelDirect rosterGroupId = do
-    orderedStaffIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
-        "SELECT staff.id \
-        \FROM staff \
-        \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
-        \WHERE staff_roster_groups.roster_group_id = ? \
-        \AND staff_roster_groups.deleted_at IS NULL \
-        \AND staff.venue_id = ? \
-        \AND staff.is_active = TRUE \
-        \AND staff.archived_at IS NULL \
-        \ORDER BY staff.last_name"
+fetchRosterGroupStaffForPanelDirect rosterGroupId =
+    unsafeSqlQuery
+        (rosterGroupStaffSelect <> " ORDER BY staff.last_name")
         (unpackId rosterGroupId, unpackId currentVenueId)
-    fetchStaffInIdOrder orderedStaffIds
 
 fetchCurrentVenueRosterShiftTypesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
-fetchCurrentVenueRosterShiftTypesDirect = do
-    shiftTypeIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
-        "SELECT shift_types.id \
-        \FROM shift_types \
-        \WHERE shift_types.venue_id = ? \
-        \AND shift_types.archived_at IS NULL \
-        \AND shift_types.is_active = TRUE \
-        \AND (shift_types.pay_assignment_mode IN ('staff_default', 'roster_only') \
-        \     OR (shift_types.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = shift_types.override_award_level_id AND award_levels.is_active = TRUE)) \
-        \     OR (shift_types.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = shift_types.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = shift_types.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
-        \ ) \
-        \ORDER BY shift_types.sort_order, shift_types.created_at"
-        (PG.Only (unpackId currentVenueId))
-    records <- query @ShiftType |> filterWhereIn (#id, [Id shiftTypeId | PG.Only shiftTypeId <- shiftTypeIds]) |> fetch
-    let recordsById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- records]
-    pure (mapMaybe (\(PG.Only shiftTypeId) -> Map.lookup shiftTypeId recordsById) shiftTypeIds)
+fetchCurrentVenueRosterShiftTypesDirect =
+    -- Keep EXISTS so PostgreSQL can hash reference inventories once. Correlated
+    -- IN can rescan an inventory per row. The nullable field anchor is required
+    -- by filterWhereSql; its IS NOT NULL guard is implied by the equality below.
+    query @ShiftType
+        |> queryOr
+            (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope NoPayReference))
+            (queryOr
+                (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope ActiveAwardReference)
+                    . filterWhereSql (#overrideAwardLevelId, "IS NOT NULL AND EXISTS (SELECT 1 FROM award_levels WHERE id = shift_types.override_award_level_id AND is_active = TRUE)"))
+                (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope AvailableXeroReference)
+                    . filterWhereSql (#importedXeroPayItemId, "IS NOT NULL AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE id = shift_types.imported_xero_pay_item_id AND venue_id = shift_types.venue_id AND archived_at IS NULL AND provider_available = TRUE)")))
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+        |> filterWhere (#isActive, True)
+        |> orderByAsc #sortOrder
+        |> orderByAsc #createdAt
+        |> fetch
 
 buildRosterStaffOptionStatesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
 buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots =

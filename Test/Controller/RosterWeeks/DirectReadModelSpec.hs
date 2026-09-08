@@ -78,6 +78,67 @@ tests = aroundAll withDatabaseTestContext do
                 map (.id) baseAssignedStaff `shouldBe` [fixture.assignedInactiveStaff.id]
                 map (.id) baseStaffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
 
+        it "preserves complete pay-mode eligibility as reference availability changes" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+                award <- createPayLevelRecord fixture.venue "Eligibility award"
+                imported <- createImportedXeroPayItemRecord fixture.venue fixture.manager "Eligibility rate" "eligibility-rate" 30
+                let staffCases = [(AwardRate, Just award.id, Nothing), (XeroRate, Nothing, Just imported.id), (RosterOnly, Nothing, Nothing), (LegacyUnresolved, Nothing, Nothing)]
+                    shiftCases = [(AwardRate, Just award.id, Nothing), (XeroRate, Nothing, Just imported.id), (RosterOnly, Nothing, Nothing), (StaffDefault, Nothing, Nothing)]
+                staffRows <- forM (zip [0 :: Int ..] staffCases) \(index, (mode, awardId, importedId)) -> do
+                    staff <- createStaffRecord fixture.venue Nothing "Eligibility" ("Z" <> tshow index)
+                    staff |> set #payAssignmentMode mode |> set #defaultAwardLevelId awardId |> set #importedXeroPayItemId importedId |> updateRecord
+                shiftRows <- forM (zip [0 :: Int ..] shiftCases) \(index, (mode, awardId, importedId)) -> do
+                    shift <- createShiftTypeRecord fixture.venue award ("Eligibility " <> tshow index)
+                    shift |> set #payAssignmentMode mode |> set #overrideAwardLevelId awardId |> set #importedXeroPayItemId importedId |> set #sortOrder (100 + index) |> updateRecord
+                now <- getCurrentTime
+                forM_ [(active, available, archived) | active <- [False, True], available <- [False, True], archived <- [False, True]] \(active, available, archived) -> do
+                    _ <- award |> set #isActive active |> updateRecord
+                    _ <- imported
+                        |> set #providerAvailable available
+                        |> set #providerUnavailableAt (if available then Nothing else Just now)
+                        |> set #archivedAt (if archived then Just now else Nothing)
+                        |> set #archivedByUserId (if archived then Just (unpackId fixture.manager.id) else Nothing)
+                        |> updateRecord
+                    facts <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                        withCurrentControllerContext do
+                            fromJust <$> fetchRosterBaseFactsDirect fixture.windowScope
+                    let expectedStaff = [staff.id | (staff, include) <- zip staffRows [active, available && not archived, True, False], include]
+                        expectedShifts = [shift.id | (shift, include) <- zip shiftRows [active, available && not archived, True, True], include]
+                    map (.id) (filter ((== "Eligibility") . (.firstName)) facts.baseEligibleStaff) `shouldBe` expectedStaff
+                    map (.id) (filter ((== "Eligibility") . (.firstName)) facts.basePanelStaff) `shouldBe` map (.id) staffRows
+                    map (.id) (filter ((>= 100) . (.sortOrder)) facts.baseShiftTypes) `shouldBe` expectedShifts
+                let [awardStaff, xeroStaff, rosterStaff, legacyStaff] = staffRows
+                    [awardShift, _, rosterShift, _] = shiftRows
+                _ <- awardStaff |> set #archivedAt (Just now) |> updateRecord
+                _ <- rosterStaff |> set #isActive False |> updateRecord
+                membership <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId legacyStaff.id) |> filterWhere (#rosterGroupId, unpackId fixture.rosterGroup.id) |> filterWhere (#deletedAt, Nothing :: Maybe UTCTime) |> fetchOne
+                _ <- membership |> set #deletedAt (Just now) |> updateRecord
+                _ <- awardShift |> set #archivedAt (Just now) |> updateRecord
+                _ <- rosterShift |> set #isActive False |> updateRecord
+                -- Deleted membership history must not duplicate a live member.
+                _ <- newRecord @StaffRosterGroup
+                    |> set #staffId (unpackId xeroStaff.id)
+                    |> set #rosterGroupId (unpackId fixture.rosterGroup.id)
+                    |> set #deletedAt (Just now)
+                    |> createRecord
+                ties <- forM ["Eligibility Tie A", "Eligibility Tie B"] \name -> do
+                    shift <- createShiftTypeRecord fixture.venue award name
+                    shift |> set #payAssignmentMode StaffDefault |> set #overrideAwardLevelId Nothing |> set #sortOrder 200 |> set #createdAt now |> updateRecord
+                staffTies <- forM [1 :: Int, 2] \_ ->
+                    createStaffRecord fixture.venue Nothing "Eligibility" "Z1"
+                foreignVenue <- createVenueWithConfig "Eligibility foreign venue"
+                _ <- createStaffRecord foreignVenue Nothing "Eligibility" "A foreign staff"
+                foreignShift <- createShiftTypeRecord foreignVenue award "Eligibility foreign shift"
+                _ <- foreignShift |> set #sortOrder 200 |> updateRecord
+                scopedFacts <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext (fromJust <$> fetchRosterBaseFactsDirect fixture.windowScope)
+                map (.id) (filter ((== "Eligibility") . (.firstName)) scopedFacts.baseEligibleStaff) `shouldMatchList` map (.id) staffTies
+                map (.id) (filter ((== "Eligibility") . (.firstName)) scopedFacts.basePanelStaff) `shouldMatchList` (xeroStaff.id : map (.id) staffTies)
+                -- Equal ordering keys have no extra ID/name ordering contract.
+                map (.id) (filter ((== 200) . (.sortOrder)) scopedFacts.baseShiftTypes) `shouldMatchList` map (.id) ties
+                map (.id) scopedFacts.baseShiftTypes `shouldNotContain` [awardShift.id, rosterShift.id, foreignShift.id]
+
         it "rejects malformed or stale explicit roster-window scopes" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
