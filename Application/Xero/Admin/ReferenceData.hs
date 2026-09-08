@@ -3,7 +3,6 @@ module Application.Xero.Admin.ReferenceData
     , completeXeroAccountsReferenceDataSync
     , completeXeroPayItemsReferenceDataSync
     , completeXeroPayrollCalendarsReferenceDataSync
-    , completeXeroReferenceDataSync
     , completeXeroReferenceSyncRun
     , completeXeroStaffReferenceDataSync
     , failXeroReferenceDataSync
@@ -73,66 +72,6 @@ startXeroReferenceDataSync connection = do
             |> set #startedAt now
             |> createRecord
         pure (liveMutationResult syncRun [xeroReferenceSyncStateResource connection.venueId])
-
-completeXeroReferenceDataSync ::
-    (?modelContext :: ModelContext) =>
-    Maybe UUID ->
-    XeroSyncRun ->
-    XeroConnection ->
-    [XeroEmployeeRef] ->
-    [XeroEarningsRateRef] ->
-    [XeroPayrollCalendarRef] ->
-    [XeroAccountRef] ->
-    [XeroAccountRef] ->
-    IO XeroReferenceDataSyncResult
-completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
-    now <- getCurrentTime
-    completedRun <- liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.data_completed" do
-        activeSyncRun <- fetch syncRun.id
-        when (activeSyncRun.syncStatus /= Running) $
-            externalRuntimeInvariantFailure ProviderRuntimeInvariant "Xero reference sync run is no longer active."
-        mapM_ (upsertXeroEmployee connection now) employees
-        mapM_ (upsertXeroEarningsRate connection now) earningsRates
-        mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
-        mapM_ (upsertXeroAccount connection now) accounts
-        reconcileXeroProviderAvailability connection now employees earningsRates payrollCalendars accounts
-        markStaleXeroStaffMappings connection employees
-        markXeroStaffMappingsReferenceRefreshed connection now
-        markStaleXeroEarningsRateMappings connection earningsRates
-        reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts
-        forM_ [XeroStaff, PayItems, PayrollCalendars, Accounts] (recordXeroReferenceCategorySuccess connection now)
-        updatedSyncRun <-
-            activeSyncRun
-                |> set #syncStatus Succeeded
-                |> set #employeesCount (length employees)
-                |> set #earningsRatesCount (length earningsRates)
-                |> set #payrollCalendarsCount (length payrollCalendars)
-                |> set #finishedAt (Just now)
-                |> updateRecord
-        _ <-
-            connection
-                |> set #lastSyncAt (Just now)
-                |> set #lastError Nothing
-                |> updateRecord
-        recordXeroReferenceSyncAudit maybeActorUserId connection XeroReferenceSyncSucceededAudit syncRun.id
-            (Aeson.object
-                [ "tenantId" Aeson..= connection.tenantId
-                , "employeesCount" Aeson..= length employees
-                , "earningsRatesCount" Aeson..= length earningsRates
-                , "payrollCalendarsCount" Aeson..= length payrollCalendars
-                , "accountsCount" Aeson..= length accounts
-                ]
-            )
-        pure (liveMutationResult updatedSyncRun [xeroReferenceSyncStateResource connection.venueId])
-    pure
-        XeroReferenceDataSyncResult
-            { referenceDataSyncRun = completedRun
-            , referenceDataSyncConnection = connection
-            , referenceDataSyncEmployeeCount = length employees
-            , referenceDataSyncEarningsRateCount = length earningsRates
-            , referenceDataSyncPayrollCalendarCount = length payrollCalendars
-            , referenceDataSyncAccountCount = length accounts
-            }
 
 completeXeroReferenceSyncRun ::
     (?modelContext :: ModelContext) =>
@@ -491,13 +430,6 @@ upsertXeroPayItemAccountCodeSelection maybeActorUserId connection selectionStatu
                 |> set #createdByUserId maybeActorUserId
                 |> createRecord
                 |> void
-
-reconcileXeroProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> [XeroAccountRef] -> IO ()
-reconcileXeroProviderAvailability connection reconciledAt employees earningsRates payrollCalendars accounts = do
-    reconcileXeroEmployeeProviderAvailability connection reconciledAt employees
-    reconcileXeroEarningsRateProviderAvailability connection reconciledAt earningsRates
-    reconcileXeroPayrollCalendarProviderAvailability connection reconciledAt payrollCalendars
-    reconcileXeroAccountProviderAvailability connection reconciledAt accounts
 
 reconcileXeroEmployeeProviderAvailability :: (?modelContext :: ModelContext) => XeroConnection -> UTCTime -> [XeroEmployeeRef] -> IO ()
 reconcileXeroEmployeeProviderAvailability connection reconciledAt employees = do

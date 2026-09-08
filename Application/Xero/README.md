@@ -17,6 +17,8 @@ Payroll AU timesheets. Web request and response behavior belongs under
   paced reference refresh with Xero-specific retry scheduling and typed
   transition publication through the background-job seam.
 - `ReferenceSyncRequest.hs` - background-safe demand request/coalescing boundary.
+- `ReferenceSyncFence.hs` - transaction-local lease/run/connection fencing for
+  category and run publication.
 - `ReferenceTrust.hs` and `ReferenceTrust/` - typed seven-day snapshot trust,
   retry-chain/progress read model, and enqueue-or-join service.
 - `ReferenceDemand.hs` - canonical approval-pinned pay-assignment and missing
@@ -52,6 +54,16 @@ payroll calendars remain reference data, while each guided preparation run owns
 its explicit selected calendar and period; there is no venue-global calendar
 selection.
 
+
+## Reference Sync Verification Seams
+
+Keep the runtime clock, sleep and jitter seams, plus provider-source and database
+fault injection. Publication is not a runtime callback: tests observe committed
+invalidation events, exact resources, sequence order and latest resource versions.
+Category persistence and final run completion are separate production operations;
+exercise stale completion and rollback there rather than recreating an aggregate
+completion adapter in test support. Request/coalescing tests use the real request
+boundary without installing an otherwise-unused job runtime override.
 
 ## Related Docs
 

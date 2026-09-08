@@ -78,7 +78,6 @@ withFastXeroReferenceSyncRuntime action =
             { currentReferenceSyncTime = getCurrentTime
             , sleepForReferenceSyncMicros = const (pure ())
             , referenceSyncJitterSeconds = pure 0
-            , publishReferenceSyncTransition = \_ _ -> pure ()
             }
         (withInlineXeroReferenceSyncRequestsForTest (action ()))
 
