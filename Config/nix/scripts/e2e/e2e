@@ -293,6 +293,14 @@ elif [ "$E2E_SERVER_MODE" != "dev" ]; then
     exit 1
 fi
 
+# IHP 1.6 serves HTTP and runs jobs in separate executables. Even dev-mode
+# shards need a worker with the same disposable database and local services.
+E2E_WORKER_BIN="$STATE_DIR/build/RunE2EWorker"
+mkdir -p "$(dirname "$E2E_WORKER_BIN")"
+ghc $GHC_OPTS -main-is Test.E2EWorkerMain Test/E2EWorkerMain.hs \
+    -o "$E2E_WORKER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
+    7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/worker-build.log"
+
 E2E_STRIPE_MOCK_BUILD_DIR="$STATE_DIR/stripe-mock-build"
 E2E_STRIPE_MOCK_BIN="$E2E_STRIPE_MOCK_BUILD_DIR/StripeProcessMock"
 mkdir -p "$E2E_STRIPE_MOCK_BUILD_DIR"
@@ -327,6 +335,8 @@ run_e2e_shard() {
     local shard_blob_dir="$shard_dir/blob-report"
     local shard_output_dir="$shard_dir/test-results"
     local shard_pid_file="$shard_dir/server.pid"
+    local worker_pid_file="$shard_dir/worker.pid"
+    local worker_log="$shard_dir/worker.log"
 
     mkdir -p "$shard_dir"
 
@@ -339,6 +349,13 @@ run_e2e_shard() {
         export PLAYWRIGHT_FULLY_PARALLEL=0
 
         cleanup() {
+            if [ -f "$worker_pid_file" ]; then
+                local worker_pid
+                worker_pid=$(cat "$worker_pid_file")
+                kill -TERM -"$worker_pid" 2>/dev/null || kill -TERM "$worker_pid" 2>/dev/null || true
+                wait "$worker_pid" 2>/dev/null || true
+                rm -f "$worker_pid_file"
+            fi
             if [ -n "${stripe_mock_pid:-}" ]; then
                 kill -TERM -"$stripe_mock_pid" 2>/dev/null || kill -TERM "$stripe_mock_pid" 2>/dev/null || true
                 wait "$stripe_mock_pid" 2>/dev/null || true
@@ -391,14 +408,30 @@ SQL
         local server_pid="$!"
         echo "$server_pid" > "$shard_pid_file"
 
+        APP_BASE_URL="http://127.0.0.1:$shard_port" \
+            setsid "$E2E_WORKER_BIN" 7>&- 9>&- {PORT_LOCK_FD}>&- </dev/null >>"$worker_log" 2>&1 &
+        local worker_pid="$!"
+        echo "$worker_pid" > "$worker_pid_file"
+
         for _ in $(seq 1 120); do
+            if ! kill -0 "$worker_pid" 2>/dev/null; then
+                echo "E2E shard $shard_index/$E2E_SHARDS worker failed to start" >&2
+                tail -n 80 "$worker_log" >&2 || true
+                exit 1
+            fi
             if E2E_BASE_URL=$(detect_e2e_base_url "$server_pid"); then
                 export E2E_BASE_URL
                 echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
                 echo "E2E database: $TEST_DATABASE_NAME"
+                local test_status=0
                 playwright test --shard="$shard_index/$E2E_SHARDS" "$@" \
-                    7>&- 9>&- {PORT_LOCK_FD}>&-
-                exit $?
+                    7>&- 9>&- {PORT_LOCK_FD}>&- || test_status=$?
+                if ! kill -0 "$worker_pid" 2>/dev/null; then
+                    echo "E2E shard $shard_index/$E2E_SHARDS worker exited during tests" >&2
+                    tail -n 80 "$worker_log" >&2 || true
+                    test_status=1
+                fi
+                exit "$test_status"
             fi
 
             if ! kill -0 "$server_pid" 2>/dev/null; then
