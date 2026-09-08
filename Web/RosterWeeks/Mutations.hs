@@ -23,7 +23,6 @@ module Web.RosterWeeks.Mutations
     , removeRosterWindowLaneMutation
     ) where
 
-import Application.Error.Boundary (respondAndStop)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
@@ -32,12 +31,9 @@ import Application.Helper.SurfaceResource
 import Application.RosterPublication.Mutations (withRosterWindowDateLockInCurrentTransaction)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime.Model (ShiftCopyOccurrenceSelections)
-import Control.Monad (guard, void)
-import Data.List (nub)
+import Control.Monad (void)
 import qualified Data.Set as Set
-import Data.Time (Day, addDays, getCurrentTime)
 import Data.Traversable (traverse)
-import Data.UUID (UUID)
 import qualified Database.PostgreSQL.Simple as PG
 import Network.HTTP.Types.Status (status409)
 import qualified Network.Wai as Wai

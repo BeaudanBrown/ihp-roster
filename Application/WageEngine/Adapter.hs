@@ -27,8 +27,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeI
 import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
                                           venueEffectiveRateEndDate)
 import Application.VenueTime (AwardSegment, ResolvedInterval)
-import Application.VenueTime.Model (AuthoritativeBoundaries,
-                                    authoritativeEndLocalTime,
+import Application.VenueTime.Model (authoritativeEndLocalTime,
                                     authoritativeStartLocalTime,
                                     decodeTimesheetTiming,
                                     timesheetTimingBoundaries)
@@ -39,12 +38,9 @@ import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
 import Data.Traversable (traverse)
 import qualified Generated.Types as G
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unpackId)
-import IHP.Prelude
 
 newtype WageEngineEntryRequest = WageEngineEntryRequest
     { requestedEntryId :: UUID

@@ -30,21 +30,15 @@ import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterIma
 import Application.Helper.Profiling (profileRenderCounter)
 import Application.Helper.ShiftTypeColours (shiftTypeColourKeyCssValue,
                                             shiftTypeColourPaletteKeys)
-import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
-                                     rosterOperationalStartTimeText)
-import Application.Helper.View (staffDisplayName)
 import Application.RosterShiftAssignment (rosterShiftIsOpen)
 import Application.VenueTime.Model (rosterShiftTimingEndTime,
                                     rosterShiftTimingStartTime)
 import Data.Coerce (coerce)
-import Data.List (find)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust, isNothing)
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Web.RosterWeeks.DateRange (RosterWindowLane, laneForOperationalDate)
-import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (rosterDragDropzoneRef,
                                         rosterDragSourceRef,
                                         rosterExistingShiftDropzoneRef,

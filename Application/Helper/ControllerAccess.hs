@@ -4,7 +4,6 @@ import Data.Char (isControl, isHexDigit)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime,
                               utcTimeToPOSIXSeconds)
 import Generated.Types
@@ -24,7 +23,6 @@ import Application.Bepis.Fact (BepisFact (..), BepisRoleKind (..),
                                BepisScopeFact (..), BepisScopeKind (..),
                                emitBepisFact)
 import Application.Helper.ControllerContext
-import Application.Helper.ControllerSupport
 import Application.Helper.Htmx (isHtmxRequest)
 import Application.VenueRole (hasVenueRole)
 

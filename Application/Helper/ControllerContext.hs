@@ -5,7 +5,6 @@ module Application.Helper.ControllerContext where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Data.Coerce (coerce)
-import Data.List (find, sortOn)
 import Generated.Types
 import Data.IORef (IORef, atomicModifyIORef', readIORef)
 import qualified Data.Vault.Lazy as Vault
@@ -16,7 +15,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Web.Routes ()
 import Web.Types ()
 
-import Application.Helper.ControllerSupport
 import Application.Helper.Profiling (profileActionSpan)
 import Application.Helper.Telemetry (withTelemetrySpan)
 

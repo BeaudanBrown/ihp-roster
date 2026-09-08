@@ -4,8 +4,7 @@ module Web.View.Timesheets.Edit where
 
 import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay,
                                                      UpdateTimesheetEntryOverlay)
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker,
                                                              defaultAppShellActionRoute)
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowStateQueryParams,

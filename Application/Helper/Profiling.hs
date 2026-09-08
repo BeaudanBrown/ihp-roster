@@ -14,7 +14,7 @@ import Application.Helper.Telemetry (addTelemetryAttributes, addTelemetryEvent,
                                      withTelemetrySpan,
                                      withTelemetrySpanAttributes)
 import Control.Concurrent (ThreadId, myThreadId)
-import Control.Exception (bracket, bracket_, evaluate)
+import Control.Exception (bracket_, evaluate)
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
 import Data.IORef

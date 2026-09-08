@@ -46,15 +46,12 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteString as ByteString
-import Data.Kind (Type)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import qualified Data.Text.Encoding.Error as Text.Encoding.Error
-import Data.Time (defaultTimeLocale, parseTimeM)
-import Data.Typeable (Typeable)
 import qualified Data.UUID as UUID
 import IHP.Controller.Param (allParams)
-import IHP.ModelSupport.Types (MetaBag, Violation (TextViolation))
+import IHP.ModelSupport.Types (Violation (TextViolation))
 import IHP.Prelude
 import Network.Wai (Request)
 import Text.Read (reads)

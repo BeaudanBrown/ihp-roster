@@ -10,8 +10,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
 import qualified Application.Helper.FrontendContract.Surface.Support.Action as SupportAction
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
-                                                           noSurfaceFields,
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
@@ -26,7 +25,6 @@ import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnostic (..),
                                                XeroTimesheetDiagnosticSnapshot (..))
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import Web.View.Passkeys.Management (renderPasskeyManagementWithAddButton)
 import Web.View.Prelude
 

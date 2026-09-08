@@ -28,7 +28,6 @@ import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoRoleAtt
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.SemanticIR (BrowserAttributeIR (..))
 import Application.Helper.FrontendContract.Surface.Values
-import Data.Time.Calendar (Day)
 import IHP.Prelude
 
 data RosterWeekOverviewAvailability

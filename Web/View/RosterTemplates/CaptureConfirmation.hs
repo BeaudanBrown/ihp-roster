@@ -13,10 +13,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
-import Application.Helper.FrontendContract.Toggle.Runtime (ToggleFieldBinding,
-                                                           TogglePresentationState (ToggleChecked),
-                                                           ToggleTarget (..),
-                                                           surfaceToggleScalarField,
+import Application.Helper.FrontendContract.Toggle.Runtime (TogglePresentationState (ToggleChecked),
+                                                           ToggleTarget (ToggleTargetOmitted, ToggleTargetValue),
                                                            toggleFieldName,
                                                            toggleTargetForState)
 import Application.Helper.View.Overlay

@@ -3,7 +3,6 @@ module Application.Script.RsaReminderSweep where
 import Application.Script.Prelude
 import Application.StaffDocuments.Rsa
 import qualified Data.Text.IO as TextIO
-import Data.Time.Clock (utctDay)
 
 run :: Script
 run = do

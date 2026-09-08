@@ -26,31 +26,22 @@ import Application.Error.Telemetry (recordAppError)
 import Application.Error.Transaction (withAppResultTransaction)
 import Application.Error.Types
 import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
-import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
 import Application.PayAssignment
-import Application.RosterShiftAssignment (RosterShiftAssignment (..),
+import Application.RosterShiftAssignment (RosterShiftAssignment (OpenAssignment, StaffAssignment),
                                           copyRosterShiftAssignment,
-                                          rosterShiftAssignment,
-                                          rosterShiftIsStaffAssigned)
+                                          rosterShiftAssignment)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Control.Monad (void)
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import qualified Data.Bifunctor as Bifunctor
 import Data.Either (isRight)
-import Data.IORef (newIORef, readIORef, writeIORef)
-import Data.List (nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, mapMaybe)
-import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
 import GHC.Generics (Generic)
 import Web.Controller.Prelude
-import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
 
 fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
 fetchActiveStaffForCurrentVenue staffId =

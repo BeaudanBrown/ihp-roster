@@ -14,7 +14,6 @@ module Application.Xero.Timesheets.Preview
 where
 
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
-import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.WageEngine
@@ -30,8 +29,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.Time.Clock (UTCTime)
 import qualified Data.Vector as Vector
 import Generated.Types
 import IHP.ControllerPrelude

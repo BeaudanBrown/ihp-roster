@@ -6,7 +6,6 @@ module Web.LeaveRequests.Blackouts
     ) where
 
 import Data.Coerce (coerce)
-import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
 
 data BlackoutException = BlackoutException

@@ -5,8 +5,6 @@ module Web.RosterWeeks.Rows
     ) where
 
 import Data.Coerce (coerce)
-import Data.List (nub)
-import Data.Maybe (catMaybes)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 

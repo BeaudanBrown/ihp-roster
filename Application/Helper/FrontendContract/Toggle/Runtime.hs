@@ -45,7 +45,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Typeable (Typeable)
 import IHP.Prelude
 
 -- | Closed browser presentation state. This remains distinct from either wire

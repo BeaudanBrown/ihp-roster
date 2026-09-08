@@ -31,8 +31,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import Application.Helper.FrontendContract.Surface.Values
 import Data.Coerce (coerce)
-import Data.List (sortOn)
-import Data.Ord (Down (..))
 import qualified Data.Text as Text
 import Web.LeaveRequests.Archive
 import Web.LeaveRequests.AvailabilityWarnings

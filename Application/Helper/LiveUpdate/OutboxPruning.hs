@@ -11,9 +11,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   throwExternalRuntime)
 import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
-import Data.Int (Int64)
 import qualified Data.Text.IO as TextIO
-import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (unsafeSqlQueryScalar, withTransaction)
 import IHP.ModelSupport.Types (ModelContext)

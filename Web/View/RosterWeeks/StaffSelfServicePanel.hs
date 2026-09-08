@@ -15,7 +15,6 @@ import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterSelf
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import Data.Time.Calendar (addDays, diffDays)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveFormMount)
 import Web.RosterWeeks.Dom (rosterSelfServiceQuickToolsPaneId,
                             rosterSelfServiceQuickToolsTabId,

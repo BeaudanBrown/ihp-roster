@@ -28,10 +28,6 @@ import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     TimesheetIntegrityError,
                                     ValidatedRosterShiftTiming,
                                     ValidatedTimesheetTiming)
-import Data.Map.Strict (Map)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (NominalDiffTime)
-import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope,

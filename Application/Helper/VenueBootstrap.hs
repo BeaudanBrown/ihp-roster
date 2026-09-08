@@ -11,8 +11,6 @@ module Application.Helper.VenueBootstrap
 
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
-import qualified Data.Char as Char
-import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 

@@ -20,14 +20,12 @@ import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import qualified Control.Exception as Exception
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, fromGregorianValid, toGregorian)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude

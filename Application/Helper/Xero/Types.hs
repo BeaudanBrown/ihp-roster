@@ -31,7 +31,6 @@ module Application.Helper.Xero.Types
 where
 
 import Application.Error.Parser (parserFailure)
-import Control.Applicative ((<|>))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -39,14 +38,7 @@ import qualified Data.Aeson.Types as AesonTypes
 import Data.Char (isDigit)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Text.Encoding.Error (lenientDecode)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime, utctDay)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import qualified Data.Time.Format as TimeFormat
-import Data.Time.LocalTime (LocalTime (localDay), ZonedTime,
-                            zonedTimeToLocalTime)
 import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Types.Header (HeaderName)

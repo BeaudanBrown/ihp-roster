@@ -22,20 +22,11 @@ import Application.Helper.PasswordResetTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
-import Application.Helper.TimeRules (parseQuarterHourMinuteOfDay)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.WeekBoundaries (startOfWeekFor, weekdayIndexLabel)
-import Application.Helper.Xero
-import Application.Helper.XeroAdminTypes
-import Application.Helper.XeroPayItems
 import Application.StaffDefaults (staffAwardRateIsAvailable)
-import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays)
-import Data.Time.Clock (utctDay)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support

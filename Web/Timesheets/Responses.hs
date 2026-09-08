@@ -34,10 +34,8 @@ import Application.Helper.View (ToastOverlayPosition (..),
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
-import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays)
 import Network.HTTP.Types.Status (status409)
 import qualified Network.Wai as Wai
 import qualified IHP.HSX.Markup as Markup

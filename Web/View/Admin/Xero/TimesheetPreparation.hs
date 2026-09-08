@@ -47,8 +47,6 @@ import Application.Xero.WorkflowState
 import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminXeroTimesheetPreparationWaitSurfaceImpl)
 import Web.View.Admin.Xero.TimesheetPreparation.Review

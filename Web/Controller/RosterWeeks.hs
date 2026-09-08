@@ -36,49 +36,28 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotifi
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.SurfaceResource (LiveMutationResult (..),
-                                           SurfaceResourceValue)
-import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
-                                     defaultShiftTimesForVenueConfig,
-                                     isQuarterHourMinutes,
-                                     isValidRosterShiftTimePair,
-                                     minuteOfDayToTimeOfDay,
-                                     rosterOperationalFinalSelectableMinute,
-                                     rosterOperationalStartMinuteOfDay,
-                                     rosterShiftStartDate,
-                                     venueTimePickerFinalSelectableTimeText,
-                                     venueTimePickerStartTimeText)
+import Application.Helper.SurfaceResource (LiveMutationResult (liveMutationTouchedResources, liveMutationValue))
 import Application.Helper.UserPreferences
-import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
-                                ToastOverlayConfig,
+import Application.Helper.View (OverlayButton (OverlayButton, overlayButtonAction, overlayButtonClass, overlayButtonLabel),
+                                OverlayButtonAction (GeneratedDialogFormAction, OverlaySubmitFormAction),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 defaultDialogOverlayConfig,
                                 dialogOverlayCloseButton, dialogOverlayMountId,
                                 errorToast, renderDialogOverlay,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import qualified Application.RosterNotification as Notification
 import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
                                           applyRosterShiftAssignment,
                                           copyRosterShiftAssignment,
                                           rosterShiftIsOpen)
-import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
+import Application.VenueTime (VenueTimeError (InvalidCivilTimeOfDay, NonPositiveResolvedInterval, NonexistentCivilTime, RepeatedCivilTimeRequiresOccurrence, RepeatedTimeOccurrenceNotApplicable))
 import Application.VenueTime.Model
-import Control.Monad (guard)
 import Data.Coerce (coerce)
-import Data.Either (fromRight)
-import Data.List (find, nub)
-import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust, fromMaybe, isJust, listToMaybe,
-                   mapMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time (getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.LocalTime (TimeOfDay)
-import qualified Data.UUID as UUID
 import Network.HTTP.Types.Status (status400, status409)
 import qualified Network.Wai as Wai
 import qualified IHP.HSX.Markup as Markup
@@ -87,13 +66,13 @@ import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
 import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
-import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (..),
-                                  RosterWindow (..), RosterWindowDay (..),
-                                  RosterWindowLane (..), RosterWindowScope (..),
-                                  RosterWindowState (..), fetchRosterWindow,
+import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (laneRowRemovalOverflowCount),
+                                  RosterWindow (rosterWindowLanes, rosterWindowProjectedDays),
+                                  RosterWindowDay (persistedRosterDay),
+                                  RosterWindowLane (rosterWindowLaneName),
+                                  RosterWindowScope (..), fetchRosterWindow,
                                   previewRemoveRosterDayRowByLanes,
                                   projectedRosterDayId,
-                                  resolveRosterLaneReference,
                                   rosterWindowScopeForAnchor)
 import Web.RosterWeeks.DirectReadModel (fetchRosterNotificationWindowDays)
 import Web.RosterWeeks.Dom
@@ -122,12 +101,9 @@ import Web.RosterWeeks.Responses (respondToRosterSlotMutation,
                                   respondWithRosterOwnHighlightPreferenceUpdate,
                                   respondWithRosterResourceInvalidation,
                                   respondWithRosterToast)
-import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.ShiftWorkflow
-import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
-                                     fetchRosterShiftDialogStaff,
-                                     fetchStaffPayConfigurationRequiredIds)
+import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.VenueSettings (setVenueRosterLayoutMode)
 import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirmation)

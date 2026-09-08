@@ -7,7 +7,6 @@ module Web.Mail.WageSourceAlert
 import Application.VenueTime
 import Application.WageSourceAlert.Types
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.MailPrelude
 import qualified IHP.HSX.Markup as Markup
 import Web.Mail.Shared

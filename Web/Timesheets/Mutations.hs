@@ -12,13 +12,10 @@ module Web.Timesheets.Mutations
 
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types (AppError, AppResult)
-import Application.Helper.Audit (currentRequestAuditPayload)
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
-import Application.Helper.Htmx (requestAuditSourceChannel)
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,

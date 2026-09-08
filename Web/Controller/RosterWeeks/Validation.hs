@@ -9,12 +9,8 @@ module Web.Controller.RosterWeeks.Validation
     , normalizeRosterSlotDefinitionName
     ) where
 
-import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
-import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.RosterWeeks.Service (rosterSlotHasValidStartEnd)
-import Web.RosterWeeks.Types
 
 
 invalidRosterSlotTimingMessage :: Text

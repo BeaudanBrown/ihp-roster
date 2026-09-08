@@ -40,42 +40,31 @@ import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterIma
                                                                        rosterImageExportRowAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (rosterStaffHighlightDefaultAttrs)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceInteractionShellConfig (..),
-                                                            FrontendSurfaceMountConfig (..),
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (actionRouteExtraAttrs, actionRouteStandardUrl),
+                                                            FrontendSurfaceInteractionShellConfig (FrontendSurfaceInteractionShellConfig, interactionShellHtmxSync, interactionShellIntentForms),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
-import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
-                                     rosterOperationalStartTimeText)
-import Application.Helper.Url (appendQueryParams)
 import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
                                            rosterLayoutModeValue)
-import Application.Helper.View (staffDisplayName)
 import Application.VenueTime.Model (BoundaryModelError (BoundaryShiftShapeInvalid),
                                     RosterShiftIntegrityError (RosterShiftTimingInvalid),
                                     ValidatedRosterShiftTiming,
                                     rosterShiftTimingStartTime)
 import Data.Coerce (coerce)
-import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust, isNothing)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay)
-import Data.UUID (UUID)
-import Web.RosterWeeks.DateRange (RosterWindowLane (..), RosterWindowScope (..),
-                                  laneForOperationalDate, rosterWindowLaneName,
+import Web.RosterWeeks.DateRange (RosterWindowLane (rosterWindowLaneByDate),
+                                  RosterWindowScope (rosterWindowCalendarRevision, rosterWindowEnd, rosterWindowRosterGroupId, rosterWindowStart, rosterWindowVenueId),
+                                  laneForOperationalDate,
                                   rosterWindowLaneRepresentative)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
+import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (RosterWeekScopeValue, rosterWeekCalendarRevision, rosterWeekGroupId, rosterWeekTimelineDate, rosterWeekVenueId, rosterWeekWindowEnd, rosterWeekWindowStart),
                                         rosterDayColumnDropzoneRef,
-                                        rosterDragSourceRef,
                                         rosterFrontendSurfaceIR,
                                         rosterIntentForms,
                                         rosterMountedFragmentPlanFromRenderData,

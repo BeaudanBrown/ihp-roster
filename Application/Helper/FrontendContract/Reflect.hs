@@ -27,7 +27,6 @@ import Application.Helper.FrontendContract.Naming (deriveDomAttributeName,
                                                    nameToKebab)
 import qualified Application.Helper.FrontendContract.Naming as Naming
 import Application.Helper.FrontendContract.Reflect.Core
-import Data.Kind (Type)
 import Data.Typeable (tyConModule, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 

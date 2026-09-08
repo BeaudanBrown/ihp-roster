@@ -13,7 +13,6 @@ module Application.Helper.Impersonation
 
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID

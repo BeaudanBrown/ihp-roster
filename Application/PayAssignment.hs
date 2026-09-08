@@ -20,7 +20,6 @@ module Application.PayAssignment
     ) where
 
 import Generated.Types
-import IHP.ModelSupport (Id)
 import IHP.Prelude
 
 -- | Persisted staff facts required to resolve one roster pay disposition.

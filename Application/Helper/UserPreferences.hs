@@ -29,7 +29,6 @@ import Application.Helper.Hasql (isUniqueViolation)
 import qualified Control.Exception as Exception
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport.Types (HasqlSessionError (..))
 
 data UserRosterPreferences = UserRosterPreferences
     { userShowRosterWarnings     :: Bool

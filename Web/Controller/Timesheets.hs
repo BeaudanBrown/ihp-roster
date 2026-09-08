@@ -8,13 +8,11 @@ import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
                                            upsertCurrentUserTimesheetShowSuggestions,
                                            upsertCurrentUserTimesheetShowWageEstimates)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.EntryWorkflow
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
-import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
-                                       timesheetsMountStateForFilters)
+import Web.Timesheets.FrontendSurface (timesheetsMountStateForFilters)
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
                              timesheetDayColumnsFragmentUrl,

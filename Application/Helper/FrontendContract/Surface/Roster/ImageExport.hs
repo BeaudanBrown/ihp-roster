@@ -21,8 +21,6 @@ import Application.Helper.FrontendContract.Surface.SemanticIR (BrowserAttributeI
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Char as Char
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 

@@ -71,12 +71,8 @@ module Application.VenueTime.Model
     ) where
 
 import Application.VenueTime
-import Data.Time.Calendar (addDays, diffDays)
-import Data.Time.Clock (NominalDiffTime, UTCTime)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay, midnight)
 import Data.Traversable (traverse)
 import Generated.Types
-import IHP.HaskellSupport (set)
 import IHP.Prelude
 
 mapLeft :: (left -> mappedLeft) -> Either left value -> Either mappedLeft value

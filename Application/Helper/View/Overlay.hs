@@ -28,13 +28,9 @@ import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Overlay.Runtime
 import Application.Helper.FrontendContract.Values (RegisteredDomAttr,
                                                    domAttrValue)
-import Data.Kind (Type)
 import qualified Data.Text as Text
-import Data.Typeable (Typeable)
-import Generated.Types
 import IHP.ViewPrelude
 import Web.Routes ()
-import Web.Types
 
 dialogOverlayMountId :: Text
 dialogOverlayMountId = canonicalOverlayDom.overlayDialogMountId

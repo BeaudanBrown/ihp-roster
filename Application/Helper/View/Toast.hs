@@ -9,7 +9,6 @@ import IHP.ControllerSupport (ControllerContext)
 import IHP.ViewPrelude
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
 import Web.Routes ()
-import Web.Types
 
 toastOverlayMountId :: Text
 toastOverlayMountId = canonicalOverlayDom.overlayToastMountId

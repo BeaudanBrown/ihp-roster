@@ -44,13 +44,10 @@ import Application.RosterTemplates.Mutations (lockRosterTemplate,
                                               lockRosterTemplateName)
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
-import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Clock (getCurrentTime)
-import Data.UUID (UUID)
 import Generated.Types hiding (createRosterTemplate)
 import IHP.ControllerPrelude
 

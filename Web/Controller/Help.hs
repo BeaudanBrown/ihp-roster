@@ -1,10 +1,5 @@
 module Web.Controller.Help where
 
-import Application.Helper.Controller (currentUserIsImpersonating,
-                                      currentUserIsSuperAdmin,
-                                      currentUserIsUnimpersonatedSuperAdmin,
-                                      ensureCurrentVenueOrSupportRedirect,
-                                      hasRole)
 import Application.Helper.View (PageHelpContext (..), PageHelpTopicId (..),
                                 filterPageHelpTopic, lookupPageHelpTopic)
 import Web.Controller.Prelude

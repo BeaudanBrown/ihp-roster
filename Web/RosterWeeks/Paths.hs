@@ -41,8 +41,6 @@ import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude

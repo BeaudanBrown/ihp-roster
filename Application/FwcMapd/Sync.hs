@@ -23,7 +23,6 @@ import qualified Control.Exception.Safe as SafeException
 import Control.Monad (void)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
 
 runConfiguredMapdSync :: (?modelContext :: ModelContext) => IO (Either Text MapdSyncSummary)
 runConfiguredMapdSync = do

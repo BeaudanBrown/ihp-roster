@@ -29,7 +29,6 @@ import Application.Helper.Telemetry (addTelemetryAttributes, addTelemetryEvent)
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.MVar (MVar, modifyMVar_, newMVar, readMVar)
 import qualified Control.Exception as Exception
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import GHC.Generics (Generic)
 import IHP.Prelude
 import OpenTelemetry.Attributes (Attribute, toAttribute)

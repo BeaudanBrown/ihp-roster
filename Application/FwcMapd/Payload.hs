@@ -3,15 +3,12 @@ module Application.FwcMapd.Payload where
 import Application.Error.Parser (parserFailure)
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.FwcMapd.Error
-import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
 import Data.Scientific (Scientific)
-import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import IHP.ControllerPrelude
-import IHP.Prelude
 
 data MapdSyncSummary = MapdSyncSummary
     { syncedAwardFixedIds        :: ![Int]

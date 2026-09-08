@@ -36,7 +36,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 

@@ -18,7 +18,6 @@ import Application.Helper.FrontendContract.Surface.ContractIR (BrowserAttributeI
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectSurfaceSpec,
                                                             ReflectTabSetPrimitive)
 import Application.Helper.FrontendContract.Surface.Values
-import Data.Typeable (Typeable)
 import IHP.Prelude
 
 surfaceTabSetAttrs ::

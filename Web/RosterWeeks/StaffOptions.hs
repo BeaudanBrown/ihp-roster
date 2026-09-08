@@ -10,19 +10,15 @@ module Web.RosterWeeks.StaffOptions
     , rosterAssignmentOptionStatesFor
     ) where
 
-import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.Helper.Staff (isTrialStaff, sortStaffForDisplay)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Application.Helper.View (rosterableStaffForRosterPanel)
-import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffPayAssignmentRequiresRemediation)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
-import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (mapMaybe)
 import qualified Data.Set as Set
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID

@@ -2,21 +2,13 @@ module Application.Helper.Pay where
 
 import Application.Helper.Controller hiding (venueEffectiveRateDate,
                                       venueEffectiveRateEndDate)
-import Application.Helper.WeekBoundaries (WeekdayIndex)
 import qualified Application.Helper.WeekBoundaries as WeekBoundaries
 import Application.VenueTime.Model (ValidatedTimesheetTiming,
                                     timesheetTimingWorkedOn)
 import Control.Monad (void)
-import qualified Data.List as List
-import Data.Ord (Down (..))
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime)
 import Generated.Types
-import GHC.Records (HasField)
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unpackId)
-import IHP.Prelude
 
 venueEffectiveRateDate :: WeekdayIndex -> Day -> Day
 venueEffectiveRateDate = WeekBoundaries.venueEffectiveRateDate

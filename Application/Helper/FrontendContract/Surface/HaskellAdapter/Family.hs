@@ -70,9 +70,7 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFieldSpe
                                                            SurfaceIntentFieldSpecs,
                                                            SurfaceResourceFieldSpecs,
                                                            SurfaceScopeFieldSpecs)
-import Data.Kind (Type)
 import qualified Data.Text as Text
-import Data.Typeable (Typeable)
 import IHP.Prelude
 
 -- | One typed declaration home. The promoted kind selects the declaration

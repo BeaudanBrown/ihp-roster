@@ -145,11 +145,9 @@ import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (toList)
-import Data.Kind (Constraint, Type)
+import Data.Kind (Constraint)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
-import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
-import Data.Typeable (Typeable)
 import qualified Data.UUID as UUID
 import GHC.TypeLits (ErrorMessage (..))
 import IHP.Prelude

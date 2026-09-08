@@ -5,23 +5,12 @@ module Web.View.RosterWeeks.Overview
     , renderWeekOverviewPanelFragment
     ) where
 
-import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import Application.Helper.FrontendContract.Surface.Roster.WeekOverview
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceLazyFragmentConfig (..),
-                                                            FrontendSurfaceProtection (..),
-                                                            defaultFrontendSurfaceLazyFragmentConfig,
-                                                            frontendSurfaceMountedFragmentFor,
-                                                            renderFrontendSurfaceLazyFragmentWithConfig)
-import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes, startOfWeekFor,
                                           weekdayIndexForDay)
-import Data.List (find, findIndex)
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Clock (NominalDiffTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.RosterWeeks.Paths (rosterWeekWithDateUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude

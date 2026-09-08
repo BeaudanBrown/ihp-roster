@@ -7,7 +7,6 @@ module Web.LeaveRequests.AvailabilityWarnings
     ) where
 
 import qualified Data.Map.Strict as Map
-import Data.Time.Calendar (addDays)
 import Web.Controller.Prelude
 
 data AvailabilityWarningStaff = AvailabilityWarningStaff

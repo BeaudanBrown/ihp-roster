@@ -26,8 +26,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Time.LocalTime (TimeOfDay)
 import IHP.Prelude
 
 data TimePickerBrowserConfig = TimePickerBrowserConfig

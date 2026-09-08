@@ -3,7 +3,6 @@ module Web.Controller.Auth where
 import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecipient,
                                                passkeySetupTokenAuthorityIsCurrent)
 import Application.AccountSecurityEmail.Mutations (withPasskeySetupTokenLock)
-import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import qualified Application.Helper.FrontendContract.Wire.Passkey as PasskeyWire
 import Application.Helper.PasskeyRecoveryCodes (issueInitialRecoveryCodeIfMissing)
 import Application.Helper.Passkeys
@@ -19,7 +18,6 @@ import qualified Data.Aeson as Aeson
 import Data.Hourglass (timeConvert)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as Text
-import Data.Time.Clock (getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.Validation as Validation
 import Database.PostgreSQL.Simple.Types (Binary (Binary))

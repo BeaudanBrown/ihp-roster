@@ -29,8 +29,6 @@ import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime)
 import Data.Traversable (traverse)
 import IHP.Prelude
 

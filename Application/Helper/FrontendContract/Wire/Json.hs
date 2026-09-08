@@ -21,7 +21,7 @@ import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Scientific as Scientific
-import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
+import Data.Typeable (tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
 -- | Validate an Aeson value against the schema or event detail selected by its

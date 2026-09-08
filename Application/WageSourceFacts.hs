@@ -9,11 +9,8 @@ import Application.WageSourcePolicy
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, DayOfWeek (..), toGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unpackId)
-import IHP.Prelude
 
 data WageSourceFacts = WageSourceFacts
     { factFwcSnapshots                         :: ![FwcSnapshot]

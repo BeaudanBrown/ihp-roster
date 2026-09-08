@@ -36,7 +36,7 @@ import Application.Xero.ReferenceCategory
 import Application.Xero.ReferenceSyncFence
 import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
-import Control.Monad (join, void)
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.IORef as IORef

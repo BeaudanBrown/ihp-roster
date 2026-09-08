@@ -5,34 +5,37 @@ set -euo pipefail
 
 build_dir="${APPLICATION_WARNINGS_BUILD_DIR:-$(ihp_roster_verification_build_dir)/application-warnings}"
 base_ghc_opts="$(ihp_roster_ghc_opts)"
-warning_ghc_opts="$base_ghc_opts -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=incomplete-record-updates -Werror=partial-fields"
+# IHP routes and wire sums require constructor-local record labels. Reject
+# partial accesses (including getField/record-dot), not those declarations.
+warning_ghc_opts="$base_ghc_opts -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=incomplete-record-updates -Werror=incomplete-record-selectors -Werror=unused-imports"
 
-mapfile -t production_sources < <(
-    awk -F '\t' 'NR > 1 && $2 == "production" && $1 ~ /\.hs$/ { print $1 }' Config/nix/production-module-inventory.tsv
-)
-mapfile -t app_sources < <(
-    printf '%s\n' "${production_sources[@]}" \
-        | grep -Ev '(^|/)Generated(/|\.|$)' \
-        | sort -u
-)
-if ((${#app_sources[@]} == 0)); then
+production_text="$(awk -F '\t' 'NR > 1 && $2 == "production" && $1 ~ /\.hs$/ { print $1 }' Config/nix/production-module-inventory.tsv)"
+mapfile -t production_sources <<< "$production_text"
+app_text="$(printf '%s\n' "${production_sources[@]}" \
+    | awk 'NF && $0 !~ /(^|\/)Generated(\/|\.|$)/' | sort -u)"
+if [[ -z "$app_text" ]]; then
     echo "application-warnings: no app-owned production sources discovered" >&2
     exit 1
 fi
+mapfile -t app_sources <<< "$app_text"
 
-ihp_roster_prepare_ghc_build_dir "$build_dir" "$base_ghc_opts | $warning_ghc_opts | -fwrite-interface"
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$base_ghc_opts | $warning_ghc_opts | -fwrite-interface | isolated-owned-pass-v1"
 # Compile the complete graph without application warning authority first, so
 # generated IHP and dependency sources contribute interfaces only.
 # shellcheck disable=SC2086 # GHC option strings are intentional argument vectors.
 ghc -fno-code -fwrite-interface $base_ghc_opts "${production_sources[@]}" \
     -odir "$build_dir/obj" \
     -hidir "$build_dir/hi"
-# Then compile only repository-owned production modules with strict totality
-# warnings. Generated model/contract modules are deliberately dependencies, not
-# application warning authority.
-# shellcheck disable=SC2086 # GHC option strings are intentional argument vectors.
-ghc -fno-code -c $warning_ghc_opts -i"$build_dir/hi" "${app_sources[@]}" \
-    -odir "$build_dir/obj" \
-    -hidir "$build_dir/hi"
+# Warning flags alone do not invalidate the interfaces from the first pass.
+# Force each owned subject, in separate one-shot sessions: a multi-file -c run
+# can import a subject's cached instances before compiling that same subject,
+# producing duplicate-instance errors. Dependencies still contribute interfaces
+# only; forcing --make instead would give generated/dependency code authority.
+for source in "${app_sources[@]}"; do
+    # shellcheck disable=SC2086 # GHC option strings are intentional argument vectors.
+    ghc -fno-code -fforce-recomp -c $warning_ghc_opts -i"$build_dir/hi" "$source" \
+        -odir "$build_dir/obj" \
+        -hidir "$build_dir/hi"
+done
 
 echo "application-warnings: ok (${#app_sources[@]} app-owned production modules)"

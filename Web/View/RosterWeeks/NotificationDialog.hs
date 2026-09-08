@@ -8,8 +8,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionFormWithHiddenFields)
 import Application.Helper.View.Overlay
 import Application.RosterNotification
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.RosterWeeks.Dom (rosterNotificationLatestRunHeadingId,
                             rosterNotificationSendFormId)
 import Web.View.Prelude

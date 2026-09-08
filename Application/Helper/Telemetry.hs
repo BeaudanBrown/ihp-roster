@@ -22,15 +22,14 @@ module Application.Helper.Telemetry
 import Application.Helper.Telemetry.Semantic (JobRetryState (..),
                                               boundedAttempt,
                                               boundedRetryNumber, jobRetryState)
-import Control.Exception (SomeException, bracket, try)
+import Control.Exception (bracket, try)
 import qualified Control.Exception as Exception
 import qualified Control.Exception.Safe as SafeException
 import Control.Monad (guard)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import qualified Data.CaseInsensitive as CaseInsensitive
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
-import Data.Data (Data, toConstr)
+import Data.Data (Data (toConstr))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text

@@ -5,12 +5,9 @@ module Application.Bepis.Architecture
     ) where
 
 import Application.Bepis.Action (bepisActionKindText, bepisResponseKindText)
-import Application.Bepis.Controller (BepisControllerPolicy (..),
-                                     bepisControllerPolicyText)
-import Application.Bepis.Fact (BepisFactKind (..), BepisOperationKind (..),
-                               BepisResponseKind (..), bepisFactKindText)
+import Application.Bepis.Controller (bepisControllerPolicyText)
+import Application.Bepis.Fact (bepisFactKindText)
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as LBS
 import GHC.Generics (Generic)
 import IHP.Prelude
 

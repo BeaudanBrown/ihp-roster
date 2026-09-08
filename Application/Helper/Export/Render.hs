@@ -1,6 +1,5 @@
 module Application.Helper.Export.Render where
 
-import Application.Helper.Controller
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
 import Application.VenueTime.Model (ValidatedTimesheetTiming,
@@ -19,14 +18,9 @@ import Data.Ratio (denominator, numerator)
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (NominalDiffTime, UTCTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import Text.Printf (printf)
-import Text.Read (readMaybe)
 
 renderTextZipBase64 :: [(Text, Text)] -> Text
 renderTextZipBase64 files =

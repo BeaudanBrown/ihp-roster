@@ -20,9 +20,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as Surface
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action as SurfaceAction
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.Url (appendQueryParams)
-import Data.List (sortOn)
-import Data.Ord (Down (..))
 import Web.LeaveRequests.FrontendSurface (SelfServiceLeaveScopeValue (..),
                                           selfServiceLeaveSurfaceImpl)
 import Web.View.LeaveRequests.Index (renderStatusBadge)

@@ -19,8 +19,6 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (FrameworkConfig)
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 
 dispatchAppJob ::
     (?modelContext :: ModelContext, ?context :: FrameworkConfig) =>

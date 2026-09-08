@@ -14,7 +14,6 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsR
 import Application.Helper.SurfaceResource
 import qualified Control.Exception as Exception
 import qualified Data.Set as Set
-import IHP.ModelSupport.Types (HasqlSessionError)
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)

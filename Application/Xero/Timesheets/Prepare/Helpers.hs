@@ -46,7 +46,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
 

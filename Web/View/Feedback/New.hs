@@ -11,7 +11,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Values
-import qualified Data.Text as Text
 import Web.View.Prelude
 
 newtype NewView = NewView

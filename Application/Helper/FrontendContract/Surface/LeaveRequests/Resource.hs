@@ -14,7 +14,6 @@ import Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Resou
                                                                                      unavailabilityBlackoutsResource)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import qualified Data.UUID as UUID
-import IHP.Prelude
 
 pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource :: UUID.UUID -> SurfaceResourceValue
 pendingLeaveRequestsResource venueId = leaveRequestsSectionResource venueId LeavePendingSection

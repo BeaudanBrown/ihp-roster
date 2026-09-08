@@ -18,7 +18,6 @@ module Web.Controller.Admin.Xero.Timesheets
 import Application.Error.Boundary (appErrorRequestKind, respondWithAppErrorAndStop, runAppResultBoundary,
                                    withSynchronousAppErrorFallback)
 import Application.Error.Domain (projectDomainError)
-import Application.Helper.Audit (currentRequestAuditPayload)
 import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApplyXeroTimesheetPreparationStaffDecisionOverlay,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
@@ -42,7 +41,6 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
-import Application.Helper.Htmx (requestAuditSourceChannel)
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
 import Application.Helper.XeroAdminTypes (XeroTimesheetIssueView (..),
@@ -65,7 +63,6 @@ import Application.Xero.Timesheets.Prepare (XeroPreparationOutcome (..), XeroPre
                                             XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import qualified Application.Xero.Timesheets.Prepare as Prepare
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude

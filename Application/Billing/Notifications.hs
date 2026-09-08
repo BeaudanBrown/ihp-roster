@@ -15,8 +15,6 @@ import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
-import IHP.ModelSupport (withTransaction)
 
 
 data BillingNotificationSource

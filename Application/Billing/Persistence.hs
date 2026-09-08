@@ -6,7 +6,6 @@ module Application.Billing.Persistence
 where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
-import Data.Tuple.Only (Only (..))
 import IHP.ControllerPrelude
 import IHP.ModelSupport (unsafeSqlQuery)
 

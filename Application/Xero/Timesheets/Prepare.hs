@@ -38,19 +38,15 @@ import Application.Xero.ReferenceTrust.Service
 import Application.Xero.StaffMappings (applyXeroStaffMappingSelection)
 import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
-import Application.Xero.Timesheets.Preview
 import Application.Xero.Timesheets.ReconciliationReview (XeroTimesheetReconciliationNotice (..),
                                                          reconciliationReviewNotices)
 import Application.Xero.Timesheets.Submission
-import Application.Xero.WorkflowState (xeroPayItemRequirementIsProposed,
-                                       xeroStaffMappingIsVerified)
+import Application.Xero.WorkflowState (xeroPayItemRequirementIsProposed)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
 

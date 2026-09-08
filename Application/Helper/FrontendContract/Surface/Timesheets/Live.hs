@@ -27,7 +27,6 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Generate
 import Application.Helper.LiveUpdate.Runtime (LiveBus,
                                               activeSurfaceScopeMatches,
                                               activeSurfaceScopeMatchesWithBus)
-import Data.Time.Calendar (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 

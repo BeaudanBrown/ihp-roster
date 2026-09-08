@@ -6,8 +6,6 @@ module Web.LeaveRequests.Archive
     ) where
 
 import Application.Helper.ControllerSupport (leaveRequestIsArchivedOn)
-import Data.List (sortOn)
-import Data.Ord (Down (..))
 import Generated.Types
 import IHP.Prelude
 

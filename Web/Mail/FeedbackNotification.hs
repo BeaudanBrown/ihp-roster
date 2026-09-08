@@ -5,7 +5,6 @@ module Web.Mail.FeedbackNotification
 
 import Application.VenueTime
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.MailPrelude
 import qualified IHP.HSX.Markup as Markup

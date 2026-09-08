@@ -20,8 +20,6 @@ module Web.Timesheets.EntryWorkflow
 
 import Application.Error.Types (AppError)
 import Application.Helper.SurfaceResource (LiveMutationResult)
-import Application.Helper.TimeRules (calendarDayForOperationalClock,
-                                     defaultShiftTimesForVenueConfig)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
 import Application.VenueTime.Model
 import Web.Controller.Prelude

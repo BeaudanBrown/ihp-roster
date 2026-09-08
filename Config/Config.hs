@@ -6,7 +6,6 @@ import Application.Helper.Authentication (bepisAuthenticationMiddleware)
 import Application.Helper.ControllerContext (venueRequestStateMiddleware)
 import Application.Helper.Profiling (profilingMiddleware)
 import Application.Helper.Telemetry (telemetryMiddleware)
-import IHP.Environment
 import IHP.EnvVar
 import IHP.FrameworkConfig
 import IHP.Mail.Types (MailServer (..), SMTPEncryption)

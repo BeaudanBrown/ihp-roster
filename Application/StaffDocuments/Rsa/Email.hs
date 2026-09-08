@@ -10,7 +10,6 @@ import Application.Helper.Mail
 import Application.StaffDocuments.Rsa
 import Control.Monad (void)
 import qualified Data.Text as Text
-import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.Mail.StaffDocuments.RsaReminder (RsaReminderMail (..))

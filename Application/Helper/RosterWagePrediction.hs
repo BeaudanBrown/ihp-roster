@@ -11,14 +11,12 @@ module Application.Helper.RosterWagePrediction
     , formatMoneyAmount
     ) where
 
-import Application.Helper.RosterTimesheetBoundaries
 import Application.Helper.TimeRules (automaticMealBreakMinutes)
 import Application.PayAssignment (EffectivePayAssignment (..),
                                   ShiftPayAssignment (..),
                                   StaffPayAssignment (..), resolvePayAssignment,
                                   staffAssignmentSuppressesTimesheets)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
-import Application.VenueTime.Model
 import Application.WageEngine (FinalEarningsSummary (..))
 import Application.WageEvaluation
 import Application.WageSourcePolicy (SourceDiagnostic)
@@ -27,8 +25,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Scientific as Scientific
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (UTCTime)
 import Generated.Types
 import IHP.ControllerPrelude
 

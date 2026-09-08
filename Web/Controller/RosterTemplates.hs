@@ -5,9 +5,6 @@ module Web.Controller.RosterTemplates where
 import Application.Bepis.Controller
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
-import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
-                                      ensureManagerRole, ensureProfileCompleted,
-                                      ensureVenueWritable, fetchVenueConfig)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
@@ -16,14 +13,10 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom,
                                                            surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Application.Helper.Telemetry (annotateTelemetryAction)
 import Application.RosterTemplates
-import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..))
 import Control.Monad (guard)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as Text
-import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
 import Text.Read (readMaybe)

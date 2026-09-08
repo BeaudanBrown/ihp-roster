@@ -1,6 +1,5 @@
 module Application.Helper.Export.Types where
 
-import Data.Time.Clock (NominalDiffTime)
 import IHP.ControllerPrelude
 
 data ExportJobType

@@ -6,7 +6,7 @@ module Application.Error.Transaction
 
 import Application.Error.Types
 import qualified Control.Exception as Exception
-import IHP.ModelSupport (ModelContext, withTransaction)
+import IHP.ModelSupport (withTransaction)
 import IHP.Prelude
 
 -- Private and caught immediately outside 'withTransaction'. It exists only to

@@ -6,9 +6,7 @@ import Application.Helper.Controller (currentVenueId)
 import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationOverlay,
                                                      CreateTrialStaffOverlay,
                                                      OpenStaffRemovalDialog,
-                                                     RemoveStaffOverlay,
-                                                     UpdateStaffProfileOverlay,
-                                                     UpdateStaffShiftPreferencesOverlay)
+                                                     UpdateStaffProfileOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              appShellActionAttrs,
@@ -24,7 +22,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
-import Application.Helper.Url (appendQueryParams)
 import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveHistory,
                                       renderVisibleUnavailabilityBlackouts)
@@ -32,7 +29,6 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
 import Web.View.LeaveRequests.New (LeaveRequestFieldNames (..),
                                    renderLeaveRequestFormFieldsWithNames)
 import Web.View.Prelude
-import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
 import Web.View.StaffProfileSections
 

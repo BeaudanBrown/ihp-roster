@@ -15,10 +15,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeI
 import Application.Helper.FrontendContract.TimePicker.Runtime
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTime,
                                      rosterOperationalStartTime)
-import Data.List (elemIndex)
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
-import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.ViewPrelude
 
 data TimePickerConfig = TimePickerConfig

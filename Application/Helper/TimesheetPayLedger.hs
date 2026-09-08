@@ -20,17 +20,13 @@ import Application.WageEngine
 import Application.WageEvaluation
 import Application.WagePublication (datedEarningsComponents)
 import Application.Xero.Timesheets.BucketKey
-import Control.Exception (Exception)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Bifunctor as Bifunctor
-import Data.Either (lefts, rights)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
-import Data.Time.Calendar (toGregorian)
-import Data.Time.Clock (getCurrentTime)
 import Data.Traversable (traverse)
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types

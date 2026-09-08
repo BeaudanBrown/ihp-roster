@@ -8,14 +8,12 @@ import Application.FwcMapd.Job (enqueueFwcMapdRefreshJob,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.FrontendContract.Surface.Support.Resource
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.SurfaceResource (SurfaceResourceValue,
-                                           liveMutationResult,
-                                           liveMutationValue)
+import Application.Helper.SurfaceResource (LiveMutationResult (liveMutationValue),
+                                           liveMutationResult)
 import Application.Helper.VenueInvitation (accountInvitationConflictMessage,
                                            activeVenueInvitationsForEmail,
                                            registeredInvitationAccountExists)
-import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
-                                                     venueOnboardingInvitationLifetime)
+import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
@@ -23,18 +21,15 @@ import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
 import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
                                        publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
-import Application.Support.LiveUpdates
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnosticError (..),
                                                fetchXeroTimesheetDiagnostic)
-import Control.Monad (forM, forM_, guard, void)
+import Control.Monad (guard, void)
 import Data.Char (isControl)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import qualified Data.UUID as UUID
 import qualified Network.HTTP.Types.URI as URI
 import Text.Read (readMaybe)

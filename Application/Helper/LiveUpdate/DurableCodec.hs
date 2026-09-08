@@ -25,7 +25,6 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LazyByteString
 import Data.Scientific (Scientific)
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 

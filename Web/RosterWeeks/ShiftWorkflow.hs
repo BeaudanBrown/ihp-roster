@@ -25,15 +25,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeI
 import Application.Helper.Controller
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
-                                     isValidRosterShiftTimePair,
-                                     rosterShiftStartDate, venueShiftTimeAllows,
-                                     venueShiftTimeIntervalMinutes,
-                                     venueShiftTimeValidationMessage,
-                                     venueTimePickerFinalSelectableTimeText,
-                                     venueTimePickerStartTimeText)
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
@@ -41,8 +33,6 @@ import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust)
-import qualified Data.Set as Set
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup

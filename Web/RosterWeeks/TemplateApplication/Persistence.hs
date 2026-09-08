@@ -6,8 +6,7 @@ module Web.RosterWeeks.TemplateApplication.Persistence
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
-import Application.RosterShiftAssignment (RosterShiftAssignment (..),
-                                          applyRosterShiftAssignment)
+import Application.RosterShiftAssignment (applyRosterShiftAssignment)
 import Application.RosterTemplates (RosterTemplateActor,
                                     replaceRosterTemplateContentInCurrentTransaction,
                                     rosterTemplateActorUserId, snapshotColumns,

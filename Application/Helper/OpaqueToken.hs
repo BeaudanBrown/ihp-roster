@@ -11,7 +11,6 @@ import "crypton" Crypto.Random (getRandomBytes)
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Base64 as Base64
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import IHP.Prelude
 

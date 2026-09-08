@@ -7,7 +7,7 @@ import Config
 import IHP.FrameworkConfig
 import IHP.RouterSupport
 import qualified IHP.Server
-import Web.FrontController
+import Web.FrontController () -- Mounted controller instance.
 import Web.Types
 
 instance FrontController RootApplication where

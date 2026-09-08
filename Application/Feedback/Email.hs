@@ -7,7 +7,6 @@ import Application.Helper.Mail
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (ConfigProvider)
 import Web.Mail.FeedbackNotification
 import Web.Routes ()
 import Web.Types

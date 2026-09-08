@@ -8,8 +8,6 @@ module Application.Helper.View.Format
 
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.ViewPrelude
 
 -- Compatibility re-export for existing views. Non-view modules should import

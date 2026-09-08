@@ -10,7 +10,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types
 
 data XeroReferenceTrustState = XeroReferenceTrustState
     { trustDecision      :: !XeroReferenceTrustDecision

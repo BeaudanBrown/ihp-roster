@@ -14,7 +14,6 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOob, successToast)
 import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateDefault))
-import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedStaffPayRateSelectionValue)

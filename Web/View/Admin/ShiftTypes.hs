@@ -16,9 +16,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum (..),
-                                            shiftTypeColourKeyCssValue)
-import Application.Helper.SurfaceResource
+import Application.Helper.ShiftTypeColours (shiftTypeColourKeyCssValue)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   shiftPayAssignmentRequiresRemediation)
 import Application.PayRateSelection (ShiftTypePayRateSelection (..))

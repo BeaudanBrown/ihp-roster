@@ -19,14 +19,11 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionAttrs,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View.Overlay
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
-import Data.Kind (Type)
 import qualified Data.List as List
 import Data.Text.Encoding (decodeUtf8)
-import Data.Typeable (Typeable)
 import Web.View.Prelude
 
 data PayrollWorkbookConfigurationDraft = PayrollWorkbookConfigurationDraft

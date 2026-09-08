@@ -22,7 +22,6 @@ import Application.Error.Startup (startupInvariantFailure)
 import Application.Error.Types
 import Application.Error.Types.Internal (mkAppError)
 import Application.Helper.FrontendContract.Naming (nameToKebab)
-import Data.Kind (Type)
 import qualified Data.Text as Text
 import Data.Typeable (tyConModule, tyConName, typeRep, typeRepTyCon)
 import GHC.Generics

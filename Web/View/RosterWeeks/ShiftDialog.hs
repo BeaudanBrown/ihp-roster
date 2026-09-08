@@ -19,23 +19,14 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
-import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
-                                defaultDialogOverlayConfig,
-                                defaultOverlayButtons, renderDialogOverlay,
-                                staffDisplayName)
 import Application.Helper.View.TimeOccurrence
-import Application.Helper.View.TimePicker (defaultTimePickerConfig,
-                                           optionalTimeOfDayToStorageValue,
-                                           renderTimePickerField)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           rosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (isJust)
 import qualified Data.Set as Set
-import Data.UUID (UUID)
 import Web.RosterWeeks.Paths (rosterDeleteSlotConfirmationUrl)
 import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude

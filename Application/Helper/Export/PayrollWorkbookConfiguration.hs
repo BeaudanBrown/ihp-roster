@@ -32,7 +32,6 @@ import qualified Data.Text as Text
 import Data.Traversable (traverse)
 import qualified Generated.Types as Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport.Types (HasqlSessionError)
 
 -- | Boundary input remains textual so unsupported persisted/UI values are
 -- rejected by the same total parser used by workbook definitions.

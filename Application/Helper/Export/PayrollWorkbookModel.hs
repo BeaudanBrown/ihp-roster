@@ -15,13 +15,9 @@ import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
 import Application.VenueTime.Model (civilBoundaryIsRepeated)
 import Application.WageEngine
-import Control.Monad (foldM, when)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Ord (Down (..))
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 

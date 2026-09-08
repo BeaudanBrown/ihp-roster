@@ -39,13 +39,9 @@ import Application.Helper.View.ToggleButton
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (LocalTime (..))
 import Generated.Types
 import IHP.ControllerSupport (ControllerContext)
 import IHP.ViewPrelude
-import Web.Types
 
 data TimesheetFormOrigin
     = AdHocTimesheetForm

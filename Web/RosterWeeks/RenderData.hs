@@ -34,9 +34,7 @@ import Application.RosterTemplates (RosterTemplateLibrary,
 import Application.VenueTime.Model (decodeRosterShiftTiming,
                                     decodeTimesheetTiming)
 import Data.Coerce (coerce)
-import Data.List (find)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (isNothing)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
@@ -45,9 +43,7 @@ import Web.RosterWeeks.Capabilities
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
                                   rosterWindowScopeMatchesConfig)
 import Web.RosterWeeks.DirectReadModel
-import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.Rows
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.WageFilter (filterRosterWageSlots,

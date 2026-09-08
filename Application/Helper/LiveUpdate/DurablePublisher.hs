@@ -12,7 +12,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.UUID (UUID)
 import Database.PostgreSQL.Simple (Only (..))
 import GHC.Clock (getMonotonicTimeNSec)
 import IHP.ModelSupport (unsafeSqlExec, unsafeSqlQuery, unsafeSqlQueryScalar, withTransaction)

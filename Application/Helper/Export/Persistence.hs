@@ -6,8 +6,6 @@ import Application.Helper.Export.Types
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 

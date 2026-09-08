@@ -22,9 +22,7 @@ import Application.Helper.Profiling
 import Application.PayAssignment (PayAssignmentScope (..), PayReferenceRequirement (..), payAssignmentModesRequiring)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
-import Data.List (nubBy)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (mapMaybe)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
@@ -34,7 +32,6 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
-import Web.RosterWeeks.Types
 
 fetchRosterNotificationWindowDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO [RosterDay]
 fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =

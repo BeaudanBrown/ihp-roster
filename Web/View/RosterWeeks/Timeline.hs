@@ -11,7 +11,6 @@ import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as 
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInteractionShellConfig (..),
                                                             renderFrontendSurfaceInteractionShell,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.Profiling (profileHtmlComponent)
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
 import Application.RosterShiftAssignment (rosterShiftIsOpen,
                                           rosterShiftIsStaffAssigned)
@@ -21,13 +20,8 @@ import Application.VenueTime.Model (RosterShiftIntegrityError,
                                     rosterShiftTimingEndTime,
                                     rosterShiftTimingStartTime)
 import Data.Fixed (Pico)
-import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
-import qualified Data.Time.Calendar as Calendar
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
                                   laneForOperationalDate, rosterWindowLaneName)

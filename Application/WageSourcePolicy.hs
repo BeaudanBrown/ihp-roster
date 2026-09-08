@@ -32,9 +32,6 @@ import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day, DayOfWeek, addDays, dayOfWeek, fromGregorian,
-                           toGregorian)
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime)
 import IHP.Prelude
 
 newtype PolicyClock = PolicyClock

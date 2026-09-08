@@ -2,11 +2,9 @@
 
 module Application.Helper.View.Status where
 
-import Application.Helper.JobStatus (jobStatusLabel)
 import qualified Data.Text as Text
 import Generated.Types (InvitationDeliveryStatusEnum (..),
                         InvitationStatusEnum (..))
-import IHP.Job.Types (JobStatus (..))
 import IHP.ViewPrelude
 
 data AppStatusTone

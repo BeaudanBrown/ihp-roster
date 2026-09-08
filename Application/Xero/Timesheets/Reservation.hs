@@ -22,19 +22,16 @@ import Application.Xero.WorkflowState (xeroSubmissionIsInProgress,
                                        xeroSubmissionIsSuperseded,
                                        xeroSubmissionRunStatusFromStatuses)
 import qualified Control.Exception as Exception
-import Control.Monad (forM, guard, void)
+import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (NominalDiffTime, diffUTCTime)
 import Data.Traversable (traverse)
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport.Types (HasqlSessionError (..))
 
 data XeroTimesheetReservation = XeroTimesheetReservation
     { reservationConnectionId       :: !UUID

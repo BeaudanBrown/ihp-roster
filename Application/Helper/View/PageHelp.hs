@@ -14,7 +14,6 @@ module Application.Helper.View.PageHelp
     , renderPageHelpBody
     ) where
 
-import qualified Data.Text as Text
 import IHP.ViewPrelude
 
 newtype PageHelpTopicId = PageHelpTopicId { pageHelpTopicIdToText :: Text }

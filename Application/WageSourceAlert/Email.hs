@@ -9,7 +9,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (ConfigProvider)
 import Web.Mail.WageSourceAlert
 import Web.Routes ()
 import Web.Types

@@ -2,7 +2,6 @@ module Application.RosterPublication
     ( rosterDaysArePublished
     ) where
 
-import Data.List (nub)
 import Generated.Types
 import IHP.Prelude
 

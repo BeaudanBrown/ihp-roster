@@ -22,17 +22,12 @@ module Web.Controller.Prelude
 where
 
 import Application.Bepis.Prelude
-import Application.Bepis.Response (bepisFileResponse, bepisHtmlResponse,
-                                   bepisHtmxFragmentResponse, bepisJsonResponse,
-                                   bepisRedirectResponse)
 import Application.Error.Boundary (respondAndStop,
                                    terminateAfterIhpResponseControl)
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry
 import qualified Data.Aeson as Aeson
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Typeable (Typeable)
 import Generated.Types
 import IHP.ControllerPrelude hiding (ensureIsUser, redirectTo, redirectToPath,
                               redirectToPathSeeOther, redirectToSeeOther,
@@ -40,7 +35,6 @@ import IHP.ControllerPrelude hiding (ensureIsUser, redirectTo, redirectToPath,
                               renderFile, renderJson, renderJsonWithStatusCode,
                               respondHtml)
 import qualified IHP.ControllerPrelude as IHP
-import IHP.Router.UrlGenerator (HasPath)
 import qualified IHP.ViewSupport as ViewSupport
 import Network.HTTP.Types.Status (Status, status400)
 import qualified Network.Wai as Wai

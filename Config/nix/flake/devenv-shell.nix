@@ -30,6 +30,8 @@
                     pkgs.esbuild
                     pkgs.typescript
                     pkgs.haskellPackages.weeder
+                    # Verification-only root evidence (stdlib TOML/JSON); not a runtime dependency.
+                    pkgs.python3
                     pkgs.mailhog
                     pkgs.poppler-utils
                     # Verification-only spreadsheet recalculation; excluded from ihp-app/production.

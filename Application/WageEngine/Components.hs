@@ -28,8 +28,6 @@ import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (diffUTCTime)
 import Data.Traversable (traverse)
 import IHP.Prelude
 

@@ -12,12 +12,9 @@ module Web.Billing.FrontendSurface
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as SurfaceLive
-import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
-                                                         SurfaceScope,
-                                                         surfaceScopeKey)
+import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)

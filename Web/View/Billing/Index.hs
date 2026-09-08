@@ -17,7 +17,6 @@ import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.JobStatus (jobStatusHasDiagnostic, jobStatusLabel)
 import qualified Data.Text as Text
-import Data.Time.Clock (utctDay)
 import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     billingSurfaceImpl,
                                     currentBillingScopeValue)

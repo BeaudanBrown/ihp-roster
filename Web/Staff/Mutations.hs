@@ -12,10 +12,6 @@ module Web.Staff.Mutations
     , updateStaffMember
     ) where
 
-import Application.Helper.Audit (AuditEventType (..), AuditSourceChannel (..),
-                                 recordCurrentUserAuditEvent,
-                                 recordCurrentUserLeaveRequestEvent,
-                                 updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (archivedLeaveRequestsResource,
                                                                            deniedLeaveRequestsResource,
@@ -33,7 +29,6 @@ import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
 import Application.Helper.SurfaceResource
-import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.Helper.VenueInvitation (accountInvitationConflictMessage,
                                            activeVenueInvitationsForEmail,
                                            activeVenueOnboardingInvitationsForEmail,
@@ -51,9 +46,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
-import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
 import Web.SurfaceInvalidation (withDurableLiveMutation,

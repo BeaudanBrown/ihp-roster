@@ -40,11 +40,9 @@ module Web.RosterWeeks.FrontendSurface
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
-                                                         SurfaceScope,
-                                                         surfaceScopeKey)
+                                                         SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Request.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
@@ -54,7 +52,6 @@ import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Map.Strict as Map
-import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import Generated.Types
 import Web.Controller.Prelude

@@ -9,7 +9,6 @@ import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Application.VenueTime.Model (decodeRosterShiftTiming,
                                     rosterShiftTimingElapsedSeconds)
 import Data.Coerce (coerce)
-import Data.List (nub)
 import qualified Data.Map.Strict as Map
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude

@@ -7,10 +7,8 @@ import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.WageEngine
 import Application.Xero.PayrollSourceKey (sourceRateSuffix)
 import qualified Data.Map.Strict as Map
-import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (inputValue, unpackId)
 
 data XeroComponentBucketContext = XeroComponentBucketContext
     { bucketStaffPayVersions     :: !(Map.Map UUID StaffPayVersion)

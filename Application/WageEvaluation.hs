@@ -22,12 +22,8 @@ import Application.WageSourcePolicy
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, toGregorian)
-import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unpackId)
-import IHP.Prelude
 
 data WageSubjectKey
     = TimesheetSubject !UUID

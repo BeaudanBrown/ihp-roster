@@ -42,7 +42,6 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncVenueDefaultRosterGroupToTopActive)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource
-import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.PayAssignment (selectableShiftAssignmentMode)
@@ -52,8 +51,6 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Admin.RosterWindowStartDay
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude

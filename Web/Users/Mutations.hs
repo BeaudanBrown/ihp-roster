@@ -17,8 +17,6 @@ import Application.Helper.VenueBootstrap (ensureLinkedStaffRecord,
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day)
-import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
 

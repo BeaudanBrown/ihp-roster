@@ -7,7 +7,6 @@ import Application.FwcMapd.Validation (expectedCoreClassificationFixedIds)
 import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withProviderTelemetrySpan)
 import Application.Helper.Telemetry.Semantic (httpStatusClass)
-import qualified Control.Exception as Exception
 import Control.Monad (foldM)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson

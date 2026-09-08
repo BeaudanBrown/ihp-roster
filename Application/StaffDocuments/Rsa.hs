@@ -29,8 +29,6 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time.Calendar (addDays, diffDays)
-import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
 

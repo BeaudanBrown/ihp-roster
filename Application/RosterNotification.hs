@@ -36,10 +36,8 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
 import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (..))
 
 rosterNotificationMailKind :: Text
 rosterNotificationMailKind = "roster_notification_v1"

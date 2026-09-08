@@ -8,10 +8,6 @@ import Application.VenueTime.Model (AuthoritativeBoundaries, BoundaryModelError,
 import Control.Monad (guard)
 import Data.Fixed (Pico)
 import Data.Either (fromRight)
-import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.Time.Clock (UTCTime (..), getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 

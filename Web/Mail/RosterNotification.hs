@@ -6,7 +6,6 @@ import Application.RosterNotification
 import Application.VenueTime.Model (storedInstantLocalTime)
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.MailPrelude
 import qualified IHP.HSX.Markup as Markup
 import Web.Mail.Shared

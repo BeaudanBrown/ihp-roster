@@ -24,7 +24,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionLink)
 import Application.Helper.View.PageHelp (PageHelpTopicId, pageHelpTopicIdToText)
 import qualified Data.Text as Text
-import Generated.Types
 import IHP.ViewPrelude
 import Web.Routes ()
 import Web.Types

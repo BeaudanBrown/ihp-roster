@@ -66,7 +66,6 @@ import Application.Helper.Telemetry (addTelemetryAttributes,
 import Application.Helper.Telemetry.Semantic (httpStatusClass,
                                               telemetryHttpMethod)
 import Application.Helper.Xero.Types
-import Control.Applicative ((<|>))
 import qualified Control.Exception as Exception
 import qualified Control.Exception.Safe as SafeException
 import Control.Monad (guard)
@@ -76,27 +75,17 @@ import "crypton" Crypto.Error (CryptoError, CryptoFailable (..))
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.Random (getRandomBytes)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
-import Data.Char (isDigit)
 import Data.Either (isRight)
 import qualified Data.IORef as IORef
-import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Text.Encoding.Error (lenientDecode)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime, utctDay)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import qualified Data.Time.Format as TimeFormat
-import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple
 import Network.HTTP.Types.Header (HeaderName, hRetryAfter)

@@ -3,7 +3,6 @@ module Application.Helper.FrontendContract.Surface.AuthorizationRequirement
     , authorizeSurfaceScopeRequirement
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude

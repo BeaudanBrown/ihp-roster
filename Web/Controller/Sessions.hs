@@ -2,7 +2,6 @@ module Web.Controller.Sessions where
 
 import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecipient)
 import Application.AccountSecurityEmail.Mutations (withEmailVerificationTokenLock)
-import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              issueEmailVerificationWithCooldown)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode (..),
@@ -14,7 +13,6 @@ import Application.Helper.SessionVersion (clearAuthenticatedSessionVersion,
 import Control.Exception (evaluate)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import IHP.AuthSupport.Authentication (verifyPassword)
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport

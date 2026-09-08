@@ -5,7 +5,6 @@ module Web.View.StaffDocuments.Rsa
     , rsaStaffDisplayName
     ) where
 
-import Application.StaffDocuments.Rsa
 import qualified Data.Text as Text
 import Web.View.Prelude
 

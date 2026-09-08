@@ -46,11 +46,8 @@ import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.EnvVar (envOrDefault)
-import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Mail (sendMail)
 import IHP.MailPrelude (BuildMail)
-import IHP.ModelSupport (withTransaction)
 import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 

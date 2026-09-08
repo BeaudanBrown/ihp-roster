@@ -15,10 +15,8 @@ import Application.Error.Boundary (withSynchronousAppErrorFallback)
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types (AppResult)
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
-import Application.Helper.VenueScopedQueries
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
-import Application.Helper.XeroPayItems
 import Application.WageEngine (EarningsComponent (sourceCondition),
                                SourceCondition (ImportedFlatRateCondition),
                                WageCalculation (earningsComponents))
@@ -37,7 +35,6 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 

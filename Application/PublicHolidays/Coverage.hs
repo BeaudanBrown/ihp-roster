@@ -9,8 +9,6 @@ import Application.PublicHolidays.Policy (publicHolidayFreshnessWarningAge,
                                           targetPublicHolidayYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import qualified Data.Map.Strict as Map
-import Data.Time.Calendar (toGregorian)
-import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
 

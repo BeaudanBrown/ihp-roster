@@ -21,7 +21,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.Url (appendQueryParams)
 import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
                                            rosterLayoutModeLabel,
                                            rosterLayoutModeValue,
@@ -29,8 +28,7 @@ import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
 import Application.RosterNotification (RosterNotificationAudience (..),
                                        RosterNotificationPanelData (..),
                                        RosterNotificationRunSummary (..))
-import Data.Time.Calendar (addDays)
-import Web.RosterWeeks.Dom (rosterEmailButtonId, rosterWeekShellId)
+import Web.RosterWeeks.Dom (rosterEmailButtonId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterOwnLiveShiftHighlightPreferenceUrl,

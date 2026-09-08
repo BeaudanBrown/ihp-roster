@@ -3,8 +3,6 @@ module Application.Helper.Export.Definitions where
 import Application.Helper.Controller
 import Application.Helper.Export.Render (fallbackReportDayLabels)
 import Application.Helper.Export.Types
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 

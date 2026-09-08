@@ -11,13 +11,11 @@ import Application.FwcMapd.Validation
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
 import Application.Helper.SurfaceResource (liveMutationResult,
                                            liveMutationValue)
-import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
 import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 fetchAndStore :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary

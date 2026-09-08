@@ -2,7 +2,6 @@
 
 module Application.Helper.ControllerSupport where
 
-import Data.List (find)
 import Generated.Types
 import IHP.ControllerPrelude
 

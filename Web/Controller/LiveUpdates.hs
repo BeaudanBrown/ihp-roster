@@ -4,7 +4,6 @@ import Application.Helper.Controller
 import Application.Helper.FrontendContract.Surface.Authorization (validateFrontendSurfaceLiveSubscription)
 import Application.Helper.LiveUpdate.DurableState (fetchDurableDependencyWatermark)
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.Telemetry (withLiveUpdateTelemetrySpan)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.UUID as UUID

@@ -30,12 +30,8 @@ import Application.Helper.FrontendContract.DSL (FrontendContract (..),
                                                 GlobalPrimitive (..))
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import Application.Helper.FrontendContract.IR
-import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (ActionName),
-                                                   deriveFrontendSurfaceTypeName)
 import Application.Helper.FrontendContract.Reflect (ReflectAppShellActionPrimitive (..))
 import Application.Helper.FrontendContract.Registry (RegisteredFrontendContracts)
-import Data.Kind (Type)
-import Data.Typeable (Typeable)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 import IHP.ViewPrelude
 import qualified IHP.HSX.Markup as Markup

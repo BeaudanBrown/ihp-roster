@@ -22,7 +22,6 @@ import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoJson)
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectCompleteSetSortPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Values
-import Data.Typeable (Typeable)
 import IHP.Prelude
 
 surfaceCompleteSetSortRootAttrs ::

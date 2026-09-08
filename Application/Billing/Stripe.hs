@@ -62,7 +62,6 @@ import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
 import Data.Either (isRight)
 import qualified Data.IORef as IORef
-import qualified Data.List as List
 import qualified Data.Text as Text hiding (show)
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO

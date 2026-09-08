@@ -103,7 +103,7 @@ import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Typeable (Typeable, tyConModule, tyConName, typeRep, typeRepTyCon)
+import Data.Typeable (tyConModule, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
 -- | Declaration kind is part of the Haskell type of every home and checked

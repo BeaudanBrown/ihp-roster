@@ -15,9 +15,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
-import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
 import Web.RosterWeeks.Dom (rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (rosterDeleteShiftDropzoneRef)

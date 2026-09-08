@@ -22,13 +22,9 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, toGregorian)
-import Data.Time.Clock (getCurrentTime)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unpackId)
-import IHP.Prelude
 
 data WageEntryFailure
     = WageCalculationFailed !UUID !Text

@@ -11,8 +11,6 @@ import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValu
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotificationStatusResource)
 import Application.Helper.Mail
 import Application.RosterNotification
-import Data.List (find)
-import Data.Time.Calendar (addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.Mail.RosterNotification

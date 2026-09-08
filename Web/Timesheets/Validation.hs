@@ -18,7 +18,6 @@ module Web.Timesheets.Validation
     ) where
 
 import Application.Helper.Staff (isLinkedActiveStaff)
-import Application.Helper.TimeRules (calendarDayForOperationalClock)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -28,8 +27,6 @@ import Application.VenueTime.Model
 import qualified Control.Exception as Exception
 import Data.Either (fromRight)
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay)
 import qualified Data.UUID as UUID
 import qualified Prelude
 import Web.Controller.Prelude

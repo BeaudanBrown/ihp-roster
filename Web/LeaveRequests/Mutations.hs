@@ -19,8 +19,6 @@ import Application.UnavailabilityBlackout.Mutations (findOverlappingUnavailabili
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
-import Data.Time.Clock (getCurrentTime, utctDay)
-import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 

@@ -12,8 +12,6 @@ import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Text.IO as TextIO
-import Data.Time.Clock (diffUTCTime, getCurrentTime)
-import Data.UUID (UUID)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Notification as Notification
 import qualified Database.PostgreSQL.Simple.Transaction as Transaction

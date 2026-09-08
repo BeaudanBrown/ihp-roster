@@ -33,14 +33,10 @@ import Application.RosterTemplates.Mutations (lockRosterTemplateCaptureGroup,
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Control.Monad (guard)
 import qualified "crypton" Crypto.Hash as Hash
-import Data.List (nubBy, sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (addDays, diffDays)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
-import Data.UUID (UUID)
 import Generated.Types hiding (createRosterTemplate)
 import IHP.ControllerPrelude
 import Web.RosterWeeks.DateRange

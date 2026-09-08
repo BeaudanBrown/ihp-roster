@@ -7,7 +7,6 @@ import Control.Monad (guard)
 import qualified Data.List as List
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.Prelude
 

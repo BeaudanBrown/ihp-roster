@@ -35,8 +35,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime)
 import qualified Data.Vector as Vector
 import Generated.Types
 import IHP.ControllerPrelude

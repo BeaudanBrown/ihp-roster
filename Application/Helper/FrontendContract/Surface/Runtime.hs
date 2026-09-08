@@ -59,19 +59,10 @@ import qualified Application.Helper.FrontendContract.Surface.Live as Live
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectFragmentPrimitive,
                                                             ReflectScopePrimitive,
                                                             ReflectSurfaceSpec)
-import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction (..),
                                                                     FrontendSurfaceHtmxMethod (..),
-                                                                    FrontendSurfaceHtmxRequest,
-                                                                    FrontendSurfaceIntentForm,
-                                                                    frontendSurfaceActionFieldPairs,
-                                                                    frontendSurfaceActionIR,
-                                                                    htmxRequestMethod,
-                                                                    htmxRequestSwap,
-                                                                    htmxRequestTarget,
-                                                                    htmxRequestUrl,
-                                                                    intentFormFields,
-                                                                    intentFormName,
-                                                                    intentFormSubmit)
+                                                                    FrontendSurfaceHtmxRequest (htmxRequestMethod, htmxRequestSwap, htmxRequestTarget, htmxRequestUrl),
+                                                                    FrontendSurfaceIntentForm (..))
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.LiveUpdate.DurableState (currentDurableDependencyWatermark)
 import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..))
@@ -84,7 +75,6 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
-import Data.Typeable (Typeable)
 import IHP.ViewPrelude
 import System.IO.Unsafe (unsafePerformIO)
 import qualified IHP.HSX.Markup as Markup

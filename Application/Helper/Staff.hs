@@ -10,7 +10,6 @@ module Application.Helper.Staff
     , staffDisplayBaseName
     ) where
 
-import Data.List (sortBy)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.Prelude

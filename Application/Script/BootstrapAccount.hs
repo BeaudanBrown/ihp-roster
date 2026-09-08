@@ -6,7 +6,6 @@ import qualified Control.Exception as Exception
 import Control.Monad (guard, void)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Generated.Types
 import System.Environment (lookupEnv)
 
 data BootstrapConfig = BootstrapConfig

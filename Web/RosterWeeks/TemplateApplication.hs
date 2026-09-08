@@ -36,10 +36,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (addDays, diffDays)
-import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
-import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.RosterWeeks.Service (validateRosterSlotForPersistence)

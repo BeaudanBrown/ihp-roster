@@ -31,7 +31,6 @@ module Web.Timesheets.Projection
     , windowStartFromParamOrCurrent
     ) where
 
-import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -39,9 +38,6 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action a
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
-import Application.Helper.TimeRules (venueShiftTimeIntervalMinutes,
-                                     venueTimePickerFinalSelectableTimeText,
-                                     venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowApproved,
                                            userTimesheetShowSuggestions,
@@ -49,7 +45,6 @@ import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds,
                                               fetchLinkedActiveVenueStaff)
 import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -60,7 +55,6 @@ import Application.VenueTime.Model
 import Control.Monad (guard)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude

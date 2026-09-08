@@ -14,7 +14,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm,
                                                              renderAppShellActionLink)
-import Data.Time.Clock (diffUTCTime)
 import Web.View.Prelude
 
 renderPasskeyManagement :: UTCTime -> [Passkey] -> Text -> Html

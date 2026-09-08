@@ -61,6 +61,14 @@ while IFS= read -r -d '' hie_file; do
         rm -f "$hie_file"
     fi
 done < <(find "$hie_dir" -type f -name '*.hie' -print0)
+# The advisory snapshots this same source inventory before compilation. It must
+# never reuse a success report after a failed capture or interrupted analysis.
+advisory_snapshot="$weeder_build_dir/reachability-inputs.json"
+advisory_report="$weeder_build_dir/reachability-advisory.json"
+rm -f "$advisory_report" "$advisory_snapshot"
+if ! python3 scripts/weeder-reachability.py snapshot "$source_inventory" "$advisory_snapshot"; then
+    echo "weeder-check: advisory snapshot unavailable; complete gate remains authoritative" >&2
+fi
 # shellcheck disable=SC2086 # ghc_opts is an intentional argument vector.
 ghc -fno-code $ghc_opts "${source_files[@]}" \
     -hidir "$weeder_build_dir/hi" \
@@ -83,6 +91,13 @@ fi
 
 if [[ "${WEEDER_PRINT_CANDIDATES:-0}" == "1" ]]; then
     grep '^main: ' "$output_file" || true
+fi
+
+if ! python3 scripts/weeder-reachability.py report \
+    --snapshot "$advisory_snapshot" --hie "$hie_dir" \
+    --full-output "$output_file" --output "$advisory_report"; then
+    rm -f "$advisory_report"
+    echo "weeder-check: advisory unavailable; complete gate remains authoritative" >&2
 fi
 
 "${BEPIS_SCRIPTS_ROOT:?}/haskell/weeder-policy" \

@@ -3,15 +3,11 @@
 
 module Application.Helper.StaffShiftPreferences where
 
-import Application.Helper.Controller (currentVenueId)
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
                                           weekdayIndexLabel)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
 import Text.Read (readMaybe)
 
 data ShiftPreferenceSelection = ShiftPreferenceSelection

@@ -24,19 +24,17 @@ module Application.Helper.FrontendContract.Values
     , lookupEnumLiteralValue
     ) where
 
-import Application.Helper.FrontendContract.DSL (BrowserReachability,
-                                                FrontendContract (..),
+import Application.Helper.FrontendContract.DSL (FrontendContract (Global),
                                                 FrontendContractSpec,
-                                                GlobalPrimitive (..),
-                                                SchemaPrimitive (..))
+                                                GlobalPrimitive (Constant, DomAttr, DomId, Event, GlobalSchema, ServerDomAttr, ServerDomId),
+                                                SchemaPrimitive (Enum))
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Naming (deriveDomAttributeName,
                                                    deriveEventName, nameToKebab)
 import Application.Helper.FrontendContract.Registry (RegisteredFrontendContracts,
                                                      checkedRegisteredFrontendContract)
-import Data.Kind (Type)
-import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, TypeError, symbolVal)
+import Data.Typeable (tyConName, typeRep, typeRepTyCon)
+import GHC.TypeLits (ErrorMessage (ShowType, Text, (:<>:)), TypeError)
 import IHP.Prelude
 
 data PrimitiveSearch

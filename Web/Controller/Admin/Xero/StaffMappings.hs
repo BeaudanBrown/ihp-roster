@@ -22,7 +22,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Set as Set
 import Generated.Types
-import IHP.Job.Types
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 import Web.View.Admin.Xero.StaffMappingDialog

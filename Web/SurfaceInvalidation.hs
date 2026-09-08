@@ -10,7 +10,6 @@ module Web.SurfaceInvalidation
     , planSurfaceInvalidationsWithoutContext
     ) where
 
-import Application.Bepis.Fact (BepisLiveMechanism (..))
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
@@ -24,10 +23,7 @@ import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
-import Control.Monad (forM_)
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day)
-import Data.UUID (UUID)
 import GHC.Clock (getMonotonicTimeNSec)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (expandRosterSurfaceResourcesWithoutContext)

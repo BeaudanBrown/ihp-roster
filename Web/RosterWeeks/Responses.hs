@@ -23,7 +23,6 @@ module Web.RosterWeeks.Responses
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
-import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -55,7 +54,6 @@ import Web.RosterWeeks.Projection (RosterMutationProjection (..),
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftEditCompletion (..))
 import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
                                    fetchVisibleRosterReadModel,
-                                   renderRosterProjectionFragmentWithMode,
                                    renderVisibleRosterReadModelFragment,
                                    rosterGridRenderModelFromProjection)
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),

@@ -1,6 +1,5 @@
 module Web.Controller.Users where
 
-import Application.Helper.Controller (defaultRosterWeekStartsOn)
 import Application.Helper.Export.PayrollWorkbookConfiguration (createStandardPayrollWorkbookConfigurationInCurrentTransaction)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
@@ -11,7 +10,6 @@ import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
                                           provisionVenueMembership)
 import Application.Helper.VenueInvitation (venueInvitationIsActive)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
-import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
 import Application.VenueInvitation.Mutations (withVenueInvitationAcceptanceLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Control.Monad (void)

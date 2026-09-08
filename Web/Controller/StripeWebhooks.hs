@@ -3,7 +3,7 @@ module Web.Controller.StripeWebhooks where
 import Application.Billing.Stripe
 import Application.Billing.Webhook
 import Application.Helper.SurfaceResource (SurfaceResourceValue)
-import Control.Exception (SomeException, try)
+import Control.Exception (try)
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as TextEncoding
 import Network.HTTP.Types.Status (Status, status400, status500)

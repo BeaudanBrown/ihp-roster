@@ -8,13 +8,11 @@ import Application.Async.Error
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Telemetry (recordAppError)
 import Application.Error.Types
-import Control.Exception (Exception (..))
 import qualified Control.Exception as BaseException
 import qualified Control.Exception.Safe as Exception
 import IHP.ModelSupport (HasqlError)
 import IHP.Prelude
 import Prelude (Show (..))
-import qualified Prelude
 
 -- This is the only exception Bepis deliberately exposes to IHP's AppJob
 -- worker. Its Show instance contains only the already-sanitized projection.

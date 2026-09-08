@@ -25,17 +25,13 @@ module Web.RosterWeeks.DateRange
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
-import Data.List (foldl', sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Generated.Types
 import Web.Controller.Prelude

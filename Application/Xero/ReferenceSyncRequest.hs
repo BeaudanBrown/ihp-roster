@@ -19,7 +19,6 @@ import qualified Data.IORef as IORef
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types
 import System.IO.Unsafe (unsafePerformIO)
 
 inlineXeroReferenceSyncRequestsForTestRef :: IORef.IORef Bool

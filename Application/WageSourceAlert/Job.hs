@@ -26,11 +26,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (DayOfWeek (..), fromGregorian, toGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
-import IHP.ModelSupport (withTransaction)
 
 
 wageSourceHealthCheckJobKind :: Text

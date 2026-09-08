@@ -18,7 +18,7 @@ import Application.Error.Boundary (appErrorRequestKind,
                                    withSynchronousAppErrorFallback)
 import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withTelemetrySpanAttributes)
-import Data.Data (Data, showConstr, toConstr)
+import Data.Data (Data (toConstr), showConstr)
 import GHC.Generics (Generic)
 import IHP.ControllerSupport (Respond)
 import IHP.Prelude

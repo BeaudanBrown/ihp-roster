@@ -13,13 +13,10 @@ module Web.LeaveRequests.ReadModel
     , renderLeaveRequestsFragmentFromReadModel
     ) where
 
-import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
-import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
-import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
@@ -28,7 +25,6 @@ import Application.Helper.Staff (isTrialStaff)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude

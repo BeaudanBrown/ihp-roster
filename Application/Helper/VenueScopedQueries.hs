@@ -7,7 +7,6 @@ module Application.Helper.VenueScopedQueries
     ) where
 
 import Application.Helper.Staff (sortStaffForDisplay)
-import Data.List (sortOn)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude

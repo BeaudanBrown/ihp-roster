@@ -131,6 +131,45 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
+## Compiler Warning And Reachability Evidence
+
+`application-warnings` first builds dependency interfaces, then forces each
+inventoried, non-generated production subject in an isolated one-shot GHC
+session. Warning flags alone do not invalidate those interfaces; a multi-file
+forced `-c` session can load a subject's cached instances before compiling it
+and report duplicate instances. Generated/dependency code remains interface-only
+in the strict pass. Real compiler fixtures cover both cold and warm caches.
+
+Unused imports are errors. Required controller/AutoRoute instance imports say
+`()` explicitly; marker/type imports remain normal compiler-checked uses.
+Totality rejects incomplete patterns, single-pattern bindings, record updates
+and **record-selector uses**, including unsaturated selectors and record-dot
+`getField`. GHC 9.10's `incomplete-record-selectors` replaces the previously
+ineffective declaration-level `partial-fields` rule: IHP routes and wire sums
+require constructor-local labels, not unsafe getters. Exhaustive constructor
+patterns remain valid; no route/JSON metadata or application ADTs change.
+
+`weeder-check` retains its complete source sweep, canonical `weeder.toml`,
+`unused-types=false` and baseline gate. It also emits
+`build/Verification/weeder/reachability-advisory.json` (under `WEEDER_BUILD_DIR`
+when overridden), reusing the same HIE rather than compiling another graph.
+Root-set comparisons distinguish production from test/development retention.
+Script ownership comes from the existing module/script/executable inventories;
+canonical roots are narrowed, never supplemented with blanket handwritten roots.
+Class/instance/generated category roots remain conservative/unknown. The report
+names source positions, root groups, category policy, revision and source/HIE
+hashes; it is not a call-path report or evidence that every test seam is dead.
+Framework-generated executable mains have no value mapping in the executable
+inventory and remain explicitly qualified, rather than inventing one.
+
+Source changes during compilation/analysis, missing or deleted-module HIE, and
+scanner errors replace old success with an unavailable report. Freshness relies
+on the owner's completed GHC sweep and unchanged source content across it, not
+mtime ordering: GHC can retain HIE for touched but byte-identical source. The
+snapshot/report helpers are phases of that owner, not a substitute for running
+the compiler. Advisory classifications never delete code or fail the complete gate. `verify-tooling` runs independent
+real-GHC/Weeder fixtures for these contracts once alongside warning fixtures.
+
 ## Authority Scanner Execution
 
 The frontend and typed-contract shell gates share `scripts/lib/authority-scan.sh`

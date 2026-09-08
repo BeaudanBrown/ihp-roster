@@ -13,6 +13,7 @@ production-build-budget-test
 
 echo "verify-tooling: checker parser and publication fixtures"
 weeder-policy-test
+node --test scripts/application-warnings.test.mjs scripts/weeder-reachability.test.mjs
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
 node --test scripts/authority-scan.test.mjs
 http-polling-policy-test

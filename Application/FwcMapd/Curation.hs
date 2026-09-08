@@ -8,7 +8,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
 
 data AwardYearScope
     = AllAwardYears

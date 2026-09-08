@@ -1,6 +1,5 @@
 module Web.Controller.Staff where
 
-import Application.Helper.Controller (parseVenueRole)
 import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
@@ -20,7 +19,6 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
                                 OverlayFormMode (HtmxOverlayForm),
@@ -30,15 +28,12 @@ import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
                                 renderDialogOverlay,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (selectableStaffAssignmentMode)
 import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateDefault))
 import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
                                   validateStaffAwardRateAvailability)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import IHP.HSX.Markup (Html)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),

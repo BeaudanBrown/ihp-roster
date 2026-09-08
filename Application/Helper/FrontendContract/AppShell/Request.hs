@@ -29,7 +29,6 @@ import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFieldHead,
                                                                 AssertSurfaceFieldsEnd,
                                                                 SurfaceFieldInputWire,
-                                                                SurfaceFieldPresence,
                                                                 SurfaceFieldsTail)
 import qualified Application.Helper.FrontendContract.Surface.DSL as Surface
 import Application.Helper.FrontendContract.Surface.Request (KnownSurfaceRequestFields,
@@ -41,12 +40,8 @@ import Application.Helper.FrontendContract.Surface.Values (ConsSurfaceField,
                                                            SurfaceFieldInput,
                                                            SurfaceFields,
                                                            declaredRequestFields,
-                                                           noDeclaredRequestFields,
-                                                           surfaceFieldsText)
+                                                           noDeclaredRequestFields)
 import Application.Helper.FrontendContract.TypeError (BepisTypeError)
-import Data.ByteString (ByteString)
-import Data.Kind (Type)
-import Data.Typeable (Typeable)
 import GHC.TypeLits (ErrorMessage (..))
 import IHP.Prelude
 import Network.Wai (Request)

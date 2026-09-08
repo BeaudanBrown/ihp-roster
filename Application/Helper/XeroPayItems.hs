@@ -22,11 +22,8 @@ import Control.Monad (void, zipWithM_)
 import qualified Data.List as List
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (inputValue, unpackId)
 
 deriveXeroPayItemRequirements ::
     WeekdayIndex ->

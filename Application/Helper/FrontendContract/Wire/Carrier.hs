@@ -73,12 +73,10 @@ import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Foldable (toList)
-import Data.Kind (Type)
-import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
-import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
+import Data.Typeable (tyConName, typeRep, typeRepTyCon)
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, symbolVal)
+import GHC.TypeLits (ErrorMessage (ShowType, Text, (:<>:)))
 import IHP.Prelude
 
 -- | Canonical recursive Haskell source type selected by a declared global wire.

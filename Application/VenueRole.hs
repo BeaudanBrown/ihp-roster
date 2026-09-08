@@ -10,7 +10,6 @@ module Application.VenueRole
     , venueRoleToText
     ) where
 
-import Data.List (find)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.Prelude

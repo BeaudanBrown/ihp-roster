@@ -6,8 +6,6 @@ module Web.Timesheets.WageEstimates
     , lookupTimesheetDayWageEstimate
     ) where
 
-import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
-                                      effectiveVenueRoleOrNothing)
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Application.WageEngine (FinalEarningsSummary (..), WageCalculation (..),
                                deriveFinalEarnings)
@@ -18,8 +16,6 @@ import Application.WageSourcePolicy (PolicyClock (..))
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Scientific as Scientific
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
 import Web.Timesheets.Suggestion
 

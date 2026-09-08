@@ -26,11 +26,7 @@ import Application.WageEngine
 import Control.Monad (foldM, zipWithM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Ord (Down (..))
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..), addLocalTime)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude

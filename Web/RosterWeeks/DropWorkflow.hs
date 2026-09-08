@@ -29,7 +29,6 @@ import Control.Monad (guard)
 import Data.Either (isRight)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.LocalTime (TimeOfDay)
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)

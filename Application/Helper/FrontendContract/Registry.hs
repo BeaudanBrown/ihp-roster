@@ -25,14 +25,12 @@ import Application.Helper.FrontendContract.Overlay
 import Application.Helper.FrontendContract.Passkey
 import Application.Helper.FrontendContract.PwaInstall
 import Application.Helper.FrontendContract.Reflect
-import Application.Helper.FrontendContract.Surface.ContractIR (SurfaceContractIR (..))
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectSurfaceRegistry (..))
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
 import Application.Helper.FrontendContract.TimePicker
 import Application.Helper.FrontendContract.Toggle
 import Application.Helper.FrontendContract.UiRegion
 import Application.Helper.FrontendContract.XeroCandidateFilter
-import Control.Exception (Exception)
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Text.IO as Text
 import IHP.Prelude

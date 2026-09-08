@@ -9,7 +9,6 @@ module Application.Error.Types.Internal
     , mkAppError
     ) where
 
-import Data.Time.Clock (NominalDiffTime)
 import GHC.Generics (Generic)
 import IHP.Prelude
 

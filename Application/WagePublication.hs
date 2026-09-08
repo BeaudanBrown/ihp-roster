@@ -14,8 +14,6 @@ import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Application.WageEngine
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Time.Clock (addUTCTime, diffUTCTime)
-import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.Prelude
 
 data PublishedEarningsLine = PublishedEarningsLine

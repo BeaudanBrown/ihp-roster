@@ -8,12 +8,10 @@ module Application.StaffDocuments.RsaExtraction
     ) where
 
 import Control.Category ((>>>))
-import Control.Exception (SomeException, try)
+import Control.Exception (try)
 import Data.Char (isAlphaNum, isDigit)
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import IHP.Prelude
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
