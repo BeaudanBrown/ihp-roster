@@ -3,6 +3,8 @@
 # Keep this structural and narrow: checked IR, generators, compile-failure tests,
 # enum-authority-check, and Weeder own semantic/completeness behavior.
 set -euo pipefail
+# shellcheck source=../lib/authority-scan.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/authority-scan.sh"
 
 repo_root="${TYPED_AUTHORITY_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
@@ -18,23 +20,10 @@ expect_no_match() {
     local pattern="$2"
     shift 2
     local matches
-    matches="$(mktemp)"
-    if rg --line-number --glob '!*.md' --glob '!**/Generated/**' "$pattern" "$@" >"$matches" 2>/dev/null; then
+    matches="$(authority_scan rg --line-number --glob '!*.md' --glob '!**/Generated/**' "$pattern" "$@")"
+    if [ -n "$matches" ]; then
         fail "$reason"
-        cat "$matches" >&2
-    fi
-    rm -f "$matches"
-}
-
-expect_count() {
-    local reason="$1"
-    local expected="$2"
-    local pattern="$3"
-    shift 3
-    local count
-    count="$( (rg --glob '*.hs' --glob '!**/Generated/**' -o "$pattern" "$@" 2>/dev/null || true) | wc -l)"
-    if [[ "$count" -ne "$expected" ]]; then
-        fail "$reason (expected $expected, found $count)"
+        printf '%s\n' "$matches" >&2
     fi
 }
 
@@ -93,7 +82,8 @@ expect_no_match \
     Application/Helper/FrontendContract/AppShell.hs
 
 # #336 closed with no unexplained application reachability debt.
-if grep -Ev '^[[:space:]]*(#|$)' Config/nix/weeder-baseline.tsv | grep -q .; then
+baseline_entries="$(authority_scan grep -Ev '^[[:space:]]*(#|$)' Config/nix/weeder-baseline.tsv)"
+if [ -n "$baseline_entries" ]; then
     fail "the application Weeder baseline is no longer empty"
 fi
 

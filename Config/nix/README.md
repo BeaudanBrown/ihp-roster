@@ -131,6 +131,20 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
+## Authority Scanner Execution
+
+The frontend and typed-contract shell gates share `scripts/lib/authority-scan.sh`
+(relative to this directory). It normalizes ripgrep/grep match/no-match statuses
+while preserving fatal tool/regex/read errors with bounded stderr and scoped
+cleanup. Patterns, exclusions, required paths and counts remain in each gate;
+only explicit tombstones permit absent paths. Capture scanner output before
+`mapfile` rather than hiding failures in process substitutions or `|| true`.
+
+`verify-tooling` runs `scripts/authority-scan.test.mjs` (repository-relative)
+once. Its temporary repositories come from tracked source and exercise the real
+wrapper entrypoints; unrelated enum/package authorities are stubbed only in
+these scanner fixtures. Real repository gates remain separately required.
+
 ## Test-only Haskell dependencies
 
 `hspec`, `ihp-hspec`, and `QuickCheck` belong to `ihp.devHaskellPackages`, so
