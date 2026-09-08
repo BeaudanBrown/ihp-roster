@@ -101,8 +101,14 @@ NixSupport and telemetry wrappers, avoiding upstream's private unpatched import.
 `WorkerMain.hs` owns worker registration; `Main.hs` owns only web startup.
 Default typecheck and Weeder include both roots. `devenv up` has separate `web`
 and `worker` processes using workspace configuration. Canonical E2E starts a
-separate worker per disposable shard and stops it before database disposal;
-web-only dev-start and profile launchers do not implicitly start workers. Use
+separate worker per disposable shard and stops it before database disposal.
+Managed E2E PostgreSQL reserves 400 connections: eight shards × (two pools of
+at most 20 plus two dedicated listeners) = 336, with 64 slots for fixtures,
+administration and PostgreSQL reserves. E2E bounds `HASQL_POOL_SIZE` to 1–20
+(default 20); live capacity drift fails closed. This does not change Hspec,
+development, external or production PostgreSQL settings.
+
+Web-only dev-start and profile launchers do not implicitly start workers. Use
 `dev-worker` when independently exercising background delivery in a managed
 workspace.
 

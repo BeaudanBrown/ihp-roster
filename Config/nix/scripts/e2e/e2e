@@ -11,6 +11,13 @@ if ! command -v playwright >/dev/null 2>&1; then
     echo "e2e: pinned Playwright executable is unavailable" >&2
     exit 69
 fi
+# Bound both per-shard processes to the managed cluster's connection accounting.
+# Keep IHP's normal pool size; smaller pools remain available for diagnostics.
+export HASQL_POOL_SIZE="${HASQL_POOL_SIZE:-20}"
+case "$HASQL_POOL_SIZE" in
+    [1-9]|1[0-9]|20) ;;
+    *) echo "e2e: HASQL_POOL_SIZE must be between 1 and 20" >&2; exit 64 ;;
+esac
 E2E_POSTGRES_MODE="${E2E_POSTGRES_MODE:-managed}"
 export E2E_POSTGRES_MODE
 if [ "$E2E_POSTGRES_MODE" = external ]; then

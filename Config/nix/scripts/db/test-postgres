@@ -162,6 +162,14 @@ if [ "$profile" = "hspec" ]; then
 else
     expected_signature="postgres=$postgres_version profile=$profile durability=$durability fsync=$fsync_setting synchronous_commit=$synchronous_commit_setting full_page_writes=$full_page_writes_setting"
 fi
+expected_settings="$fsync_setting $synchronous_commit_setting $full_page_writes_setting"
+if [ "$profile" = e2e ]; then
+    # Eight shards, each with two 20-connection pools and two dedicated
+    # listeners: 336. Leave 64 slots for fixture/admin clients and reserves.
+    # No change to Hspec, development, external or production PostgreSQL.
+    expected_signature+=" max_connections=400"
+    expected_settings+=" 400"
+fi
 expected_marker_magic="bepis-${profile}-postgres-v1"
 
 validate_or_create_state_root() {
@@ -269,8 +277,12 @@ remove_disposable_instance() {
 }
 
 actual_settings() {
+    local capacity_column=""
+    if [ "$profile" = e2e ]; then
+        capacity_column=", current_setting('max_connections')"
+    fi
     psql -X -q -h "$socket_dir" -d postgres -At -F ' ' -v ON_ERROR_STOP=1 -c \
-        "SELECT current_setting('fsync'), current_setting('synchronous_commit'), current_setting('full_page_writes')"
+        "SELECT current_setting('fsync'), current_setting('synchronous_commit'), current_setting('full_page_writes')$capacity_column"
 }
 
 initialize_and_start() {
@@ -294,6 +306,10 @@ synchronous_commit = $synchronous_commit_setting
 full_page_writes = $full_page_writes_setting
 EOF
 
+    if [ "$profile" = e2e ]; then
+        printf '\nmax_connections = 400\n' >> "$data_dir/postgresql.conf"
+    fi
+
     printf '%s\n' "$expected_signature" > "$signature_file"
     printf '%s-%s-%s\n' "$(date +%s)" "$$" "$RANDOM" > "$instance_file"
 
@@ -313,7 +329,7 @@ EOF
 
     local observed_settings
     observed_settings="$(actual_settings)"
-    if [ "$observed_settings" != "$fsync_setting $synchronous_commit_setting $full_page_writes_setting" ]; then
+    if [ "$observed_settings" != "$expected_settings" ]; then
         echo "test-postgres: unexpected settings after startup: $observed_settings" >&2
         stop_running_server || true
         exit 70
@@ -328,7 +344,7 @@ start_existing_instance() {
         exit 70
     fi
     if ! server_ready \
-        || [ "$(actual_settings)" != "$fsync_setting $synchronous_commit_setting $full_page_writes_setting" ]; then
+        || [ "$(actual_settings)" != "$expected_settings" ]; then
         echo "test-postgres: restarted PostgreSQL has unexpected health or durability settings" >&2
         stop_running_server || true
         exit 70
@@ -343,7 +359,7 @@ ensure_instance() {
         if [ -f "$signature_file" ] \
             && [ "$(cat "$signature_file")" = "$expected_signature" ] \
             && server_ready \
-            && [ "$(actual_settings)" = "$fsync_setting $synchronous_commit_setting $full_page_writes_setting" ]; then
+            && [ "$(actual_settings)" = "$expected_settings" ]; then
             return 0
         fi
         echo "test-postgres: running managed instance does not match the requested profile; refusing reconfiguration" >&2

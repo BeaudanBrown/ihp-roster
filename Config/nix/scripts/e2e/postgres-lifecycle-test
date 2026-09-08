@@ -5,6 +5,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 tmp_parent="$(mktemp -d)"
 postgres_root="$tmp_parent/managed-postgres"
 cleanup() {
+    e2e-postgres stop >/dev/null
     rm -rf "$tmp_parent"
 }
 trap cleanup EXIT
@@ -22,3 +23,30 @@ exec 7>>"$postgres_root/runs.lock"
 flock -n -x 7
 
 echo "E2E PostgreSQL lifecycle preflight created an owned, lockable root without starting PostgreSQL."
+exec 7>&-
+
+socket="$(e2e-postgres ensure)"
+# Exceed PostgreSQL's old default of 100 with real simultaneous connections.
+# pgbench opens all clients before executing its single read-only transaction.
+printf 'SELECT 1;\n' > "$tmp_parent/query.sql"
+pgbench -h "$socket" -U "$(id -un)" -n -c 104 -j 1 -t 1 -f "$tmp_parent/query.sql" postgres
+[ "$(psql -X -h "$socket" -d postgres -Atc 'SHOW max_connections')" = 400 ]
+echo "E2E PostgreSQL connection capacity supports separate per-shard HTTP and worker pools."
+
+# A live cluster with a matching signature but insufficient actual capacity
+# must fail closed, not be silently reconfigured or deleted.
+printf '\nmax_connections = 100\n' >> "$postgres_root/data/postgresql.conf"
+pg_ctl -D "$postgres_root/data" -l "$postgres_root/postgres.log" restart -m fast -w >/dev/null
+status=0
+e2e-postgres ensure >"$tmp_parent/ensure.log" 2>&1 || status=$?
+[ "$status" = 73 ]
+grep -q 'refusing reconfiguration' "$tmp_parent/ensure.log"
+[ "$(psql -X -h "$socket" -d postgres -Atc 'SHOW max_connections')" = 100 ]
+
+for invalid_pool in 0 21 invalid; do
+    status=0
+    HASQL_POOL_SIZE="$invalid_pool" e2e --list >"$tmp_parent/pool.log" 2>&1 || status=$?
+    [ "$status" = 64 ]
+    grep -q 'HASQL_POOL_SIZE must be between 1 and 20' "$tmp_parent/pool.log"
+done
+echo "E2E connection capacity rejects live drift and oversized pool overrides."
