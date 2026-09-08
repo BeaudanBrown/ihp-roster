@@ -18,6 +18,7 @@ import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.ControllerPrelude
+import IHP.Controller.Session (lookupSessionVault)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
@@ -89,6 +90,27 @@ tests = aroundAll withDatabaseTestContext do
                     withSessionValues [(LoginSupport.sessionKey @User, encoded)] do
                         withCurrentControllerContext do
                             fmap (.id) (LoginSupport.currentUserOrNothing @User) `shouldBe` Just user.id
+
+        it "requires reauthentication when raw login values reach a cereal-only rollback reader" $ withContext do
+            withCleanDb do
+                user <- createUserRecord "rollback-encoding@example.com" "staff" True
+                withSessionValues [] do
+                    LoginSupport.login user
+                    case lookupSessionVault ?request of
+                        Nothing -> expectationFailure "Expected a real session vault"
+                        Just (readSession, _) ->
+                            readSession (LoginSupport.sessionKey @User)
+                                `shouldReturn` Just (UUID.toASCIIBytes (unpackId user.id))
+                    -- IHP 1.5 authentication reads getSession @(Id user).
+                    -- Its Id cereal instance is unchanged in IHP 1.6, so this
+                    -- exercises the old reader without claiming a server rollback.
+                    getSession @(Id User) (LoginSupport.sessionKey @User) `shouldReturn` Nothing
+                    -- The old login writer serializes the textual ID. A fresh
+                    -- login restores a value readable by both framework versions.
+                    setSession (LoginSupport.sessionKey @User) (tshow user.id)
+                    getSession @(Id User) (LoginSupport.sessionKey @User) `shouldReturn` Just user.id
+                    withCurrentControllerContext do
+                        fmap (.id) (LoginSupport.currentUserOrNothing @User) `shouldBe` Just user.id
 
         it "clears malformed authentication and dependent authority in the same request" $ withContext do
             withCleanDb do

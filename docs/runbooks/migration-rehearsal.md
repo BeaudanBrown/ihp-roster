@@ -78,6 +78,91 @@ not authorize production activation, run `nixos-rebuild`, add a production
 systemd blocker, or replace `rozzy-staging-refresh-db` and the deployment
 approval boundary.
 
+## Framework rollout and rollback (IHP 1.5 to 1.6)
+
+Local synthetic evidence is preparation, not staging acceptance. If the private
+lock revision is not an ancestor of the candidate, stop the deployed-revision
+rehearsal: obtain a separately approved integration decision. An ancestral
+pre-upgrade revision can be tested as a **synthetic framework baseline only**;
+never substitute its result for the deployed revision or infer the running
+host's identity from a local lock file.
+
+Before activation, the operator must retain:
+
+- Exact candidate commit, optimized package store paths and closure, plus the
+  actual running system generation and previous app/worker/script package paths.
+  Keep both generations available; do not garbage-collect the rollback closure.
+- A timestamped database backup and successful restore into a separately named,
+  isolated database. Compare synthetic fixture data and sequence state locally;
+  customer backup/restore needs its own approval, access and retention controls.
+  Rehearsal diagnostics are not the backup.
+- The unchanged session encryption secret and its provisioned location. Verify
+  app and worker reference the intended `IHP_SESSION_SECRET_FILE`; do not print,
+  copy into Git, or rotate the secret as a shortcut for session invalidation.
+
+Use `production-package-smoke` and `deployment-module-check` through `bin/in-env`
+for non-mutating artifact and unit-wiring checks. The reviewed script-to-consumer
+mapping is in
+[`production-script-inventory.tsv`](../../Config/nix/production-script-inventory.tsv).
+Do not execute bootstrap or backfill entrypoints merely to test their paths.
+The HTTP process no longer starts job workers; a healthy HTTP endpoint alone is
+not rollout success. On the approved staging host inspect app/worker `ExecStart`,
+active state and environment-file paths without dumping secret values. Verify
+each enabled timer's service path and next trigger against the evaluated module.
+Use mock providers and synthetic recipients for delivery checks; do not manually
+fire external sweeps against live provider credentials.
+
+### Session compatibility boundary
+
+IHP 1.6 accepts both the old cereal-encoded login ID and its new raw UUID ASCII
+login value. IHP 1.5's cereal-only authentication reader does **not** accept the
+new value. Expect reauthentication after rollback for users who logged in on
+1.6; do not promise transparent mixed-version sessions or alternate versions
+behind a load balancer without a separately verified compatibility strategy.
+The encoding characterization is retained in
+[`SessionsSpec.hs`](../../Test/Controller/SessionsSpec.hs); it tests the actual
+new writer, unchanged cereal reader, and the old writer's reauthentication
+value. This is not an encrypted-cookie/browser rollback rehearsal.
+
+On approved staging, retain a synthetic legacy login and a new-version login,
+then exercise each before and after switching the whole app/worker generation.
+Verify controlled login redirection rather than 500s, successful fresh login,
+session-version revocation, passkey login and privileged step-up, venue selection,
+and support/impersonation boundaries. A passkey credential in PostgreSQL is not
+the same thing as a session's step-up evidence: reauthentication must not grant
+stale privileged authority or delete credential registrations.
+
+### Activation, abort and recovery
+
+Use the private deployment workflow's reviewed generation activation and rollback
+procedure on the approved host; do not improvise production activation from this
+local runbook. Before starting, record the observation window and acceptable
+error/queue thresholds with the operator. Keep synthetic tracing privacy checks
+and the observability procedure in
+[`production-observability.md`](production-observability.md) beside that evidence.
+
+Abort for authentication 500s or authority leakage, payroll/export divergence,
+worker non-delivery or failed restart recovery, missing timer wiring, database
+connection exhaustion, sensitive telemetry, or success responses reported as
+errors. Verify graceful termination flushes telemetry and that worker restart
+recovers pending synthetic work without duplicate externally visible delivery.
+Pause affected scheduled work and drain traffic using the approved host workflow
+before switching app, worker and script consumers together to the retained
+previous generation. Recheck login/reauthentication, authority, queue progress
+and timer state before resuming work.
+
+A framework-only change with identical application schema/migration trees and
+passing schema convergence needs no invented business DDL. Confirm this again
+against the **actual deployed revision**. Do not restore a pre-upgrade database
+merely to roll back executables: it would discard writes since the backup.
+If a real data/schema incompatibility requires restore, first stop writers,
+retain the failed database, and obtain an explicit data-loss/reconciliation and
+recovery decision. Any newly required DDL needs its own data-preserving migration
+and reviewed rollback procedure before activation.
+
+Staging approval, production rollout, integration, epic closure and worktree
+cleanup remain separate operator decisions.
+
 ## CI scope
 
 The `Migration rehearsal` job is visible on pull requests and pushes targeting
