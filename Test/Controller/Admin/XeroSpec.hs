@@ -56,8 +56,7 @@ import qualified Test.Support.XeroTimesheet as Preview
 import qualified Test.XeroMock as XeroMock
 import Web.Admin.Xero.Mutations (xeroConnectionTouchedResources,
                                  xeroPayItemsTouchedResources,
-                                 xeroReferenceSyncTouchedResources,
-                                 xeroTimesheetsTouchedResources)
+                                 xeroReferenceSyncTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -80,6 +79,29 @@ withFastXeroReferenceSyncRuntime action =
             , referenceSyncJitterSeconds = pure 0
             }
         (withInlineXeroReferenceSyncRequestsForTest (action ()))
+
+-- Observe real provider publication independently of the dialog-local result.
+fetchPassivePublicationState :: (?modelContext :: ModelContext) => IO ([LiveInvalidationEvent], [LiveInvalidationEventResource], [LiveResourceVersion])
+fetchPassivePublicationState =
+    (,,) <$> (query @LiveInvalidationEvent |> orderByAsc #sequenceNumber |> fetch)
+         <*> (query @LiveInvalidationEventResource |> orderByAsc #eventId |> orderByAsc #resourceKey |> fetch)
+         <*> (query @LiveResourceVersion |> orderByAsc #resourceKey |> fetch)
+
+assertOnlyConnectionRefreshPublication :: (?modelContext :: ModelContext) => UUID -> IO ()
+assertOnlyConnectionRefreshPublication venueId = do
+    (events, resources, versions) <- fetchPassivePublicationState
+    map (.source) events `shouldBe` ["xero.connection.token_refresh"]
+    let key = "xero-connection:{\"venueId\":\"" <> tshow venueId <> "\"}"
+        payload = Aeson.object
+            [ "version" Aeson..= (1 :: Int)
+            , "resource" Aeson..= ("xero-connection" :: Text)
+            , "fields" Aeson..= Aeson.object ["venueId" Aeson..= venueId]
+            ]
+    map (\resource -> (resource.resourceKey, resource.resourcePayload)) resources `shouldBe` [(key, payload)]
+    map (.eventId) resources `shouldBe` map (unpackId . (.id)) events
+    map (\version -> (unpackId version.resourceKey, version.resourcePayload)) versions `shouldBe` [(key, payload)]
+    map (.latestEventId) versions `shouldBe` map (unpackId . (.id)) events
+    map (.latestEventSequence) versions `shouldBe` map (.sequenceNumber) events
 
 tests :: Spec
 tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestContext do
@@ -581,9 +603,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 Set.fromList (xeroPayItemsTouchedResources venue.id)
                     `shouldBe` Set.fromList
                         [adminShiftTypesResource (unpackId venue.id)]
-
-        it "does not invent an undeclared resource for Xero timesheet mutations" $ withContext do
-            Set.fromList xeroTimesheetsTouchedResources `shouldBe` Set.empty
 
         it "records touched resources for Xero reference sync mutations" $ withContext do
             withCleanDb do
@@ -1608,6 +1627,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> updateRecord
 
                 xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                fetchPassivePublicationState `shouldReturn` ([], [], [])
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1667,6 +1687,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.payPeriodStart `shouldBe` Just fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` Just fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
+                assertOnlyConnectionRefreshPublication (unpackId fixture.venue.id)
 
         it "routes approved wage facts without sealed Xero mapping into pay-item setup" $ withContext do
             withCleanDb do
@@ -2266,6 +2287,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     fixture.connection
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
+                fetchPassivePublicationState `shouldReturn` ([], [], [])
                 let remoteTimesheet =
                         XeroTimesheetRef
                             { xeroTimesheetId = Just "ts-existing"
@@ -2322,6 +2344,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         callAction (ShowXeroTimesheetPreparationSummaryAction preparationRunBeforeSelect.id)
                 backResponse `responseStatusShouldBe` status200
                 backResponse `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\" selected=\"selected\"")
+                assertOnlyConnectionRefreshPublication (unpackId fixture.venue.id)
 
         it "rejects missing, malformed, and repeated nominal preparation payloads without mutation" $ withContext do
             withCleanDb do

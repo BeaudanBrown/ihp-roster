@@ -7,29 +7,19 @@ module Web.Admin.Xero.Mutations
     , importXeroEarningsRatesMutation
     , markXeroConnectionErrorMutation
     , startXeroConnectionMutation
-    , applyXeroTimesheetPreparationStaffDecisionMutation
-    , approveXeroTimesheetPreparationPayItemsMutation
-    , approveXeroTimesheetPreparationStaffStepMutation
-    , refreshXeroTimesheetPreparationMutation
-    , runXeroTimesheetPreparationMutation
-    , selectXeroTimesheetPreparationPeriodMutation
     , syncXeroReferenceDataMutation
-    , submitXeroTimesheetPreparationMutation
     , xeroConnectionTouchedResources
     , xeroPayItemsTouchedResources
     , xeroReferenceSyncTouchedResources
-    , xeroTimesheetsTouchedResources
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.SurfaceResource
 import Application.Helper.Xero
-import Application.Helper.XeroAdminTypes
 import qualified Application.Xero.Admin.ImportedPayItems as ImportedPayItems
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.ReferenceSyncJob (enqueueXeroReferenceSyncJob)
 import Application.Xero.ReferenceSyncRequest
-import qualified Application.Xero.Timesheets.Prepare as XeroPrepare
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
@@ -218,41 +208,6 @@ syncXeroReferenceDataMutation connection = do
     -- typed resource here for actor-local response planning without rebroadcast.
     pure (liveMutationResult result (xeroReferenceSyncTouchedResources currentVenueId))
 
--- Guided preparation is requester-local dialog state, not a passive live
--- surface. Its committed provider/reservation phases retain their own service
--- transactions; no durable event is emitted for an empty resource set.
-recordXeroTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> a -> IO (LiveMutationResult a)
-recordXeroTimesheetsMutation _label value =
-    pure (liveMutationResult value xeroTimesheetsTouchedResources)
-
-runXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (LiveMutationResult (XeroPrepare.XeroPreparationResult XeroTimesheetPreparationView))
-runXeroTimesheetPreparationMutation =
-    XeroPrepare.startXeroTimesheetPreparation >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.start"
-
-refreshXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (XeroPrepare.XeroPreparationResult XeroTimesheetPreparationView))
-refreshXeroTimesheetPreparationMutation runId =
-    XeroPrepare.refreshXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.refresh"
-
-selectXeroTimesheetPreparationPeriodMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> IO (LiveMutationResult (XeroPrepare.XeroPreparationResult XeroTimesheetPreparationView))
-selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey =
-    XeroPrepare.selectXeroTimesheetPreparationPeriod runId selectedPeriodKey >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.period_select"
-
-applyXeroTimesheetPreparationStaffDecisionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Id Staff -> XeroPrepare.XeroPreparationStaffDecision -> IO (LiveMutationResult (XeroPrepare.XeroPreparationResult XeroTimesheetPreparationView))
-applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision =
-    XeroPrepare.applyXeroPreparationStaffDecision runId staffId decision >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.staff_decision"
-
-approveXeroTimesheetPreparationPayItemsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (XeroPrepare.XeroPreparationResult XeroTimesheetPreparationView))
-approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode =
-    XeroPrepare.approveXeroPreparationPayItemDecisions runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.pay_items_approve"
-
-approveXeroTimesheetPreparationStaffStepMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (XeroPrepare.XeroPreparationResult XeroTimesheetPreparationView))
-approveXeroTimesheetPreparationStaffStepMutation runId =
-    XeroPrepare.approveXeroPreparationStaffStep runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.staff_approve"
-
-submitXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (XeroPrepare.XeroPreparationResult XeroTimesheetPreparationView))
-submitXeroTimesheetPreparationMutation runId maybeAccountCode =
-    XeroPrepare.submitXeroTimesheetPreparation runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.submit"
-
 xeroConnectionTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroConnectionTouchedResources venueId =
     [ xeroConnectionResource (unpackId venueId)
@@ -262,12 +217,6 @@ xeroConnectionTouchedResources venueId =
 xeroPayItemsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroPayItemsTouchedResources venueId =
     [adminShiftTypesResource (unpackId venueId)]
-
--- Guided preparation is dialog-local and no registered live fragment depends
--- on a Xero-timesheet resource. Keep this empty instead of emitting the retired
--- undeclared sentinel, which never selected an actor or passive target.
-xeroTimesheetsTouchedResources :: [SurfaceResourceValue]
-xeroTimesheetsTouchedResources = []
 
 xeroReferenceSyncTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroReferenceSyncTouchedResources venueId =
