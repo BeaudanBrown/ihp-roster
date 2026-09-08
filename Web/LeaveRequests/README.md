@@ -11,6 +11,8 @@ checks and response selection; views live under `Web/View/LeaveRequests/`.
 
 - `SelfService.hs` — shared form/history rendering and mounts.
 - `ReadModel.hs` — request projections.
+- `Archive.hs` — shared archive selection, stable ordering and page projection
+  for full-page, plain-fragment and OOB rendering.
 - `Blackouts.hs` and `AvailabilityWarnings.hs` — venue policy projections.
 - `Request.hs` — typed page/self-service/staff context, generated/IHP request
   adaptation, scoped target lookup and submission coordination.
@@ -47,6 +49,12 @@ approved-state fanout remain with the unchanged mutation resource owner.
 Blackout administration, warning thresholds and archive read models are not
 redesigned by these submission/review interfaces. Its shared manager completion
 helper is merely consumed from `Responses.hs`.
+
+Archive rendering retains its existing UTC-day input and strict `end_date < today`
+classification, despite the exclusive stored end date. Views keep transport
+choices explicit: pagination still uses `swapOob=true` for the archive-only
+`outerHTML` response, with unchanged native/pushed URLs and archive-open state.
+Do not change clocks or migrate that transport while sharing the projection.
 
 See `SPEC.md` for durable date, lifecycle, blackout, and privacy rules and
 `AGENTS.md` for local editing constraints.

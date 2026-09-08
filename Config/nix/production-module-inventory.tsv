@@ -481,6 +481,7 @@ Web/Exports/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Responses.hs	production	runtime	Main	Reachable from Main
 Web/Exports/WorkbookConfigurations.hs	production	runtime	Main	Reachable from Main
 Web/FrontController.hs	production	runtime	Main	Reachable from Main
+Web/LeaveRequests/Archive.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/AvailabilityWarnings.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Blackouts.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/FrontendSurface.hs	production	runtime	Main	Reachable from Main

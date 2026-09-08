@@ -828,6 +828,39 @@ tests = aroundAll withDatabaseTestContext do
                 fragmentResponse `responseBodyShouldContain` "archive-page-note-11"
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
+                let transports =
+                        [ (LeaveRequestsAction, [])
+                        , (ShowleaveRequestsContentLiveFragmentAction, [])
+                        , (ShowleaveRequestsContentLiveFragmentAction, [("fragment", "leave-section-list"), ("section", "archive")])
+                        , (ShowleaveRequestsContentLiveFragmentAction, [("swapOob", "true")])
+                        ]
+                    archiveNotes body =
+                        map (Text.takeWhile (/= '<') . Text.drop 1 . snd)
+                            (Text.breakOnAll ">archive-page-note-" (cs (LByteString.unpack body)))
+                forM_ [("0", [1 .. 10]), ("-9", [1 .. 10]), ("malformed", [1 .. 10]), ("99", [11, 12] :: [Int])] \(page, expected) ->
+                    forM_ transports \(action, transportParams) -> do
+                        response <- withUserAndCurrentVenue manager venue.id do
+                            callActionWithParams action ([("archivePage", page), ("openSection", "archive")] <> transportParams)
+                        response `responseStatusShouldBe` status200
+                        body <- responseBody response
+                        archiveNotes body `shouldBe` map (\index -> "archive-page-note-" <> tshow index) expected
+
+                -- Equal archive end dates retain the input's start-date order,
+                -- including when the tie crosses the page boundary.
+                forM_ [(2, "tie-a"), (3, "tie-b")] \(duration, suffix) -> do
+                    let endDate = addDays (-10) today
+                    request <- createLeaveRequestRecord venue staff (addDays (negate duration) endDate) endDate LeaveRequestStatusEnumDenied
+                    _ <- request |> set #notes (Just ("archive-page-note-" <> suffix)) |> updateRecord
+                    pure ()
+                forM_ transports \(action, transportParams) -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams action ([("archivePage", "2"), ("openSection", "archive")] <> transportParams)
+                    body <- responseBody response
+                    archiveNotes body `shouldBe`
+                        [ "archive-page-note-tie-a", "archive-page-note-tie-b"
+                        , "archive-page-note-11", "archive-page-note-12"
+                        ]
+
         it "returns only the archive page content for archive pagination OOB swaps" $ withContext do
             withCleanDb do
                 today <- utctDay <$> getCurrentTime
@@ -876,6 +909,14 @@ tests = aroundAll withDatabaseTestContext do
                 leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 0
                 response `responseBodyShouldNotContain` "No unavailable periods yet."
                 response `responseBodyShouldNotContain` "No requests in this section."
+                forM_ [[], [("swapOob", "true")]] \transportParams -> do
+                    emptyFragment <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams ShowleaveRequestsContentLiveFragmentAction
+                            ([("fragment", "leave-section-list"), ("section", "archive"), ("archivePage", "99")] <> transportParams)
+                    emptyFragment `responseStatusShouldBe` status200
+                    emptyFragment `responseBodyShouldContain` "id=\"leave-archive-page-content\""
+                    emptyFragment `responseBodyShouldNotContain` "aria-label=\"Unavailability archive pages\""
+                    emptyFragment `responseBodyShouldNotContain` "class=\"leave-request-row\""
 
         it "scopes leave fragment refetches to the current viewer visibility" $ withContext do
             withCleanDb do

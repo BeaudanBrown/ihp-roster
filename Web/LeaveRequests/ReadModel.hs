@@ -32,6 +32,7 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
+import Web.LeaveRequests.Archive (projectLeaveArchive)
 import Web.LeaveRequests.AvailabilityWarnings
 import Web.LeaveRequests.Blackouts
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
@@ -163,7 +164,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         LeaveRequestsSectionCount section ->
             renderLeaveSectionCountLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelToday
         LeaveRequestsSectionList section ->
-            renderLeaveSectionListLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday archivePagination archivedPageRequests
+            renderLeaveSectionListLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday archive
     where
         fragmentRenderSwap = \case
             FragmentPlain        -> Nothing
@@ -171,9 +172,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         contentRenderer = case renderMode of
             FragmentPlain        -> renderleaveRequestsContentLiveFragment
             FragmentOob swapAttr -> renderleaveRequestsContentLiveFragmentWithSwap swapAttr
-        archivedRequests = archivedLeaveRequests readModel.leaveReadModelRequests readModel.leaveReadModelToday
-        archivePagination = buildArchivePagination currentLeaveArchivePage archivedRequests
-        archivedPageRequests = archivePageItems archivePagination archivedRequests
+        archive = projectLeaveArchive readModel.leaveReadModelRequests readModel.leaveReadModelToday currentLeaveArchivePage
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
 leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelStaffPanelEntries, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods, leaveReadModelVenueToday, leaveReadModelBlackouts } =

@@ -34,6 +34,7 @@ import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import qualified Data.Text as Text
+import Web.LeaveRequests.Archive
 import Web.LeaveRequests.AvailabilityWarnings
 import Web.LeaveRequests.Blackouts
 import Web.View.Prelude
@@ -509,14 +510,12 @@ renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today
         {renderManagerSection "leave-pending" leavePendingListFragmentId pendingRequests staffMembers currentViewerStaffId (not archiveIsOpen)}
         {renderManagerSection "leave-approved" leaveApprovedListFragmentId approvedRequests staffMembers currentViewerStaffId False}
         {renderManagerSection "leave-denied" leaveDeniedListFragmentId deniedRequests staffMembers currentViewerStaffId False}
-        {renderRequestTabPane "leave-archive" archiveIsOpen (renderArchivePageContent Nothing archivePagination archivedPageRequests staffMembers currentViewerStaffId)}
+        {renderRequestTabPane "leave-archive" archiveIsOpen (renderArchivePageContent Nothing archive staffMembers currentViewerStaffId)}
     </div>
 |]
     where
         activeRequests = filter (not . leaveRequestIsArchivedOn today) leaveRequests
-        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
-        archivePagination = buildArchivePagination archivePage archivedRequests
-        archivedPageRequests = archivePageItems archivePagination archivedRequests
+        archive = projectLeaveArchive leaveRequests today archivePage
         pendingRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumPending) . (.status)) activeRequests)
         approvedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) activeRequests)
         deniedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumDenied) . (.status)) activeRequests)
@@ -525,14 +524,14 @@ renderLeaveSectionCountLiveFragment :: LeaveSectionValue -> [LeaveRequest] -> Da
 renderLeaveSectionCountLiveFragment section leaveRequests today
     | section == leaveApprovedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (approvedLeaveRequests leaveRequests today)
     | section == leaveDeniedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (deniedLeaveRequests leaveRequests today)
-    | section == leaveArchiveSection = renderArchiveCountLiveFragment (buildArchivePagination 1 (archivedLeaveRequests leaveRequests today))
+    | section == leaveArchiveSection = renderArchiveCountLiveFragment (archivePagination (projectLeaveArchive leaveRequests today 1))
     | otherwise = renderManagerSectionCount (leaveSectionCountFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today)
 
-renderLeaveSectionListLiveFragment :: (?context :: ControllerContext) => LeaveSectionValue -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> ArchivePagination -> [LeaveRequest] -> Html
-renderLeaveSectionListLiveFragment section leaveRequests staffMembers currentViewerStaffId today archivePagination archivedPageRequests
+renderLeaveSectionListLiveFragment :: (?context :: ControllerContext) => LeaveSectionValue -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> ArchiveProjection -> Html
+renderLeaveSectionListLiveFragment section leaveRequests staffMembers currentViewerStaffId today archive
     | section == leaveApprovedSection = renderManagerSectionList (leaveSectionListFragmentId section) (approvedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
     | section == leaveDeniedSection = renderManagerSectionList (leaveSectionListFragmentId section) (deniedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
-    | section == leaveArchiveSection = renderArchivePageContent Nothing archivePagination archivedPageRequests staffMembers currentViewerStaffId
+    | section == leaveArchiveSection = renderArchivePageContent Nothing archive staffMembers currentViewerStaffId
     | otherwise = renderManagerSectionList (leaveSectionListFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
 
 pendingLeaveRequests, approvedLeaveRequests, deniedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
@@ -540,50 +539,21 @@ pendingLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter 
 approvedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) (activeLeaveRequests leaveRequests today))
 deniedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumDenied) . (.status)) (activeLeaveRequests leaveRequests today))
 
-activeLeaveRequests, archivedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
+activeLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
 activeLeaveRequests leaveRequests today = filter (not . leaveRequestIsArchivedOn today) leaveRequests
-archivedLeaveRequests leaveRequests today = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
 
-archivePageSize :: Int
-archivePageSize = 10
-
-data ArchivePagination = ArchivePagination
-    { archivePaginationCurrentPage :: Int
-    , archivePaginationTotalPages  :: Int
-    , archivePaginationTotalItems  :: Int
-    }
-
-buildArchivePagination :: Int -> [LeaveRequest] -> ArchivePagination
-buildArchivePagination requestedPage archivedRequests =
-    ArchivePagination
-        { archivePaginationCurrentPage = currentPage
-        , archivePaginationTotalPages = totalPages
-        , archivePaginationTotalItems = totalItems
-        }
-    where
-        totalItems = length archivedRequests
-        totalPages = max 1 ((totalItems + archivePageSize - 1) `div` archivePageSize)
-        currentPage = min totalPages (max 1 requestedPage)
-
-archivePageItems :: ArchivePagination -> [LeaveRequest] -> [LeaveRequest]
-archivePageItems ArchivePagination { archivePaginationCurrentPage } =
-    take archivePageSize . drop ((archivePaginationCurrentPage - 1) * archivePageSize)
 
 renderArchivePageContentOob :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Html
 renderArchivePageContentOob leaveRequests staffMembers currentViewerStaffId today archivePage =
-    renderArchivePageContent (Just "outerHTML") archivePagination archivedPageRequests staffMembers currentViewerStaffId
-    where
-        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
-        archivePagination = buildArchivePagination archivePage archivedRequests
-        archivedPageRequests = archivePageItems archivePagination archivedRequests
+    renderArchivePageContent (Just "outerHTML") (projectLeaveArchive leaveRequests today archivePage) staffMembers currentViewerStaffId
 
 renderArchiveCountLiveFragment :: ArchivePagination -> Html
 renderArchiveCountLiveFragment ArchivePagination { archivePaginationTotalItems } = [hsx|
     <span id={leaveArchiveCountFragmentId}>{tshow archivePaginationTotalItems}</span>
 |]
 
-renderArchivePageContent :: (?context :: ControllerContext) => Maybe Text -> ArchivePagination -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
-renderArchivePageContent maybeSwapOob archivePagination requests staffMembers currentViewerStaffId = [hsx|
+renderArchivePageContent :: (?context :: ControllerContext) => Maybe Text -> ArchiveProjection -> [Staff] -> Maybe UUID -> Html
+renderArchivePageContent maybeSwapOob ArchiveProjection { archivePagination, archivedPageRequests = requests } staffMembers currentViewerStaffId = [hsx|
     <div id={leaveArchiveListFragmentId} hx-swap-oob={maybeSwapOob}>
         {renderArchivePagination "leave-request-archive-pagination-top" archivePagination}
         {unless (null requests) (renderArchiveRequestList requests staffMembers currentViewerStaffId)}
