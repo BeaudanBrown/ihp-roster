@@ -14,6 +14,7 @@ module Application.Helper.View.SidePanel
     , renderSidePanelPanelRegion
     , renderSidePanelCard
     , renderSidePanelTabs
+    , renderSidePanelTabsWithBadges
     , renderSidePanelHeaderToggle
     , renderSidePanelLocateIcon
     , renderSidePanelToggle
@@ -25,6 +26,7 @@ import Application.Helper.FrontendContract.Surface.SidePanel
 import Application.Helper.FrontendContract.Surface.Values (SurfaceSidePanelPrimitive)
 import qualified Data.Text as Text
 import IHP.ViewPrelude
+import qualified Text.Blaze.Html as Blaze
 
 -- | Resolved generated marker attributes supplied by a feature adapter.
 data SidePanelRenderAttrs = SidePanelRenderAttrs
@@ -107,13 +109,16 @@ renderSidePanelCard config body = [hsx|
 |]
 
 renderSidePanelTabs :: Text -> [SidePanelTabConfig] -> Html
-renderSidePanelTabs ariaLabel tabs = [hsx|
+renderSidePanelTabs ariaLabel tabs = renderSidePanelTabsWithBadges ariaLabel [(tab, mempty) | tab <- tabs]
+
+renderSidePanelTabsWithBadges :: Text -> [(SidePanelTabConfig, Blaze.Html)] -> Html
+renderSidePanelTabsWithBadges ariaLabel tabs = [hsx|
     <div class="nav nav-pills app-side-panel-tabs" role="tablist" aria-label={ariaLabel}>
         {forEach tabs renderTab}
     </div>
 |]
   where
-    renderTab tab = [hsx|
+    renderTab (tab, badge) = [hsx|
         <button class={classes [ ("nav-link", True), ("active", tab.sidePanelTabIsSelected), ("app-side-panel-tab", True), (tab.sidePanelTabClass, not (Text.null tab.sidePanelTabClass)) ]}
                 id={tab.sidePanelTabId}
                 type="button"
@@ -127,6 +132,7 @@ renderSidePanelTabs ariaLabel tabs = [hsx|
                 {...tab.sidePanelTabAttrs}>
             <i class={tab.sidePanelTabIconClass} aria-hidden="true"></i>
             <span class="app-side-panel-tab-label" aria-hidden="true">{tab.sidePanelTabLabel}</span>
+            {badge}
         </button>
     |]
 

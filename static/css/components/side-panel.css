@@ -5,6 +5,21 @@
     justify-content: flex-end;
 }
 
+.app-side-panel-header-tabs {
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--app-space-2);
+}
+
+.app-side-panel-header-tabs > .app-side-panel-tabs {
+    flex: 1 1 0;
+    margin: 0;
+}
+
+.app-side-panel-header-tabs > .app-side-panel-toggle {
+    flex: 0 0 auto;
+}
+
 .app-side-panel-card,
 .app-side-panel-table {
     width: 100%;
@@ -56,6 +71,21 @@
     width: 1px;
     background: var(--app-border-subtle);
     pointer-events: none;
+}
+
+.app-side-panel-tab-with-badge {
+    flex-basis: auto;
+    flex-shrink: 1;
+}
+
+.app-side-panel-tab-badge {
+    flex: 0 1 auto;
+    min-width: 1ch;
+    max-width: 4ch;
+    margin-inline-start: var(--app-space-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
 }
 
 .app-side-panel-tab > i {
