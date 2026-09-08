@@ -115,7 +115,6 @@ tests =
                             , reconciliationNoticeMessage = "Bepis previously created Xero draft missing-a, but it is now missing. Confirm to create a replacement draft."
                             }
                         ]
-                reconciliationReviewAllowsSubmission snapshot `shouldBe` Right True
                 snapshot `shouldBe` reconciliationReviewSnapshotJson
                     [ XeroTimesheetReconciliationReview "employee-a" (ReplaceMissingXeroDraft "missing-a")
                     , XeroTimesheetReconciliationReview "employee-b" (UpdateXeroDraft "draft-b")
@@ -129,7 +128,6 @@ tests =
                         , XeroTimesheetReconciliationReview "missing-id" (BlockMissingXeroTimesheetId (Just "DRAFT"))
                         , XeroTimesheetReconciliationReview "pending" XeroSubmissionInProgress
                         ]
-                reconciliationReviewAllowsSubmission snapshot `shouldBe` Right False
                 notices <- reconciliationReviewNotices snapshot |> either (\message -> expectationFailure (cs message) >> pure []) pure
                 map (.reconciliationNoticeSeverity) notices `shouldBe` replicate 5 ReconciliationBlocker
                 List.sort (map (.reconciliationNoticeMessage) notices)
@@ -141,9 +139,30 @@ tests =
                         , "A Bepis Xero timesheet submission is still in progress. Wait for it to finish, then review again."
                         ]
 
+            it "retains historical state-change notices for either confirmation flag" do
+                forM_ [False, True] \confirmed -> do
+                    let snapshot = Aeson.object
+                            [ "version" Aeson..= (1 :: Int)
+                            , "confirmed" Aeson..= confirmed
+                            , "stateChanged" Aeson..= True
+                            , "employees" Aeson..= ([] :: [Aeson.Value])
+                            ]
+                    reconciliationReviewNotices snapshot `shouldBe` Right
+                        [XeroTimesheetReconciliationNotice "" ReconciliationWarning "Xero timesheet state changed after confirmation. Review the latest reconciliation outcome before submitting."]
+
+            it "still requires a Boolean confirmation field in persisted snapshots" do
+                let fields =
+                        [ "version" Aeson..= (1 :: Int)
+                        , "stateChanged" Aeson..= False
+                        , "employees" Aeson..= ([] :: [Aeson.Value])
+                        ]
+                reconciliationReviewNotices (Aeson.object fields) `shouldSatisfy` isLeft
+                forM_ [Aeson.Null, Aeson.String "true", Aeson.Number 1] \invalid ->
+                    reconciliationReviewNotices (Aeson.object (("confirmed" Aeson..= invalid) : fields)) `shouldSatisfy` isLeft
+
             it "rejects missing and malformed reviewed snapshots" do
                 reconciliationReviewNotices (Aeson.object []) `shouldSatisfy` isLeft
-                reconciliationReviewAllowsSubmission Aeson.Null `shouldSatisfy` isLeft
+                reconciliationReviewNotices Aeson.Null `shouldSatisfy` isLeft
   where
     terminalLocalStates =
         [ ("no local submission", Nothing, CreateXeroTimesheet)

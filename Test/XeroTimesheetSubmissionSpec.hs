@@ -2,12 +2,9 @@ module Test.XeroTimesheetSubmissionSpec where
 
 import Application.Error.Types (AppResult)
 import Application.Helper.Xero
-import Application.Helper.XeroTimesheetReadiness (XeroTimesheetReadinessRequest)
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.ReconciliationReview
-import Application.Xero.Timesheets.Submission hiding (reviewXeroDraftTimesheets,
-                                               submitReviewedXeroDraftTimesheetsForPreparation,
-                                               submitXeroDraftTimesheets)
+import Application.Xero.Timesheets.Submission
 import qualified Application.Xero.Timesheets.Submission as Submission
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -26,6 +23,7 @@ import Network.HTTP.Types.Status (status200, status404, status409, status500,
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.XeroAdmin (createPreparationRunForFixture)
 import Test.Support.XeroTimesheet (EntrySpec (..), PreviewFixture (..),
                                    createLateBindingPreviewFixture,
                                    createPreviewFixture,
@@ -33,15 +31,15 @@ import Test.Support.XeroTimesheet (EntrySpec (..), PreviewFixture (..),
                                    fixtureStaffB)
 import qualified Test.XeroMock as XeroMock
 
-reviewXeroDraftTimesheets :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO (Either Text Aeson.Value)
-reviewXeroDraftTimesheets request = Submission.reviewXeroDraftTimesheets request >>= expectSubmissionResult
-
-submitXeroDraftTimesheets :: (?modelContext :: ModelContext) => Id User -> XeroTimesheetReadinessRequest -> IO (Either Text XeroSubmissionRun)
-submitXeroDraftTimesheets userId request = Submission.submitXeroDraftTimesheets userId request >>= expectSubmissionResult
-
-submitReviewedXeroDraftTimesheetsForPreparation :: (?modelContext :: ModelContext) => Id User -> Id XeroTimesheetPreparationRun -> Aeson.Value -> XeroTimesheetReadinessRequest -> IO (Either Text XeroTimesheetReviewedSubmissionOutcome)
-submitReviewedXeroDraftTimesheetsForPreparation userId runId snapshot request =
-    Submission.submitReviewedXeroDraftTimesheetsForPreparation userId runId snapshot request >>= expectSubmissionResult
+submitFixturePreparation :: (?modelContext :: ModelContext) => PreviewFixture -> IO (Either Text XeroSubmissionRun)
+submitFixturePreparation fixture = do
+    preparation <- createPreparationRunForFixture fixture ReadyForPreview
+    Submission.submitXeroDraftTimesheetsForPreparation fixture.owner.id preparation.id fixture.request >>= expectSubmissionResult >>= \case
+        Left message -> pure (Left message)
+        Right (XeroTimesheetReviewedSubmissionCompleted run) -> do
+            run.xeroTimesheetPreparationRunId `shouldBe` Just preparation.id
+            pure (Right run)
+        Right other -> expectationFailure (cs ("Expected completed fixture preparation, got " <> show other)) >> fail "unexpected reservation outcome"
 
 expectSubmissionResult :: AppResult (XeroSubmissionOutcome value) -> IO (Either Text value)
 expectSubmissionResult = \case
@@ -64,7 +62,7 @@ tests =
                         XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
                             withXeroRequestBaseUrlsForTest urls do
                                 withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                                    submitFixturePreparation fixture
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -99,7 +97,7 @@ tests =
                         XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
                             withXeroRequestBaseUrlsForTest urls do
                                 withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                                    submitFixturePreparation fixture
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -124,7 +122,7 @@ tests =
                         XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
                             withXeroRequestBaseUrlsForTest urls do
                                 withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                                    submitFixturePreparation fixture
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -182,52 +180,52 @@ tests =
                     secondSubmission.idempotencyKey `shouldNotBe` firstSubmission.idempotencyKey
                     submissionExistingTimesheetIdForTest secondSubmission `shouldBe` Nothing
 
-            it "reviews a confirmed-missing Bepis draft as an explicit replacement warning" $ withContext do
+            it "retains the confirmed-missing draft warning in the persisted preparation reconciliation snapshot" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
 
                     _ <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] []
-                    snapshot <-
-                        XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [emptyTimesheetsResponse] [] [] \urls ->
-                            withXeroRequestBaseUrlsForTest urls do
-                                withXeroConfigForTest (Right testXeroConfig) do
-                                    reviewXeroDraftTimesheets fixture.request
-                    reviewedSnapshot <- snapshot |> either (\message -> expectationFailure (cs message) >> pure Aeson.Null) pure
+                    replacement <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] [] >>= expectRun
+                    let snapshot = AesonTypes.parseMaybe (Aeson.withObject "duplicate snapshot" (Aeson..: "reconciliationReview")) replacement.xeroDuplicateCheckJson
+                    reviewedSnapshot <- maybe (expectationFailure "Expected persisted reconciliation snapshot" >> fail "missing snapshot") pure snapshot
                     notices <- reconciliationReviewNotices reviewedSnapshot |> either (\message -> expectationFailure (cs message) >> pure []) pure
 
-                    reconciliationReviewAllowsSubmission reviewedSnapshot `shouldBe` Right True
                     map (.reconciliationNoticeSeverity) notices `shouldBe` [ReconciliationWarning]
                     map (.reconciliationNoticeMessage) notices
                         `shouldBe` ["Bepis previously created Xero draft timesheet-id, but it is now missing. Confirm to create a replacement draft."]
 
-            it "requires review again when fresh Xero reconciliation state changes after confirmation" $ withContext do
+            it "blocks unsafe fresh Xero state before creating a preparation submission or provider write" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
-
-                    reviewed <-
-                        XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [emptyTimesheetsResponse] [] [] \urls ->
-                            withXeroRequestBaseUrlsForTest urls do
-                                withXeroConfigForTest (Right testXeroConfig) do
-                                    reviewXeroDraftTimesheets fixture.request
-                    reviewedSnapshot <- reviewed |> either (\message -> expectationFailure (cs message) >> pure Aeson.Null) pure
-                    outcome <-
-                        XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [timesheetsResponse fixture "employee-a" "DRAFT"] [] [] \urls ->
-                            withXeroRequestBaseUrlsForTest urls do
-                                withXeroConfigForTest (Right testXeroConfig) do
-                                    submitReviewedXeroDraftTimesheetsForPreparation
-                                        fixture.owner.id
-                                        (Id (unpackId fixture.connection.id))
-                                        reviewedSnapshot
-                                        fixture.request
+                    outcome <- submitWithStrictResponses identitySpec payrollSpec fixture [timesheetsResponse fixture "employee-a" "APPROVED"] [] []
                     case outcome of
-                        Right (XeroTimesheetReviewedStateChanged freshSnapshot) -> do
-                            reconciliationReviewSnapshotIsConfirmed freshSnapshot `shouldBe` True
-                            reconciliationReviewNotices freshSnapshot `shouldBe` Right []
-                        other -> expectationFailure (cs ("Expected changed reconciliation state, got " <> show other))
-                    query @XeroSubmissionRun |> fetchCount >>= (`shouldBe` 0)
-                    query @XeroTimesheetSubmission |> fetchCount >>= (`shouldBe` 0)
+                        Left message -> message `shouldBe` "Xero already has a non-draft timesheet for this employee and period. Update or delete it in Xero before continuing."
+                        Right _ -> expectationFailure "Expected fresh non-draft state to block submission"
+                    query @XeroSubmissionRun |> fetchCount `shouldReturn` 0
+                    query @XeroTimesheetSubmission |> fetchCount `shouldReturn` 0
+
+            it "returns the live reservation blocker without joining another preparation's pending run" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    prepareConnectionForStrictMock fixture.connection
+                    firstRun <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] [] >>= expectRun
+                    firstSubmission <- onlySubmissionForRun firstRun
+                    _ <- firstSubmission |> set #status XeroTimesheetSubmissionStatusEnumPending |> updateRecord
+                    preparation <- createPreparationRunForFixture fixture ReadyForPreview
+                    outcome <- XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [emptyTimesheetsResponse] [] [] \urls ->
+                        withXeroRequestBaseUrlsForTest urls do
+                            withXeroConfigForTest (Right testXeroConfig) do
+                                Submission.submitXeroDraftTimesheetsForPreparation fixture.owner.id preparation.id fixture.request >>= expectSubmissionResult
+                    case outcome of
+                        Right (XeroTimesheetReviewedStateChanged snapshot) -> do
+                            notices <- either (\message -> expectationFailure (cs message) >> fail "invalid snapshot") pure (reconciliationReviewNotices snapshot)
+                            map (.reconciliationNoticeSeverity) notices `shouldBe` [ReconciliationBlocker]
+                            map (.reconciliationNoticeMessage) notices `shouldBe` ["A Bepis Xero timesheet submission is still in progress. Wait for it to finish, then review again."]
+                        other -> expectationFailure (cs ("Expected reservation blocker, got " <> show other))
+                    query @XeroSubmissionRun |> fetchCount `shouldReturn` 1
+                    query @XeroTimesheetSubmission |> fetchCount `shouldReturn` 1
 
             it "refetches once after update 404 and replaces only after confirmed absence" $ withContext do
                 withCleanDb do
@@ -435,7 +433,7 @@ tests =
                         XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
                             withXeroRequestBaseUrlsForTest urls do
                                 withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                                    submitFixturePreparation fixture
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -454,7 +452,7 @@ tests =
                         XeroMock.withStrictXeroMockTimesheetCreateResponses identitySpec payrollSpec [semanticValidationResponse] \urls ->
                             withXeroRequestBaseUrlsForTest urls do
                                 withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                                    submitFixturePreparation fixture
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -478,7 +476,7 @@ tests =
                         XeroMock.withStrictXeroMockTimesheetCreateResponses identitySpec payrollSpec [transportFailureResponse] \urls ->
                             withXeroRequestBaseUrlsForTest urls do
                                 withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                                    submitFixturePreparation fixture
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -505,7 +503,7 @@ tests =
                         XeroMock.withStrictXeroMockTimesheetCreateResponses identitySpec payrollSpec [XeroMock.jsonResponse status200 XeroMock.timesheetsFixture, semanticValidationResponse] \urls ->
                             withXeroRequestBaseUrlsForTest urls do
                                 withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                                    submitFixturePreparation fixture
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -528,7 +526,7 @@ submitWithStrictResponses identitySpec payrollSpec fixture listResponses createR
     XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec listResponses createResponses updateResponses \urls ->
         withXeroRequestBaseUrlsForTest urls do
             withXeroConfigForTest (Right testXeroConfig) do
-                submitXeroDraftTimesheets fixture.owner.id fixture.request
+                submitFixturePreparation fixture
 
 expectRun :: Either Text XeroSubmissionRun -> IO XeroSubmissionRun
 expectRun (Right run) = pure run

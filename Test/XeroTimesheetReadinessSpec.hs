@@ -30,6 +30,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.XeroTimesheet (currentVenueBuckets)
 
 validateXeroTimesheetReadiness :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO XeroTimesheetReadiness
 validateXeroTimesheetReadiness request =
@@ -918,31 +919,6 @@ createReadinessFixtureWithMappings readyMapped calendarType periodStart periodEn
         pure ()
     _ <- createApprovedTimesheetEntryRecord venue staff owner periodStart
     pure fixture
-
-currentVenueBuckets :: (?modelContext :: ModelContext) => Venue -> Day -> IO [XeroLocalEarningsBucket]
-currentVenueBuckets venue effectiveDay = do
-    staffMembers <-
-        query @Staff
-            |> filterWhere (#venueId, unpackId venue.id)
-            |> fetch
-    shiftTypes <-
-        query @ShiftType
-            |> filterWhere (#venueId, unpackId venue.id)
-            |> fetch
-    awardLevels <- query @AwardLevel |> fetch
-    baseRates <- query @AwardLevelBaseRate |> fetch
-    penaltyRates <- query @AwardLevelPenaltyRate |> fetch
-    timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    pure
-        ( deriveXeroLocalEarningsBuckets
-            1
-            effectiveDay
-            (deriveXeroUsedAwardPayScopes staffMembers shiftTypes)
-            awardLevels
-            baseRates
-            penaltyRates
-            timeAllowances
-        )
 
 createReadinessXeroConnection :: (?modelContext :: ModelContext) => Venue -> User -> IO XeroConnection
 createReadinessXeroConnection venue owner =

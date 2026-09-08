@@ -7,10 +7,7 @@ module Application.Xero.Timesheets.Submission
     , XeroTimesheetReviewedSubmissionOutcome (..)
     , duplicateCheckSnapshotJson
     , fetchRemoteTimesheetsForDuplicateCheck
-    , reviewXeroDraftTimesheets
-    , submitReviewedXeroDraftTimesheetsForPreparation
     , submitXeroDraftTimesheetsForPreparation
-    , submitXeroDraftTimesheets
     , xeroTimesheetSubmissionRequestJson
     )
 where
@@ -44,6 +41,8 @@ import qualified Data.Vector as Vector
 import Generated.Types
 import IHP.ControllerPrelude
 
+-- The snapshot outcome reports reservation conflicts to the live preparation
+-- flow; it does not require comparison against an earlier confirmation snapshot.
 data XeroTimesheetReviewedSubmissionOutcome
     = XeroTimesheetReviewedSubmissionCompleted !XeroSubmissionRun
     | XeroTimesheetReviewedStateChanged !Aeson.Value
@@ -64,7 +63,7 @@ submissionSuccess = Right . XeroSubmissionSucceeded
 
 data XeroTimesheetSubmissionPersistenceOutcome
     = XeroTimesheetSubmissionPersisted !XeroSubmissionRun
-    | XeroTimesheetSubmissionReservationInProgress ![Id XeroSubmissionRun]
+    | XeroTimesheetSubmissionReservationInProgress
     | XeroTimesheetSubmissionReservationBlocked !XeroTimesheetReconciliationDecision
 
 data FreshSubmissionPlan = FreshSubmissionPlan
@@ -73,38 +72,7 @@ data FreshSubmissionPlan = FreshSubmissionPlan
     , freshPlanDuplicateSnapshot :: !Aeson.Value
     , freshPlanPreviewRun        :: !XeroTimesheetPreviewRun
     , freshPlanReservations      :: ![XeroTimesheetReservation]
-    , freshPlanReviewSnapshot    :: !Aeson.Value
     }
-
-reviewXeroDraftTimesheets ::
-    (?modelContext :: ModelContext) =>
-    XeroTimesheetReadinessRequest ->
-    IO (XeroSubmissionResult Aeson.Value)
-reviewXeroDraftTimesheets request =
-    withFreshRemoteTimesheets request (\_ _ connection remoteTimesheets ->
-        fmap (fmap (fmap (.freshPlanReviewSnapshot))) (buildFreshSubmissionPlan request connection remoteTimesheets))
-
-submitXeroDraftTimesheets ::
-    (?modelContext :: ModelContext) =>
-    Id User ->
-    XeroTimesheetReadinessRequest ->
-    IO (XeroSubmissionResult XeroSubmissionRun)
-submitXeroDraftTimesheets submittedByUserId request =
-    submitXeroDraftTimesheetsWithPreparation submittedByUserId Nothing Nothing request >>= \case
-        Left appError -> pure (Left appError)
-        Right (XeroSubmissionBlocked message) -> pure (submissionFailure message)
-        Right (XeroSubmissionSucceeded (XeroTimesheetReviewedSubmissionCompleted run)) -> pure (submissionSuccess run)
-        Right (XeroSubmissionSucceeded (XeroTimesheetReviewedStateChanged _)) -> pure (submissionFailure "Xero reconciliation state changed unexpectedly.")
-
-submitReviewedXeroDraftTimesheetsForPreparation ::
-    (?modelContext :: ModelContext) =>
-    Id User ->
-    Id XeroTimesheetPreparationRun ->
-    Aeson.Value ->
-    XeroTimesheetReadinessRequest ->
-    IO (XeroSubmissionResult XeroTimesheetReviewedSubmissionOutcome)
-submitReviewedXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId reviewedSnapshot request =
-    submitXeroDraftTimesheetsWithPreparation submittedByUserId (Just preparationRunId) (Just reviewedSnapshot) request
 
 submitXeroDraftTimesheetsForPreparation ::
     (?modelContext :: ModelContext) =>
@@ -112,51 +80,31 @@ submitXeroDraftTimesheetsForPreparation ::
     Id XeroTimesheetPreparationRun ->
     XeroTimesheetReadinessRequest ->
     IO (XeroSubmissionResult XeroTimesheetReviewedSubmissionOutcome)
-submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId =
-    submitXeroDraftTimesheetsWithPreparation submittedByUserId (Just preparationRunId) Nothing
-
-submitXeroDraftTimesheetsWithPreparation ::
-    (?modelContext :: ModelContext) =>
-    Id User ->
-    Maybe (Id XeroTimesheetPreparationRun) ->
-    Maybe Aeson.Value ->
-    XeroTimesheetReadinessRequest ->
-    IO (XeroSubmissionResult XeroTimesheetReviewedSubmissionOutcome)
-submitXeroDraftTimesheetsWithPreparation submittedByUserId maybePreparationRunId maybeReviewedSnapshot request =
+submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId request =
     withFreshRemoteTimesheets request \xeroClient accessToken connection remoteTimesheets -> do
         buildFreshSubmissionPlan request connection remoteTimesheets >>= \case
             Left appError -> pure (Left appError)
             Right (XeroSubmissionBlocked message) -> pure (submissionFailure message)
-            Right (XeroSubmissionSucceeded plan)
-                | Just reviewedSnapshot <- maybeReviewedSnapshot
-                , reviewedSnapshot /= plan.freshPlanReviewSnapshot ->
-                    pure (submissionSuccess (XeroTimesheetReviewedStateChanged plan.freshPlanReviewSnapshot))
-                | otherwise ->
-                    persistAndSubmitPreview
-                        submittedByUserId
-                        maybePreparationRunId
-                        xeroClient
-                        accessToken
-                        connection
-                        plan.freshPlanRequest
-                        plan.freshPlanReadiness
-                        plan.freshPlanDuplicateSnapshot
-                        plan.freshPlanPreviewRun
-                        plan.freshPlanReservations
-                        >>= \case
-                            Left message -> pure (submissionFailure message)
-                            Right (XeroTimesheetSubmissionPersisted run) ->
-                                pure (submissionSuccess (XeroTimesheetReviewedSubmissionCompleted run))
-                            Right (XeroTimesheetSubmissionReservationInProgress runIds)
-                                | isJust maybeReviewedSnapshot || isJust maybePreparationRunId ->
-                                    pure (submissionSuccess (reservationStateChanged plan XeroSubmissionInProgress))
-                                | otherwise -> case runIds of
-                                    [runId] -> submissionSuccess . XeroTimesheetReviewedSubmissionCompleted <$> fetch runId
-                                    _ -> pure (submissionFailure "Xero timesheet submission is already in progress in more than one run.")
-                            Right (XeroTimesheetSubmissionReservationBlocked decision)
-                                | isJust maybeReviewedSnapshot || isJust maybePreparationRunId ->
-                                    pure (submissionSuccess (reservationStateChanged plan decision))
-                                | otherwise -> pure (submissionFailure (reconciliationBlockedMessage decision))
+            Right (XeroSubmissionSucceeded plan) ->
+                persistAndSubmitPreview
+                    submittedByUserId
+                    preparationRunId
+                    xeroClient
+                    accessToken
+                    connection
+                    plan.freshPlanRequest
+                    plan.freshPlanReadiness
+                    plan.freshPlanDuplicateSnapshot
+                    plan.freshPlanPreviewRun
+                    plan.freshPlanReservations
+                    >>= \case
+                        Left message -> pure (submissionFailure message)
+                        Right (XeroTimesheetSubmissionPersisted run) ->
+                            pure (submissionSuccess (XeroTimesheetReviewedSubmissionCompleted run))
+                        Right XeroTimesheetSubmissionReservationInProgress ->
+                            pure (submissionSuccess (reservationStateChanged plan XeroSubmissionInProgress))
+                        Right (XeroTimesheetSubmissionReservationBlocked decision) ->
+                            pure (submissionSuccess (reservationStateChanged plan decision))
   where
     reservationStateChanged plan decision =
         XeroTimesheetReviewedStateChanged
@@ -232,13 +180,12 @@ buildFreshSubmissionPlan request connection remoteTimesheets = do
                                         , freshPlanDuplicateSnapshot = duplicateSnapshotWithReview remoteTimesheets reviewSnapshot
                                         , freshPlanPreviewRun = previewRun
                                         , freshPlanReservations = reservations
-                                        , freshPlanReviewSnapshot = reviewSnapshot
                                         }
 
 persistAndSubmitPreview ::
     (?modelContext :: ModelContext) =>
     Id User ->
-    Maybe (Id XeroTimesheetPreparationRun) ->
+    Id XeroTimesheetPreparationRun ->
     XeroClient ->
     Text ->
     XeroConnection ->
@@ -248,7 +195,7 @@ persistAndSubmitPreview ::
     XeroTimesheetPreviewRun ->
     [XeroTimesheetReservation] ->
     IO (Either Text XeroTimesheetSubmissionPersistenceOutcome)
-persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient accessToken connection request readiness duplicateSnapshot previewRun reservations = do
+persistAndSubmitPreview submittedByUserId preparationRunId xeroClient accessToken connection request readiness duplicateSnapshot previewRun reservations = do
     let runTemplate =
             newRecord @XeroSubmissionRun
                 |> set #venueId (unpackId request.readinessVenueId)
@@ -256,7 +203,7 @@ persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient acces
                 |> set #submittedByUserId (unpackId submittedByUserId)
                 |> set #payPeriodStart request.readinessPeriodStart
                 |> set #payPeriodEnd request.readinessPeriodEnd
-                |> set #xeroTimesheetPreparationRunId maybePreparationRunId
+                |> set #xeroTimesheetPreparationRunId (Just preparationRunId)
                 |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
                 |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
                 |> set #selectedPeriodKey request.readinessSelectedPeriodKey
@@ -287,7 +234,7 @@ persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient acces
                             |> set #errorSummary errorSummary
                             |> updateRecord
                     pure (Right (XeroTimesheetSubmissionPersisted updatedRun))
-                XeroTimesheetReservationsInProgress runIds -> pure (Right (XeroTimesheetSubmissionReservationInProgress runIds))
+                XeroTimesheetReservationsInProgress _ -> pure (Right XeroTimesheetSubmissionReservationInProgress)
                 XeroTimesheetReservationBlocked decision -> pure (Right (XeroTimesheetSubmissionReservationBlocked decision))
                 XeroTimesheetReservationInvalid message -> pure (Left message)
 

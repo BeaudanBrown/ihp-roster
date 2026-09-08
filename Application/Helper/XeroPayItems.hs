@@ -3,7 +3,6 @@
 -- those belong exclusively to Application.WageEvaluation and sealed ledgers.
 module Application.Helper.XeroPayItems
     ( deriveXeroPayItemRequirements
-    , deriveXeroLocalEarningsBuckets
     , deriveXeroUsedAwardPayScopes
     , syncXeroPayItemRequirementRecords
     , xeroManagedPayItemNamePrefix
@@ -145,67 +144,6 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
                     (Just (formatRate missedRate))
                     "HIGA missed meal break addition: 50% of the permanent ordinary classification rate"
 
-deriveXeroLocalEarningsBuckets ::
-    WeekdayIndex ->
-    Day ->
-    [XeroUsedAwardPayScope] ->
-    [AwardLevel] ->
-    [AwardLevelBaseRate] ->
-    [AwardLevelPenaltyRate] ->
-    [AwardTimePenaltyAllowance] ->
-    [XeroLocalEarningsBucket]
-deriveXeroLocalEarningsBuckets weekStartsOn today usedScopes awardLevels baseRates penaltyRates timeAllowances =
-    dedupeBucketsByKey $
-        concatMap ordinaryBucket baseRows
-            ++ map penaltyBucket penaltyRows
-            ++ concatMap timeAllowanceBuckets baseRows
-            ++ map missedMealBreakBucket baseRows
-    where
-        activeAwardLevels = filter (.isActive) awardLevels
-        allBaseRows = awardBaseRows weekStartsOn activeAwardLevels baseRates
-        baseRows = filter rowIsUsed (filter (rowIsActiveOn today) allBaseRows)
-        penaltyRows = filter rowIsUsed (filter (rowIsActiveOn today) (awardPenaltyRows weekStartsOn activeAwardLevels penaltyRates))
-        rowIsUsed row =
-            XeroUsedAwardPayScope
-                { usedAwardLevelId = row.awardLevelId
-                , usedEmploymentBasis = row.employmentBasis
-                } `elem` usedScopes
-
-        ordinaryBucket row =
-            [bucket row]
-
-        penaltyBucket = bucket
-
-        timeAllowanceBuckets row =
-            timeAllowances
-                |> filter (\allowance -> allowance.awardFixedId == row.awardFixedId)
-                |> filter (\allowance -> allowance.hourlyAmount > 0)
-                |> filter (\allowance -> allowance.penaltyKind `elem` timeAllowancePenaltyKinds)
-                |> filter (allowanceIsActiveOn weekStartsOn today)
-                |> map (\allowance ->
-                    bucket row
-                        { condition = PenaltyCondition allowance.penaltyKind
-                        , hourlyRate = allowance.hourlyAmount
-                        , operativeFrom = venueEffectiveRateDate weekStartsOn <$> allowance.operativeFrom
-                        , operativeTo = venueEffectiveRateEndDate weekStartsOn allowance.operativeTo
-                        , sourceIdentity = projectionRateSourceIdentity (AwardTimePenaltyAllowanceSource (unpackId allowance.id) allowance.fwcMapdWageAllowanceId)
-                        }
-                )
-
-        missedMealBreakBucket row =
-            let permanentRow = permanentBaseRowFor allBaseRows row
-                missedRate = permanentRow.hourlyRate * 0.5
-             in XeroLocalEarningsBucket
-                { localBucketKey = missedMealBreakKey permanentRow missedRate
-                , localBucketLabel = "Missed Meal Break 50% Addition - " <> row.classification
-                }
-
-        bucket row =
-            XeroLocalEarningsBucket
-                { localBucketKey = requiredPayItemKey row
-                , localBucketLabel = localPayItemLabel row
-                }
-
 data AwardPayItemRow = AwardPayItemRow
     { awardLevelId          :: UUID
     , awardFixedId          :: Int
@@ -300,16 +238,6 @@ permanentBaseRowFor allBaseRows row =
         anyPermanentMatch baseRow =
             baseRow.awardLevelId == row.awardLevelId
                 && baseRow.employmentBasis == Permanent
-
-rowIsActiveOn :: Day -> AwardPayItemRow -> Bool
-rowIsActiveOn today row =
-    maybe True (<= today) row.operativeFrom
-        && maybe True (>= today) row.operativeTo
-
-allowanceIsActiveOn :: WeekdayIndex -> Day -> AwardTimePenaltyAllowance -> Bool
-allowanceIsActiveOn weekStartsOn today allowance =
-    maybe True ((<= today) . venueEffectiveRateDate weekStartsOn) allowance.operativeFrom
-        && maybe True (>= today) (venueEffectiveRateEndDate weekStartsOn allowance.operativeTo)
 
 missedMealBreakKey :: AwardPayItemRow -> Scientific.Scientific -> Text
 missedMealBreakKey row missedRate =
@@ -604,10 +532,6 @@ legacyManagedPayItemNames requirementName =
 dedupeRequirementsByKey :: [XeroPayItemRequirement] -> [XeroPayItemRequirement]
 dedupeRequirementsByKey =
     List.nubBy (\left right -> left.payItemRequirementKey == right.payItemRequirementKey)
-
-dedupeBucketsByKey :: [XeroLocalEarningsBucket] -> [XeroLocalEarningsBucket]
-dedupeBucketsByKey =
-    List.nubBy (\left right -> left.localBucketKey == right.localBucketKey)
 
 formatRate :: Scientific.Scientific -> Text
 formatRate value =

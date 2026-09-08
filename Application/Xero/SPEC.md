@@ -172,7 +172,7 @@ issue and, when cross-system design remains unresolved, a new workstream.
   source identity and rate remain unchanged in the resulting key.
   `Application.Xero.PayrollSourceKey` owns that exact source/rate suffix.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
-- Readiness, persisted preview, direct submission, retry, and guided preparation
+- Readiness, persisted preview, preparation-owned submission, retry, and guided preparation
   use the shared strict wage-source enforcement boundary. Any included entry's
   calculation or source failure blocks the complete operation; imported overrides
   bypass FWC/DataVic freshness only with a valid imported pay item.
@@ -209,7 +209,10 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   run without downloading remote timesheet history. After concise owner
   confirmation, submission performs one fresh reconciliation read and
   immediately creates or updates safe drafts from that state; unsafe provider
-  states block before writes. Every remote reconciliation read uses the Payroll
+  states block before writes. Confirmation does not carry an earlier remote
+  snapshot to compare for equality. Reservation-conflict outcomes still return
+  current reconciliation notices, and persisted reconciliation snapshots remain
+  available as submission history. Every remote reconciliation read uses the Payroll
   AU v2 timesheet endpoint scoped to the selected payroll calendar and period.
   The initial read omits the optional `page` query parameter because live Xero
   returns 400 for an explicitly requested empty page 1; later full-result pages

@@ -1713,6 +1713,13 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> fetch
                 unmappedComponents `shouldSatisfy` all (isNothing . (.xeroLocalBucketKey))
                 unmappedComponents `shouldSatisfy` all (not . (.xeroMappingLegacyFallback))
+                -- This case needs missing managed catalogue matches as well as
+                -- missing approval-time routing. Do not rely on the predecessor
+                -- fixture's differently named missed-meal item to create that gap.
+                providerRates <- query @XeroEarningsRate |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ providerRates \rate -> do
+                    _ <- rate |> set #name ("Unmanaged fixture rate " <> rate.xeroEarningsRateId) |> updateRecord
+                    pure ()
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection

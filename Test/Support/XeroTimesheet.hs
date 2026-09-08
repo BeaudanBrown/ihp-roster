@@ -383,7 +383,14 @@ currentVenueBuckets venue effectiveDay = do
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
     venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-    pure (deriveXeroLocalEarningsBuckets venueConfig.rosterWeekStartsOn effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
+    -- Catalogue setup delegates keys/rates/effective dates to the same projection
+    -- used by preparation; it does not derive a second set of wage buckets.
+    let requirements = deriveXeroPayItemRequirements venueConfig.rosterWeekStartsOn effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances []
+    pure
+        [ XeroLocalEarningsBucket requirement.payItemRequirementKey requirement.payItemRequirementName
+        | requirement <- requirements
+        , requirement.payItemRequirementIsActive
+        ]
 
 withSealedRosterWeekStartsOn :: Int -> TimesheetPayCalculation -> TimesheetPayCalculation
 withSealedRosterWeekStartsOn startsOn calculation = calculation |> set #rosterWeekStartsOn startsOn

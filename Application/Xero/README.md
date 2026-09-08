@@ -65,6 +65,25 @@ exercise stale completion and rollback there rather than recreating an aggregate
 completion adapter in test support. Request/coalescing tests use the real request
 boundary without installing an otherwise-unused job runtime override.
 
+## Preparation Verification Seams
+
+Controllers consume preparation's typed results directly. Dialog-local state does
+not need a live-resource envelope; provider token refresh and reference-sync
+publication remain independently owned and must still be observed in tests.
+
+Submission tests create real preparation records and call
+`submitXeroDraftTimesheetsForPreparation`, preserving strict mock provider requests
+and persisted parent/source/status assertions. Reservation-conflict outcomes and
+persisted reconciliation snapshot readers remain live contracts. Confirmation
+uses one fresh reconciliation read, not comparison with an earlier reviewed
+snapshot; safe drafts can be updated immediately and unsafe states still block.
+
+Catalogue fixture keys and effective dates come from `deriveXeroPayItemRequirements`.
+Fixtures needing unavailable managed matches must declare that gap explicitly,
+rather than relying on a different local derivation or incidental provider names.
+Sealed-entry bucket resolution and historical source/rate snapshots retain their
+separate production owners.
+
 ## Related Docs
 
 - `SPEC.md` — durable authorization, synchronization, and payroll contracts.
