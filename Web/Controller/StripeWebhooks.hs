@@ -49,12 +49,12 @@ billingWebhookVenueId = \case
     BillingWebhookDuplicate event -> event.venueId
     BillingWebhookIgnored event -> event.venueId
 
-requireStripeSignatureHeader :: (?context :: ControllerContext, ?request :: Request) => IO Text
+requireStripeSignatureHeader :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => IO Text
 requireStripeSignatureHeader =
     case lookup "Stripe-Signature" (Wai.requestHeaders ?request) of
         Just value -> pure (TextEncoding.decodeUtf8 value)
         Nothing -> renderPlainWithStatus status400 "Stripe-Signature header is required"
 
-renderPlainWithStatus :: (?request :: Request) => Status -> Text -> IO value
+renderPlainWithStatus :: (?respond :: Respond, ?request :: Request) => Status -> Text -> IO value
 renderPlainWithStatus status message =
     respondAndStop (Wai.responseLBS status [("Content-Type", "text/plain")] (cs message))

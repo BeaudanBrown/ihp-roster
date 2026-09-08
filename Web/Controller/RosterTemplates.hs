@@ -45,7 +45,7 @@ import Web.View.RosterTemplates.CaptureConfirmation
 import Web.View.RosterTemplates.DeleteConfirmation
 import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
-rosterTemplateWindowScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterGroup -> IO RosterWindowScope
+rosterTemplateWindowScope :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterGroup -> IO RosterWindowScope
 rosterTemplateWindowScope rosterGroup = do
     venueConfig <- fetchVenueConfig
     anchorDate <- parseIsoDayRouteParam (paramOrDefault @Text "" "anchorDate")
@@ -254,7 +254,7 @@ rerenderTemplateApplication ::
     RosterWindowScope ->
     RosterTemplateApplicationRequest ->
     RosterTemplateApplicationError ->
-    IO ()
+    IO ResponseReceived
 rerenderTemplateApplication actor rosterTemplateId rosterGroupId scope applicationRequest failure
     | not isHtmxRequest = invalidTemplateApplication scope (templateApplicationErrorMessage failure)
     | otherwise = do
@@ -299,7 +299,7 @@ rerenderParsedTemplateCapture ::
     Id RosterGroup ->
     RosterWindowScope ->
     Text ->
-    IO ()
+    IO ResponseReceived
 rerenderParsedTemplateCapture actor rosterGroupId scope message =
     case RosterAction.parsePreviewRosterTemplateCaptureActionParams of
         Left _ -> renderTemplateCaptureInput rosterGroupId scope message
@@ -319,7 +319,7 @@ rerenderTemplateCapture ::
     RosterWindowScope ->
     RosterTemplateCaptureRequest ->
     RosterTemplateCaptureError ->
-    IO ()
+    IO ResponseReceived
 rerenderTemplateCapture actor rosterGroupId scope captureRequest failure =
     rerenderTemplateCaptureMessage actor rosterGroupId scope captureRequest (templateCaptureErrorMessage failure)
 
@@ -330,7 +330,7 @@ rerenderTemplateCaptureMessage ::
     RosterWindowScope ->
     RosterTemplateCaptureRequest ->
     Text ->
-    IO ()
+    IO ResponseReceived
 rerenderTemplateCaptureMessage actor rosterGroupId scope captureRequest message = do
     refreshed <- previewRosterTemplateCapture actor captureRequest
     case refreshed of
@@ -338,11 +338,11 @@ rerenderTemplateCaptureMessage actor rosterGroupId scope captureRequest message 
         Right preview -> respondHtml (renderRosterTemplateCaptureConfirmation rosterGroupId scope.rosterWindowStart captureRequest preview (Just message))
 
 renderTemplateCaptureInput ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Id RosterGroup ->
     RosterWindowScope ->
     Text ->
-    IO ()
+    IO ResponseReceived
 renderTemplateCaptureInput rosterGroupId scope message =
     respondHtml (renderRosterTemplateCaptureInput rosterGroupId scope.rosterWindowStart submittedName submittedMode message)
   where
@@ -350,21 +350,21 @@ renderTemplateCaptureInput rosterGroupId scope message =
     submittedName = fromMaybe "" (paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.TemplateName transportFields)))
     submittedMode = paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.CaptureAssignmentMode transportFields))
 
-invalidTemplateDelete :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Maybe RosterWindowScope -> Text -> IO ()
+invalidTemplateDelete :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Maybe RosterWindowScope -> Text -> IO ResponseReceived
 invalidTemplateDelete maybeScope message
     | isHtmxRequest = respondHtml (renderRosterTemplateDeleteError message)
     | otherwise = do
         setErrorMessage message
         maybe (redirectTo RosterWeeksAction) (redirectToPath . rosterTemplateWindowUrl) maybeScope
 
-invalidTemplateApplicationTransport :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [SurfaceRequestFieldError] -> IO ()
+invalidTemplateApplicationTransport :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [SurfaceRequestFieldError] -> IO ResponseReceived
 invalidTemplateApplicationTransport scope errors
     | isHtmxRequest = respondHtml (renderRosterTemplateApplicationTransportError message)
     | otherwise = invalidTemplateApplication scope message
   where
     message = captureTransportErrorMessage errors
 
-invalidTemplateApplication :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ()
+invalidTemplateApplication :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ResponseReceived
 invalidTemplateApplication scope message
     | isHtmxRequest = respondHtml (renderRosterTemplateApplicationTransportError message)
     | otherwise = do
@@ -415,7 +415,7 @@ templateErrorMessage = \case
     RosterTemplateInvalidShiftTypes _ -> "Resolve invalid or archived Shift types before saving."
 
 authorizedTemplateActor ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO RosterTemplateActor
 authorizedTemplateActor = do
     ensureManagerRole
@@ -423,7 +423,7 @@ authorizedTemplateActor = do
     currentRosterTemplateActor
 
 fetchScopedRosterGroup ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id RosterGroup ->
     IO RosterGroup
 fetchScopedRosterGroup rosterGroupId = do

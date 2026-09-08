@@ -39,7 +39,7 @@ data RequestedLeaveSubmission
 
 -- Preserve the valid draft beside the existing mutation result for blackout
 -- feedback. Mutations alone own staff locks, overlap rejection and publication.
-submitRequestedLeave :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO RequestedLeaveSubmission
+submitRequestedLeave :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO RequestedLeaveSubmission
 submitRequestedLeave responseContext = do
     fetchLeaveRequestTargetStaff responseContext >>= \case
         Nothing -> pure LeaveSubmissionMissingStaff
@@ -103,13 +103,13 @@ requestedLeaveResponseContext =
         Just targetId | targetId == selfServiceLeaveFormFragmentId -> LeaveSelfServiceResponseContext
         _ -> LeavePageResponseContext
 
-ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO ()
+ensureLeaveProfileAccess :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess = \case
     LeavePageResponseContext -> ensureProfileCompleted
     LeaveSelfServiceResponseContext -> ensureProfileCompleted
     LeaveStaffResponseContext -> ensureManagerRole
 
-fetchLeaveRequestTargetStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO (Maybe Staff)
+fetchLeaveRequestTargetStaff :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO (Maybe Staff)
 fetchLeaveRequestTargetStaff LeaveStaffResponseContext =
     case paramOrNothing @(Id Staff) "staffId" of
         Nothing -> pure Nothing

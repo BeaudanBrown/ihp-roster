@@ -20,7 +20,7 @@ import Web.Controller.Prelude
 -- audits intentionally occur after provider/host validation, outside committed
 -- Checkout phases and before the terminal HTTP response. Do not move them into
 -- preparation or record a successful start on a rejected redirect.
-respondWithBillingCheckout :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => CheckoutStartResult -> IO ()
+respondWithBillingCheckout :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => CheckoutStartResult -> IO ResponseReceived
 respondWithBillingCheckout checkoutResult =
     case checkoutResult.checkoutStartOutcome of
         CheckoutStartRejected message -> billingRedirectWithError message
@@ -44,7 +44,7 @@ respondWithBillingCheckout checkoutResult =
                                     ])
                             redirectToBillingUrl validatedCheckoutUrl
 
-respondWithBillingPortal :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueBillingCustomer -> Text -> Either StripeClientError StripePortalSession -> IO ()
+respondWithBillingPortal :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueBillingCustomer -> Text -> Either StripeClientError StripePortalSession -> IO ResponseReceived
 respondWithBillingPortal billingCustomer returnUrl = \case
     Left err -> billingRedirectWithError ("Stripe Customer Portal failed: " <> stripeClientErrorText err)
     Right portalSession ->
@@ -64,7 +64,7 @@ respondWithBillingPortal billingCustomer returnUrl = \case
                                 ])
                         redirectToBillingUrl validatedPortalUrl
 
-respondWithBillingReconciliation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Either BillingReconciliationFailure EnqueueAppJobResult -> IO ()
+respondWithBillingReconciliation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Either BillingReconciliationFailure EnqueueAppJobResult -> IO ResponseReceived
 respondWithBillingReconciliation = \case
     Left failure -> billingRedirectWithError failure.reconciliationFailureSummary
     Right enqueueResult -> do
@@ -89,7 +89,7 @@ respondWithBillingReconciliation = \case
 
 -- Both callers already hold a correlated attempt. Keep the defensive missing
 -- Session failure for resumed Checkout and never expose the Session in the URL.
-redirectToCorrelatedCheckoutReturn :: (?context :: ControllerContext, ?request :: Request) => BillingCheckoutAttempt -> IO ()
+redirectToCorrelatedCheckoutReturn :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => BillingCheckoutAttempt -> IO ResponseReceived
 redirectToCorrelatedCheckoutReturn attempt =
     case attempt.stripeCheckoutSessionId of
         Nothing -> billingRedirectWithError "The open Checkout attempt has no Stripe Session to resume."
@@ -101,12 +101,12 @@ redirectToCorrelatedCheckoutReturn attempt =
                     , ("attempt_id", inputValue attempt.id)
                     ]
 
-billingRedirectWithError :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+billingRedirectWithError :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 billingRedirectWithError message = do
     setErrorMessage message
     redirectTo BillingAction
 
-redirectToBillingUrl :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectToBillingUrl :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 redirectToBillingUrl url =
     if isHtmxRequest
         then do

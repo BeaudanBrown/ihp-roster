@@ -38,7 +38,7 @@ import Application.Helper.View (ToastOverlayConfig,
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
@@ -65,7 +65,7 @@ import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragmentOob)
 
-respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
+respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ResponseReceived
 respondToRosterSlotMutation scope rosterDay rowIndex mutationResult successMessage = do
     mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation [(unpackId rosterDay.id, rowIndex)])
     if isHtmxRequest
@@ -79,7 +79,7 @@ respondToRosterSlotMutation scope rosterDay rowIndex mutationResult successMessa
             setSuccessMessage successMessage
             redirectToPath (rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId)
 
-respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ResponseReceived
 respondToRosterSlotMove scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
     respondWithRosterResourceInvalidation
@@ -88,7 +88,7 @@ respondToRosterSlotMove scope mutationResult impactedRowKeys shouldWarnSourceTim
         mountedProjections
         (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
-respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
+respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ResponseReceived
 respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged = do
     mountedProjections <- rosterMutationMountedProjections RosterTimelineMutation
     respondWithRosterResourceInvalidation
@@ -97,11 +97,11 @@ respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUn
         mountedProjections
         (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
-respondToRosterShiftEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterShiftEditCompletion -> IO ()
+respondToRosterShiftEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> RosterShiftEditCompletion -> IO ResponseReceived
 respondToRosterShiftEdit scope completion =
     respondToRosterSlotUpdate scope completion.rosterShiftEditMutation completion.rosterShiftEditImpactedRows completion.rosterShiftEditWarnSourceTimesheetUnchanged
 
-respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ResponseReceived
 respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
     respondWithRosterResourceInvalidation
@@ -110,24 +110,24 @@ respondToRosterSlotUpdate scope mutationResult impactedRowKeys shouldWarnSourceT
         mountedProjections
         (renderDialogOverlayClearOob <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
-sourceTimesheetWarningToast :: (?context :: ControllerContext, ?request :: Request) => Bool -> Blaze.Html
+sourceTimesheetWarningToast :: (?context :: ControllerContext, ?request :: Request) => Bool -> Markup.Html
 sourceTimesheetWarningToast shouldWarn =
     if shouldWarn
         then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
         else mempty
 
-respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()
+respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> IO ResponseReceived
 respondWithRosterContent scope = do
     maybeHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionContent
     when (isNothing maybeHtml) do
         TextIO.putStrLn ("roster_read_model_miss: rosterGroupId=" <> tshow scope.rosterWindowRosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
     respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
-respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
+respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ResponseReceived
 respondWithRosterFragmentsUpdate scope fragments toast =
     respondWithRosterFragments scope fragments (renderToastOob ToastBottomCenter toast)
 
-respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> ToastOverlayConfig -> IO ()
+respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> ToastOverlayConfig -> IO ResponseReceived
 respondWithRosterOwnHighlightPreferenceUpdate scope toast = do
     rosterData <- fetchVisibleRosterReadModel scope
     let selfServicePanel = rosterData >>= (.staffSelfServicePanel)
@@ -136,18 +136,18 @@ respondWithRosterOwnHighlightPreferenceUpdate scope toast = do
         rosterGridInnerAndStaffPanelFragments
         (renderRosterStaffSelfServicePanelFragmentOob selfServicePanel <> renderToastOob ToastBottomCenter toast)
 
-respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [RosterProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithRosterFragments scope fragments extraHtml =
     respondWithRosterActorInvalidation scope fragments extraHtml
 
-respondWithRosterActorInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterActorInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [RosterProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithRosterActorInvalidation windowScope fragments extraHtml = do
     let scope = rosterFrontendScopeValue windowScope
     setHeader ("HX-Reswap", "none")
     setActorLocalFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
     respondHtmlProfiled extraHtml
 
-respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithRosterResourceInvalidation windowScope touchedResources fragments extraHtml = do
     let scope = rosterFrontendScopeValue windowScope
     let mountedFragments = map (rosterMountedFragmentForProjection scope) (nub fragments)
@@ -155,18 +155,18 @@ respondWithRosterResourceInvalidation windowScope touchedResources fragments ext
     setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources mountedFragments
     respondHtmlProfiled extraHtml
 
-respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Blaze.Html -> IO ()
+respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Markup.Html -> IO ResponseReceived
 respondWithRosterDialogOverlay scope dialog =
     respondWithRosterResourceInvalidation scope Set.empty [] [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">{dialog}</div>
     |]
 
-respondWithRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
+respondWithRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Markup.Html -> IO ResponseReceived
 respondWithRosterCompleteResourceInvalidation windowScope touchedResources extraHtml = do
     prepareRosterCompleteResourceInvalidation windowScope touchedResources
     respondHtmlProfiled extraHtml
 
-prepareRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+prepareRosterCompleteResourceInvalidation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
 prepareRosterCompleteResourceInvalidation windowScope touchedResources = do
     maybeRosterData <- fetchVisibleRosterReadModel windowScope
     case maybeRosterData of
@@ -179,28 +179,28 @@ prepareRosterCompleteResourceInvalidation windowScope touchedResources = do
             setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources (rosterCandidateMountedFragments scope plan)
     setHeader ("HX-Reswap", "none")
 
-respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ResponseReceived
 respondWithRosterTemplateApplicationUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
         {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast "Template applied.")}
     |]
 
-respondWithRosterTemplateCaptureUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateCaptureUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ResponseReceived
 respondWithRosterTemplateCaptureUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
         {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast "Template saved.")}
     |]
 
-respondWithRosterTemplateDeleteUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateDeleteUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ResponseReceived
 respondWithRosterTemplateDeleteUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
         {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast "Template deleted.")}
     |]
 
-respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()
+respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> IO ResponseReceived
 respondWithRosterContentOob scope = do
     let rosterGroupId = scope.rosterWindowRosterGroupId
     rosterGroups <- fetchViewableRosterGroups
@@ -220,18 +220,18 @@ respondWithRosterContentOob scope = do
                         , gridCurrentRosterGroup = currentRosterGroup
                         }
 
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Text -> IO ResponseReceived
 respondWithRosterContentUpdate scope touchedResources successMessage =
     respondWithRosterCompleteResourceInvalidation
         scope
         touchedResources
         (renderToastOob ToastBottomCenter (successToast successMessage))
 
-respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
+respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ResponseReceived
 respondWithRosterContentError scope errorMessage = do
     respondWithRosterContentToast scope True (errorToast errorMessage)
 
-respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Bool -> ToastOverlayConfig -> IO ()
+respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Bool -> ToastOverlayConfig -> IO ResponseReceived
 respondWithRosterContentToast scope publishAttempted toast = do
     let rosterGroupId = scope.rosterWindowRosterGroupId
     rosterGroups <- fetchViewableRosterGroups
@@ -264,7 +264,7 @@ rosterFrontendScopeValue scope =
         , rosterWeekTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         }
 
-respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO ()
+respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> Text -> IO ResponseReceived
 respondWithRosterToast message toastClass =
     respondHtmlProfiled $
         renderToastOob ToastBottomCenter $

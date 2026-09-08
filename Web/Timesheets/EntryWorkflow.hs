@@ -56,7 +56,7 @@ data TimesheetEditOutcome
 
 -- Preserve the existing lookup/venue/visibility/window precedence. This snapshot
 -- does not introduce a new row lock or change the mutation's calendar lock.
-fetchEditableTimesheetEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id TimesheetEntry -> IO TimesheetEntry
+fetchEditableTimesheetEntry :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => Id TimesheetEntry -> IO TimesheetEntry
 fetchEditableTimesheetEntry entryId = do
     entry <- fetch entryId
     ensureRecordInCurrentVenue entry.venueId
@@ -89,7 +89,7 @@ prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn = do
                     let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                     pure (Right NewTimesheetRenderModel { .. })
 
-createOrdinaryTimesheetEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> IO TimesheetCreateOutcome
+createOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> IO TimesheetCreateOutcome
 createOrdinaryTimesheetEntry context = do
     let selectedStaffFilterId = context.timesheetFilters.filterStaffId
     formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
@@ -111,7 +111,7 @@ createOrdinaryTimesheetEntry context = do
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
                     TimesheetCreateCompleted <$> createTimesheetEntryMutation context.timesheetScope timesheetEntry
 
-editOrdinaryTimesheetEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> TimesheetEntry -> IO TimesheetEditOutcome
+editOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> TimesheetEntry -> IO TimesheetEditOutcome
 editOrdinaryTimesheetEntry context existingEntry = do
     formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor existingEntry) context.timesheetFilters.filterStaffId
     prepareTimesheetEdit formContext.formVenueConfig formContext.formCurrentViewerStaffId existingEntry >>= \case
@@ -161,7 +161,7 @@ prepareSuggestedTimesheetForm rosterSlotId selectedStaffFilterId needsCanonicalR
                             let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                             pure (SuggestedTimesheetForm SuggestedTimesheetRenderModel { .. })
 
-createSuggestedTimesheetEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> Id RosterSlot -> IO TimesheetSuggestionOutcome
+createSuggestedTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> Id RosterSlot -> IO TimesheetSuggestionOutcome
 createSuggestedTimesheetEntry context rosterSlotId = do
     fetchTimesheetSuggestionForRosterSlot rosterSlotId >>= \case
         Nothing -> pure SuggestionUnavailable
@@ -205,7 +205,7 @@ createSuggestedTimesheetEntry context rosterSlotId = do
 
 -- Controller invokes manager/writability/venue/deleted-row policy before reading
 -- the shared request context. Timing and approval decisions stay here.
-reviewTimesheetEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> TimesheetReviewIntent -> TimesheetEntry -> IO TimesheetReviewOutcome
+reviewTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> TimesheetReviewIntent -> TimesheetEntry -> IO TimesheetReviewOutcome
 reviewTimesheetEntry context intent entry = case intent of
     ApproveTimesheet -> case decodeTimesheetTiming entry of
         Left _ -> pure TimesheetReviewTimingInvalid

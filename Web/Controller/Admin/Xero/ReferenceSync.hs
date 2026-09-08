@@ -14,8 +14,8 @@ import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
 syncXeroPayrollReferenceDataAction ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 syncXeroPayrollReferenceDataAction = do
     redirectPermissionDeniedUnless currentUserIsUnimpersonatedSuperAdmin "Only founder support can manually refresh Xero reference data."
     maybeConnection <- fetchCurrentVenueXeroConnection
@@ -56,10 +56,10 @@ shouldStartReconnectAfterSyncFailure message =
         || "refresh token expired or was revoked" `Text.isInfixOf` normalized
 
 respondReferenceSyncSuccess ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Set.Set SurfaceResourceValue ->
     Text ->
-    IO ()
+    IO ResponseReceived
 respondReferenceSyncSuccess touchedResources message =
     if isHtmxRequest
         then respondWithXeroSectionActorInvalidationAndToast touchedResources (Just (xeroSuccessToast message))
@@ -68,9 +68,9 @@ respondReferenceSyncSuccess touchedResources message =
             redirectTo XeroAction
 
 respondReferenceSyncFailure ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Text ->
-    IO ()
+    IO ResponseReceived
 respondReferenceSyncFailure message =
     if isHtmxRequest
         then respondWithXeroToast (Just (xeroErrorToast message))

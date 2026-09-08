@@ -53,10 +53,10 @@ import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 
 respondToProfileLiveInvalidation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     [SurfaceResourceValue] ->
-    IO ()
+    IO ResponseReceived
 respondToProfileLiveInvalidation label resources = do
     profilingEnabled <- liftIO isRequestProfilingEnabled
     redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
@@ -65,8 +65,8 @@ respondToProfileLiveInvalidation label resources = do
     respondHtml "ok"
 
 respondToVenueSettingsMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 respondToVenueSettingsMutation =
     if isHtmxRequest
         then do
@@ -78,8 +78,8 @@ respondToVenueSettingsMutation =
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 respondToRosterWindowStartDayMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 respondToRosterWindowStartDayMutation =
     if isHtmxRequest
         then fetchVenueConfig >>= respondHtml . renderRosterWindowStartDaySettingFragment
@@ -93,9 +93,9 @@ reportSurfaceRequestErrors errors =
     setErrorMessage ("Check the submitted fields: " <> surfaceRequestFieldErrorsMessage errors)
 
 respondToShiftTypesSectionMutationWithXeroRefresh ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     LiveMutationResult value ->
-    IO ()
+    IO ResponseReceived
 respondToShiftTypesSectionMutationWithXeroRefresh mutationResult =
     if isHtmxRequest
         then do
@@ -105,11 +105,11 @@ respondToShiftTypesSectionMutationWithXeroRefresh mutationResult =
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 sendStaffPasskeySetupLink ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id Staff ->
     PasskeySetupTokenPurpose ->
     Text ->
-    IO ()
+    IO ResponseReceived
 sendStaffPasskeySetupLink staffId purpose successMessage = do
     ensureCanSendStaffCredentialLink
     maybeTarget <- fetchCurrentVenueStaffUser staffId
@@ -121,9 +121,9 @@ sendStaffPasskeySetupLink staffId purpose successMessage = do
             redirectToPath staffPasskeyReturnPath
 
 sendStaffPasswordResetLink ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id Staff ->
-    IO ()
+    IO ResponseReceived
 sendStaffPasswordResetLink staffId = do
     ensureCanSendStaffCredentialLink
     fetchCurrentVenueStaffUser staffId >>= \case
@@ -140,7 +140,7 @@ sendStaffPasswordResetLink staffId = do
             redirectToPath staffPasskeyReturnPath
 
 ensureCanSendStaffCredentialLink ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 ensureCanSendStaffCredentialLink = do
     redirectPermissionDeniedUnless
@@ -148,7 +148,7 @@ ensureCanSendStaffCredentialLink = do
         "Only a venue admin, venue owner, or super admin can send account recovery links."
     ensureFreshPasskeyReadyFor staffPasskeyReturnPath
 
-rejectStaffCredentialTarget :: (?context :: ControllerContext, ?request :: Request) => IO a
+rejectStaffCredentialTarget :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => IO a
 rejectStaffCredentialTarget =
     terminateAfterIhpResponseControl do
         setErrorMessage "Choose an active linked staff login from this venue."

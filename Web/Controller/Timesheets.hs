@@ -42,22 +42,16 @@ timesheetRequestNeedsCanonicalRedirect requested canonical =
     staffFilterParamNeedsCanonicalRedirect requested canonical
 
 requireTimesheetSurfaceState ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) =>
     Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState ->
     IO TimesheetSurfaceRequestState
 requireTimesheetSurfaceState = \case
     Right state -> pure state
     Left errors -> do
         reportTimesheetSurfaceRequestErrors errors
-        redirectTo TimesheetsAction
-        pure TimesheetSurfaceRequestState
-            { surfaceRequestAnchorDate = ModifiedJulianDay 0
-            , surfaceRequestCalendarRevision = 0
-            , surfaceRequestStaffFilterId = Nothing
-            , surfaceRequestRosterGroupFilterId = Nothing
-            }
+        earlyReturn (redirectTo TimesheetsAction)
 
-redirectToTimesheetWindow :: (?context :: ControllerContext, ?request :: Request) => Day -> Maybe UUID -> IO ()
+redirectToTimesheetWindow :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> IO ResponseReceived
 redirectToTimesheetWindow windowStart staffFilterId =
     redirectToPath (timesheetWindowUrl windowStart staffFilterId)
 
@@ -108,7 +102,7 @@ instance Controller TimesheetsController where
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            redirectToPath (timesheetToolbarFragmentUrl anchorDate selectedStaffFilterId)
+            earlyReturn $ redirectToPath (timesheetToolbarFragmentUrl anchorDate selectedStaffFilterId)
         let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
@@ -118,7 +112,7 @@ instance Controller TimesheetsController where
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            redirectToPath (timesheetSidePanelFragmentUrl anchorDate selectedStaffFilterId)
+            earlyReturn $ redirectToPath (timesheetSidePanelFragmentUrl anchorDate selectedStaffFilterId)
         let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionSidePanel
 
@@ -128,7 +122,7 @@ instance Controller TimesheetsController where
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            redirectToPath (timesheetDayColumnsFragmentUrl anchorDate selectedStaffFilterId)
+            earlyReturn $ redirectToPath (timesheetDayColumnsFragmentUrl anchorDate selectedStaffFilterId)
         let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
 
@@ -141,7 +135,7 @@ instance Controller TimesheetsController where
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            redirectToPath (timesheetDaySectionFragmentUrl anchorDate operationalDate selectedStaffFilterId)
+            earlyReturn $ redirectToPath (timesheetDaySectionFragmentUrl anchorDate operationalDate selectedStaffFilterId)
         let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
         let fragment = TimesheetProjectionDaySection dayOffset
         respondWithTimesheetFragment requestKey fragment
@@ -195,7 +189,7 @@ instance Controller TimesheetsController where
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
         let maybeWorkedOn = paramOrNothing @Day "workedOn"
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            case maybeWorkedOn of
+            earlyReturn $ case maybeWorkedOn of
                 Just workedOn -> redirectToPath (newTimesheetEntryUrl workedOn workedOn selectedStaffFilterId)
                 Nothing       -> redirectToTimesheetWindow windowStart selectedStaffFilterId
         prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn
@@ -224,7 +218,7 @@ instance Controller TimesheetsController where
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
         when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
-            redirectToPath (editTimesheetEntryUrl timesheetEntryId workedOn selectedStaffFilterId)
+            earlyReturn $ redirectToPath (editTimesheetEntryUrl timesheetEntryId workedOn selectedStaffFilterId)
         prepareEditTimesheetForm selectedStaffFilterId timesheetEntry >>= respondWithEditTimesheetForm
 
     action currentAction@UpdateTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do

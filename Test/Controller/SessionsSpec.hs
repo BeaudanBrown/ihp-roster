@@ -28,7 +28,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
-import Web.Controller.Sessions ()
+import Web.Controller.Sessions (beforeBepisLogin)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -424,7 +424,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue user Worker
 
                 selectedVenueId <- withControllerTestContext do
-                    Sessions.beforeLogin @User user
+                    beforeBepisLogin user
                     getSession @(Id Venue) currentVenueSessionKey
 
                 selectedVenueId `shouldBe` Just (get #id venue)

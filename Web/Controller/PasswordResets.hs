@@ -140,11 +140,11 @@ validatePasswordSubmission password passwordConfirmation
     | password /= passwordConfirmation = Just "Passwords don't match."
     | otherwise = Nothing
 
-passwordResetTokenParamOrInvalid :: (?context :: ControllerContext, ?request :: Request) => IO Text
+passwordResetTokenParamOrInvalid :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => IO Text
 passwordResetTokenParamOrInvalid =
     maybe invalidPasswordResetLink pure (paramOrNothing @Text "token")
 
-invalidPasswordResetLink :: (?context :: ControllerContext, ?request :: Request) => IO a
+invalidPasswordResetLink :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => IO a
 invalidPasswordResetLink =
     terminateAfterIhpResponseControl do
         setErrorMessage "This password reset link is invalid or has expired."

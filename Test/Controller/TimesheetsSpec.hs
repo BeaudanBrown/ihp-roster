@@ -39,7 +39,7 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID
 import Generated.Types
-import IHP.Controller.Response (ResponseException (..))
+import Test.Support.Response (captureStoppedResponses)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
@@ -343,13 +343,14 @@ tests = aroundAll withDatabaseTestContext do
                         outcomes `shouldBe` replicate 5 (Left TimesheetCalendarChanged)
                         forM_ [(False, status403), (True, status409)] \(htmx, expectedStatus) -> do
                             withRequestHeaders (if htmx then [("HX-Request", "true")] else []) do
-                                response <- withCurrentControllerContext $
-                                    Exception.try @ResponseException (requireTimesheetCalendarResult (Left TimesheetCalendarChanged :: Either TimesheetCalendarConflict ()))
-                                case response of
-                                    Right () -> expectationFailure "Expected terminal calendar response"
-                                    Left (ResponseException rejected) -> do
+                                (result, responses) <- captureStoppedResponses ?request $
+                                    withCurrentControllerContext $
+                                        requireTimesheetCalendarResult (Left TimesheetCalendarChanged :: Either TimesheetCalendarConflict ())
+                                case (result, responses) of
+                                    (Left _, [rejected]) -> do
                                         rejected `responseStatusShouldBe` expectedStatus
                                         lookup "HX-Refresh" (responseHeaders rejected) `shouldBe` if htmx then Just "true" else Nothing
+                                    _ -> expectationFailure "Expected exactly one response and an early-exit token"
                 unchanged <- fetch entry.id
                 unchanged.deletedAt `shouldBe` Nothing
                 unchanged.startsAt `shouldBe` entry.startsAt

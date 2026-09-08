@@ -28,13 +28,13 @@ import Web.View.Admin.Xero.ImportedPayItems (renderXeroImportedPayItemImportCand
                                              renderXeroImportedPayItemImportWaitFragment,
                                              renderXeroImportedPayItemImportWaitingDialog)
 
-openXeroPayItemImportAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+openXeroPayItemImportAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 openXeroPayItemImportAction =
     withTrustedXeroEarningsRates respondImportedPayItemDialogError respondImportedPayItemWaiting \connection _now fetchedRates -> do
         candidates <- fetchXeroImportedPayItemCandidates connection fetchedRates
         respondHtml (renderXeroImportedPayItemImportDialog candidates)
 
-showXeroPayItemImportWaitFragmentAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+showXeroPayItemImportWaitFragmentAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 showXeroPayItemImportWaitFragmentAction = do
     maybeConnection <- fetchCurrentVenueXeroConnection
     case maybeConnection of
@@ -50,7 +50,7 @@ showXeroPayItemImportWaitFragmentAction = do
                 XeroPayItemImportReferenceWaiting -> respondHtml (renderXeroImportedPayItemImportWaitFragment trustState)
                 XeroPayItemImportReferenceBlocked message -> respondHtml (renderXeroImportedPayItemImportErrorWaitFragment message)
 
-importXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+importXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 importXeroPayItemsAction = do
     let selectedRateIds = paramList @Text "xeroEarningsRateId"
     withTrustedXeroEarningsRates respondImportedPayItemDialogToast (\_ -> respondImportedPayItemDialogToast (xeroErrorToast "Xero payroll reference data is syncing in the background.")) \connection now fetchedRates -> do
@@ -64,7 +64,7 @@ importXeroPayItemsAction = do
                     LiveMutationResult { liveMutationValue = imported } <- importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds
                     respondImportedPayItemImportSuccess (Just (xeroSuccessToast ("Imported " <> tshow (length imported) <> " Xero pay item" <> pluralSuffix imported <> ".")))
 
-withTrustedXeroEarningsRates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => (ToastOverlayConfig -> IO ()) -> (XeroReferenceTrustState -> IO ()) -> (XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> IO ()) -> IO ()
+withTrustedXeroEarningsRates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => (ToastOverlayConfig -> IO value) -> (XeroReferenceTrustState -> IO value) -> (XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> IO value) -> IO value
 withTrustedXeroEarningsRates respondError respondWaiting action = do
     maybeConnection <- fetchCurrentVenueXeroConnection
     case maybeConnection of
@@ -85,16 +85,16 @@ fetchXeroImportedPayItemCandidates connection fetchedRates = do
     pure (viableImportedPayItemCandidates activeImports fetchedRates)
 
 respondImportValidationError ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     [XeroEarningsRateRef] ->
     Text ->
-    IO ()
+    IO ResponseReceived
 respondImportValidationError connection fetchedRates message = do
     candidates <- fetchXeroImportedPayItemCandidates connection fetchedRates
     respondImportedPayItemDialog candidates (Just (xeroErrorToast message))
 
-respondImportedPayItemWaiting :: (?context :: ControllerContext, ?request :: Request) => XeroReferenceTrustState -> IO ()
+respondImportedPayItemWaiting :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => XeroReferenceTrustState -> IO ResponseReceived
 respondImportedPayItemWaiting trustState =
     if isHtmxRequest
         then respondHtml (renderXeroImportedPayItemImportWaitingDialog (unpackId currentVenueId) trustState)
@@ -102,7 +102,7 @@ respondImportedPayItemWaiting trustState =
             setSuccessMessage "Xero payroll reference data is syncing in the background."
             redirectTo XeroAction
 
-respondImportedPayItemImportSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe ToastOverlayConfig -> IO ()
+respondImportedPayItemImportSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe ToastOverlayConfig -> IO ResponseReceived
 respondImportedPayItemImportSuccess maybeToast =
     if isHtmxRequest
         then respondHtml $
@@ -114,7 +114,7 @@ respondImportedPayItemImportSuccess maybeToast =
             setSuccessMessage "Updated imported Xero pay items."
             redirectTo XeroAction
 
-respondImportedPayItemDialog :: (?context :: ControllerContext, ?request :: Request) => [XeroImportedPayItemCandidate] -> Maybe ToastOverlayConfig -> IO ()
+respondImportedPayItemDialog :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => [XeroImportedPayItemCandidate] -> Maybe ToastOverlayConfig -> IO ResponseReceived
 respondImportedPayItemDialog candidates maybeToast =
     if isHtmxRequest
         then respondHtml $
@@ -126,7 +126,7 @@ respondImportedPayItemDialog candidates maybeToast =
             maybe (pure ()) (setErrorMessage . (.toastOverlayMessage)) maybeToast
             redirectTo XeroAction
 
-respondImportedPayItemDialogToast :: (?context :: ControllerContext, ?request :: Request) => ToastOverlayConfig -> IO ()
+respondImportedPayItemDialogToast :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ToastOverlayConfig -> IO ResponseReceived
 respondImportedPayItemDialogToast toast =
     if isHtmxRequest
         then respondHtml (renderToastOverlayHostOob ToastBottomCenter [toast])
@@ -134,7 +134,7 @@ respondImportedPayItemDialogToast toast =
             setErrorMessage toast.toastOverlayMessage
             redirectTo XeroAction
 
-respondImportedPayItemDialogError :: (?context :: ControllerContext, ?request :: Request) => ToastOverlayConfig -> IO ()
+respondImportedPayItemDialogError :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ToastOverlayConfig -> IO ResponseReceived
 respondImportedPayItemDialogError toast =
     if isHtmxRequest
         then respondHtml $

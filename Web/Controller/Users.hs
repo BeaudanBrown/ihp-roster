@@ -16,10 +16,9 @@ import Application.VenueInvitation.Mutations (withVenueInvitationAcceptanceLockI
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
-import Web.Controller.Sessions ()
+import Web.Controller.Sessions (beforeBepisLogin)
 import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
 import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 import Web.Users.Mutations (acceptVenueInvitationInCurrentTransaction)
@@ -113,7 +112,7 @@ instance Controller UsersController where
                                                     case maybeAcceptedUser of
                                                         Just mutationResult -> do
                                                             let acceptedUser = mutationResult.liveMutationValue
-                                                            Sessions.beforeLogin acceptedUser
+                                                            beforeBepisLogin acceptedUser
                                                             LoginSupport.login acceptedUser
                                                             setSuccessMessage "Invitation accepted."
                                                             redirectTo RosterWeeksAction
@@ -293,7 +292,7 @@ instance Controller UsersController where
                                                             pure (Just user)
                                                 case join maybeAcceptedUser of
                                                     Just acceptedUser -> do
-                                                        Sessions.beforeLogin acceptedUser
+                                                        beforeBepisLogin acceptedUser
                                                         LoginSupport.login acceptedUser
                                                         setSuccessMessage "Venue created."
                                                         redirectTo RosterWeeksAction

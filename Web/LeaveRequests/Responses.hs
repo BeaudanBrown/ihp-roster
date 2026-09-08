@@ -26,7 +26,7 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
 import Web.View.LeaveRequests.New
 import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment)
 
-respondWithLeaveSubmissionResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> RequestedLeaveSubmission -> IO ()
+respondWithLeaveSubmissionResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> RequestedLeaveSubmission -> IO ResponseReceived
 respondWithLeaveSubmissionResult responseContext = \case
     LeaveSubmissionMissingStaff -> respondWithLeaveContextError responseContext "No staff record found. Contact an administrator."
     LeaveSubmissionInvalid invalid -> renderInvalid invalid
@@ -48,7 +48,7 @@ respondWithLeaveSubmissionResult responseContext = \case
             then respondWithLeaveRequestValidationFailure responseContext leaveRequest
             else render NewView { .. }
 
-respondWithLeaveReviewResult :: (?context :: ControllerContext, ?request :: Request) => LeaveReviewDecision -> Maybe (LiveMutationResult ReviewedLeaveRequest) -> IO ()
+respondWithLeaveReviewResult :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveReviewDecision -> Maybe (LiveMutationResult ReviewedLeaveRequest) -> IO ResponseReceived
 respondWithLeaveReviewResult decision = \case
     Nothing -> do
         setErrorMessage "This staff member is no longer active."
@@ -64,7 +64,7 @@ respondWithLeaveReviewResult decision = \case
         ApproveLeave -> "Unavailable period approved"
         DenyLeave    -> "Unavailable period denied"
 
-respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Set.Set SurfaceResourceValue -> Text -> IO ResponseReceived
 respondWithLeaveRequestsContent touchedResources successMessage = do
     let scope = LeaveRequestsScopeValue (unpackId currentVenueId)
     setHeader ("HX-Reswap", "none")
@@ -73,7 +73,7 @@ respondWithLeaveRequestsContent touchedResources successMessage = do
         renderDialogOverlayClearOob
             <> renderToastOob ToastBottomCenter (successToast successMessage)
 
-respondWithStaffLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithStaffLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> Set.Set SurfaceResourceValue -> Text -> IO ResponseReceived
 respondWithStaffLeaveActorInvalidation staff touchedResources successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
@@ -85,13 +85,13 @@ leaveFallbackPath LeavePageResponseContext = pathTo EditProfileAction
 leaveFallbackPath LeaveSelfServiceResponseContext = pathTo EditProfileAction <> "?section=leave"
 leaveFallbackPath LeaveStaffResponseContext = pathTo RosterWeeksAction
 
-respondWithLeaveRequestValidationFailure :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> LeaveRequest -> IO ()
+respondWithLeaveRequestValidationFailure :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> LeaveRequest -> IO ResponseReceived
 respondWithLeaveRequestValidationFailure responseContext leaveRequest = case responseContext of
     LeavePageResponseContext -> respondHtml (renderNewLeaveRequestDialog leaveRequest)
     LeaveSelfServiceResponseContext -> respondHtml (renderSelfServiceLeaveFormFragment Nothing leaveRequest)
     LeaveStaffResponseContext -> respondHtml (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest)
 
-respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> Set.Set SurfaceResourceValue -> Text -> IO ResponseReceived
 respondWithLeaveMutationSuccess responseContext touchedResources successMessage = case responseContext of
     LeavePageResponseContext -> respondWithLeaveRequestsContent touchedResources successMessage
     LeaveSelfServiceResponseContext -> do
@@ -113,7 +113,7 @@ respondWithLeaveMutationSuccess responseContext touchedResources successMessage 
             Nothing -> respondWithLeaveContextError LeaveStaffResponseContext "No staff record found. Contact an administrator."
             Just staff -> respondWithStaffLeaveActorInvalidation staff touchedResources successMessage
 
-respondWithLeaveContextError :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> IO ()
+respondWithLeaveContextError :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveResponseContext -> Text -> IO ResponseReceived
 respondWithLeaveContextError responseContext errorMessage = case responseContext of
     LeavePageResponseContext -> do
         setErrorMessage errorMessage

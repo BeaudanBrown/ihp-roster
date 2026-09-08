@@ -70,7 +70,7 @@ issueStaffPasskeySetupLinkMutation ::
     User ->
     IO (PasskeySetupToken, Text)
 issueStaffPasskeySetupLinkMutation staffId purpose targetUser =
-    issuePasskeySetupTokenWith purpose targetUser (Just currentUser.id) (Just currentVenueId) \_ ->
+    issuePasskeySetupTokenWith purpose targetUser (Just authenticatedCurrentUser.id) (Just currentVenueId) \_ ->
         void $
             recordCurrentUserAuditEvent
                 (staffPasskeySetupAuditEvent purpose)
@@ -169,14 +169,14 @@ createVenueInvitationMutation email = do
                             revokePendingOrdinaryVenueInvitations email Nothing
                             invitation <- newRecord @VenueInvitation
                                 |> set #venueId (unpackId currentVenueId)
-                                |> set #invitedByUserId (Just (unpackId currentUser.id))
+                                |> set #invitedByUserId (Just (unpackId authenticatedCurrentUser.id))
                                 |> set #email email
                                 |> set #inviteRole (Worker)
                                 |> set #status (InvitationStatusEnumPending)
                                 |> set #deliveryStatus (Queued)
                                 |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                                 |> createRecord
-                            void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
+                            void (enqueueVenueInvitationEmail (Just authenticatedCurrentUser.id) invitation)
                             pure (Right invitation)
     pure (fmap (`liveMutationResult` resources) creation)
     where
@@ -228,14 +228,14 @@ replaceVenueInvitation invitation correctedEmail = do
         |> updateRecord
     replacement <- newRecord @VenueInvitation
         |> set #venueId invitation.venueId
-        |> set #invitedByUserId (Just (unpackId currentUser.id))
+        |> set #invitedByUserId (Just (unpackId authenticatedCurrentUser.id))
         |> set #email correctedEmail
         |> set #inviteRole invitation.inviteRole
         |> set #status (InvitationStatusEnumPending)
         |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    void (enqueueVenueInvitationEmail (Just currentUser.id) replacement)
+    void (enqueueVenueInvitationEmail (Just authenticatedCurrentUser.id) replacement)
     pure replacement
 
 revokePendingOrdinaryVenueInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> Maybe (Id VenueInvitation) -> IO ()
@@ -316,7 +316,7 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
             |> set #colourKey colourKey
             |> set #isActive isActive
             |> createRecord
-        _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
+        _ <- ensureShiftTypePayVersionForShiftType authenticatedCurrentUser.id shiftType (utctDay now)
         let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
         activeRosterScopes <- activeRosterWindowScopes
         activeTimesheetScopes <- activeTimesheetWindowScopes
@@ -343,7 +343,7 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
             |> set #isActive isActive
             |> updateRecord
         when (shiftType.name /= updatedShiftType.name || shiftType.payAssignmentMode /= updatedShiftType.payAssignmentMode || shiftType.overrideAwardLevelId /= updatedShiftType.overrideAwardLevelId || shiftType.importedXeroPayItemId /= updatedShiftType.importedXeroPayItemId) do
-            _ <- ensureShiftTypePayVersionForShiftType currentUser.id updatedShiftType (utctDay now)
+            _ <- ensureShiftTypePayVersionForShiftType authenticatedCurrentUser.id updatedShiftType (utctDay now)
             pure ()
         let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
         activeRosterScopes <- activeRosterWindowScopes

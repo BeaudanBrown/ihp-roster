@@ -158,7 +158,6 @@ System.IO.Unsafe	base	Application/Helper/Telemetry.hs via Main
 System.Process	process	Application/StaffDocuments/RsaExtraction.hs via Main
 System.Random	random	Application/Xero/ReferenceSyncJob.hs via Main
 System.Timeout	base	Application/Helper/Telemetry.hs via Main
-Text.Blaze.Html	blaze-html	Web/Controller/RosterWeeks.hs via Main
 Text.Blaze.Html.Renderer.Utf8	blaze-html	Application/Error/Boundary.hs via Main
 Text.Blaze.Html5	blaze-html	Application/Error/Boundary.hs via Main
 Text.Printf	base	Application/Helper/Export/HourlyBreakdown.hs via Main

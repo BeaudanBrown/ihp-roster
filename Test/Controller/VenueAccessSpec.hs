@@ -26,7 +26,6 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Generated.Types
-import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.ControllerSupport (ControllerContext)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -45,7 +44,7 @@ import Test.Support.EmailDelivery
 import Web.Controller.Admin ()
 import Web.Controller.LeaveRequests ()
 import Web.Controller.RosterWeeks ()
-import Web.Controller.Sessions ()
+import Web.Controller.Sessions (beforeBepisLogin)
 import Web.Controller.Staff ()
 import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
@@ -960,7 +959,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venueB user Worker
 
                 selectedVenueId <- withControllerTestContext do
-                    Sessions.beforeLogin @User user
+                    beforeBepisLogin user
                     getSession @(Id Venue) currentVenueSessionKey
 
                 selectedVenueId `shouldBe` Just venueA.id
@@ -972,7 +971,7 @@ tests = aroundAll withDatabaseTestContext do
                 founder <- createUserRecordWithPlatformRole "founder-login@example.com" "staff" (Just SuperAdmin) True
 
                 selectedVenueId <- withControllerTestContext do
-                    Sessions.beforeLogin @User founder
+                    beforeBepisLogin founder
                     getSession @(Id Venue) currentVenueSessionKey
 
                 selectedVenueId `shouldBe` Just venueA.id

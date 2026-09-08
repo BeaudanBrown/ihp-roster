@@ -28,8 +28,8 @@ import Web.Controller.Prelude
 import Web.View.Admin.Xero.StaffMappingDialog
 
 openXeroStaffMappingsAction ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 openXeroStaffMappingsAction =
     case parseAppShellActionParams @OpenXeroStaffMappingsOverlay of
         Left errors -> respondWithStaffMappingsError (surfaceRequestFieldErrorsMessage errors)
@@ -41,9 +41,9 @@ openXeroStaffMappingsAction =
                 _ -> respondWithStaffMappingsError "Connect Xero before managing staff mappings."
 
 showXeroStaffMappingsWaitFragmentAction ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id AppJob ->
-    IO ()
+    IO ResponseReceived
 showXeroStaffMappingsWaitFragmentAction jobId = do
     maybeJob <-
         query @AppJob
@@ -59,8 +59,8 @@ showXeroStaffMappingsWaitFragmentAction jobId = do
                 _ -> respondWithStaffMappingsRefreshFailure "The Xero connection changed while staff were refreshing. Open Staff mappings again."
 
 applyXeroStaffMappingAction ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 applyXeroStaffMappingAction =
     case parseAppShellActionParams @ApplyXeroStaffMappingOverlay of
         Left errors -> respondWithCurrentStaffMappingsError (surfaceRequestFieldErrorsMessage errors)
@@ -80,10 +80,10 @@ jobFromRequest = \case
     ExistingActiveAppJob job -> job
 
 respondToStaffReferenceRequest ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     AppJob ->
-    IO ()
+    IO ResponseReceived
 respondToStaffReferenceRequest connection job = do
     staffReferenceReady <- xeroStaffReferenceReadySince connection job.createdAt
     if staffReferenceReady
@@ -141,9 +141,9 @@ loadXeroStaffMappingsView connection = do
     pure XeroStaffMappingsView { staffMappingsConnection = connection, .. }
 
 respondWithCurrentStaffMappingsError ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
-    IO ()
+    IO ResponseReceived
 respondWithCurrentStaffMappingsError message =
     fetchCurrentVenueXeroConnection >>= \case
         Just connection -> do
@@ -154,16 +154,16 @@ respondWithCurrentStaffMappingsError message =
         Nothing -> respondWithStaffMappingsError message
 
 respondWithStaffMappingsError ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Text ->
-    IO ()
+    IO ResponseReceived
 respondWithStaffMappingsError message = do
     setHeader ("HX-Reswap", "none")
     respondHtml (renderToastOverlayHostOob ToastBottomCenter [xeroErrorToast message])
 
 respondWithStaffMappingsRefreshFailure ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Text ->
-    IO ()
+    IO ResponseReceived
 respondWithStaffMappingsRefreshFailure message =
     respondWithXeroTimesheetMutationAndCloseDialog (Just (xeroErrorToast message))

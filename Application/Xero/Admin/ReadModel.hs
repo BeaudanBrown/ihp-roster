@@ -141,7 +141,7 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
                     |> orderBy #createdAt
                     |> fetch
             let requirements = deriveXeroPayItemRequirements venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
-            syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
+            syncXeroPayItemRequirementRecords connection.id currentVenueId (Just authenticatedCurrentUser.id) requirements
 
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]

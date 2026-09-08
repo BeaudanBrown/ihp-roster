@@ -238,10 +238,10 @@ requestedLeaveSection :: (?request :: Request) => LeaveSectionValue
 requestedLeaveSection =
     fromMaybe LeavePendingSection (parseClosedScalarLiteral (paramOrDefault @Text "pending" "section"))
 
-ensureUnavailabilityBlackoutManager :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureUnavailabilityBlackoutManager :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 ensureUnavailabilityBlackoutManager = ensureAdminRole
 
-respondWithBlackoutValidationFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UnavailabilityBlackout -> Text -> IO ()
+respondWithBlackoutValidationFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UnavailabilityBlackout -> Text -> IO ResponseReceived
 respondWithBlackoutValidationFailure submittedBlackout errorMessage =
     if isHtmxRequest
         then do
@@ -258,7 +258,7 @@ respondWithBlackoutValidationFailure submittedBlackout errorMessage =
             setErrorMessage errorMessage
             redirectTo LeaveRequestsAction
 
-respondWithBlackoutMutation :: (?context :: ControllerContext, ?request :: Request) => LiveMutationResult UnavailabilityBlackout -> Text -> IO ()
+respondWithBlackoutMutation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LiveMutationResult UnavailabilityBlackout -> Text -> IO ResponseReceived
 respondWithBlackoutMutation mutationResult successMessage = do
     if isHtmxRequest
         then respondWithLeaveRequestsContent mutationResult.liveMutationTouchedResources successMessage

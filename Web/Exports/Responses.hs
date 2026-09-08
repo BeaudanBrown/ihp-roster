@@ -28,9 +28,9 @@ import Web.Exports.WorkbookConfigurations (WorkbookEditorOutcome (..))
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
 
 respondWithWorkbookEditorOutcome ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     WorkbookEditorOutcome ->
-    IO ()
+    IO ResponseReceived
 respondWithWorkbookEditorOutcome = \case
     WorkbookEditorInvalidFields anchorDate draft errors ->
         respondWithPayrollWorkbookConfigurationEditorError anchorDate draft ("Check the export fields. " <> surfaceRequestFieldErrorsMessage errors)
@@ -42,36 +42,36 @@ respondWithWorkbookEditorOutcome = \case
         respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook export updated." result
 
 respondWithNewWorkbookEditor ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
-    IO ()
+    IO ResponseReceived
 respondWithNewWorkbookEditor anchorDate =
     respondWithWorkbookEditor anchorDate newPayrollWorkbookConfigurationDraft
 
 respondWithSavedWorkbookEditor ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
     Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration ->
-    IO ()
+    IO ResponseReceived
 respondWithSavedWorkbookEditor anchorDate = \case
     Left configurationError -> respondWithPayrollWorkbookConfigurationError anchorDate (payrollWorkbookConfigurationErrorMessage configurationError)
     Right configuration -> respondWithWorkbookEditor anchorDate (savedPayrollWorkbookConfigurationDraft configuration)
 
 respondWithWorkbookEditor ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
     PayrollWorkbookConfigurationDraft ->
-    IO ()
+    IO ResponseReceived
 respondWithWorkbookEditor anchorDate draft =
     if isHtmxRequest
         then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft)
         else redirectToPath (adminExportsPath anchorDate)
 
 respondWithWorkbookDeleteConfirmation ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
     Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration ->
-    IO ()
+    IO ResponseReceived
 respondWithWorkbookDeleteConfirmation anchorDate = \case
     Left configurationError -> respondWithPayrollWorkbookConfigurationError anchorDate (payrollWorkbookConfigurationErrorMessage configurationError)
     Right configuration ->
@@ -80,10 +80,10 @@ respondWithWorkbookDeleteConfirmation anchorDate = \case
             else redirectToPath (adminExportsPath anchorDate)
 
 respondWithWorkbookDeletion ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
     Either PayrollWorkbookConfigurationError (LiveMutationResult ()) ->
-    IO ()
+    IO ResponseReceived
 respondWithWorkbookDeletion anchorDate = \case
     Left configurationError -> respondWithPayrollWorkbookConfigurationError anchorDate (payrollWorkbookConfigurationErrorMessage configurationError)
     Right result -> respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook export deleted." result
@@ -99,10 +99,10 @@ payrollWorkbookConfigurationErrorMessage = \case
     PayrollWorkbookConfigurationStoredDefinitionInvalid _ -> "That Payroll Workbook configuration is no longer valid."
 
 respondWithPayrollWorkbookConfigurationError ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
     Text ->
-    IO ()
+    IO ResponseReceived
 respondWithPayrollWorkbookConfigurationError anchorDate message =
     if isHtmxRequest
         then do
@@ -113,11 +113,11 @@ respondWithPayrollWorkbookConfigurationError anchorDate message =
             redirectToPath (adminExportsPath anchorDate)
 
 respondWithPayrollWorkbookConfigurationMutation ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
     Text ->
     LiveMutationResult value ->
-    IO ()
+    IO ResponseReceived
 respondWithPayrollWorkbookConfigurationMutation anchorDate message mutationResult =
     if isHtmxRequest
         then do
@@ -132,11 +132,11 @@ respondWithPayrollWorkbookConfigurationMutation anchorDate message mutationResul
             redirectToPath (adminExportsPath anchorDate)
 
 respondWithPayrollWorkbookConfigurationEditorError ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Day ->
     PayrollWorkbookConfigurationDraft ->
     Text ->
-    IO ()
+    IO ResponseReceived
 respondWithPayrollWorkbookConfigurationEditorError anchorDate draft message =
     if isHtmxRequest
         then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft { payrollWorkbookConfigurationDraftError = Just message })

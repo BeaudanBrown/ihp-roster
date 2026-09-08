@@ -359,7 +359,7 @@ supportCanAddPasskey passkeys
         recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
         pure (null passkeys || recoveryVerified)
 
-respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 respondToAwardRatesRefresh =
     if isHtmxRequest
         then do
@@ -367,7 +367,7 @@ respondToAwardRatesRefresh =
             respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
         else redirectTo SupportAction
 
-respondToPublicHolidayRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+respondToPublicHolidayRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 respondToPublicHolidayRefresh =
     if isHtmxRequest
         then do
@@ -556,7 +556,7 @@ validInt :: Text -> Bool
 validInt value =
     isJust (readMaybe (Text.unpack value) :: Maybe Int)
 
-redirectAfterImpersonationTransition :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectAfterImpersonationTransition :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 redirectAfterImpersonationTransition destination
     | isHtmxRequest = do
         setHeader ("HX-Redirect", cs destination)

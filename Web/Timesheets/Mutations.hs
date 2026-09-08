@@ -57,7 +57,7 @@ withTimesheetCalendarMutationLock scope action =
             then action
             else Exception.throwIO TimesheetCalendarChanged
 
-createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (LiveMutationResult TimesheetEntry))
+createTimesheetEntryMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (LiveMutationResult TimesheetEntry))
 createTimesheetEntryMutation scope timesheetEntry = Exception.try @TimesheetCalendarConflict do
     accessDeniedUnless (isNothing timesheetEntry.sourceRosterSlotId)
     withDurableLiveMutation "timesheet.create" $
@@ -85,7 +85,7 @@ materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
   where
     publicationFor = fmap (\(label, _, result) -> (label, result.liveMutationTouchedResources))
 
-materializeAndApproveTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry))))
+materializeAndApproveTimesheetSuggestionMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry))))
 materializeAndApproveTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry = Exception.try @TimesheetCalendarConflict do
     approval <- Exception.try @TimesheetApprovalRollback $
         withDurableLiveMutationOutcome publicationFor $
@@ -221,7 +221,7 @@ updateTimesheetEntryMutation scope intent = Exception.try @TimesheetCalendarConf
             pure (liveMutationResult updatedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [existingEntry, updatedEntry]))
     pure (shouldResetApproval, result)
 
-deleteTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (LiveMutationResult TimesheetEntry))
+deleteTimesheetEntryMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (LiveMutationResult TimesheetEntry))
 deleteTimesheetEntryMutation scope timesheetEntry =
     Exception.try @TimesheetCalendarConflict $ withDurableLiveMutation "timesheet.delete" $
         withTimesheetCalendarMutationLock scope do
@@ -258,7 +258,7 @@ newtype TimesheetApprovalRollback = TimesheetApprovalRollback AppError
 
 instance Exception.Exception TimesheetApprovalRollback
 
-approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (LiveMutationResult TimesheetEntry)))
+approveTimesheetEntryMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (LiveMutationResult TimesheetEntry)))
 approveTimesheetEntryMutation scope timesheetEntry = Exception.try @TimesheetCalendarConflict do
     approval <- Exception.try @TimesheetApprovalRollback $
         withDurableLiveMutation "timesheet.approve" $
@@ -271,7 +271,7 @@ approveTimesheetEntryMutation scope timesheetEntry = Exception.try @TimesheetCal
         Left (TimesheetApprovalRollback appError) -> Left appError
         Right mutationResult                      -> Right mutationResult
 
-approveTimesheetEntryInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
+approveTimesheetEntryInCurrentTransaction :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
 approveTimesheetEntryInCurrentTransaction timesheetEntry =
     runApprovalEngineInCurrentTransaction currentUser.id InitialApproval currentRequestAuditPayload requestAuditSourceChannel timesheetEntry >>= \case
         Left approvalError ->

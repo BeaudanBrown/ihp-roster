@@ -179,23 +179,23 @@ buildSubmittedFeedbackItem fields =
         |> validateField #content feedbackContentMinLength
         |> validateField #content (boundedText 3000)
 
-withEditableFeedback :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id UserFeedbackItem -> (UserFeedbackItem -> IO ()) -> IO ()
+withEditableFeedback :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Id UserFeedbackItem -> (UserFeedbackItem -> IO ResponseReceived) -> IO ResponseReceived
 withEditableFeedback itemId useFeedback = do
     item <- query @UserFeedbackItem |> filterWhere (#id, itemId) |> fetchOneOrNothing
     case item of
         Just feedback | feedback.lifecycle /= Archived -> useFeedback feedback
         _                                              -> renderNotFound
 
-respondEditFeedback :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UserFeedbackItem -> IO ()
+respondEditFeedback :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => UserFeedbackItem -> IO ResponseReceived
 respondEditFeedback feedbackItem = if isHtmxRequest
     then respondHtml (renderEditFeedbackDialog feedbackItem)
     else render EditView { .. }
 
-ensureVotePost :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureVotePost :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => IO ()
 ensureVotePost = unless (Wai.requestMethod ?request == "POST") $
     respondAndExit (Wai.responseLBS status405 [("Allow", "POST"), ("Content-Type", "text/plain")] "Use POST to change a vote.")
 
-respondVoteResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LiveMutationResult (Either FeedbackMutationError ()) -> IO ()
+respondVoteResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => LiveMutationResult (Either FeedbackMutationError ()) -> IO ResponseReceived
 respondVoteResult result = case result.liveMutationValue of
     Left _ -> do
         -- Do not reveal whether an opaque id is missing, Private or Archived.
@@ -214,7 +214,7 @@ respondVoteResult result = case result.liveMutationValue of
             respondHtml mempty
         else setSuccessMessage "Vote saved." >> redirectTo FeedbackAction
 
-respondModerationResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LiveMutationResult (Either FeedbackMutationError UserFeedbackItem) -> IO ()
+respondModerationResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => LiveMutationResult (Either FeedbackMutationError UserFeedbackItem) -> IO ResponseReceived
 respondModerationResult result = case result.liveMutationValue of
     Left FeedbackNotFound -> renderNotFound
     Left failure -> if isHtmxRequest
@@ -222,7 +222,7 @@ respondModerationResult result = case result.liveMutationValue of
         else setErrorMessage (feedbackMutationErrorMessage failure) >> redirectTo FeedbackAction
     Right _ -> respondModerationSuccess result
 
-respondModerationSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LiveMutationResult a -> IO ()
+respondModerationSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => LiveMutationResult a -> IO ResponseReceived
 respondModerationSuccess result = if isHtmxRequest
     then do
         setFeedbackActorRefresh result

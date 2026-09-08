@@ -19,7 +19,7 @@ module Application.Xero.Timesheets.Prepare
 
 import Application.Error.Types (AppResult)
 import Application.Helper.Audit (recordCurrentUserAuditEvent)
-import Application.Helper.ControllerContext (currentVenueId)
+import Application.Helper.ControllerContext (authenticatedCurrentUser, currentVenueId)
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
@@ -98,7 +98,7 @@ startXeroTimesheetPreparation = do
                         newRecord @XeroTimesheetPreparationRun
                             |> set #venueId (unpackId currentVenueId)
                             |> set #xeroConnectionId (unpackId refreshedConnection.id)
-                            |> set #createdByUserId (unpackId currentUser.id)
+                            |> set #createdByUserId (unpackId authenticatedCurrentUser.id)
                             |> set #status Preparing
                             |> set #connectionSnapshotJson (xeroConnectionSnapshotJson refreshedConnection)
                             |> set #eventsJson (preparationInitialEventsJson now "staff-first")
@@ -113,7 +113,7 @@ refreshCurrentVenueXeroReferenceDataForPreparation ::
 refreshCurrentVenueXeroReferenceDataForPreparation connection = do
     now <- getCurrentTime
     missingReferenceDemand <- fetchXeroMissingReferenceDemand connection
-    trustState <- requestTrustedXeroReferenceData now (Just currentUser.id) connection missingReferenceDemand
+    trustState <- requestTrustedXeroReferenceData now (Just authenticatedCurrentUser.id) connection missingReferenceDemand
     pure case xeroPreparationReferencePresentation trustState.trustDecision of
         XeroPreparationReferenceReady           -> Right connection
         XeroPreparationReferenceWaiting message -> Left message
@@ -314,7 +314,7 @@ applyDefaultNotPaidDecision ::
     IO ()
 applyDefaultNotPaidDecision run connection row = do
     let staff = row.mappingRowStaff
-    applyXeroStaffMappingSelection currentVenueId currentUser.id connection staff.id XeroEmployeeNotApplicable >>= \case
+    applyXeroStaffMappingSelection currentVenueId authenticatedCurrentUser.id connection staff.id XeroEmployeeNotApplicable >>= \case
         Left _ -> pure ()
         Right _ -> do
             _ <- applyPreparationDecision run (Just staff) StaffNotPaid Nothing Nothing Nothing
@@ -355,7 +355,7 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                 Just staff ->
                     case decision of
                         MarkStaffNotPaidThroughXero ->
-                            applyXeroStaffMappingSelection currentVenueId currentUser.id connection staff.id XeroEmployeeNotApplicable >>= \case
+                            applyXeroStaffMappingSelection currentVenueId authenticatedCurrentUser.id connection staff.id XeroEmployeeNotApplicable >>= \case
                                 Left message -> pure (preparationFailure message)
                                 Right _ -> do
                                     _ <- applyPreparationDecision run (Just staff) StaffNotPaid Nothing Nothing Nothing
@@ -517,7 +517,7 @@ submitXeroTimesheetPreparation runId maybeAccountCode =
                                     Right readiness
                                         | not readiness.xeroTimesheetReady -> pure (preparationFailure (readinessErrorSummary readiness))
                                         | otherwise ->
-                                            submitXeroDraftTimesheetsForPreparation currentUser.id refreshedRun.id readinessRequest >>= \case
+                                            submitXeroDraftTimesheetsForPreparation authenticatedCurrentUser.id refreshedRun.id readinessRequest >>= \case
                                                 Left appError -> pure (Left appError)
                                                 Right (XeroSubmissionBlocked message) -> pure (preparationFailure message)
                                                 Right (XeroSubmissionSucceeded (XeroTimesheetReviewedStateChanged snapshot)) ->
@@ -722,7 +722,7 @@ applyPreparationDecision run maybeStaff decisionKind maybeEmployeeId maybeEmploy
         |> set #decisionStatus Applied
         |> set #xeroEmployeeId maybeEmployeeId
         |> set #xeroEmployeeName maybeEmployeeName
-        |> set #decidedByUserId (Just (unpackId currentUser.id))
+        |> set #decidedByUserId (Just (unpackId authenticatedCurrentUser.id))
         |> set #decidedAt (Just now)
         |> updateRecord
 
@@ -751,7 +751,7 @@ applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind empl
     case parseXeroEmployeeId employeeId of
         Left _ -> pure (Left "Choose a synced Xero employee from this venue.")
         Right selectedEmployeeId ->
-            applyXeroStaffMappingSelection currentVenueId currentUser.id connection staff.id (XeroEmployeeSelected selectedEmployeeId) >>= \case
+            applyXeroStaffMappingSelection currentVenueId authenticatedCurrentUser.id connection staff.id (XeroEmployeeSelected selectedEmployeeId) >>= \case
                 Left message -> pure (Left message)
                 Right mapping -> do
                     _ <- applyPreparationDecision run (Just staff) decisionKind mapping.xeroEmployeeId mapping.xeroEmployeeName Nothing
@@ -775,7 +775,7 @@ dismissPendingStaffAutoMatches run staff = do
     forM_ pending \decision ->
         decision
             |> set #decisionStatus Dismissed
-            |> set #decidedByUserId (Just (unpackId currentUser.id))
+            |> set #decidedByUserId (Just (unpackId authenticatedCurrentUser.id))
             |> set #decidedAt (Just now)
             |> updateRecord
             |> void
@@ -824,12 +824,12 @@ persistPreparationAccountCodeSelection connection accountCodeOptions accountCode
                     |> set #accountCode (Just accountCode)
                     |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumVerified
                     |> set #lastVerifiedAt (Just now)
-                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+                    |> set #updatedByUserId (Just (unpackId authenticatedCurrentUser.id))
         case existingSelection of
             Just existing -> prepared existing |> updateRecord |> void
             Nothing ->
                 prepared (newRecord @XeroPayItemAccountCodeSelection)
-                    |> set #createdByUserId (Just (unpackId currentUser.id))
+                    |> set #createdByUserId (Just (unpackId authenticatedCurrentUser.id))
                     |> createRecord
                     |> void
 
@@ -854,7 +854,7 @@ markPayItemCreateDecisionsApplied run requirements = do
     forM_ decisions \decision ->
         decision
             |> set #decisionStatus Applied
-            |> set #decidedByUserId (Just (unpackId currentUser.id))
+            |> set #decidedByUserId (Just (unpackId authenticatedCurrentUser.id))
             |> set #decidedAt (Just now)
             |> updateRecord
             |> void

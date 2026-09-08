@@ -35,9 +35,9 @@ exportDownloadUrl exportJob =
         [("token", tshow exportJob.downloadToken)]
 
 respondWithExportGenerationError ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Text ->
-    IO ()
+    IO ResponseReceived
 respondWithExportGenerationError message =
     if isHtmxRequest
         then do
@@ -48,9 +48,9 @@ respondWithExportGenerationError message =
             redirectToPath (appendQueryParams (pathTo AdminAction) [("showExports", "true")] <> "#exports")
 
 respondWithGeneratedExportDownload ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     ExportJob ->
-    IO ()
+    IO ResponseReceived
 respondWithGeneratedExportDownload exportJob =
     if isHtmxRequest
         then do
@@ -66,7 +66,7 @@ data PayrollWorkbookConfigurationDraftOperation
     | MoveDraftSheetDown
 
 respondWithPayrollWorkbookConfigurationDraftControl ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     PayrollWorkbookConfigurationDraftOperation ->
     Day ->
     Text ->
@@ -74,7 +74,7 @@ respondWithPayrollWorkbookConfigurationDraftControl ::
     Int ->
     Maybe UUID ->
     Text ->
-    IO ()
+    IO ResponseReceived
 respondWithPayrollWorkbookConfigurationDraftControl operation anchorDate name familyKeys revision maybeConfigurationId targetFamilyKey =
     case (mapM payrollWorkbookSheetFamilyFromText familyKeys, payrollWorkbookSheetFamilyFromText targetFamilyKey) of
         (Left message, _) -> respondWithDraftError newPayrollWorkbookConfigurationDraft message

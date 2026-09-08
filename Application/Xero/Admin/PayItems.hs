@@ -263,7 +263,7 @@ persistCreatedXeroPayItem connection now requirement createdRate = do
                 |> set #xeroEarningsRateName (Just earningsRate.name)
                 |> set #xeroEarningsRateRateType earningsRate.rateType
                 |> set #lastVerifiedAt (Just now)
-                |> set #updatedByUserId (Just (unpackId currentUser.id))
+                |> set #updatedByUserId (Just (unpackId authenticatedCurrentUser.id))
                 |> updateRecord
                 |> void
         upsertCreatedXeroEarningsRateMapping connection now requirement earningsRate
@@ -292,11 +292,11 @@ upsertCreatedXeroEarningsRateMapping connection now requirement earningsRate = d
                 |> set #xeroEarningsRateName (Just earningsRate.name)
                 |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
                 |> set #lastVerifiedAt (Just now)
-                |> set #updatedByUserId (Just (unpackId currentUser.id))
+                |> set #updatedByUserId (Just (unpackId authenticatedCurrentUser.id))
     case existingMapping of
         Just existing -> prepared existing |> updateRecord |> void
         Nothing ->
             prepared (newRecord @XeroEarningsRateMapping)
-                |> set #createdByUserId (Just (unpackId currentUser.id))
+                |> set #createdByUserId (Just (unpackId authenticatedCurrentUser.id))
                 |> createRecord
                 |> void

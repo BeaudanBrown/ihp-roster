@@ -40,7 +40,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
-import Text.Blaze.Html (Html)
+import IHP.HSX.Markup (Html)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedStaffPayRateSelectionText,
@@ -390,7 +390,7 @@ instance Controller StaffController where
                             Right _ -> respondWithTrialStaffInvitationSuccess ("Renewed invitation queued for " <> email <> " and should arrive shortly")
                             Left message -> renderTrialStaffInvitationError staff message (Just email)
 
-staffAnchorDateFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Day
+staffAnchorDateFromParamOrCurrent :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Day
 staffAnchorDateFromParamOrCurrent = do
     venueConfig <- fetchVenueConfig
     requestedDay <- case paramOrNothing @Text "anchorDate" of
@@ -432,7 +432,7 @@ canRenderStaffRemoval staff
     | not (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin) = pure False
     | otherwise = isNothing <$> staffRemovalBlockReason staff
 
-ensureCanRemoveStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureCanRemoveStaff :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 ensureCanRemoveStaff =
     redirectPermissionDeniedUnless (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin) "Only venue admins and owners can remove staff members."
 
@@ -456,7 +456,7 @@ buildNewTrialStaff = do
             |> set #isActive True
             |> applyVenueDefaultStaffPayAssignment venueConfig
 
-renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Day -> Maybe (Id RosterGroup) -> IO ()
+renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Day -> Maybe (Id RosterGroup) -> IO ResponseReceived
 renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems anchorDate maybeRosterGroupId =
     if isHtmxRequest
         then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds anchorDate maybeRosterGroupId)
@@ -481,21 +481,21 @@ validateTrialStaffInvitationEmail submittedEmail =
                     Failure _     -> Left "Enter a valid email address."
                     FailureHtml _ -> Left "Enter a valid email address."
 
-respondWithTrialStaffInvitationSuccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
+respondWithTrialStaffInvitationSuccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 respondWithTrialStaffInvitationSuccess message =
     respondHtml [hsx|
         {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast message)}
     |]
 
-respondWithTrialStaffInvitationFailure :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
+respondWithTrialStaffInvitationFailure :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 respondWithTrialStaffInvitationFailure message =
     respondHtml [hsx|
         {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (errorToast message)}
     |]
 
-renderTrialStaffInvitationError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> Maybe Text -> IO ()
+renderTrialStaffInvitationError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> Maybe Text -> IO ResponseReceived
 renderTrialStaffInvitationError staff message submittedEmail
     | not (isAdoptableTrialStaff staff) = respondWithTrialStaffInvitationFailure ineligibleTrialStaffInvitationMessage
     | otherwise = do
@@ -505,7 +505,7 @@ renderTrialStaffInvitationError staff message submittedEmail
         now <- getCurrentTime
         respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations (Just message) submittedEmail anchorDate maybeRosterGroupId)
 
-renderTrialStaffInvitationErrorForInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueInvitation -> Text -> IO ()
+renderTrialStaffInvitationErrorForInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueInvitation -> Text -> IO ResponseReceived
 renderTrialStaffInvitationErrorForInvitation invitation message =
     case invitation.staffId of
         Nothing -> respondWithTrialStaffInvitationFailure message

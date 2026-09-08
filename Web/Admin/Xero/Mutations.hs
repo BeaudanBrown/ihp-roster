@@ -41,7 +41,7 @@ startXeroConnectionMutation xeroConfig now stateToken =
         oauthState <-
             newRecord @XeroOauthState
                 |> set #venueId (unpackId currentVenueId)
-                |> set #userId (unpackId currentUser.id)
+                |> set #userId (unpackId authenticatedCurrentUser.id)
                 |> set #stateToken stateToken
                 |> set #requestedScopes requiredXeroScopesText
                 |> set #redirectUri xeroConfig.redirectUri
@@ -74,7 +74,7 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
         updated <-
             connection
                 |> set #connectionStatus "disconnected"
-                |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+                |> set #disconnectedByUserId (Just (unpackId authenticatedCurrentUser.id))
                 |> set #disconnectedAt (Just now)
                 |> set #encryptedAccessToken Nothing
                 |> set #xeroConnectionRemoteId retainedRemoteConnectionId
@@ -89,7 +89,7 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
         forM_ staleConnections \staleConnection ->
             staleConnection
                 |> set #connectionStatus "disconnected"
-                |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+                |> set #disconnectedByUserId (Just (unpackId authenticatedCurrentUser.id))
                 |> set #disconnectedAt (Just now)
                 |> set #encryptedAccessToken Nothing
                 |> set #lastError (Just "Superseded by local disconnect")
@@ -213,7 +213,7 @@ importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds =
 
 syncXeroReferenceDataMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> IO (LiveMutationResult (Either Text XeroReferenceDataSyncResult))
 syncXeroReferenceDataMutation connection = do
-    result <- runXeroReferenceDataSyncRequest (Just currentUser.id) connection
+    result <- runXeroReferenceDataSyncRequest (Just authenticatedCurrentUser.id) connection
     -- The request/job boundary publishes passive transitions. Retain the same
     -- typed resource here for actor-local response planning without rebroadcast.
     pure (liveMutationResult result (xeroReferenceSyncTouchedResources currentVenueId))

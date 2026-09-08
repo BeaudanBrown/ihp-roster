@@ -280,7 +280,7 @@ parseReviewStatus "verified"       = Just StaffDocumentStatusEnumVerified
 parseReviewStatus "rejected"       = Just Rejected
 parseReviewStatus _                = Nothing
 
-redirectToRsaReturnPath :: (?context :: ControllerContext, ?request :: Request) => IO ()
+redirectToRsaReturnPath :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 redirectToRsaReturnPath =
     redirectToPath rsaReturnPath
 

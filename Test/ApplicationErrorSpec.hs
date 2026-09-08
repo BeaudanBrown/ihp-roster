@@ -13,6 +13,7 @@ import Application.Error.Boundary
 import Application.Error.Domain
 import Application.Error.Types
 import Application.Error.Wire
+import Application.Helper.Telemetry (withTelemetrySpan)
 import Application.Helper.FrontendContract.Contracts (frontendContractsTypeScript)
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
@@ -21,17 +22,15 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import Data.IORef (newIORef, modifyIORef', readIORef)
-import qualified Data.Vault.Lazy as Vault
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
-import IHP.Controller.Response (EarlyReturnException, responseHeadersVaultKey, respondWith)
-import IHP.ControllerSupport (Respond)
-import Network.Wai.Internal (ResponseReceived (..))
+import IHP.Controller.Response (respondWith)
+import Test.Support.Response (captureStoppedResponses)
 import IHP.ModelSupport (RecordNotFoundException (..))
 import IHP.Prelude
-import Network.HTTP.Types (status422, status500)
+import Network.HTTP.Types (status200, status422, status500)
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
 import Network.Wai.Test
@@ -200,13 +199,13 @@ tests = describe "typed application errors" do
         length responses `shouldBe` 1
 
         notFoundResult <- Exception.try @RecordNotFoundException $
-            withSynchronousAppErrorFallback
+            withTelemetrySpan "test.masked-not-found" $ withSynchronousAppErrorFallback
                 (Exception.throwIO (RecordNotFoundException "masked query"))
                 (const (pure ()))
         notFoundResult `shouldSatisfy` isLeft
 
         asyncResult <- Exception.try @Exception.AsyncException $
-            withSynchronousAppErrorFallback
+            withTelemetrySpan "test.cancellation" $ withSynchronousAppErrorFallback
                 (Exception.throwIO Exception.ThreadKilled)
                 (const (pure ()))
         asyncResult `shouldBe` Left Exception.ThreadKilled
@@ -233,7 +232,7 @@ tests = describe "typed application errors" do
 
     it "sends a terminal helper once without executing its continuation" do
         continued <- newIORef False
-        (result, responses) <- captureStoppedResponses Wai.defaultRequest do
+        (result, responses) <- captureStoppedResponses Wai.defaultRequest $ withTelemetrySpan "test.early-response" do
             terminateAfterIhpResponseControl (respondWith (Wai.responseLBS status422 [] "kept"))
             modifyIORef' continued (const True)
         result `shouldSatisfy` isLeft
@@ -245,17 +244,51 @@ tests = describe "typed application errors" do
                 simpleBody rendered `shouldBe` "kept"
             _ -> expectationFailure "expected exactly one terminal response"
 
-captureStoppedResponses :: Wai.Request -> ((?request :: Wai.Request, ?respond :: Respond) => IO a) -> IO (Either EarlyReturnException a, [Wai.Response])
-captureStoppedResponses request action = do
-    responses <- newIORef []
-    headers <- newIORef []
-    let ?request = request { Wai.vault = Vault.insert responseHeadersVaultKey headers request.vault }
-    let ?respond = \response -> do
-            modifyIORef' responses (response :)
-            pure ResponseReceived
-    result <- Exception.try @EarlyReturnException action
-    captured <- reverse <$> readIORef responses
-    pure (result, captured)
+    it "returns successful response tokens normally through the action and telemetry boundaries" do
+        (result, responses) <- captureStoppedResponses Wai.defaultRequest $
+            runBepis BoundaryFixtureAction BepisPageAction $
+                withTelemetrySpan "test.successful-response" $
+                    respondWith (Wai.responseLBS status200 [] "success")
+        isRight result `shouldBe` True
+        case responses of
+            [response] -> do
+                rendered <- runErrorResponse response
+                simpleStatus rendered `shouldBe` status200
+                simpleBody rendered `shouldBe` "success"
+            _ -> expectationFailure "expected exactly one successful response"
+
+    it "preserves each error response lane without invoking the success continuation" do
+        let appError = projectDomainError MissingPayItem
+        forM_ [(HtmlRequest, appErrorHtmlResponse), (HtmxRequest, appErrorHtmxResponse), (JsonRequest, appErrorJsonResponse)] \(lane, renderError) -> do
+            continued <- newIORef False
+            (result, responses) <- captureStoppedResponses Wai.defaultRequest $
+                runAppResultBoundary lane (pure (Left appError)) \() ->
+                    modifyIORef' continued (const True)
+            result `shouldSatisfy` isLeft
+            readIORef continued `shouldReturn` False
+            expected <- runErrorResponse (renderError appError)
+            case responses of
+                [response] -> do
+                    actual <- runErrorResponse response
+                    simpleStatus actual `shouldBe` simpleStatus expected
+                    simpleBody actual `shouldBe` simpleBody expected
+                    simpleHeaders actual `shouldBe` simpleHeaders expected
+                _ -> expectationFailure "expected exactly one error-lane response"
+
+    it "preserves the caller's masking state through telemetry and synchronous fallback" do
+        let observe = withTelemetrySpan "test.masking-state" $
+                withSynchronousAppErrorFallback Exception.getMaskingState
+                    (const (expectationFailure "unexpected fallback" >> Exception.getMaskingState))
+        observe `shouldReturn` Exception.Unmasked
+        Exception.mask_ observe `shouldReturn` Exception.MaskedInterruptible
+
+    it "does not retry an action when a synchronous failure escapes a telemetry span" do
+        attempts <- newIORef (0 :: Int)
+        result <- Exception.try @Exception.IOException $ withTelemetrySpan "test.failed-action" do
+            modifyIORef' attempts (+ 1)
+            Exception.throwIO (userError "private failure") :: IO ()
+        result `shouldSatisfy` isLeft
+        readIORef attempts `shouldReturn` 1
 
 runErrorResponse :: Wai.Response -> IO SResponse
 runErrorResponse response = runSession (request defaultRequest) app

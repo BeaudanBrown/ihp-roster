@@ -13,10 +13,10 @@ data ManagementFeedbackCard = ManagementFeedbackCard
     , publicCard :: Maybe PublicFeedbackCard
     } deriving (Show)
 
-ensureFeedbackModeration :: (?context :: ControllerContext) => IO ()
-ensureFeedbackModeration = unless currentUserIsUnimpersonatedSuperAdmin renderAccessDenied
+ensureFeedbackModeration :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
+ensureFeedbackModeration = accessDeniedUnless currentUserIsUnimpersonatedSuperAdmin
 
-fetchManagementFeedbackCards :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ManagementFeedbackCard]
+fetchManagementFeedbackCards :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ManagementFeedbackCard]
 fetchManagementFeedbackCards = do
     ensureFeedbackModeration
     items <- query @UserFeedbackItem |> orderByDesc #createdAt |> orderBy #id |> fetch

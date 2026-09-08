@@ -28,7 +28,7 @@ import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Network.HTTP.Types.Status (Status, status400, status403, status409,
                                   status422)
 import Web.Controller.Prelude
-import Web.Controller.Sessions ()
+import Web.Controller.Sessions (beforeBepisLogin)
 import Web.View.Passkeys.NewSetup
 
 instance Controller AuthController where
@@ -175,7 +175,7 @@ instance Controller AuthController where
                     |> updateRecordDiscardResult
             SignatureCounterZero -> pure ()
 
-        Sessions.beforeLogin user
+        beforeBepisLogin user
         LoginSupport.login user
         markUserPasskeyVerified user.id
         now <- getCurrentTime
@@ -397,7 +397,7 @@ setupRegistrationUserIdSessionKey :: ByteString
 setupRegistrationUserIdSessionKey = "passkey-setup-registration-user-id"
 
 parseWebAuthnJsonBody ::
-    (?request :: Request, Aeson.FromJSON payload) =>
+    (?respond :: Respond, ?request :: Request, Aeson.FromJSON payload) =>
     IO payload
 parseWebAuthnJsonBody = do
     jsonValue <- requestBodyJSON
@@ -405,13 +405,13 @@ parseWebAuthnJsonBody = do
         Aeson.Error errorMessage -> jsonError status400 (cs errorMessage)
         Aeson.Success payload    -> pure payload
 
-sessionChallenge :: (?request :: Request) => ByteString -> IO Challenge
+sessionChallenge :: (?respond :: Respond, ?request :: Request) => ByteString -> IO Challenge
 sessionChallenge sessionKey =
     getSession @ByteString sessionKey >>= \case
         Just challenge -> pure (Challenge challenge)
         Nothing -> jsonError status422 "This passkey request has expired. Please try again."
 
-sessionUserId :: (?request :: Request) => ByteString -> IO (Id User)
+sessionUserId :: (?respond :: Respond, ?request :: Request) => ByteString -> IO (Id User)
 sessionUserId sessionKey =
     getSession @Text sessionKey >>= \case
         Just userIdText ->
@@ -420,7 +420,7 @@ sessionUserId sessionKey =
                 Nothing -> jsonError status422 "The pending passkey registration is invalid."
         Nothing -> jsonError status422 "This passkey request has expired. Please try again."
 
-sessionPasskeySetupTokenId :: (?request :: Request) => ByteString -> IO (Id PasskeySetupToken)
+sessionPasskeySetupTokenId :: (?respond :: Respond, ?request :: Request) => ByteString -> IO (Id PasskeySetupToken)
 sessionPasskeySetupTokenId sessionKey =
     getSession @Text sessionKey >>= \case
         Just tokenIdText ->
@@ -429,15 +429,15 @@ sessionPasskeySetupTokenId sessionKey =
                 Nothing -> jsonError status422 "The pending passkey setup is invalid."
         Nothing -> jsonError status422 "This passkey setup request has expired. Please try again."
 
-setupTokenParamOrRedirect :: (?request :: Request) => IO Text
+setupTokenParamOrRedirect :: (?respond :: Respond, ?request :: Request) => IO Text
 setupTokenParamOrRedirect =
     maybe invalidSetupLink pure (paramOrNothing @Text "token")
 
-setupTokenParamOrJsonError :: (?request :: Request) => IO Text
+setupTokenParamOrJsonError :: (?respond :: Respond, ?request :: Request) => IO Text
 setupTokenParamOrJsonError =
     maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure (paramOrNothing @Text "token")
 
-invalidSetupLink :: (?request :: Request) => IO a
+invalidSetupLink :: (?respond :: Respond, ?request :: Request) => IO a
 invalidSetupLink =
     terminateAfterIhpResponseControl do
         setErrorMessage "This passkey setup link is invalid or has expired."
@@ -466,7 +466,7 @@ activeSetupTokenById setupTokenId =
         |> filterWhereFuture #expiresAt
         |> fetchOneOrNothing
 
-normalizeSubmittedPasskeyName :: (?request :: Request) => Maybe Text -> IO Text
+normalizeSubmittedPasskeyName :: (?respond :: Respond, ?request :: Request) => Maybe Text -> IO Text
 normalizeSubmittedPasskeyName maybeName = do
     let submittedName = maybe "Passkey" Text.strip maybeName
         normalizedName = if Text.null submittedName then "Passkey" else submittedName
@@ -515,18 +515,18 @@ authActionAllowsOwnerImpersonation BeginPasskeyStepUpAuthenticationAction = True
 authActionAllowsOwnerImpersonation FinishPasskeyStepUpAuthenticationAction = True
 authActionAllowsOwnerImpersonation _ = False
 
-jsonError :: (?request :: Request) => Status -> Text -> IO a
+jsonError :: (?respond :: Respond, ?request :: Request) => Status -> Text -> IO a
 jsonError statusCode errorMessage =
     terminateAfterIhpResponseControl $
         renderJsonWithStatusCode statusCode (PasskeyWire.PasskeyFailure errorMessage)
 
-jsonRedirectError :: (?request :: Request) => Status -> Text -> Text -> IO a
+jsonRedirectError :: (?respond :: Respond, ?request :: Request) => Status -> Text -> Text -> IO a
 jsonRedirectError statusCode errorMessage redirectTo =
     terminateAfterIhpResponseControl $
         renderJsonWithStatusCode statusCode
             (PasskeyWire.PasskeyRedirectFailure errorMessage redirectTo)
 
-auditPasskeyStepUpFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO ()
+auditPasskeyStepUpFailure :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO ()
 auditPasskeyStepUpFailure reason =
     void $
         recordUserAuthenticationAuditEvent

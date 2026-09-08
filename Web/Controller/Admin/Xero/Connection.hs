@@ -21,20 +21,20 @@ import Web.Admin.Xero.Mutations (assignXeroRemoteConnectionIdMutation,
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
-startXeroConnectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+startXeroConnectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 startXeroConnectionAction =
     requireCurrentVenueOwnerForXero do
         redirectToXeroAuthorization
 
-redirectToXeroAuthorization :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+redirectToXeroAuthorization :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 redirectToXeroAuthorization =
     redirectToXeroAuthorizationWithStateToken identityXeroStateToken
 
-redirectToXeroAuthorizationForReferenceSync :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+redirectToXeroAuthorizationForReferenceSync :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 redirectToXeroAuthorizationForReferenceSync =
     redirectToXeroAuthorization
 
-redirectToXeroAuthorizationWithStateToken :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => (Text -> Text) -> IO ()
+redirectToXeroAuthorizationWithStateToken :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => (Text -> Text) -> IO ResponseReceived
 redirectToXeroAuthorizationWithStateToken stateTokenTransform =
     readXeroConfig >>= \case
         Left message -> do
@@ -50,7 +50,7 @@ identityXeroStateToken :: Text -> Text
 identityXeroStateToken stateToken =
     stateToken
 
-redirectToXeroAuthorizationUrl :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectToXeroAuthorizationUrl :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 redirectToXeroAuthorizationUrl authorizationUrl =
     if isHtmxRequest
         then do
@@ -58,7 +58,7 @@ redirectToXeroAuthorizationUrl authorizationUrl =
             renderPlain ""
         else redirectToUrl authorizationUrl
 
-xeroOAuthCallbackAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+xeroOAuthCallbackAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 xeroOAuthCallbackAction =
     requireCurrentVenueOwnerForXero do
         now <- getCurrentTime
@@ -78,7 +78,7 @@ xeroOAuthCallbackAction =
                             Nothing -> failXeroConnectionAttempt "Xero did not return an authorization code." (Just oauthState)
                             Just code -> completeXeroOAuthCallback now currentUser.id oauthState code
 
-disconnectXeroConnectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+disconnectXeroConnectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 disconnectXeroConnectionAction =
     requireCurrentVenueOwnerForXero do
         maybeConnection <- fetchCurrentVenueXeroConnection
@@ -90,9 +90,9 @@ disconnectXeroConnectionAction =
                 disconnectXeroConnection connection
 
 disconnectXeroConnection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
-    IO ()
+    IO ResponseReceived
 disconnectXeroConnection connection = do
     readXeroConfig >>= \case
         Left _message ->
@@ -124,11 +124,11 @@ disconnectXeroConnection connection = do
                                 Right () -> completeLocalXeroDisconnect refreshedConnection (Just remoteConnectionId) "succeeded"
 
 completeLocalXeroDisconnect ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     Maybe Text ->
     Text ->
-    IO ()
+    IO ResponseReceived
 completeLocalXeroDisconnect connection maybeRemoteConnectionId remoteDisconnectStatus = do
     now <- getCurrentTime
     updatedConnection <- liveMutationValue <$> completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDisconnectStatus now
@@ -193,12 +193,12 @@ validateXeroOAuthState now actorUserId (Just stateToken) = do
             | otherwise -> Right oauthState
 
 completeXeroOAuthCallback ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     UTCTime ->
     Id User ->
     XeroOauthState ->
     Text ->
-    IO ()
+    IO ResponseReceived
 completeXeroOAuthCallback now actorUserId oauthState code =
     readXeroConfig >>= \case
         Left message -> failXeroConnectionAttempt message (Just oauthState)
@@ -230,9 +230,9 @@ completeXeroOAuthCallback now actorUserId oauthState code =
                                     redirectAfterCompletedXeroConnection oauthState
 
 redirectAfterCompletedXeroConnection ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     XeroOauthState ->
-    IO ()
+    IO ResponseReceived
 redirectAfterCompletedXeroConnection _oauthState =
     redirectTo XeroAction
 
@@ -253,10 +253,10 @@ chooseXeroTenantForOAuth tenants = do
                 []         -> Left "Xero returned no connected tenants."
 
 failXeroConnectionAttempt ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     Maybe XeroOauthState ->
-    IO ()
+    IO ResponseReceived
 failXeroConnectionAttempt message maybeState = do
     _ <- failXeroConnectionAttemptMutation message maybeState
     setErrorMessage message

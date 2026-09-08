@@ -93,7 +93,7 @@ createTrialStaffInvitationMutation staff email
                     Nothing -> do
                         invitation <- newRecord @VenueInvitation
                             |> set #venueId (unpackId currentVenueId)
-                            |> set #invitedByUserId (Just (unpackId currentUser.id))
+                            |> set #invitedByUserId (Just (unpackId authenticatedCurrentUser.id))
                             |> set #staffId (Just lockedStaff.id)
                             |> set #email email
                             |> set #inviteRole (Worker)
@@ -101,7 +101,7 @@ createTrialStaffInvitationMutation staff email
                             |> set #deliveryStatus (Queued)
                             |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                             |> createRecord
-                        void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
+                        void (enqueueVenueInvitationEmail (Just authenticatedCurrentUser.id) invitation)
                         pure (Right invitation)
             pure $
                 case maybeCreation of
@@ -162,7 +162,7 @@ replaceTrialStaffInvitation staff invitation correctedEmail = do
                 |> updateRecord
     replacement <- newRecord @VenueInvitation
         |> set #venueId invitation.venueId
-        |> set #invitedByUserId (Just (unpackId currentUser.id))
+        |> set #invitedByUserId (Just (unpackId authenticatedCurrentUser.id))
         |> set #staffId (Just staff.id)
         |> set #email correctedEmail
         |> set #inviteRole invitation.inviteRole
@@ -170,7 +170,7 @@ replaceTrialStaffInvitation staff invitation correctedEmail = do
         |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    void (enqueueVenueInvitationEmail (Just currentUser.id) replacement)
+    void (enqueueVenueInvitationEmail (Just authenticatedCurrentUser.id) replacement)
     pure replacement
 
 trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [SurfaceResourceValue]
@@ -227,17 +227,17 @@ removeStaffMember staff
                         removedStaff <- lockedStaff
                             |> set #isActive False
                             |> set #archivedAt (Just now)
-                            |> set #archivedByUserId (Just (unpackId currentUser.id))
+                            |> set #archivedByUserId (Just (unpackId authenticatedCurrentUser.id))
                             |> set #archiveReason (Just ("Removed from venue staff" :: Text))
                             |> updateRecord
                         clearedXeroStaffMappings <-
-                            clearXeroStaffMappingsForInactiveStaff currentUser.id removedStaff
+                            clearXeroStaffMappingsForInactiveStaff authenticatedCurrentUser.id removedStaff
                         forM_ maybeMembership \membership ->
                             void $
                                 membership
                                     |> set #isActive False
                                     |> set #archivedAt (Just now)
-                                    |> set #archivedByUserId (Just (unpackId currentUser.id))
+                                    |> set #archivedByUserId (Just (unpackId authenticatedCurrentUser.id))
                                     |> set #archiveReason (Just ("Staff removed from venue" :: Text))
                                     |> updateRecord
                         pendingInvitations <- query @VenueInvitation
@@ -393,7 +393,7 @@ removeCurrentAndFutureRosterAssignments removedAt staff = do
         void $
             slot
                 |> set #deletedAt (Just removedAt)
-                |> set #deletedByUserId (Just (unpackId currentUser.id))
+                |> set #deletedByUserId (Just (unpackId authenticatedCurrentUser.id))
                 |> set #deleteReason (Just ("Staff removed from venue" :: Text))
                 |> updateRecord
     pure (length removedSlots)
@@ -426,7 +426,7 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
                     replaceStaffShiftPreferences updatedStaff submittedSelections
                     when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
                         today <- utctDay <$> getCurrentTime
-                        void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
+                        void (ensureStaffPayVersionForStaff authenticatedCurrentUser.id updatedStaff today)
                     -- This workflow is classified as web even when HTMX invokes it.
                     forM_ ((,) <$> maybeMembership <*> maybeVenueRole) \(membership, venueRole) ->
                         void $ updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction

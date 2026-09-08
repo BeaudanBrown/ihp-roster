@@ -33,7 +33,7 @@ instance Controller BillingController where
     action currentAction@CreateBillingCheckoutSessionAction = runBepis currentAction BepisMutationAction do
         ensureOwnerBillingPaymentAction
         when (isNothing effectiveCurrentUser.emailVerifiedAt) do
-            billingRedirectWithError "Verify your account email before starting Checkout."
+            earlyReturn $ billingRedirectWithError "Verify your account email before starting Checkout."
         createBillingCheckoutSessionAction
 
     action currentAction@CreateBillingPortalSessionAction = runBepis currentAction BepisMutationAction do
@@ -60,7 +60,7 @@ instance Controller BillingController where
     action currentAction@UpdateVenueBillingControlAction = runBepis currentAction BepisMutationAction $
         updateVenueBillingControlAction
 
-ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureBillingAccess :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureBillingAccess = do
     redirectPermissionDeniedUnless
         (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueOwner)
@@ -69,21 +69,21 @@ ensureBillingAccess = do
         then ensurePrivilegedPasskeyReady
         else ensurePrivilegedPasskeySetupComplete
 
-ensureOwnerBillingPaymentAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureOwnerBillingPaymentAction :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureOwnerBillingPaymentAction = do
     redirectPermissionDeniedUnless
         (not currentUserIsUnimpersonatedSuperAdmin && hasRole VenueOwner)
         "Only the venue owner can start Checkout or open Customer Portal."
     ensurePrivilegedPasskeyReady
 
-ensureFounderBillingReconciliationAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureFounderBillingReconciliationAction :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureFounderBillingReconciliationAction = do
     redirectPermissionDeniedUnless
         currentUserIsUnimpersonatedSuperAdmin
         "Only super admins can synchronize venue billing."
     ensurePrivilegedPasskeyReady
 
-createBillingCheckoutSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+createBillingCheckoutSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 createBillingCheckoutSessionAction =
     readStripeConfig >>= \case
         Left message -> billingRedirectWithError message
@@ -92,7 +92,7 @@ createBillingCheckoutSessionAction =
                 then createEnabledBillingCheckoutSession stripeConfig
                 else billingRedirectWithError "Starting a new subscription is temporarily unavailable. Existing billing management remains available."
 
-createEnabledBillingCheckoutSession :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => StripeConfig -> IO ()
+createEnabledBillingCheckoutSession :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => StripeConfig -> IO ResponseReceived
 createEnabledBillingCheckoutSession stripeConfig = do
     stripeClient <- currentStripeClient
     let successUrlFor attemptId =
@@ -118,7 +118,7 @@ createEnabledBillingCheckoutSession stripeConfig = do
             cancelUrlFor
     respondWithBillingCheckout checkoutResult.liveMutationValue
 
-createBillingPortalSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+createBillingPortalSessionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 createBillingPortalSessionAction =
     readStripeConfig >>= \case
         Left message -> billingRedirectWithError message
@@ -139,7 +139,7 @@ createBillingPortalSessionAction =
                             returnUrl
                     respondWithBillingPortal billingCustomer returnUrl portalResult
 
-updateVenueBillingControlAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+updateVenueBillingControlAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 updateVenueBillingControlAction = do
     redirectPermissionDeniedUnless currentUserIsUnimpersonatedSuperAdmin "Only super admins can update billing controls."
     let manualReadOnly = paramOrDefault @Text "false" "manualReadOnly" == "true"
