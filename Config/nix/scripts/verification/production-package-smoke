@@ -2,13 +2,22 @@
 set -euo pipefail
 
 output="$(nix build --no-link --print-out-paths .#optimized-prod-server --accept-flake-config)"
-actual="$(find "$output/bin" -maxdepth 1 -type f -printf '%f\n' | sort)"
+# Compatibility outputs are symlink joins. Count every entry (including broken
+# links and unexpected directories), then validate the exact allowlisted files.
+actual="$(find "$output/bin" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)"
 expected="$(awk -F '\t' 'NR > 1 { print $1 }' Config/nix/production-executable-inventory.tsv | sort)"
 if [ "$actual" != "$expected" ]; then
     echo "production-package-smoke: packaged bin inventory mismatch" >&2
     diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") >&2 || true
     exit 1
 fi
+
+while IFS= read -r executable; do
+    if [ ! -f "$output/bin/$executable" ] || [ ! -x "$output/bin/$executable" ]; then
+        echo "production-package-smoke: missing regular executable target: $executable" >&2
+        exit 1
+    fi
+done <<< "$expected"
 
 production_derivation="$(nix-store --query --deriver "$output")"
 requisites="$(nix-store --query --requisites "$production_derivation")"

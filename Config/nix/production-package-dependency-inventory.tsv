@@ -123,7 +123,7 @@ IHP.ModelSupport.Types	ihp	Application/Helper/LiveUpdate/DurableState.hs via Mai
 IHP.Prelude	ihp	Main.hs via Main
 IHP.QueryBuilder	ihp	Application/Helper/LiveUpdate/DurableState.hs via Main
 IHP.RequestVault.Helper	ihp	Application/Helper/ControllerContext.hs via Main
-IHP.Router.UrlGenerator	ihp	Web/Controller/Prelude.hs via Main
+IHP.Router.UrlGenerator	ihp-router	Web/Controller/Prelude.hs via Main
 IHP.RouterPrelude	ihp	Web/FrontController.hs via Main
 IHP.RouterSupport	ihp	Main.hs via Main
 IHP.ScriptSupport	ihp	Application/Script/Prelude.hs via Application.Script.BackfillTimesheetPayLedger
