@@ -294,7 +294,7 @@ fi
         export IHP_ROSTER_PROFILING=1
         export GHCRTS="${GHCRTS:+$GHCRTS }-T"
     else
-        unset IHP_ROSTER_PROFILING
+        export IHP_ROSTER_PROFILING=0
     fi
     if [ "${#otel_env[@]}" -gt 0 ]; then
         export "${otel_env[@]}"

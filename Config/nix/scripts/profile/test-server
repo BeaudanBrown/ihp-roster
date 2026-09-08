@@ -5,4 +5,7 @@ export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 export DATABASE_URL="postgresql:///$PROFILE_DATABASE_NAME?host=$PROFILE_DB_SOCKET"
 export IHP_BROWSER="echo"
 export IHP_ROSTER_PROFILING="${IHP_ROSTER_PROFILING:-1}"
+# IHP 1.6 gates query timings on ModelContext.queryLoggingEnabled, read from
+# DEBUG at startup. Scope this to the synthetic profile server, not deployment.
+export DEBUG="$IHP_ROSTER_PROFILING"
 exec RunDevServer
