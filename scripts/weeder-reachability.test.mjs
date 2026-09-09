@@ -28,6 +28,8 @@ function fixture(t) {
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const sources = {
         'Main.hs': 'module Main where\nimport Web.FrontController (serve)\nmain :: IO ()\nmain = print serve\n',
+        // IHP 1.6 has a separately inventoried worker module, not a second Main.
+        'WorkerMain.hs': 'module WorkerMain () where\n',
         'Web/FrontController.hs': 'module Web.FrontController where\nimport Application.Shared (runtimeOnly)\nserve :: Int\nserve = runtimeOnly\n',
         'Application/Shared.hs': 'module Application.Shared where\nruntimeOnly, testOnly, productionScriptOnly, developmentScriptOnly :: Int\nruntimeOnly = 1\ntestOnly = 2\nproductionScriptOnly = 3\ndevelopmentScriptOnly = 4\ninstanceOnly :: String\ninstanceOnly = "instance"\n',
         'Application/Instances.hs': 'module Application.Instances where\nimport Data.String (IsString(..))\nimport Application.Shared (instanceOnly)\nnewtype Marker = Marker String\ninstance IsString Marker where fromString _ = Marker instanceOnly\n',
@@ -83,7 +85,8 @@ test('real complete sweep distinguishes runtime, test, script and conservative c
     assert.deepEqual(result.declarations.find((row) => row.symbol === 'developmentScriptOnly').rootGroups, ['development']);
     assert.equal(result.roots.production.find((row) => row.symbol.includes('ProductionFixture')).inventory.category, 'maintenance');
     assert.match(result.revision, /^[0-9a-f]{40}$/);
-    assert.ok(Object.keys(result.hieHashes).length >= 9);
+    assert.ok(Object.keys(result.hieHashes).length >= 10);
+    assert.match(result.inputHashes['WorkerMain.hs'], /^[0-9a-f]{64}$/);
     assert.equal(result.advisoryOnly, true);
 });
 
@@ -110,6 +113,7 @@ test('byte-identical source touches do not invalidate compiler evidence', (t) =>
 for (const [name, change] of [
     ['source changed since sweep', (root) => appendFileSync(join(root, 'Application/Shared.hs'), '\n')],
     ['deleted source', (root) => rmSync(join(root, 'Application/Shared.hs'))],
+    ['deleted worker source', (root) => rmSync(join(root, 'WorkerMain.hs'))],
     ['missing HIE', (root) => rmSync(join(root, 'cache/hie/Application/Shared.hie'))],
     ['stale deleted-module HIE', (root) => copyFileSync(join(root, 'cache/hie/Application/Shared.hie'), join(root, 'cache/hie/Deleted.hie'))],
     ['root policy changed', (root) => appendFileSync(join(root, 'weeder.toml'), '\n')],
