@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "issue": 502,
-  "authority": "Operator-approved IHP 1.6 count reconciliation for #545. Retained ed400abb inspection measured 576 interfaces; its module set is reconstructed from the committed production inventory (old store output unavailable), excluding Main and mapping Config/Config.hs to module Config. Eight Application.Script entrypoints now compile as separate deployed binaries instead of app-lib: BackfillTimesheetPayLedger, BillingReconciliationSweep, BootstrapAccount, FwcMapdRefreshSweep, LiveInvalidationOutboxPrune, PublicHolidayRefreshSweep, RsaReminderSweep, XeroKeepaliveSweep. WorkerMain and Application.Helper.Authentication add two installed interfaces: 576 - 8 + 2 = 570, inspected directly. All ten deployed executables passed smoke checks. Production rows remain 579. Direct package ceiling changes only 45 to 46 for the existing IHP.Router.UrlGenerator import now owned by split ihp-router. No runtime feature added; all byte/interface-size/executable ceilings unchanged. Memory remains opt-in and builder-specific.",
+  "issue": 537,
+  "authority": "Operator-approved IHP 1.6 count reconciliation for #545. Retained ed400abb inspection measured 576 interfaces; its module set is reconstructed from the committed production inventory (old store output unavailable), excluding Main and mapping Config/Config.hs to module Config. Eight Application.Script entrypoints now compile as separate deployed binaries instead of app-lib: BackfillTimesheetPayLedger, BillingReconciliationSweep, BootstrapAccount, FwcMapdRefreshSweep, LiveInvalidationOutboxPrune, PublicHolidayRefreshSweep, RsaReminderSweep, XeroKeepaliveSweep. WorkerMain and Application.Helper.Authentication add two installed interfaces: 576 - 8 + 2 = 570, inspected directly. All ten deployed executables passed smoke checks. Production rows remain 579. Direct package ceiling changes only 45 to 46 for the existing IHP.Router.UrlGenerator import now owned by split ihp-router. No runtime feature added; all byte/interface-size/executable ceilings unchanged. Memory remains opt-in and builder-specific. Rebase reconciliation for epic 521 retains this IHP 1.6 accounting and adds four runtime owners: Application/Helper/LiveUpdate/{BackgroundMutation,Diagnostics}, Application/Xero/ReferenceSyncFence, Web/LeaveRequests/Archive. Combined expected app-lib interfaces: 570 + 4 = 574; inventoried production rows: 579 + 4 = 583. The linked inspection profile records the staging predecessor, not a measurement of the combined build. All staging byte/interface-size/dependency/executable ceilings remain unchanged; validate the combined counts with the canonical production gate.",
   "measurement_profile": "Config/nix/baselines/production-build/epic-444-final-xero-management.json",
   "module_count_inspection_profile": "Config/nix/baselines/production-build/ihp-545-ihp-16.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 570,
+    "module_count_max": 574,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -58,7 +58,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 570, "bytes_max": 629145600 },
+      ".hi": { "count": 574, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -67,7 +67,7 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 579,
+    "module_rows_max": 583,
     "dependency_packages_max": 46,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
