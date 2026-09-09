@@ -115,6 +115,7 @@ test.describe('Roster notification workflow', () => {
         const recipientEmail = `${uniqueE2EValue('e2e-roster-notification')}-retry-${testInfo.retry}@example.com`;
         const rosterGroupId = randomUUID();
         const rosterGroupName = uniqueE2EValue('e2e-notification-acceptance');
+        const membershipsBefore = querySql('SELECT staff_id, roster_group_id FROM staff_roster_groups WHERE deleted_at IS NULL ORDER BY staff_id, roster_group_id');
         runSql(`
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
             VALUES ('${rosterGroupId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupName}', 99, TRUE, FALSE);
@@ -155,33 +156,33 @@ test.describe('Roster notification workflow', () => {
             SELECT id, '${rosterGroupId}' FROM new_staff;
         `);
 
-        await openRoster(page, {
-            rosterGroupId,
-            ensureDraft: false,
-            ensureEditable: false,
-        });
-        const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
-        expect(rawSurfaceConfig).not.toBeNull();
-        const scopeKey = JSON.parse(rawSurfaceConfig!).scopeKey as string;
-        const scopeParts = scopeKey.split(':');
-        const windowStart = scopeParts[scopeParts.length - 3];
-        expect(windowStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-        runSql(`
-            CREATE OR REPLACE FUNCTION e2e_defer_roster_notification_jobs()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                NEW.run_at := NOW() + INTERVAL '1 hour';
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-            DROP TRIGGER IF EXISTS e2e_defer_roster_notification_jobs ON app_jobs;
-            CREATE TRIGGER e2e_defer_roster_notification_jobs
-                BEFORE INSERT ON app_jobs
-                FOR EACH ROW
-                WHEN (NEW.job_kind = 'email_delivery' AND NEW.related_table = 'roster_notification_runs')
-                EXECUTE FUNCTION e2e_defer_roster_notification_jobs();
-        `);
         try {
+            await openRoster(page, {
+                rosterGroupId,
+                ensureDraft: false,
+                ensureEditable: false,
+            });
+            const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
+            expect(rawSurfaceConfig).not.toBeNull();
+            const scopeKey = JSON.parse(rawSurfaceConfig!).scopeKey as string;
+            const scopeParts = scopeKey.split(':');
+            const windowStart = scopeParts[scopeParts.length - 3];
+            expect(windowStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+            runSql(`
+                CREATE OR REPLACE FUNCTION e2e_defer_roster_notification_jobs()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    NEW.run_at := NOW() + INTERVAL '1 hour';
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+                DROP TRIGGER IF EXISTS e2e_defer_roster_notification_jobs ON app_jobs;
+                CREATE TRIGGER e2e_defer_roster_notification_jobs
+                    BEFORE INSERT ON app_jobs
+                    FOR EACH ROW
+                    WHEN (NEW.job_kind = 'email_delivery' AND NEW.related_table = 'roster_notification_runs')
+                    EXECUTE FUNCTION e2e_defer_roster_notification_jobs();
+            `);
             await page.reload();
             await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
             await openRosterSettings(page);
@@ -253,7 +254,13 @@ test.describe('Roster notification workflow', () => {
             await waitForMailhogMessages(request, recipientEmail, 2, E2E_TIMEOUT.mailhog);
         } finally {
             runSql(`
-                UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
+                UPDATE staff_roster_groups
+                SET deleted_at = NOW(),
+                    deleted_by_user_id = 'a0000000-0000-0000-0000-000000000003',
+                    delete_reason = 'E2E notification fixture cleanup',
+                    updated_at = NOW()
+                WHERE roster_group_id = '${rosterGroupId}' AND deleted_at IS NULL;
+                UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}';
                 UPDATE roster_groups
                 SET is_active = FALSE
                 WHERE id = '${rosterGroupId}';
@@ -261,5 +268,8 @@ test.describe('Roster notification workflow', () => {
                 DROP FUNCTION IF EXISTS e2e_defer_roster_notification_jobs();
             `);
         }
+        // This fixture shares seeded staff with later specs in the same shard.
+        // Deactivating its group must not leave extra hidden form memberships.
+        expect(querySql('SELECT staff_id, roster_group_id FROM staff_roster_groups WHERE deleted_at IS NULL ORDER BY staff_id, roster_group_id')).toBe(membershipsBefore);
     });
 });
