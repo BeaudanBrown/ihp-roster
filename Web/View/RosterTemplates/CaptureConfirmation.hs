@@ -20,7 +20,6 @@ import Application.Helper.FrontendContract.Toggle.Runtime (TogglePresentationSta
 import Application.Helper.View.Overlay
 import qualified Data.Text as Text
 import qualified Data.Time.Format as Time
-import IHP.ModelSupport (InputValue (..))
 import Web.RosterWeeks.Dom (rosterTemplateCaptureFormId,
                             rosterTemplateCaptureNameInputId,
                             rosterTemplateCaptureWarningConfirmationId)

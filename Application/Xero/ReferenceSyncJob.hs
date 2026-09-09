@@ -44,8 +44,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types
-import IHP.ModelSupport (unsafeSqlExec, unsafeSqlQuery)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (randomRIO)
 import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,

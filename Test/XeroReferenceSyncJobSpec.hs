@@ -705,11 +705,11 @@ completeReferenceCategoryForTest category attempt connection = void $ case categ
 withRejectedReferencePublication :: (?modelContext :: ModelContext) => IO value -> IO value
 withRejectedReferencePublication = Exception.bracket_
     (do
-        sqlExecDiscardResult "CREATE FUNCTION test_reject_reference_publication() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced reference publication failure''; END' LANGUAGE plpgsql" ()
-        sqlExecDiscardResult "CREATE TRIGGER test_reject_reference_publication BEFORE INSERT ON live_invalidation_event_resources FOR EACH ROW EXECUTE FUNCTION test_reject_reference_publication()" ())
+        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_reference_publication() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced reference publication failure''; END' LANGUAGE plpgsql" ()
+        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_reference_publication BEFORE INSERT ON live_invalidation_event_resources FOR EACH ROW EXECUTE FUNCTION test_reject_reference_publication()" ())
     (do
-        sqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_reference_publication ON live_invalidation_event_resources" ()
-        sqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_reference_publication()" ())
+        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_reference_publication ON live_invalidation_event_resources" ()
+        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_reference_publication()" ())
 
 advancingRuntime :: IORef UTCTime -> IORef [Int] -> XeroReferenceSyncRuntime
 advancingRuntime clock delays =

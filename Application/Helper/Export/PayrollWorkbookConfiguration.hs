@@ -25,7 +25,6 @@ import Application.Helper.ControllerContext (authenticatedCurrentUser,
 import Application.Helper.Export.PayrollWorkbook
 import Application.Helper.Hasql (isUniqueViolation)
 import qualified Control.Exception as Exception
-import Control.Monad (void)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text

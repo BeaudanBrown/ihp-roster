@@ -20,7 +20,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImplForWindow)
 import Web.View.Admin.Common

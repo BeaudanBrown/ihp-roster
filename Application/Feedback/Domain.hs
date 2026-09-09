@@ -15,7 +15,6 @@ import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (unsafeSqlQuery, unpackId, withTransaction)
 
 -- Authority checks belong to the calling controller. This module owns the
 -- persisted lifecycle state machine and serializes every item mutation.

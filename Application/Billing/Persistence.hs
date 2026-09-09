@@ -7,7 +7,6 @@ where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import IHP.ControllerPrelude
-import IHP.ModelSupport (unsafeSqlQuery)
 
 -- An event-ID transaction lock makes duplicate delivery serialization
 -- independent of whether the event can be associated with a venue.

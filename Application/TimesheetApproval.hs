@@ -31,8 +31,6 @@ import qualified Data.Aeson.KeyMap as AesonKeyMap
 import Generated.Types
 import qualified Hasql.Errors as Hasql
 import IHP.ControllerPrelude
-import IHP.ModelSupport (unsafeSqlExecDiscardResult, unsafeSqlQuery)
-import IHP.ModelSupport.Types (HasqlSessionError (..))
 
 -- The expected identity is rendered into each entry-specific Xero blocker.
 data ExpectedApprovalIdentity = ExpectedApprovalIdentity

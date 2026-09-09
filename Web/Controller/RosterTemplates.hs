@@ -19,7 +19,6 @@ import Data.Either (fromRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
-import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
 import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),

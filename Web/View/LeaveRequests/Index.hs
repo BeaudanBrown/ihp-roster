@@ -6,8 +6,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
 import Application.Helper.Controller (leaveRequestIsArchivedOn)
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffEditDialog)
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker,
                                                              appShellActionAttrs,
                                                              defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR

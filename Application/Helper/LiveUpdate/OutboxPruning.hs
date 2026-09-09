@@ -14,7 +14,6 @@ import qualified Control.Exception as Exception
 import qualified Data.Text.IO as TextIO
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (unsafeSqlQueryScalar, withTransaction)
-import IHP.ModelSupport.Types (ModelContext)
 import IHP.Prelude
 
 -- | Operational bounds for one pruning invocation. Retention and batch size are

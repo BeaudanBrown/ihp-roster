@@ -6,11 +6,10 @@ module Application.Helper.ControllerContext where
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Data.Coerce (coerce)
 import Generated.Types
-import Data.IORef (IORef, atomicModifyIORef', readIORef)
 import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault.Helper (insertNewIORefVaultMiddleware, lookupRequestVault)
 import IHP.ControllerPrelude
-import Network.Wai (Request, Middleware)
+import Network.Wai (Middleware)
 import System.IO.Unsafe (unsafePerformIO)
 import Web.Routes ()
 import Web.Types ()

@@ -19,8 +19,7 @@ module Web.View.RosterWeeks.Grid.Cells
 
 import Application.Helper.Controller (hasRole)
 import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker,
                                                              appShellActionAttrs,
                                                              defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
@@ -36,8 +35,6 @@ import Application.VenueTime.Model (rosterShiftTimingEndTime,
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay)
 import Web.RosterWeeks.DateRange (RosterWindowLane, laneForOperationalDate)
 import Web.RosterWeeks.FrontendSurface (rosterDragDropzoneRef,
                                         rosterDragSourceRef,

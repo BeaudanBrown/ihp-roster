@@ -31,8 +31,6 @@ import Data.Traversable (traverse)
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unsafeSqlQuery, unpackId)
-import IHP.Prelude
 
 data ApprovedPayLedgerError
     = ApprovedPayLedgerResultNotLoaded

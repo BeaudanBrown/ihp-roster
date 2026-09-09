@@ -39,7 +39,7 @@ import qualified IHP.ViewSupport as ViewSupport
 import Network.HTTP.Types.Status (Status, status400)
 import qualified Network.Wai as Wai
 import IHP.HSX.Markup (Html)
-import Web.Routes
+import Web.Routes () -- AutoRoute instances.
 import Web.Types
 
 parseIsoDayRouteParam :: (?request :: Request, ?respond :: Respond) => Text -> IO Day

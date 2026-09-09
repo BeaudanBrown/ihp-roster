@@ -27,7 +27,6 @@ import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import GHC.Generics (Generic)
-import IHP.ModelSupport (columnNames, unsafeSqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows

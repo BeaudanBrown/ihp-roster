@@ -12,8 +12,6 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeI
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types
-import IHP.ModelSupport (unsafeSqlQuery)
 
 data AppJobRequest = AppJobRequest
     { jobKind              :: !Text

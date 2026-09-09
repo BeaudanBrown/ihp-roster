@@ -8,9 +8,6 @@ module Application.RosterPublication.Mutations
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unsafeSqlExecDiscardResult, unsafeSqlQueryScalar,
-                         unpackId, withTransaction)
-import IHP.Prelude
 
 -- QueryBuilder cannot express this window-function update. Keep the unavoidable
 -- set-based normalization beside the publication locks that serialize it.

@@ -8,7 +8,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (ProviderRuntimeInvari
 import Generated.Types
 import Database.PostgreSQL.Simple (Only (..))
 import IHP.Fetch (fetch)
-import IHP.ModelSupport (sqlQuery, unpackId)
+import IHP.ModelSupport (unsafeSqlQuery, unpackId)
 import IHP.Prelude
 
 -- The run distinguishes attempts, including retries of the same durable job.
@@ -28,12 +28,12 @@ lockXeroReferenceSyncAttempt ::
     (?modelContext :: ModelContext) =>
     ReferenceSyncWrite -> XeroReferenceSyncAttempt -> XeroConnection -> IO ()
 lockXeroReferenceSyncAttempt write attempt connection = do
-    leases :: [(Maybe UUID, UTCTime)] <- sqlQuery
+    leases :: [(Maybe UUID, UTCTime)] <- unsafeSqlQuery
         "SELECT app_job_id, lease_expires_at FROM xero_reference_sync_leases WHERE tenant_id = ? FOR UPDATE"
         (Only connection.tenantId)
-    connectionIds :: [Only UUID] <- sqlQuery
+    connectionIds :: [Only UUID] <- unsafeSqlQuery
         "SELECT id FROM xero_connections WHERE id = ? FOR UPDATE" (Only (unpackId connection.id))
-    runIds :: [Only UUID] <- sqlQuery
+    runIds :: [Only UUID] <- unsafeSqlQuery
         "SELECT id FROM xero_sync_runs WHERE id = ? AND xero_connection_id = ? AND sync_status = ? FOR UPDATE"
         (unpackId attempt.referenceSyncAttemptRun.id, unpackId connection.id, Running)
     now <- attempt.referenceSyncAttemptTime

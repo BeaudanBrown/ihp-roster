@@ -3,9 +3,7 @@ module Web.FrontController where
 import Application.Billing.Checkout (venueSubscriptionIsLive)
 import Application.Billing.Stripe (StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
-import Application.Helper.Controller (currentUserIsSuperAdmin, currentVenueOrNothing)
 import Application.Helper.Feedback (PrivateFeedbackCount (..), fetchPrivateFeedbackCount)
-import Application.Helper.Impersonation (initImpersonationContext, initSupportImpersonationOptions)
 import Application.Helper.Profiling (profileActionSpan)
 import IHP.RouterPrelude
 import Web.Controller.Prelude

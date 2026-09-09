@@ -6,7 +6,6 @@ import Application.Feedback.Management
 import qualified Application.Feedback.Mutations as Mutations
 import Application.Feedback.Notification (feedbackSubmittedMailKind)
 import Application.Feedback.ReadModel (fetchPublicFeedbackCards)
-import Application.Helper.Controller (boundedText, normalizeTextField)
 import Application.Helper.Feedback (PrivateFeedbackCount (..),
                                     fetchPrivateFeedbackCount)
 import Application.Helper.FrontendContract.AppShell (ContentField,
@@ -24,7 +23,6 @@ import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom,
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.SurfaceResource
-import Application.Helper.Telemetry (addTelemetryEvent)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)

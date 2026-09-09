@@ -5,7 +5,6 @@ module Application.RosterNotification.Mutations
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (unsafeSqlQuery)
 
 lockRosterNotificationWindow ::
     (?modelContext :: ModelContext) =>

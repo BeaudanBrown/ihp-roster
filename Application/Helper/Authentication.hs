@@ -9,9 +9,7 @@ import qualified Data.Text.IO as TextIO
 import qualified Data.Vault.Lazy as Vault
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.LoginSupport.Helper.Controller (sessionKey)
 import IHP.LoginSupport.Middleware (authMiddlewareWith, userIdMiddleware, currentUserVaultKey, currentUserIdVaultKey, lookupAuthVault)
-import IHP.Controller.Session (lookupSessionVault)
 import qualified Network.Wai as Wai
 import Web.Types ()
 
@@ -47,7 +45,7 @@ validateAuthenticatedRequest app request respond = do
         Nothing -> pure Nothing
         Just (lookupSession, _) -> lookupSession (sessionKey @User)
     valid <- case currentUserOrNothing @User of
-        Nothing -> pure (rawUser == Nothing || rawUser == Just "")
+        Nothing -> pure (isNothing rawUser || rawUser == Just "")
         Just _ -> authenticatedSessionVersionIsCurrent
     if valid
         then app request respond

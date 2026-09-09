@@ -5,11 +5,8 @@ module Application.Feedback.ReadModel
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.List (sortOn)
-import Data.Ord (Down (..))
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (unpackId)
 
 -- This intentionally global projection is the only data passed to public card
 -- rendering. Neither the model nor private provenance crosses that boundary.

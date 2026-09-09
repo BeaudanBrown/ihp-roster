@@ -26,10 +26,9 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerSupport (ControllerContext, getRequestPathAndQuery)
-import IHP.Environment
 import IHP.ViewPrelude
 import qualified Network.Wai as Wai
-import Web.Routes
+import Web.Routes () -- AutoRoute instances.
 import Web.Types
 
 defaultLayout :: Html -> Html

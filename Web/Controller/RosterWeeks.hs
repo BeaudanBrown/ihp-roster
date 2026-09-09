@@ -61,7 +61,6 @@ import qualified Data.Time.Calendar as Calendar
 import Network.HTTP.Types.Status (status400, status409)
 import qualified Network.Wai as Wai
 import qualified IHP.HSX.Markup as Markup
-import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
 import Web.Controller.Sessions (passkeySetupPromptSessionKey)

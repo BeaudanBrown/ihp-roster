@@ -18,7 +18,6 @@ module Application.Xero.Timesheets.Prepare
     ) where
 
 import Application.Error.Types (AppResult)
-import Application.Helper.Audit (recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext (authenticatedCurrentUser, currentVenueId)
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.Xero

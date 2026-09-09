@@ -29,11 +29,6 @@ import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (getCurrentTime)
-import Data.Tuple.Only (Only (..))
-import IHP.ModelSupport (unsafeSqlQuery)
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)

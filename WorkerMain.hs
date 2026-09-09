@@ -1,6 +1,5 @@
 module WorkerMain () where
 
-import IHP.Prelude
 import IHP.FrameworkConfig (RootApplication (..))
 import IHP.Job.Types (Worker (..))
 import Web.Types (WebApplication (..))

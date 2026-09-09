@@ -6,7 +6,6 @@ module Application.EmailDelivery.Persistence
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (unsafeSqlQuery)
 
 
 data EmailDeliveryInsert = EmailDeliveryInsert
