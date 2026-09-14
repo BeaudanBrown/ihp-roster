@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { dialogMountDomAttr, dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
-import { addRowToFirstRosterDay, openRoster } from './test-helpers';
+import { addRowToFirstRosterDay, openRoster } from './support/roster';
 import { attachRosterMobileDiagnostics, expectRosterMobileLayoutStable } from './roster-mobile-diagnostics';
 
 test.describe('Roster mobile screenshots', () => {

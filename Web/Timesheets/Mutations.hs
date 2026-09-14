@@ -1,5 +1,6 @@
 module Web.Timesheets.Mutations
-    ( approveTimesheetEntryMutation
+    ( TimesheetMaterializationKind (..)
+    , approveTimesheetEntryMutation
     , createTimesheetEntryMutation
     , materializeAndApproveTimesheetSuggestionMutation
     , materializeTimesheetSuggestionMutation
@@ -9,34 +10,25 @@ module Web.Timesheets.Mutations
     , updateTimesheetEntryMutation
     ) where
 
+import Application.Error.Domain (projectDomainError)
+import Application.Error.Types (AppError, AppResult)
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
-import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
-                               lockPayVersionsForApproval,
-                               payVersionManifestForEntry)
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.SurfaceResource
-import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
 import Application.RosterPublication.Mutations (withRosterCalendarLockInCurrentTransaction)
+import Application.TimesheetApproval (ApprovalEngineMode (InitialApproval),
+                                      approvalEngineEntry,
+                                      runApprovalEngineInCurrentTransaction)
 import Application.VenueTime.Model
-import Application.WageSourceEnforcement (enforceFinalWageEntries,
-                                          renderWageEntryFailures)
-import Control.Exception (IOException, try)
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (getCurrentTime)
-import Data.Tuple.Only (Only (..))
-import IHP.ModelSupport (sqlQuery)
-import Network.HTTP.Types.Status (status409)
-import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)
@@ -44,7 +36,10 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue,
                                        timesheetWeekScopeMatchesConfig)
 import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
 import Web.Timesheets.Suggestion (TimesheetSuggestion (..))
-import Web.Timesheets.Validation (resetApprovalOnEdit)
+import Web.Timesheets.Validation (TimesheetCalendarConflict (..),
+                                  TimesheetEditIntent, originalTimesheetEntry,
+                                  resetApprovalOnEdit, submittedTimesheetEntry,
+                                  timesheetCoreChanged)
 
 withTimesheetCalendarMutationLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> IO value -> IO value
 withTimesheetCalendarMutationLock scope action =
@@ -52,31 +47,25 @@ withTimesheetCalendarMutationLock scope action =
         venueConfig <- fetchVenueConfig
         if timesheetWeekScopeMatchesConfig venueConfig scope
             then action
-            else
-                if isHtmxRequest
-                    then do
-                        respondAndExit
-                            ( Wai.responseLBS
-                                status409
-                                [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
-                                "The roster calendar changed. Review the refreshed window and try again."
-                            )
-                        error "unreachable"
-                    else do
-                        accessDeniedUnless False
-                        action
+            else Exception.throwIO TimesheetCalendarChanged
 
-createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
-createTimesheetEntryMutation scope timesheetEntry = do
+createTimesheetEntryMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (LiveMutationResult TimesheetEntry))
+createTimesheetEntryMutation scope timesheetEntry = Exception.try @TimesheetCalendarConflict do
     accessDeniedUnless (isNothing timesheetEntry.sourceRosterSlotId)
     withDurableLiveMutation "timesheet.create" $
         withTimesheetCalendarMutationLock scope do
             createdEntry <- createTimesheetEntryWithVersion timesheetEntry
             timesheetCreationResult createdEntry
 
-materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (LiveMutationResult TimesheetEntry))
+data TimesheetMaterializationKind = NewTimesheetSnapshot | ExistingTimesheetSnapshot
+    deriving stock (Eq, Show)
+
+materializationKind :: Bool -> TimesheetMaterializationKind
+materializationKind wasCreated = if wasCreated then NewTimesheetSnapshot else ExistingTimesheetSnapshot
+
+materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry)))
 materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
-    fmap (fmap snd) $
+    Exception.try @TimesheetCalendarConflict $ fmap (fmap (\(_, kind, result) -> (kind, result))) $
         withDurableLiveMutationOutcome publicationFor $
             withTimesheetCalendarMutationLock scope do
                 materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry >>= \case
@@ -84,26 +73,28 @@ materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
                     Just (materializedEntry, wasCreated) -> do
                         result <- timesheetCreationResult materializedEntry
                         let label = if wasCreated then "timesheet.suggestion.create" else "timesheet.suggestion.create.idempotent"
-                        pure (Just (label, result))
+                        pure (Just (label, materializationKind wasCreated, result))
   where
-    publicationFor = fmap (\(label, result) -> (label, result.liveMutationTouchedResources))
+    publicationFor = fmap (\(label, _, result) -> (label, result.liveMutationTouchedResources))
 
-materializeAndApproveTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either Text (Maybe (LiveMutationResult TimesheetEntry)))
-materializeAndApproveTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry = do
-    approval :: Either IOException (Maybe (LiveMutationResult TimesheetEntry)) <- try $
+materializeAndApproveTimesheetSuggestionMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry))))
+materializeAndApproveTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry = Exception.try @TimesheetCalendarConflict do
+    approval <- Exception.try @TimesheetApprovalRollback $
         withDurableLiveMutationOutcome publicationFor $
             withTimesheetCalendarMutationLock scope do
                 materialization <- materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry
                 case materialization of
                     Nothing -> pure Nothing
-                    Just (materializedEntry, _) -> do
+                    Just (materializedEntry, wasCreated) -> do
                         approvedEntry <- approveTimesheetEntryInCurrentTransaction materializedEntry
                         venueConfig <- fetchVenueConfig
                         activeScopes <- activeTimesheetWindowScopes
-                        pure (Just (liveMutationResult approvedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [approvedEntry])))
-    pure (either (Left . tshow) Right approval)
+                        pure (Just (materializationKind wasCreated, liveMutationResult approvedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [approvedEntry])))
+    pure case approval of
+        Left (TimesheetApprovalRollback appError) -> Left appError
+        Right mutationResult                      -> Right mutationResult
   where
-    publicationFor = fmap (\result -> ("timesheet.suggestion.approve", result.liveMutationTouchedResources))
+    publicationFor = fmap (\(_, result) -> ("timesheet.suggestion.approve", result.liveMutationTouchedResources))
 
 materializeTimesheetSuggestionInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (TimesheetEntry, Bool))
 materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry = do
@@ -152,7 +143,7 @@ timesheetTargetAllowsCreation entry = do
 lockRosterSlot :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockRosterSlot rosterSlotId = do
     _lockedRosterSlotIds :: [Only UUID] <-
-        sqlQuery
+        unsafeSqlQuery
             "SELECT id FROM roster_slots WHERE id = ? FOR UPDATE"
             (Only rosterSlotId)
     pure ()
@@ -184,9 +175,12 @@ timesheetCreationResult entry = do
     activeScopes <- activeTimesheetWindowScopes
     pure (liveMutationResult entry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [entry]))
 
-updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> TimesheetEntry -> Bool -> IO (LiveMutationResult TimesheetEntry)
-updateTimesheetEntryMutation scope existingEntry timesheetEntry shouldResetApproval =
-    withDurableLiveMutation "timesheet.update" $
+updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEditIntent -> IO (Either TimesheetCalendarConflict (Bool, LiveMutationResult TimesheetEntry))
+updateTimesheetEntryMutation scope intent = Exception.try @TimesheetCalendarConflict do
+    let existingEntry = originalTimesheetEntry intent
+    let timesheetEntry = submittedTimesheetEntry intent
+    let shouldResetApproval = existingEntry.isApproved && timesheetCoreChanged existingEntry timesheetEntry
+    result <- withDurableLiveMutation "timesheet.update" $
         withTimesheetCalendarMutationLock scope do
             let updateAction = if shouldResetApproval then ApprovalReset else Updated
             updatedEntry <-
@@ -217,10 +211,11 @@ updateTimesheetEntryMutation scope existingEntry timesheetEntry shouldResetAppro
             venueConfig <- fetchVenueConfig
             activeScopes <- activeTimesheetWindowScopes
             pure (liveMutationResult updatedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [existingEntry, updatedEntry]))
+    pure (shouldResetApproval, result)
 
-deleteTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+deleteTimesheetEntryMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (LiveMutationResult TimesheetEntry))
 deleteTimesheetEntryMutation scope timesheetEntry =
-    withDurableLiveMutation "timesheet.delete" $
+    Exception.try @TimesheetCalendarConflict $ withDurableLiveMutation "timesheet.delete" $
         withTimesheetCalendarMutationLock scope do
             now <- getCurrentTime
             softDeletedEntry <-
@@ -250,77 +245,34 @@ deleteTimesheetEntryMutation scope timesheetEntry =
             activeScopes <- activeTimesheetWindowScopes
             pure (liveMutationResult softDeletedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [timesheetEntry]))
 
-approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either Text (LiveMutationResult TimesheetEntry))
-approveTimesheetEntryMutation scope timesheetEntry = do
-    approval :: Either IOException (LiveMutationResult TimesheetEntry) <- try $
+newtype TimesheetApprovalRollback = TimesheetApprovalRollback AppError
+    deriving stock (Show)
+
+instance Exception.Exception TimesheetApprovalRollback
+
+approveTimesheetEntryMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (LiveMutationResult TimesheetEntry)))
+approveTimesheetEntryMutation scope timesheetEntry = Exception.try @TimesheetCalendarConflict do
+    approval <- Exception.try @TimesheetApprovalRollback $
         withDurableLiveMutation "timesheet.approve" $
             withTimesheetCalendarMutationLock scope do
                 updatedEntry <- approveTimesheetEntryInCurrentTransaction timesheetEntry
                 venueConfig <- fetchVenueConfig
                 activeScopes <- activeTimesheetWindowScopes
                 pure (liveMutationResult updatedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [updatedEntry]))
-    pure (either (Left . tshow) Right approval)
+    pure case approval of
+        Left (TimesheetApprovalRollback appError) -> Left appError
+        Right mutationResult                      -> Right mutationResult
 
-approveTimesheetEntryInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
-approveTimesheetEntryInCurrentTransaction timesheetEntry = do
-    now <- getCurrentTime
-    -- QueryBuilder has no row-lock combinator; keep this narrow FOR UPDATE
-    -- seam here so concurrent approvals cannot create duplicate ledgers.
-    lockedEntryIds :: [Only UUID] <- sqlQuery
-        "SELECT id FROM timesheet_entries WHERE id = ? FOR UPDATE"
-        (Only (unpackId timesheetEntry.id))
-    lockedEntryId <- maybe (ioError (userError "timesheet entry disappeared during approval")) (\(Only entryId) -> pure entryId) (listToMaybe lockedEntryIds)
-    lockedEntry <- fetch (Id lockedEntryId :: Id TimesheetEntry)
-    case (lockedEntry.isApproved, lockedEntry.activePayCalculationId) of
-        (True, Just _) -> pure lockedEntry
-        _ -> do
-            (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id lockedEntry
-            lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
-            let approvalEntry =
-                    lockedEntry
-                        |> set #isApproved True
-                        |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
-                        |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
-                        |> set #approvedAt (Just now)
-                        |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
-                        |> set #updatedAt now
-            sourceEnforcement <- enforceFinalWageEntries [approvalEntry |> set #isApproved False]
-            case sourceEnforcement of
-                Left failures -> ioError (userError (Text.unpack (renderWageEntryFailures "Approval blocked: " failures)))
-                Right _       -> pure ()
-            persistedCalculation <- persistApprovedTimesheetPayCalculation approvalEntry
-            calculation <- case persistedCalculation of
-                Left reason  -> ioError (userError (Text.unpack reason))
-                Right result -> pure result
-            activeEntry <- approvalEntry
-                |> set #activePayCalculationId (Just calculation.id)
-                |> updateRecord
-            void $
-                recordCurrentUserTimesheetEntryVersion
-                    (EntryVersionActionEnumApproved)
-                    activeEntry
-                    (Aeson.object
-                        [ "previous" Aeson..= timesheetEntrySnapshot lockedEntry
-                        ]
-                    )
-            void $ recordCurrentUserAuditEvent
-                TimesheetApprovedAudit
-                "timesheet_entries"
-                (unpackId (get #id lockedEntry))
-                (Aeson.object
-                    [ "staffId" Aeson..= lockedEntry.staffId
-                    , "startsAt" Aeson..= lockedEntry.startsAt
-                    , "timezone" Aeson..= lockedEntry.timezone
-                    , "wasApproved" Aeson..= lockedEntry.isApproved
-                    , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry activeEntry
-                    , "approvedAt" Aeson..= now
-                    ]
-                )
-            pure activeEntry
+approveTimesheetEntryInCurrentTransaction :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
+approveTimesheetEntryInCurrentTransaction timesheetEntry =
+    runApprovalEngineInCurrentTransaction currentUser.id InitialApproval currentRequestAuditPayload requestAuditSourceChannel timesheetEntry >>= \case
+        Left approvalError ->
+            Exception.throwIO (TimesheetApprovalRollback (projectDomainError approvalError))
+        Right approvalResult -> pure approvalResult.approvalEngineEntry
 
-unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
+unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (LiveMutationResult TimesheetEntry))
 unapproveTimesheetEntryMutation scope timesheetEntry =
-    withDurableLiveMutation "timesheet.unapprove" $
+    Exception.try @TimesheetCalendarConflict $ withDurableLiveMutation "timesheet.unapprove" $
         withTimesheetCalendarMutationLock scope do
             updatedEntry <-
                 timesheetEntry

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { loginAs, loginAsPrivilegedUserWithSeededPasskeySession } from './test-helpers';
+import { loginAs } from './support/session';
+import { loginAsPrivilegedUserWithSeededPasskeySession } from './support/passkeys';
 
 test.describe('Authenticated header navigation', () => {
     test('venue admin header links navigate across roster, profile, timesheets, unavailability, and admin', async ({ page }) => {

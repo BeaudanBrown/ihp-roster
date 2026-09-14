@@ -14,7 +14,11 @@ module Application.EmailDelivery
 
 import Application.AccountSecurityEmail.Email
 import Application.AccountSecurityEmail.Mutations
+import Application.AccountSecurityEmail.TokenCipher (AccountSecurityTokenCipherError (..))
 import Application.AccountSecurityEmail.Types
+import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
+import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Enqueue
@@ -24,6 +28,8 @@ import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.Mail
 import Application.Helper.SurfaceResource (liveMutationResult)
+import Application.Helper.Telemetry (addProviderTelemetryStatusClass,
+                                     withProviderTelemetrySpan)
 import Application.InvitationDelivery.Email
 import Application.InvitationDelivery.Types
 import Application.RosterNotification.Email
@@ -32,18 +38,17 @@ import Application.VenueInvitation.Mutations (withVenueInvitationLockInCurrentTr
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Application.WageSourceAlert.Email
 import Application.WageSourceNotification.Email
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import Data.Either (isRight)
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.EnvVar (envOrDefault)
-import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Mail (sendMail)
 import IHP.MailPrelude (BuildMail)
-import IHP.ModelSupport (withTransaction)
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 
 data EmailDeliveryPayload = EmailDeliveryPayload
@@ -83,13 +88,28 @@ performEmailDeliveryJobWith ::
     EmailDeliveryRuntime ->
     AppJob ->
     IO ()
-performEmailDeliveryJobWith runtime appJob
-    | appJob.payloadSchemaVersion /= 1 =
-        fail ("Unsupported email delivery payload schema version: " <> cs (tshow appJob.payloadSchemaVersion))
-    | otherwise =
-        case Aeson.fromJSON appJob.payload of
-            Aeson.Error parseError -> fail ("Invalid email delivery payload: " <> parseError)
-            Aeson.Success payload -> performPayload runtime appJob payload
+performEmailDeliveryJobWith runtime@EmailDeliveryRuntime { deliverMail } appJob = do
+    payload <- decodeAppJobPayloadV1 appJob
+    performPayload (runtime { deliverMail = deliverJobMail deliverMail }) appJob payload
+        `Exception.catch` handleAccountSecurityCipherError
+
+handleAccountSecurityCipherError :: AccountSecurityTokenCipherError -> IO value
+handleAccountSecurityCipherError = \case
+    AccountSecurityTokenCipherConfigurationUnavailable -> throwAppJobError JobConfigurationUnavailable
+    AccountSecurityTokenCipherOperationFailed -> throwAppJobError JobCryptoUnavailable
+
+-- SMTP diagnostics remain local to the provider boundary. Only the closed safe
+-- transport classification reaches IHP.
+deliverJobMail :: BuildMail mail => (forall value. BuildMail value => value -> IO ()) -> mail -> IO ()
+deliverJobMail deliver mail =
+    withProviderTelemetrySpan "email" "send" "SMTP" isRight deliveryAttempt >>= \case
+        Left _   -> throwAppJobError JobTransportUnavailable
+        Right () -> pure ()
+  where
+    deliveryAttempt = do
+        result <- trySynchronousAppJobAction (deliver mail)
+        addProviderTelemetryStatusClass (if isRight result then "accepted" else "unavailable")
+        pure result
 
 performPayload ::
     (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) =>
@@ -98,6 +118,12 @@ performPayload ::
     EmailDeliveryPayload ->
     IO ()
 performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob payload = do
+    unless (knownEmailDeliveryMailKind payload.payloadMailKind) (throwAppJobError JobMalformedPersistedPayload)
+    unless
+        ( appJob.relatedId == Just payload.payloadDomainReferenceId
+            && maybe False (emailDeliveryRelatedTableAllowed payload.payloadMailKind) appJob.relatedTable
+        )
+        (throwAppJobError JobInvalidProvenance)
     AppMailSettings { .. } <- loadAppMailSettings
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
     disabled <- deliveryIsDisabled
@@ -193,7 +219,32 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
                 performVenueInvitationPayload deliverMail "sent" appJob payload AppMailSettings { .. } appBaseUrl
             mailKind | mailKind == venueOnboardingInvitationMailKind ->
                 performVenueOnboardingInvitationPayload deliverMail "sent" appJob payload AppMailSettings { .. } appBaseUrl
-            unknownKind -> fail ("Unknown email delivery mail kind: " <> cs unknownKind)
+            _ -> throwAppJobError JobMalformedPersistedPayload
+
+knownEmailDeliveryMailKind :: Text -> Bool
+knownEmailDeliveryMailKind mailKind =
+    mailKind == feedbackSubmittedMailKind
+        || isWageSourceAlertMailKind mailKind
+        || isAwardDriftMailKind mailKind
+        || isBillingNotificationMailKind mailKind
+        || isRosterNotificationMailKind mailKind
+        || isRsaReminderMailKind mailKind
+        || isAccountSecurityMailKind mailKind
+        || mailKind == venueInvitationMailKind
+        || mailKind == venueOnboardingInvitationMailKind
+
+emailDeliveryRelatedTableAllowed :: Text -> Text -> Bool
+emailDeliveryRelatedTableAllowed mailKind relatedTable
+    | mailKind == feedbackSubmittedMailKind = relatedTable == "user_feedback_items"
+    | isWageSourceAlertMailKind mailKind = relatedTable == "app_jobs"
+    | isAwardDriftMailKind mailKind = relatedTable == "fwc_mapd_awards"
+    | isBillingNotificationMailKind mailKind = billingNotificationReferenceTable mailKind == Just relatedTable
+    | isRosterNotificationMailKind mailKind = relatedTable == "roster_notification_runs"
+    | isRsaReminderMailKind mailKind = relatedTable == "staff_documents"
+    | isAccountSecurityMailKind mailKind = relatedTable == accountSecurityRelatedTable mailKind
+    | mailKind == venueInvitationMailKind = relatedTable == "venue_invitations"
+    | mailKind == venueOnboardingInvitationMailKind = relatedTable == "venue_onboarding_invitations"
+    | otherwise = False
 
 performDisabledPayload ::
     (?modelContext :: ModelContext) =>
@@ -440,7 +491,7 @@ completeRsaReminderEmail appJob payload deliveryStatus =
 validateRelatedTable :: AppJob -> Text -> UUID -> IO ()
 validateRelatedTable appJob expectedTable expectedId =
     unless (appJob.relatedTable == Just expectedTable && appJob.relatedId == Just expectedId) $
-        fail ("Email delivery job has invalid related " <> cs expectedTable <> " reference")
+        throwAppJobError JobInvalidProvenance
 
 completeEmailDelivery ::
     (?modelContext :: ModelContext) =>

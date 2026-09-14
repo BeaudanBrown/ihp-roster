@@ -62,11 +62,11 @@ fetchDurableDependencyWatermark subscription = do
     versions <- forM dependencyKeys \key -> do
         version <- query @LiveResourceVersion |> filterWhereId (Id key) |> fetchOneOrNothing
         pure (maybe 0 (.latestEventSequence) version)
-    pure (maximum (0 : versions))
+    pure (foldl' max 0 versions)
   where
     dependencyKeys = map (uncurry canonicalDurableResourceKey) (surfaceSubscriptionDependencyIdentities subscription)
 
 currentDurableDependencyWatermark :: SurfaceSubscription -> IO Int
 currentDurableDependencyWatermark subscription = do
     state <- readIORef durableStateRef
-    pure $ maximum (0 : map (\identity -> Map.findWithDefault 0 (uncurry canonicalDurableResourceKey identity) state.resourceVersions) (surfaceSubscriptionDependencyIdentities subscription))
+    pure $ foldl' max 0 (map (\identity -> Map.findWithDefault 0 (uncurry canonicalDurableResourceKey identity) state.resourceVersions) (surfaceSubscriptionDependencyIdentities subscription))

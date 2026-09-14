@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Exercise the compiled, patched framework package without compiling the app.
+runghc -package=ihp-ide <<'HASKELL'
+import qualified IHP.IDE.PortConfig as Port
+import qualified Network.Socket as Socket
+import qualified Control.Exception as E
+import Control.Monad (unless, forM_)
+import qualified System.Environment as Env
+
+check label condition = unless condition (error label)
+expectFailure label action = do
+    result <- E.try (action >> pure ()) :: IO (Either E.SomeException ())
+    case result of
+        Left _ -> pure ()
+        Right _ -> error label
+
+main = do
+    previous <- Env.lookupEnv "PORT"
+    E.finally tests (maybe (Env.unsetEnv "PORT") (Env.setEnv "PORT") previous)
+  where
+    tests = do
+        -- Discover two unused ports; never silently move after setting PORT.
+        Env.unsetEnv "PORT"
+        free <- Port.findAvailablePortConfig
+        let port = Port.appPort free
+        Env.setEnv "PORT" (show port)
+        configured <- Port.portConfigFromEnvironment
+        check "configured app/tool port pair changed" (configured == free)
+        E.bracket (Port.createListeningSocket port) Socket.close $ \socket -> do
+            address <- Socket.getSocketName socket
+            check "worktree bind address is not wildcard" (address == Socket.SockAddrInet port 0)
+            expectFailure "occupied app port silently moved" Port.portConfigFromEnvironment
+        E.bracket (Port.createListeningSocket (Port.toolServerPort free)) Socket.close $ \_ ->
+            expectFailure "occupied tool port silently moved" Port.portConfigFromEnvironment
+        forM_ ["0", "-1", "65535", "65536", "not-a-port"] $ \invalid -> do
+            Env.setEnv "PORT" invalid
+            expectFailure ("invalid PORT accepted: " ++ invalid) Port.portConfigFromEnvironment
+        putStrLn "ihp-compatibility: native PORT, range, conflicts and bind address passed"
+HASKELL
+
+# Every reviewed scheduled/recovery script must use our patched, wrapped output,
+# not the upstream module's private unpatched NixSupport import.
+graph=$(nix eval --json .#packages.x86_64-linux --apply '
+  p: {
+    optimized = p.optimized-prod-server.drvPath;
+    unoptimized = p.unoptimized-prod-server.drvPath;
+    scripts = builtins.mapAttrs (name: binary: {
+      packaged = binary.drvPath;
+      standalone = p.${"script-" + name}.drvPath;
+    }) p.unoptimized-prod-server.scriptBinaries;
+  }')
+jq -e '.optimized != .unoptimized and (.scripts | length == 8) and
+  (.scripts | all(.packaged == .standalone))' <<< "$graph" >/dev/null
+echo "ihp-compatibility: server and eight dedicated script outputs passed"

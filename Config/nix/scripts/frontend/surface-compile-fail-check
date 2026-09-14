@@ -3,13 +3,8 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-if [ -f "@scriptsRoot@/lib/ghc.sh" ]; then
-    # shellcheck source=../lib/ghc.sh
-    . "@scriptsRoot@/lib/ghc.sh"
-else
-    # shellcheck source=../lib/ghc.sh
-    . "Config/nix/scripts/lib/ghc.sh"
-fi
+# shellcheck source=../lib/ghc.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 
 if [[ "${1:-}" == "--help" ]]; then
     cat <<'EOF'
@@ -191,6 +186,11 @@ run_compile_failure_checks() {
         echo "surface-compile-fail-check: $fixture failed as expected"
     done
 }
+
+expect_compile_failure \
+    "Test/CompileFail/ApplicationErrorIncompleteProjection.hs" \
+    "Pattern match(es) are non-exhaustive" \
+    "NewlyAddedFailure"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawMountedTarget.hs" \
@@ -508,6 +508,19 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/XeroEmployeeIdRawConstruction.hs" \
     "Illegal term-level use of the type constructor ‘XeroEmployeeId’"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractUncheckedConstruction.hs" \
+    "Couldn't match expected type ‘CheckedFrontendContract’" \
+    "with actual type ‘FrontendContractIR’"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractUnknownAppShellAction.hs" \
+    "No registered FrontendContract AppShellAction for marker Text"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractUnknownConstant.hs" \
+    "No registered FrontendContract value declaration for marker Text"
 
 for filter in "${filters[@]}"; do
     if [[ -z "${matched_filters[$filter]:-}" ]]; then

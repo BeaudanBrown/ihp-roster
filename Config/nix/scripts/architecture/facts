@@ -2,11 +2,7 @@
 set -euo pipefail
 
 if [ "${ARCHITECTURE_CONTRACTS_CURRENT:-0}" != "1" ]; then
-    if [ -f "@scriptsRoot@/architecture/contracts" ]; then
-        bash "@scriptsRoot@/architecture/contracts" >/dev/null
-    else
-        bash "Config/nix/scripts/architecture/contracts" >/dev/null
-    fi
+    bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/contracts" >/dev/null
 fi
 
 node scripts/architecture/facts.mjs "$@"

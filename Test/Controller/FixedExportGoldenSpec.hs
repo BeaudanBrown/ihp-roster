@@ -5,7 +5,11 @@ import Application.Helper.Export
 import Application.WageEngine (AwardClassification (..))
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import Config
+import Control.Exception (bracket_)
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.List as List
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
@@ -14,16 +18,18 @@ import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as Text
 import Data.Time.Calendar (addDays, fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
+import IHP.Hspec
+import IHP.ModelSupport (unsafeSqlExecDiscardResult)
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentDisposition)
-import Network.HTTP.Types.Status (status200, status302)
+import Network.HTTP.Types.Status (status200, status302, status500)
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
@@ -75,7 +81,7 @@ tests = aroundAll withDatabaseTestContext do
                 let weekStart = fromGregorian 2025 1 6
                     weekEnd = addDays 6 weekStart
                 fixture <- seedCanonicalPayrollFixtureForWeek weekStart
-                overnightEntry <- createAndApproveEntry fixture.venue fixture.avaStaff weekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                overnightEntry <- createAndApproveEntry fixture.venue fixture.avaStaff weekEnd fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.barShift.id)
                     , setTestStartTime (TimeOfDay 15 0 0)
                     , setTestEndTime (TimeOfDay 1 14 0)
@@ -105,17 +111,17 @@ tests = aroundAll withDatabaseTestContext do
         it "includes early-morning work in its selected Operational window" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
-                _ <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                _ <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.barShift.id)
                     , setTestStartTime (TimeOfDay 22 0 0)
                     , setTestEndTime (TimeOfDay 2 0 0)
                     ]
-                earlyEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                earlyEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.barShift.id)
                     , setTestStartTime (TimeOfDay 6 0 0)
                     , setTestEndTime (TimeOfDay 8 0 0)
                     ]
-                afterMidnightEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                afterMidnightEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.barShift.id)
                     , set #calendarDayOffset 1
                     , setTestStartTime (TimeOfDay 2 0 0)
@@ -137,8 +143,8 @@ tests = aroundAll withDatabaseTestContext do
                         , setTestStartTime (TimeOfDay 9 0 0)
                         , setTestEndTime (TimeOfDay 9 3 45)
                         ]
-                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekStart fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
-                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekStart fixture.snapshot fixture.admin fixture.approvedAt fractionalShift
+                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekStart fixture.admin fixture.approvedAt fractionalShift
+                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekStart fixture.admin fixture.approvedAt fractionalShift
 
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
@@ -173,6 +179,100 @@ tests = aroundAll withDatabaseTestContext do
                 secondStaffHours.fileContents `shouldBe` firstStaffHours.fileContents
                 secondWageTotals.fileContents `shouldBe` firstWageTotals.fileContents
 
+        forM_
+            [ ("audit insertion", "CREATE TRIGGER test_reject_export_completion BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION test_reject_export_completion()", "DROP TRIGGER IF EXISTS test_reject_export_completion ON audit_events")
+            , ("outbox publication", "CREATE TRIGGER test_reject_export_completion BEFORE INSERT ON live_invalidation_event_resources FOR EACH ROW EXECUTE FUNCTION test_reject_export_completion()", "DROP TRIGGER IF EXISTS test_reject_export_completion ON live_invalidation_event_resources")
+            ] \(failureStage, installTrigger, removeTrigger) ->
+            it ("rolls back fixed export completion when its " <> failureStage <> " fails") $ withContext do
+                withCleanDb do
+                    fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                    let installFailure = do
+                            unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_export_completion() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced export completion failure''; END' LANGUAGE plpgsql" ()
+                            unsafeSqlExecDiscardResult installTrigger ()
+                    let removeFailure = do
+                            unsafeSqlExecDiscardResult removeTrigger ()
+                            unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_export_completion()" ()
+                    bracket_ installFailure removeFailure do
+                        forM_ [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] \kind -> do
+                            response <- withPasskeyVerifiedUserAndCurrentVenue fixture.admin fixture.venue.id
+                                (callActionWithParams CreateExportJobAction
+                                    [ ("exportType", cs (exportJobTypeToText kind))
+                                    , ("rangeStart", "2025-01-07")
+                                    , ("rangeEnd", "2025-01-13")
+                                    ])
+                            response `responseStatusShouldBe` status500
+                            query @ExportJob |> fetchCount `shouldReturn` 0
+                            query @ExportJobEntry |> fetchCount `shouldReturn` 0
+                            query @AuditEvent |> fetchCount `shouldReturn` 0
+                            query @LiveInvalidationEvent |> fetchCount `shouldReturn` 0
+                            query @LiveInvalidationEventResource |> fetchCount `shouldReturn` 0
+                            query @LiveResourceVersion |> fetchCount `shouldReturn` 0
+                    -- Once the fault is removed, the same request commits once.
+                    _ <- generatePayrollExportJob fixture.admin fixture.venue ApprovedTimesheetsCsv
+                    query @ExportJob |> fetchCount `shouldReturn` 1
+                    query @ExportJobEntry |> fetchCount `shouldReturn` 6
+                    query @AuditEvent |> fetchCount `shouldReturn` 1
+                    query @LiveInvalidationEvent |> fetchCount `shouldReturn` 1
+
+        it "preserves hourly completion metadata, expiry, audit count and sealed entry snapshots" $ withContext do
+            forM_ [(HourlyBreakdownZip, "hourly_breakdown_zip", "hourly_staff_hours"), (HourlyWageTotalsZip, "hourly_wage_totals_zip", "hourly_wage_totals")] \(kind, persistedKind, fileStem) ->
+                withCleanDb do
+                    fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                    entries <- query @TimesheetEntry
+                        |> filterWhere (#venueId, unpackId fixture.venue.id)
+                        |> filterWhere (#isApproved, True)
+                        |> fetch
+                    let manifests = List.sort (List.nub
+                            [ "staff:" <> tshow staffVersion <> ";shift:" <> tshow shiftVersion
+                            | entry <- entries
+                            , Just staffVersion <- [entry.staffPayVersionId]
+                            , Just shiftVersion <- [entry.shiftTypePayVersionId]
+                            ])
+                    length entries `shouldBe` 6
+                    before <- getCurrentTime
+                    job <- generatePayrollExportJob fixture.admin fixture.venue kind
+                    after <- getCurrentTime
+                    job.exportType `shouldBe` persistedKind
+                    job.scope `shouldBe` Aeson.object
+                        [ "rangeStart" Aeson..= goldenWeekStart
+                        , "rangeEnd" Aeson..= goldenWeekEnd
+                        , "approvedOnly" Aeson..= True
+                        , "entryCount" Aeson..= (6 :: Int)
+                        , "fileCount" Aeson..= (7 :: Int)
+                        , "configuredWindowStartMinute" Aeson..= (360 :: Int)
+                        , "configuredWindowEndMinute" Aeson..= (345 :: Int)
+                        , "effectiveWindowStartHour" Aeson..= (6 :: Int)
+                        , "effectiveWindowEndHour" Aeson..= (30 :: Int)
+                        , "versionManifests" Aeson..= manifests
+                        ]
+                    job.fileName `shouldBe` Just (fileStem <> "-2025-01-07-to-2025-01-13.zip")
+                    job.contentType `shouldBe` Just "application/zip"
+                    job.fileEncoding `shouldBe` "base64"
+                    job.payConfigVersionManifest `shouldBe` Just "mixed"
+                    job.expiresAt `shouldSatisfy` (>= addUTCTime 86400 before)
+                    job.expiresAt `shouldSatisfy` (<= addUTCTime 86400 after)
+                    snapshots <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId job.id) |> fetch
+                    List.sort (map (.timesheetEntryId) snapshots) `shouldBe` List.sort (map (unpackId . (.id)) entries)
+                    forM_ entries \entry -> do
+                        let matching = filter ((== unpackId entry.id) . (.timesheetEntryId)) snapshots
+                        map (\snapshot -> (Just snapshot.staffPayVersionId, Just snapshot.shiftTypePayVersionId, snapshot.entryUpdatedAtAtExport, Just snapshot.entryApprovedAtAtExport)) matching
+                            `shouldBe` [(entry.staffPayVersionId, entry.shiftTypePayVersionId, entry.updatedAt, entry.approvedAt)]
+                    audits <- query @AuditEvent |> filterWhere (#targetId, unpackId job.id) |> fetch
+                    map (.eventType) audits `shouldBe` ["export_generated"]
+                    map (.payload) audits `shouldBe`
+                        [ Aeson.object
+                            [ "exportType" Aeson..= persistedKind
+                            , "rangeStart" Aeson..= goldenWeekStart
+                            , "rangeEnd" Aeson..= goldenWeekEnd
+                            , "entryCount" Aeson..= (6 :: Int)
+                            , "fileCount" Aeson..= (7 :: Int)
+                            , "effectiveWindowStartHour" Aeson..= (6 :: Int)
+                            , "effectiveWindowEndHour" Aeson..= (30 :: Int)
+                            , "payConfigVersionManifest" Aeson..= ("mixed" :: Text)
+                            , "deliveryMethod" Aeson..= ("browser_download" :: Text)
+                            ]
+                        ]
+
         it "renders the canonical Payroll Workbook deterministically through the fixed export lifecycle" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
@@ -181,6 +281,14 @@ tests = aroundAll withDatabaseTestContext do
 
                 firstWorkbook.id `shouldNotBe` secondWorkbook.id
                 firstWorkbook.fileContents `shouldBe` secondWorkbook.fileContents
+                -- Scope version and audit version are intentionally different.
+                case firstWorkbook.scope of
+                    Aeson.Object fields -> KeyMap.lookup "workbookVersion" fields `shouldBe` Just (Aeson.Number 2)
+                    _ -> expectationFailure "Expected workbook scope object"
+                audit <- query @AuditEvent |> filterWhere (#targetId, unpackId firstWorkbook.id) |> fetchOne
+                case audit.payload of
+                    Aeson.Object fields -> KeyMap.lookup "workbookVersion" fields `shouldBe` Just (Aeson.Number 1)
+                    _ -> expectationFailure "Expected workbook audit object"
                 let workbookBytes =
                         firstWorkbook.fileContents
                             |> fromMaybe (error "expected Payroll Workbook bytes")
@@ -217,7 +325,7 @@ tests = aroundAll withDatabaseTestContext do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
                 inactiveStaff <- createStaffRecord fixture.venue Nothing "Inactive" "Worker"
                     >>= updateRecord . set #payAssignmentMode AwardRate . set #defaultAwardLevelId (Just fixture.levelOne.id)
-                _ <- createAndApproveEntry fixture.venue inactiveStaff goldenWeekStart fixture.snapshot fixture.admin fixture.approvedAt
+                _ <- createAndApproveEntry fixture.venue inactiveStaff goldenWeekStart fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.floorShift.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 11 0 0)
@@ -268,12 +376,46 @@ tests = aroundAll withDatabaseTestContext do
         it "marks payroll exports as mixed when approved rows span multiple pay version manifests" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
-                secondSnapshot <- createPayrollSnapshotWithVersion fixture.venue fixture.admin 2 [fixture.levelOne, fixture.levelTwo] [fixture.barShift, fixture.floorShift, fixture.kitchenShift] fixture.dayNames []
-                _ <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekEnd secondSnapshot fixture.admin fixture.approvedAt
+                firstEntry <- query @TimesheetEntry
+                    |> filterWhere (#staffId, unpackId fixture.kaiStaff.id)
+                    |> filterWhere (#isApproved, True)
+                    |> fetchOne
+                firstVersion <- query @ShiftTypePayVersion
+                    |> filterWhere (#shiftTypeId, unpackId fixture.kitchenShift.id)
+                    |> fetchOne
+                firstEntry.shiftTypePayVersionId `shouldBe` Just (unpackId firstVersion.id)
+                firstVersion.payrollLabel `shouldBe` "Kitchen"
+                firstVersion.effectiveFrom `shouldBe` addDays 1 goldenWeekStart
+                firstVersion.effectiveTo `shouldBe` Nothing
+                assertSealedPayrollEntries fixture.venue
+
+                -- A changed approval-pinned label creates a real second version
+                -- without changing Staff Hours rates, buckets or expected CSV.
+                _ <- fixture.kitchenShift |> set #name "Kitchen revised" |> updateRecord
+                secondEntry <- createAndApproveEntry fixture.venue fixture.kaiStaff goldenWeekEnd fixture.admin fixture.approvedAt
                     [ set #shiftTypeId (unpackId fixture.kitchenShift.id)
                     , setTestStartTime (TimeOfDay 10 0 0)
                     , setTestEndTime (TimeOfDay 12 0 0)
                     ]
+
+                secondVersion <- query @ShiftTypePayVersion
+                    |> filterWhere (#shiftTypeId, unpackId fixture.kitchenShift.id)
+                    |> filterWhere (#effectiveTo, Nothing :: Maybe Day)
+                    |> fetchOne
+                secondVersion.id `shouldNotBe` firstVersion.id
+                secondVersion.payrollLabel `shouldBe` "Kitchen revised"
+                secondVersion.effectiveFrom `shouldBe` goldenWeekEnd
+                secondVersion.lockedAt `shouldBe` Just fixture.approvedAt
+                secondVersion.lockedByUserId `shouldBe` Just (unpackId fixture.admin.id)
+                secondEntry.staffPayVersionId `shouldBe` firstEntry.staffPayVersionId
+                secondEntry.shiftTypePayVersionId `shouldBe` Just (unpackId secondVersion.id)
+                secondEntry.activePayCalculationId `shouldNotBe` firstEntry.activePayCalculationId
+                retiredVersion <- fetch firstVersion.id
+                retiredVersion.effectiveTo `shouldBe` Just goldenWeekEnd
+                retiredVersion.lockedAt `shouldBe` firstVersion.lockedAt
+                reloadedFirstEntry <- fetch firstEntry.id
+                reloadedFirstEntry.shiftTypePayVersionId `shouldBe` firstEntry.shiftTypePayVersionId
+                reloadedFirstEntry.activePayCalculationId `shouldBe` firstEntry.activePayCalculationId
 
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
@@ -407,7 +549,7 @@ seedPayrollMatrixFixture = do
     _ <- venueConfig |> set #rosterWeekStartsOn 2 |> updateRecord
     admin <- createUserRecord "payroll-matrix-admin@example.com" "staff" True
     _ <- createVenueMembershipRecord venue admin VenueAdmin
-    dayNames <- seedWeekDayNames venue
+    _ <- seedWeekDayNames venue
     levelOne <- createPayLevelRecordWithRates venue "LVL 1" 30 3 6 1 1.5 1.75
     levelTwo <- createPayLevelRecordWithRates venue "LVL 2" 36 4 8 1 1.5 1.75
     levelThree <- createPayLevelRecordWithRates venue "LVL 3" 42 5 10 1 1.5 1.75
@@ -447,14 +589,13 @@ seedPayrollMatrixFixture = do
             . set #payAssignmentMode AwardRate
             . set #defaultAwardLevelId (Just levelOne.id)
     seedCasualBaseRate levelOne 37.5
-    snapshot <- createPayrollSnapshot venue admin [levelOne, levelTwo, levelThree, levelFour] [barShift, supervisorShift, kitchenShift] dayNames []
 
-    _ <- createAndApproveEntry venue ava (dayAt 0) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue ava (dayAt 0) admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , setTestStartTime (TimeOfDay 8 0 0)
         , setTestEndTime (TimeOfDay 12 0 0)
         ]
-    _ <- createAndApproveEntry venue ava (dayAt 4) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue ava (dayAt 4) admin approvedAt
         [ set #shiftTypeId (unpackId supervisorShift.id)
         , setTestStartTime (TimeOfDay 18 0 0)
         , setTestEndTime (TimeOfDay 2 0 0)
@@ -463,7 +604,7 @@ seedPayrollMatrixFixture = do
         , setTestBreakStartTime (Just (TimeOfDay 22 0 0))
         , setTestBreakEndTime (Just (TimeOfDay 22 30 0))
         ]
-    _ <- createAndApproveEntry venue ava (dayAt 5) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue ava (dayAt 5) admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , setTestStartTime (TimeOfDay 17 0 0)
         , setTestEndTime (TimeOfDay 1 0 0)
@@ -472,7 +613,7 @@ seedPayrollMatrixFixture = do
         , setTestBreakStartTime (Just (TimeOfDay 21 0 0))
         , setTestBreakEndTime (Just (TimeOfDay 21 30 0))
         ]
-    _ <- createAndApproveEntry venue ben (dayAt 1) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue ben (dayAt 1) admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , setTestStartTime (TimeOfDay 6 0 0)
         , setTestEndTime (TimeOfDay 14 0 0)
@@ -481,17 +622,17 @@ seedPayrollMatrixFixture = do
         , setTestBreakStartTime (Just (TimeOfDay 10 0 0))
         , setTestBreakEndTime (Just (TimeOfDay 10 30 0))
         ]
-    _ <- createAndApproveEntry venue ben (dayAt 3) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue ben (dayAt 3) admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , setTestStartTime (TimeOfDay 19 0 0)
         , setTestEndTime (TimeOfDay 0 0 0)
         ]
-    _ <- createAndApproveEntry venue cara (dayAt 2) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue cara (dayAt 2) admin approvedAt
         [ set #shiftTypeId (unpackId barShift.id)
         , setTestStartTime (TimeOfDay 9 0 0)
         , setTestEndTime (TimeOfDay 12 0 0)
         ]
-    _ <- createAndApproveEntry venue noor (dayAt 6) snapshot admin approvedAt
+    _ <- createAndApproveEntry venue noor (dayAt 6) admin approvedAt
         [ set #shiftTypeId (unpackId kitchenShift.id)
         , setTestStartTime (TimeOfDay 11 0 0)
         , setTestEndTime (TimeOfDay 17 0 0)
@@ -569,6 +710,7 @@ generatePayrollExportJobForRange ::
     ExportJobType ->
     IO ExportJob
 generatePayrollExportJobForRange user venue rangeStart rangeEnd exportType = do
+    assertSealedPayrollEntries venue
     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
         callActionWithParams CreateExportJobAction
             [ ("exportType", cs (exportJobTypeToText exportType))

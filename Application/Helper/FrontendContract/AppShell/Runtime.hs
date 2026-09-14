@@ -1,35 +1,40 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE NoImplicitPrelude   #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE NoImplicitPrelude    #-}
+{-# LANGUAGE OverloadedRecordDot  #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.AppShell.Runtime
     ( AppShellActionRoute (..)
     , AppShellCustomHtmxAttrs (..)
     , AppShellFieldValue (..)
+    , RegisteredAppShellAction
     , appShellActionByMarker
-    , appShellActionByName
+    , defaultAppShellActionRoute
     , appShellActionHtmxAttrPairs
-    , applyAppShellActionAttrs
+    , appShellActionAttrs
     , renderAppShellActionForm
     , renderAppShellActionHtmxControl
     , renderAppShellActionLink
     ) where
 
+import Application.Helper.FrontendContract.DSL (FrontendContract (..),
+                                                FrontendContractSpec,
+                                                GlobalPrimitive (..))
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import Application.Helper.FrontendContract.IR
-import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (ActionName),
-                                                   deriveFrontendSurfaceTypeName)
-import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
-import Data.Typeable (Typeable)
+import Application.Helper.FrontendContract.Reflect (ReflectAppShellActionPrimitive (..))
+import Application.Helper.FrontendContract.Registry (RegisteredFrontendContracts)
+import GHC.TypeLits (ErrorMessage (..), TypeError)
 import IHP.ViewPrelude
-import Text.Blaze (toValue)
-import qualified Text.Blaze.Html as Blaze
-import Text.Blaze.Html ((!))
-import qualified Text.Blaze.Html5 as Html5
-import Text.Blaze.Internal (customAttribute, textTag)
+import qualified IHP.HSX.Markup as Markup
 
 newtype AppShellFieldValue = AppShellFieldValue
     { appShellFieldValuePair :: (Text, Text)
@@ -51,44 +56,71 @@ data AppShellActionRoute = AppShellActionRoute
     }
     deriving (Eq, Show)
 
-appShellActionByMarker :: forall marker. Typeable marker => AppShellActionIR
-appShellActionByMarker = appShellActionByName (deriveFrontendSurfaceTypeName @marker ActionName)
+-- | Standard route shape for AppShell actions. Submitted fields, native URL
+-- overrides, and transport attributes remain explicit record updates.
+defaultAppShellActionRoute :: Text -> AppShellActionRoute
+defaultAppShellActionRoute appShellActionRouteUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
+        }
 
-appShellActionByName :: Text -> AppShellActionIR
-appShellActionByName name =
-    case [action | global <- registeredFrontendContractIR.contractGlobals, GlobalAppShellActionIR action <- global.globalPrimitives, action.appShellActionName == name] of
-        action : _ -> action
-        []         -> error ("Unknown app shell action " <> cs name)
+data AppShellActionSearch
+    = MissingAppShellAction
+    | FoundAppShellAction GlobalPrimitive
 
-applyAppShellActionAttrs :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
-applyAppShellActionAttrs action route element =
-    applyAttributes element (fmap (uncurry attr) (appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route))
+type family FindAppShellAction (marker :: Type) (contracts :: [FrontendContractSpec]) :: GlobalPrimitive where
+    FindAppShellAction marker '[] =
+        TypeError ('Text "No registered FrontendContract AppShellAction for marker " ':<>: 'ShowType marker)
+    FindAppShellAction marker ('Global root primitives ': rest) =
+        ResolveAppShellAction marker (FindAppShellActionPrimitive marker primitives) rest
 
-renderAppShellActionForm :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
+type family FindAppShellActionPrimitive (marker :: Type) (primitives :: [GlobalPrimitive]) :: AppShellActionSearch where
+    FindAppShellActionPrimitive marker '[] = 'MissingAppShellAction
+    FindAppShellActionPrimitive marker ('AppShellAction marker fields options ': rest) =
+        'FoundAppShellAction ('AppShellAction marker fields options)
+    FindAppShellActionPrimitive marker (other ': rest) = FindAppShellActionPrimitive marker rest
+
+type family ResolveAppShellAction (marker :: Type) (result :: AppShellActionSearch) (rest :: [FrontendContractSpec]) :: GlobalPrimitive where
+    ResolveAppShellAction marker ('FoundAppShellAction primitive) rest = primitive
+    ResolveAppShellAction marker 'MissingAppShellAction rest = FindAppShellAction marker rest
+
+type RegisteredAppShellAction marker =
+    ReflectAppShellActionPrimitive (FindAppShellAction marker RegisteredFrontendContracts)
+
+appShellActionByMarker ::
+    forall marker.
+    ( Typeable marker
+    , RegisteredAppShellAction marker
+    ) =>
+    AppShellActionIR
+appShellActionByMarker = reflectAppShellActionPrimitive @(FindAppShellAction marker RegisteredFrontendContracts)
+
+-- Spread the typed contract onto the caller's root while it is constructed;
+-- direct-builder markup cannot be decorated after rendering.
+appShellActionAttrs :: AppShellActionIR -> AppShellActionRoute -> [(Text, Text)]
+appShellActionAttrs action route = appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route
+
+renderAppShellActionForm :: AppShellActionIR -> AppShellActionRoute -> Markup.Html -> Markup.Html
 renderAppShellActionForm action route body =
-    applyAttributes
-        (Html5.form $ do
-            forM_ route.appShellActionRouteFields renderHiddenField
-            body)
-        ( standardFormAttrs method url
-            <> fmap (uncurry attr) (appShellActionHtmxAttrPairs action route)
-            <> fmap (uncurry attr) (routeExtraAttrPairs route)
-        )
+    [hsx|<form {...attributes}>{forEach route.appShellActionRouteFields renderHiddenField}{body}</form>|]
     where
-        method = appShellActionMethod action
+        attributes = standardFormAttrs (appShellActionMethod action) url <> appShellActionAttrs action route
         url = fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl
 
-renderAppShellActionLink :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
+renderAppShellActionLink :: AppShellActionIR -> AppShellActionRoute -> Markup.Html -> Markup.Html
 renderAppShellActionLink action route body =
-    applyAttributes
-        (Html5.a $ body)
-        ( attr "href" (fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl)
-            : fmap (uncurry attr) (appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route)
-        )
+    [hsx|<a {...attributes}>{body}</a>|]
+    where
+        attributes = ("href", fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl)
+            : appShellActionAttrs action route
 
-renderAppShellActionHtmxControl :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
+renderAppShellActionHtmxControl :: AppShellActionIR -> AppShellActionRoute -> Markup.Html -> Markup.Html
 renderAppShellActionHtmxControl action route body =
-    applyAttributes (Html5.span body) (fmap (uncurry attr) (appShellActionHtmxAttrPairs action route <> routeExtraAttrPairs route))
+    [hsx|<span {...(appShellActionAttrs action route)}>{body}</span>|]
 
 appShellActionHtmxAttrPairs :: AppShellActionIR -> AppShellActionRoute -> [(Text, Text)]
 appShellActionHtmxAttrPairs action route =
@@ -106,10 +138,10 @@ appShellActionMethod action =
     where
         metadata = Htmx.htmxActionMetadataFromOptions action.appShellActionOptions
 
-standardFormAttrs :: Htmx.HtmxMethod -> Text -> [Blaze.Attribute]
+standardFormAttrs :: Htmx.HtmxMethod -> Text -> [(Text, Text)]
 standardFormAttrs method url =
-    [ attr "method" (Htmx.htmxStandardMethodText method)
-    , attr "action" url
+    [ ("method", Htmx.htmxStandardMethodText method)
+    , ("action", url)
     ]
 
 routeExtraAttrPairs :: AppShellActionRoute -> [(Text, Text)]
@@ -121,16 +153,6 @@ customHtmxAttrPairs action metadata route =
     where
         renderCustom custom = Htmx.htmxCustomAttrPairs metadata action.appShellActionName custom.appShellCustomHtmxAttrMarker custom.appShellCustomHtmxAttrValues
 
-renderHiddenField :: AppShellFieldValue -> Blaze.Html
+renderHiddenField :: AppShellFieldValue -> Markup.Html
 renderHiddenField (AppShellFieldValue (fieldName, fieldValue)) =
-    Html5.input
-        ! attr "type" "hidden"
-        ! attr "name" fieldName
-        ! attr "value" fieldValue
-
-applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
-applyAttributes = foldl' (!)
-
-attr :: Text -> Text -> Html5.Attribute
-attr name value =
-    customAttribute (textTag name) (toValue value)
+    [hsx|<input type="hidden" name={fieldName} value={fieldValue}/>|]

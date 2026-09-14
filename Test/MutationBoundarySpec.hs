@@ -6,6 +6,8 @@ import Application.Bepis.Response
 import Control.Monad (filterM)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
@@ -13,379 +15,88 @@ import System.Directory (doesFileExist)
 import Test.Hspec
 
 tests :: Spec
-tests = describe "Mutation boundary guard" do
-    it "captures emitted Bepis runtime facts in the action-local collector" do
-        (result, facts) <- withBepisFactContext do
-            emitBepisFact $ BepisScopeFactValue BepisScopeFact
-                { scopeFactKind = BepisCurrentVenueScopeFact
-                , scopeFactLabel = "current-venue"
-                }
-            emitBepisFact $ BepisResponseFactValue BepisResponseFact
-                { responseFactKind = BepisRedirectResponse
-                , responseFactTarget = Nothing
-                }
-            pure ("ok" :: Text)
-        case result of
-            Right value -> value `shouldBe` "ok"
-            Left _      -> expectationFailure "fact context should not fail"
-        factSetFacts facts `shouldSatisfy` any (\case BepisScopeFactValue _ -> True; _ -> False)
-        factSetFacts facts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
-
-    it "keeps authentication audit facts singular at the audit write boundary" do
-        source <- Text.readFile "Application/Helper/Audit.hs"
-        Text.count "BepisAuthenticationAuditRecorded" source `shouldBe` 1
-        Text.count "emitAuditFact BepisAuthenticationAuditRecorded" source `shouldBe` 0
-
-    it "emits response facts from Bepis response helpers" do
-        (_result, facts) <- withBepisFactContext do
-            bepisJsonResponse (pure ())
-            bepisFileResponse (pure ())
-            bepisRedirectResponse (pure ())
-        responseFactKinds facts `shouldBe` [BepisJsonResponse, BepisFileResponse, BepisRedirectResponse]
-
-    it "restores the outer Bepis fact context when an inner context throws" do
-        (outerResult, outerFacts) <- withBepisFactContext do
-            emitBepisFact $ BepisScopeFactValue BepisScopeFact
-                { scopeFactKind = BepisCurrentVenueScopeFact
-                , scopeFactLabel = "outer-before"
-                }
-            (innerResult, innerFacts) <- withBepisFactContext do
-                emitBepisFact $ BepisResponseFactValue BepisResponseFact
-                    { responseFactKind = BepisJsonResponse
-                    , responseFactTarget = Just "inner"
+tests = do
+    describe "Mutation boundary guard" do
+        it "captures emitted Bepis runtime facts in the action-local collector" do
+            (result, facts) <- withBepisFactContext do
+                emitBepisFact $ BepisScopeFactValue BepisScopeFact
+                    { scopeFactKind = BepisCurrentVenueScopeFact
+                    , scopeFactLabel = "current-venue"
                     }
-                throwIO (userError "inner boom")
-            case innerResult of
-                Left _  -> pure ()
-                Right _ -> expectationFailure "inner context should capture the exception"
-            factSetFacts innerFacts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
-            emitBepisFact $ BepisScopeFactValue BepisScopeFact
-                { scopeFactKind = BepisCurrentVenueScopeFact
-                , scopeFactLabel = "outer-after"
-                }
-        case outerResult of
-            Right _ -> pure ()
-            Left _  -> expectationFailure "outer context should continue after handled inner exception"
-        scopeFactLabels outerFacts `shouldBe` ["outer-before", "outer-after"]
-        factSetFacts outerFacts `shouldSatisfy` all (\case BepisResponseFactValue _ -> False; _ -> True)
+                emitBepisFact $ BepisResponseFactValue BepisResponseFact
+                    { responseFactKind = BepisRedirectResponse
+                    , responseFactTarget = Nothing
+                    }
+                pure ("ok" :: Text)
+            case result of
+                Right value -> value `shouldBe` "ok"
+                Left _      -> expectationFailure "fact context should not fail"
+            factSetFacts facts `shouldSatisfy` any (\case BepisScopeFactValue _ -> True; _ -> False)
+            factSetFacts facts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
 
-    it "generates typed runtime and reflected Surface architecture contracts from Haskell" do
-        case Aeson.decode architectureContractsJson of
-            Just (Aeson.Object object) -> do
-                object KeyMap.!? "version" `shouldBe` Just (Aeson.Number 2)
-                object KeyMap.!? "runner" `shouldSatisfy` isJust
-                object KeyMap.!? "factKinds" `shouldSatisfy` hasNonEmptyArray
-                object KeyMap.!? "operationKinds" `shouldSatisfy` hasNonEmptyArray
-                case object KeyMap.!? "frontendSurfaceContracts" of
-                    Just (Aeson.Object surfaceContracts) -> do
-                        surfaceContracts KeyMap.!? "evaluator" `shouldBe` Just (Aeson.String "typeclass-reflection")
-                        surfaceContracts KeyMap.!? "surfaces" `shouldSatisfy` hasNonEmptyArray
-                    _ -> expectationFailure "architecture contracts should expose reflected FrontendSurface facts"
-            _ -> expectationFailure "Bepis architecture contracts should decode as an object"
+        it "emits response facts from Bepis response helpers" do
+            (_result, facts) <- withBepisFactContext do
+                bepisJsonResponse (pure ())
+                bepisFileResponse (pure ())
+                bepisRedirectResponse (pure ())
+            responseFactKinds facts `shouldBe` [BepisJsonResponse, BepisFileResponse, BepisRedirectResponse]
 
-    it "does not keep legacy descriptive Bepis mutation APIs in runtime or architecture code" do
-        sources <- mapM Text.readFile
-            [ "Application/Bepis/Action.hs"
-            , "Application/Bepis/Architecture.hs"
-            , "scripts/architecture/facts.mjs"
-            , "scripts/architecture/gate.mjs"
-            , "scripts/architecture/query.mjs"
-            ]
-        let forbiddenTokens =
-                [ "BepisMutationSpec"
-                , "auditedAs"
-                , "scopedToCurrentVenue"
-                , "scopedToRosterWeek"
-                , "fromLiveMutationResult"
-                , "respondsWithFragments"
-                , "respondsWithRedirect"
-                , "respondsWithJson"
-                , "BEPIS_MUTATION_DRIFT"
-                , "runBepisMutationPipeline"
-                , "bepisMutationAction"
-                ]
-        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+        it "restores the outer Bepis fact context when an inner context throws" do
+            (outerResult, outerFacts) <- withBepisFactContext do
+                emitBepisFact $ BepisScopeFactValue BepisScopeFact
+                    { scopeFactKind = BepisCurrentVenueScopeFact
+                    , scopeFactLabel = "outer-before"
+                    }
+                (innerResult, innerFacts) <- withBepisFactContext do
+                    emitBepisFact $ BepisResponseFactValue BepisResponseFact
+                        { responseFactKind = BepisJsonResponse
+                        , responseFactTarget = Just "inner"
+                        }
+                    throwIO NestedFixtureException
+                case innerResult of
+                    Left _  -> pure ()
+                    Right _ -> expectationFailure "inner context should capture the exception"
+                factSetFacts innerFacts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
+                emitBepisFact $ BepisScopeFactValue BepisScopeFact
+                    { scopeFactKind = BepisCurrentVenueScopeFact
+                    , scopeFactLabel = "outer-after"
+                    }
+            case outerResult of
+                Right _ -> pure ()
+                Left _  -> expectationFailure "outer context should continue after handled inner exception"
+            scopeFactLabels outerFacts `shouldBe` ["outer-before", "outer-after"]
+            factSetFacts outerFacts `shouldSatisfy` all (\case BepisResponseFactValue _ -> False; _ -> True)
 
-    it "keeps leave request database writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/LeaveRequests.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserLeaveRequestEvent", "recordCurrentUserAuditEvent"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+        it "generates typed runtime and reflected Surface architecture contracts from Haskell" do
+            case Aeson.decode architectureContractsJson of
+                Just (Aeson.Object object) -> do
+                    object KeyMap.!? "version" `shouldBe` Just (Aeson.Number 2)
+                    object KeyMap.!? "runner" `shouldSatisfy` isJust
+                    object KeyMap.!? "factKinds" `shouldSatisfy` hasNonEmptyArray
+                    object KeyMap.!? "operationKinds" `shouldSatisfy` hasNonEmptyArray
+                    case object KeyMap.!? "frontendSurfaceContracts" of
+                        Just (Aeson.Object surfaceContracts) -> do
+                            surfaceContracts KeyMap.!? "evaluator" `shouldBe` Just (Aeson.String "typeclass-reflection")
+                            surfaceContracts KeyMap.!? "surfaces" `shouldSatisfy` hasNonEmptyArray
+                        _ -> expectationFailure "architecture contracts should expose reflected FrontendSurface facts"
+                _ -> expectationFailure "Bepis architecture contracts should decode as an object"
 
-    it "routes leave request live invalidation through touched resources" do
-        source <- Text.readFile "Web/LeaveRequests/Mutations.hs"
-        let forbiddenTokens = ["broadcastLeaveRequestsInvalidation", "refreshProfileLeaveRequests", "invalidateAffectedRosterWeeksForLeave", "refreshRosterFragments"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+    describe "source ownership and retired vocabulary" $ beforeAll loadSourceCache do
+        forM_ sourceGuards \guard ->
+            it (cs guard.guardLabel) \sources -> do
+                filter (`Map.notMember` sources) guard.guardPaths `shouldBe` []
+                sourceGuardViolations sources guard `shouldBe` []
 
-    it "keeps timesheet database writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Timesheets.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserTimesheetEntryVersion", "recordCurrentUserAuditEvent"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+        forM_ sourceCountGuards \guard ->
+            it (cs guard.countGuardLabel) \sources -> do
+                Map.member guard.expectedPath sources `shouldBe` True
+                Text.count guard.expectedToken (sourceAt sources guard.expectedPath)
+                    `shouldBe` guard.expectedCount
 
-    it "routes timesheet mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/Timesheets/Mutations.hs"
-        let forbiddenTokens = ["refreshTimesheetDay", "refreshMovedTimesheetEntry", "refreshTimesheetFragments", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "keeps profile update writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Profiles.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "replaceStaffShiftPreferences", "refreshRosterFragments", "refreshProfileContent"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes profile mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/Profiles/Mutations.hs"
-        let forbiddenTokens = ["refreshProfileContent", "refreshRosterFragments", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "keeps staff update writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Staff.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "syncStaffRosterGroupAssignments", "replaceStaffShiftPreferences", "ensureStaffPayVersionForStaff"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes staff mutation live invalidation through touched resources" do
-        mutationSource <- Text.readFile "Web/Staff/Mutations.hs"
-        controllerSource <- Text.readFile "Web/Controller/Staff.hs"
-        let forbiddenTokens = ["broadcastSurface", "refreshRosterContent", "refreshAdminXero"]
-        filter (`Text.isInfixOf` (mutationSource <> controllerSource)) forbiddenTokens `shouldBe` []
-
-    it "keeps staff document writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/StaffDocuments.hs"
-        let forbiddenTokens = ["createRsaDocument", "reviewRsaDocument", "recordCurrentUserAuditEvent", "createRecord", "updateRecord"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes staff document mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/StaffDocuments/Mutations.hs"
-        let forbiddenTokens = ["refreshProfileContent", "refreshStaffCompliance", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "keeps roster week writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/RosterWeeks.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueRosterTimesheetCreationJobsForWeek", "appendRosterWeekSlotDefinition rosterWeek", "deleteRosterWeekSlotDefinition", "repackRosterWeekDays", "removeRosterRowWithPacking"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes roster mutation live invalidation through touched resources" do
-        mutationSource <- Text.readFile "Web/RosterWeeks/Mutations.hs"
-        controllerSource <- Text.readFile "Web/Controller/RosterWeeks.hs"
-        let mutationForbiddenTokens = ["refreshRosterContent", "refreshRosterContentAndStaffPanel", "refreshRosterFragments", "broadcastSurface"]
-        let controllerForbiddenTokens = ["refreshRosterFragments", "refreshRosterFragmentsAndSetActorRefresh"]
-        filter (`Text.isInfixOf` mutationSource) mutationForbiddenTokens `shouldBe` []
-        filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
-
-    it "removes sequential publication and process-local version authority APIs" do
-        sources <- mapM Text.readFile
-            [ "Application/Helper/FrontendContract/LiveUpdate.hs"
-            , "Application/Helper/FrontendContract/LiveUpdateValues.hs"
-            , "Application/Helper/LiveUpdate/DurablePublisher.hs"
-            , "Application/Helper/LiveUpdate/Internal.hs"
-            , "Application/Helper/LiveUpdate/Runtime.hs"
-            , "Web/Controller/Admin.hs"
-            , "Web/SurfaceInvalidation.hs"
-            ]
-        let removedApis =
-                [ "invalidateTouchedResources"
-                , "publishDurableInvalidation"
-                , "publishTouchedResourcesWithoutContext"
-                , "broadcastLiveInvalidationDetailed"
-                , "incrementLiveUpdateVersion"
-                , "advanceLiveUpdateVersion ::"
-                , "LiveUpdateClientIdHeader"
-                , "SourceClientId"
-                ]
-        filter (\token -> any (Text.isInfixOf token) sources) removedApis `shouldBe` []
-        browserProtocol <- Text.readFile "frontend/ts/generated/contracts.ts"
-        filter (`Text.isInfixOf` browserProtocol) ["sourceClientId", "liveUpdateClientIdHeader", "clientId"] `shouldBe` []
-        surfaceInvalidation <- Text.readFile "Web/SurfaceInvalidation.hs"
-        Text.count "broadcastLiveInvalidationAtVersion" surfaceInvalidation `shouldBe` 2
-
-    it "keeps workforce and scheduling producers off sequential live publication" do
-        sources <- mapM Text.readFile
-            [ "Web/Controller/LeaveRequests.hs"
-            , "Web/Controller/Users.hs"
-            , "Web/LeaveRequests/Mutations.hs"
-            , "Web/Profiles/Mutations.hs"
-            , "Web/RosterTemplates/Mutations.hs"
-            , "Web/RosterWeeks/Mutations.hs"
-            , "Web/RosterWeeks/TemplateApplication.hs"
-            , "Web/RosterWeeks/VenueSettings.hs"
-            , "Web/Staff/Mutations.hs"
-            , "Web/StaffDocuments/Mutations.hs"
-            , "Web/Timesheets/Mutations.hs"
-            , "Application/RosterNotification/Email.hs"
-            ]
-        let forbiddenTokens =
-                [ "invalidateTouchedResources"
-                , "publishTouchedResourcesWithoutContext"
-                , "publishDurableInvalidation"
-                , "withDurableLiveMutationOutcomeTransaction"
-                ]
-        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
-
-    it "keeps admin, billing, integration, export, and support producers off sequential live publication" do
-        sources <- mapM Text.readFile
-            [ "Web/Admin/Mutations.hs"
-            , "Web/Admin/RosterWindowStartDay.hs"
-            , "Web/Admin/Xero/Mutations.hs"
-            , "Web/Billing/Mutations.hs"
-            , "Web/Controller/StripeWebhooks.hs"
-            , "Web/Controller/Support.hs"
-            , "Web/Exports/Mutations.hs"
-            , "Application/Billing/Reconciliation.hs"
-            , "Application/EmailDelivery.hs"
-            , "Application/FwcMapd/Job.hs"
-            , "Application/InvitationDelivery/Email.hs"
-            , "Application/PublicHolidays/Job.hs"
-            , "Application/Xero/Keepalive.hs"
-            , "Application/Xero/ReferenceSyncJob.hs"
-            ]
-        let forbiddenTokens =
-                [ "invalidateTouchedResources"
-                , "publishTouchedResourcesWithoutContext"
-                , "publishDurableInvalidation"
-                , "withDurableLiveMutationOutcomeTransaction"
-                ]
-        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
-
-    it "keeps admin config writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Admin.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueVenueInvitationDeliveryJob", "ensureShiftTypePayVersionForShiftType", "createVenueRosterGroupWithDefaults", "ensureDefaultRosterSlots", "syncVenueDefaultRosterGroupToTopActive", "reorderActiveRosterGroups", "reorderActiveShiftTypes"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes admin mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/Admin/Mutations.hs"
-        let forbiddenTokens = ["refreshAdminInvites", "refreshAdminRosterGroups", "refreshAdminShiftTypes", "refreshAdminXero", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "does not keep obsolete direct refresh helper definitions around" do
-        sources <- mapM Text.readFile
-            [ "Web/Billing/FrontendSurface.hs"
-            , "Web/LeaveRequests/ReadModel.hs"
-            , "Web/Controller/LeaveRequests.hs"
-            , "Web/Controller/Profiles.hs"
-            , "Web/Timesheets/Projection.hs"
-            , "Web/Controller/Admin/Support.hs"
-            , "Web/Controller/Admin/Xero/Responses.hs"
-            ]
-        let forbiddenTokens =
-                [ "broadcastBillingInvalidation"
-                , "broadcastLeaveRequestsInvalidation"
-                , "refreshProfileContent"
-                , "refreshProfileLeaveRequests"
-                , "refreshRosterFragments"
-                , "refreshRosterContent"
-                , "refreshTimesheetFragments"
-                , "refreshTimesheetDay"
-                , "refreshMovedTimesheetEntry"
-                , "refreshAdminInvites"
-                , "refreshAdminRosterGroups"
-                , "refreshAdminShiftTypes"
-                , "refreshAdminXero"
-                , "performTypedLiveSurfaceMutation"
-                , "liveSurfaceMutation"
-                ]
-        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
-
-    it "routes background job invalidation through touched resources" do
-        sources <- mapM Text.readFile
-            [ "Application/PublicHolidays/Job.hs"
-            , "Application/FwcMapd/Job.hs"
-            , "Application/InvitationDelivery/Email.hs"
-            ]
-        let forbiddenTokens = ["broadcastSurfaceFragmentsWithoutContext", "broadcastSurfaceResyncWithoutContext"]
-        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
-
-    it "keeps billing writes in the mutation module" do
-        controllerSource <- Text.readFile "Web/Controller/Billing.hs"
-        webhookSource <- Text.readFile "Web/Controller/StripeWebhooks.hs"
-        let controllerForbiddenTokens = ["newRecord @VenueBillingCustomer", "newRecord @VenueBillingControl", "updateRecord", "broadcastBillingInvalidation"]
-        let webhookForbiddenTokens = ["broadcastBillingInvalidation", "broadcastBillingWebhookResult"]
-        filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
-        filter (`Text.isInfixOf` webhookSource) webhookForbiddenTokens `shouldBe` []
-
-    it "routes billing mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/Billing/Mutations.hs"
-        let forbiddenTokens = ["broadcastBillingInvalidation", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes venue invitation acceptance through the mutation module" do
-        controllerSource <- Text.readFile "Web/Controller/Users.hs"
-        mutationSource <- Text.readFile "Web/Users/Mutations.hs"
-        let controllerForbiddenTokens = ["broadcastSurfaceFragments", "adminInvitesLiveSurfaceDefinitionForVenue", "AdminInvitesLiveFragment"]
-        let mutationForbiddenTokens = ["broadcastSurface", "refreshAdminInvites"]
-        filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
-        filter (`Text.isInfixOf` mutationSource) mutationForbiddenTokens `shouldBe` []
-
-    it "keeps export job writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Exports.hs"
-        let forbiddenTokens = ["requestFixedExport ", "recordExportDownload ", "createRecord", "updateRecord", "recordCurrentUserAuditEvent"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes export mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/Exports/Mutations.hs"
-        let forbiddenTokens = ["refreshAdminExports", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes Xero timesheet mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/Controller/Admin/Xero/Timesheets.hs"
-        let forbiddenTokens = ["refreshAdminXero", "refreshAdminXeroTimesheets", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "keeps Xero timesheet service writes behind the mutation wrapper" do
-        controllerSource <- Text.readFile "Web/Controller/Admin/Xero/Timesheets.hs"
-        connectionSource <- Text.readFile "Application/Xero/Connection.hs"
-        keepaliveSource <- Text.readFile "Application/Xero/Keepalive.hs"
-        let controllerForbiddenTokens = ["Application.Xero.Timesheets.Preview", "Application.Xero.Timesheets.Submission"]
-        let applicationForbiddenTokens = ["broadcastSurface", "LiveSurface", "adminXeroLiveSurfaceDefinition"]
-        filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
-        filter (`Text.isInfixOf` (connectionSource <> keepaliveSource)) applicationForbiddenTokens `shouldBe` []
-
-    it "keeps retired Xero operational panel modules and routes deleted" do
-        let retiredPaths =
-                [ "Web/Controller/Admin/Xero/Mappings.hs"
-                , "Web/Controller/Admin/Xero/PayItemMutations.hs"
-                , "Web/View/Admin/Xero/Calendars.hs"
-                , "Web/View/Admin/Xero/PayItems.hs"
-                , "Web/View/Admin/Xero/Readiness.hs"
-                , "Web/View/Admin/Xero/StaffMappings.hs"
-                , "Web/View/Admin/Xero/Timesheets.hs"
-                ]
-            routeAuthorityPaths =
-                [ "Web/Types.hs"
-                , "Web/Controller/Admin.hs"
-                , "Application/Helper/FrontendContract/Surface/Admin.hs"
-                ]
-            retiredRouteTokens =
-                [ "CreateMissingXeroPayItemsAction"
-                , "ArchiveXeroImportedPayItemAction"
-                , "SaveXeroStaffMappingAction"
-                , "SuggestXeroStaffMappingAction"
-                , "SaveXeroEarningsRateMappingAction"
-                , "SaveXeroPayItemAccountCodeSelectionAction"
-                , "SaveXeroPayrollCalendarSelectionAction"
-                , "PreviewXeroDraftTimesheetsAction"
-                , "SubmitXeroDraftTimesheetsAction"
-                , "RetryXeroDraftTimesheetSubmissionAction"
-                , "ShowadminXeroStaffMappingsLiveFragmentAction"
-                , "ShowadminXeroPayItemsLiveFragmentAction"
-                , "ShowadminXeroTimesheetsLiveFragmentAction"
-                ]
-        existingPaths <- filterM doesFileExist retiredPaths
-        routeAuthority <- mconcat <$> mapM Text.readFile routeAuthorityPaths
-        existingPaths `shouldBe` []
-        filter (`Text.isInfixOf` routeAuthority) retiredRouteTokens `shouldBe` []
-
-    it "keeps Xero connection writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Admin/Xero/Connection.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "keeps Xero reference sync writes behind the application service" do
-        source <- Text.readFile "Web/Controller/Admin/Xero/ReferenceSync.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "routes Xero pay item sync live invalidation through touched resources" do
-        source <- Text.readFile "Web/Admin/Xero/Mutations.hs"
-        let forbiddenTokens = ["refreshAdminXeroPayItems", "refreshAdminXero", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+    describe "retired source paths" do
+        it "keeps retired Xero operational panel modules deleted" do
+            existingPaths <- filterM doesFileExist retiredXeroPaths
+            existingPaths `shouldBe` []
 
 scopeFactLabels :: BepisFactSet -> [Text]
 scopeFactLabels facts =
@@ -407,3 +118,201 @@ hasNonEmptyArray :: Maybe Aeson.Value -> Bool
 hasNonEmptyArray = \case
     Just (Aeson.Array values) -> not (null values)
     _                         -> False
+
+data NestedFixtureException = NestedFixtureException
+    deriving (Show)
+
+instance Exception NestedFixtureException
+
+type SourceCache = Map.Map FilePath Text
+
+data SourceGuard = SourceGuard
+    { guardLabel  :: Text
+    , guardPaths  :: [FilePath]
+    , guardTokens :: [Text]
+    }
+
+data SourceCountGuard = SourceCountGuard
+    { countGuardLabel :: Text
+    , expectedPath    :: FilePath
+    , expectedToken   :: Text
+    , expectedCount   :: Int
+    }
+
+loadSourceCache :: IO SourceCache
+loadSourceCache =
+    Map.fromList <$> mapM loadSource sourceGuardPaths
+  where
+    loadSource path = do
+        source <- Text.readFile path
+        pure (path, source)
+
+sourceGuardPaths :: [FilePath]
+sourceGuardPaths =
+    List.nub
+        ( concatMap (.guardPaths) sourceGuards
+            <> map (.expectedPath) sourceCountGuards
+        )
+
+sourceAt :: SourceCache -> FilePath -> Text
+sourceAt sources path =
+    fromMaybe mempty (Map.lookup path sources)
+
+sourceGuardViolations :: SourceCache -> SourceGuard -> [(FilePath, Text)]
+sourceGuardViolations sources guard =
+    [ (path, token)
+    | path <- guard.guardPaths
+    , token <- guard.guardTokens
+    , token `Text.isInfixOf` sourceAt sources path
+    ]
+
+sourceGuards :: [SourceGuard]
+sourceGuards =
+    [ guard "legacy descriptive Bepis mutation APIs stay retired"
+        [ "Application/Bepis/Action.hs", "Application/Bepis/Architecture.hs"
+        , "scripts/architecture/facts.mjs", "scripts/architecture/gate.mjs", "scripts/architecture/query.mjs"
+        ]
+        [ "BepisMutationSpec", "auditedAs", "scopedToCurrentVenue", "scopedToRosterWeek"
+        , "fromLiveMutationResult", "respondsWithFragments", "respondsWithRedirect", "respondsWithJson"
+        , "BEPIS_MUTATION_DRIFT", "runBepisMutationPipeline", "bepisMutationAction"
+        ]
+    , guard "leave request controller keeps writes behind mutations" ["Web/Controller/LeaveRequests.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserLeaveRequestEvent", "recordCurrentUserAuditEvent"]
+    , guard "leave request mutations use touched resources" ["Web/LeaveRequests/Mutations.hs"]
+        ["broadcastLeaveRequestsInvalidation", "refreshProfileLeaveRequests", "invalidateAffectedRosterWeeksForLeave", "refreshRosterFragments"]
+    , guard "Timesheet controller keeps writes behind mutations" ["Web/Controller/Timesheets.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserTimesheetEntryVersion", "recordCurrentUserAuditEvent"]
+    , guard "Timesheet mutations use touched resources" ["Web/Timesheets/Mutations.hs"]
+        ["refreshTimesheetDay", "refreshMovedTimesheetEntry", "refreshTimesheetFragments", "broadcastSurface"]
+    , guard "profile controller keeps writes behind mutations" ["Web/Controller/Profiles.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "replaceStaffShiftPreferences", "refreshRosterFragments", "refreshProfileContent"]
+    , guard "profile mutations use touched resources" ["Web/Profiles/Mutations.hs"]
+        ["refreshProfileContent", "refreshRosterFragments", "broadcastSurface"]
+    , guard "staff controller keeps writes behind mutations" ["Web/Controller/Staff.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "syncStaffRosterGroupAssignments", "replaceStaffShiftPreferences", "ensureStaffPayVersionForStaff"]
+    , guard "staff mutation paths use touched resources" ["Web/Staff/Mutations.hs", "Web/Controller/Staff.hs"]
+        ["broadcastSurface", "refreshRosterContent", "refreshAdminXero"]
+    , guard "staff document controller keeps writes behind mutations" ["Web/Controller/StaffDocuments.hs"]
+        ["createRsaDocument", "reviewRsaDocument", "recordCurrentUserAuditEvent", "createRecord", "updateRecord"]
+    , guard "staff document mutations use touched resources" ["Web/StaffDocuments/Mutations.hs"]
+        ["refreshProfileContent", "refreshStaffCompliance", "broadcastSurface"]
+    , guard "roster controller keeps writes behind mutations" ["Web/Controller/RosterWeeks.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "enqueueRosterTimesheetCreationJobsForWeek", "appendRosterWeekSlotDefinition rosterWeek", "deleteRosterWeekSlotDefinition", "repackRosterWeekDays", "removeRosterRowWithPacking"]
+    , guard "roster mutation paths use touched resources" ["Web/RosterWeeks/Mutations.hs"]
+        ["refreshRosterContent", "refreshRosterContentAndStaffPanel", "refreshRosterFragments", "broadcastSurface"]
+    , guard "roster controller has no obsolete fragment refresh" ["Web/Controller/RosterWeeks.hs"]
+        ["refreshRosterFragments", "refreshRosterFragmentsAndSetActorRefresh"]
+    , guard "sequential publication and process-local authority stay retired"
+        [ "Application/Helper/FrontendContract/LiveUpdate.hs", "Application/Helper/FrontendContract/LiveUpdateValues.hs"
+        , "Application/Helper/LiveUpdate/DurablePublisher.hs", "Application/Helper/LiveUpdate/Internal.hs"
+        , "Application/Helper/LiveUpdate/Runtime.hs", "Web/Controller/Admin.hs", "Web/SurfaceInvalidation.hs"
+        ]
+        ["invalidateTouchedResources", "publishDurableInvalidation", "publishTouchedResourcesWithoutContext", "broadcastLiveInvalidationDetailed", "incrementLiveUpdateVersion", "advanceLiveUpdateVersion ::", "LiveUpdateClientIdHeader", "SourceClientId"]
+    , guard "browser protocol has no process-local client identity" ["frontend/ts/generated/contracts.ts"]
+        ["sourceClientId", "liveUpdateClientIdHeader", "clientId"]
+    , guard "workforce producers stay off sequential publication"
+        [ "Web/Controller/LeaveRequests.hs", "Web/Controller/Users.hs", "Web/LeaveRequests/Mutations.hs"
+        , "Web/Profiles/Mutations.hs", "Web/RosterTemplates/Mutations.hs", "Web/RosterWeeks/Mutations.hs"
+        , "Web/RosterWeeks/TemplateApplication.hs", "Web/RosterWeeks/VenueSettings.hs", "Web/Staff/Mutations.hs"
+        , "Web/StaffDocuments/Mutations.hs", "Web/Timesheets/Mutations.hs", "Application/RosterNotification/Email.hs"
+        ] sequentialPublicationTokens
+    , guard "admin and integration producers stay off sequential publication"
+        [ "Web/Admin/Mutations.hs", "Web/Admin/RosterWindowStartDay.hs", "Web/Admin/Xero/Mutations.hs"
+        , "Web/Billing/Mutations.hs", "Web/Controller/StripeWebhooks.hs", "Web/Controller/Support.hs"
+        , "Web/Exports/Mutations.hs", "Application/Billing/Reconciliation.hs", "Application/EmailDelivery.hs"
+        , "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs", "Application/PublicHolidays/Job.hs"
+        , "Application/Xero/Keepalive.hs", "Application/Xero/ReferenceSyncJob.hs"
+        ] sequentialPublicationTokens
+    , guard "admin controller keeps config writes behind mutations" ["Web/Controller/Admin.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "enqueueVenueInvitationDeliveryJob", "ensureShiftTypePayVersionForShiftType", "createVenueRosterGroupWithDefaults", "ensureDefaultRosterSlots", "syncVenueDefaultRosterGroupToTopActive", "reorderActiveRosterGroups", "reorderActiveShiftTypes"]
+    , guard "admin mutations use touched resources" ["Web/Admin/Mutations.hs"]
+        ["refreshAdminInvites", "refreshAdminRosterGroups", "refreshAdminShiftTypes", "refreshAdminXero", "broadcastSurface"]
+    , guard "obsolete direct refresh helpers stay retired"
+        [ "Web/Billing/FrontendSurface.hs", "Web/LeaveRequests/ReadModel.hs", "Web/Controller/LeaveRequests.hs"
+        , "Web/Controller/Profiles.hs", "Web/Timesheets/Projection.hs", "Web/Controller/Admin/Support.hs"
+        , "Web/Controller/Admin/Xero/Responses.hs"
+        ]
+        [ "broadcastBillingInvalidation", "broadcastLeaveRequestsInvalidation", "refreshProfileContent"
+        , "refreshProfileLeaveRequests", "refreshRosterFragments", "refreshRosterContent", "refreshTimesheetFragments"
+        , "refreshTimesheetDay", "refreshMovedTimesheetEntry", "refreshAdminInvites", "refreshAdminRosterGroups"
+        , "refreshAdminShiftTypes", "refreshAdminXero", "performTypedLiveSurfaceMutation", "liveSurfaceMutation"
+        ]
+    , guard "background invalidation uses touched resources"
+        ["Application/PublicHolidays/Job.hs", "Application/FwcMapd/Job.hs", "Application/InvitationDelivery/Email.hs"]
+        ["broadcastSurfaceFragmentsWithoutContext", "broadcastSurfaceResyncWithoutContext"]
+    , guard "billing controller keeps writes behind mutations" ["Web/Controller/Billing.hs"]
+        ["newRecord @VenueBillingCustomer", "newRecord @VenueBillingControl", "updateRecord", "broadcastBillingInvalidation"]
+    , guard "billing webhook has no direct broadcast" ["Web/Controller/StripeWebhooks.hs"]
+        ["broadcastBillingInvalidation", "broadcastBillingWebhookResult"]
+    , guard "billing mutations use touched resources" ["Web/Billing/Mutations.hs"]
+        ["broadcastBillingInvalidation", "broadcastSurface"]
+    , guard "venue invitation controller uses mutation authority" ["Web/Controller/Users.hs"]
+        ["broadcastSurfaceFragments", "adminInvitesLiveSurfaceDefinitionForVenue", "AdminInvitesLiveFragment"]
+    , guard "venue invitation mutations use touched resources" ["Web/Users/Mutations.hs"]
+        ["broadcastSurface", "refreshAdminInvites"]
+    , guard "export controller keeps writes behind mutations" ["Web/Controller/Exports.hs"]
+        ["requestFixedExport ", "recordExportDownload ", "createRecord", "updateRecord", "recordCurrentUserAuditEvent"]
+    , guard "export mutations use touched resources" ["Web/Exports/Mutations.hs"]
+        ["refreshAdminExports", "broadcastSurface"]
+    , guard "Xero Timesheet controller uses touched resources" ["Web/Controller/Admin/Xero/Timesheets.hs"]
+        ["refreshAdminXero", "refreshAdminXeroTimesheets", "broadcastSurface"]
+    , guard "Xero Timesheet controller uses the application service" ["Web/Controller/Admin/Xero/Timesheets.hs"]
+        ["Application.Xero.Timesheets.Preview", "Application.Xero.Timesheets.Submission"]
+    , guard "Xero connection services stay transport-only" ["Application/Xero/Connection.hs", "Application/Xero/Keepalive.hs"]
+        ["broadcastSurface", "LiveSurface", "adminXeroLiveSurfaceDefinition"]
+    , guard "retired Xero route vocabulary stays absent"
+        ["Web/Types.hs", "Web/Controller/Admin.hs", "Application/Helper/FrontendContract/Surface/Admin.hs"]
+        retiredXeroRouteTokens
+    , guard "Xero connection controller keeps writes behind mutations" ["Web/Controller/Admin/Xero/Connection.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]
+    , guard "Xero reference sync controller uses the application service" ["Web/Controller/Admin/Xero/ReferenceSync.hs"]
+        ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]
+    , guard "Xero pay item mutations use touched resources" ["Web/Admin/Xero/Mutations.hs"]
+        ["refreshAdminXeroPayItems", "refreshAdminXero", "broadcastSurface"]
+    ]
+
+sourceCountGuards :: [SourceCountGuard]
+sourceCountGuards =
+    [ SourceCountGuard "authentication audit fact has one constructor use" "Application/Helper/Audit.hs" "BepisAuthenticationAuditRecorded" 1
+    , SourceCountGuard "authentication audit fact is not emitted twice" "Application/Helper/Audit.hs" "emitAuditFact BepisAuthenticationAuditRecorded" 0
+    , SourceCountGuard "surface invalidation has exactly two durable publication branches" "Web/SurfaceInvalidation.hs" "broadcastLiveInvalidationAtVersion" 2
+    ]
+
+sequentialPublicationTokens :: [Text]
+sequentialPublicationTokens =
+    [ "invalidateTouchedResources"
+    , "publishTouchedResourcesWithoutContext"
+    , "publishDurableInvalidation"
+    , "withDurableLiveMutationOutcomeTransaction"
+    ]
+
+guard :: Text -> [FilePath] -> [Text] -> SourceGuard
+guard guardLabel guardPaths guardTokens = SourceGuard { .. }
+
+retiredXeroPaths :: [FilePath]
+retiredXeroPaths =
+    [ "Web/Controller/Admin/Xero/Mappings.hs"
+    , "Web/Controller/Admin/Xero/PayItemMutations.hs"
+    , "Web/View/Admin/Xero/Calendars.hs"
+    , "Web/View/Admin/Xero/PayItems.hs"
+    , "Web/View/Admin/Xero/Readiness.hs"
+    , "Web/View/Admin/Xero/StaffMappings.hs"
+    , "Web/View/Admin/Xero/Timesheets.hs"
+    ]
+
+retiredXeroRouteTokens :: [Text]
+retiredXeroRouteTokens =
+    [ "CreateMissingXeroPayItemsAction"
+    , "ArchiveXeroImportedPayItemAction"
+    , "SaveXeroStaffMappingAction"
+    , "SuggestXeroStaffMappingAction"
+    , "SaveXeroEarningsRateMappingAction"
+    , "SaveXeroPayItemAccountCodeSelectionAction"
+    , "SaveXeroPayrollCalendarSelectionAction"
+    , "PreviewXeroDraftTimesheetsAction"
+    , "SubmitXeroDraftTimesheetsAction"
+    , "RetryXeroDraftTimesheetSubmissionAction"
+    , "ShowadminXeroStaffMappingsLiveFragmentAction"
+    , "ShowadminXeroPayItemsLiveFragmentAction"
+    , "ShowadminXeroTimesheetsLiveFragmentAction"
+    ]

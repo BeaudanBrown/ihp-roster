@@ -3,14 +3,10 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 declare const process: { env: Record<string, string | undefined> };
-import {
-    E2E_TIMEOUT,
-    gotoWhenReady,
-    loginAsPrivilegedUserWithSeededPasskeySession,
-    querySql,
-    runSql,
-    markCurrentSessionPasskeyVerified,
-} from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession, markCurrentSessionPasskeyVerified } from './support/passkeys';
+import { querySql, runSql } from './support/database';
 
 const apiVersion = '2026-06-24.dahlia';
 const venueId = 'a1000000-0000-0000-0000-000000000001';
@@ -162,27 +158,23 @@ function invoicePaymentFailedEvent(eventId: string) {
     return event;
 }
 
-function checkoutEvent(eventId: string, type: string, checkoutSessionId: string, checkoutSubscriptionId: string) {
-    return {
-        id: eventId,
-        object: 'event',
-        api_version: apiVersion,
-        created: nextProviderCreatedAt(),
-        livemode: false,
-        type,
-        data: {
-            object: {
-                id: checkoutSessionId,
-                object: 'checkout.session',
-                client_reference_id: venueId,
-                customer: customerId,
-                livemode: false,
-                metadata: { venue_id: venueId },
-                status: 'complete',
-                subscription: checkoutSubscriptionId,
-            },
-        },
-    };
+async function followHostedBillingRedirect(page: import('@playwright/test').Page, buttonName: string, actionPath: string, hostedUrl: string) {
+    // Never browse Stripe: only the local mock's fixed hosted destination is served.
+    await page.route(hostedUrl, (route) => route.fulfill({ contentType: 'text/plain', body: 'Local hosted billing destination' }));
+    await page.route(`**${actionPath}`, async (route) => {
+        expect(route.request().headers()['hx-request']).toBe('true');
+        const response = await route.fetch({ maxRedirects: 0 });
+        expect(response.status()).toBe(200);
+        expect(response.headers()['hx-redirect']).toBe(hostedUrl);
+        expect(response.headers().location).toBeUndefined();
+        expect(await response.text()).toBe('');
+        // Forward the real application response unchanged, after capturing its
+        // body before navigation can discard the browser's response buffer.
+        await route.fulfill({ response });
+    }, { times: 1 });
+    await page.getByRole('button', { name: buttonName, exact: true }).click();
+    await expect(page).toHaveURL(hostedUrl, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page.getByText('Local hosted billing destination', { exact: true })).toBeVisible();
 }
 
 async function deliverSignedWebhook(page: import('@playwright/test').Page, payload: object) {
@@ -271,7 +263,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(stripeLoadingDialog).toHaveCount(0);
     });
 
-    test('correlates Checkout, refreshes lifecycle state, and separates founder diagnostics', async ({ page, request }) => {
+    test('correlates Checkout, refreshes lifecycle state, and separates founder diagnostics', async ({ browser, page, request }) => {
         test.setTimeout(E2E_TIMEOUT.slowTest * 2);
         const mockBaseUrl = process.env.STRIPE_MOCK_BASE_URL;
         if (!mockBaseUrl) throw new Error('STRIPE_MOCK_BASE_URL is required for billing E2E');
@@ -305,9 +297,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(desktopBillingLink).toHaveClass(/app-header-nav-item-warning/);
         await expect(desktopBillingLink).toHaveAttribute('aria-label', 'Billing — subscription inactive');
 
-        const checkoutResponse = await page.request.post('/CreateBillingCheckoutSession', { maxRedirects: 0 });
-        expect(checkoutResponse.status()).toBe(302);
-        expect(checkoutResponse.headers().location).toBe('https://checkout.stripe.com/c/pay/cs_test_e2e-sanitized');
+        await followHostedBillingRedirect(page, 'Subscribe', '/CreateBillingCheckoutSession', 'https://checkout.stripe.com/c/pay/cs_test_e2e-sanitized');
 
         await expect.poll(async () => {
             const response = await request.get(`${mockBaseUrl}/__status`);
@@ -438,9 +428,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(ownerBillingView.locator('[data-billing-subscription-status="active"]')).toContainText('Subscription Active :-)');
         await expect(page.getByText('$100/month', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Manage Billing' })).toBeVisible();
-        const portalResponse = await page.request.post('/CreateBillingPortalSession', { maxRedirects: 0 });
-        expect(portalResponse.status()).toBe(302);
-        expect(portalResponse.headers().location).toBe('https://billing.stripe.com/p/session/bps_test_sanitized');
+        await followHostedBillingRedirect(page, 'Manage Billing', '/CreateBillingPortalSession', 'https://billing.stripe.com/p/session/bps_test_sanitized');
 
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         await deliverSignedWebhook(page, invoicePaymentFailedEvent('evt_e2e-invoice_payment_failed'));
@@ -471,11 +459,16 @@ test.describe('Billing through the strict local Stripe boundary', () => {
             failures: [],
         });
 
-        await page.context().clearCookies();
-        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com');
-        await gotoWhenReady(page, '/Billing', '[data-billing-founder-diagnostics="true"]');
-        await expect(page.getByText('Billing diagnostics', { exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: /Subscribe|Manage subscription|Manage Billing/ })).toHaveCount(0);
-        await expect(page.locator('header a[href="/Billing"]')).toHaveCount(0);
+        const founderContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+        const founderPage = await founderContext.newPage();
+        try {
+            await loginAsPrivilegedUserWithSeededPasskeySession(founderPage, 'e2e-super-admin@example.com');
+            await gotoWhenReady(founderPage, '/Billing', '[data-billing-founder-diagnostics="true"]');
+            await expect(founderPage.getByText('Billing diagnostics', { exact: true })).toBeVisible();
+            await expect(founderPage.getByRole('button', { name: /Subscribe|Manage subscription|Manage Billing/ })).toHaveCount(0);
+            await expect(founderPage.locator('header a[href="/Billing"]')).toHaveCount(0);
+        } finally {
+            await founderContext.close();
+        }
     });
 });

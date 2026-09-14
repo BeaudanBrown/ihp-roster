@@ -3,7 +3,6 @@ module Application.Helper.VenueOnboardingInvitation where
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.Url (appendQueryParams)
 import Web.Controller.Prelude
-import Web.Types
 
 venueOnboardingInvitationLifetime :: NominalDiffTime
 venueOnboardingInvitationLifetime = 60 * 60 * 24 * 14

@@ -6,7 +6,10 @@
 
 module Web.RosterWeeks.ShiftWorkflow
     ( RosterShiftDialogSubmission (..)
+    , RosterShiftEditCompletion (..)
     , ValidatedRosterShift (..)
+    , createRosterShift
+    , editRosterShift
     , applyValidatedRosterShift
     , defaultRosterShiftDialogValuesForVenue
     , fetchCurrentVenueRosterShiftTypesForDialog
@@ -15,21 +18,14 @@ module Web.RosterWeeks.ShiftWorkflow
     , fetchRosterSlotForEdit
     , rosterShiftDialogForCreateHtml
     , rosterShiftDialogForEditHtml
-    , validateLiveOpenShiftFill
     , validateRosterShiftDialogSubmission
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
-import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
-                                     isValidRosterShiftTimePair,
-                                     rosterShiftStartDate, venueShiftTimeAllows,
-                                     venueShiftTimeIntervalMinutes,
-                                     venueShiftTimeValidationMessage,
-                                     venueTimePickerFinalSelectableTimeText,
-                                     venueTimePickerStartTimeText)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
@@ -37,16 +33,17 @@ import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust)
-import qualified Data.Set as Set
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
 import Web.RosterWeeks.DateRange (RosterWindowScope (..),
                                   resolveRosterLaneReference)
 import Web.RosterWeeks.Filters
+import Web.RosterWeeks.Mutations (RosterSlotMutationResult (..),
+                                  saveRosterSlotMutation, updateRosterSlotMutation)
+import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
 import Web.RosterWeeks.Service (fetchActiveStaffForCurrentVenue)
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
                                      fetchRosterShiftDialogStaff)
@@ -68,10 +65,92 @@ data ValidatedRosterShift = ValidatedRosterShift
     , validRosterShiftTypeId     :: !UUID.UUID
     }
 
+-- These operations run after the controller's ordered venue/calendar and
+-- placement/access checks. Inputs are snapshots, not freshness guarantees:
+-- Mutations retains its date/staff/slot locks and authoritative revalidation.
+data RosterShiftEditCompletion = RosterShiftEditCompletion
+    { rosterShiftEditMutation :: !(LiveMutationResult RosterSlotMutationResult)
+    , rosterShiftEditImpactedRows :: ![(UUID.UUID, Int)]
+    , rosterShiftEditWarnSourceTimesheetUnchanged :: !Bool
+    }
+
+createRosterShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues (LiveMutationResult RosterSlotMutationResult))
+createRosterShift scope rosterDay slotDefinition rowIndex submission = do
+    existingSlot <- query @RosterSlot
+        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+        |> filterWhere (#rosterLaneId, unpackId slotDefinition.id)
+        |> filterWhere (#rowIndex, rowIndex)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchOneOrNothing
+    validation <- validateRosterShiftDialogSubmission scope.rosterWindowRosterGroupId rosterDay existingSlot submission
+    case validation of
+        Left values -> pure (Left values)
+        Right valid -> do
+            let newSlot =
+                    fromMaybe
+                        ( newRecord @RosterSlot
+                        |> set #rosterDayId (unpackId rosterDay.id)
+                        |> set #rosterLaneId (unpackId slotDefinition.id)
+                        |> set #slotSortOrder slotDefinition.sortOrder
+                        |> set #rowIndex rowIndex
+                        )
+                        existingSlot
+                        |> applyValidatedRosterShift valid
+            mutation <- saveRosterSlotMutation scope rosterDay existingSlot newSlot
+            pure $ case mutation of
+                Left message -> Left (rosterShiftDialogValuesFromSlot newSlot) { rosterShiftFormError = Just message }
+                Right result -> Right result
+
+editRosterShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues RosterShiftEditCompletion)
+editRosterShift scope rosterDay rosterSlot submission = do
+    -- Published fill restores the original values on persistence rejection;
+    -- Draft edit restores the attempted values. Keep that distinction here.
+    prepared <- if rosterDay.publicationState == Published
+        then fmap (`applyRosterShiftAssignment` rosterSlot)
+            <$> validateLiveOpenShiftFill scope.rosterWindowRosterGroupId rosterSlot submission
+        else fmap (`applyValidatedRosterShift` rosterSlot)
+            <$> validateRosterShiftDialogSubmission scope.rosterWindowRosterGroupId rosterDay (Just rosterSlot) submission
+    case prepared of
+        Left values -> pure (Left values)
+        Right updatedSlot -> do
+            let publishedFill = rosterDay.publicationState == Published
+            mutation <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot publishedFill
+            case mutation of
+                Left message -> pure $ Left
+                    (rosterShiftDialogValuesFromSlot (if publishedFill then rosterSlot else updatedSlot))
+                        { rosterShiftFormError = Just message }
+                Right result -> do
+                    -- Impact reads deliberately happen after the mutation commits.
+                    let previousStaffId = result.liveMutationValue.rosterSlotMutationPreviousStaffId
+                    relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek scope (catMaybes [previousStaffId, updatedSlot.staffId])
+                    pure $ Right RosterShiftEditCompletion
+                        { rosterShiftEditMutation = result
+                        , rosterShiftEditImpactedRows = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
+                        , rosterShiftEditWarnSourceTimesheetUnchanged = not publishedFill && result.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                        }
+
+fetchRelatedSlotsForStaffIdsInRosterWeek :: (?modelContext :: ModelContext) => RosterWindowScope -> [UUID.UUID] -> IO [RosterSlot]
+fetchRelatedSlotsForStaffIdsInRosterWeek scope staffIds =
+    if null staffIds
+        then pure []
+        else do
+            rosterDays <- query @RosterDay
+                |> filterWhere (#rosterGroupId, unpackId scope.rosterWindowRosterGroupId)
+                |> filterWhereGreaterThanOrEqualTo (#operationalDate, scope.rosterWindowStart)
+                |> filterWhereLessThan (#operationalDate, scope.rosterWindowEnd)
+                |> fetch
+            if null rosterDays
+                then pure []
+                else query @RosterSlot
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                    |> filterWhereIn (#staffId, map Just (nub staffIds))
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+
 fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterLane -> IO RosterLane
 fetchRosterSlotDefinitionForCreate rosterDayId requestedId =
     resolveRosterLaneReference (Just rosterDayId) requestedId
-        >>= maybe (error "Roster lane does not exist for the selected Operational date") pure
+        >>= maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Roster lane does not exist for the selected Operational date") pure
 
 fetchRosterSlotForEdit :: (?modelContext :: ModelContext) => Id RosterSlot -> IO RosterSlot
 fetchRosterSlotForEdit = fetch
@@ -80,7 +159,7 @@ fetchRosterSlotEditContext :: (?modelContext :: ModelContext) => RosterSlot -> I
 fetchRosterSlotEditContext rosterSlot =
     fetch (coerce rosterSlot.rosterDayId :: Id RosterDay)
 
-rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogValues -> IO Markup.Html
 rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = do
     (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff scope.rosterWindowRosterGroupId Nothing
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
@@ -108,7 +187,7 @@ rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = 
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
-rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterSlot -> RosterDay -> RosterShiftDialogValues -> IO Markup.Html
 rosterShiftDialogForEditHtml scope rosterSlot rosterDay values = do
     (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff scope.rosterWindowRosterGroupId rosterSlot.staffId
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
@@ -162,7 +241,7 @@ buildRosterShiftDialogStaffOptionStates rosterGroupId targetDay targetSlot staff
     let slotsForOptions = targetSlot : filter (\slot -> coerce slot.id /= targetSlotId) visibleSlots
     let targetDayId = unpackId targetDay.id
     let rosterDaysForOptions = targetDay : filter (\day -> coerce day.id /= targetDayId) rosterDays
-    optionStates <- buildRosterStaffOptionStates rosterGroupId assignmentFiltersForDialog weekStartDate rosterDaysForOptions slotsForOptions staffMembers
+    optionStates <- buildRosterStaffOptionStates assignmentFiltersForDialog weekStartDate rosterDaysForOptions slotsForOptions staffMembers
     pure $ Map.fromList
         [ (coerce staff.id, optionState)
         | staff <- staffMembers
@@ -330,6 +409,7 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay maybeExistingSlot su
     rosterBoundaryErrorMessage (BoundaryCivilTimeError (NonPositiveResolvedInterval _ _)) = "Shift end must be after shift start."
     rosterBoundaryErrorMessage BoundaryBreakNotContained = "Break boundaries are not valid for this roster shift."
     rosterBoundaryErrorMessage BoundaryBreakShapeInvalid = "Break boundaries are incomplete."
+    rosterBoundaryErrorMessage BoundaryShiftShapeInvalid = "Shift boundaries are incomplete."
 
 parseSubmittedRosterShiftAssignment :: Maybe Text -> Maybe RosterShiftAssignment
 parseSubmittedRosterShiftAssignment maybeValue =

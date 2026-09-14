@@ -2,7 +2,6 @@ module Web.Controller.Sessions where
 
 import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecipient)
 import Application.AccountSecurityEmail.Mutations (withEmailVerificationTokenLock)
-import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              issueEmailVerificationWithCooldown)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode (..),
@@ -14,7 +13,6 @@ import Application.Helper.SessionVersion (clearAuthenticatedSessionVersion,
 import Control.Exception (evaluate)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import IHP.AuthSupport.Authentication (verifyPassword)
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
@@ -34,7 +32,7 @@ instance Controller SessionsController where
         case currentUserOrNothing @User of
             Just user -> do
                 redirectPath <- defaultLoginRedirectPath user
-                redirectToPath redirectPath
+                earlyReturn (redirectToPath redirectPath)
             Nothing -> pure ()
 
         let user = newRecord @User
@@ -66,12 +64,12 @@ instance Controller SessionsController where
                                             ]
                                         )
                             setErrorMessage "User is locked"
-                            redirectTo NewSessionAction
+                            earlyReturn (redirectTo NewSessionAction)
 
                         passwordMatches <- profileActionSpan "auth.password_login.verify_password" (evaluate (verifyPassword user (param @Text "password")))
                         if passwordMatches
                             then do
-                                profileActionSpan "auth.password_login.before_login" (Sessions.beforeLogin user)
+                                profileActionSpan "auth.password_login.before_login" (beforeBepisLogin user)
                                 profileActionSpan "auth.password_login.create_session" (LoginSupport.login user)
                                 clearCurrentUserPasskeyVerification
                                 _ <- profileActionSpan "auth.password_login.reset_failed_attempts" $
@@ -128,6 +126,7 @@ instance Controller SessionsController where
 
     action currentAction@DeleteSessionAction = runBepis currentAction BepisMutationAction do
         void (exitCurrentImpersonation "logout")
+        clearBepisSessionAuthority
         Sessions.deleteSessionAction @User
 
     action currentAction@VerifyEmailAction = runBepis currentAction BepisMutationAction do
@@ -165,7 +164,7 @@ instance Controller SessionsController where
                         setErrorMessage "That verification link is invalid or has expired."
                         redirectTo NewSessionAction
                     Just verifiedUser -> do
-                        Sessions.beforeLogin verifiedUser
+                        beforeBepisLogin verifiedUser
                         LoginSupport.login verifiedUser
                         setSuccessMessage "Email verified."
                         redirectTo EditProfileAction
@@ -191,28 +190,33 @@ instance Controller SessionsController where
 instance Sessions.SessionsControllerConfig User where
     afterLoginRedirectPath = "/RosterWeeks"
 
-    beforeLogin user = do
-        markAuthenticatedSessionVersion user
-        deleteSession effectiveUserSessionKey
-        deleteSession impersonationSessionIdSessionKey
-        clearImpersonationReturnFallback
-        when (isNothing user.emailVerifiedAt) do
-            setSession pendingVerificationEmailSessionKey user.email
-            setErrorMessage "Verify your email before signing in."
-            redirectTo NewSessionAction
+-- IHP 1.6's beforeLogin hook has no Respond capability. Every Bepis login
+-- path invokes this explicit guard before creating authenticated authority.
+beforeBepisLogin :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext) => User -> IO ()
+beforeBepisLogin user = do
+    markAuthenticatedSessionVersion user
+    deleteSession effectiveUserSessionKey
+    deleteSession impersonationSessionIdSessionKey
+    clearImpersonationReturnFallback
+    when (isNothing user.emailVerifiedAt) do
+        setSession pendingVerificationEmailSessionKey user.email
+        setErrorMessage "Verify your email before signing in."
+        earlyReturn (redirectTo NewSessionAction)
 
-        maybeVenueContext <- resolveVenueContextForUser Nothing user
-        case maybeVenueContext of
-            Just (_, venue, _) -> setSession currentVenueSessionKey (get #id venue)
-            Nothing -> deleteSession currentVenueSessionKey
+    maybeVenueContext <- resolveVenueContextForUser Nothing user
+    case maybeVenueContext of
+        Just (_, venue, _) -> setSession currentVenueSessionKey (get #id venue)
+        Nothing -> deleteSession currentVenueSessionKey
 
-    beforeLogout _ = do
-        deleteSession currentVenueSessionKey
-        deleteSession effectiveUserSessionKey
-        deleteSession impersonationSessionIdSessionKey
-        clearImpersonationReturnFallback
-        clearAuthenticatedSessionVersion
-        clearCurrentUserPasskeyVerification
+-- Upstream deleteSessionAction no longer invokes beforeLogout.
+clearBepisSessionAuthority :: (?context :: ControllerContext, ?request :: Request) => IO ()
+clearBepisSessionAuthority = do
+    deleteSession currentVenueSessionKey
+    deleteSession effectiveUserSessionKey
+    deleteSession impersonationSessionIdSessionKey
+    clearImpersonationReturnFallback
+    clearAuthenticatedSessionVersion
+    clearCurrentUserPasskeyVerification
 
 defaultLoginRedirectPath :: (?modelContext :: ModelContext) => User -> IO Text
 defaultLoginRedirectPath user = do

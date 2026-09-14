@@ -2,15 +2,13 @@ import { test, expect, Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     extractFirstUrl,
-    gotoWhenReady,
     inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
-    loginAsPrivilegedUserWithSeededPasskeySession,
-    uniqueE2EValue,
     waitForMailhogMessage,
-    webauthnBaseURL,
-} from './test-helpers';
+} from './support/mail';
+import { gotoWhenReady, uniqueE2EValue } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 

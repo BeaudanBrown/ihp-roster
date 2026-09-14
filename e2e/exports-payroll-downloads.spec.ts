@@ -4,12 +4,11 @@ import {
     currentReportWeek,
     generatePayrollReport,
     gotoExports,
-    loginAsPrivilegedUserWithSeededPasskeySession,
     payrollReportCard,
     readZipEntryText,
     shiftExportWeek,
-    webauthnBaseURL,
-} from './test-helpers';
+} from './support/exports';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -80,7 +79,11 @@ test.describe('Payroll export downloads', () => {
         await editDialog.getByRole('button', { name: 'Remove Summary' }).click();
         await editDialog.getByRole('button', { name: 'Add Hours by Staff' }).click();
         await editDialog.getByRole('button', { name: 'Move Hours by Staff up' }).click();
+        const editSaveResponse = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/UpdatePayrollWorkbookConfiguration')
+        );
         await editDialog.getByRole('button', { name: 'Save' }).click();
+        expect((await editSaveResponse).ok()).toBe(true);
 
         const editedRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Hours then Wages' });
         await expect(editedRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });

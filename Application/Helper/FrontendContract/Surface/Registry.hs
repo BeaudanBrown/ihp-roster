@@ -14,12 +14,12 @@ import Application.Helper.FrontendContract.Surface.Admin (AdminExportsSurface,
                                                           AdminXeroPageSurface,
                                                           AdminXeroSurface)
 import Application.Helper.FrontendContract.Surface.Billing (BillingSurface)
+import Application.Helper.FrontendContract.Surface.Feedback (FeedbackSurface, FeedbackModerationSurface)
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveRequestsSurface)
 import Application.Helper.FrontendContract.Surface.Profile (ProfileSurface,
                                                             StaffSurface)
 import Application.Helper.FrontendContract.Surface.Roster (RosterDayTimelineSurface,
-                                                           RosterSurface,
-                                                           RosterTemplateDesignerSurface)
+                                                           RosterSurface)
 import Application.Helper.FrontendContract.Surface.SelfServiceLeave (SelfServiceLeaveSurface)
 import Application.Helper.FrontendContract.Surface.Support (SupportSurface)
 import Application.Helper.FrontendContract.Surface.Timesheets (TimesheetsSurface)
@@ -28,11 +28,12 @@ type RegisteredFrontendSurfaces =
     '[ TimesheetsSurface
      , RosterSurface
      , RosterDayTimelineSurface
-     , RosterTemplateDesignerSurface
      , LeaveRequestsSurface
      , SelfServiceLeaveSurface
      , BillingSurface
      , SupportSurface
+     , FeedbackSurface
+     , FeedbackModerationSurface
      , ProfileSurface
      , StaffSurface
      , AdminPageSurface

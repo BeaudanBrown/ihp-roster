@@ -19,6 +19,14 @@ module Web.RosterWeeks.Dom
     , rosterRowDomIdText
     , rosterStaffPanelFragmentClasses
     , rosterStaffPanelFragmentId
+    , rosterTemplateCaptureFormId
+    , rosterTemplateCaptureLauncherFormId
+    , rosterTemplateCaptureNameInputId
+    , rosterTemplateCaptureWarningConfirmationId
+    , rosterTemplateCardId
+    , rosterTemplateApplicationPreviewFormId
+    , rosterTemplateDeleteFormId
+    , rosterTemplateDeletePreviewFormId
     , rosterTemplateLibraryFragmentId
     , rosterStaffPanelStaffPaneId
     , rosterStaffPanelStaffTabId
@@ -85,10 +93,25 @@ rosterSlotsGridFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surf
 rosterStaffPanelFragmentId :: Text
 rosterStaffPanelFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterStaffPanel noSurfaceFields
 
-rosterTemplateLibraryFragmentId :: Id User -> Text
-rosterTemplateLibraryFragmentId userId =
-    surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterTemplateLibraryFragment
-        (surfaceField @Surface.UserId (unpackId userId) &: noSurfaceFields)
+rosterTemplateCaptureFormId, rosterTemplateCaptureLauncherFormId, rosterTemplateCaptureNameInputId, rosterTemplateCaptureWarningConfirmationId, rosterTemplateDeleteFormId :: Text
+rosterTemplateCaptureFormId = "roster-template-capture-form"
+rosterTemplateCaptureLauncherFormId = "roster-template-capture-launcher-form"
+rosterTemplateCaptureNameInputId = "roster-template-capture-name"
+rosterTemplateCaptureWarningConfirmationId = "roster-template-capture-warning-confirmation"
+rosterTemplateDeleteFormId = "roster-template-delete-form"
+
+rosterTemplateCardId :: Id RosterTemplate -> Text
+rosterTemplateCardId templateId = "roster-template-card-" <> tshow templateId
+
+rosterTemplateApplicationPreviewFormId :: Id RosterTemplate -> Text
+rosterTemplateApplicationPreviewFormId templateId = "roster-template-application-preview-" <> tshow templateId
+
+rosterTemplateDeletePreviewFormId :: Id RosterTemplate -> Text
+rosterTemplateDeletePreviewFormId templateId = "roster-template-delete-preview-" <> tshow templateId
+
+rosterTemplateLibraryFragmentId :: Text
+rosterTemplateLibraryFragmentId =
+    surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterTemplateLibraryFragment noSurfaceFields
 
 rosterStaffPanelFragmentClasses :: [Text]
 rosterStaffPanelFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]

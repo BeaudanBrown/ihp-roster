@@ -14,7 +14,6 @@ module Application.Helper.View.PageHelp
     , renderPageHelpBody
     ) where
 
-import qualified Data.Text as Text
 import IHP.ViewPrelude
 
 newtype PageHelpTopicId = PageHelpTopicId { pageHelpTopicIdToText :: Text }
@@ -30,7 +29,7 @@ data PageHelpAudience
     | HelpSupportOnly
     | HelpUnimpersonatedOnly
     | HelpFounderOnly
-    deriving (Eq, Show)
+    deriving (Bounded, Enum, Eq, Show)
 
 data PageHelpContext = PageHelpContext
     { pageHelpCanManage       :: !Bool
@@ -178,6 +177,7 @@ pageHelpTopics =
     [ topic "roster" "Roster"
         [ section HelpEveryone "Viewing"
             [ iconItem HelpEveryone "bi-chevron-left" "Week controls" "View the right roster" "Use the arrow controls to change dates. Use the roster group selector to switch teams or areas."
+            , iconItem HelpEveryone "bi-sliders" "Side panel tabs" "Choose a section" "Select a section's icon to open it. The selected tab expands to show its name; the other tabs keep their icons."
             , iconItem HelpEveryone "bi-eye" "Own-shift highlight" "Find your Published shifts" "Published rosters highlight your own assigned shifts by default. Turn this off in Settings if preferred. A manager hovering or pinning another staff member temporarily takes precedence; leaving or unpinning restores your own highlight. Draft rosters do not apply a default highlight."
             ]
         , section HelpManagerPlus "Planning"
@@ -195,6 +195,7 @@ pageHelpTopics =
             , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Change the venue roster layout" "Open Settings in the staff panel, then choose the layout used by everyone at this venue." "btn btn-outline-secondary" (Just "bi-sliders") ""
             , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Show warnings or wage estimates" "Open Settings in the staff panel, then use the Display controls. Wage estimates use the same calculation as draft Timesheets. Roster-only shifts are omitted; source warnings and calculation errors for Timesheet-producing shifts appear beside the week total. When wages are enabled, pin a staff eye control to filter week and day estimates to that person; unpin to restore venue totals." "btn btn-outline-secondary" (Just "bi-sliders") ""
             , buttonItem HelpManagerPlus "bi-sliders" "Settings tab" "Prepare a draft faster" "Open Settings in the staff panel for sort and copy actions." "btn btn-outline-secondary" (Just "bi-sliders") ""
+            , buttonItem HelpManagerPlus "bi-calendar-week" "Templates tab" "Reuse a complete roster window" "Open Templates to save the viewed seven-day roster as a shared Week snapshot, apply a saved snapshot to a complete viewed window, or delete one. Saving keeps weekday structure, shifts, and Staff/Open assignments but not Draft or Published status. Applying replaces the full viewed window and leaves every day Draft. If any day is Published, confirmation explicitly warns that applying will unpublish the entire week." "btn btn-outline-secondary" (Just "bi-calendar-week") "Templates"
             , iconItem HelpAdminPlus "bi-person-x" "Remove staff" "Remove someone from venue operations" "Open a non-owner staff profile and use Remove staff member. Bepis keeps past rosters, Timesheets, and payroll history, while removing current/future assignments and pending unavailability. You cannot remove yourself or a venue owner."
             ]
         , section HelpStaffOnly "Staff"
@@ -248,6 +249,7 @@ pageHelpTopics =
             ]
         , section HelpManagerPlus "Manager tasks"
             [ buttonItem HelpManagerPlus "bi-fullscreen" "Side panel" "Expand the Unavailability workspace" "On desktop, use the SidePanel button at the top right to hide the panel temporarily. Use it again or press Escape while working in the expanded main card to restore the panel. On phones the panel stays stacked below the requests." "btn btn-outline-secondary" (Just "bi-fullscreen") ""
+            , iconItem HelpManagerPlus "bi-hourglass-split" "Request tabs" "Browse by status" "Use Pending, Approved, Denied, and Archive in the main-card header. Each tab shows a count; the selected tab also shows its name. Pending opens by default, and Archive retains its page controls."
             , iconItem HelpManagerPlus "bi-people" "Staff panel" "Locate a staff member's unavailable periods" "Use the Staff tab to review every active venue staff member, including trial profiles. Sort by name, role, or current/future period count. Hover or focus a row to highlight matching periods, use the eye to pin the highlight, or open the row to edit the profile."
             , buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve a request" "Open a pending request, review the dates and reason, then click Approve." "btn btn-sm btn-outline-success me-1" Nothing "Approve"
             , buttonItem HelpManagerPlus "bi-x-lg" "Deny" "Deny a request" "Click Deny when the time away cannot be accepted, then add any needed follow-up outside the request." "btn btn-sm btn-outline-danger me-1" Nothing "Deny"
@@ -276,10 +278,20 @@ pageHelpTopics =
             , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Wait for trusted payroll reference data" "Bepis refreshes after connection and around six days after each successful snapshot. Import and preparation use fresh local data immediately, or show honest background phase and earnings-rate page progress before resuming automatically through live updates without repeated workflow requests. A trusted snapshot remains available for staff mapping while a provider-requested retry waits in the background. A successful snapshot satisfies missing-staff refresh demand so preparation can continue to mapping decisions without requesting the same sync again. Interrupted attempts close safely before a retry continues, rather than remaining active in history. Items removed or made inactive in Xero remain in payroll history but must be replaced before new use. Founder support can inspect sanitized sync status that updates with background progress and request a coalescing refresh."
             , iconItem HelpOwnerPlus "bi-people" "Staff mappings" "Match Bepis staff to Xero employees" "Opening Staff mappings refreshes only current Xero staff, then shows every linked active Bepis staff member. Choose one available Xero employee or Not paid through Xero; each change saves immediately. Trials, inactive or archived staff, and staff without linked accounts are excluded."
             , iconItem HelpOwnerPlus "bi-cloud-download" "Import" "Import optional pay items" "Use Import pay items to search by name or account code, then select supported hourly earnings rates to bring into Bepis. If trusted reference data is not ready, the dialog updates from the background sync without periodic requests and shows candidates automatically when ready."
-            , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Submit draft timesheets" "Upload timesheets opens the guided workflow for staff decisions, pay-period selection, any required new-pay-item account choice, and draft submission. All eligible periods are available and the newest selectable period is chosen by default. Wage-source or calculation blockers identify the affected entry and stop submission until resolved. Bepis selects approved entries by Operational day and keeps every overnight entry whole in that provider-period position while actual worked times determine each pay item and quantity. Review submitted drafts in Xero. Export and Xero history never locks an entry: correct it, reapprove it, then start a fresh preparation to update the matching Xero draft. Bepis does not remove an obsolete Xero draft when no approved local entries remain. If an entry was approved before its Xero pay item was available, preparation safely binds its sealed wage facts once the mapping is ready; no reapproval is needed. An approved entry already pinned or bound to a Xero rate that is no longer available must be corrected and reapproved; Bepis never silently remaps it."
+            , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Submit draft timesheets" "Upload timesheets opens the guided workflow for staff decisions, pay-period selection, any required new-pay-item account choice, and draft submission. All eligible periods are available and the newest selectable period is chosen by default. Wage-source, calculation, approved-ledger, and mapping blockers list every affected Timesheet and stop pay-item decisions and submission until resolved. Owners can refresh one problem approval from its blocker after confirming; Bepis recalculates it from current pay facts and Xero mappings, preserves its prior sealed ledger, and refuses stale controls or active provider writes. Bepis selects approved entries by Operational day and keeps every overnight entry whole in that provider-period position while actual worked times determine each pay item and quantity. Review submitted drafts in Xero. Export and Xero history never locks an entry: correct it, reapprove it, then start a fresh preparation to update the matching Xero draft. Bepis does not remove an obsolete Xero draft when no approved local entries remain. If an entry was approved before its Xero pay item was available, preparation safely binds its sealed wage facts once the mapping is ready; no reapproval is needed. An approved entry already pinned or bound to a Xero rate that is no longer available must be corrected and reapproved; Bepis never silently remaps it."
             ]
         , section HelpSupportOnly "Founder support"
             [ iconItem HelpSupportOnly "bi-clipboard-data" "Timesheet diagnostic" "Compare a submitted draft safely" "Switch to the affected venue, copy the Bepis submission ID from the submission record, then run the Xero Timesheet Diagnostic on Support after fresh passkey verification. It compares the persisted request and response with the current Xero draft using redacted references and does not write payroll data."
+            ]
+        ]
+    , topic "feedback" "Feedback"
+        [ section HelpEveryone "Feedback"
+            [ iconItem HelpEveryone "bi-chat-left-text" "Review" "Private submission" "New feedback is private until reviewed. Public cards never identify the submitter or venue. Moderation does not send submitter notifications."
+            , iconItem HelpEveryone "bi-hand-thumbs-up" "Votes" "One account, one vote" "Votes are shared across venues and reversible. Cards update automatically and rank by vote count, then publication time. Publishing includes the submitter's vote."
+            ]
+        , section HelpSupportOnly "Moderation"
+            [ iconItem HelpSupportOnly "bi-shield-lock" "Authority" "Platform review" "Only an unimpersonated platform super admin can inspect private submissions and retained details. Venue roles do not grant moderation access."
+            , iconItem HelpSupportOnly "bi-archive" "Lifecycle" "Archive and restore" "Archiving removes every vote. Restore returns an item to Private; publishing again starts with only the submitter's automatic vote. Feedback review lives here, not on Support."
             ]
         ]
     , topic "billing" "Billing"

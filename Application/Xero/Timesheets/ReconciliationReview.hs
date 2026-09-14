@@ -4,12 +4,11 @@ module Application.Xero.Timesheets.ReconciliationReview
     ( XeroTimesheetReconciliationNotice (..)
     , XeroTimesheetReconciliationNoticeSeverity (..)
     , XeroTimesheetReconciliationReview (..)
-    , reconciliationReviewAllowsSubmission
     , reconciliationReviewNotices
-    , reconciliationReviewSnapshotIsConfirmed
     , reconciliationReviewSnapshotJson
     ) where
 
+import Application.Error.Parser (parserFailure)
 import Application.Xero.Timesheets.Reconciliation
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -38,7 +37,6 @@ data XeroTimesheetReconciliationNotice = XeroTimesheetReconciliationNotice
 
 data ReconciliationReviewSnapshot = ReconciliationReviewSnapshot
     { snapshotReviews      :: [XeroTimesheetReconciliationReview]
-    , snapshotConfirmed    :: !Bool
     , snapshotStateChanged :: !Bool
     }
 
@@ -50,10 +48,6 @@ reconciliationReviewSnapshotJson reviews =
         , "stateChanged" Aeson..= False
         , "employees" Aeson..= map reviewJson (List.sortOn (.reconciliationReviewEmployeeId) reviews)
         ]
-
-reconciliationReviewSnapshotIsConfirmed :: Aeson.Value -> Bool
-reconciliationReviewSnapshotIsConfirmed snapshot =
-    either (const False) (.snapshotConfirmed) (parseSnapshot snapshot)
 
 reconciliationReviewNotices :: Aeson.Value -> Either Text [XeroTimesheetReconciliationNotice]
 reconciliationReviewNotices snapshot = do
@@ -70,20 +64,17 @@ reconciliationReviewNotices snapshot = do
             ]
         | otherwise = []
 
-reconciliationReviewAllowsSubmission :: Aeson.Value -> Either Text Bool
-reconciliationReviewAllowsSubmission snapshot =
-    all ((/= ReconciliationBlocker) . (.reconciliationNoticeSeverity)) <$> reconciliationReviewNotices snapshot
-
 parseSnapshot :: Aeson.Value -> Either Text ReconciliationReviewSnapshot
 parseSnapshot = Bifunctor.first cs . AesonTypes.parseEither parser
   where
     parser = Aeson.withObject "Xero reconciliation review snapshot" \object -> do
         version <- object Aeson..: "version"
-        unless (version == (1 :: Int)) (fail "Unsupported Xero reconciliation review snapshot version")
-        ReconciliationReviewSnapshot
-            <$> object Aeson..: "employees"
-            <*> object Aeson..: "confirmed"
-            <*> object Aeson..: "stateChanged"
+        unless (version == (1 :: Int)) (parserFailure "Unsupported Xero reconciliation review snapshot version")
+        reviews <- object Aeson..: "employees"
+        -- Retain the persisted envelope's required Boolean and validation order,
+        -- even though live preparation no longer reads a confirmation gate.
+        _ <- object Aeson..: "confirmed" :: AesonTypes.Parser Bool
+        ReconciliationReviewSnapshot reviews <$> object Aeson..: "stateChanged"
 
 instance Aeson.FromJSON XeroTimesheetReconciliationReview where
     parseJSON = Aeson.withObject "Xero reconciliation review" \object ->
@@ -110,7 +101,7 @@ parseDecision = Aeson.withObject "Xero reconciliation decision" \object -> do
         "block_distinct" -> BlockDistinctXeroTimesheets <$> object Aeson..: "timesheetIds"
         "block_unknown_status" -> BlockUnknownXeroStatus <$> object Aeson..: "timesheetId" <*> object Aeson..: "status"
         "block_missing_id" -> BlockMissingXeroTimesheetId <$> object Aeson..: "status"
-        _ -> fail "Unknown Xero reconciliation decision kind"
+        _ -> parserFailure "Unknown Xero reconciliation decision kind"
 
 decisionJson :: XeroTimesheetReconciliationDecision -> Aeson.Value
 decisionJson CreateXeroTimesheet = Aeson.object ["kind" Aeson..= ("create" :: Text)]

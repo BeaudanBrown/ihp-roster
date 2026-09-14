@@ -1,17 +1,18 @@
 module Application.Billing.NotificationEmail
     ( BillingMailProjection (..)
     , billingNotificationMailKind
+    , billingNotificationReferenceTable
     , isBillingNotificationMailKind
     , loadBillingNotificationMail
     ) where
 
 import Application.Billing.NotificationKind
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Mail
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (ConfigProvider)
 import Web.Mail.Billing.Notification
 import Web.Routes ()
 import Web.Types
@@ -24,6 +25,13 @@ data BillingMailProjection
 billingNotificationMailKind :: BillingNotificationKind -> Text
 billingNotificationMailKind kind =
     "billing_" <> billingNotificationKindText kind <> "_v1"
+
+billingNotificationReferenceTable :: Text -> Maybe Text
+billingNotificationReferenceTable mailKind =
+    case billingNotificationKindFromMailKind mailKind of
+        Just BillingOperationalRetriesExhausted -> Just "app_jobs"
+        Just _                                  -> Just "billing_events"
+        Nothing                                 -> Nothing
 
 isBillingNotificationMailKind :: Text -> Bool
 isBillingNotificationMailKind candidate =
@@ -131,7 +139,7 @@ isBillingSupportRecipient user =
 fetchEventVenue :: (?modelContext :: ModelContext) => BillingEvent -> IO Venue
 fetchEventVenue event =
     case event.venueId of
-        Nothing      -> fail "Billing notification event has no venue"
+        Nothing      -> externalRuntimeInvariantFailure JobProvenanceInvariant "Billing notification event has no venue"
         Just venueId -> fetch (Id venueId :: Id Venue)
 
 decodeNotificationSnapshot :: Aeson.Value -> Maybe [BillingNotification]

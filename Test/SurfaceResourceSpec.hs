@@ -39,6 +39,7 @@ sampleWireValue = \case
     Contract.WireUuidIR -> Aeson.toJSON nil
     Contract.WireDayIR -> Aeson.String "2026-01-01"
     Contract.WireClosedIR {} -> Aeson.String "sample"
+    Contract.WireDomainIR {} -> Aeson.String "sample"
     Contract.WireUnknownIR -> Aeson.String "sample"
     Contract.WireListIR _ -> Aeson.Array mempty
     Contract.WireMapIR _ _ -> Aeson.Object mempty
@@ -112,8 +113,6 @@ tests = do
             let xeroSyncState = AdminResource.xeroReferenceSyncStateResource nil
             let staffProfile = ProfileResource.staffProfileResource nil
             let templateLibrary = RosterResource.rosterTemplateLibraryResource nil
-            let template = RosterResource.rosterTemplateResource nil
-            let templateDraft = RosterResource.rosterTemplateDraftResource nil
 
             xeroSyncState `shouldNotBe` AdminResource.xeroConnectionResource nil
             RosterResource.matchRosterEndTimesConfigResource rosterConfig `shouldBe` Just nil
@@ -121,5 +120,3 @@ tests = do
             ProfileResource.matchStaffProfileResource staffProfile `shouldBe` Just nil
             ProfileResource.matchStaffPreferencesResource staffProfile `shouldBe` Nothing
             RosterResource.matchRosterTemplateLibraryResource templateLibrary `shouldBe` Just nil
-            RosterResource.matchRosterTemplateResource template `shouldBe` Just nil
-            RosterResource.matchRosterTemplateDraftResource templateDraft `shouldBe` Just nil

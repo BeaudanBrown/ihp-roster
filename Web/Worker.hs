@@ -4,7 +4,6 @@ import Application.Job.App ()
 import Generated.Types
 import IHP.Job.Runner
 import IHP.Job.Types
-import IHP.Prelude
 import Web.Types
 
 instance Worker WebApplication where

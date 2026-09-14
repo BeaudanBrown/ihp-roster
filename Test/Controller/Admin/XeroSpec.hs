@@ -17,12 +17,14 @@ import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                   validateXeroTimesheetReadiness)
 import Application.PayAssignment
+import Application.VenueTime.Model (decodeTimesheetTiming)
 import Application.Xero.Connection (refreshXeroConnectionAccess)
 import Application.Xero.Keepalive (XeroKeepaliveSweepSummary (..),
                                    enqueueDueXeroMaintenanceJobsAt)
 import Application.Xero.ReferenceSyncJob
 import Application.Xero.ReferenceSyncRequest
 import Config
+import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
@@ -36,24 +38,25 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
                         getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai (Response, responseHeaders)
 import Test.Hspec
 import Test.Support
 import Test.Support.XeroAdmin
+import qualified Test.Support.XeroTimesheet as Preview
 import qualified Test.XeroMock as XeroMock
-import qualified Test.XeroTimesheetPreviewSpec as Preview
 import Web.Admin.Xero.Mutations (xeroConnectionTouchedResources,
                                  xeroPayItemsTouchedResources,
-                                 xeroReferenceSyncTouchedResources,
-                                 xeroTimesheetsTouchedResources)
+                                 xeroReferenceSyncTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -74,9 +77,31 @@ withFastXeroReferenceSyncRuntime action =
             { currentReferenceSyncTime = getCurrentTime
             , sleepForReferenceSyncMicros = const (pure ())
             , referenceSyncJitterSeconds = pure 0
-            , publishReferenceSyncTransition = \_ _ -> pure ()
             }
         (withInlineXeroReferenceSyncRequestsForTest (action ()))
+
+-- Observe real provider publication independently of the dialog-local result.
+fetchPassivePublicationState :: (?modelContext :: ModelContext) => IO ([LiveInvalidationEvent], [LiveInvalidationEventResource], [LiveResourceVersion])
+fetchPassivePublicationState =
+    (,,) <$> (query @LiveInvalidationEvent |> orderByAsc #sequenceNumber |> fetch)
+         <*> (query @LiveInvalidationEventResource |> orderByAsc #eventId |> orderByAsc #resourceKey |> fetch)
+         <*> (query @LiveResourceVersion |> orderByAsc #resourceKey |> fetch)
+
+assertOnlyConnectionRefreshPublication :: (?modelContext :: ModelContext) => UUID -> IO ()
+assertOnlyConnectionRefreshPublication venueId = do
+    (events, resources, versions) <- fetchPassivePublicationState
+    map (.source) events `shouldBe` ["xero.connection.token_refresh"]
+    let key = "xero-connection:{\"venueId\":\"" <> tshow venueId <> "\"}"
+        payload = Aeson.object
+            [ "version" Aeson..= (1 :: Int)
+            , "resource" Aeson..= ("xero-connection" :: Text)
+            , "fields" Aeson..= Aeson.object ["venueId" Aeson..= venueId]
+            ]
+    map (\resource -> (resource.resourceKey, resource.resourcePayload)) resources `shouldBe` [(key, payload)]
+    map (.eventId) resources `shouldBe` map (unpackId . (.id)) events
+    map (\version -> (unpackId version.resourceKey, version.resourcePayload)) versions `shouldBe` [(key, payload)]
+    map (.latestEventId) versions `shouldBe` map (unpackId . (.id)) events
+    map (.latestEventSequence) versions `shouldBe` map (.sequenceNumber) events
 
 tests :: Spec
 tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestContext do
@@ -578,9 +603,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 Set.fromList (xeroPayItemsTouchedResources venue.id)
                     `shouldBe` Set.fromList
                         [adminShiftTypesResource (unpackId venue.id)]
-
-        it "does not invent an undeclared resource for Xero timesheet mutations" $ withContext do
-            Set.fromList xeroTimesheetsTouchedResources `shouldBe` Set.empty
 
         it "records touched resources for Xero reference sync mutations" $ withContext do
             withCleanDb do
@@ -1452,7 +1474,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 awardLevel <- query @AwardLevel |> fetchOne
                 unmappedStaff <- Preview.createMappedStaff fixture.venue awardLevel "Fresh" "Unmapped"
                 approvedAt <- getCurrentTime
-                _ <- createAndApproveEntry fixture.venue unmappedStaff fixture.periodStart () fixture.owner approvedAt []
+                _ <- createAndApproveEntry fixture.venue unmappedStaff fixture.periodStart fixture.owner approvedAt []
                 now <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
 
@@ -1498,7 +1520,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 EnqueuedAppJob retryJob <- enqueueXeroReferenceSyncJob (Just fixture.owner.id) fixture.connection
                 _ <- retryJob
                     |> set #runAt (addUTCTime 3600 now)
-                    |> set #payload (Aeson.object ["requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
+                    |> set #payload (Aeson.object ["xeroConnectionId" Aeson..= tshow fixture.connection.id, "tenantId" Aeson..= fixture.connection.tenantId, "requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
                     |> updateRecord
 
                 response <- withXeroConfigForTest (Left "Xero must not be called while using a fresh snapshot") do
@@ -1588,7 +1610,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 _ <- firstEntry |> set #endsAt (addUTCTime 30 firstEntry.endsAt) |> updateRecord
                 markOtherFixtureStaffNotPaid fixture
                 now <- getCurrentTime
-                _ <- createAndApproveEntry fixture.venue fixture.staffA (addDays (-60) fixture.periodStart) () fixture.owner now []
+                _ <- createAndApproveEntry fixture.venue fixture.staffA (addDays (-60) fixture.periodStart) fixture.owner now []
                 employeeB <-
                     query @XeroEmployee
                         |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
@@ -1605,6 +1627,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> updateRecord
 
                 xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                fetchPassivePublicationState `shouldReturn` ([], [], [])
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1664,6 +1687,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.payPeriodStart `shouldBe` Just fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` Just fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
+                assertOnlyConnectionRefreshPublication (unpackId fixture.venue.id)
 
         it "routes approved wage facts without sealed Xero mapping into pay-item setup" $ withContext do
             withCleanDb do
@@ -1680,7 +1704,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         fixture.venue
                         fixture.staffA
                         fixture.periodStart
-                        ()
                         fixture.owner
                         approvedAt
                         [set #shiftTypeId entry.shiftTypeId]
@@ -1690,6 +1713,13 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> fetch
                 unmappedComponents `shouldSatisfy` all (isNothing . (.xeroLocalBucketKey))
                 unmappedComponents `shouldSatisfy` all (not . (.xeroMappingLegacyFallback))
+                -- This case needs missing managed catalogue matches as well as
+                -- missing approval-time routing. Do not rely on the predecessor
+                -- fixture's differently named missed-meal item to create that gap.
+                providerRates <- query @XeroEarningsRate |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ providerRates \rate -> do
+                    _ <- rate |> set #name ("Unmanaged fixture rate " <> rate.xeroEarningsRateId) |> updateRecord
+                    pure ()
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -1726,7 +1756,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 refreshedRun <- fetch run.id
                 refreshedRun.status `shouldBe` ReadyForPreview
                 refreshedRun.selectedPeriodKey `shouldBe` Just (fixturePeriodKey fixture)
-
         it "keeps staff rows visible while manual changes auto-save and Continue approves suggestions" $ withContext do
             withCleanDb do
                 fixture <-
@@ -1741,7 +1770,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
-                resetXeroStaffMappingForPreparation fixture.staffB
+                resetXeroStaffMappingForPreparation (Preview.requiredFixtureStaff fixture Preview.fixtureStaffB)
                 mappingRefreshCompletedAt <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just mappingRefreshCompletedAt) |> updateRecord
                 refreshedMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -1811,7 +1840,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
         it "applies the selected suggested employee through the unified preparation dropdown" $ withContext do
             withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                fixture <- Preview.createPreviewFixtureWithStaffFacts [Preview.fixtureStaffA, Preview.fixtureStaffB] "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -1856,14 +1885,14 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
-                            [ ("staffId", idToParam fixture.staffB.id)
+                            [ ("staffId", idToParam (Preview.requiredFixtureStaff fixture Preview.fixtureStaffB).id)
                             , ("decision", "select_employee")
                             , ("xeroEmployeeSelection", "employee-a")
                             ]
                 duplicateResponse `responseStatusShouldBe` status200
                 duplicateResponse `responseBodyShouldContain` "That Xero employee is already mapped to another staff member."
                 duplicateResponse `responseBodyShouldContain` "Ada Lovelace"
-                duplicateMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffB.id) |> fetchOne
+                duplicateMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId (Preview.requiredFixtureStaff fixture Preview.fixtureStaffB).id) |> fetchOne
                 duplicateMapping.xeroEmployeeId `shouldNotBe` Just "employee-a"
 
         it "shows proposed managed pay item creation instead of manual earnings-rate mapping in the preparation modal" $ withContext do
@@ -1951,7 +1980,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> updateRecord
                 now <- getCurrentTime
                 historicalEntry <- createTimesheetEntryRecord fixture.venue previousStaff (addDays 1 fixture.periodStart)
-                (historicalStaffPayVersion, historicalShiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval fixture.owner.id historicalEntry
+                historicalTiming <- either (\reason -> expectationFailure (cs (tshow reason)) >> fail "invalid test timing") pure (decodeTimesheetTiming historicalEntry)
+                (historicalStaffPayVersion, historicalShiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval fixture.owner.id historicalTiming historicalEntry
                 lockPayVersionsForApproval fixture.owner.id now historicalStaffPayVersion historicalShiftTypePayVersion
                 _ <- Test.Support.withLegacyPayBackfillFixture do
                     historicalEntry
@@ -2264,6 +2294,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     fixture.connection
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
+                fetchPassivePublicationState `shouldReturn` ([], [], [])
                 let remoteTimesheet =
                         XeroTimesheetRef
                             { xeroTimesheetId = Just "ts-existing"
@@ -2320,6 +2351,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         callAction (ShowXeroTimesheetPreparationSummaryAction preparationRunBeforeSelect.id)
                 backResponse `responseStatusShouldBe` status200
                 backResponse `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\" selected=\"selected\"")
+                assertOnlyConnectionRefreshPublication (unpackId fixture.venue.id)
 
         it "rejects missing, malformed, and repeated nominal preparation payloads without mutation" $ withContext do
             withCleanDb do
@@ -2371,6 +2403,48 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> fetchOneOrNothing
                 accountSelectionAfter `shouldBe` accountSelectionBefore
                 query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` 0
+
+        it "performs no pay-item decision or account-code writes when ledger requirements are blocked" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                run <- createPreparationRunForFixture fixture NeedsApproval
+                _ <- ensureXeroAccountRecord fixture.connection "477" "Payroll expense"
+                calculation <- query @TimesheetPayCalculation |> fetchOne
+                Exception.bracket_
+                    (sqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations DISABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                    (sqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations ENABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                    (calculation |> set #sealedAt Nothing |> updateRecord >>= const (pure ()))
+                selectionBefore <- query @XeroPayItemAccountCodeSelection |> fetchOne
+                decisionCountBefore <- query @XeroTimesheetPreparationDecision |> fetchCount
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApproveXeroTimesheetPreparationPayItemsAction run.id) [("accountCode", "477")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "approved pay-ledger blockers"
+                selectionAfter <- fetch selectionBefore.id
+                selectionAfter.updatedAt `shouldBe` selectionBefore.updatedAt
+                query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` decisionCountBefore
+
+        it "performs no pay-item writes for an invalid complete selected period" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                run <- createPreparationRunForFixture fixture NeedsApproval
+                _ <- ensureXeroAccountRecord fixture.connection "477" "Payroll expense"
+                invalidRun <- run |> set #selectedPeriodKey (Just "calendar-preview:malformed-period") |> updateRecord
+                selectionBefore <- query @XeroPayItemAccountCodeSelection |> fetchOne
+                decisionCountBefore <- query @XeroTimesheetPreparationDecision |> fetchCount
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApproveXeroTimesheetPreparationPayItemsAction invalidRun.id) [("accountCode", "477")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "complete Xero pay period"
+                selectionAfter <- fetch selectionBefore.id
+                selectionAfter.updatedAt `shouldBe` selectionBefore.updatedAt
+                query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` decisionCountBefore
 
         it "saves untouched unmatched staff as not paid through Xero on Continue" $ withContext do
             withCleanDb do

@@ -32,14 +32,25 @@ This document retains cross-module scheduling and state-transition rules.
 - Local date/clock and operational day are projections. A clock before 06:00
   belongs to the following calendar date of its displayed hospitality day.
   Elapsed duration and automatic-break eligibility use instant differences.
-- Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
+- Whole-window copy replacement is one typed transaction. Missing source/target
+day or lane lookups encountered while executing a prepared copy, invalid copied
+assignment state, and persistence validation fail with a closed
+`RosterCopyError`; any failure rolls back all target-day, lane, and shift
+changes. Copy failures expose one safe operation-level message, while the
+specific cause remains telemetry-only. A repeated-time occurrence chooser is a
+preflight continuation, not a cause-specific failure response.
+
+Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
   explicit occurrence selection. Week/slot copies preserve civil clocks on the
   target date and re-resolve them; timeline moves preserve exact elapsed
   duration from the selected target start instant.
 - Staff, shift type, assignment, pay disposition, venue/group scope, and
   authoritative boundaries are revalidated for every save, reassignment, move,
   duplicate, copy, template application, publication, and tampered request.
-  Existing invalid shifts may only be corrected or deleted.
+  Existing invalid shifts remain renderable with a subtle repair indicator and
+  standard edit dialog; untrustworthy clocks stay blank. They may only be
+  corrected or deleted and cannot be published, copied, projected into payroll,
+  or offered as Timesheet suggestions.
 - Effective roster-only shifts still require valid boundaries but skip Award
   projected-duration validation. Timesheet-producing shifts use the canonical
   projected-duration/pay boundary.
@@ -77,29 +88,15 @@ controller, mail, and delivery tests.
 
 ## Templates
 
-- Day/Week templates are roster-group-scoped immutable versions with
-  case-insensitively unique trimmed names. One private recoverable draft exists
-  per effective user; optimistic conflicts offer reload-latest or save-as-new.
-- Reference creation reads only confirmed Published/Draft source content. Proof is
-  session-bound to source and occupied-draft revisions; stale or replayed proof
-  fails before mutation. Source roster rows are never changed.
-- Week template days persist explicit calendar-weekday identity and rotate into the current venue window order without changing weekday meaning. Day templates remain target-date-relative.
-- Saved templates contain complete shifts explicitly assigned Staff/Open.
-  Unavailable or pay-invalid staff become Open with warnings in a new version;
-  stale shift types fail atomically.
-- Application targets an explicit Draft window in the same group. Day replaces
-  one day while preserving unrelated days; Week replaces all seven days and
-  column order. Preview carries authoritative revisions, resolved boundaries,
-  destructive scope, assignment cleanup, Timesheet warnings, and touched
-  resources.
-- Confirmation locks and revalidates template, target, relevant Timesheet,
-  Shift-type, Staff, and membership state, then applies atomically. Replaced
-  shifts are soft-deleted so Timesheet provenance survives. Melbourne DST rules
-  apply to target clocks.
+- Week templates are roster-group-scoped detached snapshots with case-insensitively unique trimmed names. Capture reads one exact seven-day date-native roster window, preserves weekday identity, structure, local times, Shift types, and Staff/Open assignments, and never stores publication state.
+- Application resolves a submitted ISO anchor to one complete Draft or Published window in the same venue and roster group. Saved weekdays map to matching target operational weekdays even when the venue window order rotates. Open/closed state, rows, columns/order, and shifts replace all seven target days; all seven days become Draft atomically with replacement.
+- Preview carries authoritative template, target, calendar, Staff, Shift-type, membership, leave, and pay-reference identity. Confirmation locks and revalidates those facts, the complete target, and relevant Timesheet snapshots before one atomic replacement.
+- Approved leave converts only affected target assignments to Open. Durable inactive, archived, wrong-venue, outside-group, or pay-invalid Staff assignments become Open in both target and saved template. Stale Shift types require explicit active same-venue mappings and permanently clean the template; multiple stale identities may share one replacement.
+- Replaced shifts are soft-deleted so materialized Timesheet values and source provenance survive. Application resolves repeated Melbourne boundaries to their first occurrence and rejects nonexistent local times.
+- Authorized roster editors use one responsive SidePanel Templates tab. It shows a case-insensitive alphabetical Week list with name, shift count, Apply, and Delete only; Save remains in the header and the empty state retains it. Save, Apply, and Delete use generated button forms and shared server-rendered Overlay dialogs. Save captures directly from the name/assignment form when no warnings or unresolved mappings remain; only exceptional remediation requires another step, and the locked save still revalidates the source and references. Apply remains available when any target day is Published; confirmation uses one general warning that the week will become Draft and be replaced while existing Timesheets remain unchanged, with an “Approve” submit action. Publication changes after preview invalidate confirmation. Successful HTMX writes retain the viewed date, group, layout, and selected Templates tab, refresh authoritative fragments in place, and show a toast. Validation and stale confirmation failures rerender the dialog with still-valid inputs preserved.
+- The template library fragment/resource identity is shared by roster group, never effective user. Capture, Delete, durable Staff/Shift-type cleanup, and Apply publish typed transactional invalidation so actor, passive, and replayed authorized editor mounts converge. Apply also publishes only the exact affected Roster and Timesheet window resources. Other roster groups do not match the event, and every fragment refetch repeats full Roster editor authorization.
 
-Implementation authority is `TemplateDesigner.hs`, `TemplateApplication.hs`,
-and their tests; browser drag, keyboard, and touch paths converge on the same
-server confirmation.
+Implementation authority is `TemplateCapture.hs`, `TemplateApplication.hs`, their persistence modules, and focused database/controller tests.
 
 ## Staff And Venue Effects
 
@@ -134,6 +131,11 @@ payloads, exact copy/business decisions, and opaque correlation keys. Generic
 TypeScript owns only mechanics. Raw IDs, classes, or feature-specific browser
 parsers must not become parallel authority.
 
+Direct-SQL conflict tags decode through a closed typed boundary. Unknown tags
+never abort or disappear: the affected shift receives a generic critical
+`Conflict details unavailable` warning, while telemetry records only the bounded
+error classification.
+
 The row-grid, day-column, and direct timeline URL are projections over the same
 direct read model. Timeline lane/overlap geometry is display-only and never
 redefines persisted `row_index`. Roster wage estimates use the same canonical
@@ -141,8 +143,7 @@ unsealed boundary as a Timesheet suggestion; roster-only shifts contribute
 neither totals nor errors. Wage visibility and staff filtering remain
 server-authorized and transient.
 
-Managers receive Staff and Settings in the shared transient SidePanel; Template
-functionality remains implemented but is intentionally hidden for the next release.
+Managers receive Staff, Templates, and Settings in the shared transient SidePanel.
 Feature content and authorization remain roster-owned. Its toggle uses
 the shared main-card header location, desktop focus/Escape contract, transient
 visibility, and phone stacking used by Timesheets and manager Unavailability. Published rosters

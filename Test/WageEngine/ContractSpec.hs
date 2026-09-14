@@ -2,6 +2,8 @@ module Test.WageEngine.ContractSpec where
 
 import Application.VenueTime
 import Application.WageEngine
+import Application.WageEngine.RateBook (lookupValidatedRateWithSource,
+                                        removeValidatedRateForTest)
 import Application.Xero.PayrollSourceKey (sourceRateSuffix)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -14,6 +16,14 @@ import Test.WageEngine.Fixture
 
 sourceUuid :: String -> UUID
 sourceUuid value = fromMaybe (error "invalid source-identity test UUID") (UUID.fromString value)
+
+withTestRateBook :: ValidatedRateBook -> WageCalculationInput -> WageCalculationInput
+withTestRateBook rateBook calculationInput =
+    calculationInput
+        { calculationAwardRateContext =
+            (\rateContext -> rateContext { awardRateBook = rateBook })
+                <$> calculationInput.calculationAwardRateContext
+        }
 
 tests :: Spec
 tests = do
@@ -38,17 +48,16 @@ tests = do
                 projectionRateSourceFromIdentity (RateSourceIdentity expected) `shouldBe` Just source
             projectionRateSourceFromIdentity (RateSourceIdentity "unsupported") `shouldBe` Nothing
 
-        it "recognizes a sealed source after the same projection row points at a refreshed raw source" do
+        it "parses the sealed raw source even after the projection row points at a refreshed source" do
             let projectionId = sourceUuid "11111111-1111-1111-1111-111111111111"
                 sealedSourceId = sourceUuid "22222222-2222-2222-2222-222222222222"
                 refreshedSourceId = sourceUuid "33333333-3333-3333-3333-333333333333"
-                otherProjectionId = sourceUuid "44444444-4444-4444-4444-444444444444"
-                sealedIdentity = projectionRateSourceIdentity (AwardLevelPenaltyRateSource projectionId sealedSourceId)
+                sealedSource = AwardLevelPenaltyRateSource projectionId sealedSourceId
+                refreshedSource = AwardLevelPenaltyRateSource projectionId refreshedSourceId
 
-            rateSourceIdentityReferencesProjection (AwardLevelPenaltyRateSource projectionId refreshedSourceId) sealedIdentity `shouldBe` True
-            rateSourceIdentityReferencesProjection (AwardLevelPenaltyRateSource otherProjectionId sealedSourceId) sealedIdentity `shouldBe` False
-            rateSourceIdentityReferencesProjection (AwardLevelBaseRateSource projectionId sealedSourceId) sealedIdentity `shouldBe` False
-            rateSourceIdentityReferencesProjection (AwardLevelPenaltyRateSource projectionId refreshedSourceId) (RateSourceIdentity "malformed") `shouldBe` False
+            projectionRateSourceFromIdentity (projectionRateSourceIdentity sealedSource) `shouldBe` Just sealedSource
+            projectionRateSourceFromIdentity (projectionRateSourceIdentity refreshedSource) `shouldBe` Just refreshedSource
+            projectionRateSourceFromIdentity (RateSourceIdentity "malformed") `shouldBe` Nothing
 
         it "renders exact source/rate suffix bytes for present and missing identities" do
             sourceRateSuffix (Just (RateSourceIdentity "stable-source")) 31.25
@@ -66,7 +75,7 @@ tests = do
                     lookupValidatedRate
                         (ClassificationRate HospitalityLevel3 CasualEmployment SundayRate)
                         rateBook
-                        `shouldSatisfy` isJust
+                        `shouldBe` Right 175
 
         it "fails every required semantic category with its named missing-rate error" do
             let completeCandidate = completeRateBookCandidate 100
@@ -145,6 +154,32 @@ tests = do
                 changed = updateCandidateRate targetKey (\rate -> rate { candidateRatePerUnit = 0 }) candidate
 
             mkValidatedRateBook changed `shouldBe` Left (InvalidRateAmount targetKey 0)
+
+        it "returns deterministic typed failures if an opaque validated book is corrupted" do
+            let ordinaryKey = ClassificationRate HospitalityLevel1 PermanentPartTime OrdinaryRate
+                ordinaryBook = removeValidatedRateForTest ordinaryKey validatedTestRateBook
+                eveningKey = AwardAddition EveningAddition
+                eveningBook = removeValidatedRateForTest eveningKey validatedTestRateBook
+                eveningDay = fromGregorian 2026 1 5
+                eveningInput =
+                    testCalculationInput
+                        { calculationShiftSegments = [awardSegmentBetween eveningDay (TimeOfDay 19 0 0) eveningDay (TimeOfDay 21 0 0)]
+                        }
+                missedBreakDay = fromGregorian 2026 1 6
+                missedBreakInput =
+                    testCalculationInput
+                        { calculationArrangement = AwardHourlyEmployment CasualEmployment
+                        , calculationShiftSegments = [awardSegmentBetween missedBreakDay (TimeOfDay 9 0 0) missedBreakDay (TimeOfDay 17 0 0)]
+                        }
+
+            lookupValidatedRate ordinaryKey ordinaryBook `shouldBe` Left (ValidatedRateMissing ordinaryKey)
+            lookupValidatedRateWithSource ordinaryKey ordinaryBook `shouldBe` Left (ValidatedRateMissing ordinaryKey)
+            calculateTimesheetPay (withTestRateBook ordinaryBook testCalculationInput)
+                `shouldBe` Left (MissingValidatedRate ordinaryKey)
+            calculateTimesheetPay (withTestRateBook eveningBook eveningInput)
+                `shouldBe` Left (MissingValidatedRate eveningKey)
+            calculateTimesheetPay (withTestRateBook ordinaryBook missedBreakInput)
+                `shouldBe` Left (MissingValidatedRate ordinaryKey)
 
         it "rejects the wrong Award, an empty version and an invalid period with typed errors" do
             let candidate = completeRateBookCandidate 100

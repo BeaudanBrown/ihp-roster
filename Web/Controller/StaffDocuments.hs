@@ -8,7 +8,6 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
@@ -263,7 +262,7 @@ normalizeContentType contentType =
 normalizeUploadFileName :: Text -> Text
 normalizeUploadFileName rawFileName =
     let pathParts = Text.splitOn "/" (Text.replace "\\" "/" rawFileName)
-        baseName = fromMaybe rawFileName (last pathParts)
+        baseName = fromMaybe rawFileName (lastMay pathParts)
         cleaned =
             baseName
                 |> Text.replace "\"" ""
@@ -280,7 +279,7 @@ parseReviewStatus "verified"       = Just StaffDocumentStatusEnumVerified
 parseReviewStatus "rejected"       = Just Rejected
 parseReviewStatus _                = Nothing
 
-redirectToRsaReturnPath :: (?context :: ControllerContext, ?request :: Request) => IO ()
+redirectToRsaReturnPath :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 redirectToRsaReturnPath =
     redirectToPath rsaReturnPath
 

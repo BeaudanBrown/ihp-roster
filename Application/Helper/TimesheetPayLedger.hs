@@ -1,12 +1,18 @@
 module Application.Helper.TimesheetPayLedger
-    ( backfillApprovedTimesheetPayCalculations
+    ( ApprovedPayLedgerError (..)
+    , backfillApprovedTimesheetPayCalculations
     , loadApprovedTimesheetPayCalculation
+    , loadApprovedTimesheetPayCalculationResults
     , loadApprovedTimesheetPayCalculations
+    , renderApprovedPayLedgerError
     , persistApprovedTimesheetPayCalculation
     , persistDevSeedApprovedTimesheetPayCalculation
     , roundWageLedgerRational
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure,
+                                  throwExternalRuntime)
 import Application.Helper.WeekBoundaries (startOfWeekFor,
                                           venueEffectiveRateDate)
 import Application.VenueTime.Model
@@ -14,41 +20,65 @@ import Application.WageEngine
 import Application.WageEvaluation
 import Application.WagePublication (datedEarningsComponents)
 import Application.Xero.Timesheets.BucketKey
-import Control.Exception (Exception)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Bifunctor as Bifunctor
-import Data.Either (lefts, rights)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
-import Data.Time.Calendar (toGregorian)
-import Data.Time.Clock (getCurrentTime)
 import Data.Traversable (traverse)
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, sqlQuery, unpackId)
-import IHP.Prelude
 
--- | Reconstructs the exact sealed facts without consulting mutable pay sources.
+data ApprovedPayLedgerError
+    = ApprovedPayLedgerResultNotLoaded
+    | ApprovedPayLedgerActiveCalculationMissing
+    | ApprovedPayLedgerCalculationBelongsToDifferentEntry
+    | ApprovedPayLedgerCalculationNotSealed
+    | ApprovedPayLedgerUnknownPaidTimeKind !Text
+    | ApprovedPayLedgerUnknownEarningsUnit !Text
+    | ApprovedPayLedgerUnknownCalculationSource !Text
+    | ApprovedPayLedgerUnknownSourceCondition !Text
+    deriving (Eq, Show)
+
+renderApprovedPayLedgerError :: ApprovedPayLedgerError -> Text
+renderApprovedPayLedgerError = \case
+    ApprovedPayLedgerResultNotLoaded -> "Approved pay calculation result was not loaded."
+    ApprovedPayLedgerActiveCalculationMissing -> "Active pay calculation does not exist."
+    ApprovedPayLedgerCalculationBelongsToDifferentEntry -> "Active pay calculation belongs to a different timesheet entry."
+    ApprovedPayLedgerCalculationNotSealed -> "Active pay calculation is not sealed."
+    ApprovedPayLedgerUnknownPaidTimeKind value -> "Unknown persisted paid-time kind: " <> value
+    ApprovedPayLedgerUnknownEarningsUnit value -> "Unknown persisted earnings unit: " <> value
+    ApprovedPayLedgerUnknownCalculationSource value -> "Unknown persisted calculation source: " <> value
+    ApprovedPayLedgerUnknownSourceCondition value -> "Unknown persisted source condition: " <> value
+
+-- | Compatibility renderer for callers not yet migrated to typed outcomes.
 loadApprovedTimesheetPayCalculation ::
     (?modelContext :: ModelContext) =>
     TimesheetEntry ->
     IO (Either Text (Maybe WageCalculation))
 loadApprovedTimesheetPayCalculation entry = do
-    results <- loadApprovedTimesheetPayCalculations [entry]
-    pure $ fromMaybe (Left "Approved pay calculation result was not loaded.") (Map.lookup (unpackId entry.id) results)
+    results <- loadApprovedTimesheetPayCalculationResults [entry]
+    pure $ Bifunctor.first renderApprovedPayLedgerError $
+        fromMaybe (Left ApprovedPayLedgerResultNotLoaded) (Map.lookup (unpackId entry.id) results)
 
--- | Bulk approved-ledger read. The three persisted ledger relations are each
--- queried at most once, regardless of entry count; reconstruction and error
--- selection are deterministic in entry/ordinal order.
 loadApprovedTimesheetPayCalculations ::
     (?modelContext :: ModelContext) =>
     [TimesheetEntry] ->
     IO (Map.Map UUID (Either Text (Maybe WageCalculation)))
-loadApprovedTimesheetPayCalculations entries
+loadApprovedTimesheetPayCalculations entries =
+    fmap (fmap (Bifunctor.first renderApprovedPayLedgerError)) (loadApprovedTimesheetPayCalculationResults entries)
+
+-- | Bulk approved-ledger read. The three persisted ledger relations are each
+-- queried at most once, regardless of entry count; reconstruction and error
+-- selection are deterministic in entry/ordinal order.
+loadApprovedTimesheetPayCalculationResults ::
+    (?modelContext :: ModelContext) =>
+    [TimesheetEntry] ->
+    IO (Map.Map UUID (Either ApprovedPayLedgerError (Maybe WageCalculation)))
+loadApprovedTimesheetPayCalculationResults entries
     | null calculationIds = pure resultWithoutRows
     | otherwise = do
         calculations <- query @TimesheetPayCalculation
@@ -75,11 +105,11 @@ loadApprovedTimesheetPayCalculations entries
         case fmap unpackId entry.activePayCalculationId of
             Nothing -> Right Nothing
             Just calculationId -> do
-                calculation <- maybe (Left "Active pay calculation does not exist.") Right (Map.lookup calculationId calculationById)
+                calculation <- maybe (Left ApprovedPayLedgerActiveCalculationMissing) Right (Map.lookup calculationId calculationById)
                 if calculation.timesheetEntryId /= unpackId entry.id
-                    then Left "Active pay calculation belongs to a different timesheet entry."
+                    then Left ApprovedPayLedgerCalculationBelongsToDifferentEntry
                     else if isNothing calculation.sealedAt
-                        then Left "Active pay calculation is not sealed."
+                        then Left ApprovedPayLedgerCalculationNotSealed
                         else
                             Just
                                 <$> wageCalculationFromRows
@@ -92,7 +122,7 @@ loadApprovedTimesheetPayCalculations entries
         Map.fromListWith (<>)
             . map (\row -> (rowCalculationId row, [row]))
 
-wageCalculationFromRows :: TimesheetEntry -> TimesheetPayCalculation -> [TimesheetPayTimeSegment] -> [TimesheetPayEarningsComponent] -> Either Text WageCalculation
+wageCalculationFromRows :: TimesheetEntry -> TimesheetPayCalculation -> [TimesheetPayTimeSegment] -> [TimesheetPayEarningsComponent] -> Either ApprovedPayLedgerError WageCalculation
 wageCalculationFromRows entry calculation segmentRows componentRows = do
     segments <- traverse paidSegmentFromRow segmentRows
     components <- traverse componentFromRow componentRows
@@ -105,13 +135,13 @@ wageCalculationFromRows entry calculation segmentRows componentRows = do
         , earningsComponents = components
         }
 
-paidSegmentFromRow :: TimesheetPayTimeSegment -> Either Text PaidTimeSegment
+paidSegmentFromRow :: TimesheetPayTimeSegment -> Either ApprovedPayLedgerError PaidTimeSegment
 paidSegmentFromRow row = do
     kind <- case row.paidTimeKind of
         "worked" -> Right Worked
         "casual_minimum_engagement_top_up" -> Right CasualMinimumEngagementTopUp
         "public_holiday_minimum_top_up" -> Right PublicHolidayMinimumTopUp
-        value -> Left ("Unknown persisted paid-time kind: " <> value)
+        value -> Left (ApprovedPayLedgerUnknownPaidTimeKind value)
     condition <- parseSourceCondition row.sourceCondition
     pure PaidTimeSegment
         { paidTimeKind = kind
@@ -121,17 +151,17 @@ paidSegmentFromRow row = do
         , paidTimeSourceCondition = condition
         }
 
-componentFromRow :: TimesheetPayEarningsComponent -> Either Text EarningsComponent
+componentFromRow :: TimesheetPayEarningsComponent -> Either ApprovedPayLedgerError EarningsComponent
 componentFromRow row = do
     unit <- case row.unitType of
         "hours"           -> Right Hours
         "commenced_hours" -> Right CommencedHours
-        value             -> Left ("Unknown persisted earnings unit: " <> value)
+        value             -> Left (ApprovedPayLedgerUnknownEarningsUnit value)
     condition <- parseSourceCondition row.sourceCondition
     source <- case row.calculationSource of
         "hospitality_award" -> Right HospitalityAward
         "external_imported_pay_item" -> Right ExternalImportedPayItem
-        value -> Left ("Unknown persisted calculation source: " <> value)
+        value -> Left (ApprovedPayLedgerUnknownCalculationSource value)
     pure EarningsComponent
         { quantity = toRational row.quantity
         , unitType = unit
@@ -147,7 +177,7 @@ componentFromRow row = do
         , sourceRateIdentity = RateSourceIdentity <$> row.sourceRateIdentity
         }
 
-parseSourceCondition :: Text -> Either Text SourceCondition
+parseSourceCondition :: Text -> Either ApprovedPayLedgerError SourceCondition
 parseSourceCondition = \case
     "ordinary" -> Right OrdinaryCondition
     "saturday" -> Right SaturdayCondition
@@ -158,7 +188,7 @@ parseSourceCondition = \case
     "missed_meal_break_addition" -> Right MissedMealBreakAdditionCondition
     value -> case Text.stripPrefix "external_imported_pay_item:" value of
         Just itemId | not (Text.null itemId) -> Right (ImportedFlatRateCondition itemId)
-        _ -> Left ("Unknown persisted source condition: " <> value)
+        _ -> Left (ApprovedPayLedgerUnknownSourceCondition value)
 
 persistApprovedTimesheetPayCalculation ::
     (?modelContext :: ModelContext) =>
@@ -209,17 +239,16 @@ backfillApprovedTimesheetPayCalculations ::
     IO (Either [(UUID, Text)] Int)
 backfillApprovedTimesheetPayCalculations = do
     result :: Either PayLedgerBackfillException Int <- Exception.try $ withTransaction do
-        invalidActiveEntryIds :: [PG.Only UUID] <- sqlQuery
+        invalidActiveEntryIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT te.id FROM timesheet_entries te LEFT JOIN timesheet_pay_calculations calculation ON calculation.id = te.active_pay_calculation_id WHERE te.is_approved = TRUE AND te.deleted_at IS NULL AND te.active_pay_calculation_id IS NOT NULL AND (calculation.id IS NULL OR calculation.sealed_at IS NULL OR calculation.timesheet_entry_id <> te.id OR calculation.approved_at IS DISTINCT FROM te.approved_at OR calculation.approved_by_user_id IS DISTINCT FROM te.approved_by_user_id OR calculation.staff_pay_version_id IS DISTINCT FROM te.staff_pay_version_id OR calculation.shift_type_pay_version_id IS DISTINCT FROM te.shift_type_pay_version_id OR NOT EXISTS (SELECT 1 FROM timesheet_pay_time_segments segment WHERE segment.timesheet_pay_calculation_id = calculation.id) OR NOT EXISTS (SELECT 1 FROM timesheet_pay_earnings_components component WHERE component.timesheet_pay_calculation_id = calculation.id) OR (SELECT COUNT(*) <> COALESCE(MAX(segment.ordinal) + 1, 0) FROM timesheet_pay_time_segments segment WHERE segment.timesheet_pay_calculation_id = calculation.id) OR (SELECT COUNT(*) <> COALESCE(MAX(component.ordinal) + 1, 0) FROM timesheet_pay_earnings_components component WHERE component.timesheet_pay_calculation_id = calculation.id)) ORDER BY te.starts_at, te.id FOR UPDATE OF te"
             ()
         unless (null invalidActiveEntryIds) $
-            Exception.throwIO
-                ( PayLedgerBackfillException
+            throwExternalRuntime ( PayLedgerBackfillException
                     [ (entryId, "Existing active approved-pay ledger is incomplete or does not preserve approval metadata.")
                     | PG.Only entryId <- invalidActiveEntryIds
                     ]
                 )
-        lockedEntryIds :: [PG.Only UUID] <- sqlQuery
+        lockedEntryIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM timesheet_entries WHERE is_approved = TRUE AND active_pay_calculation_id IS NULL AND deleted_at IS NULL ORDER BY starts_at, id FOR UPDATE"
             ()
         fetchedEntries <- if null lockedEntryIds
@@ -231,8 +260,7 @@ backfillApprovedTimesheetPayCalculations = do
             missingEntryIds = [entryId | PG.Only entryId <- lockedEntryIds, Map.notMember entryId entriesById]
             entries = mapMaybe (\(PG.Only entryId) -> Map.lookup entryId entriesById) lockedEntryIds
         unless (null missingEntryIds) $
-            Exception.throwIO
-                ( PayLedgerBackfillException
+            throwExternalRuntime ( PayLedgerBackfillException
                     [(entryId, "Locked approved entry could not be reloaded.") | entryId <- missingEntryIds]
                 )
         let subjectResults = [(unpackId entry.id, timesheetWageSubject entry) | entry <- entries]
@@ -241,7 +269,7 @@ backfillApprovedTimesheetPayCalculations = do
                 | (entryId, Left err) <- subjectResults
                 ]
             subjects = [subject | (_, Right subject) <- subjectResults]
-        unless (null subjectFailures) (Exception.throwIO (PayLedgerBackfillException subjectFailures))
+        unless (null subjectFailures) (throwExternalRuntime (PayLedgerBackfillException subjectFailures))
         evaluated <- evaluateUnsealedWages HistoricalBackfillWageEvaluation subjects
         let calculations =
                 [ case Map.lookup (TimesheetSubject (unpackId entry.id)) evaluated of
@@ -251,9 +279,9 @@ backfillApprovedTimesheetPayCalculations = do
                 ]
             failures = lefts calculations
             successfulCalculations = rights calculations
-        unless (null failures) (Exception.throwIO (PayLedgerBackfillException failures))
+        unless (null failures) (throwExternalRuntime (PayLedgerBackfillException failures))
         historicalFactFailures <- validateHistoricalHolidayFacts entries (Map.fromList (zip (map (unpackId . (.id)) entries) successfulCalculations))
-        unless (null historicalFactFailures) (Exception.throwIO (PayLedgerBackfillException historicalFactFailures))
+        unless (null historicalFactFailures) (throwExternalRuntime (PayLedgerBackfillException historicalFactFailures))
         rateBoundaryFacts <- loadRateBoundaryFacts successfulCalculations
         forM_ (zip entries successfulCalculations) \(entry, calculation) -> do
             calculationRecord <- persistWithRateBoundaryFacts False rateBoundaryFacts entry calculation
@@ -272,7 +300,8 @@ validateHistoricalHolidayFacts ::
     IO [(UUID, Text)]
 validateHistoricalHolidayFacts entries contexts = do
     let awardEntries = filter requiresAwardFacts entries
-        requiredYears = List.nub (concatMap entryYears awardEntries)
+        timingOutcomes = map (\entry -> (entry, timesheetEntryBoundaries entry)) awardEntries
+        requiredYears = List.nub (concatMap (either (const []) entryYears . snd) timingOutcomes)
     holidays <- if null requiredYears
         then pure []
         else query @PublicHoliday
@@ -285,22 +314,25 @@ validateHistoricalHolidayFacts entries contexts = do
             , isJust holiday.importedAt
             ]
     pure
-        [ (unpackId entry.id, "Historical statewide holiday facts are missing for " <> tshow year <> ".")
-        | entry <- awardEntries
-        , year <- entryYears entry
-        , year `notElem` coveredYears
-        ]
+        ( [ (unpackId entry.id, "Timesheet timing is invalid and must be repaired before payroll.")
+          | (entry, Left _) <- timingOutcomes
+          ]
+            <> [ (unpackId entry.id, "Historical statewide holiday facts are missing for " <> tshow year <> ".")
+               | (entry, Right boundaries) <- timingOutcomes
+               , year <- entryYears boundaries
+               , year `notElem` coveredYears
+               ]
+        )
   where
     requiresAwardFacts entry =
         case Map.lookup (unpackId entry.id) contexts of
             Nothing -> False
             Just calculation -> any ((== HospitalityAward) . (.calculationSource)) calculation.earningsComponents
-    entryYears entry =
-        let startYear = yearOf (timesheetEntryWorkedOn entry)
-            endYear = case timesheetEntryBoundaries entry of
-                Left _           -> startYear
-                Right boundaries -> yearOf (authoritativeEndLocalTime boundaries).localDay
-         in List.nub [startYear, endYear]
+    entryYears boundaries =
+        List.nub
+            [ yearOf (authoritativeStartLocalTime boundaries).localDay
+            , yearOf (authoritativeEndLocalTime boundaries).localDay
+            ]
     yearOf day = let (year, _, _) = toGregorian day in year
 
 data RateBoundaryFacts = RateBoundaryFacts
@@ -311,7 +343,7 @@ data RateBoundaryFacts = RateBoundaryFacts
 
 loadRateBoundaryFacts :: (?modelContext :: ModelContext) => [WageCalculation] -> IO RateBoundaryFacts
 loadRateBoundaryFacts calculations = do
-    let sources = mapMaybe (.sourceRateIdentity) (concatMap (.earningsComponents) calculations)
+    let sources = concatMap (mapMaybe (.sourceRateIdentity) . (.earningsComponents)) calculations
         baseIds = List.nub [projectionId | identity <- sources, Just (AwardLevelBaseRateSource projectionId _) <- [projectionRateSourceFromIdentity identity]]
         penaltyIds = List.nub [projectionId | identity <- sources, Just (AwardLevelPenaltyRateSource projectionId _) <- [projectionRateSourceFromIdentity identity]]
         allowanceIds = List.nub [projectionId | identity <- sources, Just (AwardTimePenaltyAllowanceSource projectionId _) <- [projectionRateSourceFromIdentity identity]]
@@ -326,10 +358,10 @@ loadRateBoundaryFacts calculations = do
 
 persistWithRateBoundaryFacts :: (?modelContext :: ModelContext) => Bool -> RateBoundaryFacts -> TimesheetEntry -> WageCalculation -> IO TimesheetPayCalculation
 persistWithRateBoundaryFacts sealXeroMapping rateBoundaryFacts entry calculation = do
-    approvedAt <- maybe (fail "approved entry missing approved_at") pure entry.approvedAt
-    approvedBy <- maybe (fail "approved entry missing approved_by_user_id") pure entry.approvedByUserId
-    staffVersion <- maybe (fail "approved entry missing staff_pay_version_id") pure entry.staffPayVersionId
-    shiftVersion <- maybe (fail "approved entry missing shift_type_pay_version_id") pure entry.shiftTypePayVersionId
+    approvedAt <- maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved entry missing approved_at") pure entry.approvedAt
+    approvedBy <- maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved entry missing approved_by_user_id") pure entry.approvedByUserId
+    staffVersion <- maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved entry missing staff_pay_version_id") pure entry.staffPayVersionId
+    shiftVersion <- maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved entry missing shift_type_pay_version_id") pure entry.shiftTypePayVersionId
     source <- calculationSourceFor calculation
     venueConfig <- query @VenueConfig
         |> filterWhere (#venueId, entry.venueId)
@@ -401,8 +433,8 @@ loadApprovalXeroMappingContext entry = do
         |> fetchOneOrNothing
     forM connection \activeConnection -> do
         staff <- fetch (Id entry.staffId)
-        staffVersionId <- maybe (fail "Approved entry missing staff pay version for Xero mapping.") pure entry.staffPayVersionId
-        shiftVersionId <- maybe (fail "Approved entry missing shift pay version for Xero mapping.") pure entry.shiftTypePayVersionId
+        staffVersionId <- maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Approved entry missing staff pay version for Xero mapping.") pure entry.staffPayVersionId
+        shiftVersionId <- maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Approved entry missing shift pay version for Xero mapping.") pure entry.shiftTypePayVersionId
         staffVersion <- fetch (Id staffVersionId)
         shiftVersion <- fetch (Id shiftVersionId)
         awardLevels <- query @AwardLevel |> fetch
@@ -432,7 +464,7 @@ loadApprovalXeroMappingContext entry = do
 resolveApprovalXeroMapping :: Maybe ApprovalXeroMappingContext -> Int -> TimesheetEntry -> Day -> EarningsComponent -> IO (Maybe Text, Maybe Text)
 resolveApprovalXeroMapping Nothing _ _ _ _ = pure (Nothing, Nothing)
 resolveApprovalXeroMapping (Just context) rosterWeekStartsOn entry componentDate component = do
-    localBucketKey <- either (fail . cs) pure (componentBucketKey rosterWeekStartsOn context.approvalBucketContext entry context.approvalStaff component componentDate)
+    localBucketKey <- either (externalRuntimeInvariantFailure PersistedRuntimeInvariant . cs) pure (componentBucketKey rosterWeekStartsOn context.approvalBucketContext entry context.approvalStaff component componentDate)
     let earningsRateId = case component.sourceCondition of
             ImportedFlatRateCondition itemId ->
                 context.approvalImportedPayItems
@@ -453,19 +485,19 @@ resolveComponentRateBoundary facts rosterWeekStartsOn component =
             Just (AwardLevelBaseRateSource projectionId _) -> resolveFrom facts.baseRateOperativeFromById projectionId
             Just (AwardLevelPenaltyRateSource projectionId _) -> resolveFrom facts.penaltyRateOperativeFromById projectionId
             Just (AwardTimePenaltyAllowanceSource projectionId _) -> resolveFrom facts.allowanceOperativeFromById projectionId
-            Nothing -> fail "Approved earnings component has an unsupported rate source identity."
+            Nothing -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Approved earnings component has an unsupported rate source identity."
   where
     resolveFrom operativeFromById projectionId =
         case Map.lookup projectionId operativeFromById of
-            Nothing -> fail "Approved earnings component rate source does not exist."
+            Nothing -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Approved earnings component rate source does not exist."
             Just operativeFrom -> pure (venueEffectiveRateDate rosterWeekStartsOn <$> operativeFrom)
 
 calculationSourceFor :: WageCalculation -> IO CalculationSource
 calculationSourceFor calculation =
     case List.nub (map (.calculationSource) calculation.earningsComponents) of
         [source] -> pure source
-        [] -> fail "approved wage calculation has no earnings components"
-        _ -> fail "approved wage calculation has mixed calculation sources"
+        [] -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved wage calculation has no earnings components"
+        _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved wage calculation has mixed calculation sources"
 
 unitValue :: EarningsUnit -> Text
 unitValue Hours          = "hours"

@@ -1,7 +1,12 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { dialogOverlayMountDomId, fragmentDomAttr, pageReadyEvent, regionAfterSwapEvent, surfaceConfigDomAttr, surfaceDomAttr, toastOverlayMountDomId } from '../frontend/ts/generated/contracts';
-import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
+import { defaultE2ERosterGroupId } from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './support/profile';
+import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { runSql } from './support/database';
 
 function displayDate(isoDate: string): string {
     const [year, month, day] = isoDate.split('-');
@@ -23,8 +28,22 @@ async function login(page: Page) {
     await expect(page.locator('#roster-week-shell')).toBeVisible();
 }
 
+const hideApprovedSubmitTitle = 'timesheet submit preserves the enabled Hide approved preference';
+const modalDeleteTitle = 'timesheet modal delete prompts for confirmation once';
+const timesheetPreferenceMutators = new Set([
+    hideApprovedSubmitTitle,
+    modalDeleteTitle,
+]);
+
+function resetTimesheetPreferencesForMutator(testTitle: string) {
+    if (timesheetPreferenceMutators.has(testTitle)) {
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
+    }
+}
+
 test.describe('HTMX submit regressions', () => {
-    test.afterEach(() => resetTimesheetDisplayPreferences('e2e-test@example.com'));
+    test.beforeEach(({}, testInfo) => resetTimesheetPreferencesForMutator(testInfo.title));
+    test.afterEach(({}, testInfo) => resetTimesheetPreferencesForMutator(testInfo.title));
     test('roster quick-view unavailability submit resets the form through live refetch', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, `/RosterWeeks?rosterGroupId=${defaultE2ERosterGroupId}`, '#self-service-leave-form');
@@ -81,7 +100,7 @@ test.describe('HTMX submit regressions', () => {
 
     test('unavailable-period modal date fields get flatpickr after HTMX swap', async ({ page }) => {
         await login(page);
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 
         await openNewLeaveRequestDialog(page);
 
@@ -178,7 +197,7 @@ test.describe('HTMX submit regressions', () => {
         const note = `single-submit-leave-check-${testInfo.repeatEachIndex}-${Date.now()}`;
 
         await login(page);
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 
         await openNewLeaveRequestDialog(page);
         await setFlatpickrDate(page, '#startDate', '2026-03-21');
@@ -219,8 +238,7 @@ test.describe('HTMX submit regressions', () => {
         ).toHaveCount(1);
     });
 
-    test('timesheet submit preserves the enabled Hide approved preference', async ({ page }) => {
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
+    test(hideApprovedSubmitTitle, async ({ page }) => {
         const startTime = '10:30';
         const endTime = '14:30';
         const note = `show-approved-disabled-timesheet-${Date.now()}`;
@@ -253,10 +271,9 @@ test.describe('HTMX submit regressions', () => {
         await expect(
             page.locator('[data-timesheet-operational-date]').first().locator(`.timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
         ).toHaveCount(1);
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 
-    test('timesheet modal delete prompts for confirmation once', async ({ page }) => {
+    test(modalDeleteTitle, async ({ page }) => {
         const deletedEntryId = 'b1000000-0000-0000-0000-000000000091';
         runSql(`
             INSERT INTO timesheet_entries (
@@ -282,7 +299,6 @@ test.describe('HTMX submit regressions', () => {
                 delete_reason = NULL,
                 updated_at = NOW();
         `);
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
 
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
@@ -329,6 +345,5 @@ test.describe('HTMX submit regressions', () => {
         await expect
             .poll(() => page.evaluate(() => (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0))
             .toBe(1);
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 });

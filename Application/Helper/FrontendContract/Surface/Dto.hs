@@ -14,7 +14,7 @@ module Application.Helper.FrontendContract.Surface.Dto
     ) where
 
 import Application.Helper.FrontendContract.Surface.ContractIR (BrowserAttributeIR (..))
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectBrowserRolePrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Aeson as Aeson
@@ -34,7 +34,7 @@ surfaceBrowserDtoRoleAttrs ::
     forall spec roleMarker dto.
     ( AssertBrowserReachableSurfaceDto (SurfaceDtoPrimitive spec dto)
     , ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceBrowserRolePrimitive spec roleMarker)
+    , ReflectBrowserRolePrimitive (SurfaceBrowserRolePrimitive spec roleMarker)
     ) =>
     SurfaceFields (SurfaceDtoFieldSpecs spec dto) ->
     [(Text, Text)]

@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ -f "@scriptsRoot@/frontend/surface-adapter-publish-lib" ]; then
-    # shellcheck source=surface-adapter-publish-lib
-    . "@scriptsRoot@/frontend/surface-adapter-publish-lib"
-else
-    # shellcheck source=surface-adapter-publish-lib
-    . "Config/nix/scripts/frontend/surface-adapter-publish-lib"
-fi
+# shellcheck source=surface-adapter-publish-lib
+. "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publish-lib"
 
 tmp_root="$(mktemp -d)"
 cleanup() {

@@ -15,16 +15,15 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Text.Blaze.Html (Html)
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
-import qualified Text.Blaze.Html5 as Html5
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "App toggle button" do
         it "renders generated roles and an exact boolean transport without legacy DOM agreements" $ withContext do
             withCurrentControllerContext do
-                let config = defaultAppToggleButtonConfig "fixed-toggle" (namedBooleanToggleField "enabled") True (Html5.toHtml ("Fixed label" :: Text))
+                let config = defaultAppToggleButtonConfig "fixed-toggle" (namedBooleanToggleField "enabled") True (HtmlRenderer.toHtml ("Fixed label" :: Text))
                 let html = renderText (renderAppToggleButton config)
 
                 html `shouldSatisfy` Text.isInfixOf "Fixed label"
@@ -40,13 +39,13 @@ tests = aroundAll withDatabaseTestContext do
 
         it "renders both server-declared state labels with only the current state visible" $ withContext do
             withCurrentControllerContext do
-                let html = renderText (renderAppToggleButton (defaultAppToggleStateButtonConfig "state-toggle" (namedBooleanToggleField "enabled") False (Html5.toHtml ("Enabled" :: Text)) (Html5.toHtml ("Disabled" :: Text))))
+                let html = renderText (renderAppToggleButton (defaultAppToggleStateButtonConfig "state-toggle" (namedBooleanToggleField "enabled") False (HtmlRenderer.toHtml ("Enabled" :: Text)) (HtmlRenderer.toHtml ("Disabled" :: Text))))
 
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-toggle-label-state=\"checked\" hidden=\"hidden\">Enabled"
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-toggle-label-state=\"unchecked\">Disabled"
                 html `shouldSatisfy` Text.isInfixOf "aria-pressed=\"false\""
 
-                let checkedHtml = renderText (renderAppToggleButton ((defaultAppToggleStateButtonConfig "checked-state-toggle" (namedBooleanToggleField "enabled") True (Html5.toHtml ("Enabled" :: Text)) (Html5.toHtml ("Disabled" :: Text))) { appToggleRoleSwitch = True }))
+                let checkedHtml = renderText (renderAppToggleButton ((defaultAppToggleStateButtonConfig "checked-state-toggle" (namedBooleanToggleField "enabled") True (HtmlRenderer.toHtml ("Enabled" :: Text)) (HtmlRenderer.toHtml ("Disabled" :: Text))) { appToggleRoleSwitch = True }))
                 checkedHtml `shouldSatisfy` Text.isInfixOf "data-bepis-toggle-label-state=\"checked\">Enabled"
                 checkedHtml `shouldSatisfy` Text.isInfixOf "data-bepis-toggle-label-state=\"unchecked\" hidden=\"hidden\">Disabled"
                 checkedHtml `shouldSatisfy` Text.isInfixOf "aria-pressed=\"true\""
@@ -57,7 +56,7 @@ tests = aroundAll withDatabaseTestContext do
                 let fields = RosterAction.toggleRosterStaffScopeActionFields RosterStaffCurrentGroup
                 let binding = surfaceToggleScalarField @RosterSurface.StaffScope fields RosterStaffAllVenue RosterStaffCurrentGroup
                 let config =
-                        (defaultAppToggleButtonConfig "staff-scope" binding False (Html5.toHtml ("Show all staff" :: Text)))
+                        (defaultAppToggleButtonConfig "staff-scope" binding False (HtmlRenderer.toHtml ("Show all staff" :: Text)))
                             { appToggleSubmitPolicy = ToggleSubmitImmediate }
                 let html = renderText (renderAppToggleButton config)
 
@@ -71,8 +70,8 @@ tests = aroundAll withDatabaseTestContext do
             withCurrentControllerContext do
                 let fields = ProfileAction.updateProfileShiftPreferencesActionFields StaffProfilePreferencesSection (Just ["monday"])
                 let binding = surfaceToggleListItemField @ProfileSurface.ShiftPreferenceKeysField fields "monday"
-                let uncheckedHtml = renderText (renderAppToggleButton (defaultAppToggleButtonConfig "monday-available" binding False (Html5.toHtml ("Monday" :: Text))))
-                let checkedHtml = renderText (renderAppToggleButton (defaultAppToggleButtonConfig "monday-available" binding True (Html5.toHtml ("Monday" :: Text))))
+                let uncheckedHtml = renderText (renderAppToggleButton (defaultAppToggleButtonConfig "monday-available" binding False (HtmlRenderer.toHtml ("Monday" :: Text))))
+                let checkedHtml = renderText (renderAppToggleButton (defaultAppToggleButtonConfig "monday-available" binding True (HtmlRenderer.toHtml ("Monday" :: Text))))
 
                 uncheckedHtml `shouldSatisfy` Text.isInfixOf "name=\"shiftPreferenceKeys\" value=\"\" data-bepis-toggle-transport=\"toggle-transport:monday-available\" disabled=\"disabled\""
                 uncheckedHtml `shouldSatisfy` Text.isInfixOf "&quot;tag&quot;:&quot;omitted&quot;"
@@ -83,12 +82,12 @@ tests = aroundAll withDatabaseTestContext do
                 let region = toggleBreakRegion "timesheet-break-fields"
                 let toggle =
                         renderAppToggleButton
-                            ((defaultAppToggleButtonConfig "had-break" (namedBooleanToggleField "hadBreak") False (Html5.toHtml ("Had break" :: Text))) { appToggleBreakRegion = Just region })
-                let html = renderText (toggle <> renderAppToggleBreakRegion region False "row" (Html5.toHtml ("Break controls" :: Text)))
+                            ((defaultAppToggleButtonConfig "had-break" (namedBooleanToggleField "hadBreak") False (HtmlRenderer.toHtml ("Had break" :: Text))) { appToggleBreakRegion = Just region })
+                let html = renderText (toggle <> renderAppToggleBreakRegion region False "row" (HtmlRenderer.toHtml ("Break controls" :: Text)))
 
                 html `shouldSatisfy` Text.isInfixOf "aria-controls=\"timesheet-break-fields\""
                 html `shouldSatisfy` Text.isInfixOf "&quot;breakRegionKey&quot;:&quot;toggle-break-region:timesheet-break-fields&quot;"
                 html `shouldSatisfy` Text.isInfixOf "id=\"timesheet-break-fields\" class=\"row\" data-bepis-toggle-break-region=\"toggle-break-region:timesheet-break-fields\" disabled=\"disabled\" aria-disabled=\"true\""
 
 renderText :: Html -> Text
-renderText = cs . HtmlRenderer.renderHtml
+renderText = cs . HtmlRenderer.renderMarkupLazyText

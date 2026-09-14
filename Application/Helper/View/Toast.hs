@@ -4,11 +4,10 @@ import Application.Helper.ControllerContext (currentImpersonationReturnFallbackV
 import Application.Helper.FrontendContract.Overlay.Runtime
 import Application.Helper.Impersonation (impersonationReturnFallbackMessage)
 import Application.Helper.View.Oob
-import Generated.Types
+import IHP.ControllerSupport (ControllerContext)
 import IHP.ViewPrelude
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
 import Web.Routes ()
-import Web.Types
 
 toastOverlayMountId :: Text
 toastOverlayMountId = canonicalOverlayDom.overlayToastMountId

@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, waitForLiveRecovery, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady, waitForLiveRecovery } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
+import { runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -133,7 +135,7 @@ function seedWaitingReferenceSync() {
             0,
             NOW() + INTERVAL '1 hour',
             'xero_reference_sync',
-            jsonb_build_object('requestedAt', NOW(), 'retryNumber', 0),
+            jsonb_build_object('xeroConnectionId', '${xeroConnectionId}', 'tenantId', 'e2e-pay-item-import-tenant', 'requestedAt', NOW(), 'retryNumber', 0),
             1,
             '${alphaVenueId}',
             'xero_connections',

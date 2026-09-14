@@ -5,10 +5,9 @@ module Web.Mail.FeedbackNotification
 
 import Application.VenueTime
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.MailPrelude
-import qualified Text.Blaze.Html5 as Html
+import qualified IHP.HSX.Markup as Markup
 import Web.Mail.Shared
 
 
@@ -18,7 +17,7 @@ data FeedbackNotificationMail = FeedbackNotificationMail
     , venue            :: !Venue
     , submitter        :: !User
     , venueTimezone    :: !Text
-    , supportUrl       :: !Text
+    , feedbackUrl      :: !Text
     , fromAddress      :: !Text
     , replyToAddress   :: !Text
     }
@@ -28,10 +27,10 @@ instance BuildMail FeedbackNotificationMail where
     to FeedbackNotificationMail { recipientAddress } = Address Nothing recipientAddress
     from = bepisFrom ?mail.fromAddress
     replyTo FeedbackNotificationMail { replyToAddress } = bepisReplyTo replyToAddress
-    html mail@FeedbackNotificationMail { feedbackItem, venue, submitter, supportUrl } =
+    html mail@FeedbackNotificationMail { feedbackItem, venue, submitter, feedbackUrl } =
         [hsx|
             <h1>New Bepis feedback</h1>
-            <p>A user submitted feedback that may need Support triage.</p>
+            <p>A user submitted private feedback for review.</p>
             <dl>
                 <dt>Type</dt><dd>{feedbackTypeLabel feedbackItem.feedbackType}</dd>
                 <dt>Venue</dt><dd>{venue.name}</dd>
@@ -48,9 +47,9 @@ instance BuildMail FeedbackNotificationMail where
             </dl>
             <h2>Feedback</h2>
             <p style="white-space: pre-wrap">{feedbackItem.content}</p>
-            <p><a href={supportUrl}>Open Bepis Support</a></p>
+            <p><a href={feedbackUrl}>Review Bepis Feedback</a></p>
         |]
-    text mail@FeedbackNotificationMail { feedbackItem, venue, submitter, supportUrl } =
+    text mail@FeedbackNotificationMail { feedbackItem, venue, submitter, feedbackUrl } =
         Text.intercalate
             "\n"
             ( [ "New Bepis feedback"
@@ -72,7 +71,7 @@ instance BuildMail FeedbackNotificationMail where
                    , "Feedback:"
                    , feedbackItem.content
                    , ""
-                   , "Open Bepis Support: " <> supportUrl
+                   , "Review Bepis Feedback: " <> feedbackUrl
                    ]
             )
 
@@ -85,9 +84,9 @@ feedbackTypeLabel = \case
 optionalLine :: Text -> Maybe Text -> [Text]
 optionalLine label = maybe [] (\value -> [label <> ": " <> value])
 
-optionalHtmlField :: Text -> Maybe Text -> Html.Html
+optionalHtmlField :: Text -> Maybe Text -> Markup.Html
 optionalHtmlField label =
-    maybe mempty (\value -> Html.dt (Html.toHtml label) <> Html.dd (Html.toHtml value))
+    maybe mempty (\value -> [hsx|<dt>{label}</dt><dd>{value}</dd>|])
 
 formatFeedbackSubmittedAt :: Text -> UTCTime -> Text
 formatFeedbackSubmittedAt timezone submittedAt

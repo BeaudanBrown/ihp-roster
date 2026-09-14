@@ -12,6 +12,17 @@ function readJson(filePath) {
     return JSON.parse(fs.readFileSync(path.resolve(filePath), 'utf8'));
 }
 
+function evaluateCorrectnessBudget(summary) {
+    const catalog = readJson(process.env.PROFILE_BUDGET_CATALOG || 'e2e/profile-regression-budgets.json');
+    const budget = catalog.loadCorrectness || {};
+    const checks = [
+        { name: 'failure rate', actual: summary.failureRate, operator: '<=', limit: budget.maximumFailureRate ?? 0, passed: summary.failureRate <= (budget.maximumFailureRate ?? 0) },
+        { name: 'check failure rate', actual: summary.checkFailureRate, operator: '<=', limit: budget.maximumCheckFailureRate ?? 0, passed: summary.checkFailureRate <= (budget.maximumCheckFailureRate ?? 0) },
+        { name: 'clean-run drop rate', actual: summary.dropRate, operator: '<', limit: budget.maximumCleanRunDropRate ?? 0.01, passed: summary.dropRate < (budget.maximumCleanRunDropRate ?? 0.01) },
+    ];
+    return { passed: checks.every((check) => check.passed), checks, latencyBudget: 'matched-baseline-required' };
+}
+
 function percentile(values, ratio) {
     if (values.length === 0) return 0;
     const sorted = [...values].sort((a, b) => a - b);
@@ -75,7 +86,6 @@ function parseMetrics(filePath) {
     const spanGroups = new Map();
     const spanCategoryGroups = new Map();
     const componentByteGroups = new Map();
-    const counterGroups = new Map();
     let requestCount = 0;
     let failedCount = 0;
     let droppedIterations = 0;
@@ -159,17 +169,6 @@ function parseMetrics(filePath) {
                 span: tags.span || '',
                 samples: [],
             }));
-            group.samples.push(value);
-        } else if (event.metric === 'profile_counter_value') {
-            const key = groupKey(tags, ['scenario', 'route', 'counter']);
-            const group = ensureGroup(counterGroups, key, () => ({
-                scenario: tags.scenario || '',
-                route: tags.route || '',
-                counter: tags.counter || '',
-                total: 0,
-                samples: [],
-            }));
-            group.total += value;
             group.samples.push(value);
         } else if (event.metric === 'profile_span_duration') {
             const key = groupKey(tags, ['scenario', 'route', 'span']);
@@ -260,14 +259,6 @@ function parseMetrics(filePath) {
         ...summarizeSamples(group.samples, 'Bytes'),
     })).sort((a, b) => b.p95Bytes - a.p95Bytes);
 
-    const counters = [...counterGroups.values()].map((group) => ({
-        scenario: group.scenario,
-        route: group.route,
-        counter: group.counter,
-        total: group.total,
-        ...summarizeSamples(group.samples, 'Count'),
-    })).sort((a, b) => b.p95Count - a.p95Count || b.total - a.total);
-
     const missingServerTiming = [...httpGroups.values()]
         .map((group) => {
             const key = groupKey({ scenario: group.scenario, route: group.route }, ['scenario', 'route']);
@@ -328,7 +319,6 @@ function parseMetrics(filePath) {
         spans,
         spanCategories,
         componentBytes,
-        counters,
         missingServerTiming,
         missingResponseBytes,
     };
@@ -351,6 +341,14 @@ function renderMarkdown(summary, metadata) {
         `History weeks: ${seed.weeksHistory ?? '?'}`,
         `Future weeks: ${seed.weeksFuture ?? '?'}`,
         `Roster rows/day: ${seed.rowsPerDay ?? '?'}`,
+        '',
+        '## Regression Budget',
+        '',
+        `Correctness/clean-run budget: **${summary.regressionBudget.passed ? 'pass' : 'fail'}**. Host-sensitive latency requires a matched baseline.`,
+        '',
+        '| Check | Actual | Requirement | Result |',
+        '| --- | ---: | --- | --- |',
+        ...summary.regressionBudget.checks.map((check) => `| ${check.name} | ${round(check.actual)} | ${check.operator} ${check.limit} | ${check.passed ? 'pass' : 'fail'} |`),
         '',
         '## HTTP Overview',
         '',
@@ -430,14 +428,6 @@ function renderMarkdown(summary, metadata) {
             `| ${row.scenario} | \`${row.route}\` | \`${row.span}\` | ${row.count} | ${formatBytes(row.medianBytes)} | ${formatBytes(row.p95Bytes)} | ${formatBytes(row.p99Bytes)} | ${formatBytes(row.maxBytes)} |`
         ),
         '',
-        '## Profile Counters',
-        '',
-        '| Scenario | Route | Counter | Samples | Total | Median/request | P95/request | Max/request |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
-        ...summary.counters.slice(0, 40).map((row) =>
-            `| ${row.scenario} | \`${row.route}\` | \`${row.counter}\` | ${row.count} | ${row.total} | ${row.medianCount} | ${row.p95Count} | ${row.maxCount} |`
-        ),
-        '',
         '## Slowest Span Categories',
         '',
         '| Scenario | Route | Category | Count | Median | P95 | P99 | Max |',
@@ -469,6 +459,7 @@ function main() {
     const resolvedOutputDir = path.resolve(outputDir);
     const metadata = metadataPath ? readJson(metadataPath) : {};
     const summary = parseMetrics(metricsPath);
+    summary.regressionBudget = evaluateCorrectnessBudget(summary);
     const profile = { metadata, summary };
     const markdown = renderMarkdown(summary, metadata);
 
@@ -476,6 +467,7 @@ function main() {
     fs.writeFileSync(path.join(resolvedOutputDir, 'load-profile.json'), `${JSON.stringify(profile, null, 2)}\n`);
     fs.writeFileSync(path.join(resolvedOutputDir, 'load-profile.md'), markdown);
     console.log(`Load profile artifacts: ${resolvedOutputDir}`);
+    if (!summary.regressionBudget.passed) process.exitCode = 2;
 }
 
 main();

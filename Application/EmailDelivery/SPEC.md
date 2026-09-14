@@ -29,8 +29,9 @@ belong in the payload, job result, or application logs. `related_table`, `relate
   identity permanent across every terminal status.
 - SMTP is at-least-once. A process failure after provider acceptance but before the
   success update may result in duplicate receipt.
-- Transport exceptions are rethrown to the existing `AppJob` retry lifecycle, whose
-  shared maximum is ten attempts. Unrelated queue jobs continue normally.
+- Transport exceptions are projected to the private safely printable AppJob boundary
+  exception and use IHP's existing retry lifecycle, whose shared maximum is ten attempts.
+  Raw SMTP diagnostics never enter `last_error`; unrelated queue jobs continue normally.
 - Successful SMTP completes as `sent`. Disabled delivery completes as
   `delivery_disabled` and is never replayed when delivery is later enabled. A domain
   handler may complete obsolete/missing references as `delivery_skipped`.
@@ -46,8 +47,8 @@ delivery. Feedback persistence and all recipient jobs commit in one transaction.
 The job stores the feedback row ID rather than feedback content. Delivery loads the
 feedback, venue, submitter, and venue timezone, then renders explicit HTML and plain
 text with escaped feedback content, triage diagnostics, an explicitly labelled
-venue-local timestamp, and the general Support URL. Sender and reply-to remain
-system-controlled.
+venue-local timestamp, and the Feedback review URL. Sender and reply-to remain
+system-controlled. Moderation does not enqueue submitter notifications.
 
 ## Wage-source alert mail kinds
 

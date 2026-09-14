@@ -4,7 +4,6 @@
 module Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter
     ( RosterAdapterFamily
     , RosterDayTimelineAdapterFamily
-    , RosterTemplateDesignerAdapterFamily
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
@@ -12,13 +11,9 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 
 data RosterAdapterFamily
 data RosterDayTimelineAdapterFamily
-data RosterTemplateDesignerAdapterFamily
 
 instance SurfaceAdapterFamily RosterAdapterFamily where
     type AdapterFamilySurface RosterAdapterFamily = Roster.RosterSurface
 
 instance SurfaceAdapterFamily RosterDayTimelineAdapterFamily where
     type AdapterFamilySurface RosterDayTimelineAdapterFamily = Roster.RosterDayTimelineSurface
-
-instance SurfaceAdapterFamily RosterTemplateDesignerAdapterFamily where
-    type AdapterFamilySurface RosterTemplateDesignerAdapterFamily = Roster.RosterTemplateDesignerSurface

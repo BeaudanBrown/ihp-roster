@@ -23,13 +23,14 @@ module Application.WageEngine.Adapter
     )
 where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
                                           venueEffectiveRateEndDate)
 import Application.VenueTime (AwardSegment, ResolvedInterval)
-import Application.VenueTime.Model (AuthoritativeBoundaries,
-                                    authoritativeEndLocalTime,
+import Application.VenueTime.Model (authoritativeEndLocalTime,
                                     authoritativeStartLocalTime,
-                                    timesheetEntryBoundaries)
+                                    decodeTimesheetTiming,
+                                    timesheetTimingBoundaries)
 import Application.WageEngine
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
@@ -37,12 +38,9 @@ import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
 import Data.Traversable (traverse)
 import qualified Generated.Types as G
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unpackId)
-import IHP.Prelude
 
 newtype WageEngineEntryRequest = WageEngineEntryRequest
     { requestedEntryId :: UUID
@@ -71,6 +69,7 @@ data EntryContextRow = EntryContextRow
     , contextOperationalDate        :: !Day
     , contextComponentStartDate     :: !Day
     , contextComponentEndDate       :: !Day
+    , contextTimingIsValid          :: !Bool
     , contextVenueTimeZone          :: !Text
     , contextRosterWeekStartsOn     :: !Int
     , contextHolidayJurisdiction    :: !Text
@@ -170,6 +169,7 @@ data WageEngineDatabaseRead
 
 data WageEngineAdapterError
     = MissingCalculationContext !UUID
+    | InvalidPersistedTiming !UUID
     | UnsupportedCalculationContext !UUID !UnsupportedInput
     | InvalidProjectedRateBook !UUID !RateBookError
     deriving (Eq, Show)
@@ -270,6 +270,7 @@ buildLoadedContext ::
     Either WageEngineAdapterError LoadedCalculationContext
 buildLoadedContext entryContextById importedPayItemById awardLevelById holidayDatesByJurisdiction rateBooksByRequest request = do
     contextRow <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (Map.lookup request.requestedEntryId entryContextById)
+    unless contextRow.contextTimingIsValid (Left (InvalidPersistedTiming request.requestedEntryId))
     venueContext <-
         Bifunctor.first
             (UnsupportedCalculationContext request.requestedEntryId)
@@ -384,14 +385,15 @@ buildProjectedRateBook weekStartsOn workedOn awardLevels rateIndex = do
 -- validating completeness; rows within that snapshot still conflict normally.
 selectLatestEffectiveSnapshot :: [CandidateRate] -> [CandidateRate]
 selectLatestEffectiveSnapshot [] = []
-selectLatestEffectiveSnapshot rates =
+selectLatestEffectiveSnapshot rates@(first : rest) =
     filter ((== latestEffectiveFrom) . (.effectiveFrom) . (.candidateRateEffectivePeriod)) rates
   where
-    latestEffectiveFrom = maximum (map ((.effectiveFrom) . (.candidateRateEffectivePeriod)) rates)
+    effectiveFrom = (.effectiveFrom) . (.candidateRateEffectivePeriod)
+    latestEffectiveFrom = foldl' max (effectiveFrom first) (map effectiveFrom rest)
 
 minimumMay :: Ord value => [value] -> Maybe value
-minimumMay []     = Nothing
-minimumMay values = Just (minimum values)
+minimumMay []             = Nothing
+minimumMay (first : rest) = Just (foldl' min first rest)
 
 baseCandidateRate :: Map.Map UUID ProjectedAwardLevelRow -> ProjectedBaseRateRow -> Either RateBookError CandidateRate
 baseCandidateRate awardLevelById row = do
@@ -585,6 +587,7 @@ projectSubjectContext venueConfigs staffRows shiftTypes staffVersions shiftVersi
         , contextOperationalDate = subject.subjectRequestOperationalDate
         , contextComponentStartDate = subject.subjectRequestComponentStartDate
         , contextComponentEndDate = subject.subjectRequestComponentEndDate
+        , contextTimingIsValid = True
         , contextVenueTimeZone = venueConfig.timezone
         , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
         , contextHolidayJurisdiction = venueConfig.publicHolidayJurisdiction
@@ -664,9 +667,11 @@ projectEntryContext venueConfigByVenueId staffById shiftTypeById staffPayVersion
     shiftTypePayVersion <- case entry.shiftTypePayVersionId of
         Nothing        -> pure Nothing
         Just versionId -> Just <$> Map.lookup versionId shiftTypePayVersionById
-    let (componentStartDate, componentEndDate) = case timesheetEntryBoundaries entry of
-            Left _ -> (entry.operationalDate, entry.operationalDate)
-            Right boundaries -> ((authoritativeStartLocalTime boundaries).localDay, (authoritativeEndLocalTime boundaries).localDay)
+    let (componentStartDate, componentEndDate, timingIsValid) = case decodeTimesheetTiming entry of
+            Left _ -> (entry.operationalDate, entry.operationalDate, False)
+            Right timing ->
+                let boundaries = timesheetTimingBoundaries timing
+                 in ((authoritativeStartLocalTime boundaries).localDay, (authoritativeEndLocalTime boundaries).localDay, True)
     pure
         EntryContextRow
             { contextEntryId = unpackId entry.id
@@ -674,6 +679,7 @@ projectEntryContext venueConfigByVenueId staffById shiftTypeById staffPayVersion
             , contextOperationalDate = entry.operationalDate
             , contextComponentStartDate = componentStartDate
             , contextComponentEndDate = componentEndDate
+            , contextTimingIsValid = timingIsValid
             , contextVenueTimeZone = venueConfig.timezone
             , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
             , contextHolidayJurisdiction = venueConfig.publicHolidayJurisdiction
@@ -702,8 +708,8 @@ fetchDatabaseStatewideHolidayRows _ [] = pure []
 fetchDatabaseStatewideHolidayRows observeRead contextRows = do
     let componentStartDates = List.sort (map (.contextComponentStartDate) contextRows)
         componentEndDates = List.sort (map (.contextComponentEndDate) contextRows)
-        fromDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe componentStartDates)
-        toDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe (reverse componentEndDates))
+        fromDate = fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "WageEngine holiday scope unexpectedly empty") (listToMaybe componentStartDates)
+        toDate = fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "WageEngine holiday scope unexpectedly empty") (listToMaybe (reverse componentEndDates))
     observeRead (StatewideHolidaysRead fromDate toDate)
     holidays <- query @G.PublicHoliday
         |> filterWhere (#jurisdiction, "VIC" :: Text)

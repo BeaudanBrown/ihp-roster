@@ -10,10 +10,8 @@ import Application.Helper.Staff (sortStaffForDisplay)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           sortDayNamesForVenueWeek)
 import qualified Data.Set as Set
-import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
 
 defaultRosterGroupName :: Text
 defaultRosterGroupName = "Main"

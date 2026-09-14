@@ -1,80 +1,120 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
-# Prove the production billing migration upgrades a representative predecessor
-# while preserving its venue, Customer, Subscription, and Event rows.
-port=5432
-database_user="$(id -un)"
-PGPORT="$port" PGUSER="$database_user" test-postgres ensure >/dev/null
-# This check owns a disposable database in the managed Hspec cluster. Do not
-# inherit the development or caller PGHOST after selecting that authority.
-socket="$(test-postgres root)/socket"
-database="billing_migration_check_${$}_${RANDOM}"
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    cat <<'EOF'
+Usage: billing-migration-check
+
+Rehearses billing revision 1784761930 from its exact historical predecessor
+through the shared candidate-pinned IHP migration harness, then verifies
+synthetic predecessor-row preservation.
+EOF
+    exit 0
+fi
+[[ "$#" -eq 0 ]] || {
+    echo "billing-migration-check: no arguments expected" >&2
+    exit 64
+}
+
+for required_command in git jq migration-rehearsal mktemp test-postgres; do
+    command -v "$required_command" >/dev/null 2>&1 || {
+        echo "billing-migration-check: required command is unavailable: $required_command" >&2
+        exit 69
+    }
+done
+
+source_repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$source_repo" ] || {
+    echo "billing-migration-check: run from an ihp-roster checkout" >&2
+    exit 66
+}
+source_repo="$(readlink -f "$source_repo")"
+billing_introduction="d4e57a2d57dcadd7364bcd57166fe96ba7645bff"
+billing_predecessor="f568e0036d1bce54c61b37fda3a3e59516a7d7fc"
+
+if [ "$(git -C "$source_repo" rev-parse "$billing_introduction^")" != "$billing_predecessor" ]; then
+    echo "billing-migration-check: pinned billing history is unavailable or inconsistent" >&2
+    exit 65
+fi
+if ! git -C "$source_repo" diff --quiet "$billing_introduction" -- \
+    Application/Migration/1784761930.sql; then
+    echo "billing-migration-check: billing migration differs from its reviewed introduction" >&2
+    exit 65
+fi
+
+fixture_root="$(mktemp -d)"
+fixture_repo="$fixture_root/repository"
+mkdir -p "$fixture_repo/Application/Migration/Rehearsal/1784761930" \
+    "$fixture_repo/Config/nix/flake" "$fixture_repo/Config/nix/scripts/db"
 
 cleanup() {
-    dropdb -h "$socket" -p "$port" -U "$database_user" --if-exists "$database" >/dev/null 2>&1 || true
+    env -u DATABASE_URL -u PGHOST -u PGPORT -u PGDATABASE -u PGUSER \
+        TEST_POSTGRES_MODE=managed \
+        TEST_POSTGRES_PROFILE=migration-rehearsal \
+        TEST_POSTGRES_REPO_ROOT="$fixture_repo" \
+        test-postgres stop >/dev/null 2>&1 || true
+    rm -rf "$fixture_root"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
-createdb -h "$socket" -p "$port" -U "$database_user" "$database"
-psql -h "$socket" -p "$port" -U "$database_user" -d "$database" -v ON_ERROR_STOP=1 -f Test/Fixtures/billing/pre-production-schema.sql >/dev/null
-psql -h "$socket" -p "$port" -U "$database_user" -d "$database" -v ON_ERROR_STOP=1 -f Application/Migration/1784761930.sql >/dev/null
+git -C "$source_repo" show "$billing_predecessor:flake.lock" \
+    > "$fixture_repo/flake.lock"
+cp "$source_repo/Config/nix/scripts/db/test-postgres" \
+    "$fixture_repo/Config/nix/scripts/db/test-postgres"
+printf '{}\n' > "$fixture_repo/Config/nix/flake/scripts.nix"
+ihp_url="$(jq -r '.nodes.ihp.locked.url' "$source_repo/flake.lock")"
+ihp_revision="$(jq -r '.nodes.ihp.locked.rev' "$source_repo/flake.lock")"
+cat > "$fixture_repo/flake.nix" <<NIX
+{
+    inputs.ihp.url = "git+${ihp_url}?rev=${ihp_revision}&submodules=1";
+    outputs = { self, ihp }: { };
+}
+NIX
+printf '.pi/\n' > "$fixture_repo/.gitignore"
+git -C "$source_repo" show "$billing_predecessor:Application/Schema.sql" \
+    > "$fixture_repo/Application/Schema.sql"
+while IFS= read -r migration_path; do
+    case "${migration_path##*/}" in
+        [0-9]*.sql)
+            mkdir -p "$fixture_repo/$(dirname "$migration_path")"
+            git -C "$source_repo" show "$billing_predecessor:$migration_path" \
+                > "$fixture_repo/$migration_path"
+            ;;
+    esac
+done < <(git -C "$source_repo" ls-tree -r --name-only "$billing_predecessor" -- Application/Migration)
 
-psql -h "$socket" -p "$port" -U "$database_user" -d "$database" -v ON_ERROR_STOP=1 <<'SQL' >/dev/null
-DO $$
-BEGIN
-    IF (SELECT count(*) FROM venues WHERE name = 'Preserved Venue') <> 1 THEN
-        RAISE EXCEPTION 'predecessor venue was not preserved';
-    END IF;
-    IF (SELECT count(*) FROM venue_billing_customers WHERE stripe_customer_id = 'cus_preserved' AND livemode = FALSE AND created_by_user_id IS NULL) <> 1 THEN
-        RAISE EXCEPTION 'predecessor Customer was not safely backfilled';
-    END IF;
-    IF (SELECT count(*) FROM venue_subscriptions WHERE stripe_subscription_id = 'sub_preserved' AND livemode = FALSE AND last_applied_stripe_event_id IS NULL) <> 1 THEN
-        RAISE EXCEPTION 'predecessor Subscription was not safely backfilled';
-    END IF;
-    IF (SELECT count(*) FROM billing_events WHERE stripe_event_id = 'evt_preserved' AND livemode = FALSE AND stripe_created_at IS NULL) <> 1 THEN
-        RAISE EXCEPTION 'predecessor Event was not preserved';
-    END IF;
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name IN ('venue_billing_customers', 'venue_subscriptions', 'billing_events')
-          AND column_name = 'livemode'
-          AND column_default IS NOT NULL
-    ) THEN
-        RAISE EXCEPTION 'temporary livemode backfill default was not dropped';
-    END IF;
-END
-$$;
+git -C "$fixture_repo" init -q
+git -C "$fixture_repo" config user.name 'Billing Migration Check'
+git -C "$fixture_repo" config user.email 'billing-migration-check@example.invalid'
+git -C "$fixture_repo" add .
+git -C "$fixture_repo" commit -qm 'billing predecessor'
+fixture_predecessor="$(git -C "$fixture_repo" rev-parse HEAD)"
 
-INSERT INTO billing_checkout_attempts (
-    venue_id, initiated_by_user_id, livemode, stripe_customer_id, stripe_price_id
-) VALUES (
-    'a1000000-0000-0000-0000-000000000001',
-    'a0000000-0000-0000-0000-000000000001',
-    FALSE,
-    'cus_preserved',
-    'price_preserved'
-);
+# The focused candidate runs with the current checkout's pinned IHP runner.
+cp "$source_repo/flake.lock" "$fixture_repo/flake.lock"
+cp "$source_repo/Application/Migration/1784761930.sql" \
+    "$fixture_repo/Application/Migration/1784761930.sql"
+# The focused candidate schema intentionally composes the exact predecessor and
+# reviewed migration SQL. This preserves PostgreSQL column ordinals while the
+# upgraded side still receives the revision exclusively through IHP migrate.
+printf '\n' >> "$fixture_repo/Application/Schema.sql"
+cat "$fixture_repo/Application/Migration/1784761930.sql" \
+    >> "$fixture_repo/Application/Schema.sql"
+cp "$source_repo/Application/Migration/Rehearsal/1784761930/predecessor.sql" \
+    "$fixture_repo/Application/Migration/Rehearsal/1784761930/predecessor.sql"
+cp "$source_repo/Application/Migration/Rehearsal/1784761930/assert.sql" \
+    "$fixture_repo/Application/Migration/Rehearsal/1784761930/assert.sql"
+git -C "$fixture_repo" add .
+git -C "$fixture_repo" commit -qm 'billing candidate'
 
-DO $$
-BEGIN
-    BEGIN
-        INSERT INTO billing_checkout_attempts (
-            venue_id, initiated_by_user_id, livemode, stripe_customer_id, stripe_price_id
-        ) VALUES (
-            'a1000000-0000-0000-0000-000000000001',
-            'a0000000-0000-0000-0000-000000000001',
-            FALSE,
-            'cus_second_open',
-            'price_preserved'
-        );
-        RAISE EXCEPTION 'one-open-attempt invariant was not enforced';
-    EXCEPTION WHEN unique_violation THEN
-        NULL;
-    END;
-END
-$$;
-SQL
-
-echo "Billing migration upgrade check passed"
+(
+    cd "$fixture_repo"
+    env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+        bash "$source_repo/Config/nix/scripts/db/migration-rehearsal" \
+            --from-ref "$fixture_predecessor"
+)
+echo "billing-migration-check: PASS"

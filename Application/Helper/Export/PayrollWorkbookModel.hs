@@ -8,7 +8,6 @@ module Application.Helper.Export.PayrollWorkbookModel
     , PayrollWorkbookPayBucketKey (..)
     , PayrollWorkbookRow (..)
     , buildPayrollWorkbookFactModel
-    , buildPayrollWorkbookHourlyModel
     , payrollWorkbookHourlyModelFromFacts
     ) where
 
@@ -16,13 +15,9 @@ import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
 import Application.VenueTime.Model (civilBoundaryIsRepeated)
 import Application.WageEngine
-import Control.Monad (foldM, when)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Ord (Down (..))
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -113,43 +108,6 @@ data AccumulatedRow = AccumulatedRow
     , accumulatedEntryIds       :: !(Set.Set UUID)
     }
 
-buildPayrollWorkbookHourlyModel ::
-    Day ->
-    Day ->
-    VenueConfig ->
-    [TimesheetEntry] ->
-    Map.Map UUID Staff ->
-    Map.Map UUID PayrollWorkbookPayBucket ->
-    Map.Map UUID WageCalculation ->
-    Either Text PayrollWorkbookHourlyModel
-buildPayrollWorkbookHourlyModel rangeStart rangeEnd venueConfig entries staffById payBucketsByEntryId calculationsByEntryId =
-    payrollWorkbookHourlyModelFromFacts
-        <$> buildPayrollWorkbookFactModel
-            rangeStart
-            rangeEnd
-            venueConfig
-            entries
-            staffById
-            payBucketsByEntryId
-            fallbackShiftLabels
-            fallbackShiftTypeColumns
-            calculationsByEntryId
-  where
-    fallbackShiftLabels =
-        Map.fromList
-            [ (unpackId entry.id, tshow entry.shiftTypeId)
-            | entry <- entries
-            ]
-    fallbackShiftTypeColumns =
-        Map.fromList
-            [ ( entry.shiftTypeId
-              , HourlyShiftTypeColumn entry.shiftTypeId (Map.findWithDefault (tshow entry.shiftTypeId) (unpackId entry.id) fallbackShiftLabels)
-              )
-            | entry <- entries
-            ]
-            |> Map.elems
-            |> List.sortOn (\column -> (column.hourlyShiftTypeLabel, column.hourlyShiftTypeId))
-
 buildPayrollWorkbookFactModel ::
     Day ->
     Day ->
@@ -166,7 +124,12 @@ buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig entries staffById 
         Left "Choose a valid start and end date for the Payroll Workbook range."
     when (null entries) $
         Left "No approved payroll entries were found for the Payroll Workbook range."
-    facts <- concat <$> mapM factsForEntry (List.sortOn entryOrder entries)
+    window <-
+        case buildHourlyReportWindow venueConfig entries of
+            Left _ -> Left "Export blocked because a Timesheet has invalid timing. Repair and reapprove it before exporting."
+            Right validWindow -> Right validWindow
+    let hourSlots = concatMap slotsForHour (hourlyReportHours window)
+    facts <- concat <$> mapM (factsForEntry hourSlots) (List.sortOn entryOrder entries)
     pure
         PayrollWorkbookFactModel
             { payrollFactModelRangeStart = rangeStart
@@ -178,8 +141,6 @@ buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig entries staffById 
             }
   where
     dates = [rangeStart .. rangeEnd]
-    window = buildHourlyReportWindow venueConfig entries
-    hourSlots = concatMap slotsForHour (hourlyReportHours window)
 
     slotsForHour hour =
         PayrollWorkbookHourSlot hour FirstHourlyOccurrence
@@ -189,7 +150,7 @@ buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig entries staffById 
 
     entryOrder entry = (entry.operationalDate, entry.staffId, entry.startsAt, unpackId entry.id)
 
-    factsForEntry entry = do
+    factsForEntry hourSlots entry = do
         when (entry.operationalDate < rangeStart || entry.operationalDate > rangeEnd) $
             Left ("Payroll Workbook entry falls outside its requested Operational-date range: " <> tshow entry.id)
         staff <- maybe

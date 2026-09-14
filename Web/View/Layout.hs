@@ -1,8 +1,12 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, Html) where
+module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, renderFeedbackDesktopCount, renderFeedbackMobileCount, Html) where
 
-import Application.Billing.Stripe (BillingNavigationContext (..))
+import Application.Feedback.LiveUpdates (feedbackDesktopCountSurface, feedbackMobileCountSurface)
+import qualified Application.Helper.FrontendContract.Surface.Feedback as FeedbackSurface
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFragmentTargetId, noSurfaceFields)
+import Application.Helper.ControllerContext (currentUserIsUnimpersonatedSuperAdmin, requestVenueState, RequestVenueState (..), BillingNavigationContext (..))
 import Application.Helper.Controller (EffectiveUser (..),
                                       ImpersonationRequestContext (..),
                                       SupportImpersonationOption (..),
@@ -12,22 +16,19 @@ import Application.Helper.Controller (EffectiveUser (..),
                                       currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
-import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog,
-                                                     SubmitPasskeyProtectedAction)
+import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
-import IHP.ControllerSupport (getRequestPathAndQuery)
-import IHP.Environment
+import IHP.ControllerSupport (ControllerContext, getRequestPathAndQuery)
 import IHP.ViewPrelude
 import qualified Network.Wai as Wai
-import qualified Text.Blaze.Html5 as Html5
-import Web.Routes
+import Web.Routes () -- AutoRoute instances.
 import Web.Types
 
 defaultLayout :: Html -> Html
@@ -67,7 +68,7 @@ renderAppHeader =
                     <div class="app-header-desktop-actions d-none d-xl-flex align-items-center gap-2 ms-auto">
                         {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch" "support-venue-switch-form")}
                         {renderWhenAudience SupportAudience (renderSupportImpersonationSwitcher "support-impersonation-user" "support-impersonation-switch-form")}
-                        {renderWhenAudience StaffProfileAudience renderDesktopFeedbackButton}
+                        {renderDesktopFeedbackButton}
                         <div class="navbar-nav app-header-nav d-flex flex-row gap-1 align-items-center">
                             {renderDesktopNavLinks}
                         </div>
@@ -98,44 +99,48 @@ renderAppHeader =
                     <nav class="app-mobile-nav-list" aria-label="Application installation">
                         {renderMobileNavLink "Install Bepis" "bi-phone" (pathTo InstallAppAction) ["/InstallApp"]}
                     </nav>
-                    {renderWhenAudience StaffProfileAudience renderMobileFeedbackButton}
+                    {renderMobileFeedbackButton}
                     {renderMobileLogoutForm}
                 </div>
             </div>
         |]
         Nothing -> mempty
 
-renderDesktopFeedbackButton :: Html
-renderDesktopFeedbackButton =
-    renderFeedbackOverlayButton
-        "btn btn-outline-info btn-sm app-header-nav-item"
-        "bi bi-chat-dots"
-        "feedback"
+renderDesktopFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
+renderDesktopFeedbackButton = [hsx|
+    <a class={desktopNavLinkClass ["/Feedback", "/NewFeedback"]} href={pathTo FeedbackAction} aria-current={navAriaCurrent ["/Feedback", "/NewFeedback"]}>
+        <i class="bi bi-chat-dots" aria-hidden="true"></i>
+        <span>feedback</span>
+        {when currentUserIsUnimpersonatedSuperAdmin (renderFrontendSurfaceMount feedbackDesktopCountSurface (renderFeedbackDesktopCount privateFeedbackCount))}
+    </a>
+|]
 
-renderMobileFeedbackButton :: Html
-renderMobileFeedbackButton =
-    renderFeedbackOverlayButton
-        "app-mobile-nav-link"
-        "bi bi-chat-dots app-mobile-nav-icon"
-        "Feedback"
+renderMobileFeedbackButton :: (?context :: ControllerContext, ?request :: Request) => Html
+renderMobileFeedbackButton = [hsx|
+    <a class={mobileNavLinkClass ["/Feedback", "/NewFeedback"]} href={pathTo FeedbackAction} aria-current={navAriaCurrent ["/Feedback", "/NewFeedback"]}>
+        <i class="bi bi-chat-dots app-mobile-nav-icon" aria-hidden="true"></i>
+        <span>Feedback</span>
+        {when currentUserIsUnimpersonatedSuperAdmin (renderFrontendSurfaceMount feedbackMobileCountSurface (renderFeedbackMobileCount privateFeedbackCount))}
+    </a>
+|]
 
-renderFeedbackOverlayButton :: Text -> Text -> Text -> Html
-renderFeedbackOverlayButton buttonClasses iconClasses label =
-    applyAppShellActionAttrs
-        (appShellActionByMarker @OpenFeedbackDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo NewFeedbackAction
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs =
-                [ ("class", buttonClasses)
-                , ("type", "button")
-                ]
-            }
-        (Html5.button $ do
-            [hsx|<i class={iconClasses} aria-hidden="true"></i>|]
-            [hsx|<span>{label}</span>|])
+privateFeedbackCount :: (?context :: ControllerContext) => Int
+privateFeedbackCount = requestVenueState.privateFeedback
+
+renderFeedbackDesktopCount :: Int -> Html
+renderFeedbackDesktopCount count = [hsx|
+    <span id={surfaceFragmentTargetId @FeedbackSurface.FeedbackModerationSurface @FeedbackSurface.FeedbackDesktopCount noSurfaceFields}>{renderPrivateFeedbackBadge count}</span>
+|]
+
+renderFeedbackMobileCount :: Int -> Html
+renderFeedbackMobileCount count = [hsx|
+    <span id={surfaceFragmentTargetId @FeedbackSurface.FeedbackModerationSurface @FeedbackSurface.FeedbackMobileCount noSurfaceFields}>{renderPrivateFeedbackBadge count}</span>
+|]
+
+renderPrivateFeedbackBadge :: Int -> Html
+renderPrivateFeedbackBadge count = when (count > 0) [hsx|
+    <span class="badge text-bg-danger" aria-label="Private feedback awaiting review">{count}</span>
+|]
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|
@@ -213,13 +218,13 @@ ownerBillingNavigationLabel
 
 billingSubscriptionIsLive :: (?context :: ControllerContext) => Bool
 billingSubscriptionIsLive =
-    (fromFrozenContext @BillingNavigationContext).ownerBillingSubscriptionIsLive
+    requestVenueState.billingNavigation.ownerBillingSubscriptionIsLive
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
 ownerBillingNavigationIsVisible =
     (not currentUserIsSupportAdmin || currentUserIsImpersonating)
         && currentUserIsVenueOwner
-        && (fromFrozenContext @BillingNavigationContext).ownerBillingNavigationVisible
+        && requestVenueState.billingNavigation.ownerBillingNavigationVisible
 
 renderDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html
 renderDesktopNavLink label iconClass url activePrefixes = [hsx|
@@ -288,13 +293,10 @@ renderSupportImpersonationSwitcher :: (?context :: ControllerContext, ?request :
 renderSupportImpersonationSwitcher switchId formClass =
     renderAppShellActionForm
         (appShellActionByMarker @SubmitPasskeyProtectedAction)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo SwitchSupportImpersonationAction
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Just (pathTo SwitchSupportImpersonationAction)
+        ((defaultAppShellActionRoute (pathTo SwitchSupportImpersonationAction))
+            { appShellActionRouteStandardUrl = Just (pathTo SwitchSupportImpersonationAction)
             , appShellActionRouteExtraAttrs = [("class", formClass)]
-            }
+            })
         [hsx|
             <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
             <div class="input-group input-group-sm">
@@ -378,7 +380,6 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/features/roster/toolbar.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/week-overview.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/timeline.css"}/>
-        <link rel="stylesheet" href={assetPath "/css/features/roster/template-designer.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/templates.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/staff-panel.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/grid-frame.css"}/>
@@ -401,26 +402,12 @@ scripts = [hsx|
         <script src={assetPath "/vendor/htmx-1.9.12/htmx.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js"}></script>
         <script src={assetPath "/vendor/flatpickr.js"}></script>
-        <script src={assetPath "/app-bootstrap.js"}></script>
-        <script src={assetPath "/app-pwa.js"}></script>
-        <script src={assetPath "/app-scrollbars.js"}></script>
-        <script src={assetPath "/app-date-pickers.js"}></script>
-        <script src={assetPath "/app-passkeys.js"}></script>
-        <script src={assetPath "/app-live-updates.js"}></script>
-        <script src={assetPath "/app-interactions.js"}></script>
-        <script src={assetPath "/app-dialog-overlays.js"}></script>
-        <script src={assetPath "/app-toasts.js"}></script>
-        <script src={assetPath "/app-time-picker.js"}></script>
-        <script src={assetPath "/app-horizontal-scroll.js"}></script>
-        <script src={assetPath "/app-roster.js"}></script>
-        <script src={assetPath "/app-timesheets.js"}></script>
-        <script src={assetPath "/app-xero.js"}></script>
-        <script src={assetPath "/app-toggle-buttons.js"}></script>
-        <script src={assetPath "/app-preferences.js"}></script>
+        <script src={assetPath "/app.js"}></script>
     |]
 
 devScripts :: Html
 devScripts = [hsx|
+        <script src={assetPath "/dev-timer-tracking.js"}></script>
         <script id="livereload-script" src={assetPath "/livereload.js"} data-ws={developmentLiveReloadWebsocketUrl}></script>
     |]
 

@@ -11,14 +11,17 @@ import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
                                                      OpenTimesheetEntryDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
+import Application.Helper.FrontendContract.Overlay.Runtime (dialogPointerDismissBlurAttrs)
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceActionLink,
@@ -34,18 +37,13 @@ import Application.Helper.FrontendContract.Surface.Timesheets.StaffPanel (Timesh
                                                                           timesheetStaffPanelSortRowAttrs)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.RosterWagePrediction (formatMoneyAmount)
-import Application.Helper.Url (appendQueryParams)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueRole (parseVenueRole, venueRoleLabel)
 import Application.VenueTime.Model
 import Data.Fixed (Pico)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (NominalDiffTime, diffUTCTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay (..))
-import Data.UUID (UUID)
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (timesheetStaffCardsLinkedHighlight)
 import Web.Timesheets.Paths (createTimesheetEntryFromSuggestionUrl,
@@ -66,6 +64,7 @@ data TimesheetStaffPanelEntry = TimesheetStaffPanelEntry
 
 data IndexView = IndexView
     { entries                  :: [TimesheetEntry]
+    , timingByEntryId          :: Map.Map UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming)
     , suggestions              :: [TimesheetSuggestion]
     , staffMembers             :: [Staff]
     , shiftTypes               :: [ShiftType]
@@ -88,15 +87,11 @@ data IndexView = IndexView
 
 timesheetsActionRoute :: Text -> FrontendSurfaceActionRoute
 timesheetsActionRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+    (defaultFrontendSurfaceActionRoute (actionUrl))
 
 data TimesheetDayRenderModel = TimesheetDayRenderModel
     { dayEntries             :: [TimesheetEntry]
+    , dayTimingByEntryId     :: Map.Map UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming)
     , daySuggestions         :: [TimesheetSuggestion]
     , dayStaffMembers        :: [Staff]
     , dayShiftTypes          :: [ShiftType]
@@ -221,6 +216,7 @@ renderTimesheetWeekHeader :: (?context :: ControllerContext) => Day -> Day -> Ma
 renderTimesheetWeekHeader weekStartDate today wageEstimates filters =
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarTimesheets
+        , weekToolbarRootAttrs = []
         , weekToolbarAriaLabel = "Timesheet week controls"
         , weekToolbarExtraClass = "timesheet-week-header app-side-panel-header"
         , weekToolbarPrimary = mempty
@@ -355,18 +351,8 @@ renderTimesheetStaffPanel staffMembers entries = [hsx|
 
 renderTimesheetStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> TimesheetStaffPanelEntry -> Html
 renderTimesheetStaffPanelEntry staffMembers entry =
-    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource timesheetStaffCardsLinkedHighlight staffKey $
-        applyAppShellActionAttrs
-            (appShellActionByMarker @OpenRosterStaffEditDialog)
-            AppShellActionRoute
-                { appShellActionRouteUrl = pathTo (EditStaffAction entry.panelStaff.id)
-                , appShellActionRouteFields = []
-                , appShellActionRouteCustomHtmx = []
-                , appShellActionRouteStandardUrl = Nothing
-                , appShellActionRouteExtraAttrs = []
-                }
-            [hsx|
-                <tr class="app-side-panel-entry timesheet-staff-panel-entry" role="button" tabindex="0"
+    [hsx|
+                <tr {...entryAttrs} class="app-side-panel-entry timesheet-staff-panel-entry" role="button" tabindex="0"
                     {...timesheetStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelEntryCount entry.panelApprovedCount}>
                     <th scope="row" class="app-side-panel-cell app-side-panel-name"><span class="app-side-panel-name-primary">{staffName}</span></th>
                     <td class="app-side-panel-cell app-side-panel-role">{roleLabel}</td>
@@ -375,12 +361,15 @@ renderTimesheetStaffPanelEntry staffMembers entry =
                 </tr>
             |]
   where
+    entryAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs timesheetStaffCardsLinkedHighlight staffKey
+        <> appShellActionAttrs (appShellActionByMarker @OpenRosterStaffEditDialog)
+            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
     staffKey = "staff:" <> tshow entry.panelStaff.id
     staffName = staffDisplayName staffMembers entry.panelStaff
     roleLabel = maybe (Text.toTitle (Text.replace "_" " " entry.panelStaffRole)) venueRoleLabel (parseVenueRole entry.panelStaffRole)
     locateButton =
-        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin timesheetStaffCardsLinkedHighlight staffKey [hsx|
-            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button timesheet-staff-locate-button"
+        [hsx|
+            <button {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs timesheetStaffCardsLinkedHighlight staffKey)} type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button timesheet-staff-locate-button"
                     aria-label={"Locate entries for " <> staffName} aria-pressed="false">
                 {renderSidePanelLocateIcon}
             </button>
@@ -525,9 +514,10 @@ renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
 timesheetDayRenderModel :: IndexView -> Int -> TimesheetDayRenderModel
-timesheetDayRenderModel IndexView { entries, suggestions, staffMembers, shiftTypes, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates, selectedStaffFilterId } dayOffset =
+timesheetDayRenderModel IndexView { entries, timingByEntryId, suggestions, staffMembers, shiftTypes, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates, selectedStaffFilterId } dayOffset =
     TimesheetDayRenderModel
         { dayEntries = entries
+        , dayTimingByEntryId = timingByEntryId
         , daySuggestions = suggestions
         , dayStaffMembers = staffMembers
         , dayShiftTypes = shiftTypes
@@ -574,17 +564,12 @@ renderNewEntryOverlayLink :: Text -> Text -> Text -> Day -> Html
 renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate =
     renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = newEntryUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs =
-                [ ("class", "timesheet-day-add-bar")
+        ((defaultAppShellActionRoute (newEntryUrl))
+            { appShellActionRouteExtraAttrs = [ ("class", "timesheet-day-add-bar")
                 , ("data-timesheet-day-add", "true")
                 , ("aria-label", "Add timesheet entry for " <> weekdayLabel <> " " <> formatDateCompact dayDate)
                 ]
-            }
+            })
         [hsx|
             <span class="timesheet-day-add-plus">+</span>
             <span class="timesheet-day-add-label">{weekdayShortLabel} {formatDateCompact dayDate}</span>
@@ -610,6 +595,7 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayCalendarRevision, daySta
     renderTimesheetCard
         model
         suggestedEntry
+        (decodeTimesheetTiming suggestedEntry)
         "timesheet-entry-card timesheet-suggestion-card"
         (Just (tshow suggestion.suggestionRosterSlotId))
         (renderSuggestionCardOverlayLink (timesheetSuggestionOperationalDate suggestion) editUrl)
@@ -638,41 +624,34 @@ renderSuggestionCardOverlayLink :: (?context :: ControllerContext) => Day -> Tex
 renderSuggestionCardOverlayLink workedOn editUrl =
     renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = editUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs =
-                [ ("class", "timesheet-entry-card-link")
+        ((defaultAppShellActionRoute (editUrl))
+            { appShellActionRouteExtraAttrs = dialogPointerDismissBlurAttrs <> [ ("class", "timesheet-entry-card-link")
                 , ("aria-label", "Adjust rostered timesheet suggestion for " <> tshow workedOn)
                 ]
-            }
+            })
         mempty
 
 renderEntryCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Html
-renderEntryCard model@TimesheetDayRenderModel { dayToday, dayEditWindowDays, dayCalendarRevision, dayStaffFilterId } entry =
+renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, dayEditWindowDays, dayCalendarRevision, dayStaffFilterId } entry =
     renderTimesheetCard
         model
         entry
+        timingOutcome
         "timesheet-entry-card"
         Nothing
         (renderEntryCardOverlayLink entry canEdit editUrl)
-        (renderApprovalAction entry dayCalendarRevision dayStaffFilterId)
+        (renderApprovalAction entry timingOutcome dayCalendarRevision dayStaffFilterId)
   where
+    timingOutcome = Map.findWithDefault (Left (TimesheetTimingInvalid BoundaryShiftShapeInvalid)) (unpackId entry.id) dayTimingByEntryId
     canEdit = currentUserIsManager || isWithinEditWindow dayToday (timesheetEntryOperationalDate entry) dayEditWindowDays
     editUrl = editTimesheetEntryUrl (get #id entry) (timesheetEntryOperationalDate entry) dayStaffFilterId
 
-renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Text -> Maybe Text -> Html -> Html -> Html
-renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } entry cardClass suggestionId cardOverlay cardAction =
-    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember
-        timesheetStaffCardsLinkedHighlight
-        ("staff:" <> tshow entry.staffId)
-        Nothing
-        card
+renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Text -> Maybe Text -> Html -> Html -> Html
+renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } entry timingOutcome cardClass suggestionId cardOverlay cardAction =
+    card
   where
     card = [hsx|
-        <article class={cardClass}
+        <article {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs timesheetStaffCardsLinkedHighlight ("staff:" <> tshow entry.staffId) Nothing)} class={cardClass}
                  data-timesheet-entry-approved={boolParam entry.isApproved}
                  data-timesheet-suggestion-id={suggestionId}>
             {cardOverlay}
@@ -683,11 +662,8 @@ renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } e
                 </div>
 
                 <div class="timesheet-entry-time">
-                    <div class="timesheet-entry-time-range">
-                        {renderCompactTimeRange (timesheetEntryStartTime entry) (timesheetEntryEndTime entry)}
-                    </div>
-                    <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
-                    <div class="timesheet-entry-meta timesheet-entry-break-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary entry}</span></div>
+                    <div class="timesheet-entry-time-range">{timingRange}</div>
+                    {timingMeta}
                 </div>
 
                 <div class="timesheet-entry-actions">
@@ -696,12 +672,21 @@ renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } e
             </div>
 
             {renderEntryComments entry}
-            {renderTimesheetShapeBar defaultTimesheetTimelineScale entry}
+            {renderTimesheetShapeBar defaultTimesheetTimelineScale timingOutcome}
         </article>
     |]
     staffName = case find (\staff -> unpackId (get #id staff) == entry.staffId) dayStaffMembers of
         Just staff -> staff.firstName <> " " <> staff.lastName
         Nothing    -> "Unknown" :: Text
+    timingRange = case timingOutcome of
+        Left _ -> "Timing unavailable"
+        Right timing -> renderCompactTimeRange (timesheetTimingStartTime timing) (timesheetTimingEndTime timing)
+    timingMeta = case timingOutcome of
+        Left _ -> [hsx|<div class="timesheet-entry-meta text-warning" data-timesheet-timing-issue="true">Timing needs repair</div>|]
+        Right timing -> [hsx|
+            <div class="timesheet-entry-meta">Shift: {renderDuration timing}</div>
+            <div class="timesheet-entry-meta timesheet-entry-break-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary timing}</span></div>
+        |]
     shiftTypeLabel = case find (\shiftType -> unpackId (get #id shiftType) == entry.shiftTypeId) dayShiftTypes of
         Just shiftType -> shiftType.name
         Nothing        -> "Shift"
@@ -711,16 +696,11 @@ renderEntryCardOverlayLink entry canEdit editUrl
     | canEdit =
         renderAppShellActionLink
             (appShellActionByMarker @EditTimesheetEntryDialog)
-            AppShellActionRoute
-                { appShellActionRouteUrl = editUrl
-                , appShellActionRouteFields = []
-                , appShellActionRouteCustomHtmx = []
-                , appShellActionRouteStandardUrl = Nothing
-                , appShellActionRouteExtraAttrs =
-                    [ ("class", "timesheet-entry-card-link")
+            ((defaultAppShellActionRoute (editUrl))
+                { appShellActionRouteExtraAttrs = dialogPointerDismissBlurAttrs <> [ ("class", "timesheet-entry-card-link")
                     , ("aria-label", "Edit timesheet entry for " <> tshow (timesheetEntryOperationalDate entry))
                     ]
-                }
+                })
             mempty
     | otherwise = mempty
 
@@ -746,8 +726,8 @@ renderComment label maybeComment =
             </div>
         |]
 
-renderApprovalAction :: (?context :: ControllerContext) => TimesheetEntry -> Int -> Maybe UUID -> Html
-renderApprovalAction entry calendarRevision staffFilterId
+renderApprovalAction :: (?context :: ControllerContext) => TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Int -> Maybe UUID -> Html
+renderApprovalAction entry timingOutcome calendarRevision staffFilterId
     | not currentUserIsManager && entry.isApproved = [hsx|
         <button type="button"
                 class="btn btn-sm btn-success timesheet-approval-toggle"
@@ -761,12 +741,18 @@ renderApprovalAction entry calendarRevision staffFilterId
             (TimesheetsAction.unapproveTimesheetEntryAction unapproveFields)
             (pathTo (UnapproveTimesheetEntryAction entry.id))
             [hsx|<button type="submit" class="btn btn-sm btn-success timesheet-approval-toggle">Approved</button>|]
+    | timingIsInvalid = [hsx|
+        <button type="button" class="btn btn-sm btn-outline-secondary timesheet-approval-toggle" disabled>Repair timing</button>
+    |]
     | otherwise =
         renderTimesheetApprovalForm
             (TimesheetsAction.approveTimesheetEntryAction approveFields)
             (pathTo (ApproveTimesheetEntryAction entry.id))
             [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>|]
   where
+    timingIsInvalid = case timingOutcome of
+        Left _  -> True
+        Right _ -> False
     approveFields = TimesheetsAction.approveTimesheetEntryActionFields (timesheetEntryOperationalDate entry) calendarRevision staffFilterId
     unapproveFields = TimesheetsAction.unapproveTimesheetEntryActionFields (timesheetEntryOperationalDate entry) calendarRevision staffFilterId
 
@@ -782,13 +768,12 @@ renderTimesheetApprovalForm action actionUrl button =
             {button}
         |]
 
-renderBreakSummary :: TimesheetEntry -> Text
-renderBreakSummary entry
-    | not (timesheetEntryHadBreak entry) = "None"
-    | otherwise =
-        case (timesheetEntryBreakStartTime entry, timesheetEntryBreakEndTime entry) of
-            (Just breakStart, Just breakEnd) -> renderCompactTimeRange breakStart breakEnd
-            _ -> "Invalid"
+renderBreakSummary :: ValidatedTimesheetTiming -> Text
+renderBreakSummary timing =
+    case (timesheetTimingBreakStartTime timing, timesheetTimingBreakEndTime timing) of
+        (Nothing, Nothing) -> "None"
+        (Just breakStart, Just breakEnd) -> renderCompactTimeRange breakStart breakEnd
+        _ -> "Invalid"
 
 renderCompactTimeRange :: TimeOfDay -> TimeOfDay -> Text
 renderCompactTimeRange startTime endTime =
@@ -808,9 +793,9 @@ stripMeridiem label =
             Just clock -> Just (clock, "PM")
             Nothing    -> Nothing
 
-renderDuration :: TimesheetEntry -> Html
-renderDuration entry =
-    let totalSeconds = max 0 (floor (timesheetEntryPaidElapsedSeconds entry) :: Int)
+renderDuration :: ValidatedTimesheetTiming -> Html
+renderDuration timing =
+    let totalSeconds = max 0 (floor (timesheetTimingPaidElapsedSeconds timing) :: Int)
         (hours, afterHours) = totalSeconds `divMod` (60 * 60)
         (minutes, seconds) = afterHours `divMod` 60
         secondsSuffix = if seconds > 0 then " " <> tshow seconds <> "s" else ""
@@ -847,9 +832,9 @@ defaultTimesheetTimelineScale =
         , midnightOffset = 24 * 60
         }
 
-renderTimesheetShapeBar :: TimesheetTimelineScale -> TimesheetEntry -> Html
-renderTimesheetShapeBar scale entry =
-    let segments = timesheetShapeSegments scale entry
+renderTimesheetShapeBar :: TimesheetTimelineScale -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Html
+renderTimesheetShapeBar scale timingOutcome =
+    let segments = maybe [] (timesheetShapeSegments scale) (either (const Nothing) Just timingOutcome)
         markers = timesheetShapeMarkers scale
     in if null segments
         then mempty
@@ -874,23 +859,24 @@ timesheetShapeMarkers scale =
     , TimesheetShapeMarker "6am" (scaleEndMinutes scale) "timesheet-shape-marker-end" False
     ]
 
-timesheetShapeSegments :: TimesheetTimelineScale -> TimesheetEntry -> [TimesheetShapeSegment]
-timesheetShapeSegments scale entry =
-    let shiftStartMinutes = scaleMinuteValue scale (timesheetEntryStartTime entry)
+timesheetShapeSegments :: TimesheetTimelineScale -> ValidatedTimesheetTiming -> [TimesheetShapeSegment]
+timesheetShapeSegments scale timing =
+    let shiftStartMinutes = scaleMinuteValue scale (timesheetTimingStartTime timing)
         shiftSegments =
             buildSegments
                 "timesheet-shape-segment-shift"
                 scale
-                (shiftStartMinutes, shiftStartMinutes + elapsedMinutes (timesheetEntryElapsedSeconds entry))
+                (shiftStartMinutes, shiftStartMinutes + elapsedMinutes (timesheetTimingElapsedSeconds timing))
         breakSegments =
-            case (entry.breakStartsAt, entry.breakEndsAt) of
-                (Just breakStart, Just breakEnd) | timesheetEntryHadBreak entry ->
-                    let breakStartMinutes = shiftStartMinutes + elapsedMinutes (diffUTCTime breakStart entry.startsAt)
+            case (authoritativeBreakStartsAt boundaries, authoritativeBreakEndsAt boundaries) of
+                (Just breakStart, Just breakEnd) ->
+                    let breakStartMinutes = shiftStartMinutes + elapsedMinutes (diffUTCTime breakStart (authoritativeStartsAt boundaries))
                      in buildSegments
                             "timesheet-shape-segment-break"
                             scale
                             (breakStartMinutes, breakStartMinutes + elapsedMinutes (diffUTCTime breakEnd breakStart))
                 _ -> []
+        boundaries = timesheetTimingBoundaries timing
      in shiftSegments <> breakSegments
 
 buildSegments :: Text -> TimesheetTimelineScale -> (Double, Double) -> [TimesheetShapeSegment]

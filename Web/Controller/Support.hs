@@ -6,39 +6,30 @@ import Application.Async.Queue (EnqueueAppJobResult (..),
 import Application.FwcMapd.Job (enqueueFwcMapdRefreshJob,
                                 fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
-import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
-                                    allowedFeedbackPriorities,
-                                    allowedFeedbackStatuses,
-                                    fetchSupportUnreadFeedbackCount)
 import Application.Helper.FrontendContract.Surface.Support.Resource
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.RosterTemplateScale (parseRosterTemplateScale)
-import Application.Helper.SurfaceResource (SurfaceResourceValue,
-                                           liveMutationResult,
-                                           liveMutationValue)
-import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
+import Application.Helper.SurfaceResource (LiveMutationResult (liveMutationValue),
+                                           liveMutationResult)
 import Application.Helper.VenueInvitation (accountInvitationConflictMessage,
                                            activeVenueInvitationsForEmail,
                                            registeredInvitationAccountExists)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
+import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
                                             fetchPublicHolidayCoverage)
 import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
                                        publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
-import Application.Support.LiveUpdates
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnosticError (..),
                                                fetchXeroTimesheetDiagnostic)
-import Control.Monad (forM, forM_, guard, void)
+import Control.Monad (guard, void)
 import Data.Char (isControl)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import qualified Data.UUID as UUID
 import qualified Network.HTTP.Types.URI as URI
 import Text.Read (readMaybe)
@@ -65,8 +56,6 @@ instance Controller SupportController where
         now <- getCurrentTime
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        feedbackRows <- fetchSupportFeedbackRows
-        SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         let xeroDiagnosticSubmissionId = ""
         let xeroTimesheetDiagnostic = Nothing
@@ -82,8 +71,6 @@ instance Controller SupportController where
         now <- getCurrentTime
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        feedbackRows <- fetchSupportFeedbackRows
-        SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         let xeroDiagnosticSubmissionId = Text.strip (paramOrDefault @Text "" "submissionId")
         let maybeSubmissionUuid
@@ -128,8 +115,6 @@ instance Controller SupportController where
         canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        feedbackRows <- fetchSupportFeedbackRows
-        SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         now <- getCurrentTime
         let xeroDiagnosticSubmissionId = ""
         let xeroTimesheetDiagnostic = Nothing
@@ -242,60 +227,6 @@ instance Controller SupportController where
                 setSuccessMessage "Public holiday refresh is already queued or running."
         respondToPublicHolidayRefresh
 
-    action currentAction@MarkFeedbackReadAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
-        feedbackItem <- fetch feedbackItemId
-        _ <- markFeedbackRead feedbackItem
-        setSuccessMessage "Feedback marked read."
-        redirectTo SupportAction
-
-    action currentAction@MarkAllFeedbackReadAction = runBepis currentAction BepisMutationAction do
-        unreadFeedbackItems <- query @UserFeedbackItem
-            |> filterWhere (#readAt, Nothing)
-            |> fetch
-        forM_ unreadFeedbackItems markFeedbackRead
-        setSuccessMessage "All feedback marked read."
-        redirectTo SupportAction
-
-    action currentAction@UpdateFeedbackStatusAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
-        let status = param @Text "status"
-        if status `elem` allowedFeedbackStatuses
-            then do
-                feedbackItem <- fetch feedbackItemId
-                now <- getCurrentTime
-                _ <- feedbackItem
-                    |> set #status status
-                    |> setResolvedFieldsForStatus status now
-                    |> markFeedbackReadFields now
-                    |> updateRecord
-                setSuccessMessage "Feedback status updated."
-            else setErrorMessage "Choose a valid feedback status."
-        redirectTo SupportAction
-
-    action currentAction@UpdateFeedbackPriorityAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
-        let priority = param @Text "priority"
-        if priority `elem` allowedFeedbackPriorities
-            then do
-                feedbackItem <- fetch feedbackItemId
-                now <- getCurrentTime
-                _ <- feedbackItem
-                    |> set #priority priority
-                    |> markFeedbackReadFields now
-                    |> updateRecord
-                setSuccessMessage "Feedback priority updated."
-            else setErrorMessage "Choose a valid feedback priority."
-        redirectTo SupportAction
-
-    action currentAction@UpdateFeedbackSupportNoteAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
-        feedbackItem <- fetch feedbackItemId
-        now <- getCurrentTime
-        let supportNote = Text.take 3000 (Text.strip (paramOrDefault @Text "" "supportNote"))
-        _ <- feedbackItem
-            |> set #supportNote (if Text.null supportNote then Nothing else Just supportNote)
-            |> markFeedbackReadFields now
-            |> updateRecord
-        setSuccessMessage "Feedback note updated."
-        redirectTo SupportAction
-
     action currentAction@StartSupportImpersonationAction = runBepis currentAction BepisMutationAction do
         ensureCurrentVenue
         let nextPath = paramOrNothing @Text "next"
@@ -373,47 +304,6 @@ buildSupportVenueOnboardingInvitationForm =
         |> set #status (InvitationStatusEnumPending)
         |> set #deliveryStatus (Queued)
 
-fetchSupportFeedbackRows :: (?modelContext :: ModelContext) => IO [SupportFeedbackRow]
-fetchSupportFeedbackRows = do
-    feedbackItems <- query @UserFeedbackItem
-        |> orderByDesc #createdAt
-        |> limit 50
-        |> fetch
-    forM feedbackItems \supportFeedbackItem -> do
-        venue <- fetch (coerce supportFeedbackItem.venueId :: Id Venue)
-        submitter <- fetch (coerce supportFeedbackItem.submittedByUserId :: Id User)
-        pure SupportFeedbackRow
-            { supportFeedbackItem
-            , supportFeedbackVenueName = venue.name
-            , supportFeedbackSubmitter = submitter.email
-            }
-
-markFeedbackRead :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UserFeedbackItem -> IO UserFeedbackItem
-markFeedbackRead feedbackItem
-    | isJust feedbackItem.readAt = pure feedbackItem
-    | otherwise = do
-        now <- getCurrentTime
-        feedbackItem
-            |> markFeedbackReadFields now
-            |> updateRecord
-
-markFeedbackReadFields :: (?context :: ControllerContext, ?request :: Request) => UTCTime -> UserFeedbackItem -> UserFeedbackItem
-markFeedbackReadFields now feedbackItem =
-    feedbackItem
-        |> set #readAt (Just now)
-        |> set #readByUserId (Just (unpackId currentUser.id))
-
-setResolvedFieldsForStatus :: (?context :: ControllerContext, ?request :: Request) => Text -> UTCTime -> UserFeedbackItem -> UserFeedbackItem
-setResolvedFieldsForStatus status now feedbackItem
-    | status == "done" || status == "closed" =
-        feedbackItem
-            |> set #resolvedAt (Just now)
-            |> set #resolvedByUserId (Just (unpackId currentUser.id))
-    | otherwise =
-        feedbackItem
-            |> set #resolvedAt Nothing
-            |> set #resolvedByUserId Nothing
-
 fetchVenueOnboardingInvitations :: (?modelContext :: ModelContext) => IO [VenueOnboardingInvitation]
 fetchVenueOnboardingInvitations =
     query @VenueOnboardingInvitation
@@ -464,7 +354,7 @@ supportCanAddPasskey passkeys
         recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
         pure (null passkeys || recoveryVerified)
 
-respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 respondToAwardRatesRefresh =
     if isHtmxRequest
         then do
@@ -472,7 +362,7 @@ respondToAwardRatesRefresh =
             respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
         else redirectTo SupportAction
 
-respondToPublicHolidayRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+respondToPublicHolidayRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 respondToPublicHolidayRefresh =
     if isHtmxRequest
         then do
@@ -559,26 +449,6 @@ supportReturnAuthority candidate
         && returnQueryOptionalDayIsValid candidate "anchorDate"
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId" = Just SupportReturnAdmin
     | returnPathIs "/ExportJobs" && queryAllows [] = Just SupportReturnAdmin
-    | returnPathIs "/NewRosterTemplate"
-        && queryAllows ["rosterGroupId", "name", "scale", "startingPoint"]
-        && returnQueryHasUUID "rosterGroupId"
-        && returnQueryOptionalValueIsValid candidate "name" (not . Text.null)
-        && returnQueryOptionalValueIsValid candidate "scale" (isJust . parseRosterTemplateScale)
-        && returnQueryOptionalValueIsValid candidate "startingPoint" (`elem` ["blank", "reference"]) = Just SupportReturnManager
-    | returnPathIs "/ShowRosterTemplateReference"
-        && queryAllows ["rosterGroupId", "name", "scale"]
-        && returnQueryHasUUID "rosterGroupId"
-        && validTemplateReferenceSelectionQuery candidate = Just SupportReturnManager
-    | returnPathIs "/ConfirmRosterTemplateReference"
-        && queryAllows ["rosterGroupId", "name", "scale", "operationalDate"]
-        && returnQueryHasUUID "rosterGroupId"
-        && validTemplateReferenceConfirmationQuery candidate = Just SupportReturnManager
-    | returnPathIs "/ShowRosterTemplateDesigner" && queryAllows ["rosterTemplateDesignId"] && returnQueryHasUUID "rosterTemplateDesignId" = Just SupportReturnManager
-    | returnPathIs "/ShowRosterTemplateApplicationConfirmation"
-        && queryAllows ["rosterTemplateId", "rosterGroupId", "targetDropzoneKey"]
-        && returnQueryHasUUID "rosterTemplateId"
-        && returnQueryHasUUID "rosterGroupId"
-        && returnQueryHasNonEmpty "targetDropzoneKey" = Just SupportReturnManager
     | returnPathIs "/NewStaff"
         && queryAllows ["anchorDate", "rosterGroupId"]
         && returnQueryOptionalDayIsValid candidate "anchorDate"
@@ -590,6 +460,7 @@ supportReturnAuthority candidate
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId" = Just SupportReturnManager
     | returnPathIs "/EditProfile" && queryAllows ["section"] && returnQueryHas "section" "security" = Just SupportReturnFounder
     | returnPathIs "/EditProfile" && queryAllows ["section"] = Just SupportReturnProfile
+    | returnPathIs "/Feedback" && queryAllows [] = Just SupportReturnProfile
     | returnPathIs "/NewFeedback" && queryAllows [] = Just SupportReturnProfile
     | returnPathIs "/ShowPageHelp"
         && queryAllows ["topic"]
@@ -608,11 +479,11 @@ supportReturnAuthority candidate
         && returnQueryOptionalValueIsValid candidate "section" (`elem` ["pending", "approved", "denied", "archive"]) = Just SupportReturnManager
     | returnPathIs "/NewLeaveRequest" && queryAllows [] = Just SupportReturnStaff
     | returnPathIs "/RosterWeeks"
-        && queryAllows ["rosterGroupId", "rosterView", "dayOffset"]
+        && queryAllows ["rosterGroupId", "rosterView", "dayDate"]
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId"
         && validRosterViewQuery candidate = Just SupportReturnVenueUser
     | returnPathIs "/ShowRosterWindow"
-        && queryAllows ["anchorDate", "rosterGroupId", "rosterView", "dayDate", "dayOffset"]
+        && queryAllows ["anchorDate", "rosterGroupId", "rosterView", "dayDate"]
         && returnQueryHasDay "anchorDate"
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId"
         && returnQueryOptionalDayIsValid candidate "dayDate"
@@ -651,9 +522,9 @@ returnQueryOptionalDayIsValid candidate name =
 returnQueryOptionalValueIsValid :: Text -> Text -> (Text -> Bool) -> Bool
 returnQueryOptionalValueIsValid candidate name validValue =
     case lookup name (returnQuery candidate) of
-        Nothing -> True
+        Nothing           -> True
         Just (Just value) -> validValue value
-        Just Nothing -> False
+        Just Nothing      -> False
 
 returnQuery :: Text -> URI.QueryText
 returnQuery candidate =
@@ -665,29 +536,12 @@ validIsoDay :: Text -> Bool
 validIsoDay value =
     isJust (parseTimeM True defaultTimeLocale "%F" (Text.unpack value) :: Maybe Day)
 
-validTemplateReferenceSelectionQuery :: Text -> Bool
-validTemplateReferenceSelectionQuery candidate =
-    maybe False (not . Text.null) (returnQueryValue candidate "name")
-        && maybe False (isJust . parseRosterTemplateScale) (returnQueryValue candidate "scale")
-
-validTemplateReferenceConfirmationQuery :: Text -> Bool
-validTemplateReferenceConfirmationQuery candidate =
-    validTemplateReferenceSelectionQuery candidate
-        && case returnQueryValue candidate "scale" >>= parseRosterTemplateScale of
-            Just Day -> maybe False validIsoDay (returnQueryValue candidate "operationalDate")
-            Just Week -> isNothing (returnQueryValue candidate "operationalDate")
-            Nothing -> False
-
 validRosterViewQuery :: Text -> Bool
 validRosterViewQuery candidate =
     case returnQueryValue candidate "rosterView" of
-        Nothing -> isNothing (returnQueryValue candidate "dayDate") && isNothing (returnQueryValue candidate "dayOffset")
-        Just "timeline" -> returnQueryOptionalValueIsValid candidate "dayOffset" validRosterDayOffset
+        Nothing -> isNothing (returnQueryValue candidate "dayDate")
+        Just "timeline" -> maybe False validIsoDay (returnQueryValue candidate "dayDate")
         Just _ -> False
-
-validRosterDayOffset :: Text -> Bool
-validRosterDayOffset value =
-    maybe False (\offset -> offset >= (0 :: Int) && offset <= 6) (readMaybe (Text.unpack value))
 
 validPositiveInt :: Text -> Bool
 validPositiveInt value =
@@ -697,7 +551,7 @@ validInt :: Text -> Bool
 validInt value =
     isJust (readMaybe (Text.unpack value) :: Maybe Int)
 
-redirectAfterImpersonationTransition :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectAfterImpersonationTransition :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 redirectAfterImpersonationTransition destination
     | isHtmxRequest = do
         setHeader ("HX-Redirect", cs destination)

@@ -8,6 +8,7 @@ module Application.Helper.PasskeyRecoveryCodes
     , verifyAndConsumeRecoveryCode
     ) where
 
+import Application.Helper.ByteEncoding (bytesToHex)
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.Random (getRandomBytes)
 import qualified Data.ByteArray as ByteArray
@@ -75,16 +76,3 @@ chunksOfText size value
     | otherwise =
         let (chunk, rest) = Text.splitAt size value
          in chunk : chunksOfText size rest
-
-bytesToHex :: ByteString.ByteString -> Text
-bytesToHex =
-    Text.concat . map byteToHex . ByteString.unpack
-    where
-        byteToHex byte =
-            let high = fromIntegral byte `div` (16 :: Int)
-                low = fromIntegral byte `mod` (16 :: Int)
-             in Text.pack [hexDigit high, hexDigit low]
-
-        hexDigit value
-            | value < 10 = Char.chr (Char.ord '0' + value)
-            | otherwise = Char.chr (Char.ord 'a' + value - 10)

@@ -5,6 +5,7 @@ module Application.PasswordReset.Mutations
     , withPasswordResetUserLock
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
@@ -18,13 +19,13 @@ withPasswordResetUserLock ::
     IO (Maybe result)
 withPasswordResetUserLock userId action =
     withTransaction do
-        lockedIds :: [PG.Only UUID] <- sqlQuery
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM users WHERE id = ? FOR UPDATE"
             (PG.Only userId)
         case lockedIds of
             [_] -> Just <$> action
             []  -> pure Nothing
-            _   -> error "Password reset user lock returned multiple rows"
+            _   -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Password reset user lock returned multiple rows"
 
 withPasswordResetCompletionLock ::
     (?modelContext :: ModelContext) =>
@@ -34,11 +35,11 @@ withPasswordResetCompletionLock ::
     IO (Maybe result)
 withPasswordResetCompletionLock userId tokenId action = do
     nestedResult <- withPasswordResetUserLock userId do
-        lockedIds :: [PG.Only UUID] <- sqlQuery
+        lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM password_reset_tokens WHERE id = ? AND user_id = ? FOR UPDATE"
             (tokenId, userId)
         case lockedIds of
             [_] -> Just <$> action
             []  -> pure Nothing
-            _   -> error "Password reset completion lock returned multiple rows"
+            _   -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Password reset completion lock returned multiple rows"
     pure (join nestedResult)

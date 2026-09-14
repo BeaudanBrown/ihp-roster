@@ -16,6 +16,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoRoleAttrs)
+import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKeyFromTypedValues)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Live (frontendSurfaceFragmentKey)
@@ -46,8 +47,8 @@ import IHP.Prelude
 import Test.Hspec
 import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
-import qualified Text.Blaze.Html5 as Html5
+import qualified IHP.HSX.Markup as HtmlRenderer
+import IHP.HSX.MarkupQQ (hsx)
 
 data TestLoad
 data TestPanel
@@ -98,6 +99,7 @@ instance InputValue FixtureDensity where
 
 data BrowserFixture
 data BrowserFixtureScope
+data BrowserFixtureShell
 data BrowserFixturePayload
 data BrowserFixturePayloadLabel
 data BrowserFixtureTypeOnlyPayload
@@ -150,6 +152,7 @@ data DuplicateModeValue
 type BrowserFixtureSurface =
     Surface BrowserFixture
         '[ Scope BrowserFixtureScope '[] '[ 'NoAuth ]
+         , BrowserDomToken BrowserFixtureShell
          , BrowserInboundDto BrowserFixturePayload
             '[ Field BrowserFixturePayloadLabel 'WireText ]
          , BrowserTypeDto BrowserFixtureTypeOnlyPayload
@@ -348,8 +351,6 @@ tests = describe "FrontendSurface DSL foundation" do
         surfaceActionNameValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek `shouldBe` "navigate-timesheet-week"
         (surfaceResourceValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay).resourceName `shouldBe` "timesheet-day"
         (surfaceResourceValue @RosterSurface.RosterSurface @RosterSurface.RosterTemplateLibrary).resourceName `shouldBe` "roster-template-library"
-        (surfaceResourceValue @RosterSurface.RosterSurface @RosterSurface.RosterTemplate).resourceName `shouldBe` "roster-template"
-        (surfaceResourceValue @RosterSurface.RosterSurface @RosterSurface.RosterTemplateDraft).resourceName `shouldBe` "roster-template-draft"
         (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
         (surfaceSourceRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragSourceRef).sourceRefName `shouldBe` "drag-source"
         (surfaceDropzoneRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragDropzoneRef).dropzoneRefName `shouldBe` "drag-dropzone"
@@ -636,6 +637,14 @@ tests = describe "FrontendSurface DSL foundation" do
         let nestedOptionalFields :: SurfaceFields '[ 'OptionalField NestedOptionalTestField ('WireOptional 'WireInt)]
             nestedOptionalFields = surfaceOptionalField @NestedOptionalTestField (Just Nothing) &: noSurfaceFields
         surfaceFieldValue @NestedOptionalTestField nestedOptionalFields `shouldBe` Just Nothing
+        canonicalFrontendSurfaceScopeKeyFromTypedValues "fixture" (surfaceFieldsIdentitySegments absentOptionalFields)
+            `shouldBe` "fixture:~missing"
+        canonicalFrontendSurfaceScopeKeyFromTypedValues "fixture" (surfaceFieldsIdentitySegments nullFields)
+            `shouldBe` "fixture:~null"
+        let wrappedNullableFields :: SurfaceFields '[ Field NullableTestField ('WireNullable 'WireText)]
+            wrappedNullableFields = surfaceField @NullableTestField (Nothing :: Maybe Text) &: noSurfaceFields
+        canonicalFrontendSurfaceScopeKeyFromTypedValues "fixture" (surfaceFieldsIdentitySegments wrappedNullableFields)
+            `shouldBe` "fixture:~null"
         let actionFields =
                 surfaceField @TimesheetsSurface.AnchorDate (fromGregorian 2025 1 20)
                     &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
@@ -766,7 +775,7 @@ tests = describe "FrontendSurface DSL foundation" do
                     )
                     [fragment]
         let config = impl.surfaceImplMountConfig
-        let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceMount impl (Html5.toHtml ("body" :: Text))))
+        let html = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceMount impl (HtmlRenderer.toHtml ("body" :: Text))))
         impl.surfaceImplName `shouldBe` "timesheets"
         surfaceActionNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.RefreshPanel `shouldBe` "refresh-panel"
         surfaceIntentNameValue @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard `shouldBe` "move-card"
@@ -795,7 +804,7 @@ tests = describe "FrontendSurface DSL foundation" do
                     noSurfaceFields
                     "/fixture/panel"
                     FrontendSurfaceReplace
-        let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        let html = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (HtmlRenderer.toHtml ("Loading" :: Text))))
         html `shouldContainText` "id=\"contract-fixture-panel\""
         html `shouldContainText` "class=\"col-12 col-xl-4 contract-fixture-side app-lazy-surface app-lazy-surface-compact app-lazy-surface-panel\""
         html `shouldContainText` "data-bepis-fragment=\"true\""
@@ -806,7 +815,7 @@ tests = describe "FrontendSurface DSL foundation" do
         html `shouldContainText` "hx-trigger=\"load\""
         html `shouldNotContainText` "data-bepis-surface-lazy"
 
-        let customPlaceholderHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        let customPlaceholderHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "contract-fixture-side"] } fragment (HtmlRenderer.toHtml ("Loading" :: Text))))
         customPlaceholderHtml `shouldContainText` "class=\"col-12 col-xl-4 contract-fixture-side app-lazy-surface app-lazy-surface-custom app-lazy-surface-panel\""
 
     it "derives lazy trigger and placeholder defaults from existing primitive options" do
@@ -840,11 +849,12 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` [ "timesheets"
                        , "roster"
                        , "roster-day-timeline"
-                       , "roster-template-designer"
                        , "leave-requests"
                        , "self-service-leave"
                        , "billing"
                        , "support"
+                       , "feedback"
+                       , "feedback-moderation"
                        , "profile"
                        , "staff"
                        , "admin-page"
@@ -912,6 +922,11 @@ tests = describe "FrontendSurface DSL foundation" do
                 , HtmxOption (HtmxActionCustomHtmxIR "fixture-panel-custom-htmx" "test fixture covers auditable custom HTMX metadata")
                 ]
 
+    it "emits browser DOM tokens only for explicitly browser-reachable declarations" do
+        browserFixtureTypeScript `shouldContainText` "export const browserFixtureShellDomToken = \"browser-fixture-shell\" as const;"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "export const timesheetWeekShellDomToken"
+        (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
+
     it "reflects the registered timesheets surface into checked contract IR" do
         let surface = expectSurface "timesheets" registeredFrontendSurfaceContractIR
 
@@ -919,7 +934,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.scopeOptions) surface.surfaceScopes `shouldBe` [[AuthorizeCurrentVenueIR "venueId"]]
         map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
         map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"]
-        surface.surfaceBrowserDomTokens `shouldBe` ["timesheet-week-shell"]
+        surface.surfaceBrowserDomTokens `shouldBe` []
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
             |> fmap (.fragmentParams)
@@ -1097,8 +1112,6 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-staff-panel"
                        , "roster-week-overview"
                        , "roster-template-library"
-                       , "roster-template-record"
-                       , "roster-template-draft"
                        , "roster-day-section"
                        , "roster-row"
                        ]
@@ -1124,39 +1137,35 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "add-roster-row"
                        , "remove-roster-row"
                        , "apply-roster-template-application"
+                       , "preview-roster-template-application"
+                       , "open-roster-template-capture"
+                       , "preview-roster-template-capture"
+                       , "create-roster-template-capture"
+                       , "open-roster-template-delete"
+                       , "delete-roster-template"
                        , "toggle-roster-staff-scope"
                        , "set-roster-layout-mode"
                        , "move-roster-shift-to-slot"
                        , "duplicate-roster-shift-to-day"
                        , "drop-roster-staff"
-                       , "preview-roster-template-application"
                        ]
         ( surface.surfaceHtmxActions
             |> find (\action -> action.htmxActionName == "navigate-roster-week")
             |> maybe [] (.htmxActionOptions)
             )
             `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))]
-        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff", "preview-roster-template-application"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
         map (.sessionName) surface.surfaceSessions `shouldBe` ["drag"]
         map (.sessionLayers) surface.surfaceSessions `shouldBe` [["drag-preview"]]
-        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source", "day-template-drag-source", "week-template-drag-source"]
+        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source"]
         map (.sourceRefCompatibleDropzones) surface.surfaceSourceRefs
             `shouldBe` [ ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"]
                        , ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]
-                       , ["day-template-dropzone"]
-                       , ["week-template-dropzone"]
                        ]
-        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone", "day-template-dropzone", "week-template-dropzone"]
+        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         map (.browserAttributeDomAttribute) surface.surfaceBrowserRoles
-            `shouldBe` [ "data-bepis-roster-template-card"
-                       , "data-bepis-roster-template-card-config"
-                       , "data-bepis-roster-template-application-form"
-                       , "data-bepis-roster-template-target-input"
-                       , "data-bepis-roster-template-cancel"
-                       , "data-bepis-roster-template-day-target"
-                       , "data-bepis-roster-template-week-target"
-                       , "data-bepis-roster-staff-panel-sort-root"
+            `shouldBe` [ "data-bepis-roster-staff-panel-sort-root"
                        , "data-bepis-roster-staff-panel-sort-row"
                        , "data-bepis-roster-staff-panel-sort-control"
                        , "data-bepis-roster-staff-panel-tab"
@@ -1244,8 +1253,8 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` [["clone-shadow", "dropzone-highlight"]]
         map (map interactionEffectClassNames . (.sessionEffects)) surface.surfaceSessions
             `shouldBe` [[["bepis-pointer-clone-shadow"], ["bepis-dropzone-highlight"]]]
-        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], [], [], []]
-        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], [], [], []]
+        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], []]
+        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], []]
         surface.surfacePolicies `shouldBe` []
 
     it "renders minimal live, interaction, and DOM-token contracts for the roster surface" do
@@ -1286,6 +1295,7 @@ tests = describe "FrontendSurface DSL foundation" do
         let conflictingShared = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[SharedScopeA, SharedScopeB]))
         let missingDtoRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingDtoRefSurface]))
         let missingAuth = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingAuthSurface]))
+        let unsupportedOptionalScope = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[UnsupportedOptionalScopeSurface]))
         let invalidAuthFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidAuthFieldsSurface]))
         let duplicateAuthFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateAuthFieldsSurface]))
         let invalidAuthWire = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidAuthWireSurface]))
@@ -1297,6 +1307,8 @@ tests = describe "FrontendSurface DSL foundation" do
         let duplicateResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSourceSurface]))
         let conflictingResources = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSurfaceA, DuplicateResourceSurfaceB]))
         let invalidInteractionRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidInteractionRefSurface]))
+        let missingInteractionOption = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingInteractionOptionSurface]))
+        let duplicateInteractionOption = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateInteractionOptionSurface]))
         let missingEffectLayer = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingInteractionEffectLayerSurface]))
         let fixtureWithIncompleteEffect =
                 (reflectSurfaceSpec @SurfaceFixture.FrontendSurfaceFixture)
@@ -1320,6 +1332,7 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
         diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto MissingPayload on surface missing-dto-ref"]
         diagnosticMessages missingAuth `shouldContain` ["surface missing-auth scope test must declare exactly one authorization policy"]
+        diagnosticMessages unsupportedOptionalScope `shouldContain` ["surface unsupported-optional-scope scope test field panelId cannot use top-level WireOptional because absent wire values have no canonical scope-key representation"]
         diagnosticMessages invalidAuthFields `shouldContain` ["surface invalid-auth-fields scope test authorization current-venue expects 1 fields but declares 2"]
         diagnosticMessages duplicateAuthFields `shouldContain` ["surface duplicate-auth-fields scope test authorization current-venue-user repeats field venueId"]
         diagnosticMessages invalidAuthWire `shouldContain` ["surface invalid-auth-wire scope test authorization current-venue field venueId must be a required UUID"]
@@ -1332,6 +1345,8 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages conflictingResources `shouldContain` ["conflicting shared declaration: resource test-resource"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing session missing-fragment on surface invalid-interaction-ref"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing intent field missingPayload for intent bad on surface invalid-interaction-ref"]
+        diagnosticMessages missingInteractionOption `shouldSatisfy` any (Text.isInfixOf "__invalid-frontend-contract-option:missing:source ref:Bad:SessionOption")
+        diagnosticMessages duplicateInteractionOption `shouldSatisfy` any (Text.isInfixOf "__invalid-frontend-contract-option:duplicate:source ref:Bad:SessionOption")
         diagnosticMessages missingEffectLayer `shouldContain` ["surface missing-effect-layer session layerless effect clone-shadow references missing layer missing"]
         diagnosticMessages incompleteEffect `shouldContain` ["surface contract-fixture session drag has incomplete or non-canonical clone-shadow effect"]
         diagnosticMessages invalidHtmxTargetRef `shouldContain` ["htmx action bad references missing dom token missing-fragment on surface invalid-htmx-target-ref"]
@@ -1351,9 +1366,9 @@ tests = describe "FrontendSurface DSL foundation" do
         let sourceRef = fromMaybe (error "missing source ref") (listToMaybe surface.surfaceSourceRefs)
         let dropzoneRef = fromMaybe (error "missing dropzone ref") (listToMaybe surface.surfaceDropzoneRefs)
         let activationRef = fromMaybe (error "missing activation ref") (listToMaybe surface.surfaceActivationRefs)
-        let sourceHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceSourceRef sourceRef "shift:1" (Html5.toHtml ("card" :: Text))))
-        let dropzoneHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceDropzoneRef dropzoneRef "slot:2" (Html5.toHtml ("slot" :: Text))))
-        let activationHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceActivationRef activationRef (Html5.toHtml ("mode" :: Text))))
+        let sourceHtml = cs (HtmlRenderer.renderMarkupLazyText (SurfaceInteraction.renderFrontendSurfaceSourceRef sourceRef "shift:1" (HtmlRenderer.toHtml ("card" :: Text))))
+        let dropzoneHtml = cs (HtmlRenderer.renderMarkupLazyText (SurfaceInteraction.renderFrontendSurfaceDropzoneRef dropzoneRef "slot:2" (HtmlRenderer.toHtml ("slot" :: Text))))
+        let activationHtml = cs (HtmlRenderer.renderMarkupLazyText (SurfaceInteraction.renderFrontendSurfaceActivationRef activationRef (HtmlRenderer.toHtml ("mode" :: Text))))
 
         sourceHtml `shouldContainText` "data-bepis-source-ref=\"shift-drag-source\""
         sourceHtml `shouldContainText` "data-bepis-source-key=\"shift:1\""
@@ -1365,14 +1380,26 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders linked-highlight roles with opaque membership and order keys" do
         let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
-        let sourceHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource highlight "opaque:staff" (Html5.div "source")))
-        let memberHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember highlight "opaque:staff" (Just "opaque:shift") (Html5.div "member")))
-        let pinHtml = cs (HtmlRenderer.renderHtml (SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin highlight "opaque:staff" (Html5.button "pin")))
+        let sourceAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs highlight "opaque:staff"
+        let memberAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs highlight "opaque:staff" (Just "opaque:shift")
+        let pinAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs highlight "opaque:staff"
+        let sourceHtml = cs (HtmlRenderer.renderMarkupLazyText [hsx|<div {...sourceAttrs}>source</div>|])
+        let memberHtml = cs (HtmlRenderer.renderMarkupLazyText [hsx|<div {...memberAttrs}>member</div>|])
+        let pinHtml = cs (HtmlRenderer.renderMarkupLazyText [hsx|<button {...pinAttrs}>pin</button>|])
 
         sourceHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-source=\"opaque:staff\""
         memberHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-member=\"opaque:staff\""
         memberHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-order=\"opaque:shift\""
         pinHtml `shouldContainText` "data-bepis-browser-fixture-staff-highlight-pin=\"opaque:staff\""
+
+    it "owns the standard Surface action route defaults" do
+        defaultFrontendSurfaceActionRoute "/fixture/action"
+            `shouldBe` FrontendSurfaceActionRoute
+                { actionRouteUrl = "/fixture/action"
+                , actionRouteCustomHtmx = []
+                , actionRouteStandardUrl = Nothing
+                , actionRouteExtraAttrs = []
+                }
 
     it "renders generated HTMX action attrs from complete typed fixture fields" do
         let panelId = fromMaybe (error "invalid fixture panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
@@ -1389,9 +1416,9 @@ tests = describe "FrontendSurface DSL foundation" do
                 , actionRouteStandardUrl = Nothing
                 , actionRouteExtraAttrs = [("class", "surface-action-test")]
                 }
-        let formHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionFormWithHiddenFields action route (Html5.toHtml ("refresh" :: Text))))
-        let linkHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionLink action route (Html5.toHtml ("refresh" :: Text))))
-        let buttonHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionSubmitButton action route (Html5.toHtml ("refresh" :: Text))))
+        let formHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceActionFormWithHiddenFields action route (HtmlRenderer.toHtml ("refresh" :: Text))))
+        let linkHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceActionLink action route (HtmlRenderer.toHtml ("refresh" :: Text))))
+        let buttonHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceActionSubmitButton action route (HtmlRenderer.toHtml ("refresh" :: Text))))
 
         formHtml `shouldContainText` "method=\"post\""
         formHtml `shouldContainText` "action=\"/fixture/refresh-panel?routeContext=keep\""
@@ -1425,7 +1452,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 , htmxRequestSwap = "outerHTML"
                 }
         let intent = frontendSurfaceIntentForm @SurfaceFixture.FrontendSurfaceFixture @SurfaceFixture.MoveCard fields request
-        let intentHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceIntentForm intent (Html5.toHtml ("move" :: Text))))
+        let intentHtml = cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceIntentForm intent (HtmlRenderer.toHtml ("move" :: Text))))
 
         intentHtml `shouldContainText` "data-bepis-intent-form=\"move-card\""
         intentHtml `shouldContainText` "hx-target=\"#contract-fixture-panel\""
@@ -1449,6 +1476,7 @@ data MismatchedResource
 data MissingFragment
 data MissingDtoRef
 data MissingAuth
+data UnsupportedOptionalScope
 data InvalidAuthFields
 data DuplicateAuthFields
 data InvalidAuthWire
@@ -1461,6 +1489,8 @@ data DuplicateResourceSource
 data DuplicateResourceA
 data DuplicateResourceB
 data InvalidInteractionRef
+data MissingInteractionOption
+data DuplicateInteractionOption
 data MissingEffectLayer
 data MissingLayer
 data LayerlessSession
@@ -1499,6 +1529,11 @@ type MissingDtoRefSurface =
     Surface MissingDtoRef
         '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Dto Bad '[ Field MissingPayload ('WireRef MissingPayload) ]
+         ]
+
+type UnsupportedOptionalScopeSurface =
+    Surface UnsupportedOptionalScope
+        '[ Scope TestScope '[ Field PanelId ('WireOptional 'WireText) ] '[ 'NoAuth ]
          ]
 
 type MissingAuthSurface =
@@ -1608,6 +1643,22 @@ type InvalidInteractionRefSurface =
         '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Intent Bad '[ Field PanelId 'WireUUID ] '[]
          , SourceRef Bad '[ 'SessionOption MissingFragment, 'Submits Bad, 'SourceField MissingPayload ]
+         ]
+
+type MissingInteractionOptionSurface =
+    Surface MissingInteractionOption
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Intent Bad '[ Field PanelId 'WireUUID ] '[]
+         , SourceRef Bad '[ 'Submits Bad, 'SourceField PanelId ]
+         ]
+
+type DuplicateInteractionOptionSurface =
+    Surface DuplicateInteractionOption
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Session MissingFragment '[]
+         , Session MissingPayload '[]
+         , Intent Bad '[ Field PanelId 'WireUUID ] '[]
+         , SourceRef Bad '[ 'SessionOption MissingFragment, 'SessionOption MissingPayload, 'Submits Bad, 'SourceField PanelId ]
          ]
 
 type MissingInteractionEffectLayerSurface =

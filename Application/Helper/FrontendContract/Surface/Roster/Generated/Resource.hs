@@ -10,9 +10,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     , matchRosterNotificationStatusResource
     , matchRosterSlotsContentResource
     , matchRosterSlotsStructureResource
-    , matchRosterTemplateDraftResource
     , matchRosterTemplateLibraryResource
-    , matchRosterTemplateResource
     , matchRosterWeekBoundaryConfigResource
     , matchRosterWeekResource
     , matchRosterWeekStructureResource
@@ -24,9 +22,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     , rosterNotificationStatusResource
     , rosterSlotsContentResource
     , rosterSlotsStructureResource
-    , rosterTemplateDraftResource
     , rosterTemplateLibraryResource
-    , rosterTemplateResource
     , rosterWeekBoundaryConfigResource
     , rosterWeekResource
     , rosterWeekStructureResource
@@ -176,23 +172,6 @@ matchRosterSlotsStructureResource =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterSlotsStructure
 
-rosterTemplateDraftResource ::
-    UUID.UUID ->
-    SurfaceResourceValue
-rosterTemplateDraftResource userId =
-    frontendSurfaceResource
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.RosterTemplateDraft
-        ( surfaceField @Types1.UserId userId
-            &: noSurfaceFields
-        )
-
-matchRosterTemplateDraftResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
-matchRosterTemplateDraftResource =
-    matchFrontendSurfaceResource
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.RosterTemplateDraft
-
 rosterTemplateLibraryResource ::
     UUID.UUID ->
     SurfaceResourceValue
@@ -209,23 +188,6 @@ matchRosterTemplateLibraryResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterTemplateLibrary
-
-rosterTemplateResource ::
-    UUID.UUID ->
-    SurfaceResourceValue
-rosterTemplateResource templateId =
-    frontendSurfaceResource
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.RosterTemplate
-        ( surfaceField @Types1.TemplateId templateId
-            &: noSurfaceFields
-        )
-
-matchRosterTemplateResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
-matchRosterTemplateResource =
-    matchFrontendSurfaceResource
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.RosterTemplate
 
 rosterWeekBoundaryConfigResource ::
     UUID.UUID ->

@@ -121,9 +121,9 @@ pureTests =
                 changedStartBook = loadedRateBookOrFail (contexts Map.! changedStartEntryId)
                 ordinaryLevel1 = ClassificationRate HospitalityLevel1 PermanentPartTime OrdinaryRate
 
-            lookupValidatedRate ordinaryLevel1 beforeBook `shouldBe` Just 100
-            lookupValidatedRate ordinaryLevel1 afterBook `shouldBe` Just 110
-            lookupValidatedRate ordinaryLevel1 changedStartBook `shouldBe` Just 110
+            lookupValidatedRate ordinaryLevel1 beforeBook `shouldBe` Right 100
+            lookupValidatedRate ordinaryLevel1 afterBook `shouldBe` Right 110
+            lookupValidatedRate ordinaryLevel1 changedStartBook `shouldBe` Right 110
             validatedRateBookEffectivePeriod beforeBook `shouldBe` oldCandidate.candidateEffectivePeriod
             validatedRateBookEffectivePeriod afterBook `shouldBe` newPeriod
 
@@ -151,6 +151,12 @@ pureTests =
                 unsupportedSource = source { fetchEntryContextRows = \_ -> pure [unsupportedContext] }
             loadWageEngineContextsWith unsupportedSource [WageEngineEntryRequest unsupportedEntryId]
                 `shouldReturn` Left [UnsupportedCalculationContext unsupportedEntryId (UnsupportedVenueTimeZone "Etc/UTC")]
+
+            let corruptEntryId = uuid "10000000-0000-0000-0000-000000000015"
+                corruptContext = (testEntryContext corruptEntryId beforeDate) { contextTimingIsValid = False }
+                corruptSource = source { fetchEntryContextRows = \_ -> pure [corruptContext] }
+            loadWageEngineContextsWith corruptSource [WageEngineEntryRequest corruptEntryId]
+                `shouldReturn` Left [InvalidPersistedTiming corruptEntryId]
 
 databaseTests :: Spec
 databaseTests = aroundAll withDatabaseTestContext do
@@ -270,7 +276,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 queryLogger <- queryCaptureLogger capturedQueries
                 let originalModelContext = ?modelContext
                     observedBatch =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug queryLogger, ModelSupport.queryLoggingEnabled = True }
                          in evaluateUnsealedWagesWithPolicy DraftWageEvaluation rosterWideSubjects
                 batchOutcomes <- observedBatch
                 Log.cleanup queryLogger
@@ -286,7 +292,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Strict" "Ledger"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2026 7 6)
                 approvedAt <- getCurrentTime
-                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                timing <- expectRight (decodeTimesheetTiming entry)
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                 ( entry
                     |> set #isApproved True
                     |> set #staffPayVersionId (Just (unpackId staffVersion.id))
@@ -321,7 +328,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                 shiftType <- createShiftTypeRecord venue level "Ledger ordinary"
                 entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
                 approvedAt <- getCurrentTime
-                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                timing <- expectRight (decodeTimesheetTiming entry)
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                 lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
                 approvedEntry <- withLegacyPayBackfillFixture do
                     entry
@@ -380,7 +388,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 ledgerQueryLogger <- queryCaptureLogger capturedLedgerQueries
                 let originalModelContext = ?modelContext
                     observedLedgerLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = ledgerQueryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug ledgerQueryLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadApprovedTimesheetPayCalculations (replicate 1000 activeEntry)
                 bulkLoaded <- observedLedgerLoad
                 Log.cleanup ledgerQueryLogger
@@ -421,7 +429,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> createRecord
                 entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
                 approvedAt <- getCurrentTime
-                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                timing <- expectRight (decodeTimesheetTiming entry)
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                 lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
                 approvedEntry <- withLegacyPayBackfillFixture do
                     entry
@@ -474,7 +483,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                 invalidEntry <- createAdapterEntry venue invalidStaff shiftType (fromGregorian 2026 7 7)
                 approvedAt <- getCurrentTime
                 forM_ [validEntry, invalidEntry] \entry -> do
-                    (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                    timing <- expectRight (decodeTimesheetTiming entry)
+                    (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                     lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
                     void $ withLegacyPayBackfillFixture do
                         entry
@@ -535,7 +545,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 let originalModelContext = ?modelContext
                     observedLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
                     observedLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug queryLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadWageEngineContextsWith
                                 (databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' databaseReads (<> [databaseRead])))
                                 [WageEngineEntryRequest (unpackId entry.id) | entry <- entries]
@@ -601,7 +611,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 let originalModelContext = ?modelContext
                     observedAdapterLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
                     observedAdapterLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = adapterLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug adapterLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadWageEngineContextsWith
                                 (databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' adapterReads (<> [databaseRead])))
                                 [WageEngineEntryRequest (unpackId entry.id) | entry <- approvedEntries]
@@ -615,7 +625,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 ledgerQueries <- newIORef ([] :: [Text])
                 ledgerLogger <- queryCaptureLogger ledgerQueries
                 let observedLedgerLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = ledgerLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug ledgerLogger, ModelSupport.queryLoggingEnabled = True }
                          in loadApprovedTimesheetPayCalculations approvedEntries
                 calculations <- observedLedgerLoad
                 Log.cleanup ledgerLogger
@@ -686,7 +696,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                 let originalModelContext = ?modelContext
                     observedLoad :: IO (Either [WageEngineAdapterError] (Map.Map UUID LoadedCalculationContext))
                     observedLoad =
-                        let ?modelContext = originalModelContext { ModelSupport.logger = queryLogger }
+                        let ?modelContext = originalModelContext { ModelSupport.logger = Log.writeLog Log.Debug queryLogger, ModelSupport.queryLoggingEnabled = True }
                          in let databaseSource = databaseWageEngineBulkSourceWith (\databaseRead -> modifyIORef' databaseReads (<> [databaseRead]))
                                 countedSource = countBulkSourceCalls calls databaseSource
                              in loadWageEngineContextsWith countedSource requests
@@ -942,6 +952,7 @@ testEntryContext entryId workedOn =
         workedOn
         workedOn
         workedOn
+        True
         "Australia/Melbourne"
         1
         "VIC"

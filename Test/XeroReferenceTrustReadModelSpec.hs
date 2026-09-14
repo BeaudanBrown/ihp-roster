@@ -85,7 +85,7 @@ tests = aroundAll withDatabaseTestContext do
                 retryAt <- pure (addUTCTime 300 now)
                 continuation <- continuationJob
                     |> set #runAt retryAt
-                    |> set #payload (Aeson.object ["requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
+                    |> set #payload (Aeson.object ["xeroConnectionId" Aeson..= tshow trustedConnection.id, "tenantId" Aeson..= trustedConnection.tenantId, "requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
                     |> updateRecord
 
                 state <- fetchXeroReferenceTrustState now trustedConnection NoMissingPayrollReferenceDemand

@@ -1,60 +1,7 @@
 .roster-template-card {
     background: var(--bs-body-bg);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
-}
-
-.roster-template-card [data-bepis-source-ref] {
-    cursor: grab;
-    touch-action: none;
-}
-
-.roster-template-card-apply:hover:not(:disabled),
-.roster-template-card-apply:focus-visible {
-    background: var(--bs-tertiary-bg);
-}
-
-.roster-template-card.is-template-card-selected {
-    border-color: var(--bs-success) !important;
-    box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--bs-success) 20%, transparent);
-}
-
-.roster-grid-day-section,
-.roster-day-column,
-.roster-template-timeline-day-target {
-    position: relative;
-}
-
-.roster-template-day-activation-target {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    display: block;
-    border: 0;
-    outline: 0 solid transparent;
-    outline-offset: -3px;
-    background: transparent;
-}
-
-.roster-template-day-activation-target[hidden] {
-    display: none;
-}
-
-.roster-template-day-activation-target:hover,
-.roster-template-day-activation-target:focus-visible {
-    outline: 3px solid var(--bs-success);
-    background-color: color-mix(in srgb, var(--bs-success) 10%, transparent);
-}
-
-.is-template-day-targeting .roster-grid-frame {
-    cursor: crosshair;
 }
 
 .roster-template-card-actions form {
     margin: 0;
-}
-
-@media (max-width: 575.98px) {
-    .roster-template-card .roster-template-card-apply {
-        min-height: 3.25rem;
-    }
 }

@@ -12,9 +12,7 @@ module Web.Profiles.FrontendSurface
     , staffSurfaceScope
     ) where
 
-import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
-                                                         SurfaceScope,
-                                                         surfaceScopeKey)
+import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Runtime

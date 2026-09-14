@@ -17,10 +17,11 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (FrameworkConfig, option, withFrameworkConfig)
+import IHP.FrameworkConfig (FrameworkConfig (..), withFrameworkConfig)
 import IHP.Job.Queue.Result (jobDidFail)
 import IHP.Job.Types (JobStatus (JobStatusFailed))
 import qualified IHP.Log as Log
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.URI as URI
@@ -49,15 +50,16 @@ startOrResumeCheckout stripeClient stripeConfig venue owner =
 withCapturedLogger :: (FrameworkConfig -> IO value) -> IO (value, Text)
 withCapturedLogger action = do
     capturedRef <- IORef.newIORef []
-    logger <-
-        Log.newLogger
-            def
-                { Log.destination =
-                    Log.Callback
-                        (\line -> IORef.modifyIORef' capturedRef (TextEncoding.decodeUtf8 (Log.fromLogStr line) :))
-                        (pure ())
-                }
-    result <- withFrameworkConfig (option logger >> config) action
+    result <- Exception.bracket
+        (Log.newLogger def
+            { Log.destination =
+                Log.Callback
+                    (\line -> IORef.modifyIORef' capturedRef (TextEncoding.decodeUtf8 (Log.fromLogStr line) :))
+                    (pure ())
+            })
+        Log.cleanup
+        \capturedLogger -> withFrameworkConfig config \frameworkConfig ->
+            action frameworkConfig { logger = Log.writeLog Log.Info capturedLogger }
     captured <- Text.concat . reverse <$> IORef.readIORef capturedRef
     pure (result, captured)
 
@@ -173,7 +175,7 @@ tests = aroundAll withDatabaseTestContext do
                     Left exception -> pure exception
                     Right () -> expectationFailure "expected the raw provider failure to fail the reconciliation job" >> error "unreachable"
                 let jobExceptionText = cs (Exception.displayException jobException)
-                jobExceptionText `shouldSatisfy` Text.isInfixOf "checkout_session_retrieve_failed"
+                jobExceptionText `shouldSatisfy` Text.isInfixOf "application.async.error.app-job/job-transport-unavailable"
                 forM_ sensitiveValues \sensitiveValue ->
                     jobExceptionText `shouldSatisfy` not . Text.isInfixOf sensitiveValue
 
@@ -629,6 +631,23 @@ tests = aroundAll withDatabaseTestContext do
                 attempt.status `shouldBe` "open"
                 attempt.expiresAt `shouldSatisfy` isJust
 
+        it "returns an empty HTMX hosted Checkout redirect after recording the start audit" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing HTMX Checkout Venue"
+                owner <- createUserRecord "billing-htmx-checkout@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest (checkoutStripeClientExpectingCustomer "Billing HTMX Checkout Venue" "billing-htmx-checkout@example.com") do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction CreateBillingCheckoutSessionAction
+                response `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders response) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
+                lookup "Location" (responseHeaders response) `shouldBe` Nothing
+                responseBody response `shouldReturn` ""
+                query @BillingCheckoutAttempt |> fetchCount `shouldReturn` 1
+                query @AuditEvent |> filterWhere (#eventType, "billing_checkout_started") |> fetchCount `shouldReturn` 1
+
         it "uses the configured direct Price without a lookup before hosted Checkout" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Direct Price Checkout Venue"
@@ -929,6 +948,28 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "https://billing.stripe.com/p/session/bps_test_123"
+
+        it "returns an empty HTMX hosted Portal redirect after recording the start audit" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing HTMX Portal Venue"
+                owner <- createUserRecord "billing-htmx-portal@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- newRecord @VenueBillingCustomer
+                    |> set #venueId (unpackId venue.id)
+                    |> set #stripeCustomerId "cus_portal_123"
+                    |> set #livemode False
+                    |> createRecord
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest portalStripeClient do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction CreateBillingPortalSessionAction
+                response `responseStatusShouldBe` status200
+                lookup "HX-Redirect" (responseHeaders response) `shouldBe` Just "https://billing.stripe.com/p/session/bps_test_123"
+                lookup "Location" (responseHeaders response) `shouldBe` Nothing
+                responseBody response `shouldReturn` ""
+                query @AuditEvent |> filterWhere (#eventType, "billing_portal_started") |> fetchCount `shouldReturn` 1
+                query @BillingCheckoutAttempt |> fetchCount `shouldReturn` 0
 
         it "uses a fresh idempotency request identifier for every Portal action" $ withContext do
             withCleanDb do

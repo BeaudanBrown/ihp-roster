@@ -4,6 +4,7 @@ import qualified Data.Text as Text
 import Generated.Types
 import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status (status200)
 import System.Environment (lookupEnv)

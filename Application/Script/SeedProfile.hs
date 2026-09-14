@@ -3,6 +3,7 @@ module Application.Script.SeedProfile where
 import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           startOfWeekFor)
+import Application.Operator.Error
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model (resolveBoundaryInstant)
 import Control.Monad (foldM)
@@ -31,9 +32,11 @@ run = do
     options <- parseOptions
     today <- utctDay <$> getCurrentTime
     let currentWindowStart = profileWindowStartForDay today
-    createDirectoryIfMissing True options.outputDir
     let plan = buildProfileSeedPlan options currentWindowStart
-    writeProfileSeed options.outputDir plan
+    outputResult <- tryScriptIO "profile seed output" do
+        createDirectoryIfMissing True options.outputDir
+        writeProfileSeed options.outputDir plan
+    requireScriptResult outputResult >>= requireScriptResult
     printSummary options plan
 
 profileWindowStartForDay :: Day -> Day
@@ -109,12 +112,15 @@ buildProfileSeedPlan options currentWindowStart =
         timesheetEntryCount = venueCount options * staffPerVenue options * min 52 (max 1 (weeksHistory options))
         leaveRequestCount = venueCount options * staffPerVenue options * 3
 
-writeProfileSeed :: FilePath -> ProfileSeedPlan -> IO ()
-writeProfileSeed dir plan = do
-    either (fail . cs . tshow) pure (validateProfileTableDescriptors plan profileTableDescriptors)
-    forM_ profileTableDescriptors (writeProfileTable dir plan)
-    TextIO.writeFile (dir </> "load.sql") (renderLoadSql dir)
-    TextIO.writeFile (dir </> "manifest.json") (renderProfileSeedManifest plan)
+writeProfileSeed :: FilePath -> ProfileSeedPlan -> IO (Either ScriptError ())
+writeProfileSeed dir plan =
+    case validateProfileTableDescriptors plan profileTableDescriptors of
+        Left validationErrors -> pure (Left (ScriptOperationFailed ("profile seed table validation failed: " <> tshow validationErrors)))
+        Right () -> do
+            forM_ profileTableDescriptors (writeProfileTable dir plan)
+            TextIO.writeFile (dir </> "load.sql") (renderLoadSql dir)
+            TextIO.writeFile (dir </> "manifest.json") (renderProfileSeedManifest plan)
+            pure (Right ())
 
 writeProfileTable :: FilePath -> ProfileSeedPlan -> ProfileTableDescriptor -> IO ()
 writeProfileTable dir plan descriptor =
@@ -162,7 +168,7 @@ renderLoadSql dir =
             [ "CREATE TEMP TABLE profile_seed_timesheet_entries (LIKE timesheet_entries INCLUDING DEFAULTS);"
             , renderCopy "profile_seed_timesheet_entries" descriptor
             , "INSERT INTO timesheet_entries (id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date, is_approved) SELECT id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date, FALSE FROM profile_seed_timesheet_entries;"
-            , "INSERT INTO timesheet_pay_calculations (id, timesheet_entry_id, calculation_version, calculation_source, venue_timezone, holiday_jurisdiction, staff_pay_version_id, shift_type_pay_version_id, approved_at, approved_by_user_id, sealed_at, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), id, 'profile-seed-v1', 'hospitality_award', timezone, 'VIC', staff_pay_version_id, shift_type_pay_version_id, approved_at, approved_by_user_id, NULL, approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
+            , "INSERT INTO timesheet_pay_calculations (id, timesheet_entry_id, calculation_version, calculation_source, venue_timezone, operational_date, roster_window_start, roster_week_starts_on, holiday_jurisdiction, staff_pay_version_id, shift_type_pay_version_id, approved_at, approved_by_user_id, sealed_at, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || staged.id::text), staged.id, 'profile-seed-v1', 'hospitality_award', staged.timezone, staged.operational_date, staged.operational_date - ((EXTRACT(DOW FROM staged.operational_date)::int - config.roster_week_starts_on + 7) % 7), config.roster_week_starts_on, 'VIC', staged.staff_pay_version_id, staged.shift_type_pay_version_id, staged.approved_at, staged.approved_by_user_id, NULL, staged.approved_at FROM profile_seed_timesheet_entries staged JOIN venue_config config ON config.venue_id = staged.venue_id WHERE staged.is_approved;"
             , "INSERT INTO timesheet_pay_time_segments (id, timesheet_pay_calculation_id, ordinal, paid_time_kind, starts_at, ends_at, local_date, source_condition, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-segment-a:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 0, 'worked', starts_at, break_starts_at, (starts_at AT TIME ZONE timezone)::date, 'ordinary', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
             , "INSERT INTO timesheet_pay_time_segments (id, timesheet_pay_calculation_id, ordinal, paid_time_kind, starts_at, ends_at, local_date, source_condition, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-segment-b:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 1, 'worked', break_ends_at, ends_at, (break_ends_at AT TIME ZONE timezone)::date, 'ordinary', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
             , "INSERT INTO timesheet_pay_earnings_components (id, timesheet_pay_calculation_id, ordinal, quantity, unit_type, rate_per_unit, exact_amount, source_condition, calculation_source, source_rate_identity, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-earning:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 0, 7.5, 'hours', 30, 225, 'ordinary', 'hospitality_award', 'profile-seed-v1', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
@@ -178,6 +184,7 @@ renderProfileSeedManifest plan =
         , "  \"seed\": " <> tshow plan.options.seedValue <> ","
         , "  \"currentWindowStart\": " <> jsonString (dateText plan.currentWindowStart) <> ","
         , "  \"options\": {"
+        , "    \"fixtureVersion\": 2,"
         , "    \"venues\": " <> tshow plan.options.venueCount <> ","
         , "    \"staffPerVenue\": " <> tshow plan.options.staffPerVenue <> ","
         , "    \"managersPerVenue\": " <> tshow plan.options.managerPerVenue <> ","
@@ -190,6 +197,7 @@ renderProfileSeedManifest plan =
         , "  },"
         , "  \"accounts\": {"
         , "    \"primaryManager\": { \"email\": " <> jsonString (staffEmail 1 1) <> ", \"password\": \"password123\", \"venueId\": " <> jsonString (venueId 1) <> ", \"staffId\": " <> jsonString (staffId 1 1) <> " },"
+        , "    \"primaryStaff\": { \"email\": " <> jsonString (staffEmail 1 primaryStaffIndex) <> ", \"password\": \"password123\", \"venueId\": " <> jsonString (venueId 1) <> ", \"staffId\": " <> jsonString (staffId 1 primaryStaffIndex) <> " },"
         , "    \"venueAdmin\": { \"email\": " <> jsonString (adminEmail 1) <> ", \"password\": \"password123\", \"venueId\": " <> jsonString (venueId 1) <> " },"
         , "    \"support\": { \"email\": \"profile-support@example.com\", \"password\": \"password123\" }"
         , "  },"
@@ -228,6 +236,7 @@ renderProfileSeedManifest plan =
         , "}"
         ]
     where
+        primaryStaffIndex = min (staffPerVenue plan.options) (managerPerVenue plan.options + 1)
         currentWeekStart = plan.currentWindowStart
         currentWeekEnd = addDays 6 currentWeekStart
         historicalWindowStart =
@@ -331,6 +340,9 @@ data ProfileTable
     | ProfilePasskeys
     | ProfileVenueConfig
     | ProfileVenueMemberships
+    | ProfileAwardLevels
+    | ProfileFwcPayRates
+    | ProfileAwardBaseRates
     | ProfileStaff
     | ProfileShiftTypes
     | ProfileDayNames
@@ -379,6 +391,9 @@ profileTableDescriptor profileTable =
         ProfilePasskeys -> descriptor "passkeys" "passkeys.csv" passkeyColumns passkeyRows
         ProfileVenueConfig -> descriptor "venue_config" "venue_config.csv" venueConfigColumns venueConfigRows
         ProfileVenueMemberships -> descriptor "venue_memberships" "venue_memberships.csv" venueMembershipColumns venueMembershipRows
+        ProfileAwardLevels -> descriptor "award_levels" "award_levels.csv" profileAwardLevelColumns profileAwardLevelRows
+        ProfileFwcPayRates -> descriptor "fwc_mapd_pay_rates" "fwc_mapd_pay_rates.csv" profileFwcPayRateColumns profileFwcPayRateRows
+        ProfileAwardBaseRates -> descriptor "award_level_base_rates" "award_level_base_rates.csv" profileAwardBaseRateColumns profileAwardBaseRateRows
         ProfileStaff -> descriptor "staff" "staff.csv" staffColumns staffRows
         ProfileShiftTypes -> descriptor "shift_types" "shift_types.csv" shiftTypeColumns shiftTypeRows
         ProfileDayNames -> descriptor "day_names" "day_names.csv" dayNameColumns dayNameRows
@@ -442,12 +457,12 @@ userColumns = ["id", "email", "password_hash", "user_role", "platform_role", "is
 passkeyColumns = ["id", "user_id", "credential_id", "public_key", "sign_count", "name", "created_at", "last_used_at", "updated_at"]
 venueConfigColumns = ["id", "venue_id", "timezone", "roster_week_starts_on", "late_to_early_min_start_gap_minutes", "staff_timesheet_edit_window_days"]
 venueMembershipColumns = ["id", "venue_id", "user_id", "venue_role", "is_active"]
-staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active"]
+staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active", "employment_basis", "pay_assignment_mode", "default_award_level_id"]
 
 shiftTypeColumns, dayNameColumns, staffPayVersionColumns, shiftTypePayVersionColumns :: [Text]
 shiftTypeColumns = ["id", "venue_id", "name", "sort_order", "override_award_level_id", "is_active"]
 dayNameColumns = ["id", "venue_id", "weekday_index", "name", "is_active"]
-staffPayVersionColumns = ["id", "venue_id", "staff_id", "default_award_level_id", "employment_basis", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
+staffPayVersionColumns = ["id", "venue_id", "staff_id", "default_award_level_id", "employment_basis", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id", "pay_assignment_mode"]
 shiftTypePayVersionColumns = ["id", "venue_id", "shift_type_id", "override_award_level_id", "payroll_label", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
 
 rosterGroupColumns, slotNameColumns, staffRosterGroupColumns :: [Text]
@@ -532,6 +547,24 @@ venueMembershipRows plan =
             | staffIndex <- staffIndexes plan
             ]
 
+-- Synthetic payroll facts, not externally sourced award data. The $30 base
+-- matches the existing sealed profile-seed-v1 earnings snapshots. Load before
+-- staff so explicit payable assignments satisfy their foreign keys.
+profileAwardLevelId, profileFwcPayRateId :: Text
+profileAwardLevelId = uuidText 30 0 0 0
+profileFwcPayRateId = uuidText 31 0 0 0
+
+profileAwardLevelColumns, profileFwcPayRateColumns, profileAwardBaseRateColumns :: [Text]
+profileAwardLevelColumns = ["id", "award_fixed_id", "classification_fixed_id", "classification", "is_active"]
+profileFwcPayRateColumns = ["id", "award_fixed_id", "classification_fixed_id", "classification", "base_rate", "base_rate_type"]
+profileAwardBaseRateColumns = ["id", "award_level_id", "employment_basis", "fwc_mapd_pay_rate_id", "hourly_rate", "rate_label", "operative_from"]
+
+profileAwardLevelRows, profileFwcPayRateRows, profileAwardBaseRateRows :: ProfileSeedPlan -> [[Maybe Text]]
+profileAwardLevelRows _ = [row [profileAwardLevelId, "9999001", "9999001", "Profile synthetic award", "true"]]
+profileFwcPayRateRows _ = [row [profileFwcPayRateId, "9999001", "9999001", "Profile synthetic award", "30", "hourly"]]
+profileAwardBaseRateRows plan =
+    [row [uuidText 32 0 0 0, profileAwardLevelId, "permanent", profileFwcPayRateId, "30", "Profile synthetic base", dateText (minimum (map (.windowStart) (profileWindows plan)))]]
+
 staffRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffRows plan =
     concatMap staffForVenue (venueIndexes plan)
@@ -549,6 +582,9 @@ staffRows plan =
                 , "0411111111"
                 , "0"
                 , "true"
+                , "permanent"
+                , "roster_only"
+                , nullText
                 ] :
             [ row
                 [ staffId venueIndex staffIndex
@@ -562,6 +598,9 @@ staffRows plan =
                 , "0411111111"
                 , tshow (1 + deterministicIndex plan [venueIndex, staffIndex, 14] 6)
                 , "true"
+                , "permanent"
+                , "award_rate"
+                , profileAwardLevelId
                 ]
             | staffIndex <- staffIndexes plan
             ]
@@ -584,7 +623,7 @@ dayNameRows plan =
 
 staffPayVersionRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffPayVersionRows plan =
-    [ row [staffPayVersionId venueIndex staffIndex, venueId venueIndex, staffId venueIndex staffIndex, nullText, "permanent", dateText (minimum (map (.windowStart) (profileWindows plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
+    [ row [staffPayVersionId venueIndex staffIndex, venueId venueIndex, staffId venueIndex staffIndex, profileAwardLevelId, "permanent", dateText (minimum (map (.windowStart) (profileWindows plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex, "award_rate"]
     | venueIndex <- venueIndexes plan
     , staffIndex <- staffIndexes plan
     ]
@@ -824,10 +863,10 @@ xeroStaffMappingRows plan =
 assignedStaffIndex :: ProfileSeedPlan -> Int -> Int -> Int -> Int -> Int -> Int -> Maybe Int
 assignedStaffIndex plan venueIndex groupIndex windowOrdinal dayIndex rowIndex slotIndex
     | deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex] 100 >= rosterFill plan.options = Nothing
-    | otherwise = Just selectedStaffIndex
+    | otherwise = listToMaybe (drop selectedIndex candidates)
     where
         candidates = eligibleStaffIndexesForGroup plan groupIndex
-        selectedStaffIndex = candidates !! deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex, 99] (length candidates)
+        selectedIndex = deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex, 99] (length candidates)
 
 eligibleStaffIndexesForGroup :: ProfileSeedPlan -> Int -> [Int]
 eligibleStaffIndexesForGroup plan groupIndex =
@@ -887,9 +926,12 @@ addTimeMinutes (TimeOfDay hour minute _) addedMinutes =
     let totalMinutes = hour * 60 + minute + addedMinutes
      in TimeOfDay (totalMinutes `div` 60) (totalMinutes `mod` 60) 0
 
+-- Profile rows only call this with the locally closed clock set in 'timeFor'
+-- plus 09:00, 12:00, 12:30, and 17:00. None intersects Melbourne's 02:00 DST
+-- gap/repetition. 'ProfileSeedSpec' exercises the set on both transition days.
 instantText :: Day -> TimeOfDay -> Text
 instantText day timeOfDay =
-    either (error . ("Invalid profile-seed boundary: " <>) . show) tshow $
+    either (error . ("Profile seed clock-set proof violated: " <>) . show) tshow $
         resolveBoundaryInstant melbourneTimeZoneName day timeOfDay Nothing
 
 leaveStatus :: Int -> Text
@@ -933,11 +975,29 @@ hex12 value = padLeft 12 (showHexText value)
 
 showHexText :: Int -> String
 showHexText value =
-    let digits = "0123456789abcdef"
-        go number
-            | number < 16 = [digits !! number]
-            | otherwise = go (number `div` 16) <> [digits !! (number `mod` 16)]
+    let go number
+            | number < 16 = [hexDigit number]
+            | otherwise = go (number `div` 16) <> [hexDigit (number `mod` 16)]
      in go (abs value)
+
+hexDigit :: Int -> Char
+hexDigit = \case
+    0 -> '0'
+    1 -> '1'
+    2 -> '2'
+    3 -> '3'
+    4 -> '4'
+    5 -> '5'
+    6 -> '6'
+    7 -> '7'
+    8 -> '8'
+    9 -> '9'
+    10 -> 'a'
+    11 -> 'b'
+    12 -> 'c'
+    13 -> 'd'
+    14 -> 'e'
+    _ -> 'f'
 
 padLeft :: Int -> String -> String
 padLeft width value =
@@ -1085,32 +1145,55 @@ parseOptions = do
     when ("--help" `elem` args || "-h" `elem` args) do
         printUsage
         exitSuccess
-    foldM parseArg defaultOptions args
+    requireScriptResult (parseProfileSeedArgs args)
 
-parseArg :: ProfileSeedOptions -> String -> IO ProfileSeedOptions
-parseArg options arg
-    | "--output-dir=" `List.isPrefixOf` arg = pure options { outputDir = readStringFlag "--output-dir=" arg }
-    | "--venues=" `List.isPrefixOf` arg = pure options { venueCount = max 1 (readIntFlag "--venues=" arg) }
-    | "--staff-per-venue=" `List.isPrefixOf` arg = pure options { staffPerVenue = max 1 (readIntFlag "--staff-per-venue=" arg) }
-    | "--managers-per-venue=" `List.isPrefixOf` arg = pure options { managerPerVenue = max 1 (readIntFlag "--managers-per-venue=" arg) }
-    | "--weeks-history=" `List.isPrefixOf` arg = pure options { weeksHistory = max 1 (readIntFlag "--weeks-history=" arg) }
-    | "--weeks-future=" `List.isPrefixOf` arg = pure options { weeksFuture = max 0 (readIntFlag "--weeks-future=" arg) }
-    | "--rows-per-day=" `List.isPrefixOf` arg = pure options { rowsPerDay = max 1 (readIntFlag "--rows-per-day=" arg) }
-    | "--roster-fill=" `List.isPrefixOf` arg = pure options { rosterFill = max 0 (min 100 (readIntFlag "--roster-fill=" arg)) }
-    | "--seed=" `List.isPrefixOf` arg = pure options { seedValue = readIntFlag "--seed=" arg }
-    | "--xero-employees=" `List.isPrefixOf` arg = pure options { xeroEmployees = max 1 (readIntFlag "--xero-employees=" arg) }
-    | "--xero-mapped-staff=" `List.isPrefixOf` arg = pure options { xeroMappedStaff = max 0 (readIntFlag "--xero-mapped-staff=" arg) }
-    | "--scenario=large-roster-history" == arg = pure options
-    | otherwise = error ("Unsupported seed-profile option: " <> cs arg)
+parseProfileSeedArgs :: [String] -> Either ScriptError ProfileSeedOptions
+parseProfileSeedArgs = foldM parseProfileSeedArg defaultOptions
+
+parseProfileSeedArg :: ProfileSeedOptions -> String -> Either ScriptError ProfileSeedOptions
+parseProfileSeedArg options arg
+    | "--output-dir=" `List.isPrefixOf` arg =
+        case readStringFlag "--output-dir=" arg of
+            ""   -> Left (InvalidScriptArgument "--output-dir requires a path")
+            path -> Right options { outputDir = path }
+    | "--venues=" `List.isPrefixOf` arg = setPositive "--venues=" arg \value -> options { venueCount = value }
+    | "--staff-per-venue=" `List.isPrefixOf` arg = setPositive "--staff-per-venue=" arg \value -> options { staffPerVenue = value }
+    | "--managers-per-venue=" `List.isPrefixOf` arg = setPositive "--managers-per-venue=" arg \value -> options { managerPerVenue = value }
+    | "--weeks-history=" `List.isPrefixOf` arg = setPositive "--weeks-history=" arg \value -> options { weeksHistory = value }
+    | "--weeks-future=" `List.isPrefixOf` arg = setNonNegative "--weeks-future=" arg \value -> options { weeksFuture = value }
+    | "--rows-per-day=" `List.isPrefixOf` arg = setPositive "--rows-per-day=" arg \value -> options { rowsPerDay = value }
+    | "--roster-fill=" `List.isPrefixOf` arg = do
+        value <- readIntFlag "--roster-fill=" arg
+        if value >= 0 && value <= 100
+            then Right options { rosterFill = value }
+            else Left (InvalidScriptArgument "--roster-fill must be between 0 and 100")
+    | "--seed=" `List.isPrefixOf` arg = do
+        value <- readIntFlag "--seed=" arg
+        Right options { seedValue = value }
+    | "--xero-employees=" `List.isPrefixOf` arg = setPositive "--xero-employees=" arg \value -> options { xeroEmployees = value }
+    | "--xero-mapped-staff=" `List.isPrefixOf` arg = setNonNegative "--xero-mapped-staff=" arg \value -> options { xeroMappedStaff = value }
+    | "--scenario=large-roster-history" == arg = Right options
+    | otherwise = Left (InvalidScriptArgument ("unsupported seed-profile option: " <> cs arg))
+  where
+    setPositive prefix valueArg update = do
+        value <- readIntFlag prefix valueArg
+        if value > 0
+            then Right (update value)
+            else Left (InvalidScriptArgument (cs prefix <> " value must be greater than zero"))
+    setNonNegative prefix valueArg update = do
+        value <- readIntFlag prefix valueArg
+        if value >= 0
+            then Right (update value)
+            else Left (InvalidScriptArgument (cs prefix <> " value must be non-negative"))
 
 readStringFlag :: String -> String -> FilePath
 readStringFlag prefix arg = drop (length prefix) arg
 
-readIntFlag :: String -> String -> Int
+readIntFlag :: String -> String -> Either ScriptError Int
 readIntFlag prefix arg =
     case TextRead.readMaybe (drop (length prefix) arg) of
-        Just value -> value
-        Nothing    -> error ("Expected integer for flag: " <> cs arg)
+        Just value -> Right value
+        Nothing    -> Left (InvalidScriptArgument ("expected integer for flag: " <> cs arg))
 
 printUsage :: IO ()
 printUsage = do

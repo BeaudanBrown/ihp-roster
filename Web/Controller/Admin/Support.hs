@@ -14,16 +14,10 @@ import Application.Helper.VenueInvitation
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
                                 renderToastOob)
-import Application.Helper.WeekBoundaries (sortDayNamesForVenueWeek,
-                                          validRosterWeekStartDays,
-                                          weekdayIndexLabel)
-import Control.Monad (void)
 import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
-import qualified Text.Blaze.Html as Blaze
-import Text.Read (readMaybe)
+import qualified IHP.HSX.Markup as Markup
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.View.Admin.Invites
@@ -81,13 +75,13 @@ nextShiftTypeSortOrder =
 data AdminSectionMutationResponse = AdminSectionMutationResponse
     { adminSectionSuccessMessage :: !(Maybe Text)
     , adminSectionRedirectGroup  :: !(Maybe (Id RosterGroup))
-    , adminSectionRenderFragment :: !(IO Blaze.Html)
+    , adminSectionRenderFragment :: !(IO Markup.Html)
     }
 
 respondToAdminSectionMutation ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     AdminSectionMutationResponse ->
-    IO ()
+    IO ResponseReceived
 respondToAdminSectionMutation AdminSectionMutationResponse { .. } =
     if isHtmxRequest
         then do
@@ -101,10 +95,10 @@ respondToAdminSectionMutation AdminSectionMutationResponse { .. } =
             maybe (pure ()) setSuccessMessage
 
 respondToInvitesSectionMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     Id RosterGroup ->
-    IO ()
+    IO ResponseReceived
 respondToInvitesSectionMutation successMessage rosterGroupId =
     respondToAdminSectionMutation AdminSectionMutationResponse
         { adminSectionSuccessMessage = nonEmptySuccessMessage successMessage
@@ -117,10 +111,10 @@ respondToInvitesSectionMutation successMessage rosterGroupId =
         }
 
 respondToInvitesSectionError ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     Id RosterGroup ->
-    IO ()
+    IO ResponseReceived
 respondToInvitesSectionError message rosterGroupId =
     if isHtmxRequest
         then do
@@ -136,9 +130,9 @@ respondToInvitesSectionError message rosterGroupId =
             redirectToAdminFor (Just rosterGroupId)
 
 respondToShiftTypesSectionMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Bool ->
-    IO ()
+    IO ResponseReceived
 respondToShiftTypesSectionMutation showInactiveShiftTypes =
     respondToAdminSectionMutation AdminSectionMutationResponse
         { adminSectionSuccessMessage = Nothing
@@ -152,9 +146,9 @@ respondToShiftTypesSectionMutation showInactiveShiftTypes =
         }
 
 respondToRosterGroupsSectionMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Maybe (Id RosterGroup) ->
-    IO ()
+    IO ResponseReceived
 respondToRosterGroupsSectionMutation maybeRosterGroupId =
     respondToAdminSectionMutation AdminSectionMutationResponse
         { adminSectionSuccessMessage = Nothing
@@ -166,10 +160,10 @@ respondToRosterGroupsSectionMutation maybeRosterGroupId =
         }
 
 respondToRosterGroupsResourceMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     LiveMutationResult value ->
     Maybe (Id RosterGroup) ->
-    IO ()
+    IO ResponseReceived
 respondToRosterGroupsResourceMutation mutationResult maybeRosterGroupId =
     respondToAdminSectionMutation AdminSectionMutationResponse
         { adminSectionSuccessMessage = Nothing
@@ -390,7 +384,7 @@ validateRosterWeekStartsOn weekdayIndex
 
 
 
-redirectToAdminFor :: (?context :: ControllerContext, ?request :: Request) => Maybe (Id RosterGroup) -> IO ()
+redirectToAdminFor :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Maybe (Id RosterGroup) -> IO ResponseReceived
 redirectToAdminFor maybeRosterGroupId =
     redirectToPath $
         maybe

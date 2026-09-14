@@ -35,10 +35,8 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Ord (Down (..))
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -141,7 +139,7 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
                     |> orderBy #createdAt
                     |> fetch
             let requirements = deriveXeroPayItemRequirements venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
-            syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
+            syncXeroPayItemRequirementRecords connection.id currentVenueId (Just authenticatedCurrentUser.id) requirements
 
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
@@ -421,13 +419,25 @@ xeroTimesheetReadinessView readiness =
     where
         deduplicateReadinessIssues =
             List.nubBy \left right ->
-                left.xeroBlockerCode == right.xeroBlockerCode
+                ( left.xeroBlockerCode
+                , left.xeroBlockerTimesheetEntryId
+                , left.xeroBlockerLocalBucketKey
+                , left.xeroBlockerXeroObjectId
+                )
+                    == ( right.xeroBlockerCode
+                       , right.xeroBlockerTimesheetEntryId
+                       , right.xeroBlockerLocalBucketKey
+                       , right.xeroBlockerXeroObjectId
+                       )
         issueView issue =
             XeroTimesheetIssueView
                 { timesheetIssueCode = issue.xeroBlockerCode
                 , timesheetIssueSeverity = xeroReadinessSeverityText issue.xeroBlockerSeverity
                 , timesheetIssueMessage = issue.xeroBlockerMessage
                 , timesheetIssueHint = issue.xeroBlockerActionHint
+                , timesheetIssueTimesheetEntryId = issue.xeroBlockerTimesheetEntryId
+                , timesheetIssueExpectedActiveCalculationId = Nothing
+                , timesheetIssueExpectedApprovalTimestamp = Nothing
                 }
 
 xeroTimesheetPreviewRowsFromJson :: [XeroEmployee] -> [XeroEarningsRate] -> Aeson.Value -> [XeroTimesheetPreviewRowView]
@@ -551,7 +561,7 @@ scoreXeroEmployeeSuggestion :: XeroStaffMappingRow -> XeroEmployee -> ScoredXero
 scoreXeroEmployeeSuggestion row employee =
     ScoredXeroEmployeeSuggestion
         { scoredSuggestionEmployee = employee
-        , scoredSuggestionScore = minimum (emailScore : nameScores)
+        , scoredSuggestionScore = foldl' min emailScore nameScores
         }
     where
         staff = row.mappingRowStaff
@@ -595,7 +605,7 @@ normalizedLevenshteinDistance left right
 
 levenshteinDistance :: String -> String -> Int
 levenshteinDistance source target =
-    List.last (List.foldl' transform [0 .. length target] source)
+    fromMaybe 0 (lastMay (List.foldl' transform [0 .. length target] source))
     where
         transform previous sourceChar =
             case previous of
@@ -604,11 +614,7 @@ levenshteinDistance source target =
                     scanl compute (firstPrevious + 1) (zip3 target previous (List.drop 1 previous))
                     where
                         compute left (targetChar, diagonal, above) =
-                            minimum
-                                [ left + 1
-                                , above + 1
-                                , diagonal + if sourceChar == targetChar then 0 else 1
-                                ]
+                            min (left + 1) (min (above + 1) (diagonal + if sourceChar == targetChar then 0 else 1))
 
 normalizeName :: Text -> Text
 normalizeName =

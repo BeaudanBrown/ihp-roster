@@ -24,10 +24,10 @@ import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMo
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Application.RosterNotification (RosterNotificationPanelData)
 import Application.RosterTemplates (RosterTemplateLibrary)
-import Data.Map.Strict (Map)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (NominalDiffTime)
-import Data.UUID (UUID)
+import Application.VenueTime.Model (RosterShiftIntegrityError,
+                                    TimesheetIntegrityError,
+                                    ValidatedRosterShiftTiming,
+                                    ValidatedTimesheetTiming)
 import Generated.Types
 import IHP.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope,
@@ -39,41 +39,9 @@ data NoRosterGroupView = NoRosterGroupView
     }
 
 data ShowView = ShowView
-    { rosterWeek             :: Maybe RosterWindowState
-    , rosterDays             :: [RosterDay]
-    , rosterWindowScope      :: RosterWindowScope
-    , rosterGroups           :: [RosterGroup]
-    , currentRosterGroup     :: RosterGroup
-    , weekStartDate          :: Day
-    , weekEndDate            :: Day
-    , rosterCalendarRevision :: Int
-    , assignmentFilters      :: RosterAssignmentFilters
-    , staffMembers           :: [Staff]
-    , panelStaff             :: [RosterStaffPanelEntry]
-    , templateLibrary        :: Maybe RosterTemplateLibrary
-    , showNotificationPanelData :: Maybe RosterNotificationPanelData
-    , templateLibraryUserId  :: Maybe (Id User)
-    , staffSelfServicePanel  :: Maybe RosterStaffSelfServicePanel
-    , slotNames              :: [RosterWindowLane]
-    , allSlots               :: [RosterSlot]
-    , slotConflicts          :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes          :: RosterRenderIndexes
-    , viewCapabilities       :: RosterViewCapabilities
-    , rosterLayoutMode       :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled              :: Bool
-    , rosterTimePickerStartMinute        :: Int
-    , rosterTimePickerFinalSelectableMinute :: Int
-    , rosterWagePrediction               :: Maybe RosterWagePrediction
-    , showWageEstimates      :: Bool
-    , showRosterWarnings     :: Bool
-    , highlightOwnLiveShifts :: Bool
-    , currentViewerStaffKey  :: Maybe Text
-    , publicHolidays         :: Map Day Text
-    , shiftTypes             :: [ShiftType]
-    , passkeySetupPrompt     :: Maybe PasskeySetupPromptMode
+    { rosterPageGridModel                 :: RosterGridRenderModel
+    , passkeySetupPrompt                  :: Maybe PasskeySetupPromptMode
     , passkeyStrongAuthenticationRequired :: Bool
-    , rosterGridViewMode     :: RosterGridViewMode
-    , rosterTimelineTodayUrl :: Maybe Text
     }
 
 data RosterGridViewMode
@@ -98,6 +66,7 @@ data RosterRenderIndexes = RosterRenderIndexes
     , rosterSlotByDayRowSlotName :: Map (UUID, Int, UUID) RosterSlot
     , rosterStaffById            :: Map UUID Staff
     , rosterConflictsBySlotId    :: Map UUID [RosterConflict]
+    , rosterTimingBySlotId       :: Map UUID (Either RosterShiftIntegrityError ValidatedRosterShiftTiming)
     }
 
 data RosterWeekOverviewDay = RosterWeekOverviewDay
@@ -105,6 +74,7 @@ data RosterWeekOverviewDay = RosterWeekOverviewDay
     , leaveRequestCount          :: Int
     , overviewAssignedShiftCount :: Int
     , scheduledElapsedSeconds    :: NominalDiffTime
+    , overviewInvalidTimingCount :: Int
     , overviewIsClosed           :: Bool
     }
 
@@ -136,7 +106,6 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     , staffPanelScope                  :: RosterStaffPanelScope
     , staffPanelEntries                :: [RosterStaffPanelEntry]
     , staffPanelTemplateLibrary        :: Maybe RosterTemplateLibrary
-    , staffPanelTemplateUserId         :: Maybe (Id User)
     , staffPanelNotificationPanelData  :: Maybe RosterNotificationPanelData
     }
 
@@ -147,6 +116,7 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsRosterGroups            :: [RosterGroup]
     , quickToolsRosterWeekStartDate     :: Day
     , quickToolsTimesheetEntries        :: [TimesheetEntry]
+    , quickToolsTimesheetTimingByEntryId :: Map UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming)
     , quickToolsStaffMembers            :: [Staff]
     , quickToolsShiftTypes              :: [ShiftType]
     , quickToolsOperationalDay          :: Day
@@ -184,7 +154,6 @@ data RosterRenderData = RosterRenderData
     , staffMembers          :: [Staff]
     , panelStaff            :: [RosterStaffPanelEntry]
     , templateLibrary       :: Maybe RosterTemplateLibrary
-    , templateLibraryUserId :: Maybe (Id User)
     , rosterNotificationPanelData :: Maybe RosterNotificationPanelData
     , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , orderedSlotNames      :: [RosterWindowLane]
@@ -214,7 +183,6 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridStaffMembers          :: [Staff]
     , gridPanelStaff            :: [RosterStaffPanelEntry]
     , gridTemplateLibrary       :: Maybe RosterTemplateLibrary
-    , gridTemplateLibraryUserId :: Maybe (Id User)
     , gridNotificationPanelData :: Maybe RosterNotificationPanelData
     , gridStaffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , gridSlotNames             :: [RosterWindowLane]

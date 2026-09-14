@@ -6,9 +6,8 @@ import Application.RosterNotification
 import Application.VenueTime.Model (storedInstantLocalTime)
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.MailPrelude
-import qualified Text.Blaze.Html5 as Html
+import qualified IHP.HSX.Markup as Markup
 import Web.Mail.Shared
 
 data RosterNotificationMail = RosterNotificationMail
@@ -60,8 +59,8 @@ openShifts mail =
 orderedShifts :: [RosterNotificationShiftSnapshot] -> [RosterNotificationShiftSnapshot]
 orderedShifts = List.sortOn \shift -> (shift.shiftDate, shift.shiftStartsAt, shift.shiftRosterSlotId)
 
-renderMailHtml :: RosterNotificationMail -> Html.Html
-renderMailHtml = Html.pre . Html.toHtml . renderMailText
+renderMailHtml :: RosterNotificationMail -> Markup.Html
+renderMailHtml mail = [hsx|<pre>{renderMailText mail}</pre>|]
 
 renderMailText :: RosterNotificationMail -> Text
 renderMailText mail =
@@ -107,11 +106,10 @@ formatShiftTimeRange shift =
         _ -> "Time to be confirmed"
 
 formatLocalTime :: Text -> UTCTime -> Text
-formatLocalTime timezone =
-    Text.pack
-        . formatTime defaultTimeLocale "%-I:%M %P"
-        . (.localTimeOfDay)
-        . storedInstantLocalTime timezone
+formatLocalTime timezone instant =
+    case storedInstantLocalTime timezone instant of
+        Left _ -> "Time unavailable"
+        Right localTime -> Text.pack (formatTime defaultTimeLocale "%-I:%M %P" localTime.localTimeOfDay)
 
 formatDayShort :: Day -> Text
 formatDayShort = Text.pack . formatTime defaultTimeLocale "%-d %B"

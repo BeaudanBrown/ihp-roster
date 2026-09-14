@@ -1,13 +1,19 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { assertArchitectureFactsCurrent } from "./facts-currency.mjs";
+import { workflowViolationMessage } from "./workflow-boundaries.mjs";
 import { architectureResult, dotId, dotQuote, ensureDir, queryDir, readJsonFile, readStdinJson, renderDot, repoRoot, slug, writeText } from "./shared.mjs";
 
 function ensureFacts() {
   const factsPath = path.join(repoRoot, "output/architecture/facts.json");
-  if (fs.existsSync(factsPath)) return;
-  const result = spawnSync("bash", ["Config/nix/scripts/architecture/facts"], { cwd: repoRoot, encoding: "utf8" });
-  if (result.status !== 0) throw new Error(`failed to generate facts: ${result.stderr || result.stdout}`);
+  if (!fs.existsSync(factsPath)) {
+    const result = spawnSync("bash", ["Config/nix/scripts/architecture/facts"], { cwd: repoRoot, encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`failed to generate facts: ${result.stderr || result.stdout}`);
+  }
+  const facts = readJsonFile("output/architecture/facts.json");
+  assertArchitectureFactsCurrent(facts);
+  return facts;
 }
 
 function unique(values) {
@@ -316,6 +322,10 @@ function conventionsQuery(facts, args) {
       warnings.push(`${controller.name} appears migrated but no controller policy was recorded.`);
     }
   }
+  for (const violation of facts.workflowBoundaries?.violations ?? []) {
+    rows.push({ severity: "error", detail: violation.message, owner: violation.owner, issue: violation.rule, source: `${violation.source.path}:${violation.source.line}` });
+    errors.push(workflowViolationMessage(violation));
+  }
   const migratedControllers = facts.web.controllers.filter((controller) => {
     const modules = unique(controller.actions.map((action) => handlers.get(action.name)?.module));
     return modules.some((moduleName) => policyByModule.has(moduleName));
@@ -336,6 +346,8 @@ function conventionsQuery(facts, args) {
       requireAllControllers,
       requireExplicitResponseWrappers,
       typedResponseMetadataHandlers: facts.web.handlers.filter((handler) => (handler.bepisWrapper?.responseKinds || []).length > 0).length,
+      workflowModules: facts.workflowBoundaries?.modules.length ?? 0,
+      workflowExceptions: facts.workflowBoundaries?.exceptions.length ?? 0,
       conventionRows: rows.length,
       visibleRows: visibleRows.length,
       informationalRows: rows.filter((row) => row.severity === "info").length,
@@ -343,6 +355,7 @@ function conventionsQuery(facts, args) {
     },
     tables: [{ title: "convention findings", rows: visibleRows }],
     sections: [
+      { title: "Adopted workflow imports", content: "Named module roles and type-only exceptions come from scripts/architecture/workflow-boundaries.mjs. Violations are blocking under failOnViolations. This lexical import guard does not infer transitive effects, transaction safety or subjective depth; semantic tests and review remain authoritative." },
       { title: "Enforcement", content: "Controllers with a Bepis controller policy runner are treated as migrated. Missing Bepis action runners in migrated controllers are blocking; missing runners elsewhere are informational during rollout. Set requireAllControllers=true to turn rollout into a strict whole-app gate. Response intent is derived from each typed Bepis action runner contract; set requireExplicitResponseWrappers=true only when an action needs additional response-level spans beyond the action contract." },
     ],
   });
@@ -684,8 +697,7 @@ function moduleQuery(facts, args) {
 
 const payload = readStdinJson();
 const args = payload.args || {};
-ensureFacts();
-const facts = readJsonFile("output/architecture/facts.json");
+const facts = ensureFacts();
 
 switch (payload.name) {
   case "component":

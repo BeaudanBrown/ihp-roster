@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Xero.Keepalive
     ( XeroKeepaliveSweepSummary (..)
     , enqueueDueXeroKeepaliveJobs
@@ -7,6 +9,9 @@ module Application.Xero.Keepalive
     , xeroConnectionKeepaliveJobKind
     ) where
 
+import Application.Async.Boundary (throwAppJobError)
+import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1, requireAppJobPayloadV1)
 import Application.Async.Queue
 import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroConnectionResource)
 import Application.Helper.SurfaceResource
@@ -19,11 +24,9 @@ import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
-import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types
-import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 
 data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary
@@ -35,6 +38,17 @@ data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary
     , referenceSyncExistingJobCount   :: !Int
     }
     deriving (Eq, Show)
+
+data XeroConnectionKeepalivePayload = XeroConnectionKeepalivePayload
+    { payloadConnectionId :: !Text
+    , payloadTenantId     :: !Text
+    }
+
+instance Aeson.FromJSON XeroConnectionKeepalivePayload where
+    parseJSON = Aeson.withObject "XeroConnectionKeepalivePayload" \object ->
+        XeroConnectionKeepalivePayload
+            <$> object Aeson..: "xeroConnectionId"
+            <*> object Aeson..: "tenantId"
 
 xeroConnectionKeepaliveJobKind :: Text
 xeroConnectionKeepaliveJobKind = "xero_connection_keepalive"
@@ -119,30 +133,34 @@ performXeroConnectionKeepaliveJob ::
     (?modelContext :: ModelContext) =>
     AppJob ->
     IO ()
-performXeroConnectionKeepaliveJob appJob =
-    case appJob.relatedId of
+performXeroConnectionKeepaliveJob appJob = do
+    requireAppJobPayloadV1 appJob
+    when (appJob.relatedTable /= Just "xero_connections") do
+        throwAppJobError JobInvalidProvenance
+    connectionUuid <- maybe (throwAppJobError JobInvalidProvenance) pure appJob.relatedId
+    payload <- decodeAppJobPayloadV1 @XeroConnectionKeepalivePayload appJob
+    when (payload.payloadConnectionId /= tshow (Id connectionUuid :: Id XeroConnection)) do
+        throwAppJobError JobInvalidProvenance
+    maybeConnection <- fetchOneOrNothing (Id connectionUuid :: Id XeroConnection)
+    case maybeConnection of
         Nothing ->
-            fail "Xero keepalive job is missing related xero connection id."
-        Just connectionUuid -> do
-            maybeConnection <- fetchOneOrNothing (Id connectionUuid :: Id XeroConnection)
-            case maybeConnection of
-                Nothing ->
-                    completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("missing_connection" :: Text)])
-                Just connection
-                    | connection.connectionStatus /= "active" ->
-                        completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("inactive_connection" :: Text)])
-                    | otherwise -> do
-                        now <- getCurrentTime
-                        acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
-                        unless acquired (fail "Another Xero job is already refreshing credentials for this tenant.")
-                        Exception.finally
-                            (do
-                                refreshedConnection <- fetch connection.id
-                                if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
-                                    then completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("connection_changed" :: Text)])
-                                    else performLeasedXeroConnectionKeepaliveJob appJob refreshedConnection
-                            )
-                            (releaseXeroReferenceSyncLease appJob connection.tenantId)
+            completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("missing_connection" :: Text)])
+        Just connection
+            | payload.payloadTenantId /= connection.tenantId -> throwAppJobError JobInvalidProvenance
+            | connection.connectionStatus /= "active" ->
+                completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("inactive_connection" :: Text)])
+            | otherwise -> do
+                now <- getCurrentTime
+                acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
+                unless acquired (throwAppJobError JobRemoteConflict)
+                Exception.finally
+                    (do
+                        refreshedConnection <- fetch connection.id
+                        if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
+                            then completeKeepaliveJob appJob (Aeson.object ["skipped" Aeson..= ("connection_changed" :: Text)])
+                            else performLeasedXeroConnectionKeepaliveJob appJob refreshedConnection
+                    )
+                    (releaseXeroReferenceSyncLease appJob connection.tenantId)
 
 performLeasedXeroConnectionKeepaliveJob ::
     (?modelContext :: ModelContext) =>
@@ -151,7 +169,7 @@ performLeasedXeroConnectionKeepaliveJob ::
     IO ()
 performLeasedXeroConnectionKeepaliveJob appJob connection =
     readXeroConfig >>= \case
-        Left message -> fail (cs message)
+        Left _ -> throwAppJobError JobConfigurationUnavailable
         Right xeroConfig -> do
             refreshResult <- forceRefreshXeroConnectionAccess xeroConfig connection
             case refreshResult of
@@ -162,7 +180,7 @@ performLeasedXeroConnectionKeepaliveJob appJob connection =
                             , "tenantId" Aeson..= updatedConnection.tenantId
                             , "refreshed" Aeson..= True
                             ]
-                Left message -> do
+                Left _ -> do
                     latestConnection <- fetch connection.id
                     if latestConnection.connectionStatus == "reauthorization_required"
                         then
@@ -172,9 +190,9 @@ performLeasedXeroConnectionKeepaliveJob appJob connection =
                                     , "tenantId" Aeson..= latestConnection.tenantId
                                     , "refreshed" Aeson..= False
                                     , "reauthorizationRequired" Aeson..= True
-                                    , "message" Aeson..= message
+                                    , "message" Aeson..= ("Xero connection requires reauthorization." :: Text)
                                     ]
-                        else fail (cs message)
+                        else throwAppJobError JobTransportUnavailable
 
 completeKeepaliveMutation :: (?modelContext :: ModelContext) => AppJob -> XeroConnection -> Text -> Aeson.Value -> IO ()
 completeKeepaliveMutation appJob connection label resultPayload =

@@ -15,9 +15,9 @@ module Application.Helper.FrontendContract.Surface.Live
     , surfaceScopeKey
     ) where
 
-import Application.Helper.FrontendContract.Surface.ContractIR (ScopeIR (..))
-import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKeyFromFields)
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKeyFromTypedValues)
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectFragmentPrimitive,
+                                                            ReflectScopePrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Application.Helper.LiveUpdate.Internal as LiveUpdate
@@ -33,7 +33,7 @@ type SurfaceFragmentKey = LiveUpdate.SurfaceFragmentKey
 frontendSurfaceScope ::
     forall spec marker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceScopePrimitive spec marker)
+    , ReflectScopePrimitive (SurfaceScopePrimitive spec marker)
     ) =>
     SurfaceFields (SurfaceScopeFieldSpecs spec marker) ->
     SurfaceScope
@@ -42,24 +42,14 @@ frontendSurfaceScope fields =
   where
     surfaceName = surfaceNameValue @spec
     payload = surfaceFieldsJson fields
-    stableKey =
-        either
-            (error . ("Typed Surface scope invariant failed: " <>) . cs)
-            id
-            ( Aeson.parseEither
-                (canonicalFrontendSurfaceScopeKeyFromFields surfaceName scopeIdentityFields)
-                payload
-            )
-    scopeIdentityFields =
-        case surfaceScopeValue @spec @marker of
-            ScopeIR _ _ fields _ -> fields
+    stableKey = canonicalFrontendSurfaceScopeKeyFromTypedValues surfaceName (surfaceFieldsIdentitySegments fields)
 
 -- | Build one opaque semantic fragment key from the exact fields declared by
 -- its owning Surface and fragment marker.
 frontendSurfaceFragmentKey ::
     forall spec marker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceFragmentPrimitive spec marker)
+    , ReflectFragmentPrimitive (SurfaceFragmentPrimitive spec marker)
     ) =>
     SurfaceFields (SurfaceFragmentFieldSpecs spec marker) ->
     SurfaceFragmentKey
@@ -75,7 +65,7 @@ frontendSurfaceFragmentKey fields =
 matchFrontendSurfaceScope ::
     forall spec marker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceScopePrimitive spec marker)
+    , ReflectScopePrimitive (SurfaceScopePrimitive spec marker)
     , KnownSurfaceFieldValues (SurfaceScopeFieldSpecs spec marker)
     ) =>
     SurfaceScope ->
@@ -91,7 +81,7 @@ matchFrontendSurfaceScope scope =
 matchFrontendSurfaceFragmentKey ::
     forall spec marker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceFragmentPrimitive spec marker)
+    , ReflectFragmentPrimitive (SurfaceFragmentPrimitive spec marker)
     , KnownSurfaceFieldValues (SurfaceFragmentFieldSpecs spec marker)
     ) =>
     SurfaceFragmentKey ->

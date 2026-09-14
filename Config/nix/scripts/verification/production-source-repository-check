@@ -11,14 +11,19 @@ if [ "$(printf '%s\n' "$source_paths" | grep -c . || true)" -ne 1 ]; then
     exit 1
 fi
 production_source="$source_paths"
-if [ -e "$production_source/Test" ]; then
-    echo "production-source-repository: Test leaked into filtered production source" >&2
-    exit 1
-fi
+for excluded_root in Test docs e2e frontend scripts bin vendor; do
+    if [ -e "$production_source/$excluded_root" ]; then
+        echo "production-source-repository: excluded root leaked into production source: $excluded_root" >&2
+        exit 1
+    fi
+done
 while IFS= read -r -d '' required_path; do
     if [ ! -e "$production_source/$required_path" ]; then
         echo "production-source-repository: required production input omitted: $required_path" >&2
         exit 1
     fi
-done < <(git ls-files -z -- Application/Schema.sql Application/Migration static Config/nix/hosts Config/nix/modules)
-echo "production-source-repository: filtered source contains required production inputs"
+done < <(git ls-files -z -- \
+    Application/Schema.sql Application/Migration Application/Deployment static \
+    Config/nix/hosts Config/nix/modules \
+    Config/nix/production-package-dependency-inventory.tsv Makefile)
+echo "production-source-repository: explicit production source contains required inputs only"

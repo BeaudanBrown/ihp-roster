@@ -6,8 +6,8 @@ import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
 import Application.EmailDelivery
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
-import Application.Helper.Controller (currentVenueSessionKey,
-                                      initCurrentVenueContext)
+import Application.Helper.Controller (currentVenueSessionKey)
+import qualified Application.Helper.ControllerContext as RequestContext
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as LeaveLive
@@ -16,26 +16,23 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Rost
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate
+import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
-import Control.Exception (SomeException, try)
-import Control.Monad (zipWithM)
 import Data.Coerce (coerce)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Generated.Types
-import qualified IHP.AuthSupport.Controller.Sessions as Sessions
-import IHP.Controller.Context (ControllerContext, newControllerContext)
+import IHP.ControllerSupport (ControllerContext)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
-import IHP.LoginSupport.Middleware (initAuthentication)
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
@@ -43,10 +40,12 @@ import Network.Wai (responseHeaders)
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsFromBarrier)
+import Test.Support.EmailDelivery
 import Web.Controller.Admin ()
 import Web.Controller.LeaveRequests ()
 import Web.Controller.RosterWeeks ()
-import Web.Controller.Sessions ()
+import Web.Controller.Sessions (beforeBepisLogin)
 import Web.Controller.Staff ()
 import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
@@ -57,6 +56,32 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Venue-scoped access control" do
+        it "keeps mutable venue state fresh and isolated between requests" $ withContext do
+            withControllerTestContext do
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
+                RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just VenueOwner }
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Just VenueOwner
+                withControllerTestContext do
+                    RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
+                    RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Just VenueAdmin }
+                    RequestContext.currentVenueRoleOrNothing `shouldBe` Just VenueAdmin
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Just VenueOwner
+                RequestContext.modifyRequestVenueState \state -> state { RequestContext.role = Nothing }
+                RequestContext.currentVenueRoleOrNothing `shouldBe` Nothing
+
+        it "keeps active membership batches empty-safe and venue-scoped" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Membership batch A"
+                venueB <- createVenueWithConfig "Membership batch B"
+                userA <- createUserRecord "membership-batch-a@example.com" "staff" True
+                userB <- createUserRecord "membership-batch-b@example.com" "staff" True
+                membershipA <- createVenueMembershipRecord venueA userA Worker
+                _ <- createVenueMembershipRecord venueB userB Worker
+
+                fetchActiveVenueMembershipsByUserIds venueA.id [] `shouldReturn` []
+                memberships <- fetchActiveVenueMembershipsByUserIds venueA.id [unpackId userA.id, unpackId userB.id]
+                map (.id) memberships `shouldBe` [membershipA.id]
+
         it "denies editing a staff record from another venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
@@ -573,7 +598,7 @@ tests = aroundAll withDatabaseTestContext do
                 ensureTestUserHasPasskey founder
                 original <- createVenueOnboardingInvitationRecord (Just founder) "concurrent-owner@example.com"
 
-                results <- runConcurrentVenueAccessActions 12 do
+                results <- runConcurrentActionsFromBarrier $ replicate 12 do
                     withPasskeyVerifiedUser founder do
                         callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
                             [("email", "replacement-owner@example.com")]
@@ -600,7 +625,7 @@ tests = aroundAll withDatabaseTestContext do
                 firstOriginal <- createVenueOnboardingInvitationRecord (Just founder) "first-original-owner@example.com"
                 secondOriginal <- createVenueOnboardingInvitationRecord (Just founder) "second-original-owner@example.com"
 
-                results <- runConcurrentVenueAccessActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUser founder do
                         callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
                             [("email", "shared-corrected-owner@example.com")]
@@ -645,7 +670,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("idealShiftsPerWeek", "3")
                         ]
 
-                results <- runConcurrentVenueAccessActionList
+                results <- runConcurrentActionsFromBarrier
                     [ callActionWithParams CreateVenueOnboardingUserAction signupParams
                     , withPasskeyVerifiedUser founder do
                         callActionWithParams (RenewSupportVenueOnboardingInvitationAction invitation.id)
@@ -681,8 +706,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 let performDelivery = withFrameworkConfig config \frameworkConfig -> do
                         let ?context = frameworkConfig
-                        performEmailDeliveryJobWith venueAccessEmailRuntime appJob
-                results <- runConcurrentVenueAccessActionList
+                        performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
+                results <- runConcurrentActionsFromBarrier
                     [ performDelivery >> pure status200
                     , withPasskeyVerifiedUser founder do
                         response <- callActionWithParams (RenewSupportVenueOnboardingInvitationAction invitation.id)
@@ -935,7 +960,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venueB user Worker
 
                 selectedVenueId <- withControllerTestContext do
-                    Sessions.beforeLogin @User user
+                    beforeBepisLogin user
                     getSession @(Id Venue) currentVenueSessionKey
 
                 selectedVenueId `shouldBe` Just venueA.id
@@ -947,7 +972,7 @@ tests = aroundAll withDatabaseTestContext do
                 founder <- createUserRecordWithPlatformRole "founder-login@example.com" "staff" (Just SuperAdmin) True
 
                 selectedVenueId <- withControllerTestContext do
-                    Sessions.beforeLogin @User founder
+                    beforeBepisLogin founder
                     getSession @(Id Venue) currentVenueSessionKey
 
                 selectedVenueId `shouldBe` Just venueA.id
@@ -1206,65 +1231,28 @@ tests = aroundAll withDatabaseTestContext do
                 nub (map (.name) rosterLanes) `shouldMatchList` ["Early", "Mid", "Late"]
                 otherVenueDays `shouldBe` []
 
-runConcurrentVenueAccessActions :: Int -> IO a -> IO [Either SomeException a]
-runConcurrentVenueAccessActions count action =
-    runConcurrentVenueAccessActionList (replicate count action)
-
-runConcurrentVenueAccessActionList :: [IO a] -> IO [Either SomeException a]
-runConcurrentVenueAccessActionList actions = do
-    resultVars <- mapM (const newEmptyMVar) actions
-    readyVars <- mapM (const newEmptyMVar) actions
-    startVar <- newEmptyMVar
-    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
-            putMVar readyVar ()
-            _ <- readMVar startVar
-            try action >>= putMVar resultVar
-        ) resultVars (zip readyVars actions)
-    mapM_ takeMVar readyVars
-    putMVar startVar ()
-    mapM takeMVar resultVars
-
-venueAccessEmailRuntime :: EmailDeliveryRuntime
-venueAccessEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> pure ()
-        }
-
 withAuthenticatedControllerContext ::
     forall result.
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
     User ->
     Id Venue ->
-    ((?context :: ControllerContext) => IO result) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO result) ->
     IO result
 withAuthenticatedControllerContext user venueId action =
     withSessionValues
         [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
         , (currentVenueSessionKey, Serialize.encode venueId)
         ]
-        do
-            let ?frameworkConfig = config
-            controllerContext <- newControllerContext
-            let ?context = controllerContext
-            initAuthentication @User
-            initCurrentVenueContext
-            action
+        (withCurrentControllerContext action)
 
 withAuthenticatedControllerContextNoVenue ::
     forall result.
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
     User ->
-    ((?context :: ControllerContext) => IO result) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO result) ->
     IO result
 withAuthenticatedControllerContextNoVenue user action =
     withSessionValues
         [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
         ]
-        do
-            let ?frameworkConfig = config
-            controllerContext <- newControllerContext
-            let ?context = controllerContext
-            initAuthentication @User
-            initCurrentVenueContext
-            action
+        (withCurrentControllerContext action)

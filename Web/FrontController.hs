@@ -1,58 +1,39 @@
 module Web.FrontController where
 
 import Application.Billing.Checkout (venueSubscriptionIsLive)
-import Application.Billing.Stripe (BillingNavigationContext (..),
-                                   StripeDeploymentControls (..),
+import Application.Billing.Stripe (StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
 import Application.Helper.BrowserFailure (isBrowserPageRequest)
-import Application.Helper.Controller (clearCurrentUserPasskeyVerification,
-                                      currentUserIsSuperAdmin,
-                                      currentVenueOrNothing,
-                                      currentVenueSessionKey)
-import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
-                                    fetchSupportUnreadFeedbackCount)
-import Application.Helper.Impersonation (clearImpersonationReturnFallback,
-                                         effectiveUserSessionKey,
-                                         impersonationSessionIdSessionKey,
-                                         initImpersonationContext,
-                                         initSupportImpersonationOptions)
-import Application.Helper.Profiling (initRequestProfiling, profileActionSpan)
-import Application.Helper.SessionVersion (authenticatedSessionVersionIsCurrent,
-                                          clearAuthenticatedSessionVersion)
-import qualified Control.Exception as Exception
-import qualified Data.Text.IO as TextIO
-import IHP.Controller.Context (putContext)
-import IHP.Controller.Session (deleteSession)
-import IHP.LoginSupport.Helper.Controller (sessionKey)
-import IHP.LoginSupport.Middleware
+import Application.Helper.Feedback (PrivateFeedbackCount (..), fetchPrivateFeedbackCount)
+import Application.Helper.Profiling (profileActionSpan)
 import IHP.RouterPrelude
 import Web.Controller.Prelude
 import Web.View.Layout (defaultLayout)
 
 -- Controller Imports
 import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateSocketPathSegment)
-import Web.Controller.Admin
-import Web.Controller.Auth
-import Web.Controller.Billing
-import Web.Controller.E2ETest
-import Web.Controller.Exports
-import Web.Controller.Feedback
-import Web.Controller.Help
-import Web.Controller.LeaveRequests
-import Web.Controller.LiveUpdates
-import Web.Controller.Passkeys
-import Web.Controller.PasswordResets
-import Web.Controller.Profiles
-import Web.Controller.RosterTemplates
-import Web.Controller.RosterWeeks
-import Web.Controller.Sessions
-import Web.Controller.Staff
-import Web.Controller.StaffDocuments
-import Web.Controller.Static
-import Web.Controller.StripeWebhooks
-import Web.Controller.Support
-import Web.Controller.Timesheets
-import Web.Controller.Users
+import Web.Controller.Admin () -- Mounted controller instance.
+import Web.Controller.Auth () -- Mounted controller instance.
+import Web.Controller.Billing () -- Mounted controller instance.
+import Web.Controller.E2ETest () -- Mounted controller instance.
+import Web.Controller.Exports () -- Mounted controller instance.
+import Web.Controller.Feedback () -- Mounted controller instance.
+import Web.Controller.Help () -- Mounted controller instance.
+import Web.Controller.LeaveRequests () -- Mounted controller instance.
+import Web.Controller.LiveUpdates () -- Mounted controller instance.
+import Web.Controller.Passkeys () -- Mounted controller instance.
+import Web.Controller.PasswordResets () -- Mounted controller instance.
+import Web.Controller.Profiles () -- Mounted controller instance.
+import Web.Controller.RosterTemplates () -- Mounted controller instance.
+import Web.Controller.RosterWeeks () -- Mounted controller instance.
+import Web.Controller.Sessions () -- Mounted controller instance.
+import Web.Controller.Staff () -- Mounted controller instance.
+import Web.Controller.StaffDocuments () -- Mounted controller instance.
+import Web.Controller.Static () -- Mounted controller instance.
+import Web.Controller.StripeWebhooks () -- Mounted controller instance.
+import Web.Controller.Support () -- Mounted controller instance.
+import Web.Controller.Timesheets () -- Mounted controller instance.
+import Web.Controller.Users () -- Mounted controller instance.
 
 instance FrontController WebApplication where
     controllers =
@@ -86,41 +67,25 @@ instance FrontController WebApplication where
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        initRequestProfiling
-        authenticationResult <- Exception.try (initAuthentication @User) :: IO (Either Exception.SomeException ())
-        case authenticationResult of
-            Right () -> do
-                sessionVersionIsCurrent <- authenticatedSessionVersionIsCurrent
-                unless sessionVersionIsCurrent clearAuthenticatedSessionContext
-            Left exception -> do
-                TextIO.putStrLn ("auth_init_failure: " <> cs (Exception.displayException exception))
-                clearAuthenticatedSessionContext
+        -- Authentication and revocation run before this request reaches us;
+        -- only validated identity may populate venue and impersonation authority.
         initCurrentVenueContext
         initImpersonationContext
         initSupportImpersonationOptions
         initBillingNavigationContext
         initFeedbackContext
 
-clearAuthenticatedSessionContext :: (?context :: ControllerContext, ?request :: Request) => IO ()
-clearAuthenticatedSessionContext = do
-    deleteSession (sessionKey @User)
-    clearAuthenticatedSessionVersion
-    clearCurrentUserPasskeyVerification
-    deleteSession currentVenueSessionKey
-    deleteSession effectiveUserSessionKey
-    deleteSession impersonationSessionIdSessionKey
-    clearImpersonationReturnFallback
-    putContext (Nothing :: Maybe User)
-
 initBillingNavigationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initBillingNavigationContext =
     profileActionSpan "context.billing-navigation.init" do
         deploymentControls <- readStripeDeploymentControls
         maybeSubscription <- join <$> traverse fetchVenueSubscription currentVenueOrNothing
-        putContext BillingNavigationContext
-            { ownerBillingNavigationVisible =
-                either (const False) (.stripeOwnerNavigationVisible) deploymentControls
-            , ownerBillingSubscriptionIsLive = venueSubscriptionIsLive maybeSubscription
+        modifyRequestVenueState \state -> state
+            { billingNavigation = BillingNavigationContext
+                { ownerBillingNavigationVisible =
+                    either (const False) (.stripeOwnerNavigationVisible) deploymentControls
+                , ownerBillingSubscriptionIsLive = venueSubscriptionIsLive maybeSubscription
+                }
             }
   where
     fetchVenueSubscription venue =
@@ -131,8 +96,8 @@ initBillingNavigationContext =
 initFeedbackContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initFeedbackContext =
     profileActionSpan "context.feedback.init" do
-        unreadCount <-
-            if currentUserIsSuperAdmin
-                then profileActionSpan "context.feedback.fetch_support_unread_count" fetchSupportUnreadFeedbackCount
-                else pure (SupportUnreadFeedbackCount 0)
-        putContext unreadCount
+        PrivateFeedbackCount privateCount <-
+            if currentUserIsUnimpersonatedSuperAdmin
+                then profileActionSpan "context.feedback.fetch_private_count" fetchPrivateFeedbackCount
+                else pure (PrivateFeedbackCount 0)
+        modifyRequestVenueState \state -> state { privateFeedback = privateCount }

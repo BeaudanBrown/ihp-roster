@@ -7,7 +7,6 @@ import Control.Monad (guard)
 import qualified Data.List as List
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.Prelude
 
@@ -96,10 +95,13 @@ data XeroPayItemRequirement = XeroPayItemRequirement
     }
 
 data XeroTimesheetIssueView = XeroTimesheetIssueView
-    { timesheetIssueCode     :: Text
-    , timesheetIssueSeverity :: Text
-    , timesheetIssueMessage  :: Text
-    , timesheetIssueHint     :: Maybe Text
+    { timesheetIssueCode                        :: Text
+    , timesheetIssueSeverity                    :: Text
+    , timesheetIssueMessage                     :: Text
+    , timesheetIssueHint                        :: Maybe Text
+    , timesheetIssueTimesheetEntryId            :: Maybe UUID
+    , timesheetIssueExpectedActiveCalculationId :: Maybe UUID
+    , timesheetIssueExpectedApprovalTimestamp   :: Maybe UTCTime
     }
     deriving (Eq, Show)
 

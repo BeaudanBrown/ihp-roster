@@ -9,22 +9,22 @@ module Web.View.Admin.Xero
 
 {-# LANGUAGE TypeApplications #-}
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverlay,
                                                      OpenXeroStaffMappingsOverlay,
                                                      OpenXeroTimesheetPreparationOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
-                                                           noSurfaceFields,
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.XeroAdminTypes
 import Application.Xero.ReferenceTrust
@@ -63,15 +63,9 @@ instance View XeroView where
             , appPageBody = xeroPanel
             }
 
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing    -> error "Admin Xero live surface requires a current venue"
-
 renderXeroPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderXeroPageContentSurface body =
-    renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={surfaceFragmentTargetId @Surface.AdminXeroPageSurface @Surface.AdminXeroPageContentFragment noSurfaceFields}>
             {body}
         </div>
@@ -83,7 +77,7 @@ renderXeroSection =
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment xeroSectionData =
-    renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroShellFragment noSurfaceFields}
              hx-swap-oob={noOobSwap}>
             {renderXeroSection xeroSectionData}
@@ -120,27 +114,17 @@ renderXeroReferenceSyncFragment maybeDiagnostics = [hsx|
 
 xeroAppShellActionRoute :: Text -> AppShellActionRoute
 xeroAppShellActionRoute actionUrl =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+    (defaultAppShellActionRoute (actionUrl))
 
 xeroReferenceSyncActionRoute :: FrontendSurfaceActionRoute
 xeroReferenceSyncActionRoute =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = pathTo SyncXeroPayrollReferenceDataAction
-        , actionRouteCustomHtmx =
-            [ FrontendSurfaceCustomHtmxAttrs
+    ((defaultFrontendSurfaceActionRoute (pathTo SyncXeroPayrollReferenceDataAction))
+        { actionRouteCustomHtmx = [ FrontendSurfaceCustomHtmxAttrs
                 { customHtmxAttrMarker = "load-reference-sync-custom-htmx"
                 , customHtmxAttrValues = []
                 }
             ]
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+        })
 
 renderXeroActionControls :: XeroConnection -> Bool -> Bool -> Html
 renderXeroActionControls connection connectionActionsAllowed referenceRefreshAllowed = [hsx|

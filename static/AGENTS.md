@@ -26,11 +26,11 @@ components, overlays, or feature modules. Prefer existing semantic components
 and tokens; avoid broad global selectors, raw colours, and presentation classes
 as browser contracts.
 
-Link app CSS directly from `Web/View/Layout.hs` with `assetPath` and mirror the
-same ordered paths in `Makefile` `CSS_FILES`. Production app CSS must not use
-`@import`; IHP `prod.js`/`prod.css` concatenation remains disabled. Do not
-recreate catch-all app CSS or add external CDNs/bundlers without an explicit
-compatibility decision.
+Link app CSS directly from the sole ordered inventory in `Web/View/Layout.hs`
+with `assetPath`; `style-audit` verifies linked assets against the CSS tree.
+Production app CSS must not use `@import`; IHP `prod.js`/`prod.css`
+concatenation remains disabled. Do not recreate catch-all app CSS or add
+external CDNs/bundlers without an explicit compatibility decision.
 
 Keep page overflow contained, dialogs usable on phone viewports, and important
 actions available without hover.

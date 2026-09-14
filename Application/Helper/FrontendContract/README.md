@@ -20,6 +20,8 @@ architecture facts, and TypeScript generation consume that same model.
 - `Surface/README.md` is the authoring and extension guide.
 
 Global roots own app-wide browser capabilities and transport/DOM vocabulary.
+Registered `ErrorCodes` derive the closed operation-failure code union and
+`AppErrorWire`; retry policy and technical/domain context remain server-only.
 Surface roots own feature scopes, resources, fragments, actions, intents,
 mount-only state, and interaction metadata. Keep feature meaning in its focused
 root; do not create aggregate registries or duplicate Surface metadata globally.
@@ -36,6 +38,16 @@ Unknown inbound JSON is validated exactly before conversion to ergonomic carrier
 ADTs; Haskell wire modules do not repeat field or case strings.
 
 ## Runtime Boundaries
+
+The complete reflected global and Surface registry is validated into the opaque
+`CheckedFrontendContract` before use. Contract generation consumes that checked
+value, compile-fail fixtures prevent unchecked construction and unknown
+AppShell markers, and `Config/Config.hs` forces the same validation before any
+listener starts. Invalid code/configuration emits deterministic diagnostics and
+exits before traffic. Runtime constants, AppShell actions, Surface metadata,
+typed field lookup, and live scope identity use type-indexed reflection or the
+checked registry; they do not rescan unchecked registries or carry request-time
+`error` fallbacks.
 
 Haskell owns routes, authorization, business meaning, workflow copy, server DOM,
 and exact payload shapes. TypeScript consumes generated constants,
@@ -60,8 +72,9 @@ do not leak into either registry.
 Frontend-contract generation is a separate Nix output, not a production runtime
 entry point. `.#frontend-contract-tools` owns the TypeScript contract renderer,
 Surface Haskell-adapter renderer, and typed architecture emitter. Its checked
-module inventory distinguishes 12 tooling-only modules from 81 shared canonical
-authority modules; shared reflection remains in production only where runtime
+module inventory distinguishes tooling-only modules from shared canonical
+authority modules without duplicating those source-derived counts here; shared
+reflection remains in production only where runtime
 builders, parsers, values, or metadata actually import it. The optimized server
 closure must never reference the tooling output. Package-backed CI freshness
 checks regenerate TypeScript, all managed Haskell adapters and private proofs,
@@ -116,13 +129,12 @@ constructors directly; DSL-owned domains use their own `Bounded`/`Enum` ADT and
 canonical `InputValue` projection. Reflection enumerates that exact type—there
 is no registry scan or shadow ADT—and browser unions/guards/parsers are emitted
 only for the declaration's explicit reachability. Production registrations include generated `RosterLayoutModeEnum`,
-`RosterTemplateScaleEnum`, `VenueRoleEnum`, `StaffEmploymentBasisEnum`,
-`FeedbackTypeEnum`, and `ShiftTypeColourKeyEnum`, plus app-owned profile section,
-roster staff scope, leave section, and export-type authorities. Feature-local finite types live
-with their Surface/domain module; the aggregate `ClosedScalars` module only
-registers them. `RosterTemplateScaleEnum` drives the generated template-card DTO
-union and guard, while `LeaveSectionValue` is browser-inbound because live mount
-fragment keys carry it. Other request-only values remain server schemas.
+`VenueRoleEnum`, `StaffEmploymentBasisEnum`, `FeedbackTypeEnum`, and
+`ShiftTypeColourKeyEnum`, plus app-owned profile section, roster staff scope,
+leave section, and export-type authorities. Feature-local finite types live with
+their Surface/domain module; the aggregate `ClosedScalars` module only registers
+them. `LeaveSectionValue` is browser-inbound because live mount fragment keys
+carry it. Other request-only values remain server schemas.
 
 Outer field presence remains separate from recursive wire nullability. An absent
 `OptionalField` is omitted, a present optional nullable value can be explicit

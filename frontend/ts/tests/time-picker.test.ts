@@ -3,7 +3,7 @@ import {
     parseTimePickerOptionConfiguration,
     timePickerOptionsForConfiguration,
 } from "../time-picker/configuration";
-import { compactTimePickerValue, steppedTimePickerOption, wholeHourTimePickerOption } from "../time-picker/keyboard";
+import { compactTimePickerValue, steppedTimePickerOption } from "../time-picker/keyboard";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const overnightConfig = {
@@ -53,20 +53,6 @@ test("time picker compact typing preserves the latest valid interval selection",
     assertEqual(compactTimePickerValue("1217", 15, "00:00", "23:45"), null);
     assertEqual(compactTimePickerValue("121", 1, "00:00", "23:45"), "12:10");
     assertEqual(compactTimePickerValue("1217", 1, "00:00", "23:45"), "12:17");
-});
-
-test("time picker whole-hour typing accepts only rendered valid hours", () => {
-    const wholeHours = [
-        { value: "01:00", label: "1:00 AM" },
-        { value: "09:00", label: "9:00 AM" },
-        { value: "13:00", label: "1:00 PM" },
-    ];
-    assertDeepEqual(wholeHourTimePickerOption(wholeHours, "1"), wholeHours[0]);
-    assertDeepEqual(wholeHourTimePickerOption(wholeHours, "09"), wholeHours[1]);
-    assertDeepEqual(wholeHourTimePickerOption(wholeHours, "13"), wholeHours[2]);
-    assertEqual(wholeHourTimePickerOption(wholeHours, "24"), null);
-    assertEqual(wholeHourTimePickerOption(wholeHours, "130"), null);
-    assertEqual(wholeHourTimePickerOption(wholeHours, "7"), null);
 });
 
 test("time picker rejects malformed payloads instead of supplying fallback data or copy", () => {

@@ -8,12 +8,14 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , dialogFocusRegionAttrs
     , dialogKeyboardAttrs
     , dialogMountAttrs
+    , dialogPointerDismissBlurAttrs
     , dialogSubmitAttrs
     , navigationLoadingAttrs
     , toastCloseAttrs
     , toastMountAttrs
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import qualified Application.Helper.FrontendContract.Overlay as Contract
 import Application.Helper.FrontendContract.Values (domAttrValue, domIdValue,
                                                    eventNameValue)
@@ -36,6 +38,7 @@ data OverlayDom = OverlayDom
     , overlayDialogBlockingAttribute     :: !Text
     , overlayDialogKeyboardAttribute     :: !Text
     , overlayDialogFocusRegionAttribute  :: !Text
+    , overlayDialogPointerDismissBlurAttribute :: !Text
     , overlayNavigationLoadingAttribute  :: !Text
     , overlayNavigationConfigAttribute   :: !Text
     , overlayToastMountAttribute         :: !Text
@@ -57,6 +60,7 @@ canonicalOverlayDom = OverlayDom
     , overlayDialogBlockingAttribute = domAttrValue @Contract.DialogBlocking
     , overlayDialogKeyboardAttribute = domAttrValue @Contract.DialogKeyboard
     , overlayDialogFocusRegionAttribute = domAttrValue @Contract.DialogFocusRegion
+    , overlayDialogPointerDismissBlurAttribute = domAttrValue @Contract.DialogPointerDismissBlur
     , overlayNavigationLoadingAttribute = domAttrValue @Contract.NavigationLoading
     , overlayNavigationConfigAttribute = domAttrValue @Contract.NavigationLoadingConfig
     , overlayToastMountAttribute = domAttrValue @Contract.ToastMount
@@ -79,6 +83,10 @@ dialogKeyboardAttrs = roleAttrs canonicalOverlayDom.overlayDialogKeyboardAttribu
 dialogFocusRegionAttrs :: [(Text, Text)]
 dialogFocusRegionAttrs = roleAttrs canonicalOverlayDom.overlayDialogFocusRegionAttribute
 
+-- | Opt in only this launcher to next-frame pointer-dismiss focus cleanup.
+dialogPointerDismissBlurAttrs :: [(Text, Text)]
+dialogPointerDismissBlurAttrs = roleAttrs canonicalOverlayDom.overlayDialogPointerDismissBlurAttribute
+
 dialogSubmitAttrs :: Text -> [(Text, Text)]
 dialogSubmitAttrs loadingLabel =
     roleAttrs canonicalOverlayDom.overlayDialogSubmitAttribute
@@ -99,14 +107,14 @@ toastCloseAttrs = roleAttrs canonicalOverlayDom.overlayToastCloseAttribute
 
 dialogSubmitConfigJson :: Text -> Text
 dialogSubmitConfigJson loadingLabel
-    | Text.null (Text.strip loadingLabel) = error "Dialog submit loading label must not be empty"
+    | Text.null (Text.strip loadingLabel) = startupInvariantFailure "Dialog submit loading label must not be empty"
     | otherwise = encodeContractValue $ recordValue @Contract.DialogSubmitConfig
         (requiredField @Contract.LoadingLabel loadingLabel &: noFields)
 
 navigationLoadingConfigJson :: Text -> Text -> Text
 navigationLoadingConfigJson loadingTitle loadingMessage
-    | Text.null (Text.strip loadingTitle) = error "Navigation loading title must not be empty"
-    | Text.null (Text.strip loadingMessage) = error "Navigation loading message must not be empty"
+    | Text.null (Text.strip loadingTitle) = startupInvariantFailure "Navigation loading title must not be empty"
+    | Text.null (Text.strip loadingMessage) = startupInvariantFailure "Navigation loading message must not be empty"
     | otherwise = encodeContractValue $ recordValue @Contract.NavigationLoadingConfig
         ( requiredField @Contract.LoadingTitle loadingTitle
             &: requiredField @Contract.LoadingMessage loadingMessage
@@ -115,7 +123,7 @@ navigationLoadingConfigJson loadingTitle loadingMessage
 
 toastConfigJson :: Int -> Text
 toastConfigJson autoHideMs
-    | autoHideMs < 0 = error "Toast auto-hide duration must not be negative"
+    | autoHideMs < 0 = startupInvariantFailure "Toast auto-hide duration must not be negative"
     | otherwise = encodeContractValue $ recordValue @Contract.ToastConfig
         (requiredField @Contract.AutoHideMs autoHideMs &: noFields)
 

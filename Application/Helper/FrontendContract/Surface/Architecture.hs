@@ -2,6 +2,7 @@ module Application.Helper.FrontendContract.Surface.Architecture
     ( frontendSurfaceArchitectureContractsValue
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.Core (htmxMethodText)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
@@ -50,7 +51,7 @@ scopeAuthorizationValue = \case
         ]
     auth -> Aeson.object
         [ "kind" Aeson..= ("authorize" :: Text)
-        , "policy" Aeson..= maybe (error "authorized scope is missing policy IR") scopeAuthPolicyName (scopeAuthPolicy auth)
+        , "policy" Aeson..= maybe (startupInvariantFailure "authorized scope is missing policy IR") scopeAuthPolicyName (scopeAuthPolicy auth)
         , "fields" Aeson..= scopeAuthFieldNames auth
         ]
 

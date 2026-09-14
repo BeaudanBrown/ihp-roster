@@ -9,7 +9,6 @@ import Application.Helper.TimeRules (automaticMealBreakMinutes,
                                      automaticMealBreakThresholdMinutes)
 import Application.VenueTime.Model (AuthoritativeBoundaries,
                                     authoritativeElapsedSeconds)
-import Data.Time.Clock (NominalDiffTime)
 import Generated.Types (StaffEmploymentBasisEnum (Casual, Permanent))
 import IHP.Prelude
 

@@ -8,9 +8,7 @@ import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.SurfaceResource
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception.Safe (SomeException, try)
-import Control.Monad (zipWithM)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.ByteString.Lazy.Char8 as LByteString
@@ -25,17 +23,29 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.ModelSupport (inputValue)
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import Network.Wai (responseHeaders)
+import Network.Wai (Response, responseHeaders)
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsFromBarrier)
 import Web.FrontController ()
 import Web.LeaveRequests.Blackouts (currentVenueCalendarDay)
 import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
                                     leaveReviewTouchedResources)
 import Web.Routes
 import Web.Types
+import Web.View.LeaveRequests.Index (leavePendingCountFragmentId, leaveApprovedCountFragmentId, leaveDeniedCountFragmentId, leaveArchiveCountFragmentId)
+
+leaveTabCountShouldBe :: Response -> Text -> Text -> Int -> Expectation
+leaveTabCountShouldBe response label countId count = do
+    body <- responseBody response
+    let bodyText = cs (LByteString.unpack body)
+        tab = fst (Text.breakOn "</button>" (snd (Text.breakOn ("id=\"leave-" <> Text.toLower label <> "-tab\"") bodyText)))
+    tab `shouldSatisfy` Text.isInfixOf ("aria-label=\"" <> label <> "\"")
+    tab `shouldSatisfy` Text.isInfixOf ("aria-describedby=\"" <> countId <> "\"")
+    tab `shouldSatisfy` Text.isInfixOf ("id=\"" <> countId <> "\">" <> tshow count <> "</span>")
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -193,7 +203,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("reason", reason)
                             ]
 
-                results <- runConcurrentLeaveActionList
+                results <- runConcurrentActionsFromBarrier
                     [createAction "Concurrent closure one", createAction "Concurrent closure two"]
 
                 lefts results `shouldSatisfy` null
@@ -581,7 +591,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "class=\"app-panel-header app-side-panel-header\""
+                response `responseBodyShouldContain` "class=\"app-panel-header app-side-panel-header app-side-panel-header-tabs\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-toggle=\"true\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-tab=\"staff\""
@@ -631,7 +641,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (1)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 1
                 response `responseBodyShouldContain` "Approve"
                 response `responseBodyShouldContain` "hx-swap=\"none\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"approve-leave-request\""
@@ -674,6 +684,26 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "data-disable-javascript-submission"
 
+        it "rejects foreign staff context before malformed submission fields for native and HTMX requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave authorized venue"
+                foreignVenue <- createVenueWithConfig "Leave foreign venue"
+                manager <- createUserRecord "foreign-leave-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord foreignVenue Nothing "Foreign" "Staff"
+                forM_ [[], [("HX-Request", "true")]] \headers -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders headers do
+                            callActionWithParams CreateLeaveRequestAction
+                                [ ("responseContext", "staff")
+                                , ("staffId", idToParam staff.id)
+                                , ("startDate", "malformed")
+                                ]
+                    response `responseStatusShouldBe` status403
+                query @LeaveRequest |> fetchCount >>= (`shouldBe` 0)
+                query @LeaveRequestEvent |> fetchCount >>= (`shouldBe` 0)
+                query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` 0)
+
         it "rejects missing required leave dates without creating a row" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Required Venue"
@@ -693,7 +723,7 @@ tests = aroundAll withDatabaseTestContext do
                 leaveExists <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 leaveExists `shouldBe` False
 
-        it "renders manager accordion headings with counts inline after the title" $ withContext do
+        it "renders manager header tabs with accessible live counts" $ withContext do
             withCleanDb do
                 today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "Leave Venue"
@@ -711,10 +741,10 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (2)"
-                response `responseBodyShouldContain` "Approved (1)"
-                response `responseBodyShouldContain` "Denied (1)"
-                response `responseBodyShouldContain` "Archive (0)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 2
+                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 1
+                leaveTabCountShouldBe response "Denied" leaveDeniedCountFragmentId 1
+                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 0
                 response `responseBodyShouldNotContain` "Needs a decision"
                 response `responseBodyShouldNotContain` "Already confirmed"
                 response `responseBodyShouldNotContain` "Rejected requests"
@@ -738,16 +768,16 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (1)"
-                response `responseBodyShouldContain` "Approved (1)"
-                response `responseBodyShouldContain` "Denied (0)"
-                response `responseBodyShouldContain` "Archive (3)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 1
+                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 1
+                leaveTabCountShouldBe response "Denied" leaveDeniedCountFragmentId 0
+                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 3
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                     pendingSection = fst (Text.breakOn "id=\"leave-approved\"" (snd (Text.breakOn "id=\"leave-pending\"" bodyText)))
                     archiveSection = snd (Text.breakOn "id=\"leave-archive\"" bodyText)
-                Text.isInfixOf "aria-expanded=\"true\"" pendingSection `shouldBe` True
-                Text.isInfixOf "accordion-collapse collapse show" pendingSection `shouldBe` True
+                Text.isInfixOf "class=\"tab-pane active show\"" pendingSection `shouldBe` True
+                Text.isInfixOf "role=\"tabpanel\" aria-labelledby=\"leave-pending-tab\"" pendingSection `shouldBe` True
                 Text.isInfixOf ">Actions<" archiveSection `shouldBe` False
                 Text.isInfixOf ">Approve<" archiveSection `shouldBe` False
                 Text.isInfixOf ">Deny<" archiveSection `shouldBe` False
@@ -777,8 +807,8 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("archivePage", "2")]
 
                 firstPageResponse `responseStatusShouldBe` status200
-                firstPageResponse `responseBodyShouldContain` "Pending (1)"
-                firstPageResponse `responseBodyShouldContain` "Archive (12)"
+                leaveTabCountShouldBe firstPageResponse "Pending" leavePendingCountFragmentId 1
+                leaveTabCountShouldBe firstPageResponse "Archive" leaveArchiveCountFragmentId 12
                 firstPageResponse `responseBodyShouldContain` "archive-page-note-1"
                 firstPageResponse `responseBodyShouldContain` "archive-page-note-10"
                 firstPageResponse `responseBodyShouldNotContain` "archive-page-note-11"
@@ -787,8 +817,8 @@ tests = aroundAll withDatabaseTestContext do
                 firstPageResponse `responseBodyShouldContain` "data-bepis-surface-action=\"archive-leave-requests-page\""
 
                 olderPageResponse `responseStatusShouldBe` status200
-                olderPageResponse `responseBodyShouldContain` "Pending (1)"
-                olderPageResponse `responseBodyShouldContain` "Archive (12)"
+                leaveTabCountShouldBe olderPageResponse "Pending" leavePendingCountFragmentId 1
+                leaveTabCountShouldBe olderPageResponse "Archive" leaveArchiveCountFragmentId 12
                 olderPageResponse `responseBodyShouldContain` "archive-page-note-11"
                 olderPageResponse `responseBodyShouldContain` "archive-page-note-12"
                 olderPageResponse `responseBodyShouldNotContain` "archive-page-note-10"
@@ -797,6 +827,39 @@ tests = aroundAll withDatabaseTestContext do
                 fragmentResponse `responseBodyShouldContain` "id=\"leave-requests-content\""
                 fragmentResponse `responseBodyShouldContain` "archive-page-note-11"
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                let transports =
+                        [ (LeaveRequestsAction, [])
+                        , (ShowleaveRequestsContentLiveFragmentAction, [])
+                        , (ShowleaveRequestsContentLiveFragmentAction, [("fragment", "leave-section-list"), ("section", "archive")])
+                        , (ShowleaveRequestsContentLiveFragmentAction, [("swapOob", "true")])
+                        ]
+                    archiveNotes body =
+                        map (Text.takeWhile (/= '<') . Text.drop 1 . snd)
+                            (Text.breakOnAll ">archive-page-note-" (cs (LByteString.unpack body)))
+                forM_ [("0", [1 .. 10]), ("-9", [1 .. 10]), ("malformed", [1 .. 10]), ("99", [11, 12] :: [Int])] \(page, expected) ->
+                    forM_ transports \(action, transportParams) -> do
+                        response <- withUserAndCurrentVenue manager venue.id do
+                            callActionWithParams action ([("archivePage", page), ("openSection", "archive")] <> transportParams)
+                        response `responseStatusShouldBe` status200
+                        body <- responseBody response
+                        archiveNotes body `shouldBe` map (\index -> "archive-page-note-" <> tshow index) expected
+
+                -- Equal archive end dates retain the input's start-date order,
+                -- including when the tie crosses the page boundary.
+                forM_ [(2, "tie-a"), (3, "tie-b")] \(duration, suffix) -> do
+                    let endDate = addDays (-10) today
+                    request <- createLeaveRequestRecord venue staff (addDays (negate duration) endDate) endDate LeaveRequestStatusEnumDenied
+                    _ <- request |> set #notes (Just ("archive-page-note-" <> suffix)) |> updateRecord
+                    pure ()
+                forM_ transports \(action, transportParams) -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams action ([("archivePage", "2"), ("openSection", "archive")] <> transportParams)
+                    body <- responseBody response
+                    archiveNotes body `shouldBe`
+                        [ "archive-page-note-tie-a", "archive-page-note-tie-b"
+                        , "archive-page-note-11", "archive-page-note-12"
+                        ]
 
         it "returns only the archive page content for archive pagination OOB swaps" $ withContext do
             withCleanDb do
@@ -830,7 +893,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "id=\"leave-pending\""
                 response `responseBodyShouldNotContain` "id=\"leave-archive-collapse\""
 
-        it "renders manager accordions with zero counts instead of empty-state copy when there are no leave requests" $ withContext do
+        it "renders manager tabs with zero live counts instead of empty-state copy when there are no leave requests" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-manager-empty@example.com" "staff" True
@@ -840,12 +903,20 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending (0)"
-                response `responseBodyShouldContain` "Approved (0)"
-                response `responseBodyShouldContain` "Denied (0)"
-                response `responseBodyShouldContain` "Archive (0)"
+                leaveTabCountShouldBe response "Pending" leavePendingCountFragmentId 0
+                leaveTabCountShouldBe response "Approved" leaveApprovedCountFragmentId 0
+                leaveTabCountShouldBe response "Denied" leaveDeniedCountFragmentId 0
+                leaveTabCountShouldBe response "Archive" leaveArchiveCountFragmentId 0
                 response `responseBodyShouldNotContain` "No unavailable periods yet."
                 response `responseBodyShouldNotContain` "No requests in this section."
+                forM_ [[], [("swapOob", "true")]] \transportParams -> do
+                    emptyFragment <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams ShowleaveRequestsContentLiveFragmentAction
+                            ([("fragment", "leave-section-list"), ("section", "archive"), ("archivePage", "99")] <> transportParams)
+                    emptyFragment `responseStatusShouldBe` status200
+                    emptyFragment `responseBodyShouldContain` "id=\"leave-archive-page-content\""
+                    emptyFragment `responseBodyShouldNotContain` "aria-label=\"Unavailability archive pages\""
+                    emptyFragment `responseBodyShouldNotContain` "class=\"leave-request-row\""
 
         it "scopes leave fragment refetches to the current viewer visibility" $ withContext do
             withCleanDb do
@@ -1142,18 +1213,4 @@ tests = aroundAll withDatabaseTestContext do
                 inputValue leaveEvent.eventType `shouldBe` "created"
                 leaveEvent.previousStatus `shouldBe` Nothing
                 fmap inputValue leaveEvent.newStatus `shouldBe` Just "pending"
-
-runConcurrentLeaveActionList :: [IO result] -> IO [Either SomeException result]
-runConcurrentLeaveActionList actions = do
-    resultVars <- mapM (const newEmptyMVar) actions
-    readyVars <- mapM (const newEmptyMVar) actions
-    startVar <- newEmptyMVar
-    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
-            putMVar readyVar ()
-            _ <- readMVar startVar
-            try action >>= putMVar resultVar
-        ) resultVars (zip readyVars actions)
-    mapM_ takeMVar readyVars
-    putMVar startVar ()
-    mapM takeMVar resultVars
 

@@ -4,24 +4,22 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-if [ -f "@scriptsRoot@/frontend/generated-state-lib" ]; then
-    # shellcheck source=generated-state-lib
-    . "@scriptsRoot@/frontend/generated-state-lib"
-else
-    # shellcheck source=generated-state-lib
-    . "Config/nix/scripts/frontend/generated-state-lib"
-fi
+# shellcheck source=generated-state-lib
+. "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
 if ! frontend_js_watch_lock; then
     echo "frontend-watch: another watcher already owns this workspace" >&2
     exit 75
 fi
 
-shopt -s nullglob
-entries=(frontend/ts/app*.ts)
-if [ "${#entries[@]}" -eq 0 ]; then
-    echo "frontend-watch: no frontend/ts/app*.ts entrypoints found" >&2
-    exit 1
-fi
+entries=(frontend/ts/app.ts frontend/ts/dev-timer-tracking.ts)
+for entry in "${entries[@]}"; do
+    if [ ! -f "$entry" ]; then
+        echo "frontend-watch: missing entrypoint $entry" >&2
+        exit 1
+    fi
+done
+
+rm -f static/app*.js static/dev-timer-tracking.js
 
 exec esbuild "${entries[@]}" \
     --bundle \

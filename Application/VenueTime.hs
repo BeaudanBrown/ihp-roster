@@ -30,13 +30,7 @@ module Application.VenueTime
     )
 where
 
-import Data.Time.Calendar (addDays, diffDays, fromGregorian, toGregorian)
 import Data.Time.Calendar.WeekDate (toWeekDate)
-import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, diffUTCTime,
-                        utctDay)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..), TimeZone,
-                            localTimeToUTC, makeTimeOfDayValid, midnight,
-                            minutesToTimeZone, utcToLocalTime)
 import Data.Time.Zones (LocalToUTCResult (..), TZ, localTimeToUTCFull,
                         utcToLocalTimeTZ)
 import Data.Time.Zones.All (TZLabel (Australia__Melbourne), tzByLabel)

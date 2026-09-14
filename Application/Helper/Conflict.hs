@@ -1,12 +1,5 @@
 module Application.Helper.Conflict where
 
-import Application.Helper.WeekBoundaries (weekdayIndexForDay)
-import Application.VenueTime.Model (rosterSlotStartTime)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (diffUTCTime)
-import Data.Time.LocalTime (TimeOfDay (..))
-import Generated.Types
-import IHP.ModelSupport (unpackId)
 import IHP.Prelude
 
 data ConflictSeverity
@@ -15,7 +8,9 @@ data ConflictSeverity
     deriving (Eq, Show, Ord)
 
 data ConflictType
-    = DuplicateAssignment
+    = ConflictDetailsUnavailable
+    | InvalidRosterTiming
+    | DuplicateAssignment
     | LeaveConflict
     | LateToEarlyConflict
     | ShiftPreferenceDayUnavailable
@@ -30,6 +25,8 @@ data RosterConflict = RosterConflict
     } deriving (Eq, Show)
 
 getConflictSeverity :: ConflictType -> ConflictSeverity
+getConflictSeverity ConflictDetailsUnavailable    = CriticalConflict
+getConflictSeverity InvalidRosterTiming           = CriticalConflict
 getConflictSeverity DuplicateAssignment           = CriticalConflict
 getConflictSeverity LeaveConflict                 = CriticalConflict
 getConflictSeverity LateToEarlyConflict           = CriticalConflict
@@ -38,6 +35,8 @@ getConflictSeverity ShiftPreferenceSlotMismatch   = AdvisoryConflict
 getConflictSeverity IdealShiftThresholdExceeded   = AdvisoryConflict
 
 conflictPriority :: ConflictType -> Int
+conflictPriority ConflictDetailsUnavailable    = 0
+conflictPriority InvalidRosterTiming           = 0
 conflictPriority DuplicateAssignment           = 1
 conflictPriority LeaveConflict                 = 2
 conflictPriority LateToEarlyConflict           = 3
@@ -51,135 +50,5 @@ instance Ord ConflictType where
 instance Ord RosterConflict where
     compare a b = compare a.conflictType b.conflictType
 
--- | Roster data needed to evaluate conflicts for a staff member in a given slot
-data ConflictContext = ConflictContext
-    { slot                          :: RosterSlot
-    , rosterGroupId                 :: UUID
-    , weekSlots                     :: [RosterSlot] -- All slots for this staff in the current week
-    , daySlots                      :: [RosterSlot]  -- All slots for this staff on the current day
-    , weekRosterDays                :: [RosterDay] -- All days for the current week
-    , leaveRequests                 :: [LeaveRequest] -- All leave requests for this staff
-    , shiftPreferences              :: [StaffShiftPreference] -- All recurring shift preferences for this staff
-    , rosterDayDate                 :: Day -- The derived date of the roster day
-    , lateToEarlyMinStartGapMinutes :: Int -- venue config threshold
-    , staffIdealShifts              :: Maybe Int -- staff.idealShiftsPerWeek
-    }
-
-evaluateConflicts :: ConflictContext -> [RosterConflict]
-evaluateConflicts ctx =
-    sort $ catMaybes
-        [ checkDuplicateAssignment ctx
-        , checkLeaveConflict ctx
-        , checkLateToEarlyConflict ctx
-        , checkShiftPreferenceDayUnavailable ctx
-        , checkShiftPreferenceStartWindowMismatch ctx
-        , checkIdealShiftThreshold ctx
-        ]
-
 primaryConflict :: [RosterConflict] -> Maybe RosterConflict
 primaryConflict conflicts = listToMaybe (sort conflicts)
-
-checkDuplicateAssignment :: ConflictContext -> Maybe RosterConflict
-checkDuplicateAssignment ctx =
-    if length ctx.daySlots > 1
-        then Just RosterConflict
-            { conflictType = DuplicateAssignment
-            , severity = getConflictSeverity DuplicateAssignment
-            , message = "Multiple shifts rostered on the same day."
-            }
-        else Nothing
-
-checkLeaveConflict :: ConflictContext -> Maybe RosterConflict
-checkLeaveConflict ctx =
-    let
-        isOnLeave = any overlaps ctx.leaveRequests
-        overlaps req =
-            req.status == LeaveRequestStatusEnumApproved
-                && ctx.rosterDayDate >= req.startDate
-                && ctx.rosterDayDate < req.endDate
-    in if isOnLeave
-        then Just RosterConflict
-            { conflictType = LeaveConflict
-            , severity = getConflictSeverity LeaveConflict
-            , message = "Staff member has an approved unavailable period."
-            }
-        else Nothing
-
-checkShiftPreferenceDayUnavailable :: ConflictContext -> Maybe RosterConflict
-checkShiftPreferenceDayUnavailable ctx =
-    case ctx.slot.staffId of
-        Nothing -> Nothing
-        Just _ ->
-            let dayPreferences = shiftPreferencesForDay ctx
-             in if null dayPreferences
-                    then Just RosterConflict
-                        { conflictType = ShiftPreferenceDayUnavailable
-                        , severity = getConflictSeverity ShiftPreferenceDayUnavailable
-                        , message = "Preference conflict"
-                        }
-                    else Nothing
-
-checkShiftPreferenceStartWindowMismatch :: ConflictContext -> Maybe RosterConflict
-checkShiftPreferenceStartWindowMismatch ctx =
-    case (ctx.slot.staffId, rosterSlotStartTime ctx.slot) of
-        (Just _, Just startTime) ->
-            case shiftPreferencesForDay ctx of
-                [] -> Nothing
-                dayPreferences ->
-                    let startMinute = todHour startTime * 60 + todMin startTime
-                        isInsidePreference preference =
-                            let preferredStartMinute = preference.preferredStartHour * 60
-                                preferredEndMinute = preference.preferredEndHour * 60
-                             in startMinute >= preferredStartMinute && startMinute <= preferredEndMinute
-                     in if any isInsidePreference dayPreferences
-                            then Nothing
-                            else Just RosterConflict
-                                { conflictType = ShiftPreferenceSlotMismatch
-                                , severity = getConflictSeverity ShiftPreferenceSlotMismatch
-                                , message = "Preferred start window conflict"
-                                }
-        _ -> Nothing
-
-shiftPreferencesForDay :: ConflictContext -> [StaffShiftPreference]
-shiftPreferencesForDay ctx =
-    let weekdayIndex = weekdayIndexForDay ctx.rosterDayDate
-     in filter
-            (\preference -> preference.weekdayIndex == weekdayIndex)
-            ctx.shiftPreferences
-
-checkLateToEarlyConflict :: ConflictContext -> Maybe RosterConflict
-checkLateToEarlyConflict ctx
-    | ctx.lateToEarlyMinStartGapMinutes <= 0 = Nothing
-    | otherwise =
-        case findIndex ((== get #id ctx.slot) . fst) timeline of
-            Nothing -> Nothing
-            Just currentIndex ->
-                let previousGap = if currentIndex > 0 then Just (diffUTCTime (snd (timeline !! currentIndex)) (snd (timeline !! (currentIndex - 1)))) else Nothing
-                    nextGap = if currentIndex + 1 < length timeline then Just (diffUTCTime (snd (timeline !! (currentIndex + 1))) (snd (timeline !! currentIndex))) else Nothing
-                    thresholdSeconds = fromIntegral (ctx.lateToEarlyMinStartGapMinutes * 60)
-                    isBelowThreshold = any (< thresholdSeconds) (catMaybes [previousGap, nextGap])
-                 in if isBelowThreshold
-                        then Just RosterConflict
-                            { conflictType = LateToEarlyConflict
-                            , severity = getConflictSeverity LateToEarlyConflict
-                            , message = "Start-to-start gap is below venue minimum."
-                            }
-                        else Nothing
-    where
-        timeline =
-            ctx.weekSlots
-                |> mapMaybe (\candidate -> (,) (get #id candidate) <$> candidate.startsAt)
-                |> sortBy (comparing snd)
-
-checkIdealShiftThreshold :: ConflictContext -> Maybe RosterConflict
-checkIdealShiftThreshold ctx =
-    case ctx.staffIdealShifts of
-        Just threshold ->
-            if length ctx.weekSlots > threshold
-                then Just RosterConflict
-                    { conflictType = IdealShiftThresholdExceeded
-                    , severity = getConflictSeverity IdealShiftThresholdExceeded
-                    , message = "Ideal shifts exceeded"
-                    }
-                else Nothing
-        Nothing -> Nothing

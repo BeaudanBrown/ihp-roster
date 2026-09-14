@@ -3,7 +3,6 @@ module Web.View.Admin.Xero.Connection
     , renderXeroDisconnectedConnectionDetails
     ) where
 
-import Application.Helper.XeroAdminTypes
 import Web.View.Prelude
 
 renderXeroDisconnectedConnectionDetails :: Bool -> Html

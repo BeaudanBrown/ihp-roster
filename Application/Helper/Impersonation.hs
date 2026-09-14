@@ -13,13 +13,11 @@ module Application.Helper.Impersonation
 
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import Generated.Types
-import IHP.Controller.Context (putContext)
 import IHP.ControllerPrelude
 
 import Application.Helper.Audit (AuditEventType (..),
@@ -52,7 +50,7 @@ clearImpersonationReturnFallback =
 
 initSupportImpersonationOptions :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initSupportImpersonationOptions = do
-    putContext (SupportImpersonationOptions [])
+    modifyRequestVenueState \state -> state { supportUsers = SupportImpersonationOptions [] }
     when (currentUserIsSuperAdmin && isJust currentVenueOrNothing) do
         memberships <- query @VenueMembership
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -79,7 +77,7 @@ initSupportImpersonationOptions = do
                     candidates
                         |> map (supportImpersonationOption nameCounts)
                         |> sortOn (Text.toCaseFold . (.supportImpersonationLabel))
-            putContext (SupportImpersonationOptions options)
+            modifyRequestVenueState \state -> state { supportUsers = SupportImpersonationOptions options }
 
 supportImpersonationCandidate
     :: Map.Map UUID User
@@ -111,10 +109,11 @@ supportImpersonationOption nameCounts (userId, venueRole, baseName, maybeLastNam
 
 initImpersonationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initImpersonationContext = do
-    putContext (Nothing :: Maybe ImpersonationRequestContext)
     fallbackVisible <- withRequestContext (getSession @Bool impersonationReturnFallbackSessionKey)
-    putContext ImpersonationReturnFallbackContext
-        { impersonationReturnFallbackVisible = fallbackVisible == Just True }
+    modifyRequestVenueState \state -> state
+        { impersonation = Nothing
+        , returnFallback = ImpersonationReturnFallbackContext (fallbackVisible == Just True)
+        }
     initAuthenticatedEffectiveStaffContext
     maybeEffectiveUserId <- withRequestContext (getSession @(Id User) effectiveUserSessionKey)
     maybeSessionIdText <- withRequestContext (getSession @Text impersonationSessionIdSessionKey)
@@ -213,15 +212,17 @@ resolveImpersonationRequestContext effectiveUserId sessionId = do
 
 activateImpersonationContext :: (?context :: ControllerContext) => ImpersonationRequestContext -> IO ()
 activateImpersonationContext impersonationContext = do
-    putContext (Just impersonationContext)
-    putContext (EffectiveStaffContext impersonationContext.impersonationStaff)
+    modifyRequestVenueState \state -> state
+        { impersonation = Just impersonationContext
+        , effectiveStaff = EffectiveStaffContext impersonationContext.impersonationStaff
+        }
 
 initAuthenticatedEffectiveStaffContext ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     IO ()
 initAuthenticatedEffectiveStaffContext = do
-    putContext (EffectiveStaffContext Nothing)
-    forM_ ((,) <$> currentUserOrNothing @User <*> currentVenueOrNothing) \(user, venue) -> do
+    modifyRequestVenueState \state -> state { effectiveStaff = EffectiveStaffContext Nothing }
+    forM_ ((,) <$> withRequestContext (currentUserOrNothing @User) <*> currentVenueOrNothing) \(user, venue) -> do
         maybeStaff <-
             query @Staff
                 |> filterWhere (#venueId, unpackId venue.id)
@@ -229,7 +230,7 @@ initAuthenticatedEffectiveStaffContext = do
                 |> filterWhere (#isActive, True)
                 |> filterWhere (#archivedAt, Nothing)
                 |> fetchOneOrNothing
-        putContext (EffectiveStaffContext maybeStaff)
+        modifyRequestVenueState \state -> state { effectiveStaff = EffectiveStaffContext maybeStaff }
 
 expireImpersonationSession ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -312,5 +313,5 @@ clearImpersonationSession = do
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
         clearImpersonationReturnFallback
-    putContext (Nothing :: Maybe ImpersonationRequestContext)
+    modifyRequestVenueState \state -> state { impersonation = Nothing }
     initAuthenticatedEffectiveStaffContext

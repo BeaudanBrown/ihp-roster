@@ -158,7 +158,7 @@ type TimesheetScopeBundle =
      ]
 
 type TimesheetActionBundle =
-    '[ BrowserDomToken TimesheetWeekShell
+    '[ DomToken TimesheetWeekShell
      , Action NavigateTimesheetWeek
         '[ Field AnchorDate 'WireDay
          , OptionalField StaffFilterId 'WireUUID

@@ -20,9 +20,12 @@ if (!['fast', 'full'].includes(e2eTier)) {
 const mobileTestFiles = [
     /.*mobile-experience\.spec\.ts/,
     /.*pwa-install\.spec\.ts/,
+    /.*feedback-diagnostics\.spec\.ts/,
+    /.*feedback-moderation\.spec\.ts/,
+    /.*feedback-voting\.spec\.ts/,
+    /.*feedback-acceptance\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
-    /.*roster-template-designer\.spec\.ts/,
-    /.*roster-template-application\.spec\.ts/,
+    /.*roster-template-modals\.spec\.ts/,
     ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),
 ];
 
@@ -65,6 +68,7 @@ export default defineConfig({
         {
             name: 'mobile-chromium',
             testMatch: mobileTestFiles,
+            grepInvert: /@desktop-only/,
             use: {
                 ...devices['Pixel 7'],
                 browserName: 'chromium' as const,
@@ -73,7 +77,7 @@ export default defineConfig({
         {
             name: 'galaxy-s9-plus',
             testMatch: mobileTestFiles,
-            grepInvert: /@canonical-mobile/,
+            grepInvert: /@canonical-mobile|@desktop-only/,
             use: {
                 browserName: 'chromium' as const,
                 viewport: { width: 360, height: 740 },
@@ -88,7 +92,7 @@ export default defineConfig({
         {
             name: 'tablet-chromium',
             testMatch: mobileTestFiles,
-            grepInvert: /@canonical-mobile/,
+            grepInvert: /@canonical-mobile|@desktop-only/,
             use: {
                 ...devices['iPad Mini'],
                 browserName: 'chromium' as const,

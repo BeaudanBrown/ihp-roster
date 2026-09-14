@@ -17,9 +17,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (OverlayCloseAction),
-                                renderDialogOverlay)
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
 import Application.Xero.EmployeeId (XeroEmployeeSelection (..),

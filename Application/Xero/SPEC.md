@@ -55,7 +55,13 @@ issue and, when cross-system design remains unresolved, a new workstream.
   successful category is reconciled and published independently, so a later
   category failure does not discard usable reference data. Complete aggregate
   freshness advances only when every category requested by that full refresh
-  succeeds. A failed full-refresh attempt retries only its failed categories,
+  succeeds. Production category and run writes hold the tenant lease, connection,
+  and run row locks through durable publication. The runtime clock is checked
+  after locking: expired/lost leases, superseded runs, and changed connection
+  credentials cannot publish delayed results. A rejected write leaves category
+  data/freshness and completion events untouched; outbox failure rolls back the
+  category or final run/freshness/audit transaction together.
+  A failed full-refresh attempt retries only its failed categories,
   while retaining the original aggregate request boundary. Jobs coalesce by
   compatible connection/category demand and are leased per Xero tenant. A Staff
   request joins an active full refresh whenever that job still includes pending
@@ -69,7 +75,10 @@ issue and, when cross-system design remains unresolved, a new workstream.
   handling honors valid `Retry-After`, while transient
   failures use Xero-specific jittered continuations for at most 24 hours without
   changing unrelated job retry policy. Progress and errors contain phase/page
-  facts only, never tokens or raw provider payloads.
+  facts only, never tokens or raw provider payloads. Final keepalive/reference
+  failures use the shared private safe AppJob exception and unmodified IHP retry
+  behavior; only the established Xero `Retry-After` contract creates an explicit
+  delayed continuation.
 - Successful OAuth connection or same-tenant repair transactionally enqueues
   one coalescing reference-sync job and redirects directly to the Xero shell;
   reference refresh never depends on a browser page-load trigger. The daily
@@ -163,7 +172,7 @@ issue and, when cross-system design remains unresolved, a new workstream.
   source identity and rate remain unchanged in the resulting key.
   `Application.Xero.PayrollSourceKey` owns that exact source/rate suffix.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
-- Readiness, persisted preview, direct submission, retry, and guided preparation
+- Readiness, persisted preview, preparation-owned submission, retry, and guided preparation
   use the shared strict wage-source enforcement boundary. Any included entry's
   calculation or source failure blocks the complete operation; imported overrides
   bypass FWC/DataVic freshness only with a valid imported pay item.
@@ -200,7 +209,10 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   run without downloading remote timesheet history. After concise owner
   confirmation, submission performs one fresh reconciliation read and
   immediately creates or updates safe drafts from that state; unsafe provider
-  states block before writes. Every remote reconciliation read uses the Payroll
+  states block before writes. Confirmation does not carry an earlier remote
+  snapshot to compare for equality. Reservation-conflict outcomes still return
+  current reconciliation notices, and persisted reconciliation snapshots remain
+  available as submission history. Every remote reconciliation read uses the Payroll
   AU v2 timesheet endpoint scoped to the selected payroll calendar and period.
   The initial read omits the optional `page` query parameter because live Xero
   returns 400 for an explicitly requested empty page 1; later full-result pages
@@ -223,6 +235,19 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   reapproval creates independently routed components. Submission source links
   retain immutable audit snapshots but do not lock Timesheet entries; corrected entries reset approval and
   enter Xero only after reapproval and a fresh preparation.
+- Entry-specific approval blockers expose one owner/super-admin `Refresh approval`
+  recovery in a real selected venue. The confirmed action carries the expected
+  active calculation and approval timestamp, waits at most five seconds for the
+  Timesheet row lock, rejects stale controls and active provider writes, and
+  transactionally recalculates against current pay facts and Xero mappings. A
+  successful refresh retains the prior sealed ledger, updates approval actor/time,
+  and records `TimesheetApprovedAudit` with prior/new calculation IDs and source
+  `xero_preparation_refresh`; incomplete replacements roll back completely. A
+  concurrent duplicate control that waits and then observes that first complete,
+  audited refresh returns the same healthy approval as an idempotent no-op; every
+  other expected-identity mismatch is stale.
+  Reservation takes sorted Timesheet row locks and revalidates approval identity
+  before becoming the sole creator of provider-write reservations.
 - An effective staff-level imported Xero rate maps that staff member's imported
   components to the one approval-pinned Xero earnings rate; an explicit shift
   override still follows the shared pay-assignment precedence. Imported-rate

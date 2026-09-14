@@ -4,7 +4,8 @@ import {
     orderedRangeRootDomAttr,
     orderedRangeStartDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
 import { E2E_TIMEOUT } from './timeouts';
 
 test.describe('Shift preference autosave', () => {

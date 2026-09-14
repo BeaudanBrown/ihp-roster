@@ -4,7 +4,7 @@ module Web.RosterWeeks.Capabilities
 
 import Application.Helper.View (ViewAudience (ManagerAudience),
                                 currentUserIsAdmin, currentUserMatchesAudience)
-import IHP.Controller.Context (ControllerContext)
+import IHP.ControllerSupport (ControllerContext)
 import IHP.Prelude
 import Web.RosterWeeks.Types
 

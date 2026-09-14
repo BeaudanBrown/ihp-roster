@@ -10,9 +10,7 @@ import Application.Helper.Controller (currentOperationalDayForVenue,
                                       fetchVenueConfig)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
 
-import Data.Time.Calendar (addDays)
 
 fetchCurrentUserLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [LeaveRequest]
 fetchCurrentUserLeaveRequests = do

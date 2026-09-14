@@ -9,7 +9,6 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      automaticMealBreakThresholdMinutes)
 import Application.VenueTime.Model
 import qualified Data.Bifunctor as Bifunctor
-import Data.Time.Clock (addUTCTime)
 import Generated.Types
 import IHP.Prelude
 

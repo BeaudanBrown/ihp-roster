@@ -4,6 +4,7 @@ import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
 import Data.Maybe (fromJust)
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)

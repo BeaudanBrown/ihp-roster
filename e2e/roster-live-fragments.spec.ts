@@ -6,7 +6,15 @@ import {
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, resetCanonicalRosterAssignedShiftFixture, runSql, saveRosterShiftDialog } from './test-helpers';
+import {
+    ensureRosterLayout,
+    fillRosterShiftDialogDefaults,
+    openRoster,
+    openRosterShiftDialog,
+    resetCanonicalRosterAssignedShiftFixture,
+    saveRosterShiftDialog,
+} from './support/roster';
+import { runSql } from './support/database';
 
 type OpenShiftLiveWindow = Window & { __openShiftRosterSubscriptions?: string[] };
 
@@ -137,28 +145,35 @@ async function changeShiftToAlternateStaffKey(page: Page, groupKey: string): Pro
     return await shiftGroupStaffKey(page, groupKey);
 }
 
-async function assignedShiftCount(page: Page): Promise<number> {
-    return page
-        .locator(`[hx-get*="EditRosterSlotDialog"][${rosterShiftGroupHighlightMemberDomAttr}][${rosterStaffHighlightMemberDomAttr}]`)
-        .evaluateAll((elements, groupAttr) => {
-            return new Set(elements.map((element) => element.getAttribute(groupAttr) ?? '')).size;
-        }, rosterShiftGroupHighlightMemberDomAttr);
-}
-
-async function expectAssignedShiftCount(page: Page, count: number) {
-    await expect.poll(() => assignedShiftCount(page), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(count);
-}
-
 async function expectShiftGroupStaffKey(page: Page, groupKey: string, staffKey: string) {
     await expect.poll(() => shiftGroupStaffKey(page, groupKey), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(staffKey);
 }
 
+const assignmentLiveUpdateTitle = 'updates another viewer live after a shift assignment changes';
+const managerLayoutLiveUpdateTitle = 'applies a manager layout change to another active roster viewer';
+const scrollOwnerLiveUpdateTitle = 'preserves day-column and day-row scroll owners for actor and passive shift live refreshes';
+const focusedLauncherLiveUpdateTitle = 'does not defer same-row live updates when a viewer has a shift launcher focused';
+const reconnectLiveUpdateTitle = 'recovers from reconnect and reapplies the latest live roster state';
+const canonicalRosterFixtureMutators = new Set([
+    assignmentLiveUpdateTitle,
+    managerLayoutLiveUpdateTitle,
+    scrollOwnerLiveUpdateTitle,
+    focusedLauncherLiveUpdateTitle,
+    reconnectLiveUpdateTitle,
+]);
+
+function resetCanonicalRosterFixtureForMutator(testTitle: string) {
+    if (canonicalRosterFixtureMutators.has(testTitle)) {
+        resetCanonicalRosterAssignedShiftFixture();
+    }
+}
+
 test.describe('Roster live fragments', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
-    test.beforeEach(resetCanonicalRosterAssignedShiftFixture);
-    test.afterEach(resetCanonicalRosterAssignedShiftFixture);
+    test.beforeEach(({}, testInfo) => resetCanonicalRosterFixtureForMutator(testInfo.title));
+    test.afterEach(({}, testInfo) => resetCanonicalRosterFixtureForMutator(testInfo.title));
 
-    test('updates another viewer live after a shift assignment changes', async ({ browser }) => {
+    test(assignmentLiveUpdateTitle, async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -259,7 +274,7 @@ test.describe('Roster live fragments', () => {
         await workerViewerContext.close();
     });
 
-    test('applies a manager layout change to another active roster viewer', async ({ browser }) => {
+    test(managerLayoutLiveUpdateTitle, async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -276,7 +291,7 @@ test.describe('Roster live fragments', () => {
         await viewerContext.close();
     });
 
-    test('preserves day-column and day-row scroll owners for actor and passive shift live refreshes', async ({ browser }) => {
+    test(scrollOwnerLiveUpdateTitle, async ({ browser }) => {
         runSql(`
             UPDATE venue_config
             SET roster_layout_mode = 'day_columns', updated_at = NOW()
@@ -332,7 +347,7 @@ test.describe('Roster live fragments', () => {
         await expect(page.getByRole('button', { name: 'Copy Previous Week' })).toHaveCount(0);
     });
 
-    test('does not defer same-row live updates when a viewer has a shift launcher focused', async ({ browser }) => {
+    test(focusedLauncherLiveUpdateTitle, async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -357,7 +372,7 @@ test.describe('Roster live fragments', () => {
         await viewerContext.close();
     });
 
-    test('recovers from reconnect and reapplies the latest live roster state', async ({ browser }) => {
+    test(reconnectLiveUpdateTitle, async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();

@@ -26,6 +26,7 @@ module Web.Admin.Mutations
     , updateShiftTypeMutation
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Audit
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
@@ -40,11 +41,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
                                         syncVenueDefaultRosterGroupToTopActive)
 import Application.Helper.Staff (isAdoptableTrialStaff)
-import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
-                                            blankShiftTypeColourKey,
-                                            normalizeShiftTypeColourKey)
 import Application.Helper.SurfaceResource
-import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.PayAssignment (selectableShiftAssignmentMode)
@@ -54,8 +51,6 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Admin.RosterWindowStartDay
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
@@ -69,7 +64,7 @@ issueStaffPasskeySetupLinkMutation ::
     User ->
     IO (PasskeySetupToken, Text)
 issueStaffPasskeySetupLinkMutation staffId purpose targetUser =
-    issuePasskeySetupTokenWith purpose targetUser (Just currentUser.id) (Just currentVenueId) \_ ->
+    issuePasskeySetupTokenWith purpose targetUser (Just authenticatedCurrentUser.id) (Just currentVenueId) \_ ->
         void $
             recordCurrentUserAuditEvent
                 (staffPasskeySetupAuditEvent purpose)
@@ -80,7 +75,7 @@ issueStaffPasskeySetupLinkMutation staffId purpose targetUser =
 staffPasskeySetupAuditEvent :: PasskeySetupTokenPurpose -> AuditEventType
 staffPasskeySetupAuditEvent StaffNewDevicePasskeySetup = StaffPasskeySetupRequestedAudit
 staffPasskeySetupAuditEvent StaffPasskeyRecovery = StaffPasskeyRecoveryRequestedAudit
-staffPasskeySetupAuditEvent SelfNewDevicePasskeySetup = error "Self passkey setup cannot use the staff credential mutation"
+staffPasskeySetupAuditEvent SelfNewDevicePasskeySetup = externalRuntimeInvariantFailure PersistedRuntimeInvariant "Self passkey setup cannot use the staff credential mutation"
 
 data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     { adminShiftTypeMutationShiftType         :: !ShiftType
@@ -168,16 +163,16 @@ createVenueInvitationMutation email = do
                             revokePendingOrdinaryVenueInvitations email Nothing
                             invitation <- newRecord @VenueInvitation
                                 |> set #venueId (unpackId currentVenueId)
-                                |> set #invitedByUserId (Just (unpackId currentUser.id))
+                                |> set #invitedByUserId (Just (unpackId authenticatedCurrentUser.id))
                                 |> set #email email
                                 |> set #inviteRole (Worker)
                                 |> set #status (InvitationStatusEnumPending)
                                 |> set #deliveryStatus (Queued)
                                 |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                                 |> createRecord
-                            void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
+                            void (enqueueVenueInvitationEmail (Just authenticatedCurrentUser.id) invitation)
                             pure (Right invitation)
-    pure (fmap (\invitation -> liveMutationResult invitation resources) creation)
+    pure (fmap (`liveMutationResult` resources) creation)
     where
         resources = [adminInvitesResource (unpackId currentVenueId)]
         publicationFor = either (const Nothing) (const (Just ("admin.invite.create", Set.fromList resources)))
@@ -227,14 +222,14 @@ replaceVenueInvitation invitation correctedEmail = do
         |> updateRecord
     replacement <- newRecord @VenueInvitation
         |> set #venueId invitation.venueId
-        |> set #invitedByUserId (Just (unpackId currentUser.id))
+        |> set #invitedByUserId (Just (unpackId authenticatedCurrentUser.id))
         |> set #email correctedEmail
         |> set #inviteRole invitation.inviteRole
         |> set #status (InvitationStatusEnumPending)
         |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    void (enqueueVenueInvitationEmail (Just currentUser.id) replacement)
+    void (enqueueVenueInvitationEmail (Just authenticatedCurrentUser.id) replacement)
     pure replacement
 
 revokePendingOrdinaryVenueInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> Maybe (Id VenueInvitation) -> IO ()
@@ -298,13 +293,12 @@ moveRosterGroupMutation _rosterGroup direction =
         syncVenueDefaultRosterGroupToTopActive currentVenueId
         pure (liveMutationResult () [adminRosterGroupsResource (unpackId currentVenueId)])
 
-createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey =
+createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly colourKey =
     withDurableLiveMutation "admin.shift_type.create" do
         sortOrder <- nextShiftTypeSortOrder
-        colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
         now <- getCurrentTime
-        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
+        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
         shiftType <- newRecord @ShiftType
             |> set #venueId (unpackId currentVenueId)
             |> set #name name
@@ -315,23 +309,22 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
             |> set #colourKey colourKey
             |> set #isActive isActive
             |> createRecord
-        _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
+        _ <- ensureShiftTypePayVersionForShiftType authenticatedCurrentUser.id shiftType (utctDay now)
         let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
         activeRosterScopes <- activeRosterWindowScopes
         activeTimesheetScopes <- activeTimesheetWindowScopes
         let payResources = shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
         pure (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
-updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey =
+updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly colourKey =
     withDurableLiveMutation "admin.shift_type.update" do
         now <- getCurrentTime
         sortOrder <-
             if not shiftType.isActive && isActive
                 then nextShiftTypeSortOrder
                 else pure shiftType.sortOrder
-        colourKey <- resolveSubmittedShiftTypeColourKey (Just shiftType.id) isActive maybeSubmittedColourKey shiftType.colourKey
-        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
+        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
         updatedShiftType <- shiftType
             |> set #name name
             |> set #sortOrder sortOrder
@@ -342,7 +335,7 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
             |> set #isActive isActive
             |> updateRecord
         when (shiftType.name /= updatedShiftType.name || shiftType.payAssignmentMode /= updatedShiftType.payAssignmentMode || shiftType.overrideAwardLevelId /= updatedShiftType.overrideAwardLevelId || shiftType.importedXeroPayItemId /= updatedShiftType.importedXeroPayItemId) do
-            _ <- ensureShiftTypePayVersionForShiftType currentUser.id updatedShiftType (utctDay now)
+            _ <- ensureShiftTypePayVersionForShiftType authenticatedCurrentUser.id updatedShiftType (utctDay now)
             pure ()
         let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
         activeRosterScopes <- activeRosterWindowScopes
@@ -352,12 +345,6 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
                     then shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
                     else []
         pure (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
-
-resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe ShiftTypeColourKeyEnum -> ShiftTypeColourKeyEnum -> IO ShiftTypeColourKeyEnum
-resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
-    case maybeSubmittedColourKey of
-        Nothing -> assignShiftTypeColourKey currentVenueId maybeCurrentShiftTypeId isActive fallbackColourKey
-        Just submittedColourKey -> pure (normalizeShiftTypeColourKey submittedColourKey)
 
 moveShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Int -> IO (LiveMutationResult ())
 moveShiftTypeMutation shiftType direction =

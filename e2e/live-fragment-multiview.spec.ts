@@ -7,7 +7,12 @@ import {
     rosterStaffHighlightMemberDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openProfileLeaveSection, setFlatpickrDate } from './support/profile';
+import { openRoster } from './support/roster';
+import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { runSql } from './support/database';
 
 const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -104,6 +109,26 @@ async function fillAndSaveTimesheetDialog(page: Page, startTime: string, endTime
     await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
 }
 
+const profilePreferenceMutator = 'profile save updates another open profile tab live while actor gets an immediate fragment';
+const timesheetPreferenceMutator = 'manager approval updates the worker timesheet page live';
+
+function resetWorkerPreferredName() {
+    runSql(`
+        UPDATE staff
+        SET preferred_name = NULL, updated_at = NOW()
+        WHERE id = 'a1000000-0000-0000-0000-000000000031';
+    `);
+}
+
+function resetMutatedPreferences(testTitle: string) {
+    if (testTitle === profilePreferenceMutator) {
+        resetWorkerPreferredName();
+    }
+    if (testTitle === timesheetPreferenceMutator) {
+        resetTimesheetDisplayPreferences([managerCreds.email, workerCreds.email]);
+    }
+}
+
 async function openProfileDetailsSection(page: Page) {
     const detailsToggle = page.getByRole('button', { name: 'Profile Details' });
     if ((await detailsToggle.getAttribute('aria-expanded')) !== 'true') {
@@ -113,18 +138,8 @@ async function openProfileDetailsSection(page: Page) {
 }
 
 test.describe('Live fragment multi-view coverage', () => {
-    test.afterEach(() => {
-        resetTimesheetDisplayPreferences(managerCreds.email);
-        resetTimesheetDisplayPreferences(workerCreds.email);
-    });
-    test.afterEach(() => {
-        runSql(`
-            UPDATE staff
-            SET preferred_name = NULL, updated_at = NOW()
-            WHERE id = 'a1000000-0000-0000-0000-000000000031';
-        `);
-    });
-
+    test.beforeEach(({}, testInfo) => resetMutatedPreferences(testInfo.title));
+    test.afterEach(({}, testInfo) => resetMutatedPreferences(testInfo.title));
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test('worker profile leave submit updates an open manager leave page live', async ({ browser }) => {
@@ -137,7 +152,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await loginManager(managerPage);
         await loginWorker(workerPage);
 
-        await gotoWhenReady(managerPage, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(managerPage, '/LeaveRequests', '#leave-requests-shell');
 
         const { startDate, endDate } = await currentBroadLeaveRange(workerPage);
 
@@ -166,7 +181,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await workerContext.close();
     });
 
-    test('profile save updates another open profile tab live while actor gets an immediate fragment', async ({ browser }) => {
+    test(profilePreferenceMutator, async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -200,10 +215,8 @@ test.describe('Live fragment multi-view coverage', () => {
 
     test('leave approval exposes the new roster conflict state after viewer refresh', async ({ browser }) => {
         const actorContext = await browser.newContext();
-        const requesterContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
-        const requesterPage = await requesterContext.newPage();
         const viewerPage = await viewerContext.newPage();
         const note = 'Alpha leave request';
 
@@ -252,7 +265,7 @@ test.describe('Live fragment multi-view coverage', () => {
                 LIMIT 1
             );
         `);
-        await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-shell');
 
         const pendingLeaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note }).filter({ hasText: 'Pending' });
 
@@ -275,7 +288,6 @@ test.describe('Live fragment multi-view coverage', () => {
         await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
 
         await actorContext.close();
-        await requesterContext.close();
         await viewerContext.close();
     });
 
@@ -417,7 +429,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerContext.close();
     });
 
-    test('manager approval updates the worker timesheet page live', async ({ browser }) => {
+    test(timesheetPreferenceMutator, async ({ browser }) => {
         const managerContext = await browser.newContext();
         const workerContext = await browser.newContext();
         const managerPage = await managerContext.newPage();
@@ -425,8 +437,6 @@ test.describe('Live fragment multi-view coverage', () => {
         const renderedRange = '11:15 AM–3:15 PM';
 
         cleanupManagerApprovalEntry();
-        resetTimesheetDisplayPreferences(managerCreds.email);
-        resetTimesheetDisplayPreferences(workerCreds.email);
         try {
             await loginManager(managerPage);
             await loginWorker(workerPage);
@@ -453,8 +463,6 @@ test.describe('Live fragment multi-view coverage', () => {
             await expect(workerEntry).toHaveAttribute('data-timesheet-entry-approved', 'true', { timeout: E2E_TIMEOUT.liveUpdate });
         } finally {
             cleanupManagerApprovalEntry();
-            resetTimesheetDisplayPreferences(managerCreds.email);
-            resetTimesheetDisplayPreferences(workerCreds.email);
             await managerContext.close();
             await workerContext.close();
         }

@@ -7,78 +7,33 @@ import { createActiveInteractionSessionTracker, dispatchInteractionSessionEnd, d
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
 import { assertEqual, test } from "./harness";
+import { MiniElement as SharedMiniElement } from "./mini-dom";
 
 const intentSubmitEvent = "bepis:intent-submit"; // frontend-contract-token-fixture
 
-class MiniElement extends EventTarget {
-    readonly children: MiniElement[] = [];
-    parent: MiniElement | null = null;
-    id = "";
-    value = "";
+class MiniElement extends SharedMiniElement {
+    declare readonly children: MiniElement[];
     innerHTML = "";
     style: Record<string, string> = {};
     rect = { left: 0, top: 0, width: 0, height: 0 };
     capturedPointerId: number | null = null;
     releasedPointerId: number | null = null;
     ownerDocument?: { elementFromPoint: (x: number, y: number) => MiniElement | null; createElement?: (tag: string) => MiniElement };
-    private readonly attrs = new Map<string, string>();
 
-    constructor(attrs: Record<string, string> = {}) {
-        super();
-        for (const [name, value] of Object.entries(attrs)) this.attrs.set(name, value);
-        this.id = attrs.id ?? "";
-        this.value = attrs.value ?? "";
-    }
-
-    append(child: MiniElement): MiniElement {
-        child.parent = this;
-        this.children.push(child);
-        return child;
-    }
-
-    appendChild(child: MiniElement): MiniElement {
-        return this.append(child);
-    }
-
-    removeChild(child: MiniElement): MiniElement {
-        const index = this.children.indexOf(child);
-        if (index >= 0) this.children.splice(index, 1);
-        child.parent = null;
-        return child;
-    }
-
-    get parentNode(): MiniElement | null {
-        return this.parent;
-    }
-
-    get attributes(): Array<{ name: string; value: string }> {
-        return Array.from(this.attrs.entries()).map(([name, value]) => ({ name, value }));
-    }
-
-    getAttribute(name: string): string | null {
-        return this.attrs.get(name) ?? null;
-    }
-
-    setAttribute(name: string, value: string): void {
-        this.attrs.set(name, value);
-        if (name === "value") this.value = value;
-        if (name === "id") this.id = value;
-    }
-
-    removeAttribute(name: string): void {
-        this.attrs.delete(name);
-        if (name === "id") this.id = "";
+    matches(selector: string): boolean {
+        const fixtureTag = this.getAttribute("tag");
+        return selector.split(",").some((part) => part.trim() === fixtureTag || super.matches(part.trim()));
     }
 
     cloneNode(deep = false): MiniElement {
-        const clone = new MiniElement(Object.fromEntries(this.attrs.entries()));
+        const clone = new MiniElement(Object.fromEntries(this.attributes.map(({ name, value }) => [name, value])));
         clone.id = this.id;
         clone.value = this.value;
         clone.innerHTML = this.innerHTML;
         clone.style = { ...this.style };
         clone.rect = { ...this.rect };
         clone.ownerDocument = this.ownerDocument;
-        if (deep) for (const child of this.children) clone.append(child.cloneNode(true));
+        if (deep) this.children.forEach((child) => clone.append(child.cloneNode(true)));
         return clone;
     }
 
@@ -95,51 +50,12 @@ class MiniElement extends EventTarget {
     }
 
     replaceChildren(): void {
-        this.children.length = 0;
+        super.replaceChildren();
         this.innerHTML = "";
-    }
-
-    querySelectorAll(selector: string): MiniElement[] {
-        const matches: MiniElement[] = [];
-        const visit = (element: MiniElement) => {
-            for (const child of element.children) {
-                if (selector === "*" || matchesSelector(child, selector) || matchesTagSelector(child, selector)) matches.push(child);
-                visit(child);
-            }
-        };
-        visit(this);
-        return matches;
-    }
-
-    querySelector(selector: string): MiniElement | null {
-        return this.querySelectorAll(selector)[0] ?? null;
-    }
-
-    closest(selector: string): MiniElement | null {
-        let current: MiniElement | null = this;
-        while (current) {
-            if (matchesSelector(current, selector) || matchesTagSelector(current, selector)) return current;
-            current = current.parent;
-        }
-        return null;
     }
 }
 
 const attrs = InteractionDom.attributes;
-
-function matchesSelector(element: MiniElement, selector: string): boolean {
-    if (selector.includes(",")) return selector.split(",").some((part) => matchesSelector(element, part.trim()));
-    const equalsMatch = selector.match(/^\[([^=]+)="([^"]*)"\]$/);
-    if (equalsMatch) return element.getAttribute(equalsMatch[1] ?? "") === (equalsMatch[2] ?? "");
-    const attrMatch = selector.match(/^\[([^\]]+)\]$/);
-    if (attrMatch) return element.getAttribute(attrMatch[1] ?? "") !== null;
-    return false;
-}
-
-function matchesTagSelector(element: MiniElement, selector: string): boolean {
-    const tag = element.getAttribute("tag");
-    return selector.split(",").some((part) => part.trim() === tag);
-}
 
 function eventWithTarget(type: string, target: MiniElement): Event {
     const event = new Event(type, { bubbles: true, cancelable: true });

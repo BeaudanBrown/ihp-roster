@@ -7,8 +7,17 @@ devenv-script-freshness-check
 echo "verify-fast: production HTTP polling policy"
 http-repository-check
 
+echo "verify-fast: migration enum commit-boundary policy"
+migration-enum-commit-boundary-check
+
 echo "verify-fast: typecheck"
 typecheck
+
+echo "verify-fast: app-owned production totality warnings"
+application-warnings
+
+echo "verify-fast: typed error primitive and category boundaries"
+typed-error-boundary-check
 
 # Additive feedback only: required CI and merge evidence still use complete hspec-test.
 echo "verify-fast: pure Hspec"

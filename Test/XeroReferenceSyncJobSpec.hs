@@ -2,19 +2,28 @@ module Test.XeroReferenceSyncJobSpec where
 
 import Application.Async.Queue
 import Application.Helper.Xero
-import Application.Xero.Admin.ReferenceData (XeroReferenceDataSyncResult,
-                                             completeXeroReferenceDataSync,
+import Application.Xero.Admin.ReferenceData (completeXeroReferenceSyncRun,
+                                             completeXeroStaffReferenceDataSync,
+                                             completeXeroPayItemsReferenceDataSync,
+                                             completeXeroPayrollCalendarsReferenceDataSync,
+                                             completeXeroAccountsReferenceDataSync,
                                              startXeroReferenceDataSync)
+import Application.Xero.ReferenceSyncFence
 import Application.Xero.ReferenceSyncJob
 import Application.Xero.ReferenceSyncRequest
 import Application.Xero.ReferenceTrust
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Application.Xero.ReferenceTrust.Service
 import qualified Control.Exception as Exception
+import Control.Monad (void)
+import Control.Concurrent.Async (withAsync, wait)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import System.Timeout (timeout)
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
 import Data.IORef
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime, getCurrentTime,
                         secondsToDiffTime)
@@ -48,14 +57,11 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Xero Job Dedupe"
                 owner <- createUserRecord "xero-job-dedupe@example.com" "staff" True
                 connection <- createReferenceSyncConnection venue owner "tenant-dedupe"
-                publications <- newIORef []
 
-                (firstJob, secondJob) <- withXeroReferenceSyncRuntimeForTest (recordingRuntime fixedReferenceSyncTime publications) do
-                    EnqueuedAppJob firstJob <- requestXeroReferenceSyncJob (Just owner.id) connection
-                    ExistingActiveAppJob secondJob <- requestXeroReferenceSyncJob (Just owner.id) connection
-                    pure (firstJob, secondJob)
+                EnqueuedAppJob firstJob <- requestXeroReferenceSyncJob (Just owner.id) connection
+                ExistingActiveAppJob secondJob <- requestXeroReferenceSyncJob (Just owner.id) connection
 
-                readIORef publications `shouldReturn` ["xero.reference_sync.queued"]
+                assertReferenceSyncPublications (unpackId venue.id) ["xero.reference_sync.queued"]
                 secondJob.id `shouldBe` firstJob.id
                 query @AppJob
                     |> filterWhere (#jobKind, xeroReferenceSyncJobKind)
@@ -147,15 +153,13 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Xero Manual Request Publication"
                 owner <- createUserRecord "xero-manual-request-publication@example.com" "staff" True
                 connection <- createReferenceSyncConnection venue owner "tenant-manual-request-publication"
-                publications <- newIORef []
 
-                result <- withXeroReferenceSyncRuntimeForTest (recordingRuntime fixedReferenceSyncTime publications) $
-                    runXeroReferenceDataSyncRequest (Just owner.id) connection
+                result <- runXeroReferenceDataSyncRequest (Just owner.id) connection
 
                 case result of
                     Left message -> message `shouldBe` "Xero payroll reference data is continuing in the background."
                     Right _ -> expectationFailure "Expected a queued background reference-sync request"
-                readIORef publications `shouldReturn` ["xero.reference_sync.queued"]
+                assertReferenceSyncPublications (unpackId venue.id) ["xero.reference_sync.queued"]
 
         it "converges repeated command requests after one successful refresh" $ withContext do
             withCleanDb do
@@ -169,8 +173,7 @@ tests = aroundAll withDatabaseTestContext do
                     WaitForTrustedXeroReferenceSnapshot _ -> True
                     _ -> False
                 [job] <- query @AppJob |> fetch
-                let durableRuntime = (testRuntime requestedAt) { publishReferenceSyncTransition = publishReferenceSyncTransitionLive }
-                performXeroReferenceSyncJobWith durableRuntime (emptyReferenceSource connection) job
+                performXeroReferenceSyncJobWith (testRuntime requestedAt) (emptyReferenceSource connection) job
                 [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "xero.reference_sync.completed" :: Text) |> fetch
                 query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
                 let observedAt = addUTCTime 60 requestedAt
@@ -182,6 +185,23 @@ tests = aroundAll withDatabaseTestContext do
                 query @AppJob |> fetchCount >>= (`shouldBe` 1)
                 [syncRun] <- query @XeroSyncRun |> fetch
                 syncRun.syncStatus `shouldBe` Succeeded
+
+        it "rejects reference-sync payload provenance that differs from its durable connection" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Invalid Reference Payload Venue"
+                owner <- createUserRecord "xero-invalid-reference-payload@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-reference-valid"
+                EnqueuedAppJob queuedJob <- enqueueXeroReferenceSyncJob Nothing connection
+                requestedAt <- getCurrentTime
+                invalidJob <-
+                    queuedJob
+                        |> set #payload (Aeson.object ["xeroConnectionId" Aeson..= tshow connection.id, "tenantId" Aeson..= ("tenant-other" :: Text), "requestedAt" Aeson..= requestedAt, "retryNumber" Aeson..= (0 :: Int)])
+                        |> updateRecord
+
+                result <- Exception.try (performXeroReferenceSyncJobWith (testRuntime requestedAt) (emptyReferenceSource connection) invalidJob) :: IO (Either Exception.SomeException ())
+                case result of
+                    Right () -> expectationFailure "Expected invalid Xero reference-sync provenance"
+                    Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
 
         it "leases one bulk scan per tenant while allowing different tenants" $ withContext do
             withCleanDb do
@@ -203,7 +223,7 @@ tests = aroundAll withDatabaseTestContext do
                 releaseXeroReferenceSyncLease firstJob firstConnection.tenantId
                 acquireXeroReferenceSyncLease now secondJob secondConnection.tenantId `shouldReturn` True
 
-        it "publishes tenant-lease contention as a failure before retry waiting" $ withContext do
+        it "persists tenant-lease contention progress before retry waiting" $ withContext do
             withCleanDb do
                 firstVenue <- createVenueWithConfig "Xero Lease Publication First"
                 secondVenue <- createVenueWithConfig "Xero Lease Publication Second"
@@ -213,14 +233,12 @@ tests = aroundAll withDatabaseTestContext do
                 EnqueuedAppJob firstJob <- enqueueXeroReferenceSyncJob Nothing firstConnection
                 EnqueuedAppJob secondJob <- enqueueXeroReferenceSyncJob Nothing secondConnection
                 let now = fixedReferenceSyncTime
-                publications <- newIORef []
                 acquireXeroReferenceSyncLease now firstJob firstConnection.tenantId `shouldReturn` True
 
-                performXeroReferenceSyncJobWith (recordingRuntime now publications) (emptyReferenceSource secondConnection) secondJob
+                performXeroReferenceSyncJobWith (testRuntime now) (emptyReferenceSource secondConnection) secondJob
 
-                publishedTransitions <- readIORef publications
-                publishedTransitions `shouldSatisfy` ("xero.reference_sync.failed" `elem`)
-                publishedTransitions `shouldSatisfy` ("xero.reference_sync.retry_wait" `elem`)
+                assertReferenceSyncPublications (unpackId secondVenue.id)
+                    ["xero.reference_sync.progress", "xero.reference_sync.retry_wait"]
 
         it "preserves tenant pacing when the lease passes to another connection" $ withContext do
             withCleanDb do
@@ -277,11 +295,10 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #payload (referenceSyncPayload currentConnection (addUTCTime (-1) now) 1)
                     |> updateRecord
                 calls <- newIORef []
-                publications <- newIORef []
 
-                performXeroReferenceSyncJobWith (recordingRuntime now publications) (recordingReferenceSource calls currentConnection) job
+                performXeroReferenceSyncJobWith (testRuntime now) (recordingReferenceSource calls currentConnection) job
 
-                readIORef publications `shouldReturn` ["xero.reference_sync.skipped"]
+                assertReferenceSyncPublications (unpackId venue.id) ["xero.reference_sync.skipped"]
                 readIORef calls `shouldReturn` []
                 query @XeroSyncRun |> fetchCount >>= (`shouldBe` 0)
                 completedJob <- fetch job.id
@@ -297,18 +314,23 @@ tests = aroundAll withDatabaseTestContext do
                 owner <- createUserRecord "xero-interrupted-worker@example.com" "staff" True
                 connection <- createReferenceSyncConnection venue owner "tenant-interrupted-worker"
                 EnqueuedAppJob job <- enqueueXeroReferenceSyncJob (Just owner.id) connection
-                publications <- newIORef []
                 let now = fixedReferenceSyncTime
                     interruptedSource =
                         (emptyReferenceSource connection)
-                            { fetchReferenceEmployees = \_ _ -> Exception.throwIO (userError "worker interrupted")
+                            { refreshReferenceAccess = \_ -> do
+                                token <- encryptXeroToken testXeroConfig.tokenEncryptionKey "rotated-worker-refresh-token"
+                                refreshed <- connection |> set #encryptedRefreshToken token |> updateRecord
+                                pure (Right (refreshed, "access-token"))
+                            , fetchReferenceEmployees = \_ _ -> Exception.throwIO (userError "worker interrupted")
                             }
 
-                result <- Exception.try (performXeroReferenceSyncJobWith (recordingRuntime now publications) interruptedSource job) :: IO (Either Exception.SomeException ())
+                result <- Exception.try (performXeroReferenceSyncJobWith (testRuntime now) interruptedSource job) :: IO (Either Exception.SomeException ())
 
                 result `shouldSatisfy` isLeft
-                publishedTransitions <- readIORef publications
-                publishedTransitions `shouldSatisfy` ("xero.reference_sync.interrupted" `elem`)
+                assertReferenceSyncPublications (unpackId venue.id)
+                    [ "xero.reference_sync.started", "xero.reference_sync.progress"
+                    , "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.failed"
+                    ]
                 [syncRun] <- query @XeroSyncRun |> fetch
                 syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
                 syncRun.finishedAt `shouldSatisfy` isJust
@@ -318,6 +340,128 @@ tests = aroundAll withDatabaseTestContext do
                     [ "phase" Aeson..= ("worker" :: Text)
                     , "failureCode" Aeson..= ("transport_error" :: Text)
                     ]
+
+        it "fences late category results after an expired lease allows a replacement snapshot" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Late Category Completion"
+                owner <- createUserRecord "xero-late-category@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-late-category"
+                EnqueuedAppJob queuedJob <- enqueueXeroReferenceSyncCategories (Just owner.id) connection (Set.singleton PayItems)
+                job <- queuedJob |> set #status JobStatusRunning |> updateRecord
+                let now = fixedReferenceSyncTime
+                    delayedSource = (emptyReferenceSource connection)
+                        { fetchReferenceEarningsRatePage = \_ _ _ -> do
+                            EnqueuedAppJob replacementJob <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+                            performXeroReferenceSyncJobWith
+                                (testRuntime (addUTCTime (xeroReferenceSyncLeaseSeconds + 1) now))
+                                (emptyReferenceSource connection)
+                                replacementJob
+                            completedReplacement <- fetch replacementJob.id
+                            completedReplacement.status `shouldBe` JobStatusSucceeded
+                            query @XeroEarningsRate |> fetchCount `shouldReturn` 0
+                            pure (Right [sampleEarningsRate])
+                        }
+
+                outcome <- Exception.try (performXeroReferenceSyncJobWith (testRuntime now) delayedSource job) :: IO (Either Exception.SomeException ())
+
+                outcome `shouldSatisfy` isLeft
+                runs <- query @XeroSyncRun |> orderByAsc #createdAt |> fetch
+                map (.syncStatus) runs `shouldBe` [XeroSyncStatusEnumFailed, Succeeded]
+                query @XeroEarningsRate |> fetchCount `shouldReturn` 0
+
+        forM_ ["expired", "taken-over", "superseded", "reconnected"] \scenario -> do
+            forM_ [XeroStaff, PayItems, PayrollCalendars, Accounts] \category ->
+                it ("rejects " <> cs scenario <> " " <> cs (show category) <> " completion without data or events") $ withContext do
+                    withCleanDb do
+                        (attempt, connection) <- invalidReferenceAttempt scenario
+                        beforeEvents <- query @LiveInvalidationEvent |> fetchCount
+                        beforeResources <- query @LiveInvalidationEventResource |> fetchCount
+                        beforeConnection <- fetch connection.id
+                        result <- Exception.try (completeReferenceCategoryForTest category attempt connection) :: IO (Either Exception.SomeException ())
+                        result `shouldSatisfy` isLeft
+                        query @XeroReferenceSyncCategoryState |> fetchCount `shouldReturn` 0
+                        query @LiveInvalidationEvent |> fetchCount `shouldReturn` beforeEvents
+                        query @LiveInvalidationEventResource |> fetchCount `shouldReturn` beforeResources
+                        afterConnection <- fetch connection.id
+                        (afterConnection.lastSyncAt, afterConnection.lastError, afterConnection.encryptedRefreshToken)
+                            `shouldBe` (beforeConnection.lastSyncAt, beforeConnection.lastError, beforeConnection.encryptedRefreshToken)
+
+            it ("rejects " <> cs scenario <> " aggregate completion without advancing freshness or publishing") $ withContext do
+                withCleanDb do
+                    (attempt, connection) <- invalidReferenceAttempt scenario
+                    beforeEvents <- query @LiveInvalidationEvent |> fetchCount
+                    beforeRun <- fetch attempt.referenceSyncAttemptRun.id
+                    result <- Exception.try (void (completeXeroReferenceSyncRun Nothing attempt connection True ["staff", "pay_items", "payroll_calendars", "accounts"] 0 0 0 0)) :: IO (Either Exception.SomeException ())
+                    result `shouldSatisfy` isLeft
+                    afterRun <- fetch beforeRun.id
+                    afterRun.syncStatus `shouldBe` beforeRun.syncStatus
+                    refreshedConnection <- fetch connection.id
+                    refreshedConnection.lastSyncAt `shouldBe` Nothing
+                    query @LiveInvalidationEvent |> fetchCount `shouldReturn` beforeEvents
+                    query @AuditEvent |> fetchCount `shouldReturn` 0
+
+        forM_ [XeroStaff, PayItems, PayrollCalendars, Accounts] \category ->
+            it ("rolls back " <> cs (show category) <> " freshness when durable resource insertion fails") $ withContext do
+                withCleanDb do
+                    (attempt, connection) <- validReferenceAttempt
+                    beforeEvents <- query @LiveInvalidationEvent |> fetchCount
+                    beforeResources <- query @LiveInvalidationEventResource |> fetchCount
+                    beforeVersions <- query @LiveResourceVersion |> fetch
+                    result <- withRejectedReferencePublication $
+                        Exception.try (completeReferenceCategoryForTest category attempt connection) :: IO (Either Exception.SomeException ())
+                    result `shouldSatisfy` isLeft
+                    query @XeroReferenceSyncCategoryState |> fetchCount `shouldReturn` 0
+                    query @XeroEarningsRate |> fetchCount `shouldReturn` 0
+                    query @LiveInvalidationEvent |> fetchCount `shouldReturn` beforeEvents
+                    query @LiveInvalidationEventResource |> fetchCount `shouldReturn` beforeResources
+                    afterVersions <- query @LiveResourceVersion |> fetch
+                    map (.latestEventSequence) afterVersions `shouldBe` map (.latestEventSequence) beforeVersions
+                    completeReferenceCategoryForTest category attempt connection
+                    query @XeroReferenceSyncCategoryState |> fetchCount `shouldReturn` 1
+                    query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 1)
+
+        it "rolls back aggregate freshness, run completion and audit when publication fails" $ withContext do
+            withCleanDb do
+                (attempt, connection) <- validReferenceAttempt
+                beforeEvents <- query @LiveInvalidationEvent |> fetchCount
+                beforeResources <- query @LiveInvalidationEventResource |> fetchCount
+                result <- withRejectedReferencePublication $
+                    Exception.try (void (completeXeroReferenceSyncRun attempt.referenceSyncAttemptJob.requestedByUserId attempt connection True ["staff", "pay_items", "payroll_calendars", "accounts"] 0 0 0 0)) :: IO (Either Exception.SomeException ())
+                result `shouldSatisfy` isLeft
+                syncRun <- fetch attempt.referenceSyncAttemptRun.id
+                syncRun.syncStatus `shouldBe` Running
+                syncRun.finishedAt `shouldBe` Nothing
+                currentConnection <- fetch connection.id
+                currentConnection.lastSyncAt `shouldBe` Nothing
+                query @AuditEvent |> fetchCount `shouldReturn` 0
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` beforeEvents
+                query @LiveInvalidationEventResource |> fetchCount `shouldReturn` beforeResources
+                _ <- completeXeroReferenceSyncRun attempt.referenceSyncAttemptJob.requestedByUserId attempt connection True ["staff", "pay_items", "payroll_calendars", "accounts"] 0 0 0 0
+                finished <- fetch attempt.referenceSyncAttemptRun.id
+                finished.syncStatus `shouldBe` Succeeded
+                query @AuditEvent |> fetchCount `shouldReturn` 1
+                query @LiveInvalidationEvent |> fetchCount `shouldReturn` (beforeEvents + 1)
+
+        it "holds the publication fence until category data and its event commit" $ withContext do
+            withCleanDb do
+                (attempt, connection) <- validReferenceAttempt
+                EnqueuedAppJob replacement <- enqueueXeroReferenceSyncCategories Nothing connection (Set.singleton XeroStaff)
+                locked <- newEmptyMVar
+                continue <- newEmptyMVar
+                let pausedAttempt = attempt { referenceSyncAttemptTime = do
+                        putMVar locked ()
+                        takeMVar continue
+                        pure fixedReferenceSyncTime }
+                withAsync (completeXeroPayItemsReferenceDataSync pausedAttempt connection [sampleEarningsRate]) \completion -> do
+                    timeout 5000000 (takeMVar locked) `shouldReturn` Just ()
+                    withAsync (acquireXeroReferenceSyncLease (addUTCTime (xeroReferenceSyncLeaseSeconds + 1) fixedReferenceSyncTime) replacement connection.tenantId) \takeover -> do
+                        timeout 100000 (wait takeover) `shouldReturn` Nothing
+                        query @XeroEarningsRate |> fetchCount `shouldReturn` 0
+                        putMVar continue ()
+                        timeout 5000000 (wait completion) `shouldReturn` Just 1
+                        timeout 5000000 (wait takeover) `shouldReturn` Just True
+                query @XeroEarningsRate |> fetchCount `shouldReturn` 1
+                query @LiveInvalidationEvent |> filterWhere (#source, "xero.reference_sync.pay_items_completed" :: Text) |> fetchCount `shouldReturn` 1
 
         it "terminalizes an interrupted run before starting its replacement" $ withContext do
             withCleanDb do
@@ -329,11 +473,6 @@ tests = aroundAll withDatabaseTestContext do
                 let now = fixedReferenceSyncTime
 
                 performXeroReferenceSyncJobWith (testRuntime now) (emptyReferenceSource connection) replacementJob
-                lateCompletion <- Exception.try (completeXeroReferenceDataSync Nothing interruptedRun connection [] [] [] [] []) :: IO (Either Exception.SomeException XeroReferenceDataSyncResult)
-
-                case lateCompletion of
-                    Left _ -> pure ()
-                    Right _ -> expectationFailure "Expected a superseded sync run to reject late completion"
                 terminalizedRun <- fetch interruptedRun.id
                 terminalizedRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
                 terminalizedRun.finishedAt `shouldSatisfy` isJust
@@ -348,13 +487,18 @@ tests = aroundAll withDatabaseTestContext do
                 connection <- createReferenceSyncConnection venue owner "tenant-complete"
                 EnqueuedAppJob job <- enqueueXeroReferenceSyncJob (Just owner.id) connection
                 calls <- newIORef []
-                publications <- newIORef []
                 let source = recordingReferenceSource calls connection
                 now <- getCurrentTime
 
-                performXeroReferenceSyncJobWith (recordingRuntime now publications) source job
+                performXeroReferenceSyncJobWith (testRuntime now) source job
 
-                readIORef publications `shouldReturn` ["xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.completed"]
+                assertReferenceSyncPublications (unpackId venue.id)
+                    [ "xero.reference_sync.started", "xero.reference_sync.progress", "xero.reference_sync.progress"
+                    , "xero.reference_sync.staff_completed", "xero.reference_sync.progress", "xero.reference_sync.progress"
+                    , "xero.reference_sync.pay_items_completed", "xero.reference_sync.progress", "xero.reference_sync.payroll_calendars_completed"
+                    , "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.accounts_completed"
+                    , "xero.reference_sync.data_completed", "xero.reference_sync.completed"
+                    ]
                 readIORef calls `shouldReturn` ["refresh", "employees", "pay-items-1", "calendars", "accounts", "payroll-settings"]
                 [syncRun] <- query @XeroSyncRun |> fetch
                 syncRun.syncStatus `shouldBe` Succeeded
@@ -372,16 +516,19 @@ tests = aroundAll withDatabaseTestContext do
                 owner <- createUserRecord "xero-retry-job@example.com" "staff" True
                 connection <- createReferenceSyncConnection venue owner "tenant-retry"
                 EnqueuedAppJob job <- enqueueXeroReferenceSyncJob (Just owner.id) connection
-                publications <- newIORef []
                 now <- getCurrentTime
                 let rateLimitError = XeroHttpResponseError 429 (Just (XeroRetryAfterDelay 120)) "Xero employees request failed with status 429: customer@example.com access-token"
                     source = (emptyReferenceSource connection) { fetchReferenceEmployees = \_ _ -> pure (Left rateLimitError) }
 
-                performXeroReferenceSyncJobWith (recordingRuntime now publications) source job
+                performXeroReferenceSyncJobWith (testRuntime now) source job
 
-                publishedTransitions <- readIORef publications
-                publishedTransitions `shouldSatisfy` ("xero.reference_sync.failed" `elem`)
-                publishedTransitions `shouldSatisfy` ("xero.reference_sync.retry_wait" `elem`)
+                assertReferenceSyncPublications (unpackId venue.id)
+                    [ "xero.reference_sync.started", "xero.reference_sync.progress", "xero.reference_sync.progress"
+                    , "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.pay_items_completed"
+                    , "xero.reference_sync.progress", "xero.reference_sync.payroll_calendars_completed"
+                    , "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.accounts_completed"
+                    , "xero.reference_sync.progress", "xero.reference_sync.failed", "xero.reference_sync.retry_wait"
+                    ]
                 [_, continuation] <- query @AppJob |> orderByAsc #createdAt |> fetch
                 abs (diffUTCTime continuation.runAt (addUTCTime 120 now)) `shouldSatisfy` (< 0.001)
                 continuation.dedupeKey `shouldBe` job.dedupeKey
@@ -476,17 +623,93 @@ tests = aroundAll withDatabaseTestContext do
                     transientError = XeroHttpResponseError 503 Nothing "Xero employees request failed with status 503"
                     source = (emptyReferenceSource connection) { fetchReferenceEmployees = \_ _ -> pure (Left transientError) }
                 persistedJob <- exhaustedJob
-                publications <- newIORef []
 
-                result <- Exception.try (performXeroReferenceSyncJobWith (recordingRuntime now publications) source persistedJob) :: IO (Either Exception.SomeException ())
+                result <- Exception.try (performXeroReferenceSyncJobWith (testRuntime now) source persistedJob) :: IO (Either Exception.SomeException ())
 
-                result `shouldSatisfy` isLeft
-                publishedTransitions <- readIORef publications
-                publishedTransitions `shouldSatisfy` ("xero.reference_sync.failed" `elem`)
-                publishedTransitions `shouldSatisfy` (not . ("xero.reference_sync.retry_wait" `elem`))
+                case result of
+                    Right () -> expectationFailure "Expected exhausted Xero reference sync to fail"
+                    Left exception -> do
+                        tshow exception `shouldBe` "application.async.error.app-job/job-transport-unavailable: The provider could not be reached."
+                        tshow exception `shouldSatisfy` (not . Text.isInfixOf "Xero employees request failed")
+                assertReferenceSyncPublications (unpackId venue.id)
+                    [ "xero.reference_sync.started", "xero.reference_sync.progress", "xero.reference_sync.progress"
+                    , "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.pay_items_completed"
+                    , "xero.reference_sync.progress", "xero.reference_sync.payroll_calendars_completed"
+                    , "xero.reference_sync.progress", "xero.reference_sync.progress", "xero.reference_sync.accounts_completed"
+                    , "xero.reference_sync.progress", "xero.reference_sync.failed"
+                    ]
                 query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount >>= (`shouldBe` 1)
                 [syncRun] <- query @XeroSyncRun |> fetch
                 syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
+
+-- Independent persisted observations: no production resource encoder or callback.
+assertReferenceSyncPublications :: (?modelContext :: ModelContext) => UUID -> [Text] -> IO ()
+assertReferenceSyncPublications venueId expectedSources = do
+    events <- query @LiveInvalidationEvent |> orderByAsc #sequenceNumber |> fetch
+    map (.source) events `shouldBe` expectedSources
+    let key = "xero-reference-sync-state:{\"venueId\":\"" <> tshow venueId <> "\"}"
+        payload = Aeson.object
+            [ "version" Aeson..= (1 :: Int)
+            , "resource" Aeson..= ("xero-reference-sync-state" :: Text)
+            , "fields" Aeson..= Aeson.object ["venueId" Aeson..= venueId]
+            ]
+    forM_ events \event -> do
+        [resource] <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId event.id) |> fetch
+        resource.resourceKey `shouldBe` key
+        resource.resourcePayload `shouldBe` payload
+    query @LiveInvalidationEventResource |> fetchCount `shouldReturn` length events
+    case reverse events of
+        latest : _ -> do
+            [version] <- query @LiveResourceVersion |> fetch
+            unpackId version.resourceKey `shouldBe` key
+            version.resourcePayload `shouldBe` payload
+            version.latestEventId `shouldBe` unpackId latest.id
+            version.latestEventSequence `shouldBe` latest.sequenceNumber
+        [] -> expectationFailure "Expected persisted reference-sync publication"
+
+validReferenceAttempt :: (?modelContext :: ModelContext) => IO (XeroReferenceSyncAttempt, XeroConnection)
+validReferenceAttempt = do
+    venue <- createVenueWithConfig "Reference fencing"
+    owner <- createUserRecord "reference-fencing@example.com" "staff" True
+    connection <- createReferenceSyncConnection venue owner "tenant-fencing"
+    EnqueuedAppJob job <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+    acquireXeroReferenceSyncLease fixedReferenceSyncTime job connection.tenantId `shouldReturn` True
+    syncRun <- startXeroReferenceDataSync connection
+    pure (XeroReferenceSyncAttempt job syncRun (pure fixedReferenceSyncTime), connection)
+
+invalidReferenceAttempt :: (?modelContext :: ModelContext) => Text -> IO (XeroReferenceSyncAttempt, XeroConnection)
+invalidReferenceAttempt scenario = do
+    (attempt, connection) <- validReferenceAttempt
+    case scenario of
+        "expired" -> pure (attempt { referenceSyncAttemptTime = pure (addUTCTime (xeroReferenceSyncLeaseSeconds + 1) fixedReferenceSyncTime) }, connection)
+        "taken-over" -> do
+            EnqueuedAppJob replacement <- enqueueXeroReferenceSyncCategories Nothing connection (Set.singleton XeroStaff)
+            acquireXeroReferenceSyncLease (addUTCTime (xeroReferenceSyncLeaseSeconds + 1) fixedReferenceSyncTime) replacement connection.tenantId `shouldReturn` True
+            pure (attempt, connection)
+        "superseded" -> do
+            _ <- startXeroReferenceDataSync connection
+            pure (attempt, connection)
+        "reconnected" -> do
+            token <- encryptXeroToken testXeroConfig.tokenEncryptionKey "replacement-refresh-token"
+            _ <- connection |> set #encryptedRefreshToken token |> set #lastError (Just "newer connection state") |> updateRecord
+            pure (attempt, connection)
+        _ -> expectationFailure "Unknown fencing fixture" >> pure (attempt, connection)
+
+completeReferenceCategoryForTest :: (?modelContext :: ModelContext) => XeroReferenceSyncCategoryEnum -> XeroReferenceSyncAttempt -> XeroConnection -> IO ()
+completeReferenceCategoryForTest category attempt connection = void $ case category of
+    XeroStaff -> completeXeroStaffReferenceDataSync attempt connection []
+    PayItems -> completeXeroPayItemsReferenceDataSync attempt connection [sampleEarningsRate]
+    PayrollCalendars -> completeXeroPayrollCalendarsReferenceDataSync attempt connection []
+    Accounts -> completeXeroAccountsReferenceDataSync Nothing attempt connection [] []
+
+withRejectedReferencePublication :: (?modelContext :: ModelContext) => IO value -> IO value
+withRejectedReferencePublication = Exception.bracket_
+    (do
+        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_reference_publication() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced reference publication failure''; END' LANGUAGE plpgsql" ()
+        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_reference_publication BEFORE INSERT ON live_invalidation_event_resources FOR EACH ROW EXECUTE FUNCTION test_reject_reference_publication()" ())
+    (do
+        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_reference_publication ON live_invalidation_event_resources" ()
+        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_reference_publication()" ())
 
 advancingRuntime :: IORef UTCTime -> IORef [Int] -> XeroReferenceSyncRuntime
 advancingRuntime clock delays =
@@ -496,7 +719,6 @@ advancingRuntime clock delays =
             modifyIORef' delays (<> [micros])
             modifyIORef' clock (addUTCTime (fromIntegral micros / 1000000))
         , referenceSyncJitterSeconds = pure 0
-        , publishReferenceSyncTransition = \_ _ -> pure ()
         }
 
 fixedReferenceSyncTime :: UTCTime
@@ -508,13 +730,6 @@ testRuntime now =
         { currentReferenceSyncTime = pure now
         , sleepForReferenceSyncMicros = const (pure ())
         , referenceSyncJitterSeconds = pure 0
-        , publishReferenceSyncTransition = \_ _ -> pure ()
-        }
-
-recordingRuntime :: UTCTime -> IORef [Text] -> XeroReferenceSyncRuntime
-recordingRuntime now publications =
-    (testRuntime now)
-        { publishReferenceSyncTransition = \label _ -> modifyIORef' publications (<> [label])
         }
 
 recordingReferenceSource :: IORef [Text] -> XeroConnection -> XeroReferenceDataSource

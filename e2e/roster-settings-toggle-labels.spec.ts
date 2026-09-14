@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { toggleInputDomAttr, toggleLabelStateDomAttr } from '../frontend/ts/generated/contracts';
-import { E2E_TIMEOUT, openRoster, openRosterSettings, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { openRoster, openRosterSettings } from './support/roster';
+import { runSql } from './support/database';
 
 const managerUserId = 'a0000000-0000-0000-0000-000000000003';
 

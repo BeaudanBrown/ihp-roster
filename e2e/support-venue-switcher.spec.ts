@@ -8,15 +8,14 @@ import { E2E_TIMEOUT } from './timeouts';
 import {
     clearCurrentSessionPasskeyVerification,
     clearE2EUserPasskeys,
-    defaultE2ERosterGroupId,
     enableVirtualPasskeyAuthenticator,
-    gotoWhenReady,
     loginAsPrivilegedUserWithSeededPasskeySession,
-    loginAsWithFreshBrowserSession,
-    openRoster,
     registerFirstSupportPasskeyForCurrentUser,
     webauthnBaseURL,
-} from './test-helpers';
+} from './support/passkeys';
+import { defaultE2ERosterGroupId, openRoster } from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsWithFreshBrowserSession } from './support/session';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -141,7 +140,7 @@ test.describe('Super-admin venue and user switchers', () => {
     test('shows a venue switcher in the header and switches active venue', async ({ page }) => {
         await loginAsSuperAdmin(page);
 
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
         await expect(page.locator('#support-venue-switch')).toBeVisible();
         await expect(page.locator('label[for="support-venue-switch"]')).toHaveText('Support venue');
         await expect(page.locator('label[for="support-venue-switch"]')).toBeVisible();

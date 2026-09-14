@@ -26,8 +26,8 @@ module Application.Helper.FrontendContract.Surface.Request.Runtime
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive (..),
-                                                            ReflectedPrimitive (..))
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectActionPrimitive (..),
+                                                            ReflectIntentPrimitive (..))
 import Application.Helper.FrontendContract.Surface.Request.Runtime.Internal (FrontendSurfaceAction,
                                                                              FrontendSurfaceHtmxMethod (..),
                                                                              FrontendSurfaceHtmxRequest (..),
@@ -44,20 +44,17 @@ import IHP.Prelude
 
 frontendSurfaceAction ::
     forall spec marker.
-    ReflectPrimitive (SurfaceActionPrimitive spec marker) =>
+    ReflectActionPrimitive (SurfaceActionPrimitive spec marker) =>
     SurfaceActionFields spec marker ->
     FrontendSurfaceAction
 frontendSurfaceAction fields =
     frontendSurfaceActionFromIR action (surfaceFieldsText fields)
   where
-    action =
-        case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
-            ReflectedHtmxAction reflectedAction -> reflectedAction
-            _ -> error "impossible: action lookup reflected a different primitive"
+    action = reflectActionPrimitive @(SurfaceActionPrimitive spec marker)
 
 frontendSurfaceIntentForm ::
     forall spec marker.
-    ReflectPrimitive (SurfaceIntentPrimitive spec marker) =>
+    ReflectIntentPrimitive (SurfaceIntentPrimitive spec marker) =>
     SurfaceIntentFields spec marker ->
     FrontendSurfaceHtmxRequest ->
     FrontendSurfaceIntentForm
@@ -68,10 +65,7 @@ frontendSurfaceIntentForm fields request =
         , intentFormFields = resolveIntentFields intent.intentFields (surfaceFieldsText fields)
         }
   where
-    intent =
-        case reflectPrimitive @(SurfaceIntentPrimitive spec marker) of
-            ReflectedIntent reflectedIntent -> reflectedIntent
-            _ -> error "impossible: intent lookup reflected a different primitive"
+    intent = reflectIntentPrimitive @(SurfaceIntentPrimitive spec marker)
 
 resolveIntentFields :: [SurfaceIR.FieldIR] -> [(Text, Text)] -> [(SurfaceIR.FieldIR, Text)]
 resolveIntentFields declaredFields values =

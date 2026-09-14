@@ -17,10 +17,10 @@ import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterIma
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.Url (appendQueryParams)
 import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
                                            rosterLayoutModeLabel,
                                            rosterLayoutModeValue,
@@ -28,8 +28,7 @@ import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
 import Application.RosterNotification (RosterNotificationAudience (..),
                                        RosterNotificationPanelData (..),
                                        RosterNotificationRunSummary (..))
-import Data.Time.Calendar (addDays)
-import Web.RosterWeeks.Dom (rosterEmailButtonId, rosterWeekShellId)
+import Web.RosterWeeks.Dom (rosterEmailButtonId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterOwnLiveShiftHighlightPreferenceUrl,
@@ -45,12 +44,7 @@ import Web.View.Prelude
 
 rosterWeekShellSyncRoute :: Text -> FrontendSurfaceActionRoute
 rosterWeekShellSyncRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+    (defaultFrontendSurfaceActionRoute (actionUrl))
 
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekStartDate, staffPanelCalendarRevision, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelHighlightOwnLiveShifts, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
@@ -123,7 +117,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         fields :: IntentFields RosterIntent.SetRosterLayoutModeIntentOperation
         fields = RosterIntent.setRosterLayoutModeIntentFields layoutMode
         inputHtml = [hsx|
-            <input type="radio"
+            <input {...(SurfaceInteraction.frontendSurfaceActivationRefAttrs rosterLayoutModeActivationRef)} type="radio"
                    class="btn-check"
                    name={surfaceFieldNameFrom @Surface.RosterLayoutMode fields}
                    id={inputId}
@@ -131,7 +125,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
                    checked={selectedLayoutMode == layoutMode} />
         |]
      in [hsx|
-        {SurfaceInteraction.withFrontendSurfaceActivationRef rosterLayoutModeActivationRef inputHtml}
+        {inputHtml}
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 

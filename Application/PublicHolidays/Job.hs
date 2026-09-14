@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.PublicHolidays.Job
     ( enqueuePublicHolidayRefreshJob
     , performPublicHolidayRefreshJob
@@ -6,6 +8,9 @@ module Application.PublicHolidays.Job
     , publicHolidayRefreshJobKind
     ) where
 
+import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
+import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1, requireAppJobPayloadV1)
 import Application.Async.Queue
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
 import Application.Helper.SurfaceResource
@@ -13,11 +18,20 @@ import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import Application.PublicHolidays.Sync
 import Application.WageSourceAlert.Job (enqueueWageSourceFreshnessCheck)
 import Application.WageSourceAlert.Types (WageSourceKind (DataVicWageSource))
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
+
+newtype PublicHolidayRefreshPayload = PublicHolidayRefreshPayload
+    { payloadJurisdiction :: Text
+    }
+
+instance Aeson.FromJSON PublicHolidayRefreshPayload where
+    parseJSON = Aeson.withObject "PublicHolidayRefreshPayload" \object ->
+        PublicHolidayRefreshPayload <$> object Aeson..: "jurisdiction"
 
 publicHolidayRefreshJobKind :: Text
 publicHolidayRefreshJobKind = "public_holiday_refresh"
@@ -55,7 +69,15 @@ performPublicHolidayRefreshJobWith
     -> AppJob
     -> IO ()
 performPublicHolidayRefreshJobWith syncAction appJob = do
-    summary <- syncAction
+    requireAppJobPayloadV1 appJob
+    when (appJob.relatedTable /= Just "public_holidays" || isJust appJob.relatedId) do
+        throwAppJobError JobInvalidProvenance
+    payload <- decodeAppJobPayloadV1 @PublicHolidayRefreshPayload appJob
+    when (payload.payloadJurisdiction /= PublicHolidayPolicy.publicHolidayJurisdiction) do
+        throwAppJobError JobInvalidProvenance
+    summary <- trySynchronousAppJobAction syncAction >>= \case
+        Right value -> pure value
+        Left exception -> throwAppJobError (publicHolidaySyncJobError exception)
     completedAt <- getCurrentTime
     void $ withDurableLiveMutationWithoutContext "support.public_holidays.refresh" do
         let resultPayload =
@@ -76,3 +98,11 @@ performPublicHolidayRefreshJobWith syncAction appJob = do
                 |> updateRecord
         void (enqueueWageSourceFreshnessCheck DataVicWageSource completedJob completedAt)
         pure (liveMutationResult () [supportPublicHolidaysResource])
+
+publicHolidaySyncJobError :: Exception.SomeException -> AppJobError
+publicHolidaySyncJobError exception =
+    case Exception.fromException exception of
+        Just PublicHolidayProviderUnavailable -> JobTransportUnavailable
+        Just PublicHolidayResponseMalformed   -> JobMalformedResponse
+        Just PublicHolidayImportInvalid       -> JobValidationRejected
+        Nothing                               -> JobUnexpectedSynchronousFailure

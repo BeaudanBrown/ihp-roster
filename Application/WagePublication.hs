@@ -9,12 +9,11 @@ module Application.WagePublication
     , staffHoursContributions
     ) where
 
-import Application.VenueTime.Model (storedInstantLocalTime)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Application.WageEngine
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Time.Clock (addUTCTime, diffUTCTime)
-import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.Prelude
 
 data PublishedEarningsLine = PublishedEarningsLine
@@ -81,7 +80,7 @@ datedEarningsComponentsWithOrdinal calculation =
     hourlyDates = map (.paidTimeLocalDate) paidSegments
     eveningDates = qualifyingDates StaffHoursEvening
     earlyDates = qualifyingDates StaffHoursEarlyMorning
-    fallbackDate = maybe (error "approved wage calculation has no paid-time date") (.paidTimeLocalDate) (lastMay paidSegments)
+    fallbackDate = maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved wage calculation has no paid-time date") (.paidTimeLocalDate) (lastMay paidSegments)
     initialState = (hourlyDates, eveningDates, earlyDates)
 
     go state [] = (state, [])
@@ -117,7 +116,7 @@ datedEarningsComponentsWithOrdinal calculation =
                 let missedStart = addUTCTime (6 * 60 * 60) firstWorked.paidTimeStart
                     (remaining, contributions) = allocateMissed component component.quantity missedStart workedSegments
                     fallback =
-                        [ ( (storedInstantLocalTime "Australia/Melbourne" missedStart).localDay
+                        [ ( (resolvedInstantLocalTime (resolvedInstantFromUTC missedStart)).localDay
                           , componentForQuantity component remaining
                           )
                         | remaining > 0
@@ -203,7 +202,7 @@ bucketForWorkedSegment segment =
           | localHour >= 19 -> StaffHoursEvening
           | otherwise -> StaffHoursOrdinary
   where
-    localHour = (storedInstantLocalTime "Australia/Melbourne" segment.paidTimeStart).localTimeOfDay.todHour
+    localHour = (resolvedInstantLocalTime (resolvedInstantFromUTC segment.paidTimeStart)).localTimeOfDay.todHour
 
 dayOfWeekIndex :: Day -> Int
 dayOfWeekIndex day =

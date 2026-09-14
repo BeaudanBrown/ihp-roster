@@ -11,7 +11,6 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 

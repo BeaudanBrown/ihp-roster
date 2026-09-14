@@ -6,12 +6,9 @@ import {
     pwaInstallResultDomAttr,
     pwaInstallResultStateDomAttr,
 } from '../frontend/ts/generated/contracts';
-import {
-    expectNoHorizontalViewportOverflow,
-    gotoWhenReady,
-    loginAs,
-    openAuthenticatedNavIfCollapsed,
-} from './test-helpers';
+import { expectNoHorizontalViewportOverflow, openAuthenticatedNavIfCollapsed } from './support/responsive';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
 
 type WebAppManifest = {
     id?: string;

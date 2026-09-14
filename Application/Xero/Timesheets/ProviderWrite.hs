@@ -119,8 +119,8 @@ requestTimesheetId (Aeson.Array values) =
 requestTimesheetId _ = Nothing
 
 xeroTimesheetWriteFailureAction :: XeroTimesheetWriteOperation -> XeroClientError -> XeroTimesheetWriteFailureAction
-xeroTimesheetWriteFailureAction operation error =
-    case error of
+xeroTimesheetWriteFailureAction operation clientError =
+    case clientError of
         XeroHttpError _ -> FailUncertainXeroTimesheetWrite
         XeroDecodeError _ -> FailUncertainXeroTimesheetWrite
         XeroHttpResponseError { statusCode }

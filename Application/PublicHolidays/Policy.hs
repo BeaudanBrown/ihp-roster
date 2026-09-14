@@ -5,8 +5,6 @@ module Application.PublicHolidays.Policy
     ) where
 
 import Application.WageSourcePolicy (dataVicMaximumAge)
-import Data.Time.Calendar (Day, toGregorian)
-import Data.Time.Clock (NominalDiffTime)
 import IHP.Prelude
 
 publicHolidayJurisdiction :: Text

@@ -14,16 +14,18 @@ module Application.Helper.View.SidePanel
     , renderSidePanelPanelRegion
     , renderSidePanelCard
     , renderSidePanelTabs
+    , renderSidePanelTabsWithBadges
     , renderSidePanelHeaderToggle
     , renderSidePanelLocateIcon
     , renderSidePanelToggle
     ) where
 
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectSidePanelPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.SidePanel
 import Application.Helper.FrontendContract.Surface.Values (SurfaceSidePanelPrimitive)
 import qualified Data.Text as Text
+import qualified IHP.HSX.Markup as Markup
 import IHP.ViewPrelude
 
 -- | Resolved generated marker attributes supplied by a feature adapter.
@@ -57,7 +59,7 @@ data SidePanelTabConfig = SidePanelTabConfig
 
 sidePanelRenderAttrs :: forall spec marker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceSidePanelPrimitive spec marker)
+    , ReflectSidePanelPrimitive (SurfaceSidePanelPrimitive spec marker)
     ) => SidePanelRenderAttrs
 sidePanelRenderAttrs = SidePanelRenderAttrs
     { sidePanelRootAttrs = surfaceSidePanelRootAttrs @spec @marker
@@ -107,13 +109,16 @@ renderSidePanelCard config body = [hsx|
 |]
 
 renderSidePanelTabs :: Text -> [SidePanelTabConfig] -> Html
-renderSidePanelTabs ariaLabel tabs = [hsx|
+renderSidePanelTabs ariaLabel tabs = renderSidePanelTabsWithBadges ariaLabel [(tab, mempty) | tab <- tabs]
+
+renderSidePanelTabsWithBadges :: Text -> [(SidePanelTabConfig, Markup.Html)] -> Html
+renderSidePanelTabsWithBadges ariaLabel tabs = [hsx|
     <div class="nav nav-pills app-side-panel-tabs" role="tablist" aria-label={ariaLabel}>
         {forEach tabs renderTab}
     </div>
 |]
   where
-    renderTab tab = [hsx|
+    renderTab (tab, badge) = [hsx|
         <button class={classes [ ("nav-link", True), ("active", tab.sidePanelTabIsSelected), ("app-side-panel-tab", True), (tab.sidePanelTabClass, not (Text.null tab.sidePanelTabClass)) ]}
                 id={tab.sidePanelTabId}
                 type="button"
@@ -121,10 +126,13 @@ renderSidePanelTabs ariaLabel tabs = [hsx|
                 data-bs-toggle="tab"
                 data-bs-target={"#" <> tab.sidePanelTabPaneId}
                 aria-controls={tab.sidePanelTabPaneId}
+                aria-label={tab.sidePanelTabLabel}
+                title={tab.sidePanelTabLabel}
                 aria-selected={if tab.sidePanelTabIsSelected then ("true" :: Text) else "false"}
                 {...tab.sidePanelTabAttrs}>
             <i class={tab.sidePanelTabIconClass} aria-hidden="true"></i>
-            <span>{tab.sidePanelTabLabel}</span>
+            <span class="app-side-panel-tab-label" aria-hidden="true">{tab.sidePanelTabLabel}</span>
+            {badge}
         </button>
     |]
 

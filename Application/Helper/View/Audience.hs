@@ -12,6 +12,8 @@ module Application.Helper.View.Audience
 import Application.Helper.Controller (currentUserIsImpersonating,
                                       currentUserIsSuperAdmin,
                                       effectiveVenueRoleOrNothing, hasRole)
+import Application.Helper.ControllerContext (withRequestContext)
+import IHP.ControllerSupport (ControllerContext)
 import Generated.Types
 import IHP.ViewPrelude
 
@@ -44,7 +46,7 @@ data ViewAudience
     deriving (Eq, Show)
 
 currentUserMatchesAudience :: (?context :: ControllerContext) => ViewAudience -> Bool
-currentUserMatchesAudience audience =
+currentUserMatchesAudience audience = withRequestContext $
     case audience of
         AnySignedInAudience -> isJust currentUserOrNothing
         StaffProfileAudience -> isJust currentUserOrNothing && (not currentUserIsSupportAdmin || currentUserIsImpersonating)

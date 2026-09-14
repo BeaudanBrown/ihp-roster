@@ -7,7 +7,8 @@ import {
     rosterColumnEditStartDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { openRoster, webauthnBaseURL } from './test-helpers';
+import { openRoster } from './support/roster';
+import { webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 

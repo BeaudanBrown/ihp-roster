@@ -10,7 +10,10 @@ import {
     rosterWeekOverviewPanelDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster, openRosterSettings } from './support/roster';
+import { runSql } from './support/database';
 
 const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -29,18 +32,22 @@ test.describe('Roster week overview', () => {
             UPDATE roster_slots
             SET staff_id = NULL, assignment_state = 'open'
             WHERE id = 'a1000000-0000-0000-0000-000000000074';
-            INSERT INTO roster_days (id, venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
-            VALUES (
-                'a1000000-0000-0000-0000-000000000064',
-                'a1000000-0000-0000-0000-000000000001',
-                'a1000000-0000-0000-0000-000000000211',
-                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 8,
-                'draft', FALSE, 1
+            WITH target_day AS (
+                INSERT INTO roster_days (id, venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+                VALUES (
+                    'a1000000-0000-0000-0000-000000000064',
+                    'a1000000-0000-0000-0000-000000000001',
+                    'a1000000-0000-0000-0000-000000000211',
+                    CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 8,
+                    'draft', FALSE, 1
+                )
+                ON CONFLICT (roster_group_id, operational_date) DO UPDATE
+                SET publication_state = 'draft', is_closed = EXCLUDED.is_closed, row_count = EXCLUDED.row_count
+                RETURNING id
             )
-            ON CONFLICT (id) DO UPDATE
-            SET operational_date = EXCLUDED.operational_date, publication_state = 'draft', is_closed = EXCLUDED.is_closed, row_count = EXCLUDED.row_count;
             INSERT INTO roster_lanes (id, roster_day_id, name, sort_order)
-            VALUES ('a1000000-0000-0000-0000-000000000084', 'a1000000-0000-0000-0000-000000000064', 'Late', 1)
+            SELECT 'a1000000-0000-0000-0000-000000000084', target_day.id, 'Late', 1
+            FROM target_day
             ON CONFLICT (id) DO UPDATE
             SET roster_day_id = EXCLUDED.roster_day_id, name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, deleted_at = NULL;
         `);

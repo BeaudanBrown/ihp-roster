@@ -9,6 +9,23 @@ let
         map builtins.head
             (builtins.filter (row: builtins.elemAt row 1 == "production") inventoryRows);
     productionHaskellPathSet = pkgs.lib.genAttrs productionHaskellPaths (_: true);
+    retainedTrees = [
+        # Deployed database history and one-off cutover SQL are runtime inputs.
+        "Application/Deployment"
+        "Application/Migration"
+        # Checked-in browser output is the production static authority.
+        "static"
+        # Deployment evaluation owns these modules outside the app package too;
+        # retaining them here keeps the production source self-describing.
+        "Config/nix/hosts"
+        "Config/nix/modules"
+    ];
+    retainedFiles = [
+        "Application/Schema.sql"
+        # IHP model/app packaging reads these during production builds.
+        "Config/nix/production-package-dependency-inventory.tsv"
+        "Makefile"
+    ];
 in
 builtins.path {
     path = root;
@@ -22,23 +39,20 @@ builtins.path {
                 if pathString == rootString
                 then ""
                 else pkgs.lib.removePrefix "${rootString}/" pathString;
-            excludedRoots = [
-                "IHP"
-                "build"
-                ".devenv"
-                ".direnv"
-                ".claude"
-                "notes"
-                "output"
-                # Tests and fixtures stay in the working tree/devenv, but never
-                # participate in production source or derivation hashes.
-                "Test"
-            ];
-            isUnderExcludedRoot = excludedRoot:
-                relativePath == excludedRoot || pkgs.lib.hasPrefix "${excludedRoot}/" relativePath;
-            isHaskellSource = pkgs.lib.hasSuffix ".hs" relativePath;
+            isPathOrDescendantOf = parent:
+                relativePath == parent || pkgs.lib.hasPrefix "${parent}/" relativePath;
+            isDirectoryLeadingTo = retainedPath:
+                relativePath == ""
+                || relativePath == retainedPath
+                || pkgs.lib.hasPrefix "${relativePath}/" retainedPath;
+            isInRetainedTree = pkgs.lib.any isPathOrDescendantOf retainedTrees;
+            leadsToRetainedTree = pkgs.lib.any isDirectoryLeadingTo retainedTrees;
+            isRetainedFile = builtins.elem relativePath retainedFiles;
+            leadsToRetainedFile = pkgs.lib.any isDirectoryLeadingTo retainedFiles;
             isInventoriedProductionHaskell = builtins.hasAttr relativePath productionHaskellPathSet;
+            leadsToProductionHaskell = pkgs.lib.any isDirectoryLeadingTo productionHaskellPaths;
         in
-            !(pkgs.lib.any isUnderExcludedRoot excludedRoots)
-            && (!isHaskellSource || isInventoriedProductionHaskell);
+            if type == "directory"
+            then isInRetainedTree || leadsToRetainedTree || leadsToRetainedFile || leadsToProductionHaskell
+            else isInRetainedTree || isRetainedFile || isInventoriedProductionHaskell;
 }

@@ -28,6 +28,7 @@ import IHP.ControllerSupport (runActionWithNewContext)
 import IHP.FrameworkConfig (FrameworkConfig, withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusRunning, JobStatusSucceeded, JobStatusTimedOut))
 import IHP.Server (initMiddlewareStack)
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Status
@@ -35,6 +36,7 @@ import qualified Network.Wai as Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 import Web.Controller.StripeWebhooks ()
 import Web.FrontController ()
 import Web.Types
@@ -48,10 +50,7 @@ performBillingNotificationJob ::
     IO ()
 performBillingNotificationJob =
     performEmailDeliveryJobWith
-        EmailDeliveryRuntime
-            { deliveryIsDisabled = pure False
-            , deliverMail = \_ -> pure ()
-            }
+        enabledEmailDeliveryRuntime
 
 handleStripeWebhookPayload :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
 handleStripeWebhookPayload expectedMode rawBody =
@@ -415,10 +414,7 @@ tests = aroundAll withDatabaseTestContext do
                     let ?context = frameworkConfig
                     try
                         ( performEmailDeliveryJobWith
-                            EmailDeliveryRuntime
-                                { deliveryIsDisabled = pure False
-                                , deliverMail = \_ -> ioError (userError "simulated smtp failure")
-                                }
+                            (failingEmailDeliveryRuntime "simulated smtp failure")
                             job
                         ) :: IO (Either SomeException ())
                 failedDelivery `shouldSatisfy` isLeft
@@ -428,10 +424,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure True
-                            , deliverMail = \_ -> expectationFailure "disabled billing delivery must not call transport"
-                            }
+                        disabledEmailDeliveryRuntime
                         job
                 completed <- fetch job.id
                 cs (Aeson.encode completed.result) `shouldSatisfy` Text.isInfixOf "delivery_disabled"
@@ -757,8 +750,7 @@ tests = aroundAll withDatabaseTestContext do
         it "rejects invalid webhook signatures before parsing" $ withContext do
             withCleanDb do
                 response <- withStripeConfigForTest (Right testStripeConfig) do
-                    withRequestHeaders [("Stripe-Signature", "t=1700000000,v1=bad")] do
-                        callAction StripeWebhookAction
+                    callStripeWebhookWithJsonBody "not-json" "t=1700000000,v1=bad"
 
                 response `responseStatusShouldBe` status400
                 eventCount <- query @BillingEvent |> fetchCount
@@ -791,9 +783,9 @@ callStripeWebhookWithJsonBody rawBody signatureHeader = do
                     , ("Stripe-Signature", cs signatureHeader)
                     ] <> filter ((/= hContentType) . fst) (Wai.requestHeaders ?request)
                 }
-    responseRef <- IORef.newIORef Nothing
+    responseRef <- IORef.newIORef []
     let captureRespond response = do
-            IORef.writeIORef responseRef (Just response)
+            IORef.modifyIORef' responseRef (response :)
             pure ResponseReceived
     let mockSession = Vault.lookup sessionVaultKey (Wai.vault ?request)
     let controllerApp request respond = do
@@ -804,10 +796,14 @@ callStripeWebhookWithJsonBody rawBody signatureHeader = do
             let ?respond = respond
             runActionWithNewContext StripeWebhookAction
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener
-    _ <- middlewareStack controllerApp baseRequest captureRespond
-    IORef.readIORef responseRef >>= \case
-        Just response -> pure response
-        Nothing -> error "callStripeWebhookWithJsonBody: No response was returned by the controller"
+    result <- middlewareStack controllerApp baseRequest captureRespond
+    case result of
+        ResponseReceived -> pure ()
+    responses <- IORef.readIORef responseRef
+    length responses `shouldBe` 1
+    case responses of
+        [response] -> pure response
+        _ -> fail "callStripeWebhookWithJsonBody: Expected exactly one response"
 
 signedStripeHeader :: Text -> LByteString.ByteString -> IO Text
 signedStripeHeader webhookSecret rawBody = do

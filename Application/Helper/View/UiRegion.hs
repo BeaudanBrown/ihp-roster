@@ -8,13 +8,9 @@ import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     uiRegionFragmentEnabledValue,
                                     uiRegionTransitionProfileText)
 import IHP.Prelude
-import qualified Text.Blaze.Html as Blaze
 
-uiRegionTransitionAttrs :: UiRegionTransitionProfile -> Blaze.Attribute
+uiRegionTransitionAttrs :: UiRegionTransitionProfile -> [(Text, Text)]
 uiRegionTransitionAttrs transitionProfile =
-    attr canonicalUiRegionDomAttributes.uiRegionFragmentAttribute uiRegionFragmentEnabledValue
-        <> attr canonicalUiRegionDomAttributes.uiRegionTransitionAttribute (uiRegionTransitionProfileText transitionProfile)
-
-attr :: Text -> Text -> Blaze.Attribute
-attr name value =
-    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
+    [ (canonicalUiRegionDomAttributes.uiRegionFragmentAttribute, uiRegionFragmentEnabledValue)
+    , (canonicalUiRegionDomAttributes.uiRegionTransitionAttribute, uiRegionTransitionProfileText transitionProfile)
+    ]

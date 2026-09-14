@@ -12,10 +12,7 @@ module Application.Helper.Export.PayrollWorkbook
     , currentPayrollWorkbookDefinitionVersion
     , defaultPayrollWorkbookCellStyle
     , defaultPayrollWorkbookDefinition
-    , minimalPayrollWorkbook
     , payrollWorkbookFromDefinition
-    , payrollWorkbookFromFactModel
-    , payrollWorkbookFromHourlyModel
     , payrollWorkbookColor
     , payrollWorkbookSheetFamilyFromText
     , payrollWorkbookSheetFamilyKey
@@ -25,6 +22,8 @@ module Application.Helper.Export.PayrollWorkbook
     , validatePayrollWorkbookDefinition
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (CheckedConfigurationInvariant),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Export.HourlyBreakdown (formatHourlyWindowRange,
                                                   hourlyReportHours,
                                                   roundRationalAt)
@@ -42,8 +41,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.ControllerPrelude
 import qualified Text.XML as Xml
 
@@ -177,40 +174,6 @@ payrollWorkbookColor input
   where
     normalized = Text.map Char.toUpper (Text.strip input)
 
-minimalPayrollWorkbook :: Day -> Day -> PayrollWorkbook
-minimalPayrollWorkbook rangeStart rangeEnd =
-    PayrollWorkbook
-        { sheets =
-            [ PayrollWorkbookSheet
-                { name = "Payroll Workbook"
-                , hidden = False
-                , cells =
-                    [ textCell 1 1 "Payroll Workbook" headerStyle
-                    , textCell 1 2 "Value" headerStyle
-                    , textCell 1 3 "Internal" headerStyle
-                    , textCell 2 1 (tshow rangeStart <> " to " <> tshow rangeEnd) defaultPayrollWorkbookCellStyle
-                    , numberCell 2 2 1 defaultPayrollWorkbookCellStyle { numberFormat = Just "0.00" }
-                    , formulaCell 3 2 "SUM(B2:B2)" defaultPayrollWorkbookCellStyle { bold = True, numberFormat = Just "0.00" }
-                    ]
-                , columnWidths = [(1, 24), (2, 14)]
-                , hiddenColumns = [3]
-                , tabColor = either (const Nothing) Just (payrollWorkbookColor "4472C4")
-                , autoFilter = Just PayrollWorkbookFilter { firstRow = 1, firstColumn = 1, lastRow = 2, lastColumn = 3 }
-                , frozenRows = 1
-                , frozenColumns = 1
-                }
-            ]
-        }
-  where
-    headerStyle =
-        defaultPayrollWorkbookCellStyle
-            { bold = True
-            , fillColor = either (const Nothing) Just (payrollWorkbookColor "D9EAF7")
-            }
-    textCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookText value, style }
-    numberCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookNumber value, style }
-    formulaCell row column value style = PayrollWorkbookCell { row, column, value = PayrollWorkbookFormula value, style }
-
 payrollWorkbookFromDefinition ::
     PayrollWorkbookDefinition ->
     Int ->
@@ -244,9 +207,6 @@ payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
             map (shiftTypeSheet factModel shiftTypeModel ShiftTypeWages) [factModel.payrollFactModelRangeStart .. factModel.payrollFactModelRangeEnd]
     shiftTypeModel = shiftTypeModelFromFacts factModel.payrollFactModelFacts
 
-payrollWorkbookFromFactModel :: Int -> PayrollWorkbookFactModel -> PayrollWorkbook
-payrollWorkbookFromFactModel = payrollWorkbookFromValidatedDefinition defaultPayrollWorkbookDefinition
-
 validatePayrollWorkbookDefinition :: PayrollWorkbookDefinition -> Either Text ()
 validatePayrollWorkbookDefinition definition
     | Text.null (Text.strip definition.payrollWorkbookDefinitionKey) =
@@ -267,16 +227,6 @@ validatePayrollWorkbookDefinition definition
   where
     families = definition.payrollWorkbookDefinitionSheetFamilies
     duplicateFamilies = families List.\\ List.nub families
-
-payrollWorkbookFromHourlyModel :: Int -> PayrollWorkbookHourlyModel -> PayrollWorkbook
-payrollWorkbookFromHourlyModel rosterWeekStartsOn model =
-    PayrollWorkbook
-        { sheets = summarySheets <> hoursSheets <> wagesSheets
-        }
-  where
-    summarySheets = map (summarySheet model) (summaryWeekAnchors rosterWeekStartsOn model)
-    hoursSheets = map (dailySheet model DailyHours) model.payrollModelDays
-    wagesSheets = map (dailySheet model DailyWages) model.payrollModelDays
 
 dataSheet :: PayrollWorkbookFactModel -> PayrollWorkbookSheet
 dataSheet factModel =
@@ -366,17 +316,11 @@ summaryWeekAnchors rosterWeekStartsOn model =
   where
     firstAnchor = startOfWeekFor rosterWeekStartsOn model.payrollModelRangeStart
 
-summarySheet :: PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
-summarySheet = summarySheetWith summaryBucketFormula
-
 -- Definition-based workbooks always include Data, so Summary formulas use that
 -- implementation-owned authority rather than depending on an optional Hours
 -- presentation family.
 summarySheetFromFacts :: PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
-summarySheetFromFacts = summarySheetWith summaryBucketFactFormula
-
-summarySheetWith :: (PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text) -> PayrollWorkbookHourlyModel -> Day -> PayrollWorkbookSheet
-summarySheetWith formulaFor model weekAnchor =
+summarySheetFromFacts model weekAnchor =
     PayrollWorkbookSheet
         { name = summarySheetName weekAnchor
         , hidden = False
@@ -402,7 +346,7 @@ summarySheetWith formulaFor model weekAnchor =
           , textCell rowNumber 2 row.payrollRowPayBucket.payrollPayBucketLabel defaultPayrollWorkbookCellStyle
           ]
             <> zipWith
-                (\column bucket -> formulaCell rowNumber column (formulaFor model rowNumber staffIdColumn payBucketKeyColumn row bucket) hoursStyle)
+                (\column bucket -> formulaCell rowNumber column (summaryBucketFactFormula model rowNumber staffIdColumn row bucket) hoursStyle)
                 [3 ..]
                 buckets
             <> [ textCell rowNumber staffIdColumn (tshow row.payrollRowStaffId) defaultPayrollWorkbookCellStyle
@@ -437,32 +381,8 @@ summaryBuckets weekAnchor = concatMap bucketsForDate [weekAnchor .. addDays 6 we
             _   -> [(SummaryOrdinary, "Ord"), (SummaryEvening, "7-12"), (SummaryAfterMidnight, "12+")]
         ]
 
-summaryBucketFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text
-summaryBucketFormula model _summaryRow _staffIdColumn _payBucketKeyColumn row bucket
-    | bucket.summaryBucketDate < model.payrollModelRangeStart = "SUM()"
-    | bucket.summaryBucketDate > model.payrollModelRangeEnd = "SUM()"
-    | Nothing <- sourceColumn = "SUM()"
-    | null matchingRows = "SUM()"
-    | otherwise = Text.intercalate "+" (map sourceCell matchingRows)
-  where
-    sourceSheet = quoteSheetName (dailySheetName DailyHours bucket.summaryBucketDate)
-    sourceDay = List.find ((== bucket.summaryBucketDate) . (.payrollDayDate)) model.payrollModelDays
-    sourceColumn = do
-        day <- sourceDay
-        rowIndex <- List.findIndex ((== payrollRowKey row) . payrollRowKey) day.payrollDayRows
-        pure (rowIndex + 2)
-    matchingRows =
-        [ rowNumber
-        | (rowNumber, slot) <- zip [2 ..] model.payrollModelHourSlots
-        , summarySlotMatches bucket slot
-        ]
-    sourceCell rowNumber =
-        case sourceColumn of
-            Nothing -> "0"
-            Just column -> sourceSheet <> "!" <> columnName column <> tshow rowNumber
-
-summaryBucketFactFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text
-summaryBucketFactFormula model summaryRow staffIdColumn _payBucketKeyColumn row bucket
+summaryBucketFactFormula :: PayrollWorkbookHourlyModel -> Int -> Int -> PayrollWorkbookRow -> SummaryBucket -> Text
+summaryBucketFactFormula model summaryRow staffIdColumn row bucket
     | bucket.summaryBucketDate < model.payrollModelRangeStart = "SUM()"
     | bucket.summaryBucketDate > model.payrollModelRangeEnd = "SUM()"
     | null matchingSlots = "SUM()"
@@ -779,7 +699,11 @@ dailyTabColor DailyHours = color "4472C4"
 dailyTabColor DailyWages = color "70AD47"
 
 color :: Text -> PayrollWorkbookColor
-color value = either (error . cs) id (payrollWorkbookColor value)
+color value =
+    either
+        (externalRuntimeInvariantFailure CheckedConfigurationInvariant . cs)
+        id
+        (payrollWorkbookColor value)
 
 renderPayrollWorkbookBase64 :: PayrollWorkbook -> Text
 renderPayrollWorkbookBase64 = decodeUtf8 . Base64.encode . LBS.toStrict . renderPayrollWorkbook

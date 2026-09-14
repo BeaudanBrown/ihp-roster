@@ -1,15 +1,12 @@
 module Application.Helper.Export.Render where
 
-import Application.Helper.Controller
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
-import Application.VenueTime.Model (timesheetEntryBreakElapsedSeconds,
-                                    timesheetEntryBreakEndTime,
-                                    timesheetEntryBreakStartTime,
-                                    timesheetEntryEndTime,
-                                    timesheetEntryHadBreak,
-                                    timesheetEntryStartTime,
-                                    timesheetEntryWorkedOn)
+import Application.VenueTime.Model (ValidatedTimesheetTiming,
+                                    timesheetTimingBreakElapsedSeconds,
+                                    timesheetTimingEndTime,
+                                    timesheetTimingStartTime,
+                                    timesheetTimingWorkedOn)
 import Application.WagePublication (StaffHoursBucketKind (..),
                                     StaffHoursContribution (..))
 import qualified "zip-archive" Codec.Archive.Zip as Zip
@@ -21,14 +18,9 @@ import Data.Ratio (denominator, numerator)
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (NominalDiffTime, UTCTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import Text.Printf (printf)
-import Text.Read (readMaybe)
 
 renderTextZipBase64 :: [(Text, Text)] -> Text
 renderTextZipBase64 files =
@@ -292,13 +284,13 @@ fallbackReportDayLabel reportWeekStart dayOffset =
     Text.pack (formatTime defaultTimeLocale "%A" (addDays (toInteger dayOffset) reportWeekStart))
 
 renderApprovedTimesheetCsv ::
-    [TimesheetEntry] ->
+    [(TimesheetEntry, ValidatedTimesheetTiming)] ->
     Map.Map UUID Staff ->
     Map.Map UUID User ->
     Map.Map UUID Text ->
     Text
-renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntryId =
-    Text.unlines (csvHeader : map renderRow entries)
+renderApprovedTimesheetCsv entriesWithTiming staffById approversById versionManifestByEntryId =
+    Text.unlines (csvHeader : map renderRow entriesWithTiming)
     where
         csvHeader =
             Text.intercalate ","
@@ -312,13 +304,13 @@ renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntr
                 , "approved_by_email"
                 ]
 
-        renderRow entry =
+        renderRow (entry, timing) =
             Text.intercalate ","
-                [ csvCell (tshow (timesheetEntryWorkedOn entry))
+                [ csvCell (tshow (timesheetTimingWorkedOn timing))
                 , csvCell (staffDisplayNameForEntry entry.staffId)
-                , csvCell (formatTimeOfDay (timesheetEntryStartTime entry))
-                , csvCell (formatTimeOfDay (timesheetEntryEndTime entry))
-                , csvCell (formatElapsedSeconds (timesheetEntryBreakElapsedSeconds entry))
+                , csvCell (formatTimeOfDay (timesheetTimingStartTime timing))
+                , csvCell (formatTimeOfDay (timesheetTimingEndTime timing))
+                , csvCell (formatElapsedSeconds (timesheetTimingBreakElapsedSeconds timing))
                 , csvCell (fromMaybe "" (Map.lookup (unpackId entry.id) versionManifestByEntryId))
                 , csvCell (maybe "" formatUtc entry.approvedAt)
                 , csvCell (maybe "" (.email) (entry.approvedByUserId >>= (`Map.lookup` approversById)))

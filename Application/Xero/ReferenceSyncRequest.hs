@@ -5,7 +5,9 @@ module Application.Xero.ReferenceSyncRequest
     , withQueuedXeroReferenceSyncRequestsForTest
     ) where
 
+import Application.Async.Boundary (trySynchronousAppJobAction)
 import Application.Async.Queue
+import Application.Error.Parser (parserFailure)
 import Application.Xero.Admin.ReferenceData (XeroReferenceDataSyncResult (..))
 import Application.Xero.ReferenceCategory (allXeroReferenceSyncCategories)
 import Application.Xero.ReferenceSyncJob
@@ -17,7 +19,6 @@ import qualified Data.IORef as IORef
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types
 import System.IO.Unsafe (unsafePerformIO)
 
 inlineXeroReferenceSyncRequestsForTestRef :: IORef.IORef Bool
@@ -56,7 +57,7 @@ runXeroReferenceDataSyncCategoriesRequest maybeActorUserId connection categories
                 pure (Left "Xero payroll reference data is already syncing in the background.")
             EnqueuedAppJob appJob -> do
                 runInline <- IORef.readIORef inlineXeroReferenceSyncRequestsForTestRef
-                attempt <- Exception.try (if runInline then performXeroReferenceSyncJob appJob else pure ())
+                attempt <- trySynchronousAppJobAction (if runInline then performXeroReferenceSyncJob appJob else pure ())
                 case attempt of
                     Left (_ :: Exception.SomeException) -> do
                         let safeMessage = "Xero reference sync failed before completion."
@@ -120,7 +121,7 @@ completedReferenceSyncCounts =
     Aeson.parseMaybe $ Aeson.withObject "completed Xero reference sync result" \object -> do
         status <- object Aeson..: "status"
         if status /= ("succeeded" :: Text)
-            then fail "Xero reference sync did not succeed"
+            then parserFailure "Xero reference sync did not succeed"
             else
                 CompletedReferenceSyncCounts
                     <$> object Aeson..: "employeesCount"

@@ -14,23 +14,35 @@ issue-recorded reason none is needed) is incomplete.
   tighten or retire compatibility in a separately controlled step.
 - Account for IHP's transactional runner. Use parser-safe SQL and apply
   `IF EXISTS`/`IF NOT EXISTS` only where repeatability cannot hide drift.
-- Add a PostgreSQL enum value in one migration file and first use it in a later
-  migration file. The Hasql runner sends each complete file as one script, so
-  embedded `COMMIT`/`BEGIN` statements cannot provide the required committed
-  enum boundary within that file.
+- Isolate `ALTER TYPE ... ADD VALUE` in its own migration file and first use
+  the value in a later migration. PostgreSQL cannot use a newly added enum value
+  until that revision commits. The pinned IHP Hasql runner sends each complete
+  file as one script, so embedded `COMMIT`/`BEGIN` statements cannot provide the
+  required committed boundary within that file.
 - Record non-obvious backfill, constraint, trigger, index, and enum transitions
   beside the migration or in its operator runbook.
 - `make db` resets local development data; it verifies fresh-schema parsing and
-  startup only and is never a deployed upgrade strategy.
+  startup only and is never a deployed upgrade strategy. The operator/CI
+  command, evidence policy, and production-clone staging boundary are in
+  `../../docs/runbooks/migration-rehearsal.md`.
 
 ## Verification
 
 After schema changes, regenerate types and typecheck. For parser-sensitive
 changes, apply the fresh schema locally, restart/wait for IHP, and inspect the
-resulting database shape. Migration-specific tests and operator checks remain
+resulting database shape. The enum commit-boundary check gives fast author
+feedback; the real-runner migration rehearsal remains authoritative. Its schema
+normalization and focused data-fixture convention are documented in
+`Rehearsal/README.md`. Migration-specific tests and operator checks remain
 mandatory.
 
+The static commit-boundary check is paired with a synthetic real-runner
+regression that proves the pinned runner returns SQLSTATE `55P04` for a combined
+revision and preserves actor-confirmed values when the migration is split.
+
 ```bash
+bash ./bin/in-env migration-enum-commit-boundary-check
+bash ./bin/in-env migration-enum-commit-boundary-real-runner-test
 bash ./bin/in-env regen-types
 bash ./bin/in-env typecheck
 ```
@@ -56,6 +68,8 @@ destructive changes:
 - `date-native-roster-retirement-374-runbook.md` — destructive retirement of
   redundant roster-week/offset identity after approved observation, backup,
   restore rehearsal, and forward-recovery planning.
+- `roster-template-snapshot-cutover-397-runbook.md` — guarded retirement of
+  the confirmed-empty draft/version template schema and direct snapshot cutover.
 
 Do not infer production approval from a committed migration or runbook; use the
 named approval boundary in that runbook.

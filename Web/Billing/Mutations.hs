@@ -64,14 +64,14 @@ updateVenueBillingControlMutation manualReadOnly reason now =
                     |> set #venueId (unpackId currentVenueId)
                     |> set #manualReadOnly manualReadOnly
                     |> set #manualReadOnlyReason normalizedReason
-                    |> set #setByUserId (Just (unpackId currentUser.id))
+                    |> set #setByUserId (Just (unpackId authenticatedCurrentUser.id))
                     |> set #setAt (Just now)
                     |> createRecord
             Just existing ->
                 existing
                     |> set #manualReadOnly manualReadOnly
                     |> set #manualReadOnlyReason (if manualReadOnly then Just reason else Nothing)
-                    |> set #setByUserId (Just (unpackId currentUser.id))
+                    |> set #setByUserId (Just (unpackId authenticatedCurrentUser.id))
                     |> set #setAt (Just now)
                     |> updateRecord
         void $ recordCurrentUserAuditEvent

@@ -2,7 +2,9 @@ module Test.FwcMapdSyncSpec where
 
 import Application.FwcMapd.Client (MapdPageMeta (..), MapdResultsPage (..),
                                    assembleCanonicalClassificationValues,
-                                   assemblePagedResults)
+                                   assemblePagedResults,
+                                   mapdPageCountWithinLimit)
+import Application.FwcMapd.Error (MapdSyncError (MapdSnapshotInvalid))
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind,
                                 performFwcMapdRefreshJobWith)
 import qualified Application.FwcMapd.Payload as MapdPayload
@@ -142,6 +144,12 @@ pureTests = do
 
             assemblePagedResults [firstPage, repeatedFirstPage]
                 `shouldBe` Left "FWC MAPD paging inconsistent: requested page 2 reported current_page 1"
+
+        it "bounds provider-declared page counts before issuing more requests" do
+            mapdPageCountWithinLimit 1 `shouldBe` True
+            mapdPageCountWithinLimit 1000 `shouldBe` True
+            mapdPageCountWithinLimit 0 `shouldBe` False
+            mapdPageCountWithinLimit 1001 `shouldBe` False
 
         it "normalizes identical source duplicates and rejects conflicting duplicates independent of response order" do
             fixture <- loadFwcMapdFixture
@@ -284,7 +292,7 @@ databaseTests = do
         describe "FWC MAPD admin data" do
             it "durably publishes the support award-rate resource without a local browser hub" $ withContext do
                 withCleanDb do
-                    appJob <- newRecord @AppJob |> set #jobKind fwcMapdRefreshJobKind |> createRecord
+                    appJob <- newRecord @AppJob |> set #jobKind fwcMapdRefreshJobKind |> set #relatedTable (Just "fwc_mapd_sync_runs") |> createRecord
                     let summary = MapdPayload.MapdSyncSummary [] 0 0 0 0 0
                     performFwcMapdRefreshJobWith (pure (Right summary)) appJob
                     [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "support.award_rates.refresh" :: Text) |> fetch
@@ -292,6 +300,22 @@ databaseTests = do
                     [freshnessCheck] <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
                     freshnessCheck.relatedId `shouldBe` Just (unpackId appJob.id)
                     freshnessCheck.runAt `shouldSatisfy` (> addUTCTime fwcMaximumAge appJob.createdAt)
+
+            it "projects invalid provider snapshots to the safe job boundary" $ withContext do
+                withCleanDb do
+                    appJob <- newRecord @AppJob |> set #jobKind fwcMapdRefreshJobKind |> set #relatedTable (Just "fwc_mapd_sync_runs") |> createRecord
+                    result <- Exception.try (performFwcMapdRefreshJobWith (Exception.throwIO MapdSnapshotInvalid) appJob) :: IO (Either Exception.SomeException ())
+                    case result of
+                        Right () -> expectationFailure "Expected invalid FWC MAPD snapshot failure"
+                        Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-validation-rejected: The job's validated data was rejected."
+
+            it "rejects a malformed persisted FWC refresh payload before synchronization" $ withContext do
+                withCleanDb do
+                    appJob <- newRecord @AppJob |> set #jobKind fwcMapdRefreshJobKind |> set #relatedTable (Just "fwc_mapd_sync_runs") |> set #payload (Aeson.String "not-an-object") |> createRecord
+                    result <- Exception.try (performFwcMapdRefreshJobWith (expectationFailure "malformed payload must fail before FWC sync" >> pure (Left "unused")) appJob) :: IO (Either Exception.SomeException ())
+                    case result of
+                        Right () -> expectationFailure "Expected malformed FWC refresh payload failure"
+                        Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-malformed-persisted-payload: The stored job payload is invalid."
 
             it "projects every fixture classification and expected rate category without asserting current dollar amounts" $ withContext do
                 withCleanDb do
@@ -354,8 +378,7 @@ databaseTests = do
                     map (\rate -> (rate.id, rate.hourlyRate, rate.fwcMapdPayRateId)) refreshedBaseRates
                         `shouldBe` map (\rate -> (rate.id, rate.hourlyRate, rate.fwcMapdPayRateId)) originalBaseRates
                     failedRun.status `shouldBe` "failed"
-                    failedRun.errorMessage
-                        `shouldSatisfy` maybe False (Text.isInfixOf "FWC MAPD snapshot incomplete: missing classification_fixed_id 257")
+                    failedRun.errorMessage `shouldBe` Just "FWC MAPD candidate failed validation."
 
             it "keeps award level ids stable while adding new effective-dated rates" $ withContext do
                 withCleanDb do

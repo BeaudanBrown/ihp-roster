@@ -7,7 +7,9 @@ import {
     rosterSidePanelToggleDomAttr,
     rosterSelfServicePanelTabDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openRoster } from './support/roster';
 import { E2E_TIMEOUT } from './timeouts';
 
 test.describe('Roster side-panel toggle', () => {
@@ -20,7 +22,7 @@ test.describe('Roster side-panel toggle', () => {
         const staffPanel = page.locator('#roster-staff-panel-fragment');
         const expandButton = shell.locator(`[${rosterSidePanelToggleDomAttr}="true"]`);
 
-        await expect(page.getByRole('tab', { name: 'Templates', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('tab', { name: 'Templates', exact: true })).toBeVisible();
         await expect(staffPanel).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(expandButton).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         const initialMainWidth = await main.boundingBox().then((box) => box?.width ?? 0);

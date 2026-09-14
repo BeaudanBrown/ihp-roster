@@ -49,6 +49,7 @@ module Application.Helper.FrontendContract.DSL
     , DomToken
     , Constant
     , ProjectInteractionDom
+    , ErrorCodes
     , AppShellAction
     , AppShellHtmxMethod
     , AppShellHtmxTrigger
@@ -161,6 +162,9 @@ data GlobalPrimitive
     | DomToken Type
     | Constant Type Symbol
     | Project GlobalProjection
+    -- | Closed domain error types whose mechanically derived codes may cross
+    -- the operation-failure browser boundary.
+    | ErrorCodes [Type]
     | AppShellAction Type [FieldSpec] [AppShellActionOption]
 
 -- | Registry root for app-wide browser vocabulary. Mounted feature topology is
@@ -205,6 +209,7 @@ type FieldName name = 'FieldName name
 type DomToken name = 'DomToken name
 type Constant name value = 'Constant name value
 type ProjectInteractionDom = 'Project 'InteractionDomProjection
+type ErrorCodes errors = 'ErrorCodes errors
 type AppShellAction name fields options = 'AppShellAction name fields options
 type AppShellHtmxMethod method = 'AppShellHtmxMethod method
 type AppShellHtmxTrigger value = 'AppShellHtmxTrigger value
@@ -220,8 +225,8 @@ type AppShellCustomHtmx marker reason = 'AppShellCustomHtmx marker reason
 
 type family Append (left :: [kind]) (right :: [kind]) :: [kind] where
     Append '[] right = right
-    Append (head ': tail) right = head ': Append tail right
+    Append (first ': rest) right = first ': Append rest right
 
 type family Concat (lists :: [[kind]]) :: [kind] where
     Concat '[] = '[]
-    Concat (head ': tail) = Append head (Concat tail)
+    Concat (first ': rest) = Append first (Concat rest)

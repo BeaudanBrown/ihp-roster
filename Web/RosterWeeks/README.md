@@ -10,17 +10,16 @@ mutation invocation, and response selection; HSX lives in
 
 ## Start Here
 
-
 - `DirectReadModel.hs` and `RenderData.hs` — authoritative page/fragment data.
 - `FrontendSurface.hs` and `SurfaceInvalidation.hs` — typed fragments,
   resources, interactions, and live fanout.
 - `Mutations.hs` and `Service.hs` — roster writes and shared domain policy.
-- `ShiftWorkflow.hs` and `DropWorkflow.hs` — dialog and drag/drop request
-  resolution before mutation.
-- `TemplateDesigner.hs` and `TemplateApplication.hs` — immutable template
-  authoring and locked application.
-- `Responses.hs`, `Paths.hs`, and `Dom.hs` — response shape, canonical URLs, and
-  stable DOM identity.
+- `ShiftWorkflow.hs` — complete dialog create/edit operations and continuations;
+  `DropWorkflow.hs` — drag/drop request resolution before mutation.
+- `TemplateCapture.hs` and `TemplateApplication.hs` — date-native detached
+  Week capture and locked Week application.
+- `Projection.hs` and `Responses.hs` — layout-dependent mutation projection
+  and response shape; `Paths.hs` and `Dom.hs` — canonical URLs and DOM identity.
 - `Capabilities.hs`, `Filters.hs`, `WageFilter.hs`, and `Overview.hs` —
   authorization/presentation projections.
 - `Application/RosterNotification/` — immutable notification snapshots and
@@ -29,27 +28,15 @@ mutation invocation, and response selection; HSX lives in
 Follow imports from these seams rather than maintaining a module or feature
 inventory here.
 
-- `Web/Controller/RosterWeeks.hs` - controller actions.
-- `Web/RosterWeeks/DirectReadModel.hs` - canonical direct database/read-model construction for every roster layout and fragment.
-- `Web/RosterWeeks/RenderData.hs` - view-facing render data and fragment rendering helpers.
-- `Web/RosterWeeks/Projection.hs` - typed mutation-to-mounted-fragment projection across row, column, and timeline layouts.
-- `Web/RosterWeeks/Responses.hs` - HTMX/OOB response helpers.
-- `Web/RosterWeeks/FrontendSurface.hs` - FrontendSurface contract/runtime bridge, fragment metadata, live dependencies, and interaction shell helpers for the week grid and single-day timeline surfaces.
-- `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
-- `Web/RosterWeeks/Dom.hs` - stable DOM ids/selectors.
-- `Web/RosterWeeks/Service.hs` - roster workflow/domain service helpers.
-- `Web/RosterWeeks/TemplateApplication.hs` - authoritative Day/Week template preview, Melbourne boundary resolution, stale-assignment cleanup, locking, and atomic draft-week replacement.
-- `Web/RosterWeeks/DropWorkflow.hs` - typed opaque drop-token parsing, venue/group/week resolution, sparse placement, no-op/delete decisions, and Melbourne repeated-time boundary preparation for move, duplicate, timeline, and staff drops.
-- `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
-- `Web/View/RosterWeeks/` - HSX rendering.
-
 ## Date-Native Authority
 
 Runtime modules accept explicit `RosterWindowScope` values and read
 `RosterDay.operationalDate`. Date-local `RosterLane` and `RosterSlot` rows own
 layout and shift placement; publication is derived from the dated days in the
-selected roster-group window. Persisted roster-week identity, offsets, and
-compatibility projections were retired by issue #374. Do not reintroduce offset
+selected roster-group window. The [current schema](../../Application/Schema.sql)
+has no persisted roster-week identity or offset compatibility projections;
+[migration 1788100000](../../Application/Migration/1788100000.sql) records their
+removal. This is source state, not deployment evidence. Do not reintroduce offset
 persistence or derive runtime authority from historical migrations.
 
 ## Mutation Projection Contract
@@ -61,6 +48,35 @@ inner-grid/staff projection, and timeline mutations select the toolbar, frame,
 and staff panel. Response helpers continue to own HTMX resource invalidation and
 feedback; controllers do not reconstruct layout-dependent fragment lists.
 
+## Shift Operation Interface
+
+`createRosterShift` accepts the checked window/day/lane/row and raw dialog
+submission; it hides existing-cell lookup/reuse, validation, application and the
+existing save mutation. `editRosterShift` accepts the checked window/day/slot
+and submission; it derives Draft edit versus Published Open fill, restores the
+correct rejection values, invokes the existing update mutation and prepares
+post-commit row impact. A rejection is dialog values; success is the committed
+mutation result, with edit impact and warning policy ready for `Responses`.
+
+The input records are snapshots, not new authorization or freshness evidence.
+Controllers retain the ordered access and calendar/placement checks and sparse
+materialization because those precede field validation. Do not merge that
+materialization into the save transaction or eagerly move request parsing ahead
+of an earlier denial. `Mutations` still owns locks, revalidation and durable
+publication; post-save impact reads must stay outside its transaction.
+
+This deliberately small interface removes attempted-record assembly and
+Published permission flags from callers without imposing a universal workflow
+result or moving all request handling into a feature module. `Responses` owns
+completion HTML/headers and delegates every layout decision to `Projection`;
+move/duplicate/assignment/delete retain their existing operation owners.
+
+Follow the shared [workflow role contract](../Controller/AGENTS.md#feature-workflow-contract).
+The adopted import guard permits `Responses` to import only the named committed
+mutation result type, with an accountable exception; do not broaden that import
+to mutation functions. Existing shift-dialog rendering inside `ShiftWorkflow`
+remains legitimate, not a reason to add a pass-through view layer.
+
 ## Roster Enum Authority
 
 `RosterLayoutModeEnum` remains nominal through roster decisions. Use the
@@ -70,13 +86,46 @@ projections from `Application.Helper.UserPreferences`; use
 telemetry, persistence, or another external boundary. Do not branch on that
 rendered text.
 
-Persisted `RosterTemplateScaleEnum` follows the same rule through
-`Application.Helper.RosterTemplateScale`. Template-card browser DTOs carry it as
-a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
-"week"` union and guard.
+The active Templates-tab workflow accepts Week snapshots only.
 
-## Template Designer Contract
+## Eligibility Reads
 
+`Application.PayAssignment` owns the closed mode-to-reference requirement used
+by remediation and roster selection. Availability is not strict assignment-shape
+validation: preserve the existing legacy/remediation behavior, and leave save-time
+validation at its established boundary.
+
+Shift types use QueryBuilder for mode, venue, activity and ordering filters;
+static `EXISTS` reference subqueries remain because this IHP builder has no
+subquery API. Retain the planner's ability to hash reference inventories once,
+rather than substituting correlated `IN` scans.
+Group staff use one shared, typed SQL boundary: IHP's `innerJoin` requires equal
+field types, while generated `Staff.id` is `Id Staff` and group membership's
+`staffId` is `UUID`. That boundary selects generated-order columns, preserving
+migration-safe decoding without an ordered-ID refetch. Do not cast model types,
+fetch all inventory for Haskell filtering, or add per-row lookups to hide SQL.
+
+Each eligible-staff, panel-staff and shift-type read uses one query. Database
+collation and existing ordering keys remain authoritative (`last_name` for staff,
+`sort_order, created_at` for shift types); equal keys acquire no extra ID/name
+tie-breaker. The panel intentionally includes pay-invalid active group staff.
+
+## Conflict And Dialog-Option Authority
+
+`DirectReadModel.buildSlotConflictsDirect` and its targeted variant own the SQL
+conflict calculation and closed tag decoder. Inputs are the caller's already
+scoped fact/target slots; neither an unused group ID nor a week date adds scope
+validation. `Application.Helper.Conflict` retains only shared types, severity,
+ordering and primary selection. Invalid timing is handled by the live timing
+and rendering boundaries, not by a second conflict evaluator.
+
+Shift dialogs use `StaffOptions.buildRosterStaffOptionStates`. Preserve the
+existing distinction: dialog preferences/leave use Operational dates; conflict
+SQL uses the persisted local start date (falling back to Operational date).
+Dialog ideal filters hide at the threshold; conflict warnings require exceeding
+it. The schema allows one active preference window per staff/day; deleted
+history is not another active window. Do not infer policy equivalence from
+retired synthetic evaluators or SQL option builders.
 
 ## Boundaries
 
@@ -88,26 +137,21 @@ a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
 - Roster writes validate venue/group scope and current Staff/Open/pay state at
   the server boundary, regardless of rendered controls.
 - The shared SidePanel owns only visibility and responsive mechanics. Roster
-  owns Staff/Settings content, permissions, and linked highlighting. Template
-  functionality remains implemented but is intentionally hidden for the next release.
+  owns authorized Staff/Templates/Settings content, permissions, and linked highlighting.
 - Emailing a Published roster is an explicit editor action. One immutable run
   snapshots its audience and roster; each recipient sees only their own assigned
   shifts and the snapshot's Open shifts. Durable jobs continue if the roster
   later changes or returns to draft.
 
-Creation selects Day/Week and blank/reference. Reference mode reads only existing Published or Draft windows, supports previous/next/this-week navigation, renders native keyboard/touch targets with a generated compatibility role/state, and confirms before copying. Confirmation proof is session-bound to the exact request, source-content revision, and occupied-draft revision; stale or replayed replacement attempts fail before changing the draft. Hover/focus alone shows the green compatible-target treatment. One private draft slot offers Continue, Discard and start new, or Cancel.
-
-The designer clearly identifies Template design. Complete day, column, and shift mutations autosave through typed draft content; incomplete shifts and stale Shift types/Staff/pay references do not persist. Saved edits retain immutable versions, optimistic conflicts, reload-latest/save-as-new recovery, and soft deletion. Source roster rows are never changed.
-
 ## Template Application Contract
 
-Template application targets one explicitly scoped, Draft roster-group `[start,end)` window and optional Operational date. Week template days retain explicit weekday identity and rotate into the current venue presentation order. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
+Week application resolves the submitted ISO `anchorDate` to one exact seven-day roster-group scope. All seven Operational dates must exist, in Draft or Published state. After confirmation, application atomically returns all seven days to Draft alongside target replacement. Saved weekday identity maps each snapshot day to the matching target date while preserving weekday meaning across venue window-order changes. The snapshot replaces all seven open/closed states, row counts, columns/order, and shifts; publication is never sourced from the template.
 
-Preview returns authoritative template and target revisions, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. It intentionally confirms scope and consequences without a Before/After visual comparison. Confirmation locks the template, target week structure/content, Timesheet snapshots, Shift types, Staff rows, and group memberships; revalidates both revisions, and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
+Preview binds template content, target content, calendar configuration, and current Staff, Shift-type, membership, approved-leave, award-level, and imported-pay-item facts. Confirmation date-locks the window, row-locks those references and relevant Timesheet snapshots, revalidates the bound revision, and performs target replacement plus any template cleanup in one transaction. Replaced roster shifts are soft-deleted, preserving materialized Timesheet values and source provenance.
 
-The editor-only roster side panel exposes `Staff | Settings` for the next release. Template functionality and its authoritative user-specific library fragment remain implemented but hidden; the library separates Day and Week cards, private-draft recovery, and isolated Edit/Delete controls. Day activation enters cancellable compatible-day target mode; Week activation targets the complete viewed week immediately. The same generated source/dropzone contracts drive mouse drag, while keyboard and touch activation use the server-rendered confirmation form. Published or incomplete targets expose no compatible application target. Library, delete, save, draft, and application resources invalidate mounted fragments for actor and passive viewers.
+Approved leave is target-specific and leaves the saved assignment intact. Durable Staff invalidity changes both target and template to Open. Stale Shift types require blank-by-default explicit mappings to active same-venue types; mappings may converge many stale identities onto one replacement and permanently clean the template. Successful results state whether template content changed and publish typed library, Roster, and Timesheet touched resources transactionally.
 
-Template local minutes resolve on the target operational date under current `Australia/Melbourne` rules. Nonexistent spring clocks fail; repeated autumn endpoints require explicit first/second choices and are never guessed.
+The manager SidePanel Templates tab owns one alphabetical Week-template library shared by roster group. Its live fragment/resource key contains no effective-user identity; every fragment request repeats Roster editor authorization. The header launches date-native capture; cards show only name, shift count, Apply, and Delete. Save, Apply, and Delete use generated typed server-rendered controls and shared Overlay dialogs on desktop and mobile. Published targets remain applicable after explicit confirmation to unpublish and replace the entire viewed week atomically as Draft. Successful HTMX mutations close the dialog, retain the selected tab and roster URL context, refresh authoritative fragments in place, and show a toast. Transactional typed invalidation converges actor/passive mounts and replay after capture, delete, cleanup, or Apply; Apply also touches only the exact Roster and Timesheet window. Incomplete, malformed, cross-group, or stale targets fail without mutation. Nonexistent Melbourne local times fail; repeated endpoints deterministically use their first occurrence for template application only.
 
 ## Row-Grid Rendering Contract
 

@@ -7,59 +7,43 @@ if [ "${1:-}" = "--probe" ]; then
 fi
 
 command_name="devenv-script-freshness-check"
-if ! command -v "$command_name" >/dev/null 2>&1; then
-    echo "devenv-script-freshness-check: missing named project command" >&2
+command -v "$command_name" >/dev/null 2>&1 || {
+    echo "$command_name: missing named project command" >&2
     exit 1
-fi
+}
 
 fixture_root="$(mktemp -d)"
-cleanup() {
-    rm -rf "$fixture_root"
-}
-trap cleanup EXIT
-
-fixture_repo="$fixture_root/repo&with|sed\\chars"
+trap 'rm -rf "$fixture_root"' EXIT
+fixture_repo="$fixture_root/repo&with|shell\\chars"
 fixture_relative="Config/nix/scripts/dev/script-freshness-check"
-scripts_root_placeholder="@""scriptsRoot@"
-mailhog_placeholder="@""mailhog@"
-ripgrep_placeholder="@""ripgrep@"
 mkdir -p "$fixture_repo/$(dirname "$fixture_relative")"
-cat >"$fixture_repo/$fixture_relative" <<EOF
+cat >"$fixture_repo/$fixture_relative" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "\${1:-}" = --stdin-probe ]; then
+if [ "${1:-}" = --stdin-probe ]; then
     IFS= read -r value
-    printf 'stdin:%s\\n' "\$value"
+    printf 'stdin:%s\n' "$value"
     exit 0
 fi
-printf '%s\\n' \
+[ "${1:-}" != --exit-probe ] || exit 73
+printf '%s\n' \
     'working-tree-script' \
-    '$scripts_root_placeholder' \
-    '$mailhog_placeholder' \
-    '$ripgrep_placeholder' \
-    "\${2:-}"
+    "$BEPIS_SCRIPTS_ROOT" \
+    "$BEPIS_MAILHOG_ROOT" \
+    "$BEPIS_RIPGREP_ROOT" \
+    "${2:-}"
 EOF
 
 argument="argument with spaces"
-actual="$(
-    FRONTEND_REPO_ROOT="$fixture_repo" \
-        "$command_name" --probe "$argument"
-)"
-mapfile -t actual_fields <<<"$actual"
-actual_marker="${actual_fields[0]:-}"
-actual_scripts_root="${actual_fields[1]:-}"
-actual_mailhog="${actual_fields[2]:-}"
-actual_ripgrep="${actual_fields[3]:-}"
-actual_argument="${actual_fields[4]:-}"
-
-if [ "${#actual_fields[@]}" -ne 5 ] \
-    || [ "$actual_marker" != "working-tree-script" ] \
-    || [ "$actual_scripts_root" != "$fixture_repo/Config/nix/scripts" ] \
-    || [ "$actual_argument" != "$argument" ] \
-    || [ ! -x "$actual_mailhog/bin/MailHog" ] \
-    || [ ! -x "$actual_ripgrep/bin/rg" ]; then
-    echo "devenv-script-freshness-check: named command did not execute and template the selected working-tree source" >&2
-    echo "actual: $actual" >&2
+mapfile -t actual < <(FRONTEND_REPO_ROOT="$fixture_repo" "$command_name" --probe "$argument")
+if [ "${#actual[@]}" -ne 5 ] \
+    || [ "${actual[0]:-}" != "working-tree-script" ] \
+    || [ "${actual[1]:-}" != "$fixture_repo/Config/nix/scripts" ] \
+    || [ "${actual[4]:-}" != "$argument" ] \
+    || [ ! -x "${actual[2]:-}/bin/MailHog" ] \
+    || [ ! -x "${actual[3]:-}/bin/rg" ]; then
+    echo "$command_name: working-tree source or dependency roots were not selected directly" >&2
+    printf 'actual: %s\n' "${actual[*]-}" >&2
     exit 1
 fi
 
@@ -68,98 +52,63 @@ mkdir -p "$missing_repo"
 set +e
 missing_output="$(FRONTEND_REPO_ROOT="$missing_repo" "$command_name" --probe 2>&1)"
 missing_status=$?
-set -e
-if [ "$missing_status" -ne 66 ] || [[ "$missing_output" != *"missing working-tree script"* ]]; then
-    echo "devenv-script-freshness-check: missing checkout source silently used a stale snapshot" >&2
-    echo "status: $missing_status" >&2
-    echo "output: $missing_output" >&2
-    exit 1
-fi
-
-newline_repo="$fixture_root/newline"$'\n'"repo"
-set +e
-newline_output="$(FRONTEND_REPO_ROOT="$newline_repo" "$command_name" --probe 2>&1)"
+newline_output="$(FRONTEND_REPO_ROOT="$fixture_root/newline"$'\n'"repo" "$command_name" --probe 2>&1)"
 newline_status=$?
 set -e
-if [ "$newline_status" -ne 64 ] || [[ "$newline_output" != *"checkout paths containing newlines are unsupported"* ]]; then
-    echo "devenv-script-freshness-check: unsupported newline checkout path did not fail clearly" >&2
-    echo "status: $newline_status" >&2
-    echo "output: $newline_output" >&2
+if [ "$missing_status" -ne 66 ] || [[ "$missing_output" != *"missing working-tree script"* ]]; then
+    echo "$command_name: missing explicit source did not fail closed" >&2
+    exit 1
+fi
+if [ "$newline_status" -ne 64 ] || [[ "$newline_output" != *"paths containing newlines are unsupported"* ]]; then
+    echo "$command_name: newline checkout path did not fail clearly" >&2
     exit 1
 fi
 
-set +e
-packaged_output="$(
-    cd "$fixture_root"
-    env -u FRONTEND_REPO_ROOT "$command_name" --probe 2>&1
-)"
-packaged_status=$?
-set -e
-if [ "$packaged_status" -ne 0 ] \
-    || [[ "$packaged_output" != *"no project checkout found; using packaged snapshot"* ]] \
-    || [[ "$packaged_output" != *"materialized-script-snapshot"* ]]; then
-    echo "devenv-script-freshness-check: packaged fallback was not explicit and usable outside a checkout" >&2
-    echo "status: $packaged_status" >&2
-    echo "output: $packaged_output" >&2
-    exit 1
-fi
-
+assert_packaged_fallback() {
+    local directory="$1"
+    local output status
+    set +e
+    output="$(cd "$directory" && env -u FRONTEND_REPO_ROOT "$command_name" --probe 2>&1)"
+    status=$?
+    set -e
+    if [ "$status" -ne 0 ] \
+        || [[ "$output" != *"using packaged snapshot"* ]] \
+        || [[ "$output" != *"materialized-script-snapshot"* ]]; then
+        echo "$command_name: packaged fallback failed in $directory" >&2
+        echo "$output" >&2
+        exit 1
+    fi
+}
+assert_packaged_fallback "$fixture_root"
 unrelated_repo="$fixture_root/unrelated-repo"
 mkdir -p "$unrelated_repo"
 git -C "$unrelated_repo" init --quiet
+assert_packaged_fallback "$unrelated_repo"
+
+stdin_actual="$(printf 'preserved-input\n' | FRONTEND_REPO_ROOT="$fixture_repo" "$command_name" --stdin-probe)"
 set +e
-unrelated_output="$(
-    cd "$unrelated_repo"
-    env -u FRONTEND_REPO_ROOT "$command_name" --probe 2>&1
-)"
-unrelated_status=$?
+FRONTEND_REPO_ROOT="$fixture_repo" "$command_name" --exit-probe
+exit_status=$?
 set -e
-if [ "$unrelated_status" -ne 0 ] \
-    || [[ "$unrelated_output" != *"no project checkout found; using packaged snapshot"* ]] \
-    || [[ "$unrelated_output" != *"materialized-script-snapshot"* ]]; then
-    echo "devenv-script-freshness-check: unrelated Git checkout suppressed the packaged fallback" >&2
-    echo "status: $unrelated_status" >&2
-    echo "output: $unrelated_output" >&2
+if [ "$stdin_actual" != "stdin:preserved-input" ] || [ "$exit_status" -ne 73 ]; then
+    echo "$command_name: caller stdin or selected script exit status was not preserved" >&2
     exit 1
 fi
 
 repo_root="$(git rev-parse --show-toplevel)"
 fake_bin="$fixture_root/fake-bin"
 mkdir -p "$fake_bin"
-cat >"$fake_bin/direnv" <<'EOF'
-#!/usr/bin/env bash
-printf 'direnv-exec'
-printf '|%s' "$@"
-printf '\n'
-EOF
-cat >"$fake_bin/probe-command" <<'EOF'
-#!/usr/bin/env bash
-echo 'direct-project-command'
-EOF
-cat >"$fake_bin/ghc-pkg" <<'EOF'
-#!/usr/bin/env bash
-echo 'ihp-1.0.0'
-EOF
-chmod +x "$fake_bin/direnv" "$fake_bin/probe-command" "$fake_bin/ghc-pkg"
-
+printf '#!/usr/bin/env bash\nprintf "direnv-exec"; printf "|%%s" "$@"; printf "\\n"\n' >"$fake_bin/direnv"
+printf '#!/usr/bin/env bash\necho direct-project-command\n' >"$fake_bin/probe-command"
+printf '#!/usr/bin/env bash\necho ihp-1.0.0\n' >"$fake_bin/ghc-pkg"
+chmod +x "$fake_bin"/*
 in_env_actual="$(
-    PATH="$fake_bin:$PATH" \
-        DEVENV_IN_DIRENV_SHELL=true \
+    PATH="$fake_bin:$PATH" DEVENV_IN_DIRENV_SHELL=true \
         bash "$repo_root/bin/in-env" probe-command
 )"
-in_env_expected="direnv-exec|exec|$repo_root|probe-command"
-stdin_actual="$(printf 'preserved-input\n' | FRONTEND_REPO_ROOT="$fixture_repo" "$command_name" --stdin-probe)"
-if [ "$stdin_actual" != 'stdin:preserved-input' ]; then
-    echo "devenv-script-freshness-check: named project command replaced caller stdin with script source" >&2
-    echo "actual: $stdin_actual" >&2
+if [ "$in_env_actual" != "direnv-exec|exec|$repo_root|probe-command" ]; then
+    echo "$command_name: bin/in-env bypassed direnv freshness validation" >&2
     exit 1
 fi
 
-if [ "$in_env_actual" != "$in_env_expected" ]; then
-    echo "devenv-script-freshness-check: bin/in-env bypassed direnv freshness checks from an active shell" >&2
-    echo "expected: $in_env_expected" >&2
-    echo "actual:   $in_env_actual" >&2
-    exit 1
-fi
-
-echo "devenv-script-freshness-check: ok"
+echo "$command_name: ok"

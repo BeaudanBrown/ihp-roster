@@ -113,16 +113,19 @@ tests =
             let bucket = PayrollWorkbookPayBucket (PayrollWorkbookAwardLevel payLevelId) "LVL 2"
             let entry = testEntry firstEntryId testStaffId firstShiftTypeId rangeEnd (testUtc 2025 1 13 12) (testUtc 2025 1 13 16)
             let segment = paidSegment Worked rangeEnd (testUtc 2025 1 13 12) (testUtc 2025 1 13 16)
-            model <- buildPayrollWorkbookHourlyModel
+            factModel <- buildPayrollWorkbookFactModel
                     rangeStart
                     rangeEnd
                     narrowVenueConfig
                     [entry]
                     (Map.singleton testStaffId staff)
                     (Map.singleton firstEntryId bucket)
+                    (Map.singleton firstEntryId "Bar")
+                    [HourlyShiftTypeColumn firstShiftTypeId "Bar"]
                     (Map.singleton firstEntryId (calculation firstEntryId rangeEnd [segment] [hourlyComponent segment 12000]))
                 |> expectRight
 
+            let model = payrollWorkbookHourlyModelFromFacts factModel
             model.payrollModelWindow `shouldBe` HourlyReportWindow 9 27
             map (.payrollDayDate) model.payrollModelDays `shouldBe` [rangeStart .. rangeEnd]
             map (length . (.payrollDayRows)) model.payrollModelDays `shouldBe` replicate 6 0 <> [1]
@@ -135,8 +138,10 @@ tests =
         it "separates repeated autumn hours and leaves skipped spring hours at zero" do
             let autumnDate = fromGregorian 2026 4 4
             let springDate = fromGregorian 2026 10 3
-            autumn <- dstModel autumnDate (testUtc 2026 4 4 14) (testUtc 2026 4 4 17)
-            spring <- dstModel springDate (testUtc 2026 10 3 14) (testUtc 2026 10 3 17)
+            autumnFacts <- dstModel autumnDate (testUtc 2026 4 4 14) (testUtc 2026 4 4 17)
+            springFacts <- dstModel springDate (testUtc 2026 10 3 14) (testUtc 2026 10 3 17)
+            let autumn = payrollWorkbookHourlyModelFromFacts autumnFacts
+            let spring = payrollWorkbookHourlyModelFromFacts springFacts
             let autumnDay = fromMaybe (error "expected autumn payroll day") (head autumn.payrollModelDays)
             let springDay = fromMaybe (error "expected spring payroll day") (head spring.payrollModelDays)
             let autumnRow = fromMaybe (error "expected autumn payroll row") (head autumnDay.payrollDayRows)
@@ -150,7 +155,7 @@ tests =
             valueAt spring springRow 26 SecondHourlyOccurrence `shouldBe` 0
             sum springRow.payrollRowHours `shouldBe` 3
 
-            let autumnWorkbook = payrollWorkbookFromHourlyModel 1 autumn
+            autumnWorkbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 autumnFacts)
             let autumnHoursSheet = autumnWorkbook.sheets !! 1
             let autumnSummary = fromMaybe (error "expected rendered autumn Summary sheet") (head autumnWorkbook.sheets)
             let repeatedHeaders =
@@ -162,13 +167,15 @@ tests =
             let repeatedSummaryFormulas =
                     [ formula
                     | PayrollWorkbookCell { value = PayrollWorkbookFormula formula } <- autumnSummary.cells
-                    , Text.isInfixOf "Hours Sat 2026-04-04" formula
+                    , Text.isInfixOf "'Data'!$A:$A,\"2026-04-04\"" formula
+                    , Text.isInfixOf "'Data'!$K:$K,\"first\"" formula
+                    , Text.isInfixOf "'Data'!$K:$K,\"second\"" formula
                     , Text.isInfixOf "+" formula
                     ]
             repeatedSummaryFormulas `shouldSatisfy` (not . null)
 
         it "fails empty requests and missing payroll authority clearly" do
-            buildPayrollWorkbookHourlyModel
+            buildPayrollWorkbookFactModel
                 (fromGregorian 2025 1 6)
                 (fromGregorian 2025 1 6)
                 testVenueConfig
@@ -176,50 +183,58 @@ tests =
                 Map.empty
                 Map.empty
                 Map.empty
+                []
+                Map.empty
                 `shouldBe` Left "No approved payroll entries were found for the Payroll Workbook range."
 
             let day = fromGregorian 2025 1 6
             let entry = testEntry firstEntryId testStaffId firstShiftTypeId day (testUtc 2025 1 5 22) (testUtc 2025 1 5 23)
-            buildPayrollWorkbookHourlyModel day day testVenueConfig [entry] Map.empty Map.empty Map.empty
+            buildPayrollWorkbookFactModel day day testVenueConfig [entry] Map.empty Map.empty Map.empty [] Map.empty
                 `shouldBe` Left ("Payroll Workbook entry has no linked active staff: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
 
             let staff = testStaff testStaffId "Failure" "Boundary"
             let bucket = PayrollWorkbookPayBucket (PayrollWorkbookAwardLevel payLevelId) "LVL 1"
             let staffMap = Map.singleton testStaffId staff
             let bucketMap = Map.singleton firstEntryId bucket
-            buildPayrollWorkbookHourlyModel day day testVenueConfig [entry] staffMap Map.empty Map.empty
+            let shiftLabels = Map.singleton firstEntryId "Bar"
+            let shiftColumns = [HourlyShiftTypeColumn firstShiftTypeId "Bar"]
+            buildPayrollWorkbookFactModel day day testVenueConfig [entry] staffMap Map.empty shiftLabels shiftColumns Map.empty
                 `shouldBe` Left ("Payroll Workbook entry has no approval-pinned pay bucket: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
-            buildPayrollWorkbookHourlyModel day day testVenueConfig [entry] staffMap bucketMap Map.empty
+            buildPayrollWorkbookFactModel day day testVenueConfig [entry] staffMap bucketMap Map.empty shiftColumns Map.empty
+                `shouldBe` Left ("Payroll Workbook entry has no approval-pinned shift-type label: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
+            buildPayrollWorkbookFactModel day day testVenueConfig [entry] staffMap bucketMap shiftLabels shiftColumns Map.empty
                 `shouldBe` Left ("Payroll Workbook entry has no sealed wage calculation: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
 
             let outsideSegment = paidSegment Worked day (testUtc 2025 1 5 21) (testUtc 2025 1 5 22)
             let outsideCalculation = calculation firstEntryId day [outsideSegment] [hourlyComponent outsideSegment 3000]
-            buildPayrollWorkbookHourlyModel day day testVenueConfig [entry] staffMap bucketMap (Map.singleton firstEntryId outsideCalculation)
+            buildPayrollWorkbookFactModel day day testVenueConfig [entry] staffMap bucketMap shiftLabels shiftColumns (Map.singleton firstEntryId outsideCalculation)
                 `shouldBe` Left ("Payroll Workbook worked segment falls outside its timesheet interval: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
 
             let validSegment = paidSegment Worked day entry.startsAt entry.endsAt
             let validCalculation = calculation firstEntryId day [validSegment] [hourlyComponent validSegment 3000]
             let missingDateCalculation = validCalculation { WageEngine.publishedOperationalDate = Nothing }
-            buildPayrollWorkbookHourlyModel day day testVenueConfig [entry] staffMap bucketMap (Map.singleton firstEntryId missingDateCalculation)
+            buildPayrollWorkbookFactModel day day testVenueConfig [entry] staffMap bucketMap shiftLabels shiftColumns (Map.singleton firstEntryId missingDateCalculation)
                 `shouldBe` Left ("Payroll Workbook sealed wage calculation has a missing or mismatched Operational date: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
 
             let baseComponent :: EarningsComponent
                 baseComponent = hourlyComponent validSegment 3000
             let negativeComponent = baseComponent { WageEngine.amount = -1 }
             let unreconciledCalculation = calculation firstEntryId day [validSegment] [negativeComponent]
-            buildPayrollWorkbookHourlyModel day day testVenueConfig [entry] staffMap bucketMap (Map.singleton firstEntryId unreconciledCalculation)
+            buildPayrollWorkbookFactModel day day testVenueConfig [entry] staffMap bucketMap shiftLabels shiftColumns (Map.singleton firstEntryId unreconciledCalculation)
                 `shouldBe` Left ("Payroll Workbook hourly wages do not reconcile to sealed earnings: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
 
             let secondEntry = testEntry secondEntryId testStaffId secondShiftTypeId day (testUtc 2025 1 5 23) (testUtc 2025 1 6 0)
             let secondSegment = paidSegment Worked day secondEntry.startsAt secondEntry.endsAt
             let secondCalculation = calculation secondEntryId day [secondSegment] [hourlyComponent secondSegment 3000]
-            buildPayrollWorkbookHourlyModel
+            buildPayrollWorkbookFactModel
                 day
                 day
                 testVenueConfig
                 [secondEntry, entry]
                 staffMap
                 (Map.fromList [(secondEntryId, bucket), (firstEntryId, bucket)])
+                (Map.fromList [(secondEntryId, "Kitchen"), (firstEntryId, "Bar")])
+                (shiftColumns <> [HourlyShiftTypeColumn secondShiftTypeId "Kitchen"])
                 (Map.fromList [(secondEntryId, secondCalculation), (firstEntryId, unreconciledCalculation)])
                 `shouldBe` Left ("Payroll Workbook hourly wages do not reconcile to sealed earnings: " <> tshow (Id firstEntryId :: Id TimesheetEntry))
 
@@ -244,19 +259,21 @@ slotIndex model hour occurrence =
 roundSix :: Rational -> Rational
 roundSix value = fromInteger (round (value * 1000000)) / 1000000
 
-dstModel :: Day -> UTCTime -> UTCTime -> IO PayrollWorkbookHourlyModel
+dstModel :: Day -> UTCTime -> UTCTime -> IO PayrollWorkbookFactModel
 dstModel day startsAt endsAt = do
     let staff = testStaff testStaffId "Dorothy" "Vaughan"
     let bucket = PayrollWorkbookPayBucket (PayrollWorkbookAwardLevel payLevelId) "LVL 4"
     let entry = testEntry firstEntryId testStaffId firstShiftTypeId day startsAt endsAt
     let segment = paidSegment Worked day startsAt endsAt
-    buildPayrollWorkbookHourlyModel
+    buildPayrollWorkbookFactModel
         day
         day
         testVenueConfig
         [entry]
         (Map.singleton testStaffId staff)
         (Map.singleton firstEntryId bucket)
+        (Map.singleton firstEntryId "Bar")
+        [HourlyShiftTypeColumn firstShiftTypeId "Bar"]
         (Map.singleton firstEntryId (calculation firstEntryId day [segment] [hourlyComponent segment (round (paidTimeDurationSeconds segment / 3600) * 3000)]))
         |> expectRight
 

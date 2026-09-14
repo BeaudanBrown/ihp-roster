@@ -6,8 +6,6 @@ module Web.RosterWeeks.SurfaceInvalidation
 import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as RosterResource
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day)
-import Data.UUID (UUID)
 import Web.Controller.Prelude
 
 -- | Listener-side context-free expansion for broad venue resources. Staff

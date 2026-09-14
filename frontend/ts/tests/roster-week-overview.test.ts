@@ -25,6 +25,7 @@ import {
     type RosterWeekOverviewDiagnostic,
 } from "../roster/week-overview";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
+import { MiniElement as SharedMiniElement } from "./mini-dom";
 
 const validDay = {
     weekOverviewDate: "2025-01-06",
@@ -39,56 +40,11 @@ const validDay = {
     weekOverviewClosure: rosterWeekOverviewClosureStates.closed,
 };
 
-class MiniElement {
-    readonly children: MiniElement[] = [];
-    parentElement: MiniElement | null = null;
-    textContent: string | null = null;
+class MiniElement extends SharedMiniElement {
     href = "";
 
-    constructor(
-        private readonly attrs: Record<string, string>,
-        readonly tagName = "DIV",
-        readonly id = "",
-    ) {}
-
-    append(child: MiniElement): MiniElement {
-        child.parentElement = this;
-        this.children.push(child);
-        return child;
-    }
-
-    getAttribute(name: string): string | null {
-        return this.attrs[name] ?? null;
-    }
-
-    setAttribute(name: string, value: string): void {
-        this.attrs[name] = value;
-    }
-
-    matches(selector: string): boolean {
-        const attribute = selector.match(/^\[([^\]=]+)\]$/)?.[1];
-        return attribute !== undefined && this.getAttribute(attribute) !== null;
-    }
-
-    closest(selector: string): MiniElement | null {
-        let current: MiniElement | null = this;
-        while (current !== null) {
-            if (current.matches(selector)) return current;
-            current = current.parentElement;
-        }
-        return null;
-    }
-
-    querySelectorAll<T extends Element>(selector: string): T[] {
-        const found: MiniElement[] = [];
-        const visit = (owner: MiniElement) => {
-            owner.children.forEach((child) => {
-                if (child.matches(selector)) found.push(child);
-                visit(child);
-            });
-        };
-        visit(this);
-        return found as unknown as T[];
+    constructor(attrs: Record<string, string>, tagName = "DIV", id = "") {
+        super(attrs, id, [], tagName);
     }
 }
 

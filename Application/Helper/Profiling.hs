@@ -1,6 +1,5 @@
 module Application.Helper.Profiling
-    ( initRequestProfiling
-    , isRequestProfilingEnabled
+    ( isRequestProfilingEnabled
     , profileActionSpan
     , profileActionSpanWithDetail
     , profileHtmlComponent
@@ -15,21 +14,19 @@ import Application.Helper.Telemetry (addTelemetryAttributes, addTelemetryEvent,
                                      withTelemetrySpan,
                                      withTelemetrySpanAttributes)
 import Control.Concurrent (ThreadId, myThreadId)
-import Control.Exception (bracket, bracket_, evaluate)
+import Control.Exception (bracket_, evaluate)
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
 import Data.IORef
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import qualified Data.Text.Lazy.Encoding as LazyTextEncoding
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Data.Vault.Lazy as Vault
 import GHC.Clock (getMonotonicTimeNSec)
-import IHP.Controller.Context (ControllerContext, maybeFromContext, putContext)
 import IHP.Controller.Render (renderHtml, respondHtml)
-import IHP.ControllerSupport (Respond, respondAndExitWithHeaders)
+import IHP.ControllerSupport (ControllerContext, Respond, ResponseReceived, respondWith)
 import IHP.Prelude
 import IHP.ViewSupport (View)
 import Network.HTTP.Types (status200)
@@ -39,14 +36,12 @@ import qualified Network.Wai as Wai
 import OpenTelemetry.Attributes (Attribute, toAttribute)
 import qualified System.Environment as Environment
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Text.Blaze.Html as Blaze
-import qualified Text.Blaze.Html.Renderer.Utf8 as BlazeUtf8
+import qualified IHP.HSX.Markup as Markup
 
 data RequestProfile = RequestProfile
     { requestProfileId :: !Text
     , startedAtNs      :: !Word64
     , spansRef         :: !(IORef [RequestProfileSpan])
-    , countersRef      :: !(IORef (Map Text Int))
     , nextSpanOrderRef :: !(IORef Int)
     , emittedRef       :: !(IORef Bool)
     }
@@ -76,50 +71,34 @@ profilingMiddleware app request respond = do
         finalizedResponse <- finalizeResponseProfileHeaders request' profileRef response
         respond finalizedResponse
 
-initRequestProfiling :: (?context :: ControllerContext) => IO ()
-initRequestProfiling = do
-    existingProfile :: Maybe RequestProfile <- maybeFromContext
-    case existingProfile of
-        Just _ -> pure ()
-        Nothing -> do
-            maybeProfile <- currentRequestProfileFromVault ?context.request
-            case maybeProfile of
-                Just profile -> putContext profile
-                Nothing -> do
-                    -- Fallback for controller tests or non-standard entrypoints that
-                    -- call initContext without the app middleware stack.
-                    maybeStandaloneProfile <- newRequestProfileIfEnabled
-                    forEach maybeStandaloneProfile putContext
-
 profileActionSpan :: (?context :: ControllerContext) => Text -> IO a -> IO a
 profileActionSpan name action =
     profileActionSpanWithDetail name (fmap (, Nothing) action)
 
 profileCounter :: (?context :: ControllerContext) => Text -> Int -> IO ()
 profileCounter name amount = do
-    maybeProfile :: Maybe RequestProfile <- maybeFromContext
-    forEach maybeProfile \profile -> do
-        appendRequestProfileCounter profile name amount
+    maybeProfile <- currentRequestProfileFromVault ?context
+    forEach maybeProfile \_ ->
         appendActiveRenderCounter name amount
 
-profileRenderCounter :: (?context :: ControllerContext) => Text -> Int -> Blaze.Html
+profileRenderCounter :: (?context :: ControllerContext) => Text -> Int -> Markup.Html
 profileRenderCounter name amount =
     unsafePerformIO do
         profileCounter name amount
         pure mempty
 {-# NOINLINE profileRenderCounter #-}
 
-profileHtmlComponent :: (?context :: ControllerContext) => Text -> Blaze.Html -> Blaze.Html
+profileHtmlComponent :: (?context :: ControllerContext) => Text -> Markup.Html -> Markup.Html
 profileHtmlComponent name html =
     unsafePerformIO do
-        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        maybeProfile <- currentRequestProfileFromVault ?context
         case maybeProfile of
             Nothing -> pure html
             Just profile ->
                 withTelemetrySpanAttributes name [("bepis.profile.diagnostic", toAttribute True)] do
                     withRenderCounterScope \counterRef -> do
                         startedAtNs <- getMonotonicTimeNSec
-                        let !htmlBytes = BlazeUtf8.renderHtml html
+                        let !htmlBytes = Markup.renderMarkup html
                         byteCount <- evaluate (LByteString.length htmlBytes)
                         completedAtNs <- getMonotonicTimeNSec
                         counters <- readIORef counterRef
@@ -133,27 +112,27 @@ profileHtmlComponent name html =
                                 { spanOrder = 0
                                 , spanName = name
                                 , durationMs = durationBetweenMs startedAtNs completedAtNs
-                                , detail = Just ("bytes=" <> tshow byteCount)
+                                , detail = Nothing
                                 }
-                        pure (Blaze.preEscapedToHtml (LazyTextEncoding.decodeUtf8 htmlBytes))
+                        pure (mconcat (map Markup.rawByteString (LByteString.toChunks htmlBytes)))
 {-# NOINLINE profileHtmlComponent #-}
 
-renderProfiled :: (View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
+renderProfiled :: (View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 renderProfiled view = do
     html <- profileActionSpan "render.ihp_view" (renderHtml view)
     respondHtmlProfiled html
 
-respondHtmlProfiled :: (?context :: ControllerContext, ?request :: Request) => Blaze.Html -> IO ()
+respondHtmlProfiled :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Markup.Html -> IO ResponseReceived
 respondHtmlProfiled html =
     annotateHtmlResponse do
-        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        maybeProfile <- currentRequestProfileFromVault ?context
         case maybeProfile of
             Nothing -> respondHtml html
             Just profile -> do
                 (htmlBytes, byteCount) <-
                     withTelemetrySpanAttributes "render.respond_html" [("bepis.profile.diagnostic", toAttribute True)] do
                         startedAtNs <- getMonotonicTimeNSec
-                        let !htmlBytes = BlazeUtf8.renderHtml html
+                        let !htmlBytes = Markup.renderMarkup html
                         byteCount <- evaluate (LByteString.length htmlBytes)
                         completedAtNs <- getMonotonicTimeNSec
                         addTelemetryAttributes [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
@@ -162,15 +141,14 @@ respondHtmlProfiled html =
                                 { spanOrder = 0
                                 , spanName = "render.respond_html"
                                 , durationMs = durationBetweenMs startedAtNs completedAtNs
-                                , detail = Just ("bytes=" <> tshow byteCount)
+                                , detail = Nothing
                                 }
                         pure (htmlBytes, byteCount)
-                respondAndExitWithHeaders $
+                respondWith $
                     responseLBS
                         status200
                         [ (hContentType, "text/html; charset=utf-8")
                         , (hConnection, "keep-alive")
-                        , ("X-Profile-Response-Bytes", cs (tshow byteCount))
                         ]
                         htmlBytes
     where
@@ -180,7 +158,7 @@ respondHtmlProfiled html =
                 else bepisHtmlResponse
 
 isProfilingHtmxRequest :: (?context :: ControllerContext) => Bool
-isProfilingHtmxRequest = lookup "HX-Request" ?context.request.requestHeaders == Just "true"
+isProfilingHtmxRequest = lookup "HX-Request" ?context.requestHeaders == Just "true"
 
 isRequestProfilingEnabled :: IO Bool
 isRequestProfilingEnabled = do
@@ -193,7 +171,7 @@ isRequestProfilingEnabled = do
 profileActionSpanWithDetail :: (?context :: ControllerContext) => Text -> IO (a, Maybe Text) -> IO a
 profileActionSpanWithDetail name action =
     withTelemetrySpan name do
-        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        maybeProfile <- currentRequestProfileFromVault ?context
         case maybeProfile of
             Nothing -> fst <$> action
             Just profile -> do
@@ -214,12 +192,6 @@ appendRequestProfileSpan profile span = do
     spanOrder <- atomicModifyIORef' profile.nextSpanOrderRef \nextOrder -> (nextOrder + 1, nextOrder)
     atomicModifyIORef' profile.spansRef \spans ->
         (span { spanOrder } : spans, ())
-
-appendRequestProfileCounter :: RequestProfile -> Text -> Int -> IO ()
-appendRequestProfileCounter profile name amount =
-    when (amount /= 0) do
-        atomicModifyIORef' profile.countersRef \counters ->
-            (Map.insertWith (+) name amount counters, ())
 
 appendActiveRenderCounter :: Text -> Int -> IO ()
 appendActiveRenderCounter name amount =
@@ -264,7 +236,6 @@ newRequestProfile = do
     startedAtNs <- getMonotonicTimeNSec
     requestProfileId <- UUID.toText <$> UUIDv4.nextRandom
     spansRef <- newIORef []
-    countersRef <- newIORef Map.empty
     nextSpanOrderRef <- newIORef 0
     emittedRef <- newIORef False
     pure
@@ -272,7 +243,6 @@ newRequestProfile = do
             { requestProfileId
             , startedAtNs
             , spansRef
-            , countersRef
             , nextSpanOrderRef
             , emittedRef
             }
@@ -304,16 +274,11 @@ finalizeRequestProfile request profile = do
             writeIORef profile.emittedRef True
             completedAtNs <- getMonotonicTimeNSec
             spans <- List.sortOn spanOrder <$> readIORef profile.spansRef
-            counters <- readIORef profile.countersRef
             let totalDurationMs = durationBetweenMs profile.startedAtNs completedAtNs
-            let counterHeaders =
-                    [ ("X-Profile-Counters", cs (renderProfileCounters counters))
-                    | not (Map.null counters)
-                    ]
             let headers =
                     [ ("X-Request-Id", cs profile.requestProfileId)
                     , ("Server-Timing", cs (renderServerTiming totalDurationMs spans))
-                    ] <> counterHeaders
+                    ]
             pure (Just headers)
 
 durationBetweenMs :: Word64 -> Word64 -> Double
@@ -326,12 +291,6 @@ renderServerTiming totalDurationMs spans =
     where
         renderSpan RequestProfileSpan { spanName, durationMs, detail } =
             renderTimingMetric (sanitizeTimingToken spanName) durationMs detail
-
-renderProfileCounters :: Map Text Int -> Text
-renderProfileCounters counters =
-    Text.intercalate "," (map renderCounter (Map.toAscList counters))
-    where
-        renderCounter (name, amount) = sanitizeTimingToken name <> "=" <> tshow amount
 
 renderTimingMetric :: Text -> Double -> Maybe Text -> Text
 renderTimingMetric metricName durationMs detail =

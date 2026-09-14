@@ -11,7 +11,9 @@ import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum,
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           startOfWeekFor)
+import Application.Operator.Error
 import Application.Script.Prelude
+import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
@@ -65,7 +67,7 @@ runWithResetMode resetMode = do
 
     backfillResult <- backfillApprovedTimesheetPayCalculations
     case backfillResult of
-        Left failures -> fail (Text.unpack ("Dev seed pay-ledger backfill failed: " <> tshow failures))
+        Left failures -> liftIO (exitWithScriptError (ScriptOperationFailed ("dev seed pay-ledger backfill failed: " <> tshow failures)))
         Right _ -> pure ()
 
     actualStaffCount <-
@@ -145,6 +147,7 @@ data SeedDevOptions = SeedDevOptions
     { selectedScenario  :: !SeedScenarioName
     , scenarioOverrides :: !SeedScenarioOverrides
     }
+    deriving (Eq, Show)
 
 defaultSeedDevOptions :: SeedDevOptions
 defaultSeedDevOptions =
@@ -163,37 +166,48 @@ parseSeedDevOptions = do
     when ("--help" `elem` args || "-h" `elem` args) do
         printSeedDevUsage
         exitSuccess
-    parseArgs defaultSeedDevOptions args
+    requireScriptResult (parseSeedDevArgs args)
 
-parseArgs :: SeedDevOptions -> [String] -> IO SeedDevOptions
-parseArgs options [] = pure options
-parseArgs options (arg:remainingArgs) = do
-    nextOptions <- parseArg options arg
-    parseArgs nextOptions remainingArgs
+parseSeedDevArgs :: [String] -> Either ScriptError SeedDevOptions
+parseSeedDevArgs = foldM parseSeedDevArg defaultSeedDevOptions
 
-parseArg :: SeedDevOptions -> String -> IO SeedDevOptions
-parseArg options arg
+parseSeedDevArg :: SeedDevOptions -> String -> Either ScriptError SeedDevOptions
+parseSeedDevArg options arg
     | "--scenario=" `List.isPrefixOf` arg =
         case List.stripPrefix "--scenario=" arg >>= (parseScenarioName . cs) of
-            Just name -> pure options { selectedScenario = name }
-            Nothing   -> error ("Unknown scenario: " <> cs arg)
-    | "--seed=" `List.isPrefixOf` arg =
-        pure options { scenarioOverrides = options.scenarioOverrides { overrideScenarioSeed = Just (readIntFlag "--seed=" arg) } }
-    | "--staff-count=" `List.isPrefixOf` arg =
-        pure options { scenarioOverrides = options.scenarioOverrides { overrideStaffCount = Just (readIntFlag "--staff-count=" arg) } }
-    | "--users=" `List.isPrefixOf` arg =
-        pure options { scenarioOverrides = options.scenarioOverrides { overrideStaffCount = Just (readIntFlag "--users=" arg) } }
-    | "--manager-count=" `List.isPrefixOf` arg =
-        pure options { scenarioOverrides = options.scenarioOverrides { overrideManagerCount = Just (readIntFlag "--manager-count=" arg) } }
-    | "--roster-fill=" `List.isPrefixOf` arg =
-        pure options { scenarioOverrides = options.scenarioOverrides { overrideRosterFill = Just (readIntFlag "--roster-fill=" arg) } }
-    | otherwise = error ("Unsupported seed-dev option: " <> cs arg)
+            Just name -> Right options { selectedScenario = name }
+            Nothing   -> Left (InvalidScriptArgument ("unknown seed scenario: " <> cs arg))
+    | "--seed=" `List.isPrefixOf` arg = do
+        value <- readIntFlag "--seed=" arg
+        Right options { scenarioOverrides = options.scenarioOverrides { overrideScenarioSeed = Just value } }
+    | "--staff-count=" `List.isPrefixOf` arg = do
+        value <- readPositiveIntFlag "--staff-count=" arg
+        Right options { scenarioOverrides = options.scenarioOverrides { overrideStaffCount = Just value } }
+    | "--users=" `List.isPrefixOf` arg = do
+        value <- readPositiveIntFlag "--users=" arg
+        Right options { scenarioOverrides = options.scenarioOverrides { overrideStaffCount = Just value } }
+    | "--manager-count=" `List.isPrefixOf` arg = do
+        value <- readPositiveIntFlag "--manager-count=" arg
+        Right options { scenarioOverrides = options.scenarioOverrides { overrideManagerCount = Just value } }
+    | "--roster-fill=" `List.isPrefixOf` arg = do
+        value <- readIntFlag "--roster-fill=" arg
+        if value >= 0 && value <= 100
+            then Right options { scenarioOverrides = options.scenarioOverrides { overrideRosterFill = Just value } }
+            else Left (InvalidScriptArgument "--roster-fill must be between 0 and 100")
+    | otherwise = Left (InvalidScriptArgument ("unsupported seed-dev option: " <> cs arg))
 
-readIntFlag :: String -> String -> Int
+readPositiveIntFlag :: String -> String -> Either ScriptError Int
+readPositiveIntFlag prefix arg = do
+    value <- readIntFlag prefix arg
+    if value > 0
+        then Right value
+        else Left (InvalidScriptArgument (cs prefix <> " value must be greater than zero"))
+
+readIntFlag :: String -> String -> Either ScriptError Int
 readIntFlag prefix arg =
     case TextRead.readMaybe (drop (length prefix) arg) of
-        Just value -> value
-        _          -> error ("Expected integer for flag: " <> cs arg)
+        Just value -> Right value
+        Nothing    -> Left (InvalidScriptArgument ("expected integer for flag: " <> cs arg))
 
 printSeedDevUsage :: IO ()
 printSeedDevUsage = do

@@ -1,0 +1,8 @@
+{
+  "canonicalCommand": {
+    "argv": ["bash", "./bin/in-env", "verify-full"]
+  },
+  "workerFeedbackCommand": {
+    "argv": ["bash", "./bin/in-env", "verify-fast"]
+  }
+}

@@ -33,8 +33,16 @@
   #     };
   # };
 
+  # Tailnet authentication remains an out-of-band host bootstrap step.
+  services.tailscale.enable = true;
+
+  # Observability StateDirectoryQuota requires project quotas on the backing
+  # filesystem. The concrete host hardware layer must retain this mount option.
+  fileSystems."/".options = [ "prjquota" ];
+
   services.ihpRoster = {
     enable = true;
+    production = true;
     domain = "CHANGE-ME.com";
     databaseUser = "ihp_roster";
     serviceUser = "ihp_roster";
@@ -52,6 +60,18 @@
       privacyFile = null;
       refundsDisputesFile = null;
       cancellationFile = null;
+    };
+    observability = {
+      otel.enable = true;
+      collector.enable = true;
+      tempo = {
+        enable = true;
+        queryAddress = "0.0.0.0";
+      };
+      loki = {
+        enable = true;
+        queryAddress = "0.0.0.0";
+      };
     };
     billing.stripe = {
       # Enable after provisioning the Dashboard Product/Price, webhook endpoint,

@@ -103,10 +103,6 @@ Use the repo wrapper unless you are already inside the devenv shell. Run
 before expensive full gates, and validate worktree identity before starting any
 runtime-dependent E2E check. Stop and report infrastructure failures separately
 from code failures instead of broadening an integration task into runtime repair.
-On memory-constrained hosts, also stop dev hot reload and avoid triggering HLS
-reloads while running compile-heavy typecheck, Hspec, generator, or `verify-full`
-gates; independent GHC heaps can otherwise exhaust RAM and swap even when each
-command passes alone.
 
 ```bash
 bash ./bin/in-env verify-fast

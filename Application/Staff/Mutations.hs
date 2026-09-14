@@ -3,6 +3,7 @@ module Application.Staff.Mutations
     , withStaffRemovalLockInCurrentTransaction
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Data.List as List
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
@@ -28,31 +29,31 @@ withStaffRemovalLockInCurrentTransaction ::
     IO (Maybe result)
 withStaffRemovalLockInCurrentTransaction staffId action = do
         lockStaffOperationalKey staffId
-        lockedStaffIds :: [PG.Only UUID] <- sqlQuery
+        lockedStaffIds :: [PG.Only UUID] <- unsafeSqlQuery
             "SELECT id FROM staff WHERE id = ? FOR UPDATE"
             (PG.Only staffId)
         case lockedStaffIds of
             [PG.Only lockedStaffId]
                 | lockedStaffId == staffId -> Just <$> action
             [] -> pure Nothing
-            _ -> error "Staff removal lock returned an unexpected row set"
+            _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Staff removal lock returned an unexpected row set"
 
 fetchMatchingStaffId :: (?modelContext :: ModelContext) => UUID -> IO (Maybe UUID)
 fetchMatchingStaffId staffId = do
-    matchingStaffIds :: [PG.Only UUID] <- sqlQuery
+    matchingStaffIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM staff WHERE id = ?"
         (PG.Only staffId)
     case matchingStaffIds of
         [PG.Only matchingStaffId]
             | matchingStaffId == staffId -> pure (Just matchingStaffId)
         [] -> pure Nothing
-        _ -> error "Staff operational lock returned an unexpected row set"
+        _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Staff operational lock returned an unexpected row set"
 
 lockStaffOperationalKey :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockStaffOperationalKey staffId = do
     let lockKey = "staff-operational:" <> UUID.toText staffId
-    lockResults :: [PG.Only Bool] <- sqlQuery
+    lockResults :: [PG.Only Bool] <- unsafeSqlQuery
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS staff_operational_lock"
         (PG.Only lockKey)
     unless (lockResults == [PG.Only True]) do
-        error "Unable to lock staff operational key"
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock staff operational key"

@@ -3,11 +3,7 @@ set -euo pipefail
 umask 077
 
 program="epic-worktree-manage"
-scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
-scripts_root_placeholder="@""scriptsRoot@"
-if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
-    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-fi
+scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
 # shellcheck source=../lib/hls-cache.sh
 # shellcheck disable=SC1091
 . "$scripts_root/lib/hls-cache.sh"
@@ -164,7 +160,7 @@ runtime_state() {
             BEPIS_WORKSPACE_STATE_ROOT="$caller_state_root" \
             DEVENV_AGENT_STATE_DIR="$caller_state_root" \
             BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
-            bash -c '. "@scriptsRoot@/lib/workspace.sh"; bepis_workspace_configure >/dev/null; printf "%s" "$DEVENV_AGENT_STATE_DIR"'
+            bash -c '. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"; bepis_workspace_configure >/dev/null; printf "%s" "$DEVENV_AGENT_STATE_DIR"'
     } 2>/dev/null || true)"
     local default_state="$epic_path/.devenv/agent"
     local -a state_dirs=()

@@ -10,7 +10,7 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import qualified Test.XeroTimesheetPreviewSpec as Preview
+import qualified Test.Support.XeroTimesheet as Preview
 import Web.FrontController ()
 import Web.Routes
 import Web.Types

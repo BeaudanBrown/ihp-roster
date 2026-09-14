@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
@@ -51,9 +52,9 @@ module Application.Helper.FrontendContract.Surface.Interaction
     , renderFrontendSurfaceActivationRef
     , renderFrontendSurfaceDropzoneRef
     , renderFrontendSurfaceSourceRef
-    , withFrontendSurfaceActivationRef
-    , withFrontendSurfaceDropzoneRef
-    , withFrontendSurfaceSourceRef
+    , frontendSurfaceActivationRefAttrs
+    , frontendSurfaceDropzoneRefAttrs
+    , frontendSurfaceSourceRefAttrs
     ) where
 
 import qualified Application.Helper.FrontendContract.Interaction as Interaction
@@ -61,11 +62,8 @@ import Application.Helper.FrontendContract.Naming (deriveDomAttributeTypeName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
 import IHP.Prelude
-import qualified Text.Blaze.Html as Blaze
-import qualified Text.Blaze.Html5 as Html5
-import Text.Blaze.Html5 ((!))
-
-type Html = Blaze.Html
+import IHP.HSX.MarkupQQ (hsx)
+import IHP.HSX.Markup (Html)
 
 frontendSurfaceSourceRefAttribute :: Text
 frontendSurfaceSourceRefAttribute = deriveDomAttributeTypeName @Interaction.SourceRef
@@ -83,41 +81,32 @@ frontendSurfaceActivationRefAttribute :: Text
 frontendSurfaceActivationRefAttribute = deriveDomAttributeTypeName @Interaction.ActivationRef
 
 renderFrontendSurfaceSourceRef :: InteractionSourceRefIR -> Text -> Html -> Html
-renderFrontendSurfaceSourceRef ref key =
-    Html5.div
-        ! attr frontendSurfaceSourceRefAttribute ref.sourceRefName
-        ! attr frontendSurfaceSourceKeyAttribute key
+renderFrontendSurfaceSourceRef ref key body =
+    [hsx|<div {...(frontendSurfaceSourceRefAttrs ref key)}>{body}</div>|]
 
-withFrontendSurfaceSourceRef :: InteractionSourceRefIR -> Text -> Html -> Html
-withFrontendSurfaceSourceRef ref key html =
-    html
-        ! attr frontendSurfaceSourceRefAttribute ref.sourceRefName
-        ! attr frontendSurfaceSourceKeyAttribute key
+frontendSurfaceSourceRefAttrs :: InteractionSourceRefIR -> Text -> [(Text, Text)]
+frontendSurfaceSourceRefAttrs ref key =
+    [ (frontendSurfaceSourceRefAttribute, ref.sourceRefName)
+    , (frontendSurfaceSourceKeyAttribute, key)
+    ]
 
 renderFrontendSurfaceDropzoneRef :: InteractionDropzoneRefIR -> Text -> Html -> Html
-renderFrontendSurfaceDropzoneRef ref key =
-    Html5.div
-        ! attr frontendSurfaceDropzoneRefAttribute ref.dropzoneRefName
-        ! attr frontendSurfaceDropzoneKeyAttribute key
+renderFrontendSurfaceDropzoneRef ref key body =
+    [hsx|<div {...(frontendSurfaceDropzoneRefAttrs ref key)}>{body}</div>|]
 
-withFrontendSurfaceDropzoneRef :: InteractionDropzoneRefIR -> Text -> Html -> Html
-withFrontendSurfaceDropzoneRef ref key html =
-    html
-        ! attr frontendSurfaceDropzoneRefAttribute ref.dropzoneRefName
-        ! attr frontendSurfaceDropzoneKeyAttribute key
+frontendSurfaceDropzoneRefAttrs :: InteractionDropzoneRefIR -> Text -> [(Text, Text)]
+frontendSurfaceDropzoneRefAttrs ref key =
+    [ (frontendSurfaceDropzoneRefAttribute, ref.dropzoneRefName)
+    , (frontendSurfaceDropzoneKeyAttribute, key)
+    ]
 
 renderFrontendSurfaceActivationRef :: InteractionActivationRefIR -> Html -> Html
-renderFrontendSurfaceActivationRef ref =
-    Html5.div
-        ! attr frontendSurfaceActivationRefAttribute ref.activationRefName
+renderFrontendSurfaceActivationRef ref body =
+    [hsx|<div {...(frontendSurfaceActivationRefAttrs ref)}>{body}</div>|]
 
-withFrontendSurfaceActivationRef :: InteractionActivationRefIR -> Html -> Html
-withFrontendSurfaceActivationRef ref html =
-    html ! attr frontendSurfaceActivationRefAttribute ref.activationRefName
-
-attr :: Text -> Text -> Blaze.Attribute
-attr name value =
-    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
+frontendSurfaceActivationRefAttrs :: InteractionActivationRefIR -> [(Text, Text)]
+frontendSurfaceActivationRefAttrs ref =
+    [(frontendSurfaceActivationRefAttribute, ref.activationRefName)]
 
 -- | Reusable browser interaction markers. Feature surfaces compose these via
 -- type aliases such as 'DragDropInteraction' instead of re-declaring the common

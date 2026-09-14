@@ -8,51 +8,49 @@ import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowUrl)
 import Web.View.Prelude
 
-data SuggestedNewView = SuggestedNewView
-    { rosterSlotId          :: Id RosterSlot
-    , timesheetEntry        :: TimesheetEntry
-    , staffMembers          :: [Staff]
-    , shiftTypes            :: [ShiftType]
-    , calendarRevision      :: Int
-    , selectedStaffFilterId :: Maybe UUID
-    , currentViewerStaffId  :: Maybe UUID
-    , pickerStart           :: Text
-    , pickerEnd             :: Text
-    , pickerStep            :: Int
+data SuggestedTimesheetRenderModel = SuggestedTimesheetRenderModel
+    { rosterSlotId        :: Id RosterSlot
+    , timesheetFormInputs :: TimesheetFormInputs
+    }
+
+newtype SuggestedNewView = SuggestedNewView
+    { suggestedTimesheetRenderModel :: SuggestedTimesheetRenderModel
     }
 
 instance View SuggestedNewView where
-    html SuggestedNewView { .. } =
+    html SuggestedNewView { suggestedTimesheetRenderModel } =
         renderTimesheetEntryModal
-            ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
-            (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
+            ("Rostered " <> timesheetModalTitle operationalDate)
+            (timesheetWindowUrl operationalDate inputs.selectedStaffFilterId)
             suggestedTimesheetFormId
-            (renderSuggestedTimesheetForm PageOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+            (renderSuggestedTimesheetForm PageOverlayForm suggestedTimesheetRenderModel)
+      where
+        inputs = suggestedTimesheetRenderModel.timesheetFormInputs
+        operationalDate = timesheetEntryOperationalDate inputs.timesheetEntry
 
 suggestedTimesheetFormId :: Text
 suggestedTimesheetFormId = "timesheet-suggestion-create-form"
 
-renderSuggestedTimesheetDialog :: Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
-renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderSuggestedTimesheetDialog :: SuggestedTimesheetRenderModel -> Html
+renderSuggestedTimesheetDialog suggestedTimesheetRenderModel =
     renderTimesheetEntryDialog
-        ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
+        ("Rostered " <> timesheetModalTitle operationalDate)
         suggestedTimesheetFormId
-        (renderSuggestedTimesheetForm HtmxOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+        (renderSuggestedTimesheetForm HtmxOverlayForm suggestedTimesheetRenderModel)
+  where
+    operationalDate = timesheetEntryOperationalDate suggestedTimesheetRenderModel.timesheetFormInputs.timesheetEntry
 
-renderSuggestedTimesheetForm :: (?context :: ControllerContext) => OverlayFormMode -> Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
-renderSuggestedTimesheetForm formMode rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderSuggestedTimesheetForm :: (?context :: ControllerContext) => OverlayFormMode -> SuggestedTimesheetRenderModel -> Html
+renderSuggestedTimesheetForm formMode SuggestedTimesheetRenderModel { rosterSlotId, timesheetFormInputs } =
     renderTimesheetForm
-        (appShellActionByMarker @CreateTimesheetEntryOverlay)
-        RosteredTimesheetForm
-        timesheetEntry
-        staffMembers
-        shiftTypes
-        calendarRevision
-        selectedStaffFilterId
-        currentViewerStaffId
-        pickerStart
-        pickerEnd
-        pickerStep
-        (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId })
-        suggestedTimesheetFormId
-        formMode
+        TimesheetFormRenderModel
+            { timesheetFormInputs
+            , timesheetFormPresentation =
+                TimesheetFormPresentation
+                    { appShellAction = appShellActionByMarker @CreateTimesheetEntryOverlay
+                    , formOrigin = RosteredTimesheetForm
+                    , actionUrl = pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId }
+                    , formId = suggestedTimesheetFormId
+                    , formMode
+                    }
+            }

@@ -12,9 +12,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Intent
     , parseDuplicateRosterShiftToDayIntentParams
     , parseMoveRosterShiftToSlotIntentParams
     , parseMoveRosterTimelineShiftIntentParams
-    , parsePreviewRosterTemplateApplicationIntentParams
-    , previewRosterTemplateApplicationIntentFields
-    , previewRosterTemplateApplicationIntentForm
     , parseSetRosterLayoutModeIntentParams
     , setRosterLayoutModeIntentFields
     , setRosterLayoutModeIntentForm
@@ -33,9 +30,6 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Intent (SetR
                                                                             parseDuplicateRosterShiftToDayIntentParams,
                                                                             parseMoveRosterShiftToSlotIntentParams,
                                                                             parseMoveRosterTimelineShiftIntentParams,
-                                                                            parsePreviewRosterTemplateApplicationIntentParams,
                                                                             parseSetRosterLayoutModeIntentParams,
-                                                                            previewRosterTemplateApplicationIntentFields,
-                                                                            previewRosterTemplateApplicationIntentForm,
                                                                             setRosterLayoutModeIntentFields,
                                                                             setRosterLayoutModeIntentForm)

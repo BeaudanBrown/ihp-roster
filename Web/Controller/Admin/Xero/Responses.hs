@@ -17,7 +17,7 @@ import Application.Helper.Profiling
 import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
-                                dialogOverlayMountId, errorToast,
+                                errorToast, renderDialogOverlayClearOob,
                                 renderToastOverlayHostOob, successToast)
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel hiding
@@ -29,8 +29,8 @@ import Web.Controller.Prelude
 import Web.View.Admin.Xero
 
 respondWithXeroSectionFragment ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 respondWithXeroSectionFragment = do
     xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
     fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
@@ -38,8 +38,8 @@ respondWithXeroSectionFragment = do
     respondHtmlProfiled fragmentHtml
 
 respondWithXeroReferenceSyncFragment ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 respondWithXeroReferenceSyncFragment = do
     diagnostics <- profileActionSpan "admin.xero.reference_sync_fragment.fetch" $
         fetchCurrentVenueXeroReferenceSyncDiagnostics currentUserIsUnimpersonatedSuperAdmin
@@ -52,10 +52,10 @@ fetchCurrentVenueXeroAdminSectionData =
     XeroReadModel.fetchCurrentVenueXeroAdminSectionData currentUserCanManageXeroIntegration
 
 respondWithXeroSectionActorInvalidationAndToast ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Set.Set SurfaceResourceValue ->
     Maybe ToastOverlayConfig ->
-    IO ()
+    IO ResponseReceived
 respondWithXeroSectionActorInvalidationAndToast touchedResources maybeToast = do
     setActorLiveResourcesRefresh
         (adminXeroLiveScope (unpackId currentVenueId))
@@ -64,21 +64,21 @@ respondWithXeroSectionActorInvalidationAndToast touchedResources maybeToast = do
     respondWithXeroToast maybeToast
 
 respondWithXeroToast ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Maybe ToastOverlayConfig ->
-    IO ()
+    IO ResponseReceived
 respondWithXeroToast maybeToast =
     respondHtmlProfiled $
         maybe mempty (renderToastOverlayHostOob ToastBottomCenter . pure) maybeToast
 
 respondWithXeroTimesheetMutationAndCloseDialog ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     Maybe ToastOverlayConfig ->
-    IO ()
+    IO ResponseReceived
 respondWithXeroTimesheetMutationAndCloseDialog maybeToast =
     respondHtmlProfiled $
         mconcat
-            [ [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+            [ renderDialogOverlayClearOob
             , maybe mempty (renderToastOverlayHostOob ToastBottomCenter . pure) maybeToast
             ]
 
@@ -91,10 +91,10 @@ xeroErrorToast = errorToast
 currentUserCanManageXeroIntegration :: (?context :: ControllerContext) => Bool
 currentUserCanManageXeroIntegration = hasRole VenueOwner
 
-requireCurrentVenueOwnerForXero :: (?context :: ControllerContext, ?request :: Request) => IO () -> IO ()
+requireCurrentVenueOwnerForXero :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO value -> IO value
 requireCurrentVenueOwnerForXero action =
     if currentUserCanManageXeroIntegration
         then action
         else do
             setErrorMessage "Only the venue owner or a super admin can manage Xero for this venue."
-            redirectToPath permissionDeniedFallbackPath
+            earlyReturn (redirectToPath permissionDeniedFallbackPath)

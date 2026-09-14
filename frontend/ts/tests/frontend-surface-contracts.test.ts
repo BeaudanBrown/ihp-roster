@@ -6,11 +6,7 @@ import {
     FrontendSurfaceTabSetRegistry,
     isFrontendSurfaceLiveFragmentName,
     isFrontendSurfaceName,
-    isRosterTemplateDesignerMountConfig,
-    isRosterTemplateDesignerTemplateReferenceCompatibilityState,
     rosterDayTimelineShiftGroupHighlightMemberDomAttr,
-    rosterTemplateDesignerTemplateReferenceCompatibilityDomAttr,
-    rosterTemplateDesignerTemplateReferenceTargetDomAttr,
     rosterShiftGroupHighlightMemberDomAttr,
     rosterStaffHighlightDefaultDomAttr,
     rosterStaffHighlightMemberDomAttr,
@@ -23,7 +19,6 @@ import {
     rosterStaffPanelTabDomAttr,
     rosterSelfServicePanelTabDomAttr,
     parseRosterStaffPanelSortRow,
-    timesheetWeekShellDomToken,
     type TimesheetsSurfaceFragmentKey,
 } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
@@ -44,39 +39,15 @@ test("generated live fragment registry contains only production semantic live fr
     assertEqual(isFrontendSurfaceLiveFragmentName("timesheets", "missing"), false);
 });
 
-test("generated template designer contract is isolated and exact", () => {
-    assertEqual(rosterTemplateDesignerTemplateReferenceTargetDomAttr, "data-bepis-roster-template-designer-template-reference-target");
-    assertEqual(rosterTemplateDesignerTemplateReferenceCompatibilityDomAttr, "data-bepis-roster-template-designer-template-reference-compatibility");
-    assertEqual(isRosterTemplateDesignerTemplateReferenceCompatibilityState("compatible"), true);
-    assertEqual(isRosterTemplateDesignerTemplateReferenceCompatibilityState("selected"), false);
-    assertEqual(isRosterTemplateDesignerMountConfig({
-        surface: "roster-template-designer",
-        scopeKey: "scope",
-        mountKey: "primary",
-        fragments: [],
-        subscription: null,
-    }), true);
-    assertEqual(isRosterTemplateDesignerMountConfig({
-        surface: "roster-template-designer",
-        scopeKey: "scope",
-        mountKey: "primary",
-        fragments: [],
-        subscription: null,
-        rosterMutation: true,
-    }), false);
-});
-
 test("generated interaction registry contains only runtime-consumed interaction fields", () => {
     const roster = FrontendSurfaceInteractionRegistry.roster;
-    assertDeepEqual(roster.sourceRefs.map((source) => source.ref), ["shift-drag-source", "staff-drag-source", "day-template-drag-source", "week-template-drag-source"]);
+    assertDeepEqual(roster.sourceRefs.map((source) => source.ref), ["shift-drag-source", "staff-drag-source"]);
     assertDeepEqual(roster.dropzoneRefs.map((dropzone) => dropzone.ref), [
         "shift-slot-dropzone",
         "staff-create-dropzone",
         "day-column-dropzone",
         "existing-shift-dropzone",
         "delete-shift-dropzone",
-        "day-template-dropzone",
-        "week-template-dropzone",
     ]);
     assertDeepEqual(roster.sourceRefs[1]?.compatibleDropzones, ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]);
     assertDeepEqual(roster.activationRefs.map((activation) => activation.ref), ["roster-layout-mode-activation"]);
@@ -168,10 +139,6 @@ test("generated tab-set registry owns roster tab keys and default", () => {
     assertEqual(selfServiceTabs?.tabRoleAttribute, rosterSelfServicePanelTabDomAttr);
     assertDeepEqual(selfServiceTabs?.keys, ["quick-tools", "settings"]);
     assertEqual(selfServiceTabs?.defaultKey, "quick-tools");
-});
-
-test("browser-reachable surface DOM tokens are generated as tree-shakeable feature constants", () => {
-    assertEqual(timesheetWeekShellDomToken, "timesheet-week-shell");
 });
 
 test("browser-reachable production surface fragment types remain consumable", () => {

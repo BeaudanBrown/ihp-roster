@@ -22,12 +22,8 @@ import Application.WageSourcePolicy
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, toGregorian)
-import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (ModelContext, unpackId)
-import IHP.Prelude
 
 data WageSubjectKey
     = TimesheetSubject !UUID
@@ -174,7 +170,7 @@ subjectIdentity (RosterSlotSubject value) = value
 timesheetWageSubject :: TimesheetEntry -> Either WageEvaluationError UnsealedWageSubject
 timesheetWageSubject entry = do
     let key = TimesheetSubject (unpackId entry.id)
-    boundaries <- Bifunctor.first (WageSubjectBoundariesFailed key . tshow) (timesheetEntryBoundaries entry)
+    boundaries <- Bifunctor.first (const (WageSubjectBoundariesFailed key "Timesheet timing is invalid and must be repaired before payroll.")) (timesheetEntryBoundaries entry)
     pure UnsealedWageSubject
         { wageSubjectKey = key
         , wageSubjectVenueId = entry.venueId
@@ -191,7 +187,7 @@ rosterSlotWageSubject venueId operationalDate slot = do
     let key = RosterSlotSubject (unpackId slot.id)
     staffId <- maybe (Left (WageSubjectBoundariesFailed key "Roster slot has no staff member.")) Right slot.staffId
     shiftTypeId <- maybe (Left (WageSubjectBoundariesFailed key "Roster slot has no shift type.")) Right slot.shiftTypeId
-    boundaries <- Bifunctor.first (WageSubjectBoundariesFailed key . tshow) (projectRosterSlotTimesheetBoundaries slot)
+    boundaries <- Bifunctor.first (const (WageSubjectBoundariesFailed key "Roster shift timing is invalid and must be repaired before payroll.")) (projectRosterSlotTimesheetBoundaries slot)
     pure UnsealedWageSubject
         { wageSubjectKey = key
         , wageSubjectVenueId = venueId
@@ -206,8 +202,11 @@ rosterSlotWageSubject venueId operationalDate slot = do
 renderWageEvaluationError :: WageEvaluationError -> Text
 renderWageEvaluationError = \case
     WageSubjectRequiresImmutablePayVersions _ -> "Immutable staff and shift pay versions are required."
+    WageSubjectAdapterFailed (InvalidPersistedTiming _) -> "Timesheet timing is invalid and must be repaired before payroll."
     WageSubjectAdapterFailed err -> "Cannot load wage context: " <> tshow err
     WageSubjectSegmentationFailed _ err -> "Cannot segment authoritative shift boundaries: " <> tshow err
+    WageSubjectCalculationFailed _ (MissingValidatedRate key) ->
+        "Cannot calculate pay because the validated wage rate is unavailable: " <> tshow key <> "."
     WageSubjectCalculationFailed _ err -> "Cannot calculate pay: " <> tshow err
     WageSubjectBoundariesFailed _ message -> message
     WageSubjectSourcesBlocked _ diagnostics -> "Wage sources are not ready: " <> tshow diagnostics

@@ -18,8 +18,6 @@ module Web.Timesheets.Paths
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
 import Application.Helper.Url (replaceQueryParams)
-import Data.Time.Calendar (Day)
-import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)

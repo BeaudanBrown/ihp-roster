@@ -6,32 +6,31 @@
 
 module Web.RosterWeeks.DirectReadModel
     ( RosterBaseFacts (..)
-    , buildRosterStaffOptionStatesDirect
-    , buildRosterStaffOptionStatesForSlotsDirect
     , buildSlotConflictsDirect
     , buildSlotConflictsForSlotsDirect
+    , RosterConflictDecodeError (..)
+    , decodeRosterConflictType
+    , unavailableRosterConflict
     , fetchRosterBaseFactsDirect
     , fetchRosterNotificationWindowDays
-    , fetchRosterStaffPanelEntriesDirect
     ) where
 
+import Application.Error.Domain
+import Application.Error.Telemetry (recordAppError)
 import Application.Helper.Conflict
 import Application.Helper.Profiling
-import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
+import Application.PayAssignment (PayAssignmentScope (..), PayReferenceRequirement (..), payAssignmentModesRequiring)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
-import Data.List (nubBy)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (mapMaybe)
-import qualified Data.Time.Calendar as Calendar
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
-import IHP.ModelSupport (sqlQuery)
+import GHC.Generics (Generic)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
-import Web.RosterWeeks.StaffOptions
-import Web.RosterWeeks.Types
+import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
 
 fetchRosterNotificationWindowDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO [RosterDay]
 fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =
@@ -88,9 +87,10 @@ fetchRosterBaseFactsForScopeDirect scope =
         let windowState = RosterWindowState
                 { windowRosterGroupId = unpackId rosterGroupId
                 , windowIsPublished = rosterWindowIsPublished window
+                , windowHasPublishedDays = any ((== Published) . (.publicationState)) rosterDays
                 }
         allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" do
-            orderedSlotIds :: [PG.Only UUID.UUID] <- sqlQuery
+            orderedSlotIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
                 "SELECT roster_slots.id \
                 \FROM roster_slots \
                 \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
@@ -123,35 +123,18 @@ fetchRosterBaseFactsForScopeDirect scope =
             }
 
 fetchEligibleRosterGroupStaffDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
-fetchEligibleRosterGroupStaffDirect rosterGroupId = do
-    orderedStaffIds :: [PG.Only UUID.UUID] <- sqlQuery
-        "SELECT staff.id \
-        \FROM staff \
-        \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
-        \WHERE staff_roster_groups.roster_group_id = ? \
-        \AND staff_roster_groups.deleted_at IS NULL \
-        \AND staff.venue_id = ? \
-        \AND staff.is_active = TRUE \
-        \AND staff.archived_at IS NULL \
-        \AND (staff.pay_assignment_mode = 'roster_only' \
-        \     OR (staff.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
-        \     OR (staff.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
+fetchEligibleRosterGroupStaffDirect rosterGroupId =
+    unsafeSqlQuery
+        (rosterGroupStaffSelect <> " AND (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) \
+        \     OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
+        \     OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
         \ ) \
-        \ORDER BY staff.last_name"
-        (unpackId rosterGroupId, unpackId currentVenueId)
-    fetchStaffInIdOrder orderedStaffIds
-
-fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> RosterWindowScope -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntriesDirect panelScope scope = do
-    baseFactsOrNothing <- fetchRosterBaseFactsDirect scope
-    case baseFactsOrNothing of
-        Nothing -> pure []
-        Just baseFacts -> do
-            panelStaffMembers <-
-                case panelScope of
-                    RosterStaffPanelCurrentGroup -> pure baseFacts.basePanelStaff
-                    RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
-            fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers baseFacts.baseVisibleSlots
+        \ORDER BY staff.last_name")
+        ( unpackId rosterGroupId, unpackId currentVenueId
+        , payAssignmentModesRequiring StaffPayScope NoPayReference
+        , payAssignmentModesRequiring StaffPayScope ActiveAwardReference
+        , payAssignmentModesRequiring StaffPayScope AvailableXeroReference
+        )
 
 fetchRosterSlotsInIdOrder :: (?modelContext :: ModelContext) => [PG.Only UUID.UUID] -> IO [RosterSlot]
 fetchRosterSlotsInIdOrder [] = pure []
@@ -162,131 +145,57 @@ fetchRosterSlotsInIdOrder orderedIds = do
     let recordsById = Map.fromList [(unpackId record.id, record) | record <- records]
     pure (mapMaybe (\(PG.Only recordId) -> Map.lookup recordId recordsById) orderedIds)
 
-fetchStaffInIdOrder :: (?modelContext :: ModelContext) => [PG.Only UUID.UUID] -> IO [Staff]
-fetchStaffInIdOrder [] = pure []
-fetchStaffInIdOrder orderedIds = do
-    records <- query @Staff
-        |> filterWhereIn (#id, [Id recordId | PG.Only recordId <- orderedIds])
-        |> fetch
-    let recordsById = Map.fromList [(unpackId record.id, record) | record <- records]
-    pure (mapMaybe (\(PG.Only recordId) -> Map.lookup recordId recordsById) orderedIds)
-
+-- IHP innerJoin requires identical field types, but this schema exposes Staff.id
+-- as Id Staff and StaffRosterGroup.staffId as UUID. Keep that join SQL-local;
+-- return generated-order columns directly, never physical-order SELECT * or an
+-- ordered-ID refetch. Membership multiplicity and PostgreSQL name ties survive.
+rosterGroupStaffSelect :: PG.Query
+rosterGroupStaffSelect =
+    "SELECT " <> fromString (cs (Text.intercalate ", " (map ("staff." <>) (columnNames @Staff)))) <>
+    " FROM staff \
+    \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
+    \WHERE staff_roster_groups.roster_group_id = ? \
+    \AND staff_roster_groups.deleted_at IS NULL \
+    \AND staff.venue_id = ? \
+    \AND staff.is_active = TRUE \
+    \AND staff.archived_at IS NULL"
 
 
 fetchRosterGroupStaffForPanelDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
-fetchRosterGroupStaffForPanelDirect rosterGroupId = do
-    orderedStaffIds :: [PG.Only UUID.UUID] <- sqlQuery
-        "SELECT staff.id \
-        \FROM staff \
-        \JOIN staff_roster_groups ON staff_roster_groups.staff_id = staff.id \
-        \WHERE staff_roster_groups.roster_group_id = ? \
-        \AND staff_roster_groups.deleted_at IS NULL \
-        \AND staff.venue_id = ? \
-        \AND staff.is_active = TRUE \
-        \AND staff.archived_at IS NULL \
-        \ORDER BY staff.last_name"
+fetchRosterGroupStaffForPanelDirect rosterGroupId =
+    unsafeSqlQuery
+        (rosterGroupStaffSelect <> " ORDER BY staff.last_name")
         (unpackId rosterGroupId, unpackId currentVenueId)
-    fetchStaffInIdOrder orderedStaffIds
 
 fetchCurrentVenueRosterShiftTypesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
-fetchCurrentVenueRosterShiftTypesDirect = do
-    shiftTypeIds :: [PG.Only UUID.UUID] <- sqlQuery
-        "SELECT shift_types.id \
-        \FROM shift_types \
-        \WHERE shift_types.venue_id = ? \
-        \AND shift_types.archived_at IS NULL \
-        \AND shift_types.is_active = TRUE \
-        \AND (shift_types.pay_assignment_mode IN ('staff_default', 'roster_only') \
-        \     OR (shift_types.pay_assignment_mode = 'award_rate' AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = shift_types.override_award_level_id AND award_levels.is_active = TRUE)) \
-        \     OR (shift_types.pay_assignment_mode = 'xero_rate' AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = shift_types.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = shift_types.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
-        \ ) \
-        \ORDER BY shift_types.sort_order, shift_types.created_at"
-        (PG.Only (unpackId currentVenueId))
-    records <- query @ShiftType |> filterWhereIn (#id, [Id shiftTypeId | PG.Only shiftTypeId <- shiftTypeIds]) |> fetch
-    let recordsById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- records]
-    pure (mapMaybe (\(PG.Only shiftTypeId) -> Map.lookup shiftTypeId recordsById) shiftTypeIds)
+fetchCurrentVenueRosterShiftTypesDirect =
+    -- Keep EXISTS so PostgreSQL can hash reference inventories once. Correlated
+    -- IN can rescan an inventory per row. The nullable field anchor is required
+    -- by filterWhereSql; its IS NOT NULL guard is implied by the equality below.
+    query @ShiftType
+        |> queryOr
+            (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope NoPayReference))
+            (queryOr
+                (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope ActiveAwardReference)
+                    . filterWhereSql (#overrideAwardLevelId, "IS NOT NULL AND EXISTS (SELECT 1 FROM award_levels WHERE id = shift_types.override_award_level_id AND is_active = TRUE)"))
+                (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope AvailableXeroReference)
+                    . filterWhereSql (#importedXeroPayItemId, "IS NOT NULL AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE id = shift_types.imported_xero_pay_item_id AND venue_id = shift_types.venue_id AND archived_at IS NULL AND provider_available = TRUE)")))
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+        |> filterWhere (#isActive, True)
+        |> orderByAsc #sortOrder
+        |> orderByAsc #createdAt
+        |> fetch
 
-buildRosterStaffOptionStatesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots =
-    buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate visibleSlots visibleSlots
+buildSlotConflictsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
+buildSlotConflictsDirect lateToEarlyMinStartGapMinutes visibleSlots =
+    buildSlotConflictsForSlotsDirect lateToEarlyMinStartGapMinutes visibleSlots visibleSlots
 
-buildRosterStaffOptionStatesForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStatesForSlotsDirect assignmentFilters _weekStartDate factSlots targetSlots staffMembers
-    | null targetSlots || null staffMembers = pure Map.empty
-    | otherwise =
-        Map.fromList . map optionStateEntry <$> (sqlQuery
-            "WITH params AS ( \
-            \    SELECT ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
-            \), fact_slots AS ( \
-            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.assignment_state, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date))::int AS weekday_index \
-            \    FROM roster_slots \
-            \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-            \    CROSS JOIN params \
-            \    WHERE roster_slots.id = ANY(?) AND roster_slots.deleted_at IS NULL \
-            \), target_slots AS ( \
-            \    SELECT id, roster_day_id, assignment_state, staff_id, roster_date, weekday_index FROM fact_slots WHERE id = ANY(?) \
-            \), staff_scope AS ( \
-            \    SELECT staff.id, staff.ideal_shifts_per_week FROM staff CROSS JOIN params WHERE staff.id = ANY(?) AND staff.venue_id = params.venue_id \
-            \), shift_counts AS ( \
-            \    SELECT staff_id, COUNT(*)::int AS assigned_count FROM fact_slots WHERE assignment_state = 'staff' AND staff_id IS NOT NULL GROUP BY staff_id \
-            \), day_counts AS ( \
-            \    SELECT roster_day_id, staff_id, COUNT(*)::int AS assigned_day_count FROM fact_slots WHERE assignment_state = 'staff' AND staff_id IS NOT NULL GROUP BY roster_day_id, staff_id \
-            \) \
-            \SELECT target_slots.id, staff_scope.id, COALESCE(shift_counts.assigned_count, 0)::int, \
-            \       ((CASE WHEN params.hide_ideal AND COALESCE(shift_counts.assigned_count, 0) >= staff_scope.ideal_shifts_per_week THEN 1 ELSE 0 END) + \
-            \        (CASE WHEN params.hide_unavailable AND NOT EXISTS ( \
-            \           SELECT 1 FROM staff_shift_preferences \
-            \           WHERE staff_shift_preferences.venue_id = params.venue_id AND staff_shift_preferences.staff_id = staff_scope.id \
-            \             AND staff_shift_preferences.weekday_index = target_slots.weekday_index AND staff_shift_preferences.deleted_at IS NULL \
-            \        ) THEN 2 ELSE 0 END) + \
-            \        (CASE WHEN params.hide_leave AND EXISTS ( \
-            \           SELECT 1 FROM leave_requests \
-            \           WHERE leave_requests.venue_id = params.venue_id AND leave_requests.staff_id = staff_scope.id AND leave_requests.status = 'approved' \
-            \             AND leave_requests.deleted_at IS NULL AND leave_requests.start_date <= target_slots.roster_date AND leave_requests.end_date > target_slots.roster_date \
-            \        ) THEN 4 ELSE 0 END) + \
-            \        (CASE WHEN params.hide_today AND (COALESCE(day_counts.assigned_day_count, 0) - CASE WHEN target_slots.staff_id = staff_scope.id THEN 1 ELSE 0 END) > 0 THEN 8 ELSE 0 END))::int \
-            \FROM target_slots \
-            \CROSS JOIN staff_scope \
-            \CROSS JOIN params \
-            \LEFT JOIN shift_counts ON shift_counts.staff_id = staff_scope.id \
-            \LEFT JOIN day_counts ON day_counts.roster_day_id = target_slots.roster_day_id AND day_counts.staff_id = staff_scope.id \
-            \ORDER BY target_slots.id, staff_scope.id"
-            ( unpackId currentVenueId
-            , assignmentFilters.hideStaffAtIdealShifts
-            , assignmentFilters.hideStaffUnavailable
-            , assignmentFilters.hideStaffOnApprovedLeave
-            , assignmentFilters.hideStaffAlreadyAssignedToday
-            , map (coerce . (.id)) factSlots :: [UUID.UUID]
-            , map (coerce . (.id)) targetSlots :: [UUID.UUID]
-            , map (coerce . (.id)) staffMembers :: [UUID.UUID]
-            ) :: IO [(UUID.UUID, UUID.UUID, Int, Int)])
-    where
-        optionStateEntry (slotId, staffId, assignedShiftCount, hiddenFlags) =
-            let hiddenByIdeal = hiddenFlags `mod` 2 == 1
-                hiddenByUnavailable = hiddenFlags `div` 2 `mod` 2 == 1
-                hiddenByLeave = hiddenFlags `div` 4 `mod` 2 == 1
-                hiddenByToday = hiddenFlags `div` 8 `mod` 2 == 1
-                hidden = hiddenFlags /= 0
-             in ( (slotId, staffId)
-                , RosterAssignmentOptionState
-                    { optionHidden = hidden
-                    , optionAssignedShiftCount = assignedShiftCount
-                    , optionHiddenByIdeal = hiddenByIdeal
-                    , optionHiddenByUnavailable = hiddenByUnavailable
-                    , optionHiddenByLeave = hiddenByLeave
-                    , optionHiddenByAssignedToday = hiddenByToday
-                    }
-                )
-
-buildSlotConflictsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflictsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots =
-    buildSlotConflictsForSlotsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots visibleSlots
-
-buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes _weekStartDate factSlots targetSlots
+buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> [RosterSlot] -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
+buildSlotConflictsForSlotsDirect lateToEarlyMinStartGapMinutes factSlots targetSlots
     | null assignedSlotIds || null targetSlotIds = pure []
     | otherwise = do
-        rows <- (sqlQuery
+        rows <- (unsafeSqlQuery
             "WITH params AS ( \
             \    SELECT ?::uuid AS venue_id, ?::int AS late_gap_seconds \
             \), assigned_slots AS ( \
@@ -358,20 +267,37 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes _w
             , assignedSlotIds
             , targetSlotIds
             ) :: IO [(UUID.UUID, Text)])
-        let conflictsBySlot = Map.fromListWith (<>) [(Id slotId, [conflictForType conflictTypeText]) | (slotId, conflictTypeText) <- rows]
+        decodedRows <- forM rows \(slotId, conflictTypeText) ->
+            case decodeRosterConflictType conflictTypeText of
+                Right conflict -> pure (Id slotId, [conflict])
+                Left decodeError -> do
+                    recordAppError (projectDomainError decodeError)
+                    pure (Id slotId, [unavailableRosterConflict])
+        let conflictsBySlot = Map.fromListWith (<>) decodedRows
         pure (Map.toList (Map.map sort conflictsBySlot))
     where
         assignedSlotIds = map (coerce . (.id)) (filter rosterShiftIsStaffAssigned factSlots) :: [UUID.UUID]
         targetSlotIds = map (coerce . (.id)) targetSlots :: [UUID.UUID]
 
-conflictForType :: Text -> RosterConflict
-conflictForType "duplicate_assignment" = rosterConflict DuplicateAssignment "Multiple shifts rostered on the same day."
-conflictForType "leave_conflict" = rosterConflict LeaveConflict "Staff member has an approved unavailable period."
-conflictForType "late_to_early" = rosterConflict LateToEarlyConflict "Start-to-start gap is below venue minimum."
-conflictForType "preference_day_unavailable" = rosterConflict ShiftPreferenceDayUnavailable "Preference conflict"
-conflictForType "preference_slot_mismatch" = rosterConflict ShiftPreferenceSlotMismatch "Preferred start window conflict"
-conflictForType "ideal_shift_threshold" = rosterConflict IdealShiftThresholdExceeded "Ideal shifts exceeded"
-conflictForType other = error ("Unknown roster conflict type from direct SQL: " <> cs other)
+data RosterConflictDecodeError
+    = UnknownRosterConflictType
+    deriving (Eq, Generic, Show)
+
+instance DomainError RosterConflictDecodeError where
+    appErrorProjection UnknownRosterConflictType =
+        terminalErrorProjection "Conflict details unavailable"
+
+decodeRosterConflictType :: Text -> Either RosterConflictDecodeError RosterConflict
+decodeRosterConflictType "duplicate_assignment" = Right (rosterConflict DuplicateAssignment "Multiple shifts rostered on the same day.")
+decodeRosterConflictType "leave_conflict" = Right (rosterConflict LeaveConflict "Staff member has an approved unavailable period.")
+decodeRosterConflictType "late_to_early" = Right (rosterConflict LateToEarlyConflict "Start-to-start gap is below venue minimum.")
+decodeRosterConflictType "preference_day_unavailable" = Right (rosterConflict ShiftPreferenceDayUnavailable "Preference conflict")
+decodeRosterConflictType "preference_slot_mismatch" = Right (rosterConflict ShiftPreferenceSlotMismatch "Preferred start window conflict")
+decodeRosterConflictType "ideal_shift_threshold" = Right (rosterConflict IdealShiftThresholdExceeded "Ideal shifts exceeded")
+decodeRosterConflictType _ = Left UnknownRosterConflictType
+
+unavailableRosterConflict :: RosterConflict
+unavailableRosterConflict = rosterConflict ConflictDetailsUnavailable "Conflict details unavailable"
 
 rosterConflict :: ConflictType -> Text -> RosterConflict
 rosterConflict conflictType message =

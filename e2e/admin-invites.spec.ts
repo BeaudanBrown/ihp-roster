@@ -3,15 +3,13 @@ import { E2E_TIMEOUT } from './timeouts';
 import {
     expectMailhogMessageCount,
     extractFirstUrl,
-    gotoWhenReady,
     inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
-    openAdminWithSeededPasskeySession,
-    uniqueE2EValue,
     waitForMailhogMessage,
-    webauthnBaseURL,
-} from './test-helpers';
+} from './support/mail';
+import { gotoWhenReady, uniqueE2EValue } from './support/runtime';
+import { openAdminWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 

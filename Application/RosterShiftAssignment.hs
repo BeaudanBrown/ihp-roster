@@ -8,7 +8,6 @@ module Application.RosterShiftAssignment
     ) where
 
 import Generated.Types
-import IHP.HaskellSupport (set)
 import IHP.ModelSupport (unpackId)
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude

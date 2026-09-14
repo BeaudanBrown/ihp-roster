@@ -12,7 +12,6 @@ module Application.WageEngine.RateBook
     , RateSourceIdentity (..)
     , ProjectionRateSource (..)
     , projectionRateSourceIdentity
-    , rateSourceIdentityReferencesProjection
     , projectionRateSourceFromIdentity
     , RateSourceOwner (..)
     , EffectivePeriod (..)
@@ -22,12 +21,14 @@ module Application.WageEngine.RateBook
     , ValidatedRateBook
     , AwardRateContext (..)
     , RateBookError (..)
+    , ValidatedRateLookupError (..)
     , mkValidatedRateBook
     , validatedRateBookVersion
     , validatedRateBookEffectivePeriod
     , validatedRateCount
     , lookupValidatedRate
     , lookupValidatedRateWithSource
+    , removeValidatedRateForTest
     )
 where
 
@@ -35,7 +36,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -122,26 +122,6 @@ projectionRateSourceIdentity source =
     render projectionTable projectionId sourceTable sourceId =
         "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":" <> tshow sourceId
 
--- | Matches the immutable projection-row part of a sealed source identity.
--- MAPD refreshes append raw source rows and may repoint the projection row;
--- approved ledgers retain the original raw source UUID and rate.
-rateSourceIdentityReferencesProjection :: ProjectionRateSource -> RateSourceIdentity -> Bool
-rateSourceIdentityReferencesProjection source (RateSourceIdentity identity) =
-    case Text.stripPrefix expectedPrefix identity of
-        Just sourceId -> isJust (UUID.fromText sourceId)
-        Nothing       -> False
-  where
-    expectedPrefix = case source of
-        AwardLevelBaseRateSource projectionId _ ->
-            prefix "award_level_base_rates" projectionId "fwc_mapd_pay_rates"
-        AwardLevelPenaltyRateSource projectionId _ ->
-            prefix "award_level_penalty_rates" projectionId "fwc_mapd_penalty_rates"
-        AwardTimePenaltyAllowanceSource projectionId _ ->
-            prefix "award_time_penalty_allowances" projectionId "fwc_mapd_wage_allowances"
-
-    prefix projectionTable projectionId sourceTable =
-        "bepis-projection:" <> projectionTable <> ":" <> tshow projectionId <> "/source:" <> sourceTable <> ":"
-
 projectionRateSourceFromIdentity :: RateSourceIdentity -> Maybe ProjectionRateSource
 projectionRateSourceFromIdentity (RateSourceIdentity value) = do
     (projectionTable, projectionId, sourceTable, sourceId) <- case Text.splitOn ":" (Text.replace "/source:" ":" value) of
@@ -204,6 +184,10 @@ data AwardRateContext = AwardRateContext
     { awardRateLevel :: !ResolvedAwardLevel
     , awardRateBook  :: !ValidatedRateBook
     }
+    deriving (Eq, Show)
+
+data ValidatedRateLookupError
+    = ValidatedRateMissing !ValidatedRateKey
     deriving (Eq, Show)
 
 data RateBookError
@@ -312,12 +296,18 @@ validatedRateBookEffectivePeriod = (.rateBookEffectivePeriod)
 validatedRateCount :: ValidatedRateBook -> Int
 validatedRateCount = Map.size . (.rateBookRates)
 
-lookupValidatedRate :: ValidatedRateKey -> ValidatedRateBook -> Maybe Scientific
-lookupValidatedRate key rateBook = (.validatedRatePerUnit) <$> Map.lookup key rateBook.rateBookRates
+lookupValidatedRate :: ValidatedRateKey -> ValidatedRateBook -> Either ValidatedRateLookupError Scientific
+lookupValidatedRate key rateBook = fst <$> lookupValidatedRateWithSource key rateBook
 
-lookupValidatedRateWithSource :: ValidatedRateKey -> ValidatedRateBook -> (Scientific, RateSourceIdentity)
+lookupValidatedRateWithSource :: ValidatedRateKey -> ValidatedRateBook -> Either ValidatedRateLookupError (Scientific, RateSourceIdentity)
 lookupValidatedRateWithSource key rateBook =
     case Map.lookup key rateBook.rateBookRates of
-        Nothing -> error ("ValidatedRateBook invariant broken: missing " <> show key)
+        Nothing -> Left (ValidatedRateMissing key)
         Just validatedRate ->
-            (validatedRate.validatedRatePerUnit, validatedRate.validatedRateSourceIdentity)
+            Right (validatedRate.validatedRatePerUnit, validatedRate.validatedRateSourceIdentity)
+
+-- | Deliberately unavailable through the public WageEngine facade. This narrow
+-- test seam proves total evaluation if an otherwise opaque book is corrupted.
+removeValidatedRateForTest :: ValidatedRateKey -> ValidatedRateBook -> ValidatedRateBook
+removeValidatedRateForTest key rateBook =
+    rateBook { rateBookRates = Map.delete key rateBook.rateBookRates }

@@ -16,24 +16,17 @@ import Application.Helper.FrontendContract.AppShell (CreateRosterShiftOverlay,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
-import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (..), defaultOverlayButtons,
-                                renderDialogOverlay, staffDisplayName)
 import Application.Helper.View.TimeOccurrence
-import Application.Helper.View.TimePicker (defaultTimePickerConfig,
-                                           optionalTimeOfDayToStorageValue,
-                                           renderTimePickerField)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           rosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (isJust)
 import qualified Data.Set as Set
-import Data.UUID (UUID)
 import Web.RosterWeeks.Paths (rosterDeleteSlotConfirmationUrl)
 import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude
@@ -117,13 +110,12 @@ rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
 
 renderRosterShiftDialog :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
 renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle, rosterShiftDialogAssignmentOnly, rosterShiftDialogAnchorDate, rosterShiftDialogCalendarRevision } =
-    renderKeyboardDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = rosterShiftDialogTitle
-        , dialogOverlayBody = renderRosterShiftForm dialogData
-        , dialogOverlayStartButtons = deleteButton rosterShiftDialogAssignmentOnly rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision rosterShiftDialogMode
-        , dialogOverlayButtons = defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)
-        , dialogOverlayDialogClass = ""
-        }
+    renderKeyboardDialogOverlay (defaultDialogOverlayConfig
+            rosterShiftDialogTitle
+            (renderRosterShiftForm dialogData)
+            (defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)))
+            { dialogOverlayStartButtons = deleteButton rosterShiftDialogAssignmentOnly rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision rosterShiftDialogMode
+            }
 
 
 deleteButton :: Bool -> Day -> Int -> RosterShiftDialogMode -> [OverlayButton]
@@ -149,16 +141,11 @@ rosterShiftSubmitAppShellAction EditRosterShiftDialog {} = appShellActionByMarke
 
 rosterAppShellActionRoute :: Text -> Day -> Int -> AppShellActionRoute
 rosterAppShellActionRoute actionUrl anchorDate calendarRevision =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields =
-            [ AppShellFieldValue ("anchorDate", tshow anchorDate)
+    ((defaultAppShellActionRoute (actionUrl))
+        { appShellActionRouteFields = [ AppShellFieldValue ("anchorDate", tshow anchorDate)
             , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)
             ]
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+        })
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html

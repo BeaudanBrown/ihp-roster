@@ -14,8 +14,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import IHP.ControllerPrelude
-import IHP.ValidationSupport.Types (attachFailure)
-import Network.Wai (Request)
 
 normalizeText :: Text -> Text
 normalizeText = Text.strip

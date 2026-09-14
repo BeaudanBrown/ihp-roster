@@ -22,14 +22,33 @@ import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Test.Mocking
-import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
+import Test.Support.Environment (withEnvironmentVariable)
 
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Wage-source health alerts" do
+        it "rejects a health-check payload bound to the wrong source job kind" $ withContext do
+            withCleanDb do
+                now <- getCurrentTime
+                sourceJob <- newRecord @AppJob |> set #jobKind "unrelated_job" |> createRecord
+                healthCheck <-
+                    newRecord @AppJob
+                        |> set #jobKind wageSourceHealthCheckJobKind
+                        |> set #payloadSchemaVersion 1
+                        |> set #payload (Aeson.object ["source" Aeson..= ("fwc_mapd" :: Text), "trigger" Aeson..= ("scheduled_freshness_check" :: Text), "sourceJobId" Aeson..= unpackId sourceJob.id, "enqueuedAt" Aeson..= now, "anchorSuccessAt" Aeson..= (Nothing :: Maybe UTCTime)])
+                        |> set #relatedTable (Just "app_jobs")
+                        |> set #relatedId (Just (unpackId sourceJob.id))
+                        |> createRecord
+
+                result <- Exception.try (performWageSourceHealthCheckJobAt now healthCheck) :: IO (Either Exception.SomeException ())
+                case result of
+                    Right () -> expectationFailure "Expected invalid wage-source health-check provenance"
+                    Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
+
         it "waits for the final refresh attempt and records manual/timer class without raw errors" $ withContext do
             withCleanDb do
                 manualUser <- createUserRecord "source-manual@example.com" "staff" True
@@ -59,7 +78,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- inactive |> set #deactivatedAt (Just now) |> updateRecord
                 sourceJob <- createSourceJob "fwc_mapd_refresh" Nothing >>= updateRecord . set #attemptsCount appJobMaxAttempts
 
-                dispatchResult <- withoutEnvironmentVariable "FWC_MAPD_KEY" $
+                dispatchResult <- withEnvironmentVariable "FWC_MAPD_KEY" Nothing $
                     withFrameworkConfig config \frameworkConfig -> do
                         let ?context = frameworkConfig
                         Exception.try (dispatchAppJob sourceJob) :: IO (Either Exception.SomeException ())
@@ -196,10 +215,7 @@ tests = aroundAll withDatabaseTestContext do
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     performEmailDeliveryJobWith
-                        EmailDeliveryRuntime
-                            { deliveryIsDisabled = pure False
-                            , deliverMail = \_ -> modifyIORef' calls (+ 1)
-                            }
+                        (capturingEmailDeliveryRuntime (\_ -> modifyIORef' calls (+ 1)))
                         missingEmail
 
                 readIORef calls `shouldReturn` 1
@@ -233,6 +249,8 @@ createHealthCheck source trigger sourceJob enqueuedAt anchorSuccessAt =
     newRecord @AppJob
         |> set #jobKind wageSourceHealthCheckJobKind
         |> set #payloadSchemaVersion 1
+        |> set #relatedTable (Just "app_jobs")
+        |> set #relatedId (Just (unpackId sourceJob.id))
         |> set #payload
             ( Aeson.object
                 [ "source" Aeson..= wageSourceText source
@@ -292,13 +310,6 @@ payloadMailKind appJob =
 payloadRecipientAccountId :: AppJob -> Maybe UUID
 payloadRecipientAccountId appJob =
     AesonTypes.parseMaybe (Aeson.withObject "email payload" (Aeson..: "recipientAccountId")) appJob.payload
-
-withoutEnvironmentVariable :: String -> IO value -> IO value
-withoutEnvironmentVariable name action =
-    Exception.bracket (Environment.lookupEnv name <* Environment.unsetEnv name) restore (const action)
-  where
-    restore Nothing      = Environment.unsetEnv name
-    restore (Just value) = Environment.setEnv name value
 
 contains :: Text -> Text -> Bool
 contains = Text.isInfixOf

@@ -7,7 +7,6 @@ module Application.Helper.View.Awards
     ) where
 
 import qualified Data.List as List
-import Data.Ord (Down (..))
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Generated.Types

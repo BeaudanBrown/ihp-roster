@@ -32,9 +32,6 @@ import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day, DayOfWeek, addDays, dayOfWeek, fromGregorian,
-                           toGregorian)
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime)
 import IHP.Prelude
 
 newtype PolicyClock = PolicyClock
@@ -242,8 +239,8 @@ firstVenueWeekStartingOnOrAfter weekStartsOn boundary =
         (find ((== weekStartsOn) . dayOfWeek) [addDays offset boundary | offset <- [0 .. 6]])
 
 maximumMaybe :: Ord value => [value] -> Maybe value
-maximumMaybe []     = Nothing
-maximumMaybe values = Just (maximum values)
+maximumMaybe []             = Nothing
+maximumMaybe (first : rest) = Just (foldl' max first rest)
 
 data AwardFingerprint = AwardFingerprint
     { documentChecksum   :: !Text

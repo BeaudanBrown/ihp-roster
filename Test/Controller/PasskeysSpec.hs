@@ -6,9 +6,9 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       passkeyRecoveryVerifiedAtSessionKey,
                                       passkeyRecoveryVerifiedUserSessionKey,
                                       passkeyStepUpRedirectSessionKey,
-                                      safePasskeyReturnPath,
                                       passkeyVerifiedAtSessionKey,
-                                      passkeyVerifiedUserSessionKey)
+                                      passkeyVerifiedUserSessionKey,
+                                      safePasskeyReturnPath)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
                                                             canonicalOverlayDom)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
@@ -35,6 +35,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status

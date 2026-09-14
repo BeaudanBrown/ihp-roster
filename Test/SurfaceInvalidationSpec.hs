@@ -16,6 +16,8 @@ import Data.UUID (fromWords)
 import IHP.Prelude
 import Test.Hspec
 import Test.Support (testAnchorForOffset)
+import Application.Helper.LiveUpdate.Diagnostics (LiveInvalidationStageDurations (..), liveInvalidationProfile,
+                                                  renderLiveInvalidationProfile, bepisLiveFactFromProfile)
 import Web.SurfaceInvalidation
 
 tests :: Spec

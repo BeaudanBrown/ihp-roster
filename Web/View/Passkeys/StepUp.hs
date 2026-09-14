@@ -5,6 +5,7 @@ module Web.View.Passkeys.StepUp where
 import Application.Helper.FrontendContract.AppShell (OpenPasskeyRecoveryCodeDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Web.View.Prelude
 
@@ -31,22 +32,14 @@ instance View StepUpView where
 
 renderStepUpDialog :: Maybe Text -> Html
 renderStepUpDialog redirectTo =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Passkey Verification"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Passkey Verification"
+            [hsx|
             <p class="app-muted">Confirm your identity to continue. The protected action has not run; retry it after verification.</p>
             {renderStepUpOverlayControl redirectTo}
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            [ dialogOverlayCloseButton "Cancel"
+            ])
 
 renderStepUpControl :: Maybe Text -> Html
 renderStepUpControl = renderStepUpControlWithKind PasskeyStepUpControl
@@ -73,13 +66,9 @@ renderRecoveryCodeDialogLink :: (?context :: ControllerContext) => Html
 renderRecoveryCodeDialogLink =
     renderAppShellActionLink
         (appShellActionByMarker @OpenPasskeyRecoveryCodeDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo ShowPasskeyRecoveryCodeDialogAction
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "small")]
-            }
+        ((defaultAppShellActionRoute (pathTo ShowPasskeyRecoveryCodeDialogAction))
+            { appShellActionRouteExtraAttrs = [("class", "small")]
+            })
         [hsx|Can't access your passkey?|]
 
 passkeyRecoveryCodeFormId :: Text
@@ -87,24 +76,12 @@ passkeyRecoveryCodeFormId = "passkey-recovery-code-form"
 
 renderPasskeyRecoveryCodeDialog :: Html
 renderPasskeyRecoveryCodeDialog =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Recover Passkey Access"
-        , dialogOverlayBody = renderPasskeyRecoveryCodeForm
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            , OverlayButton
-                { overlayButtonLabel = "Use recovery code"
-                , overlayButtonClass = "btn btn-primary"
-                , overlayButtonAction = OverlaySubmitFormAction passkeyRecoveryCodeFormId
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Recover Passkey Access"
+            renderPasskeyRecoveryCodeForm
+            [ dialogOverlayCloseButton "Cancel"
+            , dialogOverlaySubmitButton "Use recovery code" passkeyRecoveryCodeFormId
+            ])
 
 renderPasskeyRecoveryCodeForm :: Html
 renderPasskeyRecoveryCodeForm = [hsx|

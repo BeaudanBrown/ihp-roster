@@ -1,22 +1,22 @@
 module Application.FwcMapd.RawStore where
 
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.FwcMapd.Client
 import Application.FwcMapd.Config
 import Application.FwcMapd.Curation
+import Application.FwcMapd.Error
 import Application.FwcMapd.Payload
 import Application.FwcMapd.Projection
 import Application.FwcMapd.Validation
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
 import Application.Helper.SurfaceResource (liveMutationResult,
                                            liveMutationValue)
-import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
-import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 fetchAndStore :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary
 fetchAndStore config = do
@@ -53,7 +53,7 @@ storeCuratedMapdAwardData ::
 storeCuratedMapdAwardData fetchedAwards = do
     validatedAwards <-
         forM fetchedAwards \candidate ->
-            either (Exception.throwIO . userError . cs) pure (validateMapdSnapshot candidate)
+            either (const (throwExternalRuntime MapdSnapshotInvalid)) pure (validateMapdSnapshot candidate)
     storeValidatedMapdSnapshots validatedAwards
 
 storeValidatedMapdSnapshots ::

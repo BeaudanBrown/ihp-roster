@@ -16,9 +16,23 @@ instance WSApp LiveUpdatesWSApp where
     initialState = LiveUpdatesWSApp { subscriptionIds = [] }
 
     run = do
-        ensureIsUser
-        ensureProfileCompleted
+        let ?context = ?request
+        -- HTTP response callbacks are unavailable after the WebSocket upgrade.
+        -- Reject through the socket protocol, before accepting any commands.
+        allowed <- if isNothing (withRequestContext (currentUserOrNothing @User))
+                || (not currentUserIsUnimpersonatedSuperAdmin && isNothing currentVenueOrNothing)
+            then pure False
+            else isOperationallyActive
+        if not allowed
+            then WebSocket.sendCloseCode ?connection 1008 ("Not authorized" :: Text)
+            else receiveCommands
 
+    onClose = do
+        LiveUpdatesWSApp { subscriptionIds } <- getState
+        mapM_ (unregisterSurfaceSubscription . fst) subscriptionIds
+
+receiveCommands :: (?state :: IORef LiveUpdatesWSApp, ?connection :: WebSocket.Connection, ?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+receiveCommands =
         forever do
             message <- receiveData @LByteString.ByteString
             case Aeson.decode message of
@@ -30,10 +44,6 @@ instance WSApp LiveUpdatesWSApp where
                 Just command ->
                     handleCommand command
 
-    onClose = do
-        LiveUpdatesWSApp { subscriptionIds } <- getState
-        mapM_ (unregisterSurfaceSubscription . fst) subscriptionIds
-
 handleCommand ::
     ( ?state :: IORef LiveUpdatesWSApp
     , ?connection :: WebSocket.Connection
@@ -43,6 +53,7 @@ handleCommand ::
     LiveUpdateCommand ->
     IO ()
 handleCommand command =
+    withLiveUpdateTelemetrySpan (liveUpdateCommandForTelemetry command) $
     case command of
         SubscribeLiveUpdates { subscription = liveSubscription, lastSeenVersion } -> do
             let scope = liveSubscription.subscriptionScope
@@ -73,6 +84,10 @@ handleCommand command =
                             }
         UnsubscribeLiveUpdates { subscription = liveSubscription } ->
             unregisterScopeSubscription liveSubscription.subscriptionScope
+
+liveUpdateCommandForTelemetry :: LiveUpdateCommand -> Text
+liveUpdateCommandForTelemetry SubscribeLiveUpdates {}   = "subscribe"
+liveUpdateCommandForTelemetry UnsubscribeLiveUpdates {} = "unsubscribe"
 
 unregisterScopeSubscription ::
     (?state :: IORef LiveUpdatesWSApp) =>

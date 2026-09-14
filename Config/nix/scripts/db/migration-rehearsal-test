@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+for required_command in git grep psql test-postgres; do
+    command -v "$required_command" >/dev/null 2>&1 || {
+        echo "migration-rehearsal-test: required command is unavailable: $required_command" >&2
+        exit 69
+    }
+done
+
+source_repo="$(git rev-parse --show-toplevel)"
+harness="$source_repo/Config/nix/scripts/db/migration-rehearsal"
+fixture_root="$(mktemp -d)"
+fixture_repo="$fixture_root/repository"
+mkdir -p "$fixture_repo"
+
+managed_fixture_postgres() {
+    env -u DATABASE_URL -u PGHOST -u PGPORT -u PGDATABASE -u PGUSER \
+        TEST_POSTGRES_MODE=managed \
+        TEST_POSTGRES_PROFILE=migration-rehearsal \
+        TEST_POSTGRES_REPO_ROOT="$fixture_repo" \
+        test-postgres "$@"
+}
+
+cleanup() {
+    if [ -f "$fixture_repo/Config/nix/flake/scripts.nix" ]; then
+        managed_fixture_postgres stop >/dev/null 2>&1 || true
+    fi
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT INT TERM
+
+mkdir -p "$fixture_repo/Application/Migration" "$fixture_repo/Config/nix/flake" "$fixture_repo/Config/nix/scripts/db"
+cp "$source_repo/flake.lock" "$fixture_repo/flake.lock"
+cp "$source_repo/Config/nix/scripts/db/test-postgres" "$fixture_repo/Config/nix/scripts/db/test-postgres"
+ihp_url="$(jq -r '.nodes.ihp.locked.url' "$source_repo/flake.lock")"
+ihp_revision="$(jq -r '.nodes.ihp.locked.rev' "$source_repo/flake.lock")"
+cat > "$fixture_repo/flake.nix" <<NIX
+{
+    inputs.ihp.url = "git+${ihp_url}?rev=${ihp_revision}&submodules=1";
+    outputs = { self, ihp }: { };
+}
+NIX
+printf '.pi/\n' > "$fixture_repo/.gitignore"
+printf '{}\n' > "$fixture_repo/Config/nix/flake/scripts.nix"
+cat > "$fixture_repo/Application/Schema.sql" <<'SQL'
+CREATE TABLE rehearsal_widgets (
+    id BIGINT PRIMARY KEY,
+    label TEXT NOT NULL
+);
+SQL
+cat > "$fixture_repo/Application/Migration/1000-create-rehearsal-widgets.sql" <<'SQL'
+CREATE TABLE rehearsal_widgets (
+    id BIGINT PRIMARY KEY,
+    label TEXT NOT NULL
+);
+SQL
+
+git -C "$fixture_repo" init -q
+git -C "$fixture_repo" config user.name 'Migration Rehearsal Test'
+git -C "$fixture_repo" config user.email 'migration-rehearsal-test@example.invalid'
+git -C "$fixture_repo" add .
+git -C "$fixture_repo" commit -qm 'predecessor'
+predecessor_commit="$(git -C "$fixture_repo" rev-parse HEAD)"
+printf 'no-op candidate\n' > "$fixture_repo/README.md"
+git -C "$fixture_repo" add README.md
+git -C "$fixture_repo" commit -qm 'no-op candidate'
+
+run_harness() {
+    (
+        cd "$fixture_repo"
+        env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+            bash "$harness" "$@"
+    )
+}
+
+if (
+    cd "$fixture_repo"
+    TEST_POSTGRES_MODE=external TEST_DB_SOCKET=/tmp/external \
+        bash "$harness" --from-ref "$predecessor_commit"
+) >"$fixture_root/external.out" 2>"$fixture_root/external.err"; then
+    echo "migration-rehearsal-test: expected external database mode to be rejected" >&2
+    exit 1
+fi
+grep -F 'external PostgreSQL mode is forbidden' "$fixture_root/external.err" >/dev/null
+
+mkdir -p "$fixture_root/unpinned-bin"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$fixture_root/unpinned-bin/migrate"
+chmod +x "$fixture_root/unpinned-bin/migrate"
+if (
+    cd "$fixture_repo"
+    PATH="$fixture_root/unpinned-bin:$PATH" bash "$harness" --from-ref "$predecessor_commit"
+) >"$fixture_root/unpinned.out" 2>"$fixture_root/unpinned.err"; then
+    echo "migration-rehearsal-test: expected an unpinned migrate binary to be rejected" >&2
+    exit 1
+fi
+grep -F 'active migrate does not match the candidate-pinned IHP runner' "$fixture_root/unpinned.err" >/dev/null
+
+noop_started_at="$(date +%s)"
+if ! run_harness --from-ref "$predecessor_commit" >"$fixture_root/noop.out" 2>"$fixture_root/noop.err"; then
+    cat "$fixture_root/noop.err" >&2
+    exit 1
+fi
+noop_elapsed_seconds="$(( $(date +%s) - noop_started_at ))"
+[ "$noop_elapsed_seconds" -lt 60 ] || {
+    echo "migration-rehearsal-test: warm no-op exceeded 60 seconds: ${noop_elapsed_seconds}s" >&2
+    exit 1
+}
+grep -F 'pending_revisions=none' "$fixture_root/noop.out" >/dev/null
+grep -F 'applied=none' "$fixture_root/noop.out" >/dev/null
+noop_database="$(sed -n 's/^database=//p' "$fixture_root/noop.out")"
+socket="$(managed_fixture_postgres ensure)"
+if psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$noop_database"; then
+    echo "migration-rehearsal-test: no-op database was not cleaned up" >&2
+    exit 1
+fi
+
+cat > "$fixture_repo/Application/Migration/1001-add-note.sql" <<'SQL'
+ALTER TABLE rehearsal_widgets ADD COLUMN note ;
+SQL
+git -C "$fixture_repo" add Application/Migration/1001-add-note.sql
+git -C "$fixture_repo" commit -qm 'malformed candidate migration'
+malformed_commit="$(git -C "$fixture_repo" rev-parse HEAD)"
+if run_harness --from-ref "$predecessor_commit" --keep-failure-artifacts \
+    >"$fixture_root/malformed.out" 2>"$fixture_root/malformed.err"; then
+    echo "migration-rehearsal-test: expected malformed migration to fail" >&2
+    exit 1
+fi
+grep -F 'failed_revision=1001' "$fixture_root/malformed.err" >/dev/null
+if ! grep -F 'server_sqlstate=42601' "$fixture_root/malformed.err" >/dev/null; then
+    cat "$fixture_root/malformed.err" >&2
+    exit 1
+fi
+artifact_dir="$(sed -n 's/^artifact_dir=//p' "$fixture_root/malformed.err")"
+[ -n "$artifact_dir" ] && [ -f "$artifact_dir/migrate.log" ] && [ -f "$artifact_dir/metadata.txt" ] || {
+    echo "migration-rehearsal-test: requested bounded failure artifacts were not retained" >&2
+    exit 1
+}
+[ "$(wc -c < "$artifact_dir/migrate.log")" -le 65536 ]
+grep -F 'server_sqlstate=42601' "$artifact_dir/migrate.log" >/dev/null
+grep -F "candidate_commit=$malformed_commit" "$artifact_dir/metadata.txt" >/dev/null
+malformed_database="$(sed -n 's/^database=//p' "$fixture_root/malformed.out")"
+if psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$malformed_database"; then
+    echo "migration-rehearsal-test: failed-run database was not cleaned up" >&2
+    exit 1
+fi
+
+cat > "$fixture_repo/Application/Migration/1001-add-note.sql" <<'SQL'
+ALTER TABLE rehearsal_widgets ADD COLUMN note TEXT;
+SQL
+cat > "$fixture_repo/Application/Schema.sql" <<'SQL'
+CREATE TABLE rehearsal_widgets (
+    id BIGINT PRIMARY KEY,
+    label TEXT NOT NULL,
+    note TEXT
+);
+SQL
+git -C "$fixture_repo" add Application/Schema.sql Application/Migration/1001-add-note.sql
+git -C "$fixture_repo" commit -qm 'valid candidate migration'
+
+run_harness --from-ref "$predecessor_commit" >"$fixture_root/concurrent-one.out" 2>"$fixture_root/concurrent-one.err" &
+one_pid=$!
+run_harness --from-ref "$predecessor_commit" >"$fixture_root/concurrent-two.out" 2>"$fixture_root/concurrent-two.err" &
+two_pid=$!
+wait "$one_pid"
+wait "$two_pid"
+grep -F 'applied=1001' "$fixture_root/concurrent-one.out" >/dev/null
+grep -F 'applied=1001' "$fixture_root/concurrent-two.out" >/dev/null
+one_database="$(sed -n 's/^database=//p' "$fixture_root/concurrent-one.out")"
+two_database="$(sed -n 's/^database=//p' "$fixture_root/concurrent-two.out")"
+[ "$one_database" != "$two_database" ] || {
+    echo "migration-rehearsal-test: concurrent runs selected the same database" >&2
+    exit 1
+}
+for database in "$one_database" "$two_database"; do
+    if psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$database"; then
+        echo "migration-rehearsal-test: concurrent database was not cleaned up: $database" >&2
+        exit 1
+    fi
+done
+
+cat > "$fixture_repo/Application/Migration/1002-slow.sql" <<'SQL'
+SELECT pg_sleep(30);
+SQL
+git -C "$fixture_repo" add Application/Migration/1002-slow.sql
+git -C "$fixture_repo" commit -qm 'interrupt candidate migration'
+(
+    cd "$fixture_repo"
+    exec env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+        bash "$harness" --from-ref "$predecessor_commit"
+) >"$fixture_root/interrupt.out" 2>"$fixture_root/interrupt.err" &
+interrupt_pid=$!
+interrupt_database=""
+for _ in $(seq 1 200); do
+    interrupt_database="$(sed -n 's/^database=//p' "$fixture_root/interrupt.out" 2>/dev/null || true)"
+    if [ -n "$interrupt_database" ] \
+        && psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$interrupt_database"; then
+        break
+    fi
+    sleep 0.05
+done
+[ -n "$interrupt_database" ] || {
+    echo "migration-rehearsal-test: interrupt fixture did not create a database" >&2
+    exit 1
+}
+runner_active=0
+for _ in $(seq 1 200); do
+    if psql -X -qAt -h "$socket" -d postgres -c \
+        "SELECT 1 FROM pg_stat_activity WHERE datname = '$interrupt_database' AND query LIKE '%pg_sleep%'" \
+        | grep -Fxq 1; then
+        runner_active=1
+        break
+    fi
+    sleep 0.05
+done
+[ "$runner_active" -eq 1 ] || {
+    echo "migration-rehearsal-test: interrupt fixture did not reach the active migrate child" >&2
+    exit 1
+}
+kill -TERM "$interrupt_pid" 2>/dev/null || true
+if wait "$interrupt_pid"; then
+    echo "migration-rehearsal-test: interrupted rehearsal unexpectedly succeeded" >&2
+    exit 1
+fi
+if psql -X -qAt -h "$socket" -d postgres -c 'SELECT datname FROM pg_database' | grep -Fxq "$interrupt_database"; then
+    echo "migration-rehearsal-test: interrupted database was not cleaned up" >&2
+    exit 1
+fi
+
+git -C "$fixture_repo" rm -q Application/Migration/1002-slow.sql
+git -C "$fixture_repo" commit -qm 'remove interrupt-only migration'
+
+cat > "$fixture_repo/Application/Migration/0-skipped.sql" <<'SQL'
+SELECT 1;
+SQL
+git -C "$fixture_repo" add Application/Migration/0-skipped.sql
+git -C "$fixture_repo" commit -qm 'missing revision fixture'
+if run_harness --from-ref "$predecessor_commit" \
+    >"$fixture_root/missing.out" 2>"$fixture_root/missing.err"; then
+    echo "migration-rehearsal-test: expected an unrecorded candidate revision to fail" >&2
+    exit 1
+fi
+grep -F 'missing_candidate_revisions=0' "$fixture_root/missing.err" >/dev/null
+git -C "$fixture_repo" rm -q Application/Migration/0-skipped.sql
+git -C "$fixture_repo" commit -qm 'remove missing revision fixture'
+
+mkdir -p "$fixture_repo/Application/Migration/Rehearsal/1003"
+cat > "$fixture_repo/Application/Migration/1003-backfill-key.sql" <<'SQL'
+ALTER TABLE rehearsal_widgets ADD COLUMN backfill_key TEXT;
+UPDATE rehearsal_widgets SET backfill_key = 'backfilled:' || label;
+ALTER TABLE rehearsal_widgets ALTER COLUMN backfill_key SET NOT NULL;
+SQL
+cat > "$fixture_repo/Application/Migration/Rehearsal/1003/predecessor.sql" <<'SQL'
+INSERT INTO rehearsal_widgets (id, label) VALUES
+    (1, 'preserved-one'),
+    (2, 'preserved-two');
+SQL
+cat > "$fixture_repo/Application/Migration/Rehearsal/1003/assert.sql" <<'SQL'
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM rehearsal_widgets) <> 2 THEN
+        RAISE EXCEPTION 'rehearsal_widgets_preservation_assertion failed';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM rehearsal_widgets
+        WHERE backfill_key <> 'backfilled:' || label
+    ) THEN
+        RAISE EXCEPTION 'rehearsal_widgets_backfill_assertion failed';
+    END IF;
+END
+$$;
+SQL
+cat > "$fixture_repo/Application/Schema.sql" <<'SQL'
+CREATE TABLE rehearsal_widgets (
+    id BIGINT PRIMARY KEY,
+    label TEXT NOT NULL,
+    note TEXT,
+    backfill_key TEXT NOT NULL
+);
+SQL
+git -C "$fixture_repo" add Application
+git -C "$fixture_repo" commit -qm 'data-transforming migration fixture'
+run_harness --from-ref "$predecessor_commit" >"$fixture_root/data.out" 2>"$fixture_root/data.err"
+grep -F 'assertion_revision=1003' "$fixture_root/data.out" >/dev/null
+grep -F 'assertions=1' "$fixture_root/data.out" >/dev/null
+
+cp "$fixture_repo/Application/Migration/Rehearsal/1003/assert.sql" "$fixture_root/valid-assert.sql"
+cat > "$fixture_repo/Application/Migration/Rehearsal/1003/assert.sql" <<'SQL'
+SELECT 'sensitive-row-value-must-not-escape';
+DO $$
+BEGIN
+    RAISE EXCEPTION 'sensitive-row-value-must-not-escape';
+END
+$$;
+SQL
+git -C "$fixture_repo" add Application/Migration/Rehearsal/1003/assert.sql
+git -C "$fixture_repo" commit -qm 'sensitive assertion output fixture'
+if run_harness --from-ref "$predecessor_commit" \
+    >"$fixture_root/sensitive.out" 2>"$fixture_root/sensitive.err"; then
+    echo "migration-rehearsal-test: expected sensitive assertion fixture to fail" >&2
+    exit 1
+fi
+grep -F 'focused assertion failed: Application/Migration/Rehearsal/1003/assert.sql' \
+    "$fixture_root/sensitive.err" >/dev/null
+if grep -F 'sensitive-row-value-must-not-escape' \
+    "$fixture_root/sensitive.out" "$fixture_root/sensitive.err" >/dev/null; then
+    echo "migration-rehearsal-test: assertion output disclosed a row value" >&2
+    exit 1
+fi
+cp "$fixture_root/valid-assert.sql" "$fixture_repo/Application/Migration/Rehearsal/1003/assert.sql"
+git -C "$fixture_repo" add Application/Migration/Rehearsal/1003/assert.sql
+git -C "$fixture_repo" commit -qm 'restore valid assertion fixture'
+
+cat > "$fixture_repo/Application/Migration/1004-schema-drift.sql" <<'SQL'
+SELECT 1;
+SQL
+cat > "$fixture_repo/Application/Schema.sql" <<'SQL'
+CREATE TABLE rehearsal_widgets (
+    id BIGINT PRIMARY KEY,
+    label TEXT NOT NULL,
+    note TEXT,
+    backfill_key TEXT NOT NULL,
+    drift_only TEXT
+);
+SQL
+git -C "$fixture_repo" add Application
+git -C "$fixture_repo" commit -qm 'schema drift fixture'
+if run_harness --from-ref "$predecessor_commit" \
+    >"$fixture_root/drift.out" 2>"$fixture_root/drift.err"; then
+    echo "migration-rehearsal-test: expected schema divergence to fail" >&2
+    exit 1
+fi
+grep -F 'schema_convergence=diverged' "$fixture_root/drift.err" >/dev/null
+grep -F 'rehearsal_widgets' "$fixture_root/drift.err" >/dev/null
+grep -F 'drift_only' "$fixture_root/drift.err" >/dev/null
+
+echo 'migration-rehearsal-test: ok'

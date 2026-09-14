@@ -13,13 +13,30 @@ production-build-budget-test
 
 echo "verify-tooling: checker parser and publication fixtures"
 weeder-policy-test
-bash Config/nix/scripts/frontend/surface-adapter-publication-test
+node --test scripts/application-warnings.test.mjs scripts/weeder-reachability.test.mjs
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
+node --test scripts/authority-scan.test.mjs
 http-polling-policy-test
+node --test scripts/frontend-test-registration.test.mjs
 node --test scripts/documentation/check.test.mjs
-bash Config/nix/scripts/architecture/wiring-registry-test
+node --test scripts/migration-enum-commit-boundary.test.mjs
+node --test scripts/migration-rehearsal-ci.test.mjs
+node --test scripts/profiling/diagnostic-profile-report.test.mjs
+node --test scripts/profiling/otel-artifact.test.mjs
+node --test scripts/observability/query.test.mjs
+esbuild .pi/extensions/observability.ts --bundle --platform=node --format=esm \
+    --external:@earendil-works/pi-coding-agent --external:typebox \
+    --outfile=/tmp/bepis-observability-extension-check.mjs >/dev/null
+migration-enum-commit-boundary-real-runner-test
+migration-rehearsal-test
+bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/wiring-registry-test"
+node --test scripts/architecture/workflow-boundaries.test.mjs
 node --test scripts/architecture/enum-authority.test.mjs
+node --test scripts/architecture/facts-currency.test.mjs
 node --test scripts/architecture/layout-policy.test.mjs
 node --test scripts/architecture/query.test.mjs
+node --test scripts/architecture/whole-graph.test.mjs
+e2e-typecheck-test
 
 # These two mixed standalone checkers retain their real repository scans below;
 # their fixture halves live here.
@@ -28,8 +45,8 @@ node --test scripts/architecture/fixture-reset-manifest.test.mjs
 stripe-sandbox-contract-parity --self-test
 
 echo "verify-tooling: generated-code provenance and watcher ownership"
-bash "@scriptsRoot@/haskell/generated-ensure-test"
-bash "@scriptsRoot@/frontend/generated-state-test"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure-test"
+bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-test"
 
 echo "verify-tooling: development database maintenance harness"
 dev-db-maintenance-test

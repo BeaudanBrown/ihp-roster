@@ -11,9 +11,9 @@ import Application.Helper.FrontendContract.AppShell (OpenPasskeySetupDialog,
                                                      SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm,
                                                              renderAppShellActionLink)
-import Data.Time.Clock (diffUTCTime)
 import Web.View.Prelude
 
 renderPasskeyManagement :: UTCTime -> [Passkey] -> Text -> Html
@@ -47,13 +47,9 @@ renderPasskeySetupDialogLink :: Text -> Html
 renderPasskeySetupDialogLink dialogUrl =
     renderAppShellActionLink
         (appShellActionByMarker @OpenPasskeySetupDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = dialogUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "btn btn-primary")]
-            }
+        ((defaultAppShellActionRoute (dialogUrl))
+            { appShellActionRouteExtraAttrs = [("class", "btn btn-primary")]
+            })
         [hsx|{canonicalPasskeyManagementCopy.passkeyManagementCreateLabel}|]
 
 renderNewDevicePasskeyAction :: [Passkey] -> Html
@@ -61,13 +57,9 @@ renderNewDevicePasskeyAction [] = mempty
 renderNewDevicePasskeyAction _ =
     renderAppShellActionForm
         (appShellActionByMarker @SubmitPasskeyProtectedAction)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo SendNewDevicePasskeySetupEmailAction
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "mt-3")]
-            }
+        ((defaultAppShellActionRoute (pathTo SendNewDevicePasskeySetupEmailAction))
+            { appShellActionRouteExtraAttrs = [("class", "mt-3")]
+            })
         [hsx|
             <button type="submit" class="btn btn-outline-secondary btn-sm">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceLabel}</button>
             <div class="form-text app-muted">{canonicalPasskeyManagementCopy.passkeyManagementNewDeviceHelp}</div>

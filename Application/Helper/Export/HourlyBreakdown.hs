@@ -14,28 +14,30 @@ import Application.Helper.Export.Types
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
 import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
-import Application.VenueTime.Model (civilBoundaryIsRepeated,
+import Application.VenueTime.Model (TimesheetIntegrityError,
+                                    authoritativeEndLocalTime,
+                                    authoritativeStartLocalTime,
+                                    civilBoundaryIsRepeated,
+                                    decodeTimesheetTiming,
                                     resolveBoundaryInstant,
-                                    storedInstantLocalTime)
+                                    storedInstantLocalTime,
+                                    timesheetTimingBoundaries)
 import Application.WageEngine
 import Control.Monad (foldM, zipWithM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Ord (Down (..))
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..), addLocalTime)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
 import Text.Printf (printf)
 
-buildHourlyReportWindow :: VenueConfig -> [TimesheetEntry] -> HourlyReportWindow
-buildHourlyReportWindow venueConfig entries =
-    HourlyReportWindow
-        { hourlyWindowStartHour = minimum (configuredStartHour : map entryStartHour entries)
-        , hourlyWindowEndHour = maximum (configuredEndHour : map entryEndHour entries)
+buildHourlyReportWindow :: VenueConfig -> [TimesheetEntry] -> Either TimesheetIntegrityError HourlyReportWindow
+buildHourlyReportWindow venueConfig entries = do
+    entriesWithTiming <- traverse (\entry -> (entry,) <$> decodeTimesheetTiming entry) entries
+    pure HourlyReportWindow
+        { hourlyWindowStartHour = foldl' min configuredStartHour (map entryStartHour entriesWithTiming)
+        , hourlyWindowEndHour = foldl' max configuredEndHour (map entryEndHour entriesWithTiming)
         }
   where
     configuredStartMinute = venueConfig.timePickerStartMinuteOfDay
@@ -43,11 +45,11 @@ buildHourlyReportWindow venueConfig entries =
     configuredStartHour = configuredStartMinute `div` 60
     configuredEndHour = ceilingHourForMinute configuredEndMinute
 
-    entryStartHour entry =
-        localHourFloor entry.operationalDate (storedInstantLocalTime entry.timezone entry.startsAt)
+    entryStartHour (entry, timing) =
+        localHourFloor entry.operationalDate (authoritativeStartLocalTime (timesheetTimingBoundaries timing))
 
-    entryEndHour entry =
-        localHourCeiling entry.operationalDate (storedInstantLocalTime entry.timezone entry.endsAt)
+    entryEndHour (entry, timing) =
+        localHourCeiling entry.operationalDate (authoritativeEndLocalTime (timesheetTimingBoundaries timing))
 
 hourlyReportHours :: HourlyReportWindow -> [Int]
 hourlyReportHours window = [window.hourlyWindowStartHour .. window.hourlyWindowEndHour - 1]
@@ -242,10 +244,11 @@ qualifiesForCommenced timezone condition segment
     | segment.paidTimeSourceCondition == PublicHolidayCondition = False
     | dayOfWeek segment.paidTimeLocalDate `elem` [Saturday, Sunday] = False
     | otherwise =
-        let localHour = (storedInstantLocalTime timezone segment.paidTimeStart).localTimeOfDay.todHour
-         in case condition of
-                EveningAdditionCondition      -> localHour >= 19
-                EarlyMorningAdditionCondition -> localHour < 7
+        case storedInstantLocalTime timezone segment.paidTimeStart of
+            Left _ -> False
+            Right localTime -> case condition of
+                EveningAdditionCondition      -> localTime.localTimeOfDay.todHour >= 19
+                EarlyMorningAdditionCondition -> localTime.localTimeOfDay.todHour < 7
                 _                             -> False
 
 shareForInterval :: EarningsComponent -> UTCTime -> UTCTime -> Rational -> IntervalEarningsShare
@@ -353,10 +356,12 @@ storedIntervalLocalHourOccurrenceSegments timezone startsAt endsAt = go startsAt
     go cursor
         | cursor >= endsAt = []
         | otherwise =
-            let local = storedInstantLocalTime timezone cursor
-                segmentEnd = min endsAt (nextStoredLocalHourBoundary timezone cursor local)
-                occurrence = occurrenceForCursor cursor local
-             in (local.localDay, local.localTimeOfDay.todHour, occurrence, diffUTCTime segmentEnd cursor) : go segmentEnd
+            case storedInstantLocalTime timezone cursor of
+                Left _ -> []
+                Right local ->
+                    let segmentEnd = min endsAt (nextStoredLocalHourBoundary timezone cursor local)
+                        occurrence = occurrenceForCursor cursor local
+                     in (local.localDay, local.localTimeOfDay.todHour, occurrence, diffUTCTime segmentEnd cursor) : go segmentEnd
 
     occurrenceForCursor cursor local
         | not (civilBoundaryIsRepeated local.localDay hourStart) = FirstHourlyOccurrence
@@ -382,8 +387,8 @@ nextStoredLocalHourBoundary timezone cursor local =
 
     findBoundary candidateLocal =
         case filter (> cursor) (resolvedCandidates candidateLocal) of
-            []         -> findBoundary (addLocalTime 3600 candidateLocal)
-            candidates -> minimum candidates
+            []           -> findBoundary (addLocalTime 3600 candidateLocal)
+            first : rest -> foldl' min first rest
 
     resolvedCandidates candidateLocal =
         let occurrences =

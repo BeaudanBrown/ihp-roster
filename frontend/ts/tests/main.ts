@@ -8,7 +8,6 @@ import "./roster-image-export.test";
 import "./roster-week-overview.test";
 import "./interaction-contracts.test";
 import "./interaction-runtime.test";
-import "./template-application-interaction.test";
 import "./shared.test";
 import "./toggle.test";
 import "./time-picker.test";
@@ -23,9 +22,6 @@ import "./overlay.test";
 import "./live-updates.test";
 import "./live-updates-validation.test";
 import "./live-fragment-request-context.test";
-import "./lazy-surface.test";
-import "./ui-region-events.test";
-import "./ui-region-transitions.test";
 import { runTests } from "./harness";
 
 await runTests();

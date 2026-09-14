@@ -7,11 +7,15 @@ module Application.Helper.FrontendContract.IR
     ( module Core
     , module Surface
     , AppShellActionIR (..)
+    , ErrorCodeIR (..)
+    , CheckedFrontendContract
     , FrontendContractIR (..)
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
     , GlobalProjectionIR (..)
     , checkedFrontendContractIR
+    , frontendContractIR
+    , renderContractDiagnostics
     , validateFrontendContractIR
     ) where
 
@@ -27,6 +31,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR as Surface hiding
                                                                           WireIR (..))
 import qualified Data.List as List
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import IHP.Prelude
 
 data FrontendContractIR = FrontendContractIR
@@ -34,6 +39,15 @@ data FrontendContractIR = FrontendContractIR
     , contractSurfaces :: ![SurfaceIR]
     }
     deriving (Eq, Show)
+
+-- | A complete registry that passed every global and Surface diagnostic.
+-- The constructor stays private so runtime consumers cannot receive unchecked
+-- reflected declarations.
+newtype CheckedFrontendContract = CheckedFrontendContract FrontendContractIR
+    deriving (Eq, Show)
+
+frontendContractIR :: CheckedFrontendContract -> FrontendContractIR
+frontendContractIR (CheckedFrontendContract contract) = contract
 
 data GlobalIR = GlobalIR
     { globalMarker     :: !Text
@@ -58,7 +72,14 @@ data GlobalPrimitiveIR
     | GlobalDomTokenIR !Text !Text
     | GlobalConstantIR !Text !Text
     | GlobalProjectionIR !GlobalProjectionIR
+    | GlobalErrorCodesIR ![ErrorCodeIR]
     | GlobalAppShellActionIR !AppShellActionIR
+    deriving (Eq, Show)
+
+data ErrorCodeIR = ErrorCodeIR
+    { errorCodeMarker :: !Text
+    , errorCodeValue  :: !Text
+    }
     deriving (Eq, Show)
 
 data AppShellActionIR = AppShellActionIR
@@ -69,17 +90,25 @@ data AppShellActionIR = AppShellActionIR
     }
     deriving (Eq, Show)
 
-checkedFrontendContractIR :: FrontendContractIR -> Either [ContractDiagnostic] FrontendContractIR
+checkedFrontendContractIR :: FrontendContractIR -> Either [ContractDiagnostic] CheckedFrontendContract
 checkedFrontendContractIR contract =
     case validateFrontendContractIR contract of
-        []          -> Right contract
+        []          -> Right (CheckedFrontendContract contract)
         diagnostics -> Left diagnostics
+
+renderContractDiagnostics :: [ContractDiagnostic] -> Text
+renderContractDiagnostics diagnostics =
+    Text.unlines
+        [ diagnostic.diagnosticCode <> ": " <> diagnostic.diagnosticMessage
+        | diagnostic <- diagnostics
+        ]
 
 validateFrontendContractIR :: FrontendContractIR -> [ContractDiagnostic]
 validateFrontendContractIR contract =
     duplicateDiagnostics "global-name-collision" "global" [(global.globalName, global.globalMarker) | global <- contract.contractGlobals]
         <> duplicateDiagnostics "schema-name-collision" "schema" schemaNames
         <> duplicateDiagnostics "global-primitive-collision" "global primitive" globalPrimitiveNames
+        <> duplicateDiagnostics "error-code-collision" "error code" errorCodeNames
         <> concatMap validateGlobal contract.contractGlobals
         <> validateSurfaceContractIR SurfaceContractIR { contractSurfaces = contract.contractSurfaces }
         <> unresolvedReferenceDiagnostics declaredRefs referencedRefs
@@ -98,6 +127,12 @@ validateFrontendContractIR contract =
         concatMap globalClosedScalarRefs contract.contractGlobals
             <> concatMap surfaceClosedScalarRefs contract.contractSurfaces
     globalPrimitiveNames = concatMap globalNamedPrimitives contract.contractGlobals
+    errorCodeNames =
+        [ (code.errorCodeValue, code.errorCodeMarker)
+        | global <- contract.contractGlobals
+        , GlobalErrorCodesIR codes <- global.globalPrimitives
+        , code <- codes
+        ]
 
 validateGlobal :: GlobalIR -> [ContractDiagnostic]
 validateGlobal global =
@@ -124,6 +159,7 @@ validateGlobalPrimitive = \case
     GlobalDomTokenIR _ _ -> []
     GlobalConstantIR _ _ -> []
     GlobalProjectionIR _ -> []
+    GlobalErrorCodesIR _ -> []
     GlobalAppShellActionIR action -> validateFieldNames action.appShellActionFields
 
 globalSchemas :: GlobalIR -> [(Text, Text)]
@@ -148,6 +184,7 @@ globalNamedPrimitives global =
         GlobalDomTokenIR marker name  -> [(marker, name)]
         GlobalConstantIR marker value -> [(marker, "constant:" <> value)]
         GlobalProjectionIR _ -> []
+        GlobalErrorCodesIR _ -> []
         GlobalAppShellActionIR action -> [(action.appShellActionMarker, "app-shell-action:" <> action.appShellActionName)]
     ]
 
@@ -177,6 +214,7 @@ globalPrimitiveRefs = \case
     GlobalDomTokenIR _ _ -> []
     GlobalConstantIR _ _ -> []
     GlobalProjectionIR _ -> []
+    GlobalErrorCodesIR _ -> []
     GlobalAppShellActionIR action -> fieldRefs action.appShellActionFields
 
 surfaceRefs :: SurfaceIR -> [Text]

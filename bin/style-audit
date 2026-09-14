@@ -3,6 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+report=false
+case "${1:-}" in
+  "") ;;
+  --report) report=true ;;
+  *) echo "usage: $0 [--report]" >&2; exit 2 ;;
+esac
+
 line_budget="${CSS_LINE_BUDGET:-1000}"
 
 # Raw colour definitions are only allowed in files that own tokens, persisted
@@ -30,10 +37,10 @@ defined="$tmp_dir/defined.txt"
 used="$tmp_dir/used.txt"
 undefined="$tmp_dir/undefined.txt"
 missing_assets="$tmp_dir/missing-assets.txt"
-missing_makefile_entries="$tmp_dir/missing-makefile-entries.txt"
+duplicate_assets="$tmp_dir/duplicate-assets.txt"
 unlinked_app_css="$tmp_dir/unlinked-app-css.txt"
-makefile_missing_app_css="$tmp_dir/makefile-missing-app-css.txt"
 ihp_css_assets="$tmp_dir/ihp-css-assets.txt"
+line_counts="$tmp_dir/line-counts.txt"
 oversized_css="$tmp_dir/oversized-css.txt"
 raw_colors="$tmp_dir/raw-colors.txt"
 raw_color_allowed_pattern="$tmp_dir/raw-color-allowed-pattern.txt"
@@ -45,9 +52,9 @@ light_bootstrap_utilities="$tmp_dir/light-bootstrap-utilities.txt"
 inline_styles="$tmp_dir/inline-styles.txt"
 
 printf '' > "$missing_assets"
-printf '' > "$missing_makefile_entries"
+printf '' > "$duplicate_assets"
 printf '' > "$unlinked_app_css"
-printf '' > "$makefile_missing_app_css"
+printf '' > "$line_counts"
 printf '' > "$oversized_css"
 printf '' > "$raw_colors"
 printf '' > "$feature_global_selectors"
@@ -92,11 +99,6 @@ array_contains() {
   return 1
 }
 
-makefile_has_entry() {
-  local wanted="$1"
-  array_contains "$wanted" "${makefile_css_files[@]}"
-}
-
 linked_assets_has_entry() {
   local wanted="$1"
   array_contains "$wanted" "${linked_css_assets[@]}"
@@ -124,15 +126,10 @@ echo
 echo "style-audit hard gate: layout stylesheet assets"
 mapfile -t linked_css_assets < <(
   rg --only-matching --replace '$1' 'assetPath "([^"]+\.css)"' Web/View/Layout.hs \
-    | sed 's/^.*://' \
-    | sort -u
+    | sed 's/^.*://'
 )
 
-mapfile -t makefile_css_files < <(
-  rg --only-matching --replace '$1' '^CSS_FILES \+= (.+\.css)$' Makefile \
-    | sed 's/^.*://' \
-    | sort -u
-)
+printf '%s\n' "${linked_css_assets[@]}" | sort | uniq -d > "$duplicate_assets"
 
 mapfile -t app_css_files < <(
   find static -type f -name '*.css' \
@@ -147,20 +144,16 @@ for asset in "${linked_css_assets[@]}"; do
   ihp_static_asset_file="${IHP:-}/static${asset}"
   ihp_lib_asset_file="${IHP:-}/lib/IHP${asset}"
   ihp_dev_asset_file="${IHP_DEV_CHECKOUT:-}/ihp/data/static${asset}"
-  is_ihp_asset=false
-  if rg -qx --fixed-strings "$asset" "$ihp_css_assets"; then
-    is_ihp_asset=true
+  asset_exists=false
+  if [[ -f "$asset_file" ]]; then
+    asset_exists=true
+  elif rg -qx --fixed-strings "$asset" "$ihp_css_assets" \
+      && [[ -f "$ihp_static_asset_file" || -f "$ihp_lib_asset_file" || -f "$ihp_dev_asset_file" ]]; then
+    asset_exists=true
   fi
 
-  if [[ ! -f "$asset_file" && "$is_ihp_asset" != true && ! -f "$ihp_static_asset_file" && ! -f "$ihp_lib_asset_file" && ! -f "$ihp_dev_asset_file" ]]; then
+  if [[ "$asset_exists" != true ]]; then
     echo "$asset -> $asset_file" >> "$missing_assets"
-  fi
-
-  makefile_entry="${asset#/}"
-  local_makefile_entry="static/${makefile_entry}"
-  ihp_makefile_entry="\${IHP}/static/${makefile_entry}"
-  if ! makefile_has_entry "$local_makefile_entry" && ! makefile_has_entry "$ihp_makefile_entry"; then
-    echo "$asset -> static/${makefile_entry}" >> "$missing_makefile_entries"
   fi
 done
 
@@ -173,24 +166,20 @@ for css_file in "${app_css_files[@]}"; do
   if ! linked_assets_has_entry "$asset"; then
     echo "$css_file -> assetPath \"$asset\"" >> "$unlinked_app_css"
   fi
-
-  if ! makefile_has_entry "$css_file"; then
-    echo "$css_file" >> "$makefile_missing_app_css"
-  fi
 done
 
 if [[ -s "$missing_assets" ]]; then
   echo "  missing files:"
   sed 's/^/    /' "$missing_assets"
 else
-  echo "  all linked local stylesheets exist"
+  echo "  all linked stylesheet assets exist"
 fi
 
-if [[ -s "$missing_makefile_entries" ]]; then
-  echo "  linked stylesheets missing Makefile CSS_FILES entries:"
-  sed 's/^/    /' "$missing_makefile_entries"
+if [[ -s "$duplicate_assets" ]]; then
+  echo "  stylesheets linked more than once:"
+  sed 's/^/    /' "$duplicate_assets"
 else
-  echo "  all linked local stylesheets are in CSS_FILES"
+  echo "  every linked stylesheet is unique"
 fi
 
 if [[ -s "$unlinked_app_css" ]]; then
@@ -198,13 +187,6 @@ if [[ -s "$unlinked_app_css" ]]; then
   sed 's/^/    /' "$unlinked_app_css"
 else
   echo "  all non-allowlisted app-owned CSS files are linked from Layout.hs"
-fi
-
-if [[ -s "$makefile_missing_app_css" ]]; then
-  echo "  app-owned CSS files missing Makefile CSS_FILES entries:"
-  sed 's/^/    /' "$makefile_missing_app_css"
-else
-  echo "  all non-allowlisted app-owned CSS files are in CSS_FILES"
 fi
 
 echo
@@ -224,6 +206,7 @@ echo
 echo "style-audit hard gate: CSS file size budget (${line_budget} lines/file)"
 for css_file in "${app_css_files[@]}"; do
   lines="$(wc -l < "$css_file" | tr -d ' ')"
+  printf '%s %s\n' "$lines" "$css_file" >> "$line_counts"
   if (( lines > line_budget )); then
     printf '%5d %s\n' "$lines" "$css_file" >> "$oversized_css"
   fi
@@ -285,12 +268,30 @@ else
   echo "  none"
 fi
 
+if [[ "$report" == true ]]; then
+  echo
+  echo "style-audit report: Layout stylesheet order"
+  printf '%s\n' "${linked_css_assets[@]}" | nl -w3 -s'  '
+
+  echo
+  echo "style-audit report: app-owned CSS line counts (budget: ${line_budget} lines/file)"
+  awk '{ total += $1 } END { printf "  total: %d lines across %d files\n", total, NR }' "$line_counts"
+  sort -nr "$line_counts" | awk -v budget="$line_budget" '{ note = ($1 > budget) ? "  over budget" : ""; printf "  %5d %s%s\n", $1, $2, note }'
+
+  echo
+  echo "style-audit report: reviewed app/global/Bootstrap-like feature selectors"
+  if [[ -s "$feature_global_selectors" ]]; then
+    sed 's/^/  /' "$feature_global_selectors"
+  else
+    echo "  none"
+  fi
+fi
+
 failed_gates=()
 [[ -s "$undefined" ]] && failed_gates+=("undefined CSS variables")
 [[ -s "$missing_assets" ]] && failed_gates+=("missing linked stylesheet files")
-[[ -s "$missing_makefile_entries" ]] && failed_gates+=("linked stylesheets missing Makefile CSS_FILES entries")
+[[ -s "$duplicate_assets" ]] && failed_gates+=("duplicate linked stylesheets")
 [[ -s "$unlinked_app_css" ]] && failed_gates+=("unlinked app-owned CSS files")
-[[ -s "$makefile_missing_app_css" ]] && failed_gates+=("app-owned CSS files missing Makefile CSS_FILES entries")
 [[ -s "$banned_imports" ]] && failed_gates+=("app-owned CSS @import usage")
 [[ -s "$oversized_css" ]] && failed_gates+=("CSS files over line budget")
 [[ -s "$raw_colors" ]] && failed_gates+=("raw colors outside token/palette/bridge files")

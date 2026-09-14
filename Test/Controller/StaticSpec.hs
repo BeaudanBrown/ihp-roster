@@ -4,21 +4,22 @@ import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 
 import Config
-import Control.Exception (bracket, bracket_)
+import Control.Exception (bracket)
 import qualified Data.Text.IO as TextIO
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import IHP.ViewSupport (liveReloadWebsocketUrl)
 import Test.Hspec
 import Test.Support
+import Test.Support.Environment (withEnvironmentVariable)
 
 import Generated.Types
 import IHP.ControllerPrelude
 import Network.Wai
 import qualified System.Directory as Directory
-import qualified System.Environment as Environment
 import System.IO (hClose, openTempFile)
 import Web.Controller.Static ()
 import Web.FrontController ()
@@ -40,6 +41,8 @@ tests = aroundAll withDatabaseTestContext do
             response `responseBodyShouldNotContain` "/BeginPasskeyAuthentication"
             response `responseBodyShouldNotContain` "/FinishPasskeyAuthentication"
             response `responseBodyShouldContain` "Billing and support information"
+            response `responseBodyShouldContain` "src=\"/static/app.js"
+            response `responseBodyShouldNotContain` "src=\"/static/app-bootstrap.js"
 
         it "routes public dev livereload through the HTTPS tunnel without changing localhost" \_ -> do
             let localLiveReloadUrl = "ws://localhost:8013"
@@ -117,7 +120,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "renders configured legal document files" $ withContext do
             withTempLegalDocument "Injected privacy policy for Bepis PTY LTD.\n\nContact support@bepis.lol." \privacyPath ->
-                withEnv "BEPIS_LEGAL_PRIVACY_FILE" (Just privacyPath) do
+                withEnvironmentVariable "BEPIS_LEGAL_PRIVACY_FILE" (Just privacyPath) do
                     response <- callAction LegalPrivacyAction
                     response `responseStatusShouldBe` status200
                     response `responseBodyShouldContain` "Injected privacy policy for Bepis PTY LTD."
@@ -159,25 +162,3 @@ withTempLegalDocument value action =
 
         cleanup (path, _) =
             Directory.removeFile path
-
-withEnv :: String -> Maybe String -> IO a -> IO a
-withEnv name value action =
-    bracket_ setup restore action
-    where
-        setup = do
-            previous <- Environment.lookupEnv name
-            Environment.setEnv ("__PREVIOUS_" <> name) (fromMaybe "" previous)
-            Environment.setEnv ("__HAD_PREVIOUS_" <> name) (if isJust previous then "1" else "0")
-            apply value
-
-        restore = do
-            hadPrevious <- Environment.lookupEnv ("__HAD_PREVIOUS_" <> name)
-            previous <- Environment.lookupEnv ("__PREVIOUS_" <> name)
-            case (hadPrevious, previous) of
-                (Just "1", Just oldValue) -> Environment.setEnv name oldValue
-                _                         -> Environment.unsetEnv name
-            Environment.unsetEnv ("__PREVIOUS_" <> name)
-            Environment.unsetEnv ("__HAD_PREVIOUS_" <> name)
-
-        apply Nothing      = Environment.unsetEnv name
-        apply (Just value) = Environment.setEnv name value

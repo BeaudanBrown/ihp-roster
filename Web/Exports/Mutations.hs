@@ -8,12 +8,12 @@ module Web.Exports.Mutations
     , requestFixedExportWithPayrollWorkbookDefinitionMutation
     ) where
 
+import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Export
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import qualified Control.Exception as Exception
 import qualified Data.Set as Set
-import IHP.ModelSupport.Types (HasqlSessionError)
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)
@@ -26,7 +26,9 @@ requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: Controll
 requestFixedExportWithPayrollWorkbookDefinitionMutation definition rangeStart rangeEnd =
     requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd)
 
-requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Either Text ExportJob) -> IO (Either Text (LiveMutationResult ExportJob))
+-- Keep the database context abstract until the durable transaction supplies it;
+-- a pre-built IO action would perform export writes on the outer connection.
+requestExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ((?modelContext :: ModelContext) => IO (Either Text ExportJob)) -> IO (Either Text (LiveMutationResult ExportJob))
 requestExportMutation requestExport = do
     outcome <-
         withDurableLiveMutationOutcome publicationFor requestExport
@@ -47,7 +49,7 @@ createPayrollWorkbookConfigurationMutation input = do
         Left sessionError ->
             case payrollWorkbookConfigurationPersistenceError normalizedName sessionError of
                 Just configurationError -> pure (Left configurationError)
-                Nothing                 -> Exception.throwIO sessionError
+                Nothing                 -> throwExternalRuntime sessionError
   where
     normalizedName = normalizePayrollWorkbookConfigurationName input.newPayrollWorkbookConfigurationName
     publicationFor = \case
@@ -59,7 +61,7 @@ updatePayrollWorkbookConfigurationMutation configurationId input = do
     transactionResult :: Either HasqlSessionError (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration) <-
         Exception.try $
             withDurableLiveMutationOutcome publicationFor do
-                lockedRows :: [Only UUID] <- sqlQuery
+                lockedRows :: [Only UUID] <- unsafeSqlQuery
                     "SELECT id FROM payroll_workbook_configurations WHERE id = ? AND venue_id = ? FOR UPDATE"
                     (unpackId configurationId, unpackId currentVenueId)
                 if null lockedRows
@@ -70,7 +72,7 @@ updatePayrollWorkbookConfigurationMutation configurationId input = do
         Left sessionError ->
             case payrollWorkbookConfigurationPersistenceError normalizedName sessionError of
                 Just configurationError -> pure (Left configurationError)
-                Nothing                 -> Exception.throwIO sessionError
+                Nothing                 -> throwExternalRuntime sessionError
   where
     normalizedName = normalizePayrollWorkbookConfigurationName input.updatePayrollWorkbookConfigurationName
     publicationFor = \case
@@ -84,7 +86,7 @@ deletePayrollWorkbookConfigurationMutation configurationId = do
             -- QueryBuilder has no row-lock combinator. Serialize concurrent
             -- delete confirmations so a request that becomes stale resolves to
             -- NotFound instead of attempting a second delete.
-            lockedRows :: [Only UUID] <- sqlQuery
+            lockedRows :: [Only UUID] <- unsafeSqlQuery
                 "SELECT id FROM payroll_workbook_configurations WHERE id = ? AND venue_id = ? FOR UPDATE"
                 (unpackId configurationId, unpackId currentVenueId)
             if null lockedRows

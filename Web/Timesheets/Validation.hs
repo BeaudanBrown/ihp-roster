@@ -1,7 +1,14 @@
 module Web.Timesheets.Validation
-    ( buildTimesheetEntry
+    ( TimesheetCalendarConflict (..)
+    , TimesheetEditIntent
+    , originalTimesheetEntry
+    , submittedTimesheetEntry
+    , prepareTimesheetEdit
+    , buildTimesheetEntry
     , ensureRosterDerivedIdentityUnchanged
     , ensureShiftTypeAllowed
+    , timesheetShiftTypeAllowed
+    , timesheetStaffAssignmentAllowed
     , ensureShiftTypeAllowedForExisting
     , ensureStaffAssignmentAllowed
     , ensureStaffAssignmentAllowedForExisting
@@ -11,21 +18,47 @@ module Web.Timesheets.Validation
     ) where
 
 import Application.Helper.Staff (isLinkedActiveStaff)
-import Application.Helper.TimeRules (calendarDayForOperationalClock)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
+import qualified Control.Exception as Exception
 import Data.Either (fromRight)
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay)
 import qualified Data.UUID as UUID
+import qualified Prelude
 import Web.Controller.Prelude
 
-ensureTimesheetVisibility :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
+-- Thrown under the calendar lock; mutation owners catch only after their
+-- transaction unwinds. Returning Left inside that transaction would not roll back.
+data TimesheetCalendarConflict = TimesheetCalendarChanged
+    deriving stock (Eq, Show)
+
+instance Exception.Exception TimesheetCalendarConflict
+
+-- Constructed only after ordinary form validation and identity/eligibility checks.
+-- The mutation derives approval reset; callers cannot supply that decision.
+data TimesheetEditIntent = TimesheetEditIntent TimesheetEntry TimesheetEntry
+
+originalTimesheetEntry :: TimesheetEditIntent -> TimesheetEntry
+originalTimesheetEntry (TimesheetEditIntent original _) = original
+
+submittedTimesheetEntry :: TimesheetEditIntent -> TimesheetEntry
+submittedTimesheetEntry (TimesheetEditIntent _ submitted) = submitted
+
+prepareTimesheetEdit :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Maybe UUID.UUID -> TimesheetEntry -> IO (Either TimesheetEntry TimesheetEditIntent)
+prepareTimesheetEdit venueConfig viewerStaffId existingEntry =
+    buildTimesheetEntry venueConfig viewerStaffId existingEntry |> ifValid \case
+        Left invalidEntry -> pure (Left invalidEntry)
+        Right submittedEntry -> do
+            ensureRosterDerivedIdentityUnchanged existingEntry submittedEntry
+            ensureStaffAssignmentAllowedForExisting existingEntry submittedEntry.staffId
+            ensureShiftTypeAllowedForExisting existingEntry submittedEntry.shiftTypeId
+            pure (Right (TimesheetEditIntent existingEntry submittedEntry))
+
+ensureTimesheetVisibility :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
 ensureTimesheetVisibility entry =
     if isJust entry.deletedAt
         then accessDeniedUnless False
@@ -35,32 +68,39 @@ ensureTimesheetVisibility entry =
                 let ownsEntry = maybe False (\staff -> unpackId (get #id staff) == entry.staffId) maybeStaff
                 accessDeniedUnless ownsEntry
 
-ensureRosterDerivedIdentityUnchanged :: (?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry -> IO ()
+ensureRosterDerivedIdentityUnchanged :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry -> IO ()
 ensureRosterDerivedIdentityUnchanged existingEntry updatedEntry =
     when (isJust existingEntry.sourceRosterSlotId) do
         accessDeniedUnless (timesheetEntryOperationalDate updatedEntry == timesheetEntryOperationalDate existingEntry)
         accessDeniedUnless (updatedEntry.timezone == existingEntry.timezone)
         accessDeniedUnless (updatedEntry.sourceRosterSlotId == existingEntry.sourceRosterSlotId)
 
-ensureStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
-ensureStaffAssignmentAllowed staffId = do
+ensureStaffAssignmentAllowed :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
+ensureStaffAssignmentAllowed staffId = timesheetStaffAssignmentAllowed staffId >>= accessDeniedUnless
+
+timesheetStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
+timesheetStaffAssignmentAllowed staffId = do
     maybeStaff <- query @Staff
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#id, Id staffId)
         |> fetchOneOrNothing
-    accessDeniedUnless (maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffPayAssignment staff)) maybeStaff)
-    unless (hasRole Manager) do
-        maybeCurrentStaff <- fetchCurrentUserStaff
-        let isOwnStaff = maybe False (\staff -> unpackId (get #id staff) == staffId) maybeCurrentStaff
-        accessDeniedUnless isOwnStaff
+    let eligible = maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffPayAssignment staff)) maybeStaff
+    if not eligible || hasRole Manager
+        then pure eligible
+        else do
+            maybeCurrentStaff <- fetchCurrentUserStaff
+            pure (maybe False (\staff -> unpackId (get #id staff) == staffId) maybeCurrentStaff)
 
-ensureStaffAssignmentAllowedForExisting :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
+ensureStaffAssignmentAllowedForExisting :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
 ensureStaffAssignmentAllowedForExisting existingEntry staffId
     | existingEntry.staffId == staffId = pure ()
     | otherwise = ensureStaffAssignmentAllowed staffId
 
-ensureShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
-ensureShiftTypeAllowed shiftTypeId = do
+ensureShiftTypeAllowed :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
+ensureShiftTypeAllowed shiftTypeId = timesheetShiftTypeAllowed shiftTypeId >>= accessDeniedUnless
+
+timesheetShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
+timesheetShiftTypeAllowed shiftTypeId = do
     maybeShiftType <-
         query @ShiftType
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -68,7 +108,7 @@ ensureShiftTypeAllowed shiftTypeId = do
             |> filterWhere (#isActive, True)
             |> filterWhere (#archivedAt, Nothing)
             |> fetchOneOrNothing
-    accessDeniedUnless (maybe False (shiftAssignmentAllowsTimesheets . shiftPayAssignment) maybeShiftType)
+    pure (maybe False (shiftAssignmentAllowsTimesheets . shiftPayAssignment) maybeShiftType)
 
 staffPayAssignment :: Staff -> StaffPayAssignment
 staffPayAssignment staff =
@@ -78,7 +118,7 @@ shiftPayAssignment :: ShiftType -> ShiftPayAssignment
 shiftPayAssignment shiftType =
     ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
 
-ensureShiftTypeAllowedForExisting :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
+ensureShiftTypeAllowedForExisting :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
 ensureShiftTypeAllowedForExisting existingEntry shiftTypeId
     | existingEntry.shiftTypeId == shiftTypeId = pure ()
     | otherwise = ensureShiftTypeAllowed shiftTypeId
@@ -127,6 +167,10 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
     parsedEndOccurrence = parseOccurrenceParam (paramOrDefault "" "endOccurrence")
     parsedBreakStartOccurrence = parseOccurrenceParam (paramOrDefault "" "breakStartOccurrence")
     parsedBreakEndOccurrence = parseOccurrenceParam (paramOrDefault "" "breakEndOccurrence")
+    existingStartTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone (Just entry.startsAt))
+    existingEndTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone (Just entry.endsAt))
+    existingBreakStartTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone entry.breakStartsAt)
+    existingBreakEndTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone entry.breakEndsAt)
 
     baseEntry =
         entry
@@ -134,7 +178,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             |> requireParam #startsAt "workedOn" "Please choose a day"
             |> requireParam #shiftTypeId "shiftTypeId" "Please choose a shift type"
             |> fill @'["staffId", "shiftTypeId"]
-            |> maybe (\value -> value) (set #operationalDate) parsedWorkedOn
+            |> maybe Prelude.id (set #operationalDate) parsedWorkedOn
             |> validateParsedFields
 
     validateParsedFields record =
@@ -142,8 +186,8 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             |> attachWhen (isNothing parsedWorkedOn) #startsAt "Please choose a day"
             |> attachWhen (isNothing parsedStartTime) #startsAt "Please select a shift start time"
             |> attachWhen (isNothing parsedEndTime) #endsAt "Please select a shift end time"
-            |> attachWhen (maybe False (not . submittedTimeAllowed (Just (timesheetEntryStartTime entry))) parsedStartTime) #startsAt intervalValidationMessage
-            |> attachWhen (maybe False (not . submittedTimeAllowed (Just (timesheetEntryEndTime entry))) parsedEndTime) #endsAt intervalValidationMessage
+            |> attachWhen (maybe False (not . submittedTimeAllowed existingStartTime) parsedStartTime) #startsAt intervalValidationMessage
+            |> attachWhen (maybe False (not . submittedTimeAllowed existingEndTime) parsedEndTime) #endsAt intervalValidationMessage
             |> attachEitherError parsedStartOccurrence #startsAt
             |> attachEitherError parsedEndOccurrence #endsAt
             |> validateBreakTransport
@@ -161,8 +205,8 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             record
                 |> attachWhen (isNothing parsedBreakStartTime) #breakStartsAt "Please select a break start time"
                 |> attachWhen (isNothing parsedBreakEndTime) #breakEndsAt "Please select a break end time"
-                |> attachWhen (maybe False (not . submittedTimeAllowed (timesheetEntryBreakStartTime entry)) parsedBreakStartTime) #breakStartsAt intervalValidationMessage
-                |> attachWhen (maybe False (not . submittedTimeAllowed (timesheetEntryBreakEndTime entry)) parsedBreakEndTime) #breakEndsAt intervalValidationMessage
+                |> attachWhen (maybe False (not . submittedTimeAllowed existingBreakStartTime) parsedBreakStartTime) #breakStartsAt intervalValidationMessage
+                |> attachWhen (maybe False (not . submittedTimeAllowed existingBreakEndTime) parsedBreakEndTime) #breakEndsAt intervalValidationMessage
                 |> attachEitherError parsedBreakStartOccurrence #breakStartsAt
                 |> attachEitherError parsedBreakEndOccurrence #breakEndsAt
 
@@ -253,6 +297,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
         case failure of
             BoundaryUnsupportedTimezone _ -> record |> attachFailure #startsAt "This venue timezone is not supported for roster and timesheet entry."
             BoundaryBreakShapeInvalid -> record |> attachFailure #breakStartsAt "Break start and end are both required."
+            BoundaryShiftShapeInvalid -> record |> attachFailure #startsAt "Shift start and end are both required."
             BoundaryBreakNotContained ->
                 record
                     |> attachFailure #breakStartsAt "Break must be within the shift"
@@ -273,17 +318,13 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
 
     resolvedStartDate = calendarDateForSubmittedStart <$> parsedWorkedOn <*> parsedStartTime
 
-    calendarDateForSubmittedStart operationalDate startTime
-        | isNothing entry.sourceRosterSlotId
-            && entry.operationalDate == operationalDate
-            && operationalDayForLocalTime existingStartLocal /= operationalDate = existingStartLocal.localDay
-        | otherwise = calendarDayForOperationalClock operationalDate startTime
-      where
-        existingStartLocal =
-            either
-                (error . ("Invalid existing Timesheet boundaries: " <>) . show)
-                authoritativeStartLocalTime
-                (timesheetEntryBoundaries entry)
+    calendarDateForSubmittedStart operationalDate startTime =
+        case recoverStoredInstantLocalTime entry.timezone (Just entry.startsAt) of
+            Just existingStartLocal
+                | isNothing entry.sourceRosterSlotId
+                , entry.operationalDate == operationalDate
+                , operationalDayForLocalTime existingStartLocal /= operationalDate -> existingStartLocal.localDay
+            _ -> calendarDayForOperationalClock operationalDate startTime
 
     intervalValidationMessage = venueShiftTimeValidationMessage venueConfig
     submittedTimeAllowed existingTime submittedTime =

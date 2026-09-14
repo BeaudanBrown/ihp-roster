@@ -1,22 +1,27 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Application.Xero.Timesheets.Submission
-    ( XeroTimesheetReviewedSubmissionOutcome (..)
+    ( XeroSubmissionOutcome (..)
+    , XeroSubmissionResult
+    , XeroTimesheetReviewedSubmissionOutcome (..)
     , duplicateCheckSnapshotJson
     , fetchRemoteTimesheetsForDuplicateCheck
-    , reviewXeroDraftTimesheets
-    , submitReviewedXeroDraftTimesheetsForPreparation
     , submitXeroDraftTimesheetsForPreparation
-    , submitXeroDraftTimesheets
     , xeroTimesheetSubmissionRequestJson
     )
 where
 
+import Application.Error.Boundary (withSynchronousAppErrorFallback)
+import Application.Error.Domain (projectDomainError)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Types (AppResult)
 import Application.Helper.Xero
 import Application.Helper.XeroTimesheetReadiness
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Application.Xero.Connection
+import Application.Xero.Timesheets.Error (XeroPreparationError (..))
 import Application.Xero.Timesheets.Preview
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation (XeroTimesheetReconciliationDecision (..),
@@ -28,23 +33,35 @@ import Application.Xero.WorkflowState (xeroSubmissionIsInProgress,
                                        xeroSubmissionRunStatusFromStatuses)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
-import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime)
 import qualified Data.Vector as Vector
 import Generated.Types
 import IHP.ControllerPrelude
 
+-- The snapshot outcome reports reservation conflicts to the live preparation
+-- flow; it does not require comparison against an earlier confirmation snapshot.
 data XeroTimesheetReviewedSubmissionOutcome
     = XeroTimesheetReviewedSubmissionCompleted !XeroSubmissionRun
     | XeroTimesheetReviewedStateChanged !Aeson.Value
     deriving (Eq, Show)
 
+data XeroSubmissionOutcome value
+    = XeroSubmissionBlocked !Text
+    | XeroSubmissionSucceeded value
+    deriving (Eq, Functor, Show)
+
+type XeroSubmissionResult value = AppResult (XeroSubmissionOutcome value)
+
+submissionFailure :: Text -> XeroSubmissionResult value
+submissionFailure = Right . XeroSubmissionBlocked
+
+submissionSuccess :: value -> XeroSubmissionResult value
+submissionSuccess = Right . XeroSubmissionSucceeded
+
 data XeroTimesheetSubmissionPersistenceOutcome
     = XeroTimesheetSubmissionPersisted !XeroSubmissionRun
-    | XeroTimesheetSubmissionReservationInProgress ![Id XeroSubmissionRun]
+    | XeroTimesheetSubmissionReservationInProgress
     | XeroTimesheetSubmissionReservationBlocked !XeroTimesheetReconciliationDecision
 
 data FreshSubmissionPlan = FreshSubmissionPlan
@@ -53,88 +70,39 @@ data FreshSubmissionPlan = FreshSubmissionPlan
     , freshPlanDuplicateSnapshot :: !Aeson.Value
     , freshPlanPreviewRun        :: !XeroTimesheetPreviewRun
     , freshPlanReservations      :: ![XeroTimesheetReservation]
-    , freshPlanReviewSnapshot    :: !Aeson.Value
     }
-
-reviewXeroDraftTimesheets ::
-    (?modelContext :: ModelContext) =>
-    XeroTimesheetReadinessRequest ->
-    IO (Either Text Aeson.Value)
-reviewXeroDraftTimesheets request =
-    withFreshRemoteTimesheets request \_ _ connection remoteTimesheets ->
-        fmap (.freshPlanReviewSnapshot) <$> buildFreshSubmissionPlan request connection remoteTimesheets
-
-submitXeroDraftTimesheets ::
-    (?modelContext :: ModelContext) =>
-    Id User ->
-    XeroTimesheetReadinessRequest ->
-    IO (Either Text XeroSubmissionRun)
-submitXeroDraftTimesheets submittedByUserId request =
-    submitXeroDraftTimesheetsWithPreparation submittedByUserId Nothing Nothing request >>= \case
-        Left message -> pure (Left message)
-        Right (XeroTimesheetReviewedSubmissionCompleted run) -> pure (Right run)
-        Right (XeroTimesheetReviewedStateChanged _) -> pure (Left "Xero reconciliation state changed unexpectedly.")
-
-submitReviewedXeroDraftTimesheetsForPreparation ::
-    (?modelContext :: ModelContext) =>
-    Id User ->
-    Id XeroTimesheetPreparationRun ->
-    Aeson.Value ->
-    XeroTimesheetReadinessRequest ->
-    IO (Either Text XeroTimesheetReviewedSubmissionOutcome)
-submitReviewedXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId reviewedSnapshot =
-    submitXeroDraftTimesheetsWithPreparation submittedByUserId (Just preparationRunId) (Just reviewedSnapshot)
 
 submitXeroDraftTimesheetsForPreparation ::
     (?modelContext :: ModelContext) =>
     Id User ->
     Id XeroTimesheetPreparationRun ->
     XeroTimesheetReadinessRequest ->
-    IO (Either Text XeroTimesheetReviewedSubmissionOutcome)
-submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId =
-    submitXeroDraftTimesheetsWithPreparation submittedByUserId (Just preparationRunId) Nothing
-
-submitXeroDraftTimesheetsWithPreparation ::
-    (?modelContext :: ModelContext) =>
-    Id User ->
-    Maybe (Id XeroTimesheetPreparationRun) ->
-    Maybe Aeson.Value ->
-    XeroTimesheetReadinessRequest ->
-    IO (Either Text XeroTimesheetReviewedSubmissionOutcome)
-submitXeroDraftTimesheetsWithPreparation submittedByUserId maybePreparationRunId maybeReviewedSnapshot request =
+    IO (XeroSubmissionResult XeroTimesheetReviewedSubmissionOutcome)
+submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId request =
     withFreshRemoteTimesheets request \xeroClient accessToken connection remoteTimesheets -> do
         buildFreshSubmissionPlan request connection remoteTimesheets >>= \case
-            Left message -> pure (Left message)
-            Right plan
-                | Just reviewedSnapshot <- maybeReviewedSnapshot
-                , reviewedSnapshot /= plan.freshPlanReviewSnapshot ->
-                    pure (Right (XeroTimesheetReviewedStateChanged plan.freshPlanReviewSnapshot))
-                | otherwise ->
-                    persistAndSubmitPreview
-                        submittedByUserId
-                        maybePreparationRunId
-                        xeroClient
-                        accessToken
-                        connection
-                        plan.freshPlanRequest
-                        plan.freshPlanReadiness
-                        plan.freshPlanDuplicateSnapshot
-                        plan.freshPlanPreviewRun
-                        plan.freshPlanReservations
-                        >>= \case
-                            Left message -> pure (Left message)
-                            Right (XeroTimesheetSubmissionPersisted run) ->
-                                pure (Right (XeroTimesheetReviewedSubmissionCompleted run))
-                            Right (XeroTimesheetSubmissionReservationInProgress runIds)
-                                | isJust maybeReviewedSnapshot || isJust maybePreparationRunId ->
-                                    pure (Right (reservationStateChanged plan XeroSubmissionInProgress))
-                                | otherwise -> case runIds of
-                                    [runId] -> Right . XeroTimesheetReviewedSubmissionCompleted <$> fetch runId
-                                    _ -> pure (Left "Xero timesheet submission is already in progress in more than one run.")
-                            Right (XeroTimesheetSubmissionReservationBlocked decision)
-                                | isJust maybeReviewedSnapshot || isJust maybePreparationRunId ->
-                                    pure (Right (reservationStateChanged plan decision))
-                                | otherwise -> pure (Left (reconciliationBlockedMessage decision))
+            Left appError -> pure (Left appError)
+            Right (XeroSubmissionBlocked message) -> pure (submissionFailure message)
+            Right (XeroSubmissionSucceeded plan) ->
+                persistAndSubmitPreview
+                    submittedByUserId
+                    preparationRunId
+                    xeroClient
+                    accessToken
+                    connection
+                    plan.freshPlanRequest
+                    plan.freshPlanReadiness
+                    plan.freshPlanDuplicateSnapshot
+                    plan.freshPlanPreviewRun
+                    plan.freshPlanReservations
+                    >>= \case
+                        Left message -> pure (submissionFailure message)
+                        Right (XeroTimesheetSubmissionPersisted run) ->
+                            pure (submissionSuccess (XeroTimesheetReviewedSubmissionCompleted run))
+                        Right XeroTimesheetSubmissionReservationInProgress ->
+                            pure (submissionSuccess (reservationStateChanged plan XeroSubmissionInProgress))
+                        Right (XeroTimesheetSubmissionReservationBlocked decision) ->
+                            pure (submissionSuccess (reservationStateChanged plan decision))
   where
     reservationStateChanged plan decision =
         XeroTimesheetReviewedStateChanged
@@ -148,17 +116,21 @@ submitXeroDraftTimesheetsWithPreparation submittedByUserId maybePreparationRunId
 withFreshRemoteTimesheets ::
     (?modelContext :: ModelContext) =>
     XeroTimesheetReadinessRequest ->
-    (XeroClient -> Text -> XeroConnection -> [XeroTimesheetRef] -> IO (Either Text a)) ->
-    IO (Either Text a)
+    (XeroClient -> Text -> XeroConnection -> [XeroTimesheetRef] -> IO (XeroSubmissionResult a)) ->
+    IO (XeroSubmissionResult a)
 withFreshRemoteTimesheets request action =
-    readXeroConfig >>= \case
-        Left message -> pure (Left message)
+    withSynchronousAppErrorFallback
+        run
+        (const (pure (Left (projectDomainError XeroPreparationStateUnavailable))))
+  where
+    run = readXeroConfig >>= \case
+        Left message -> pure (submissionFailure message)
         Right xeroConfig ->
             fetchActiveSubmissionXeroConnection request.readinessVenueId >>= \case
-                Nothing -> pure (Left "Active Xero connection was not found.")
+                Nothing -> pure (submissionFailure "Active Xero connection was not found.")
                 Just connection ->
                     refreshXeroConnectionAccess xeroConfig connection >>= \case
-                        Left message -> pure (Left message)
+                        Left message -> pure (submissionFailure message)
                         Right (refreshedConnection, accessToken) -> do
                             xeroClient <- currentXeroClient
                             fetchRemoteTimesheetsForDuplicateCheck
@@ -168,7 +140,7 @@ withFreshRemoteTimesheets request action =
                                 request.readinessPayrollCalendarId
                                 request.readinessPeriodStart
                                 request.readinessPeriodEnd >>= \case
-                                    Left message -> pure (Left message)
+                                    Left _ -> pure (Left (projectDomainError XeroPreparationStateUnavailable))
                                     Right remoteTimesheets -> action xeroClient accessToken refreshedConnection remoteTimesheets
 
 buildFreshSubmissionPlan ::
@@ -176,37 +148,42 @@ buildFreshSubmissionPlan ::
     XeroTimesheetReadinessRequest ->
     XeroConnection ->
     [XeroTimesheetRef] ->
-    IO (Either Text FreshSubmissionPlan)
+    IO (XeroSubmissionResult FreshSubmissionPlan)
 buildFreshSubmissionPlan request connection remoteTimesheets = do
-    failAbandonedXeroTimesheetSubmissionsForPeriod
-        (unpackId connection.id)
-        request.readinessPeriodStart
-        request.readinessPeriodEnd
     let readinessRequest = request { readinessRemoteTimesheets = remoteTimesheets }
-    readiness <- validateXeroTimesheetReadiness readinessRequest
-    fetchPreparedPreviewInput readinessRequest connection >>= \case
-        Left message -> pure (Left message)
-        Right previewInput -> enforceFinalWageEntries previewInput.previewTimesheetEntries >>= \case
-            Left failures -> pure (Left (renderWageEntryFailures "Xero submission blocked: " failures))
-            Right _ -> case buildXeroTimesheetPreviewRun previewInput of
-                Left message -> pure (Left message)
-                Right previewRun -> do
-                    reservations <- mapM (previewReservation connection) previewRun.previewRunTimesheets
-                    reviews <- reviewXeroTimesheetReservations reservations remoteTimesheets
-                    let reviewSnapshot = reconciliationReviewSnapshotJson reviews
-                    pure $ Right FreshSubmissionPlan
-                        { freshPlanRequest = readinessRequest
-                        , freshPlanReadiness = readiness
-                        , freshPlanDuplicateSnapshot = duplicateSnapshotWithReview remoteTimesheets reviewSnapshot
-                        , freshPlanPreviewRun = previewRun
-                        , freshPlanReservations = reservations
-                        , freshPlanReviewSnapshot = reviewSnapshot
-                        }
+    validateXeroTimesheetReadiness readinessRequest >>= \case
+        Left appError -> pure (Left appError)
+        Right readiness
+            | not readiness.xeroTimesheetReady ->
+                pure (submissionFailure (maybe "Resolve Xero readiness blockers before submitting." (.xeroBlockerMessage) (listToMaybe readiness.xeroReadinessBlockers)))
+            | otherwise ->
+                fetchPreparedPreviewInput readinessRequest connection >>= \case
+                    Left message -> pure (submissionFailure message)
+                    Right previewInput -> do
+                        failAbandonedXeroTimesheetSubmissionsForPeriod
+                            (unpackId connection.id)
+                            request.readinessPeriodStart
+                            request.readinessPeriodEnd
+                        enforceFinalWageEntries previewInput.previewTimesheetEntries >>= \case
+                            Left failures -> pure (submissionFailure (renderWageEntryFailures "Xero submission blocked: " failures))
+                            Right _ -> case buildXeroTimesheetPreviewRun previewInput of
+                                Left message -> pure (submissionFailure message)
+                                Right previewRun -> do
+                                    reservations <- mapM (previewReservation connection) previewRun.previewRunTimesheets
+                                    reviews <- reviewXeroTimesheetReservations reservations remoteTimesheets
+                                    let reviewSnapshot = reconciliationReviewSnapshotJson reviews
+                                    pure $ submissionSuccess FreshSubmissionPlan
+                                        { freshPlanRequest = readinessRequest
+                                        , freshPlanReadiness = readiness
+                                        , freshPlanDuplicateSnapshot = duplicateSnapshotWithReview remoteTimesheets reviewSnapshot
+                                        , freshPlanPreviewRun = previewRun
+                                        , freshPlanReservations = reservations
+                                        }
 
 persistAndSubmitPreview ::
     (?modelContext :: ModelContext) =>
     Id User ->
-    Maybe (Id XeroTimesheetPreparationRun) ->
+    Id XeroTimesheetPreparationRun ->
     XeroClient ->
     Text ->
     XeroConnection ->
@@ -216,7 +193,7 @@ persistAndSubmitPreview ::
     XeroTimesheetPreviewRun ->
     [XeroTimesheetReservation] ->
     IO (Either Text XeroTimesheetSubmissionPersistenceOutcome)
-persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient accessToken connection request readiness duplicateSnapshot previewRun reservations = do
+persistAndSubmitPreview submittedByUserId preparationRunId xeroClient accessToken connection request readiness duplicateSnapshot previewRun reservations = do
     let runTemplate =
             newRecord @XeroSubmissionRun
                 |> set #venueId (unpackId request.readinessVenueId)
@@ -224,7 +201,7 @@ persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient acces
                 |> set #submittedByUserId (unpackId submittedByUserId)
                 |> set #payPeriodStart request.readinessPeriodStart
                 |> set #payPeriodEnd request.readinessPeriodEnd
-                |> set #xeroTimesheetPreparationRunId maybePreparationRunId
+                |> set #xeroTimesheetPreparationRunId (Just preparationRunId)
                 |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
                 |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
                 |> set #selectedPeriodKey request.readinessSelectedPeriodKey
@@ -255,7 +232,7 @@ persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient acces
                             |> set #errorSummary errorSummary
                             |> updateRecord
                     pure (Right (XeroTimesheetSubmissionPersisted updatedRun))
-                XeroTimesheetReservationsInProgress runIds -> pure (Right (XeroTimesheetSubmissionReservationInProgress runIds))
+                XeroTimesheetReservationsInProgress _ -> pure (Right XeroTimesheetSubmissionReservationInProgress)
                 XeroTimesheetReservationBlocked decision -> pure (Right (XeroTimesheetSubmissionReservationBlocked decision))
                 XeroTimesheetReservationInvalid message -> pure (Left message)
 
@@ -268,7 +245,7 @@ previewReservation connection preview = do
     sourceEntries <- fetchPreviewSourceEntries preview
     let staffId = case preview.previewStaffIds of
             staffIdValue : _ -> staffIdValue
-            []              -> error "Xero timesheet preview has no source staff id."
+            []              -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Xero timesheet preview has no source staff id."
     pure
         XeroTimesheetReservation
             { reservationConnectionId = unpackId connection.id
@@ -320,13 +297,13 @@ executeXeroTimesheetWrite allowedRecoveries xeroClient accessToken connection su
         Left err ->
             case xeroTimesheetWriteFailureAction operation err of
                 FailUncertainXeroTimesheetWrite -> markSubmissionFailed submission now (uncertainSubmissionError err)
-                FailXeroTimesheetWrite -> markSubmissionFailed submission now (xeroClientErrorText err)
+                FailXeroTimesheetWrite -> markSubmissionFailed submission now (durableXeroClientErrorText err)
                 recoveryAction@RefetchAfterMissingUpdate
                     | recoveryAction `elem` allowedRecoveries -> recover recoveryAction err now
-                    | otherwise -> markSubmissionFailed submission now (xeroClientErrorText err)
+                    | otherwise -> markSubmissionFailed submission now (durableXeroClientErrorText err)
                 recoveryAction@RefetchAfterCreateConflict
                     | recoveryAction `elem` allowedRecoveries -> recover recoveryAction err now
-                    | otherwise -> markSubmissionFailed submission now (xeroClientErrorText err)
+                    | otherwise -> markSubmissionFailed submission now (durableXeroClientErrorText err)
   where
     recover recoveryAction err now =
         recoverAfterProviderResponse
@@ -368,7 +345,7 @@ recoverAfterProviderResponse ::
     IO XeroTimesheetSubmission
 recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connection submission operation now writeError = do
     run <- fetch (Id submission.xeroSubmissionRunId :: Id XeroSubmissionRun)
-    fetchRemoteTimesheetsForDuplicateCheckResult
+    fetchRemoteTimesheetsForDuplicateCheck
         xeroClient
         accessToken
         connection.tenantId
@@ -379,7 +356,7 @@ recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connecti
                 markSubmissionFailed
                     submission
                     now
-                    (xeroClientErrorText writeError <> " Reconciliation fetch failed: " <> xeroClientErrorText fetchError)
+                    (durableXeroClientErrorText writeError <> " Reconciliation fetch failed: " <> durableXeroClientErrorText fetchError)
             Right remoteTimesheets ->
                 recoverFromReconciliation
                     remainingRecoveries
@@ -422,7 +399,7 @@ recoverFromReconciliation remainingRecoveries xeroClient accessToken connection 
         transitioned <- transitionSubmissionOperationAfterAttempt submission now writeError nextOperation
         executeXeroTimesheetWrite remainingRecoveries xeroClient accessToken connection transitioned nextOperation
     block blockedDecision = markSubmissionBlockedAfterAttempt submission writeError (reconciliationBlockedMessage blockedDecision)
-    failOriginal = markSubmissionFailed submission now (xeroClientErrorText writeError)
+    failOriginal = markSubmissionFailed submission now (durableXeroClientErrorText writeError)
 
 reconcileSubmissionRemoteState :: XeroTimesheetSubmission -> [XeroTimesheetRef] -> XeroTimesheetReconciliationDecision
 reconcileSubmissionRemoteState submission remoteTimesheets =
@@ -449,9 +426,9 @@ transitionSubmissionOperationAfterAttempt submission now writeError operation =
             |> set #status XeroTimesheetSubmissionStatusEnumPending
             |> set #idempotencyKey (operationIdempotencyKey submission nextOperationSequence operation)
             |> set #requestPayloadJson (xeroTimesheetRequestForOperation operation submission.requestPayloadJson)
-            |> set #responsePayloadJson (Aeson.object ["error" Aeson..= xeroClientErrorText writeError])
+            |> set #responsePayloadJson (Aeson.object ["error" Aeson..= durableXeroClientErrorText writeError])
             |> set #attemptCount nextOperationSequence
-            |> set #lastError (Just (xeroClientErrorText writeError))
+            |> set #lastError (Just (durableXeroClientErrorText writeError))
             |> set #submittedAt (Just now)
             |> updateRecord
 
@@ -485,7 +462,7 @@ markSubmissionSubmitted submission now refs = do
 uncertainSubmissionError :: XeroClientError -> Text
 uncertainSubmissionError err =
     "Bepis could not confirm whether Xero received this timesheet. Check Xero, then start a fresh preparation to retry. Provider error: "
-        <> xeroClientErrorText err
+        <> durableXeroClientErrorText err
 
 markSubmissionFailed :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> UTCTime -> Text -> IO XeroTimesheetSubmission
 markSubmissionFailed submission now message =
@@ -501,7 +478,7 @@ markSubmissionBlockedAfterAttempt :: (?modelContext :: ModelContext) => XeroTime
 markSubmissionBlockedAfterAttempt submission writeError message =
     submission
         |> set #status XeroTimesheetSubmissionStatusEnumBlocked
-        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message, "providerError" Aeson..= xeroClientErrorText writeError])
+        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message, "providerError" Aeson..= durableXeroClientErrorText writeError])
         |> set #attemptCount (submission.attemptCount + 1)
         |> set #lastError (Just message)
         |> updateRecord
@@ -536,13 +513,8 @@ blockedReadinessSummary readiness =
         |> List.nub
         |> Text.intercalate "\n"
 
-fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either Text [XeroTimesheetRef])
+fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
 fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
-    fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
-        |> fmap (Bifunctor.first (("Xero duplicate check failed: " <>) . xeroClientErrorText))
-
-fetchRemoteTimesheetsForDuplicateCheckResult :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
-fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
     fetchTimesheetsForPeriod xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
 
 duplicateCheckSnapshotJson :: [XeroTimesheetRef] -> Aeson.Value

@@ -7,11 +7,11 @@ module Web.View.Admin.VenueSettings
     , renderVenueSettingsSectionFragmentWithSwap
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
@@ -26,19 +26,13 @@ import Web.View.Prelude
 adminVenueSettingsFragmentId :: Text
 adminVenueSettingsFragmentId = surfaceFragmentTargetId @Surface.AdminVenueSettingsSurface @Surface.AdminVenueSettingsFragment noSurfaceFields
 
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> error "Admin venue settings live surface requires a current venue"
-
 renderVenueSettingsSectionFragment :: (?context :: ControllerContext) => VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderVenueSettingsSectionFragment =
     renderVenueSettingsSectionFragmentWithSwap Nothing
 
 renderVenueSettingsSectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig awardLevels awardLevelBaseRates =
-    renderFrontendSurfaceMount (adminVenueSettingsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+    renderFrontendSurfaceMount (adminVenueSettingsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={adminVenueSettingsFragmentId}
              hx-swap-oob={maybeSwapOob}>
             {renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates}
@@ -270,50 +264,41 @@ rosterWindowStartDaySettingId =
     surfaceDomTokenValue @Surface.AdminVenueSettingsSurface @Surface.AdminRosterWindowStartDaySetting
 
 rosterWindowStartDaySettingRoute :: FrontendSurfaceActionRoute
-rosterWindowStartDaySettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateRosterWeekStartsOnAction
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (pathTo UpdateRosterWeekStartsOnAction)
+rosterWindowStartDaySettingRoute = ((defaultFrontendSurfaceActionRoute (pathTo UpdateRosterWeekStartsOnAction))
+    { actionRouteStandardUrl = Just (pathTo UpdateRosterWeekStartsOnAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row"), ("id", rosterWindowStartDaySettingId)]
-    }
+    })
 
 defaultStaffPayRateSettingRoute :: FrontendSurfaceActionRoute
-defaultStaffPayRateSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateDefaultStaffPayRateAction
-    , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+defaultStaffPayRateSettingRoute = ((defaultFrontendSurfaceActionRoute (pathTo UpdateDefaultStaffPayRateAction))
+    { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
     , actionRouteStandardUrl = Just (pathTo UpdateDefaultStaffPayRateAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
-    }
+    })
 
 rosterTimePickerWindowSettingRoute :: FrontendSurfaceActionRoute
-rosterTimePickerWindowSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateRosterTimePickerWindowAction
-    , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+rosterTimePickerWindowSettingRoute = ((defaultFrontendSurfaceActionRoute (pathTo UpdateRosterTimePickerWindowAction))
+    { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
     , actionRouteStandardUrl = Just (pathTo UpdateRosterTimePickerWindowAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
-    }
+    })
 
 unavailableStaffWarningThresholdSettingRoute :: FrontendSurfaceActionRoute
-unavailableStaffWarningThresholdSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateUnavailableStaffWarningThresholdAction
-    , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+unavailableStaffWarningThresholdSettingRoute = ((defaultFrontendSurfaceActionRoute (pathTo UpdateUnavailableStaffWarningThresholdAction))
+    { actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
     , actionRouteStandardUrl = Just (pathTo UpdateUnavailableStaffWarningThresholdAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
-    }
+    })
 
 minutePrecisionSettingRoute :: FrontendSurfaceActionRoute
-minutePrecisionSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateMinutePrecisionShiftTimesEnabledAction
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (pathTo UpdateMinutePrecisionShiftTimesEnabledAction)
+minutePrecisionSettingRoute = ((defaultFrontendSurfaceActionRoute (pathTo UpdateMinutePrecisionShiftTimesEnabledAction))
+    { actionRouteStandardUrl = Just (pathTo UpdateMinutePrecisionShiftTimesEnabledAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
-    }
+    })
 
 rosterEndTimesSettingRoute :: FrontendSurfaceActionRoute
-rosterEndTimesSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateRosterEndTimesEnabledAction
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (pathTo UpdateRosterEndTimesEnabledAction)
+rosterEndTimesSettingRoute = ((defaultFrontendSurfaceActionRoute (pathTo UpdateRosterEndTimesEnabledAction))
+    { actionRouteStandardUrl = Just (pathTo UpdateRosterEndTimesEnabledAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
-    }
+    })
 

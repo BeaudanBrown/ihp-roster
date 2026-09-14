@@ -54,13 +54,20 @@ module Application.Helper.Xero
     , withXeroConfigForTest
     , withXeroRequestBaseUrlsForTest
     , xeroPayRunsUrl
+    , xeroTimesheetPageWithinLimit
     , xeroTimesheetsUrl
     )
 where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  throwExternalRuntimeMessage)
+import Application.Helper.Telemetry (addTelemetryAttributes,
+                                     withProviderTelemetrySpan)
+import Application.Helper.Telemetry.Semantic (httpStatusClass,
+                                              telemetryHttpMethod)
 import Application.Helper.Xero.Types
-import Control.Applicative ((<|>))
 import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as SafeException
 import Control.Monad (guard)
 import "crypton" Crypto.Cipher.AES (AES256)
 import "crypton" Crypto.Cipher.Types (IV, cipherInit, ctrCombine, makeIV)
@@ -68,30 +75,22 @@ import "crypton" Crypto.Error (CryptoError, CryptoFailable (..))
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.Random (getRandomBytes)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.KeyMap as KeyMap
-import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
-import Data.Char (isDigit)
+import Data.Either (isRight)
 import qualified Data.IORef as IORef
-import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Text.Encoding.Error (lenientDecode)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime, utctDay)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import qualified Data.Time.Format as TimeFormat
-import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple
 import Network.HTTP.Types.Header (HeaderName, hRetryAfter)
 import qualified Network.HTTP.Types.URI as URI
+import OpenTelemetry.Attributes (toAttribute)
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
@@ -186,7 +185,7 @@ decodeBase64Text value =
 aesCipherFromSecret :: Text -> IO AES256
 aesCipherFromSecret secret =
     case cipherFromSecret secret of
-        Left err     -> Exception.throwIO (userError (cs (showCryptoError err)))
+        Left err     -> throwExternalRuntimeMessage ProviderRuntimeInvariant (showCryptoError err)
         Right cipher -> pure cipher
 
 cipherFromSecret :: Text -> Either CryptoError AES256
@@ -199,7 +198,7 @@ ivFromBytes :: ByteString -> IO (IV AES256)
 ivFromBytes bytes =
     case makeIV bytes of
         Just iv -> pure iv
-        Nothing -> Exception.throwIO (userError "Failed to build Xero token IV")
+        Nothing -> throwExternalRuntimeMessage ProviderRuntimeInvariant "Failed to build Xero token IV"
 
 xeroEncryptionKeyBytes :: Text -> ByteString
 xeroEncryptionKeyBytes secret =
@@ -409,7 +408,15 @@ fetchTimesheetsForPeriodRequest accessToken tenantId maybeCalendarId periodStart
                 let nextAcc = acc <> refs
                  in if length refs < 100
                         then pure (Right nextAcc)
-                        else fetchPage urls (page + 1) nextAcc
+                        else if xeroTimesheetPageWithinLimit (page + 1)
+                            then fetchPage urls (page + 1) nextAcc
+                            else pure (Left (XeroSemanticError "Xero payroll period timesheets pagination reached its safety limit"))
+
+xeroTimesheetPageLimit :: Int
+xeroTimesheetPageLimit = 100
+
+xeroTimesheetPageWithinLimit :: Int -> Bool
+xeroTimesheetPageWithinLimit page = page >= 1 && page <= xeroTimesheetPageLimit
 
 fetchTimesheetRequest :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
 fetchTimesheetRequest accessToken tenantId timesheetId = do
@@ -646,17 +653,51 @@ xeroPayrollHeaders accessToken tenantId =
 
 sendXeroJsonRequest :: Aeson.FromJSON value => Text -> XeroHttpRequest -> IO (Either XeroClientError value)
 sendXeroJsonRequest label xeroRequest =
-    handleXeroHttpExceptions do
-        requestWithHeaders <- toHttpRequest xeroRequest
-        response <- httpLBS requestWithHeaders
-        decodeXeroResponse label response
+    withProviderTelemetrySpan "xero" (xeroTelemetryOperation label) (telemetryHttpMethod xeroRequest.xeroRequestMethod) isRight $
+        handleXeroHttpExceptions do
+            requestWithHeaders <- toHttpRequest xeroRequest
+            response <- httpLBS requestWithHeaders
+            annotateXeroResponse response
+            decodeXeroResponse label response
 
 sendXeroEmptyRequest :: Text -> XeroHttpRequest -> IO (Either XeroClientError ())
 sendXeroEmptyRequest label xeroRequest =
-    handleXeroHttpExceptions do
-        requestWithHeaders <- toHttpRequest xeroRequest
-        response <- httpLBS requestWithHeaders
-        decodeXeroEmptyResponse label response
+    withProviderTelemetrySpan "xero" (xeroTelemetryOperation label) (telemetryHttpMethod xeroRequest.xeroRequestMethod) isRight $
+        handleXeroHttpExceptions do
+            requestWithHeaders <- toHttpRequest xeroRequest
+            response <- httpLBS requestWithHeaders
+            annotateXeroResponse response
+            decodeXeroEmptyResponse label response
+
+annotateXeroResponse :: Response body -> IO ()
+annotateXeroResponse response = do
+    let statusCode = getResponseStatusCode response
+    addTelemetryAttributes
+        [ ("http.response.status_code", toAttribute statusCode)
+        , ("bepis.provider.status_class", toAttribute (httpStatusClass statusCode))
+        ]
+
+xeroTelemetryOperation :: Text -> Text
+xeroTelemetryOperation label =
+    fromMaybe "unknown" (lookup label knownOperations)
+  where
+    knownOperations =
+        [ ("Xero token request", "token")
+        , ("Xero connections request", "connections")
+        , ("Xero payroll employees request", "employees")
+        , ("Xero payroll earnings rates request", "earnings_rates")
+        , ("Xero payroll calendars request", "payroll_calendars")
+        , ("Xero accounts request", "accounts")
+        , ("Xero payroll settings request", "payroll_settings")
+        , ("Xero payroll pay runs request", "pay_runs")
+        , ("Xero payroll earnings rate create request", "earnings_rate_create")
+        , ("Xero payroll timesheets request", "timesheets")
+        , ("Xero payroll period timesheets request", "period_timesheets")
+        , ("Xero payroll timesheet request", "timesheet")
+        , ("Xero payroll timesheet create request", "timesheet_create")
+        , ("Xero payroll timesheet update request", "timesheet_update")
+        , ("Xero disconnect request", "connection_delete")
+        ]
 
 toHttpRequest :: XeroHttpRequest -> IO Request
 toHttpRequest xeroRequest = do
@@ -788,9 +829,10 @@ decodeXeroEmptyResponse label response = do
         else pure (Right ())
 
 handleXeroHttpExceptions :: IO (Either XeroClientError value) -> IO (Either XeroClientError value)
-handleXeroHttpExceptions action = do
-    result <- Exception.try action
-    pure case result of
-        Left (err :: Exception.SomeException) -> Left (XeroHttpError (cs (show err)))
-        Right value -> value
+handleXeroHttpExceptions action =
+    Exception.try action >>= \case
+        Left exception
+            | SafeException.isAsyncException exception -> Exception.throwIO (exception :: Exception.SomeException)
+            | otherwise -> pure (Left (XeroHttpError "Xero request failed before receiving a response."))
+        Right value -> pure value
 

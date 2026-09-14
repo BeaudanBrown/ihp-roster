@@ -33,8 +33,15 @@ or roster views.
 - General roster workflow/domain helpers belong in `Service.hs` unless they are
   shared across features. Interaction-specific drop token/scope/placement/DST
   resolution belongs in `DropWorkflow.hs`; shift-dialog context, data,
-  validation, and application belong in `ShiftWorkflow.hs`. Controllers retain
-  authorization, request adaptation, mutation calls, and response selection.
+  validation, and complete create/edit operations belong in `ShiftWorkflow.hs`.
+  Controllers retain authorization, staged request adaptation, and response
+  selection. Do not reconstruct a shift, choose Published-fill permission, or
+  query post-save impacted rows in the controller; invoke `createRosterShift`
+  or `editRosterShift` after the existing scope/placement checks.
+- Keep shift completion construction in `Responses.hs`, including response-only
+  move/duplicate/assignment/delete consumers. Update and Published fill have no
+  success toast or native redirect; Published fill suppresses source-Timesheet
+  warnings. Preserve dialog-clear before feedback and requester-only extras.
 - View-only rendering helpers belong under `Web/View/RosterWeeks/` or
   `Application/Helper/View/*` when shared.
 
@@ -56,14 +63,9 @@ or roster views.
   suggestions; include the corresponding Timesheet week touched resource.
 - Do not return `hx-swap-oob` wrappers from viewer-side fragment GET actions;
   return the plain target fragment and let the live runtime replace it.
-- The roster-template library fragment is user-specific because private drafts
-  belong to the effective user; carry that user id explicitly through frozen or
-  asynchronous render contexts.
-- Day template activation uses a separate temporary native button overlay. Do
-  not put `role="button"` on day containers that own nested shift controls.
-- Timeline template targets sit across nested Roster and RosterDayTimeline
-  mounts. Browser selection must resolve the ancestor mount that owns the active
-  template session instead of assuming the nearest Surface owns it.
+- The roster-template library fragment and resource are roster-group-scoped.
+  Keep effective-user identity out of their fragment/resource keys; authorize
+  every full-page and fragment request server-side.
 
 ## Verification
 

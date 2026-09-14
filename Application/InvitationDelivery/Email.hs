@@ -8,6 +8,7 @@ module Application.InvitationDelivery.Email
     , markInvitationDeliveryFailed
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Mail
 import Application.Helper.VenueInvitation
 import Application.Helper.VenueOnboardingInvitation
@@ -48,7 +49,7 @@ loadVenueInvitationMail recipientIdentityId recipientAddress invitationId jobVen
             if recipientIdentityId /= invitationId || recipientAddress /= invitation.email
                 then pure (VenueInvitationMailSkipped "recipient_snapshot_mismatch")
                 else if jobVenueId /= Just invitation.venueId
-                    then fail "Venue invitation envelope has invalid venue provenance"
+                    then externalRuntimeInvariantFailure JobProvenanceInvariant "Venue invitation envelope has invalid venue provenance"
                     else case invitationSkipReason now invitation of
                         Just reason -> pure (VenueInvitationMailSkipped reason)
                         Nothing -> do
@@ -83,7 +84,7 @@ loadVenueOnboardingInvitationMail recipientIdentityId recipientAddress invitatio
             if recipientIdentityId /= invitationId || recipientAddress /= invitation.email
                 then pure (VenueOnboardingInvitationMailSkipped "recipient_snapshot_mismatch")
                 else if isJust jobVenueId
-                    then fail "Venue onboarding invitation envelope must not have venue provenance"
+                    then externalRuntimeInvariantFailure JobProvenanceInvariant "Venue onboarding invitation envelope must not have venue provenance"
                     else case onboardingInvitationSkipReason now invitation of
                         Just reason -> pure (VenueOnboardingInvitationMailSkipped reason)
                         Nothing -> pure $ VenueOnboardingInvitationMailReady VenueOnboardingInvitationMail

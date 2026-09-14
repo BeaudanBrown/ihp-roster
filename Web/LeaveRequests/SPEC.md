@@ -16,6 +16,14 @@
 - Approved-state changes are the roster-availability boundary. Pending creation
   does not fan out to roster viewers. Staff removal denies pending requests
   through the normal provenance path and retains approved/denied history.
+- Manager request sections use shared expanding header tabs: Pending, Approved,
+  Denied, Archive. Inactive tabs show icon and live count; the active tab also
+  shows its label. Pending is the normal initial selection, even when empty;
+  archive links open Archive. Selection stays local to page interactions and is
+  retained through fragment refreshes, without storage or tab-selection URLs.
+  The two server-declared fixed-default tab-set variants honour normal/archive
+  entry points through the existing generic runtime; only one is rendered per page.
+  Availability warnings stay outside the panes, and Archive retains pagination.
 - The manager page uses the shared transient Staff/Settings SidePanel with the
   same main-card header, desktop focus/Escape behavior, and phone stacking as
   Roster and Timesheets. Its Staff

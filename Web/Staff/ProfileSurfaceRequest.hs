@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Web.Staff.ProfileSurfaceRequest
@@ -12,7 +13,8 @@ import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionV
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFieldBundleOf,
+import Application.Helper.FrontendContract.Surface.Values (LookupSurfaceFieldBundle,
+                                                           SurfaceFieldBundleOf,
                                                            surfaceFieldValue)
 import Application.PayRateSelection (StaffPayRateSelection)
 import qualified Data.UUID as UUID
@@ -56,7 +58,10 @@ parseStaffSurfaceSubmission =
 
 chooseSubmission ::
     ( SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields preferenceFields
+    , LookupSurfaceFieldBundle Surface.SectionField preferenceFields
+    , LookupSurfaceFieldBundle Surface.ShiftPreferenceKeysField preferenceFields
     , SurfaceFieldBundleOf Surface.StaffProfileFields detailsFields
+    , StaffProfileFieldLookups detailsFields
     ) =>
     Either [SurfaceRequestFieldError] preferenceFields ->
     Either [SurfaceRequestFieldError] detailsFields ->
@@ -67,14 +72,33 @@ chooseSubmission preferenceResult detailsResult = do
         then Right (SubmittedStaffShiftPreferences (preferencesSubmission preferenceFields))
         else SubmittedStaffProfileDetails . detailsSubmission <$> detailsResult
 
-preferencesSubmission :: SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields => fields -> StaffShiftPreferencesSubmission
+preferencesSubmission ::
+    ( SurfaceFieldBundleOf Surface.StaffShiftPreferenceFields fields
+    , LookupSurfaceFieldBundle Surface.SectionField fields
+    , LookupSurfaceFieldBundle Surface.ShiftPreferenceKeysField fields
+    ) => fields -> StaffShiftPreferencesSubmission
 preferencesSubmission fields =
     StaffShiftPreferencesSubmission
         { submittedPreferencesSection = surfaceFieldValue @Surface.SectionField fields
         , submittedShiftPreferenceKeys = fromMaybe [] (surfaceFieldValue @Surface.ShiftPreferenceKeysField fields)
         }
 
-detailsSubmission :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> StaffProfileDetailsSubmission
+type StaffProfileFieldLookups fields =
+    ( LookupSurfaceFieldBundle Surface.FirstNameField fields
+    , LookupSurfaceFieldBundle Surface.LastNameField fields
+    , LookupSurfaceFieldBundle Surface.PreferredNameField fields
+    , LookupSurfaceFieldBundle Surface.PhoneField fields
+    , LookupSurfaceFieldBundle Surface.IdealShiftsPerWeekField fields
+    , LookupSurfaceFieldBundle Surface.EmergencyContactNameField fields
+    , LookupSurfaceFieldBundle Surface.EmergencyContactPhoneField fields
+    , LookupSurfaceFieldBundle Surface.SectionField fields
+    , LookupSurfaceFieldBundle Surface.VenueRoleField fields
+    , LookupSurfaceFieldBundle Surface.EmploymentBasisField fields
+    , LookupSurfaceFieldBundle Surface.PayRateSelectionField fields
+    , LookupSurfaceFieldBundle Surface.RosterGroupIdsField fields
+    )
+
+detailsSubmission :: (SurfaceFieldBundleOf Surface.StaffProfileFields fields, StaffProfileFieldLookups fields) => fields -> StaffProfileDetailsSubmission
 detailsSubmission fields =
     StaffProfileDetailsSubmission
         { submittedFirstName = surfaceFieldValue @Surface.FirstNameField fields

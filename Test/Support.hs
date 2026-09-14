@@ -10,7 +10,8 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       initImpersonationContext,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
-import Application.Helper.ControllerContext (initCurrentVenueContext)
+import Application.Helper.Authentication (bepisAuthenticationMiddleware)
+import Application.Helper.ControllerContext (initCurrentVenueContext, venueRequestStateMiddleware)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
@@ -37,29 +38,88 @@ import qualified Data.Vault.Lazy as Vault
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
 import Generated.Types
 import GHC.Clock (getMonotonicTimeNSec)
-import IHP.Controller.Context (ControllerContext, newControllerContext)
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.ControllerPrelude
-import IHP.ControllerSupport (Respond)
+import IHP.ControllerSupport (ControllerContext, Respond)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.Log as Log
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
-import IHP.LoginSupport.Middleware (initAuthentication)
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 import IHP.Test.Mocking
-import Network.HTTP.Types (Status)
+import IHP.Server (initMiddlewareStack)
+import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types (Status, status200)
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
+import Network.Wai.Internal (ResponseReceived (..))
 import qualified Network.Wai.Session.Maybe as WaiSession
-import System.Environment (lookupEnv, setEnv, unsetEnv)
+import System.Environment (lookupEnv, setEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
-import Test.Hspec (Expectation, shouldBe)
+import Test.Hspec (Expectation, shouldBe, shouldSatisfy)
+import Test.Support.Environment (withEnvironmentVariable)
 import Web.FrontController ()
 import Web.Types
+
+-- IHP's callActionWithParams always sends POST. Use an actual query-string GET
+-- for read-only preview actions, preserving its middleware and auth overrides.
+callActionWithQueryParams :: forall application controller.
+    (Controller controller, ContextParameters application, Typeable application, Typeable controller) =>
+    controller -> [HTTP.SimpleQueryItem] -> IO Wai.Response
+callActionWithQueryParams controller params = do
+    let MockContext { frameworkConfig, modelContext, pgListener } = ?mocking
+    let request = ?request
+            { Wai.requestMethod = "GET"
+            , Wai.queryString = map (\(key, value) -> (key, Just value)) params
+            , Wai.rawQueryString = HTTP.renderSimpleQuery True params
+            }
+    let overrideMiddleware = fromMaybe Prelude.id (Vault.lookup mockOverrideVaultKey (Wai.vault request))
+    responses <- newIORef []
+    let capture response = modifyIORef' responses (response :) >> pure ResponseReceived
+    let controllerApp req respond = do
+            let ?request = req
+            let ?respond = respond
+            runActionWithNewContext controller
+    middleware <- initMiddlewareStack frameworkConfig modelContext pgListener
+    _ <- middleware (overrideMiddleware controllerApp) request capture
+    readIORef responses >>= \case
+        [response] -> pure response
+        _ -> fail "GET controller action must send exactly one response"
+
+-- Check persisted approval authority before any golden/output assertion. These
+-- checks deliberately do not derive expected financial output from the renderer.
+assertSealedPayrollEntries :: (?modelContext :: ModelContext) => Venue -> IO ()
+assertSealedPayrollEntries venue = do
+    entries <- query @TimesheetEntry
+        |> filterWhere (#venueId, unpackId venue.id)
+        |> filterWhere (#isApproved, True)
+        |> fetch
+    entries `shouldSatisfy` (not . null)
+    forM_ entries \entry -> do
+        calculation <- query @TimesheetPayCalculation
+            |> filterWhere (#timesheetEntryId, unpackId entry.id)
+            |> fetchOne
+        entry.activePayCalculationId `shouldBe` Just calculation.id
+        entry.staffPayVersionId `shouldBe` Just calculation.staffPayVersionId
+        entry.shiftTypePayVersionId `shouldBe` Just calculation.shiftTypePayVersionId
+        entry.approvedAt `shouldBe` Just calculation.approvedAt
+        entry.approvedByUserId `shouldBe` Just calculation.approvedByUserId
+        calculation.operationalDate `shouldBe` entry.operationalDate
+        calculation.venueTimezone `shouldBe` entry.timezone
+        calculation.sealedAt `shouldSatisfy` isJust
+        staffVersion <- fetch (Id calculation.staffPayVersionId :: Id StaffPayVersion)
+        shiftVersion <- fetch (Id calculation.shiftTypePayVersionId :: Id ShiftTypePayVersion)
+        staffVersion.staffId `shouldBe` entry.staffId
+        shiftVersion.shiftTypeId `shouldBe` entry.shiftTypeId
+        staffVersion.venueId `shouldBe` unpackId venue.id
+        shiftVersion.venueId `shouldBe` unpackId venue.id
+        staffVersion.lockedAt `shouldSatisfy` isJust
+        shiftVersion.lockedAt `shouldSatisfy` isJust
+        staffVersion.lockedByUserId `shouldBe` entry.approvedByUserId
+        shiftVersion.lockedByUserId `shouldBe` entry.approvedByUserId
 
 actionResponsesShouldHaveStatus :: Status -> [(Text, IO Wai.Response)] -> Expectation
 actionResponsesShouldHaveStatus expectedStatus actions = do
@@ -79,12 +139,12 @@ class TestLocalTimeRecord record localTime | record -> localTime where
     setTestEndTime :: localTime -> record -> record
 
 instance TestLocalTimeRecord TimesheetEntry TimeOfDay where
-    testStartTime = timesheetEntryStartTime
-    testEndTime = timesheetEntryEndTime
+    testStartTime = timesheetTimingStartTime . testValidatedTimesheetTiming
+    testEndTime = timesheetTimingEndTime . testValidatedTimesheetTiming
     setTestStartTime startTime entry =
-        entry |> set #startsAt (resolveTestFixtureInstant entry.timezone (timesheetEntryWorkedOn entry) startTime)
+        entry |> set #startsAt (resolveTestFixtureInstant entry.timezone (timesheetTimingWorkedOn (testValidatedTimesheetTiming entry)) startTime)
     setTestEndTime endTime entry =
-        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+        let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             endDay = addDays (if endTime <= startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #endsAt (resolveTestFixtureInstant entry.timezone endDay endTime)
 
@@ -119,6 +179,14 @@ resolveTestFixtureInstant rawTimezone day timeOfDay =
      in either (error . ("Invalid test fixture boundary: " <>) . show) Prelude.id $
             resolveBoundaryInstant timezone day timeOfDay occurrence
 
+testValidatedTimesheetTiming :: TimesheetEntry -> ValidatedTimesheetTiming
+testValidatedTimesheetTiming =
+    either (error . ("Invalid test Timesheet timing: " <>) . show) Prelude.id . decodeTimesheetTiming
+
+testStoredInstantLocalTime :: Text -> UTCTime -> LocalTime
+testStoredInstantLocalTime timezone =
+    either (error . ("Invalid test persisted timezone: " <>) . show) Prelude.id . storedInstantLocalTime timezone
+
 testFixtureTimezone :: Text -> Text
 testFixtureTimezone timezone
     | Text.null timezone = melbourneTimeZoneName
@@ -127,11 +195,11 @@ testFixtureTimezone timezone
 rosterSlotFixtureDay :: RosterSlot -> Day
 rosterSlotFixtureDay slot =
     case slot.startsAt <|> slot.endsAt of
-        Just instant -> (storedInstantLocalTime (testFixtureTimezone slot.timezone) instant).localDay
+        Just instant -> (testStoredInstantLocalTime (testFixtureTimezone slot.timezone) instant).localDay
         Nothing -> defaultWeekEpoch
 
 testWorkedOn :: TimesheetEntry -> Day
-testWorkedOn = timesheetEntryWorkedOn
+testWorkedOn = timesheetTimingWorkedOn . testValidatedTimesheetTiming
 
 setTestWorkedOn :: Day -> TimesheetEntry -> TimesheetEntry
 setTestWorkedOn targetDay entry
@@ -149,9 +217,9 @@ setTestWorkedOn targetDay entry
          in applyTimesheetEntryBoundaries boundaries entry
     | otherwise =
         let timezone = entry.timezone
-            sourceDay = timesheetEntryWorkedOn entry
+            sourceDay = timesheetTimingWorkedOn (testValidatedTimesheetTiming entry)
             moveBoundary instant =
-                let local = storedInstantLocalTime timezone instant
+                let local = testStoredInstantLocalTime timezone instant
                     movedDay = addDays (diffDays local.localDay sourceDay) targetDay
                  in resolveTestFixtureInstant timezone movedDay local.localTimeOfDay
          in entry
@@ -195,19 +263,19 @@ instance TestBreakRecord TimesheetEntry where
              in entry
                     |> set #breakStartsAt (Just breakStart)
                     |> set #breakEndsAt (Just (addUTCTime 1800 breakStart))
-    testBreakStartTime = timesheetEntryBreakStartTime
+    testBreakStartTime = timesheetTimingBreakStartTime . testValidatedTimesheetTiming
     setTestBreakStartTime Nothing entry = entry |> set #breakStartsAt Nothing
     setTestBreakStartTime (Just breakTime) entry =
-        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+        let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #breakStartsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
-    testBreakEndTime = timesheetEntryBreakEndTime
+    testBreakEndTime = timesheetTimingBreakEndTime . testValidatedTimesheetTiming
     setTestBreakEndTime Nothing entry = entry |> set #breakEndsAt Nothing
     setTestBreakEndTime (Just breakTime) entry =
-        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+        let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #breakEndsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
-    testBreakMinutes = floor . (/ 60) . timesheetEntryBreakElapsedSeconds
+    testBreakMinutes = floor . (/ 60) . timesheetTimingBreakElapsedSeconds . testValidatedTimesheetTiming
     setTestBreakMinutes minutes entry =
         case entry.breakStartsAt of
             Nothing -> entry
@@ -274,14 +342,10 @@ databaseTestConfig = do
     config
 
 withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
-withPrivilegedStrongAuthentication enabled action =
-    bracket
-        (lookupEnv variableName)
-        restore
-        (\_ -> setEnv variableName (if enabled then "true" else "false") >> action)
-  where
-    variableName = "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
-    restore = maybe (unsetEnv variableName) (setEnv variableName)
+withPrivilegedStrongAuthentication enabled =
+    withEnvironmentVariable
+        "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+        (Just (if enabled then "true" else "false"))
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = FixtureReset.resetDatabase
@@ -305,26 +369,39 @@ hspecResetMetricsFile = unsafePerformIO (lookupEnv "HSPEC_RESET_METRICS_FILE")
 
 withControllerTestContext ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?respond :: Respond) =>
-    ((?context :: ControllerContext) => IO a) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO a) ->
     IO a
 withControllerTestContext action =
     withSessionValues [] do
-        controllerContext <- newControllerContext
-        let ?context = controllerContext
+        request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware) ?request
+        let ?context = request
+        let ?request = request
         action
 
 withCurrentControllerContext ::
     (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
-    ((?context :: ControllerContext) => IO a) ->
+    ((?context :: ControllerContext, ?request :: Wai.Request) => IO a) ->
     IO a
 withCurrentControllerContext action = do
-    let ?frameworkConfig = config
-    controllerContext <- newControllerContext
-    let ?context = controllerContext
-    initAuthentication @User
+    -- Match callAction's ordering: fixture overrides (including withUser) run
+    -- after authentication, before controller context initialization.
+    let overrideMiddleware = fromMaybe Prelude.id (Vault.lookup mockOverrideVaultKey (Wai.vault ?request))
+    request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware . overrideMiddleware) ?request
+    let ?context = request
+    let ?request = request
     initCurrentVenueContext
     initImpersonationContext
     action
+
+-- Preserve the fixture session vault while applying the real app auth boundary.
+-- Re-running IHP's full stack here would replace those synthetic session values.
+applyTestRequestMiddleware :: Wai.Middleware -> Wai.Request -> IO Wai.Request
+applyTestRequestMiddleware middleware request = do
+    captured <- newIORef request
+    _ <- middleware (\request' respond -> do
+        modifyIORef' captured (const request')
+        respond (Wai.responseLBS status200 [] "")) request (\_ -> pure ResponseReceived)
+    readIORef captured
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
@@ -608,7 +685,8 @@ createApprovedTimesheetEntryRecordAtWithShiftTimes venue staff approver shiftTyp
         |> set #operationalDate workedOn
         |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
-    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+    let timing = testValidatedTimesheetTiming entry
+    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
     lockPayVersionsForApproval approver.id approvedAt staffPayVersion shiftTypePayVersion
     approvedEntry <- withLegacyPayBackfillFixture do
         entry
@@ -726,7 +804,16 @@ withSessionValues initialValues callback = do
     callback
     where
         requestWithSession store =
-            ?request { Wai.vault = Vault.insert sessionVaultKey (newSession store) (Wai.vault ?request) }
+            ?request { Wai.vault = Vault.insert mockOverrideVaultKey (sessionAuthentication store)
+                (Vault.insert sessionVaultKey (newSession store) (Wai.vault ?request)) }
+
+        -- IHP 1.6 restores cookie sessions before controller dispatch. Install
+        -- the synthetic session at its test override seam, then run REAL auth
+        -- again rather than injecting a user that bypasses revocation checks.
+        sessionAuthentication store app request respond =
+            bepisAuthenticationMiddleware app
+                (request { Wai.vault = Vault.insert sessionVaultKey (newSession store) request.vault })
+                respond
 
         newSession :: IORef (Map.Map ByteString.ByteString ByteString.ByteString) -> WaiSession.Session IO ByteString.ByteString ByteString.ByteString
         newSession store = (lookupSession store, insertSession store)

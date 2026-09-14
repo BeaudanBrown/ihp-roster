@@ -1,5 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
-import { defaultE2ERosterGroupId, gotoWhenReady, loginAs } from './test-helpers';
+import { defaultE2ERosterGroupId } from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
 
 type Density = 'compact' | 'normal' | 'large';
 

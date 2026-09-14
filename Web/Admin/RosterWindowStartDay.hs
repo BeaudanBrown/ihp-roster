@@ -30,7 +30,7 @@ updateRosterWindowStartDayMutation submittedConfig proposedStartDay
                 if currentConfig.rosterCalendarRevision /= submittedConfig.rosterCalendarRevision
                     then pure (Left staleCalendarMessage)
                     else Right <$> applyRosterWindowStartDay currentConfig proposedStartDay
-            pure (fmap (\updated -> liveMutationResult updated resources) outcome)
+            pure (fmap (`liveMutationResult` resources) outcome)
   where
     resources = rosterWeekStartsOnTouchedResources currentVenueId
     publicationFor = either (const Nothing) (\result -> Just ("admin.venue_config.roster_window_start_day", result.liveMutationTouchedResources))

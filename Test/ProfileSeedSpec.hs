@@ -2,6 +2,7 @@ module Test.ProfileSeedSpec where
 
 import Application.Script.SeedProfile
 import Data.Either (isLeft)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
@@ -58,6 +59,21 @@ tests = do
                       ]
                     ]
 
+        it "gives profiling staff payable assignments matching their locked versions" do
+            let field name columns values = Map.lookup name (Map.fromList (zip columns values))
+            let workers = drop 1 (staffRows smallPlan)
+            let versions = staffPayVersionRows smallPlan
+            length workers `shouldBe` length versions
+            forM_ (zip workers versions) \(worker, version) -> do
+                field "pay_assignment_mode" staffColumns worker `shouldBe` Just (Just "award_rate")
+                field "pay_assignment_mode" staffPayVersionColumns version `shouldBe` Just (Just "award_rate")
+                field "employment_basis" staffColumns worker `shouldBe` Just (Just "permanent")
+                field "default_award_level_id" staffColumns worker `shouldSatisfy` maybe False isJust
+                field "default_award_level_id" staffColumns worker
+                    `shouldBe` field "default_award_level_id" staffPayVersionColumns version
+            forM_ (take 1 (staffRows smallPlan)) \admin ->
+                field "pay_assignment_mode" staffColumns admin `shouldBe` Just (Just "roster_only")
+
         it "keeps CSV null, quoting, comma, and newline bytes stable" do
             renderCsvRow [Nothing, Just "\\N", Just "comma, quote \" and\nnewline"]
                 `shouldBe` "\\N,\\N,\"comma, quote \"\" and\nnewline\""
@@ -91,6 +107,9 @@ tests = do
                     , "passkeys.csv"
                     , "venue_config.csv"
                     , "venue_memberships.csv"
+                    , "award_levels.csv"
+                    , "fwc_mapd_pay_rates.csv"
+                    , "award_level_base_rates.csv"
                     , "staff.csv"
                     , "shift_types.csv"
                     , "day_names.csv"
@@ -114,14 +133,16 @@ tests = do
 
         it "keeps load SQL shape, escaping, and boundary statements stable" do
             let loadLines = Text.lines (renderLoadSql "/tmp/profile seed's")
-            length loadLines `shouldBe` 35
+            length loadLines `shouldBe` 38
             head loadLines `shouldBe` "BEGIN;"
             loadLines !! 1
                 `shouldBe` "\\copy venues (id, name, status) FROM '/tmp/profile seed''s/venues.csv' WITH (FORMAT csv, NULL '\\N')"
             loadLines `shouldContain` ["CREATE TEMP TABLE profile_seed_timesheet_entries (LIKE timesheet_entries INCLUDING DEFAULTS);"]
+            loadLines `shouldSatisfy` any (Text.isInfixOf "operational_date, roster_window_start, roster_week_starts_on")
+            loadLines `shouldSatisfy` any (Text.isInfixOf "JOIN venue_config config ON config.venue_id = staged.venue_id")
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_pay_calculations calculation SET sealed_at")
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_entries entry SET active_pay_calculation_id")
-            drop 33 loadLines `shouldBe` ["COMMIT;", "ANALYZE;"]
+            drop 36 loadLines `shouldBe` ["COMMIT;", "ANALYZE;"]
 
     describe "ProfileSeed application routes" do
         it "keeps typed-route target bytes stable" do
@@ -150,6 +171,7 @@ tests = do
             let manifestLines = Text.lines (renderProfileSeedManifest smallPlan)
             let expectedLines =
                     [ "    \"primaryManager\": { \"email\": \"profile-staff-01-01@example.com\", \"password\": \"password123\", \"venueId\": \"000f4241-0000-4000-8001-000006052340\", \"staffId\": \"004c4b41-0001-4000-8002-00001ddcab28\" },"
+                    , "    \"primaryStaff\": { \"email\": \"profile-staff-01-02@example.com\", \"password\": \"password123\", \"venueId\": \"000f4241-0000-4000-8001-000006052340\", \"staffId\": \"004c4b41-0002-4000-8003-00001ddcaf10\" },"
                     , "    \"venueAdmin\": { \"email\": \"profile-manager-01@example.com\", \"password\": \"password123\", \"venueId\": \"000f4241-0000-4000-8001-000006052340\" },"
                     , "    \"support\": { \"email\": \"profile-support@example.com\", \"password\": \"password123\" }"
                     , "    \"leaveRequests\": \"/LeaveRequests\","

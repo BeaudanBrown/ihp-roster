@@ -2,12 +2,116 @@ name: Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [ roster, staging, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ roster, staging, master ]
   workflow_dispatch:
+    inputs:
+      migration_predecessor:
+        description: "Git revision to rehearse from (required for an operator-triggered rehearsal)"
+        required: true
+        type: string
 
 jobs:
+  migration-rehearsal:
+    name: Migration rehearsal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate with predecessor history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Pull requests use GitHub's tested merge commit so the exact current
+          # base SHA is always an ancestor accepted by migration-rehearsal.
+          ref: ${{ github.sha }}
+
+      - name: Select predecessor and migration-sensitive scope
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          MANUAL_PREDECESSOR: ${{ inputs.migration_predecessor }}
+        run: |
+          set -euo pipefail
+          candidate="$(git rev-parse HEAD)"
+          case "$EVENT_NAME" in
+            pull_request)
+              predecessor="$PR_BASE_SHA"
+              ;;
+            push)
+              predecessor="$PUSH_BEFORE_SHA"
+              if [[ ! "$predecessor" =~ ^[0-9a-f]{40}$ || "$predecessor" =~ ^0+$ ]]; then
+                predecessor="$(git rev-parse HEAD^)"
+              fi
+              ;;
+            workflow_dispatch)
+              if [[ -z "$MANUAL_PREDECESSOR" ]]; then
+                echo "workflow_dispatch requires migration_predecessor" >&2
+                exit 64
+              fi
+              predecessor="$(git rev-parse --verify "$MANUAL_PREDECESSOR^{commit}")"
+              ;;
+          esac
+          git cat-file -e "$predecessor^{commit}"
+          printf 'predecessor=%s\ncandidate=%s\n' "$predecessor" "$candidate"
+          {
+            echo "predecessor=$predecessor"
+            echo "candidate=$candidate"
+          } >> "$GITHUB_OUTPUT"
+
+          changed_files="$(git diff --name-only "$predecessor" "$candidate" --)"
+          if [[ "$EVENT_NAME" == workflow_dispatch ]] || grep -Eq \
+               '^(Application/Schema\.sql|Application/Migration/|flake\.(nix|lock)$|Config/nix/flake/scripts\.nix$|Config/nix/scripts/db/(migration-rehearsal|test-postgres)$|Config/nix/modules/ihp-roster\.nix$)' \
+               <<< "$changed_files"; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'No schema, migration, pinned-runner, or deployment-migration changes detected.'
+          fi
+
+      - name: Install Nix
+        if: steps.scope.outputs.run == 'true'
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          determinate: true
+          extra-conf: "lazy-trees = true"
+
+      - name: Cachix
+        if: steps.scope.outputs.run == 'true'
+        uses: cachix/cachix-action@v15
+        with:
+          name: digitallyinduced
+          skipPush: true
+
+      - name: Realize candidate Nix environment
+        if: steps.scope.outputs.run == 'true'
+        run: bash ./bin/in-env true
+
+      - name: Rehearse predecessor to candidate through pinned IHP
+        if: steps.scope.outputs.run == 'true'
+        env:
+          PREDECESSOR_SHA: ${{ steps.scope.outputs.predecessor }}
+          CANDIDATE_SHA: ${{ steps.scope.outputs.candidate }}
+        run: |
+          set -euo pipefail
+          printf 'predecessor_commit=%s\ncandidate_commit=%s\n' "$PREDECESSOR_SHA" "$CANDIDATE_SHA"
+          started_at="$SECONDS"
+          bash ./bin/in-env migration-rehearsal \
+            --from-ref "$PREDECESSOR_SHA" \
+            --keep-failure-artifacts
+          elapsed_seconds="$((SECONDS - started_at))"
+          printf 'migration_rehearsal_elapsed_seconds=%s target_seconds=90\n' "$elapsed_seconds"
+
+      - name: Upload bounded migration failure evidence
+        if: failure() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-rehearsal-${{ steps.scope.outputs.candidate }}
+          path: .pi/tmp/migration-rehearsal/**
+          if-no-files-found: ignore
+          retention-days: 7
+
   tests:
     name: Typecheck and Hspec
     runs-on: ubuntu-latest

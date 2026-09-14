@@ -26,10 +26,7 @@ module Application.Helper.FrontendContract.AppShell
     , SubmitFeedback
     , FeedbackTypeField
     , ContentField
-    , FeedbackViewportWidthField
-    , FeedbackViewportHeightField
-    , FeedbackDevicePixelRatioField
-    , FeedbackDisplayModeField
+    , FeedbackTitleField
     , OpenTimesheetEntryDialog
     , EditTimesheetEntryDialog
     , CreateTimesheetEntryOverlay
@@ -60,6 +57,7 @@ module Application.Helper.FrontendContract.AppShell
     , ConfirmXeroTimesheetPreparationSubmissionOverlay
     , RunXeroTimesheetPreparationSubmissionOverlay
     , ApplyXeroTimesheetPreparationStaffDecisionOverlay
+    , RefreshXeroProblemTimesheetApprovalOverlay
     , RefreshXeroTimesheetPreparationOverlay
     , SubmitXeroTimesheetPreparationOverlay
     , OpenXeroPayItemImportOverlay
@@ -103,6 +101,8 @@ module Application.Helper.FrontendContract.AppShell
     , XeroEmployeeSelectionField
     , XeroEarningsRateIdField
     , AccountCodeField
+    , ExpectedActiveCalculationIdField
+    , ExpectedApprovalTimestampField
     , InvitationEmailField
     ) where
 
@@ -137,10 +137,7 @@ data PayrollWorkbookConfigurationSheetField
 data SubmitFeedback
 data FeedbackTypeField
 data ContentField
-data FeedbackViewportWidthField
-data FeedbackViewportHeightField
-data FeedbackDevicePixelRatioField
-data FeedbackDisplayModeField
+data FeedbackTitleField
 
 data OpenTimesheetEntryDialog
 data EditTimesheetEntryDialog
@@ -174,6 +171,7 @@ data ConfirmXeroTimesheetPreparationSubmissionOverlay
 data RunXeroTimesheetPreparationSubmissionOverlay
 data ApplyXeroTimesheetPreparationStaffDecisionOverlay
 data RefreshXeroTimesheetPreparationOverlay
+data RefreshXeroProblemTimesheetApprovalOverlay
 data SubmitXeroTimesheetPreparationOverlay
 data OpenXeroPayItemImportOverlay
 data ImportXeroPayItemsOverlay
@@ -216,6 +214,8 @@ data PeriodKeyField
 data XeroEmployeeSelectionField
 data XeroEarningsRateIdField
 data AccountCodeField
+data ExpectedActiveCalculationIdField
+data ExpectedApprovalTimestampField
 data InvitationEmailField
 
 type AppShellContract =
@@ -257,10 +257,7 @@ type AppShellContract =
          , AppShellAction SubmitFeedback
             '[ Field FeedbackTypeField ('WireClosed FeedbackTypeEnum)
              , Field ContentField 'WireText
-             , OptionalField FeedbackViewportWidthField 'WireText
-             , OptionalField FeedbackViewportHeightField 'WireText
-             , OptionalField FeedbackDevicePixelRatioField 'WireText
-             , OptionalField FeedbackDisplayModeField 'WireText
+             , Field FeedbackTitleField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
@@ -354,6 +351,16 @@ type AppShellContract =
              , AppShellHtmxSync "#xero-preparation-staff-mappings:queue all"
              ]
          , AppShellAction RefreshXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
+         , AppShellAction RefreshXeroProblemTimesheetApprovalOverlay
+            '[ Field ExpectedActiveCalculationIdField 'WireUUID
+             , Field ExpectedApprovalTimestampField 'WireText
+             ]
+            '[ AppShellHtmxMethod 'AppShellPost
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             , AppShellHtmxConfirm "Refresh this problem Timesheet approval using current pay facts and Xero mappings?"
+             ]
          , AppShellAction SubmitXeroTimesheetPreparationOverlay
             '[ OptionalField AccountCodeField 'WireText
              ]

@@ -5,6 +5,7 @@ module Application.VenueOnboardingInvitation.Mutations
     , withVenueOnboardingInvitationRenewalLock
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
@@ -29,11 +30,11 @@ withVenueOnboardingInvitationRenewalLock ::
     IO (Maybe result)
 withVenueOnboardingInvitationRenewalLock invitationId correctedEmail action =
     withTransaction do
-        emailLockResults :: [PG.Only Bool] <- sqlQuery
+        emailLockResults :: [PG.Only Bool] <- unsafeSqlQuery
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS onboarding_email_lock"
             (PG.Only (Text.toCaseFold (Text.strip correctedEmail)))
         unless (emailLockResults == [PG.Only True]) do
-            error "Unable to lock onboarding invitation renewal email"
+            externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock onboarding invitation renewal email"
         lockVenueOnboardingInvitation invitationId action
 
 lockVenueOnboardingInvitation ::
@@ -42,10 +43,10 @@ lockVenueOnboardingInvitation ::
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
 lockVenueOnboardingInvitation invitationId action = do
-    lockedIds :: [PG.Only UUID] <- sqlQuery
+    lockedIds :: [PG.Only UUID] <- unsafeSqlQuery
         "SELECT id FROM venue_onboarding_invitations WHERE id = ? FOR UPDATE"
         (PG.Only invitationId)
     case lockedIds of
         [_] -> Just <$> action
         []  -> pure Nothing
-        _   -> error "Onboarding invitation lock returned multiple rows"
+        _   -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Onboarding invitation lock returned multiple rows"

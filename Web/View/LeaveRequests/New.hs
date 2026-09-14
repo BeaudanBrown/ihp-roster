@@ -5,6 +5,7 @@ module Web.View.LeaveRequests.New where
 import Application.Helper.FrontendContract.AppShell (CreateLeaveRequestOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Web.View.Prelude
 
@@ -16,26 +17,21 @@ instance View NewView where
     html NewView { .. } =
         renderPageDialogModal
             (pathTo LeaveRequestsAction)
-            DialogOverlayConfig
-                { dialogOverlayTitle = "Add Unavailable Time"
-                , dialogOverlayBody = renderLeaveRequestForm PageOverlayForm leaveRequest
-                , dialogOverlayStartButtons = []
-                , dialogOverlayButtons = defaultOverlayButtons leaveRequestFormId
-                , dialogOverlayDialogClass = ""
-                }
+            (defaultDialogOverlayConfig
+                "Add Unavailable Time"
+                (renderLeaveRequestForm PageOverlayForm leaveRequest)
+                (defaultOverlayButtons leaveRequestFormId)
+            )
 
 leaveRequestFormId :: Text
 leaveRequestFormId = "leave-request-form"
 
 renderNewLeaveRequestDialog :: LeaveRequest -> Html
 renderNewLeaveRequestDialog leaveRequest =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Add Unavailable Time"
-        , dialogOverlayBody = renderLeaveRequestForm HtmxOverlayForm leaveRequest
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = defaultOverlayButtons leaveRequestFormId
-        , dialogOverlayDialogClass = ""
-        }
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Add Unavailable Time"
+            (renderLeaveRequestForm HtmxOverlayForm leaveRequest)
+            (defaultOverlayButtons leaveRequestFormId))
 
 renderLeaveRequestForm :: OverlayFormMode -> LeaveRequest -> Html
 renderLeaveRequestForm formMode leaveRequest =
@@ -43,17 +39,12 @@ renderLeaveRequestForm formMode leaveRequest =
         HtmxOverlayForm ->
             renderAppShellActionForm
                 (appShellActionByMarker @CreateLeaveRequestOverlay)
-                AppShellActionRoute
-                    { appShellActionRouteUrl = pathTo CreateLeaveRequestAction
-                    , appShellActionRouteFields = []
-                    , appShellActionRouteCustomHtmx = []
-                    , appShellActionRouteStandardUrl = Nothing
-                    , appShellActionRouteExtraAttrs =
-                        [ ("id", leaveRequestFormId)
+                ((defaultAppShellActionRoute (pathTo CreateLeaveRequestAction))
+                    { appShellActionRouteExtraAttrs = [ ("id", leaveRequestFormId)
                         , ("class", "mt-3")
 
                         ]
-                    }
+                    })
                 (renderLeaveRequestFormFields leaveRequest)
         PageOverlayForm -> [hsx|
             <form id={leaveRequestFormId}

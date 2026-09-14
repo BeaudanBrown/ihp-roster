@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import { architectureFactFingerprint } from "./facts-currency.mjs";
 import { fileHash, listFiles, outputDir, readText, repoRoot, writeJson } from "./shared.mjs";
 import { parseLayoutPolicy } from "./layout-policy.mjs";
 import { wiringRegistryPolicy } from "./wiring-policy.mjs";
+import { inspectWorkflowBoundaries } from "./workflow-boundaries.mjs";
 import { parseControllerMounts, parseControllerRoutes, parseFrontendLayoutScripts } from "./wiring-source.mjs";
 
 function lineNumberAt(text, index) {
@@ -339,8 +341,7 @@ function parseRealtime(files) {
 
 function parseFrontendWiring() {
   const entrypoints = listFiles(["frontend/ts"], (file) =>
-    path.dirname(path.relative(repoRoot, file)) === "frontend/ts"
-      && /^app.*\.ts$/.test(path.basename(file))
+    path.relative(repoRoot, file) === "frontend/ts/app.ts"
   ).map((relPath) => ({
     path: relPath,
     outputAsset: `/${path.basename(relPath, ".ts")}.js`,
@@ -390,7 +391,7 @@ const sourceFiles = ["Application/Schema.sql", "Web/Types.hs", "Web/Routes.hs", 
 const controllerFiles = listFiles(["Web/Controller"], (file) => file.endsWith(".hs"));
 const viewFiles = listFiles(["Web/View"], (file) => file.endsWith(".hs"));
 const moduleFiles = listFiles(["Application", "Web", "Test"], (file) => file.endsWith(".hs"));
-const frontendFiles = listFiles(["frontend/ts", "static"], (file) => /\.(ts|js|hs|tsx|jsx)$/.test(file));
+const frontendFiles = listFiles(["frontend/ts"], (file) => /\.(ts|js|hs|tsx|jsx)$/.test(file));
 const schema = parseSchema(readText("Application/Schema.sql"));
 const controllers = parseControllers(readText("Web/Types.hs"));
 const actionNames = controllers.flatMap((controller) => controller.actions.map((action) => action.name));
@@ -401,6 +402,7 @@ const facts = {
   version: 3,
   generatedBy: "scripts/architecture/facts.mjs",
   model: "source-scanned entities/relationships with generated typed Bepis contracts, provenance, and heuristic confidence",
+  inputFingerprint: architectureFactFingerprint(),
   sources: Object.fromEntries([...sourceFiles, ...controllerFiles, ...viewFiles, ...moduleFiles, ...frontendFiles].sort().map((file) => [file, fileHash(file)])),
   schema,
   web: {
@@ -422,6 +424,7 @@ const facts = {
   modules: parseHaskellModules(),
   realtime: parseRealtime(allReferenceFiles),
   wiringRegistryPolicy,
+  workflowBoundaries: inspectWorkflowBoundaries(),
   frontend: {
     ...parseFrontendWiring(),
     contracts: {

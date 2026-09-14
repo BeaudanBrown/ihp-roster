@@ -7,6 +7,7 @@ module Application.Helper.FrontendContract.TypeScript
     ( renderFrontendContractTypeScript
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.IR
 import qualified Data.Char as Char
 import qualified Data.List as List
@@ -16,9 +17,9 @@ import IHP.Prelude
 renderFrontendContractTypeScript :: FrontendContractIR -> Either Text Text
 renderFrontendContractTypeScript contract = do
     checked <- case checkedFrontendContractIR contract of
-        Right value -> Right value
+        Right value -> Right (frontendContractIR value)
         Left diagnostics -> Left (Text.intercalate "\n" (fmap (.diagnosticMessage) diagnostics))
-    pure (Text.unlines (header checked <> renderDerivedSurfaceWireTypes checked.contractSurfaces <> concatMap renderGlobal checked.contractGlobals <> concatMap renderSurface checked.contractSurfaces <> renderFrontendSurfaceRuntime checked.contractSurfaces))
+    pure (Text.unlines (header checked <> renderDerivedSurfaceWireTypes checked.contractSurfaces <> renderAppErrorContract checked <> concatMap renderGlobal checked.contractGlobals <> concatMap renderSurface checked.contractSurfaces <> renderFrontendSurfaceRuntime checked.contractSurfaces))
 
 data WirePrimitiveTypeScript = WirePrimitiveTypeScript
     { primitiveWire      :: !WireIR
@@ -36,13 +37,13 @@ wirePrimitiveTypeName :: WireIR -> Text
 wirePrimitiveTypeName wire =
     case List.find ((== wire) . (.primitiveWire)) wirePrimitiveTypes of
         Just primitive -> primitive.primitiveTypeName
-        Nothing        -> error ("No TypeScript primitive alias registered for " <> show wire)
+        Nothing        -> startupInvariantFailure (cs ("No TypeScript primitive alias registered for " <> show wire))
 
 wirePrimitiveRuntimeType :: WireIR -> Text
 wirePrimitiveRuntimeType wire =
     case List.find ((== wire) . (.primitiveWire)) wirePrimitiveTypes of
         Just primitive -> primitive.primitiveTsRuntime
-        Nothing        -> error ("No TypeScript primitive runtime type registered for " <> show wire)
+        Nothing        -> startupInvariantFailure (cs ("No TypeScript primitive runtime type registered for " <> show wire))
 
 renderWirePrimitiveAliases :: FrontendContractIR -> [Text]
 renderWirePrimitiveAliases contract =
@@ -146,7 +147,9 @@ renderTopLevelSurfaceFragmentKeyUnion surfaces =
            , "    return JSON.stringify(value) ?? \"null\";"
            , "}"
            , "export function surfaceFragmentKeyIdentity(value: SurfaceFragmentKey): string {"
-           , "    return __canonicalFrontendContractJson([value." <> semanticSurfaceFieldName <> ", value." <> semanticKindFieldName <> ", value." <> semanticParamsFieldName <> "]);"
+           , if all (null . (.surfaceFragments)) surfaces
+                then "    throw new Error(\"No Surface fragment keys are declared\");"
+                else "    return __canonicalFrontendContractJson([value." <> semanticSurfaceFieldName <> ", value." <> semanticKindFieldName <> ", value." <> semanticParamsFieldName <> "]);"
            , "}"
            , "export function surfaceFragmentKeysEqual(left: SurfaceFragmentKey, right: SurfaceFragmentKey): boolean {"
            , "    return surfaceFragmentKeyIdentity(left) === surfaceFragmentKeyIdentity(right);"
@@ -164,7 +167,9 @@ renderTopLevelStringUnion :: Text -> [Text] -> [Text]
 renderTopLevelStringUnion typeName rawValues =
     [ "export type " <> typeName <> " = " <> renderStringUnion values <> ";"
     , "export function is" <> typeName <> "(value: unknown): value is " <> typeName <> " {"
-    , "    return typeof value === \"string\" && [" <> Text.intercalate ", " (fmap quote values) <> "].includes(value);"
+    , if null values
+        then "    return false;"
+        else "    return typeof value === \"string\" && [" <> Text.intercalate ", " (fmap quote values) <> "].includes(value);"
     , "}"
     , ""
     ]
@@ -309,7 +314,39 @@ renderGlobalPrimitive = \case
     GlobalDomTokenIR marker token -> ["export const " <> constName marker <> "DomToken = " <> quote token <> " as const;", ""]
     GlobalConstantIR marker value -> ["export const " <> constName marker <> " = " <> quote value <> " as const;", ""]
     GlobalProjectionIR _ -> []
+    GlobalErrorCodesIR _ -> []
     GlobalAppShellActionIR _ -> []
+
+renderAppErrorContract :: FrontendContractIR -> [Text]
+renderAppErrorContract contract
+    | null codes = []
+    | otherwise =
+        [ "export type AppErrorCode = " <> renderStringUnion codes <> ";"
+        ]
+            <> renderGuard "AppErrorCode" (isEnumExpression codes)
+            <> [ "export type AppErrorSeverity = \"blocking\" | \"critical\";"
+               ]
+            <> renderGuard "AppErrorSeverity" (isEnumExpression ["blocking", "critical"])
+            <> [ "export type AppErrorRecovery = \"user-fix-required\" | \"user-action-required\" | \"retryable\" | \"terminal\";"
+               ]
+            <> renderGuard "AppErrorRecovery" (isEnumExpression ["user-fix-required", "user-action-required", "retryable", "terminal"])
+            <> [ "export type AppErrorWire = { code: AppErrorCode; severity: AppErrorSeverity; recovery: AppErrorRecovery; safeMessage: string };"
+               ]
+            <> renderInboundCodec "AppErrorWire" appErrorWireGuard
+  where
+    codes =
+        [ code.errorCodeValue
+        | global <- contract.contractGlobals
+        , GlobalErrorCodesIR registeredCodes <- global.globalPrimitives
+        , code <- registeredCodes
+        ]
+    appErrorWireGuard =
+        "isRecord(value)"
+            <> " && hasExactKeys(value, [\"code\", \"severity\", \"recovery\", \"safeMessage\"])"
+            <> " && isAppErrorCode(value[\"code\"])"
+            <> " && isAppErrorSeverity(value[\"severity\"])"
+            <> " && isAppErrorRecovery(value[\"recovery\"])"
+            <> " && typeof value[\"safeMessage\"] === \"string\""
 
 renderGlobalProjection :: [GlobalPrimitiveIR] -> GlobalProjectionIR -> [Text]
 renderGlobalProjection primitives = \case
@@ -578,7 +615,7 @@ renderCompleteSetSort surface sortDefinition = objectLiteral
     rowDtoName =
         case List.find ((== sortDefinition.completeSetSortRowDtoMarker) . snd . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos of
             Just dto -> fst (schemaNameAndMarker dto.surfaceDtoSchema)
-            Nothing -> error ("Missing checked complete-set sort row DTO " <> cs sortDefinition.completeSetSortRowDtoMarker)
+            Nothing -> startupInvariantFailure ("Missing checked complete-set sort row DTO " <> cs sortDefinition.completeSetSortRowDtoMarker)
 
 renderCompleteSetSortKey :: Text -> CompleteSetSortKeyIR -> Text
 renderCompleteSetSortKey rowDtoName key = objectLiteral

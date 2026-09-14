@@ -11,10 +11,15 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , ApplyRosterTemplateApplicationActionOperation
     , CopyRosterWeekActionOperation
     , CreateRosterNotificationRunActionOperation
+    , CreateRosterTemplateCaptureActionOperation
     , CreateRosterWeekSlotDefinitionActionOperation
+    , DeleteRosterTemplateActionOperation
     , DeleteRosterWeekSlotDefinitionActionOperation
     , NavigateRosterWeekActionOperation
+    , OpenRosterTemplateCaptureActionOperation
+    , OpenRosterTemplateDeleteActionOperation
     , PreviewRosterTemplateApplicationActionOperation
+    , PreviewRosterTemplateCaptureActionOperation
     , RemoveRosterRowActionOperation
     , ShowRosterNotificationConfirmationActionOperation
     , SortRosterWeekActionOperation
@@ -33,17 +38,27 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , copyRosterWeekActionFields
     , createRosterNotificationRunAction
     , createRosterNotificationRunActionFields
+    , createRosterTemplateCaptureAction
+    , createRosterTemplateCaptureActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
+    , deleteRosterTemplateAction
+    , deleteRosterTemplateActionFields
     , deleteRosterWeekSlotDefinitionAction
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , openRosterTemplateCaptureAction
+    , openRosterTemplateCaptureActionFields
+    , openRosterTemplateDeleteAction
+    , openRosterTemplateDeleteActionFields
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
+    , parseCreateRosterTemplateCaptureActionParams
     , parsePreviewRosterTemplateApplicationActionParams
+    , parsePreviewRosterTemplateCaptureActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterOwnLiveShiftHighlightActionParams
@@ -53,6 +68,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseToggleRosterWeekLiveStatusActionParams
     , previewRosterTemplateApplicationAction
     , previewRosterTemplateApplicationActionFields
+    , previewRosterTemplateCaptureAction
+    , previewRosterTemplateCaptureActionFields
     , removeRosterRowAction
     , removeRosterRowActionFields
     , showRosterNotificationConfirmationAction
@@ -81,7 +98,6 @@ import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface,
                                                                                AdapterSurfaceMarker)
-import qualified Application.Helper.FrontendContract.Surface.Interaction as Types1
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             actionParamsPresent,
                                                             parseActionParams)
@@ -89,13 +105,14 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
 import Application.Helper.FrontendContract.Surface.Request.Runtime.Internal (ActionEvidence,
                                                                              actionEvidence,
                                                                              frontendSurfaceActionFromEvidence)
-import qualified Application.Helper.FrontendContract.Surface.Roster as Types2
-import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types3
+import qualified Application.Helper.FrontendContract.Surface.Roster as Types1
+import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types2
 import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            ActionFields,
                                                            ActionMarker,
                                                            ActionSurface,
                                                            actionFields,
+                                                           noActionFields,
                                                            noSurfaceFields,
                                                            surfaceField,
                                                            surfaceOptionalField,
@@ -107,10 +124,10 @@ import Network.Wai (Request)
 
 data AddRosterRowActionOperation
 
-type instance ActionSurface AddRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker AddRosterRowActionOperation = Types2.AddRosterRow
+type instance ActionSurface AddRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker AddRosterRowActionOperation = Types1.AddRosterRow
 type instance ActionFieldSpecs AddRosterRowActionOperation =
-    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 addRosterRowActionFields ::
@@ -118,7 +135,7 @@ addRosterRowActionFields ::
     ActionFields AddRosterRowActionOperation
 addRosterRowActionFields rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
         noSurfaceFields
 
 addRosterRowActionEvidence :: ActionEvidence AddRosterRowActionOperation
@@ -131,36 +148,39 @@ addRosterRowAction =
 
 data ApplyRosterTemplateApplicationActionOperation
 
-type instance ActionSurface ApplyRosterTemplateApplicationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ApplyRosterTemplateApplicationActionOperation = Types2.ApplyRosterTemplateApplication
+type instance ActionSurface ApplyRosterTemplateApplicationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ApplyRosterTemplateApplicationActionOperation = Types1.ApplyRosterTemplateApplication
 type instance ActionFieldSpecs ApplyRosterTemplateApplicationActionOperation =
-    '[ 'Field Types2.TemplateId 'WireUUID
-     , 'Field Types1.TargetDropzoneKey 'WireText
-     , 'Field Types2.ExpectedTemplateVersion 'WireInt
-     , 'Field Types2.ExpectedTargetRevision 'WireText
-     , 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.TemplateId 'WireUUID
+     , 'Field Types1.AnchorDate 'WireDay
+     , 'Field Types1.ExpectedTargetRevision 'WireText
+     , 'Field Types1.RosterCalendarRevision 'WireInt
+     , 'OptionalField Types1.StaleShiftTypeIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.MappedShiftTypeIds ('WireList 'WireUUID)
      ]
 
 applyRosterTemplateApplicationActionFields ::
     UUID.UUID ->
+    Day ->
     Text ->
     Int ->
-    Text ->
-    Int ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields ApplyRosterTemplateApplicationActionOperation
-applyRosterTemplateApplicationActionFields templateId targetDropzoneKey expectedTemplateVersion expectedTargetRevision rosterCalendarRevision =
+applyRosterTemplateApplicationActionFields templateId anchorDate expectedTargetRevision rosterCalendarRevision staleShiftTypeIds mappedShiftTypeIds =
     actionFields
-        (surfaceField @Types2.TemplateId templateId)
-        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
-            &: surfaceField @Types2.ExpectedTemplateVersion expectedTemplateVersion
-            &: surfaceField @Types2.ExpectedTargetRevision expectedTargetRevision
-            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+        (surfaceField @Types1.TemplateId templateId)
+        ( surfaceField @Types1.AnchorDate anchorDate
+            &: surfaceField @Types1.ExpectedTargetRevision expectedTargetRevision
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
+            &: surfaceOptionalField @Types1.StaleShiftTypeIds staleShiftTypeIds
+            &: surfaceOptionalField @Types1.MappedShiftTypeIds mappedShiftTypeIds
             &: noSurfaceFields
         )
 
 applyRosterTemplateApplicationActionEvidence :: ActionEvidence ApplyRosterTemplateApplicationActionOperation
 applyRosterTemplateApplicationActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ApplyRosterTemplateApplication" "apply-roster-template-application" [SurfaceIR.FieldIR "TemplateId" "templateId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedTemplateVersion" "expectedTemplateVersion" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedTargetRevision" "expectedTargetRevision" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ApplyRosterTemplateApplication" "apply-roster-template-application" [SurfaceIR.FieldIR "TemplateId" "templateId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedTargetRevision" "expectedTargetRevision" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaleShiftTypeIds" "staleShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "MappedShiftTypeIds" "mappedShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
 
 applyRosterTemplateApplicationAction :: ActionFields ApplyRosterTemplateApplicationActionOperation -> FrontendSurfaceAction
 applyRosterTemplateApplicationAction =
@@ -175,12 +195,12 @@ parseApplyRosterTemplateApplicationActionParams =
 
 data CopyRosterWeekActionOperation
 
-type instance ActionSurface CopyRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker CopyRosterWeekActionOperation = Types2.CopyRosterWeek
+type instance ActionSurface CopyRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker CopyRosterWeekActionOperation = Types1.CopyRosterWeek
 type instance ActionFieldSpecs CopyRosterWeekActionOperation =
-    '[ 'Field Types2.RosterCalendarRevision 'WireInt
-     , 'OptionalField Types2.CopyStartOccurrence 'WireText
-     , 'OptionalField Types2.CopyEndOccurrence 'WireText
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
+     , 'OptionalField Types1.CopyStartOccurrence 'WireText
+     , 'OptionalField Types1.CopyEndOccurrence 'WireText
      ]
 
 copyRosterWeekActionFields ::
@@ -190,9 +210,9 @@ copyRosterWeekActionFields ::
     ActionFields CopyRosterWeekActionOperation
 copyRosterWeekActionFields rosterCalendarRevision copyStartOccurrence copyEndOccurrence =
     actionFields
-        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
-        ( surfaceOptionalField @Types2.CopyStartOccurrence copyStartOccurrence
-            &: surfaceOptionalField @Types2.CopyEndOccurrence copyEndOccurrence
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
+        ( surfaceOptionalField @Types1.CopyStartOccurrence copyStartOccurrence
+            &: surfaceOptionalField @Types1.CopyEndOccurrence copyEndOccurrence
             &: noSurfaceFields
         )
 
@@ -213,13 +233,13 @@ parseCopyRosterWeekActionParams =
 
 data CreateRosterNotificationRunActionOperation
 
-type instance ActionSurface CreateRosterNotificationRunActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker CreateRosterNotificationRunActionOperation = Types2.CreateRosterNotificationRun
+type instance ActionSurface CreateRosterNotificationRunActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker CreateRosterNotificationRunActionOperation = Types1.CreateRosterNotificationRun
 type instance ActionFieldSpecs CreateRosterNotificationRunActionOperation =
-    '[ 'Field Types2.RosterGroupId 'WireUUID
-     , 'Field Types2.WindowStartDate 'WireDay
-     , 'Field Types2.WindowEndDate 'WireDay
-     , 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterGroupId 'WireUUID
+     , 'Field Types1.WindowStartDate 'WireDay
+     , 'Field Types1.WindowEndDate 'WireDay
+     , 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 createRosterNotificationRunActionFields ::
@@ -230,10 +250,10 @@ createRosterNotificationRunActionFields ::
     ActionFields CreateRosterNotificationRunActionOperation
 createRosterNotificationRunActionFields rosterGroupId windowStartDate windowEndDate rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterGroupId rosterGroupId)
-        ( surfaceField @Types2.WindowStartDate windowStartDate
-            &: surfaceField @Types2.WindowEndDate windowEndDate
-            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+        (surfaceField @Types1.RosterGroupId rosterGroupId)
+        ( surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: noSurfaceFields
         )
 
@@ -252,12 +272,62 @@ parseCreateRosterNotificationRunActionParams =
     parseActionParams
         @CreateRosterNotificationRunActionOperation
 
+data CreateRosterTemplateCaptureActionOperation
+
+type instance ActionSurface CreateRosterTemplateCaptureActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker CreateRosterTemplateCaptureActionOperation = Types1.CreateRosterTemplateCapture
+type instance ActionFieldSpecs CreateRosterTemplateCaptureActionOperation =
+    '[ 'Field Types1.TemplateName 'WireText
+     , 'Field Types1.CaptureAssignmentMode ('WireClosed Types1.RosterTemplateCaptureAssignmentMode)
+     , 'OptionalField Types1.StaleShiftTypeIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.MappedShiftTypeIds ('WireList 'WireUUID)
+     , 'Field Types1.ExpectedSourceRevision 'WireText
+     , 'Field Types1.RosterCalendarRevision 'WireInt
+     , 'Field Types1.WarningsConfirmed 'WireBool
+     ]
+
+createRosterTemplateCaptureActionFields ::
+    Text ->
+    Types1.RosterTemplateCaptureAssignmentMode ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Text ->
+    Int ->
+    Bool ->
+    ActionFields CreateRosterTemplateCaptureActionOperation
+createRosterTemplateCaptureActionFields templateName captureAssignmentMode staleShiftTypeIds mappedShiftTypeIds expectedSourceRevision rosterCalendarRevision warningsConfirmed =
+    actionFields
+        (surfaceField @Types1.TemplateName templateName)
+        ( surfaceField @Types1.CaptureAssignmentMode captureAssignmentMode
+            &: surfaceOptionalField @Types1.StaleShiftTypeIds staleShiftTypeIds
+            &: surfaceOptionalField @Types1.MappedShiftTypeIds mappedShiftTypeIds
+            &: surfaceField @Types1.ExpectedSourceRevision expectedSourceRevision
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
+            &: surfaceField @Types1.WarningsConfirmed warningsConfirmed
+            &: noSurfaceFields
+        )
+
+createRosterTemplateCaptureActionEvidence :: ActionEvidence CreateRosterTemplateCaptureActionOperation
+createRosterTemplateCaptureActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterTemplateCapture" "create-roster-template-capture" [SurfaceIR.FieldIR "TemplateName" "templateName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CaptureAssignmentMode" "captureAssignmentMode" (SurfaceIR.WireClosedIR "RosterTemplateCaptureAssignmentMode" "Application.Helper.FrontendContract.Surface.Roster" "RosterTemplateCaptureAssignmentMode") SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaleShiftTypeIds" "staleShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "MappedShiftTypeIds" "mappedShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ExpectedSourceRevision" "expectedSourceRevision" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "WarningsConfirmed" "warningsConfirmed" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+createRosterTemplateCaptureAction :: ActionFields CreateRosterTemplateCaptureActionOperation -> FrontendSurfaceAction
+createRosterTemplateCaptureAction =
+    frontendSurfaceActionFromEvidence createRosterTemplateCaptureActionEvidence
+
+parseCreateRosterTemplateCaptureActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields CreateRosterTemplateCaptureActionOperation)
+parseCreateRosterTemplateCaptureActionParams =
+    parseActionParams
+        @CreateRosterTemplateCaptureActionOperation
+
 data CreateRosterWeekSlotDefinitionActionOperation
 
-type instance ActionSurface CreateRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker CreateRosterWeekSlotDefinitionActionOperation = Types2.CreateRosterWeekSlotDefinition
+type instance ActionSurface CreateRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker CreateRosterWeekSlotDefinitionActionOperation = Types1.CreateRosterWeekSlotDefinition
 type instance ActionFieldSpecs CreateRosterWeekSlotDefinitionActionOperation =
-    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 createRosterWeekSlotDefinitionActionFields ::
@@ -265,7 +335,7 @@ createRosterWeekSlotDefinitionActionFields ::
     ActionFields CreateRosterWeekSlotDefinitionActionOperation
 createRosterWeekSlotDefinitionActionFields rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
         noSurfaceFields
 
 createRosterWeekSlotDefinitionActionEvidence :: ActionEvidence CreateRosterWeekSlotDefinitionActionOperation
@@ -276,12 +346,31 @@ createRosterWeekSlotDefinitionAction :: ActionFields CreateRosterWeekSlotDefinit
 createRosterWeekSlotDefinitionAction =
     frontendSurfaceActionFromEvidence createRosterWeekSlotDefinitionActionEvidence
 
+data DeleteRosterTemplateActionOperation
+
+type instance ActionSurface DeleteRosterTemplateActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker DeleteRosterTemplateActionOperation = Types1.DeleteRosterTemplate
+type instance ActionFieldSpecs DeleteRosterTemplateActionOperation =
+    '[]
+
+deleteRosterTemplateActionFields :: ActionFields DeleteRosterTemplateActionOperation
+deleteRosterTemplateActionFields =
+    noActionFields
+
+deleteRosterTemplateActionEvidence :: ActionEvidence DeleteRosterTemplateActionOperation
+deleteRosterTemplateActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "DeleteRosterTemplate" "delete-roster-template" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+deleteRosterTemplateAction :: ActionFields DeleteRosterTemplateActionOperation -> FrontendSurfaceAction
+deleteRosterTemplateAction =
+    frontendSurfaceActionFromEvidence deleteRosterTemplateActionEvidence
+
 data DeleteRosterWeekSlotDefinitionActionOperation
 
-type instance ActionSurface DeleteRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker DeleteRosterWeekSlotDefinitionActionOperation = Types2.DeleteRosterWeekSlotDefinition
+type instance ActionSurface DeleteRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker DeleteRosterWeekSlotDefinitionActionOperation = Types1.DeleteRosterWeekSlotDefinition
 type instance ActionFieldSpecs DeleteRosterWeekSlotDefinitionActionOperation =
-    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 deleteRosterWeekSlotDefinitionActionFields ::
@@ -289,7 +378,7 @@ deleteRosterWeekSlotDefinitionActionFields ::
     ActionFields DeleteRosterWeekSlotDefinitionActionOperation
 deleteRosterWeekSlotDefinitionActionFields rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
         noSurfaceFields
 
 deleteRosterWeekSlotDefinitionActionEvidence :: ActionEvidence DeleteRosterWeekSlotDefinitionActionOperation
@@ -302,11 +391,11 @@ deleteRosterWeekSlotDefinitionAction =
 
 data NavigateRosterWeekActionOperation
 
-type instance ActionSurface NavigateRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker NavigateRosterWeekActionOperation = Types2.NavigateRosterWeek
+type instance ActionSurface NavigateRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker NavigateRosterWeekActionOperation = Types1.NavigateRosterWeek
 type instance ActionFieldSpecs NavigateRosterWeekActionOperation =
-    '[ 'Field Types2.AnchorDate 'WireDay
-     , 'Field Types2.RosterGroupId 'WireUUID
+    '[ 'Field Types1.AnchorDate 'WireDay
+     , 'Field Types1.RosterGroupId 'WireUUID
      ]
 
 navigateRosterWeekActionFields ::
@@ -315,8 +404,8 @@ navigateRosterWeekActionFields ::
     ActionFields NavigateRosterWeekActionOperation
 navigateRosterWeekActionFields anchorDate rosterGroupId =
     actionFields
-        (surfaceField @Types2.AnchorDate anchorDate)
-        ( surfaceField @Types2.RosterGroupId rosterGroupId
+        (surfaceField @Types1.AnchorDate anchorDate)
+        ( surfaceField @Types1.RosterGroupId rosterGroupId
             &: noSurfaceFields
         )
 
@@ -335,59 +424,76 @@ navigateRosterWeekActionParamsPresent =
     actionParamsPresent
         @NavigateRosterWeekActionOperation
 
+data OpenRosterTemplateCaptureActionOperation
+
+type instance ActionSurface OpenRosterTemplateCaptureActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker OpenRosterTemplateCaptureActionOperation = Types1.OpenRosterTemplateCapture
+type instance ActionFieldSpecs OpenRosterTemplateCaptureActionOperation =
+    '[]
+
+openRosterTemplateCaptureActionFields :: ActionFields OpenRosterTemplateCaptureActionOperation
+openRosterTemplateCaptureActionFields =
+    noActionFields
+
+openRosterTemplateCaptureActionEvidence :: ActionEvidence OpenRosterTemplateCaptureActionOperation
+openRosterTemplateCaptureActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenRosterTemplateCapture" "open-roster-template-capture" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+openRosterTemplateCaptureAction :: ActionFields OpenRosterTemplateCaptureActionOperation -> FrontendSurfaceAction
+openRosterTemplateCaptureAction =
+    frontendSurfaceActionFromEvidence openRosterTemplateCaptureActionEvidence
+
+data OpenRosterTemplateDeleteActionOperation
+
+type instance ActionSurface OpenRosterTemplateDeleteActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker OpenRosterTemplateDeleteActionOperation = Types1.OpenRosterTemplateDelete
+type instance ActionFieldSpecs OpenRosterTemplateDeleteActionOperation =
+    '[]
+
+openRosterTemplateDeleteActionFields :: ActionFields OpenRosterTemplateDeleteActionOperation
+openRosterTemplateDeleteActionFields =
+    noActionFields
+
+openRosterTemplateDeleteActionEvidence :: ActionEvidence OpenRosterTemplateDeleteActionOperation
+openRosterTemplateDeleteActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenRosterTemplateDelete" "open-roster-template-delete" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+openRosterTemplateDeleteAction :: ActionFields OpenRosterTemplateDeleteActionOperation -> FrontendSurfaceAction
+openRosterTemplateDeleteAction =
+    frontendSurfaceActionFromEvidence openRosterTemplateDeleteActionEvidence
+
 data PreviewRosterTemplateApplicationActionOperation
 
-type instance ActionSurface PreviewRosterTemplateApplicationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker PreviewRosterTemplateApplicationActionOperation = Types2.PreviewRosterTemplateApplication
+type instance ActionSurface PreviewRosterTemplateApplicationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker PreviewRosterTemplateApplicationActionOperation = Types1.PreviewRosterTemplateApplication
 type instance ActionFieldSpecs PreviewRosterTemplateApplicationActionOperation =
-    '[ 'Field Types1.SourceItemKey 'WireText
-     , 'Field Types1.TargetDropzoneKey 'WireText
-     , 'OptionalField Types1.SessionKind 'WireText
-     , 'OptionalField Types1.PointerId 'WireText
-     , 'OptionalField Types1.PointerType 'WireText
-     , 'OptionalField Types1.StartClientX 'WireText
-     , 'OptionalField Types1.StartClientY 'WireText
-     , 'OptionalField Types1.CurrentClientX 'WireText
-     , 'OptionalField Types1.CurrentClientY 'WireText
-     , 'OptionalField Types1.DeltaX 'WireText
-     , 'OptionalField Types1.DeltaY 'WireText
-     , 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.TemplateId 'WireUUID
+     , 'Field Types1.AnchorDate 'WireDay
+     , 'Field Types1.RosterCalendarRevision 'WireInt
+     , 'OptionalField Types1.StaleShiftTypeIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.MappedShiftTypeIds ('WireList 'WireUUID)
      ]
 
 previewRosterTemplateApplicationActionFields ::
-    Text ->
-    Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
+    UUID.UUID ->
+    Day ->
     Int ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields PreviewRosterTemplateApplicationActionOperation
-previewRosterTemplateApplicationActionFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY rosterCalendarRevision =
+previewRosterTemplateApplicationActionFields templateId anchorDate rosterCalendarRevision staleShiftTypeIds mappedShiftTypeIds =
     actionFields
-        (surfaceField @Types1.SourceItemKey sourceItemKey)
-        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
-            &: surfaceOptionalField @Types1.SessionKind sessionKind
-            &: surfaceOptionalField @Types1.PointerId pointerId
-            &: surfaceOptionalField @Types1.PointerType pointerType
-            &: surfaceOptionalField @Types1.StartClientX startClientX
-            &: surfaceOptionalField @Types1.StartClientY startClientY
-            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
-            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
-            &: surfaceOptionalField @Types1.DeltaX deltaX
-            &: surfaceOptionalField @Types1.DeltaY deltaY
-            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+        (surfaceField @Types1.TemplateId templateId)
+        ( surfaceField @Types1.AnchorDate anchorDate
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
+            &: surfaceOptionalField @Types1.StaleShiftTypeIds staleShiftTypeIds
+            &: surfaceOptionalField @Types1.MappedShiftTypeIds mappedShiftTypeIds
             &: noSurfaceFields
         )
 
 previewRosterTemplateApplicationActionEvidence :: ActionEvidence PreviewRosterTemplateApplicationActionOperation
 previewRosterTemplateApplicationActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "PreviewRosterTemplateApplication" "preview-roster-template-application" [SurfaceIR.FieldIR "SourceItemKey" "sourceItemKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SessionKind" "sessionKind" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerId" "pointerId" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerType" "pointerType" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientX" "startClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientY" "startClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientX" "currentClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientY" "currentClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaX" "deltaX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaY" "deltaY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "PreviewRosterTemplateApplication" "preview-roster-template-application" [SurfaceIR.FieldIR "TemplateId" "templateId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaleShiftTypeIds" "staleShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "MappedShiftTypeIds" "mappedShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
 
 previewRosterTemplateApplicationAction :: ActionFields PreviewRosterTemplateApplicationActionOperation -> FrontendSurfaceAction
 previewRosterTemplateApplicationAction =
@@ -400,12 +506,53 @@ parsePreviewRosterTemplateApplicationActionParams =
     parseActionParams
         @PreviewRosterTemplateApplicationActionOperation
 
+data PreviewRosterTemplateCaptureActionOperation
+
+type instance ActionSurface PreviewRosterTemplateCaptureActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker PreviewRosterTemplateCaptureActionOperation = Types1.PreviewRosterTemplateCapture
+type instance ActionFieldSpecs PreviewRosterTemplateCaptureActionOperation =
+    '[ 'Field Types1.TemplateName 'WireText
+     , 'Field Types1.CaptureAssignmentMode ('WireClosed Types1.RosterTemplateCaptureAssignmentMode)
+     , 'OptionalField Types1.StaleShiftTypeIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.MappedShiftTypeIds ('WireList 'WireUUID)
+     ]
+
+previewRosterTemplateCaptureActionFields ::
+    Text ->
+    Types1.RosterTemplateCaptureAssignmentMode ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    ActionFields PreviewRosterTemplateCaptureActionOperation
+previewRosterTemplateCaptureActionFields templateName captureAssignmentMode staleShiftTypeIds mappedShiftTypeIds =
+    actionFields
+        (surfaceField @Types1.TemplateName templateName)
+        ( surfaceField @Types1.CaptureAssignmentMode captureAssignmentMode
+            &: surfaceOptionalField @Types1.StaleShiftTypeIds staleShiftTypeIds
+            &: surfaceOptionalField @Types1.MappedShiftTypeIds mappedShiftTypeIds
+            &: noSurfaceFields
+        )
+
+previewRosterTemplateCaptureActionEvidence :: ActionEvidence PreviewRosterTemplateCaptureActionOperation
+previewRosterTemplateCaptureActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "PreviewRosterTemplateCapture" "preview-roster-template-capture" [SurfaceIR.FieldIR "TemplateName" "templateName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CaptureAssignmentMode" "captureAssignmentMode" (SurfaceIR.WireClosedIR "RosterTemplateCaptureAssignmentMode" "Application.Helper.FrontendContract.Surface.Roster" "RosterTemplateCaptureAssignmentMode") SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaleShiftTypeIds" "staleShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "MappedShiftTypeIds" "mappedShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+previewRosterTemplateCaptureAction :: ActionFields PreviewRosterTemplateCaptureActionOperation -> FrontendSurfaceAction
+previewRosterTemplateCaptureAction =
+    frontendSurfaceActionFromEvidence previewRosterTemplateCaptureActionEvidence
+
+parsePreviewRosterTemplateCaptureActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields PreviewRosterTemplateCaptureActionOperation)
+parsePreviewRosterTemplateCaptureActionParams =
+    parseActionParams
+        @PreviewRosterTemplateCaptureActionOperation
+
 data RemoveRosterRowActionOperation
 
-type instance ActionSurface RemoveRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker RemoveRosterRowActionOperation = Types2.RemoveRosterRow
+type instance ActionSurface RemoveRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker RemoveRosterRowActionOperation = Types1.RemoveRosterRow
 type instance ActionFieldSpecs RemoveRosterRowActionOperation =
-    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 removeRosterRowActionFields ::
@@ -413,7 +560,7 @@ removeRosterRowActionFields ::
     ActionFields RemoveRosterRowActionOperation
 removeRosterRowActionFields rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
         noSurfaceFields
 
 removeRosterRowActionEvidence :: ActionEvidence RemoveRosterRowActionOperation
@@ -426,13 +573,13 @@ removeRosterRowAction =
 
 data ShowRosterNotificationConfirmationActionOperation
 
-type instance ActionSurface ShowRosterNotificationConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ShowRosterNotificationConfirmationActionOperation = Types2.ShowRosterNotificationConfirmation
+type instance ActionSurface ShowRosterNotificationConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ShowRosterNotificationConfirmationActionOperation = Types1.ShowRosterNotificationConfirmation
 type instance ActionFieldSpecs ShowRosterNotificationConfirmationActionOperation =
-    '[ 'Field Types2.RosterGroupId 'WireUUID
-     , 'Field Types2.WindowStartDate 'WireDay
-     , 'Field Types2.WindowEndDate 'WireDay
-     , 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterGroupId 'WireUUID
+     , 'Field Types1.WindowStartDate 'WireDay
+     , 'Field Types1.WindowEndDate 'WireDay
+     , 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 showRosterNotificationConfirmationActionFields ::
@@ -443,10 +590,10 @@ showRosterNotificationConfirmationActionFields ::
     ActionFields ShowRosterNotificationConfirmationActionOperation
 showRosterNotificationConfirmationActionFields rosterGroupId windowStartDate windowEndDate rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterGroupId rosterGroupId)
-        ( surfaceField @Types2.WindowStartDate windowStartDate
-            &: surfaceField @Types2.WindowEndDate windowEndDate
-            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+        (surfaceField @Types1.RosterGroupId rosterGroupId)
+        ( surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: noSurfaceFields
         )
 
@@ -467,10 +614,10 @@ parseShowRosterNotificationConfirmationActionParams =
 
 data SortRosterWeekActionOperation
 
-type instance ActionSurface SortRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker SortRosterWeekActionOperation = Types2.SortRosterWeek
+type instance ActionSurface SortRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker SortRosterWeekActionOperation = Types1.SortRosterWeek
 type instance ActionFieldSpecs SortRosterWeekActionOperation =
-    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 sortRosterWeekActionFields ::
@@ -478,7 +625,7 @@ sortRosterWeekActionFields ::
     ActionFields SortRosterWeekActionOperation
 sortRosterWeekActionFields rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
         noSurfaceFields
 
 sortRosterWeekActionEvidence :: ActionEvidence SortRosterWeekActionOperation
@@ -491,13 +638,13 @@ sortRosterWeekAction =
 
 data ToggleRosterAssignmentFiltersActionOperation
 
-type instance ActionSurface ToggleRosterAssignmentFiltersActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ToggleRosterAssignmentFiltersActionOperation = Types2.ToggleRosterAssignmentFilters
+type instance ActionSurface ToggleRosterAssignmentFiltersActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterAssignmentFiltersActionOperation = Types1.ToggleRosterAssignmentFilters
 type instance ActionFieldSpecs ToggleRosterAssignmentFiltersActionOperation =
-    '[ 'Field Types2.HideStaffAtIdealShifts 'WireBool
-     , 'Field Types2.HideStaffUnavailable 'WireBool
-     , 'Field Types2.HideStaffOnApprovedLeave 'WireBool
-     , 'Field Types2.HideStaffAlreadyAssignedToday 'WireBool
+    '[ 'Field Types1.HideStaffAtIdealShifts 'WireBool
+     , 'Field Types1.HideStaffUnavailable 'WireBool
+     , 'Field Types1.HideStaffOnApprovedLeave 'WireBool
+     , 'Field Types1.HideStaffAlreadyAssignedToday 'WireBool
      ]
 
 toggleRosterAssignmentFiltersActionFields ::
@@ -508,10 +655,10 @@ toggleRosterAssignmentFiltersActionFields ::
     ActionFields ToggleRosterAssignmentFiltersActionOperation
 toggleRosterAssignmentFiltersActionFields hideStaffAtIdealShifts hideStaffUnavailable hideStaffOnApprovedLeave hideStaffAlreadyAssignedToday =
     actionFields
-        (surfaceField @Types2.HideStaffAtIdealShifts hideStaffAtIdealShifts)
-        ( surfaceField @Types2.HideStaffUnavailable hideStaffUnavailable
-            &: surfaceField @Types2.HideStaffOnApprovedLeave hideStaffOnApprovedLeave
-            &: surfaceField @Types2.HideStaffAlreadyAssignedToday hideStaffAlreadyAssignedToday
+        (surfaceField @Types1.HideStaffAtIdealShifts hideStaffAtIdealShifts)
+        ( surfaceField @Types1.HideStaffUnavailable hideStaffUnavailable
+            &: surfaceField @Types1.HideStaffOnApprovedLeave hideStaffOnApprovedLeave
+            &: surfaceField @Types1.HideStaffAlreadyAssignedToday hideStaffAlreadyAssignedToday
             &: noSurfaceFields
         )
 
@@ -532,10 +679,10 @@ parseToggleRosterAssignmentFiltersActionParams =
 
 data ToggleRosterDayClosedActionOperation
 
-type instance ActionSurface ToggleRosterDayClosedActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ToggleRosterDayClosedActionOperation = Types2.ToggleRosterDayClosed
+type instance ActionSurface ToggleRosterDayClosedActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterDayClosedActionOperation = Types1.ToggleRosterDayClosed
 type instance ActionFieldSpecs ToggleRosterDayClosedActionOperation =
-    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 toggleRosterDayClosedActionFields ::
@@ -543,7 +690,7 @@ toggleRosterDayClosedActionFields ::
     ActionFields ToggleRosterDayClosedActionOperation
 toggleRosterDayClosedActionFields rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
         noSurfaceFields
 
 toggleRosterDayClosedActionEvidence :: ActionEvidence ToggleRosterDayClosedActionOperation
@@ -556,10 +703,10 @@ toggleRosterDayClosedAction =
 
 data ToggleRosterOwnLiveShiftHighlightActionOperation
 
-type instance ActionSurface ToggleRosterOwnLiveShiftHighlightActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ToggleRosterOwnLiveShiftHighlightActionOperation = Types2.ToggleRosterOwnLiveShiftHighlight
+type instance ActionSurface ToggleRosterOwnLiveShiftHighlightActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterOwnLiveShiftHighlightActionOperation = Types1.ToggleRosterOwnLiveShiftHighlight
 type instance ActionFieldSpecs ToggleRosterOwnLiveShiftHighlightActionOperation =
-    '[ 'Field Types2.HighlightOwnLiveShifts 'WireBool
+    '[ 'Field Types1.HighlightOwnLiveShifts 'WireBool
      ]
 
 toggleRosterOwnLiveShiftHighlightActionFields ::
@@ -567,7 +714,7 @@ toggleRosterOwnLiveShiftHighlightActionFields ::
     ActionFields ToggleRosterOwnLiveShiftHighlightActionOperation
 toggleRosterOwnLiveShiftHighlightActionFields highlightOwnLiveShifts =
     actionFields
-        (surfaceField @Types2.HighlightOwnLiveShifts highlightOwnLiveShifts)
+        (surfaceField @Types1.HighlightOwnLiveShifts highlightOwnLiveShifts)
         noSurfaceFields
 
 toggleRosterOwnLiveShiftHighlightActionEvidence :: ActionEvidence ToggleRosterOwnLiveShiftHighlightActionOperation
@@ -587,18 +734,18 @@ parseToggleRosterOwnLiveShiftHighlightActionParams =
 
 data ToggleRosterStaffScopeActionOperation
 
-type instance ActionSurface ToggleRosterStaffScopeActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ToggleRosterStaffScopeActionOperation = Types2.ToggleRosterStaffScope
+type instance ActionSurface ToggleRosterStaffScopeActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterStaffScopeActionOperation = Types1.ToggleRosterStaffScope
 type instance ActionFieldSpecs ToggleRosterStaffScopeActionOperation =
-    '[ 'Field Types2.StaffScope ('WireClosed Types2.RosterStaffScopeValue)
+    '[ 'Field Types1.StaffScope ('WireClosed Types1.RosterStaffScopeValue)
      ]
 
 toggleRosterStaffScopeActionFields ::
-    Types2.RosterStaffScopeValue ->
+    Types1.RosterStaffScopeValue ->
     ActionFields ToggleRosterStaffScopeActionOperation
 toggleRosterStaffScopeActionFields staffScope =
     actionFields
-        (surfaceField @Types2.StaffScope staffScope)
+        (surfaceField @Types1.StaffScope staffScope)
         noSurfaceFields
 
 toggleRosterStaffScopeActionEvidence :: ActionEvidence ToggleRosterStaffScopeActionOperation
@@ -625,10 +772,10 @@ parseToggleRosterStaffScopeActionParams =
 
 data ToggleRosterWageEstimatesActionOperation
 
-type instance ActionSurface ToggleRosterWageEstimatesActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ToggleRosterWageEstimatesActionOperation = Types2.ToggleRosterWageEstimates
+type instance ActionSurface ToggleRosterWageEstimatesActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterWageEstimatesActionOperation = Types1.ToggleRosterWageEstimates
 type instance ActionFieldSpecs ToggleRosterWageEstimatesActionOperation =
-    '[ 'Field Types2.ShowWageEstimates 'WireBool
+    '[ 'Field Types1.ShowWageEstimates 'WireBool
      ]
 
 toggleRosterWageEstimatesActionFields ::
@@ -636,7 +783,7 @@ toggleRosterWageEstimatesActionFields ::
     ActionFields ToggleRosterWageEstimatesActionOperation
 toggleRosterWageEstimatesActionFields showWageEstimates =
     actionFields
-        (surfaceField @Types2.ShowWageEstimates showWageEstimates)
+        (surfaceField @Types1.ShowWageEstimates showWageEstimates)
         noSurfaceFields
 
 toggleRosterWageEstimatesActionEvidence :: ActionEvidence ToggleRosterWageEstimatesActionOperation
@@ -656,10 +803,10 @@ parseToggleRosterWageEstimatesActionParams =
 
 data ToggleRosterWarningsActionOperation
 
-type instance ActionSurface ToggleRosterWarningsActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ToggleRosterWarningsActionOperation = Types2.ToggleRosterWarnings
+type instance ActionSurface ToggleRosterWarningsActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterWarningsActionOperation = Types1.ToggleRosterWarnings
 type instance ActionFieldSpecs ToggleRosterWarningsActionOperation =
-    '[ 'Field Types2.ShowRosterWarnings 'WireBool
+    '[ 'Field Types1.ShowRosterWarnings 'WireBool
      ]
 
 toggleRosterWarningsActionFields ::
@@ -667,7 +814,7 @@ toggleRosterWarningsActionFields ::
     ActionFields ToggleRosterWarningsActionOperation
 toggleRosterWarningsActionFields showRosterWarnings =
     actionFields
-        (surfaceField @Types2.ShowRosterWarnings showRosterWarnings)
+        (surfaceField @Types1.ShowRosterWarnings showRosterWarnings)
         noSurfaceFields
 
 toggleRosterWarningsActionEvidence :: ActionEvidence ToggleRosterWarningsActionOperation
@@ -687,11 +834,11 @@ parseToggleRosterWarningsActionParams =
 
 data ToggleRosterWeekLiveStatusActionOperation
 
-type instance ActionSurface ToggleRosterWeekLiveStatusActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance ActionMarker ToggleRosterWeekLiveStatusActionOperation = Types2.ToggleRosterWeekLiveStatus
+type instance ActionSurface ToggleRosterWeekLiveStatusActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterWeekLiveStatusActionOperation = Types1.ToggleRosterWeekLiveStatus
 type instance ActionFieldSpecs ToggleRosterWeekLiveStatusActionOperation =
-    '[ 'Field Types2.IsLive 'WireBool
-     , 'Field Types2.RosterCalendarRevision 'WireInt
+    '[ 'Field Types1.IsLive 'WireBool
+     , 'Field Types1.RosterCalendarRevision 'WireInt
      ]
 
 toggleRosterWeekLiveStatusActionFields ::
@@ -700,8 +847,8 @@ toggleRosterWeekLiveStatusActionFields ::
     ActionFields ToggleRosterWeekLiveStatusActionOperation
 toggleRosterWeekLiveStatusActionFields isLive rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.IsLive isLive)
-        ( surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+        (surfaceField @Types1.IsLive isLive)
+        ( surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: noSurfaceFields
         )
 

@@ -13,7 +13,7 @@ dev:
     dev-foreground
 
 ddev:
-    dev-foreground-stripe-tunnel
+    IHP_ROSTER_DEV_OBSERVABILITY=1 dev-foreground-stripe-tunnel
 
 stop:
     dev-stop
@@ -34,19 +34,25 @@ android-stop:
     nix run .#bepis-pwa-android -- stop
 
 tunnel-grill:
+    eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
     ssh -N -T \
-        -L 8000:localhost:8000 \
-        -L 8001:localhost:8001 \
-        -L 8025:localhost:8025 \
-        -L 1025:localhost:1025 \
+        -L "${PORT}:localhost:${PORT}" \
+        -L "$((PORT + 1)):localhost:$((PORT + 1))" \
+        -L "${MAILHOG_PORT}:localhost:${MAILHOG_PORT}" \
+        -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
+        -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
+        -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
         grill
 
 tunnel-agent:
+    eval "$(bash ./bin/in-env dev-workspace-info --shell)"; \
     ssh -N -T \
-        -L 8000:localhost:8000 \
-        -L 8001:localhost:8001 \
-        -L 8025:localhost:8025 \
-        -L 1025:localhost:1025 \
+        -L "${PORT}:localhost:${PORT}" \
+        -L "$((PORT + 1)):localhost:$((PORT + 1))" \
+        -L "${MAILHOG_PORT}:localhost:${MAILHOG_PORT}" \
+        -L "${SMTP_PORT}:localhost:${SMTP_PORT}" \
+        -L "${IHP_ROSTER_DEV_GRAFANA_PORT}:localhost:${IHP_ROSTER_DEV_GRAFANA_PORT}" \
+        -L "${IHP_ROSTER_DEV_TEMPO_PORT}:localhost:${IHP_ROSTER_DEV_TEMPO_PORT}" \
         agent
 
 db:
@@ -72,6 +78,21 @@ otel-browser *args:
 
 otel-summary *args:
     otel-summary {{args}}
+
+otel-start:
+    dev-start-otel
+
+otel-recent target="development" *args:
+    otel-recent --target="{{target}}" {{args}}
+
+otel-trace artifact trace *args:
+    otel-trace --artifact-dir="{{artifact}}" --trace-ref="{{trace}}" {{args}}
+
+otel-logs artifact trace:
+    otel-logs --artifact-dir="{{artifact}}" --trace-ref="{{trace}}"
+
+otel-compare target before_end after_end *args:
+    otel-compare --target="{{target}}" --before-end="{{before_end}}" --after-end="{{after_end}}" {{args}}
 
 profile-compare before after output="":
     if [ -z "{{output}}" ]; then profile-compare "{{before}}" "{{after}}"; else profile-compare "{{before}}" "{{after}}" "{{output}}"; fi

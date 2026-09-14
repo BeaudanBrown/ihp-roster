@@ -1,9 +1,9 @@
 module Web.Controller.Staff where
 
-import Application.Helper.Controller (parseVenueRole)
 import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker)
+                                                             appShellActionByMarker,
+                                                             defaultAppShellActionRoute)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
@@ -19,25 +19,23 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (..),
+import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
                                 OverlayFormMode (HtmxOverlayForm),
-                                ToastOverlayPosition (..), dialogOverlayMountId,
-                                errorToast, renderDialogOverlay, renderToastOob,
+                                ToastOverlayPosition (..),
+                                defaultDialogOverlayConfig,
+                                dialogOverlayCloseButton, errorToast,
+                                renderDialogOverlay,
+                                renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (selectableStaffAssignmentMode)
 import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateDefault))
 import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
                                   validateStaffAwardRateAvailability)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
-import Text.Blaze.Html (Html)
+import IHP.HSX.Markup (Html)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedStaffPayRateSelectionText,
@@ -141,8 +139,12 @@ instance Controller StaffController where
         selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
+        let staffLeaveSectionVisible = hasRole Manager
+        let staffCredentialControlsAllowed = currentUserCanSendStaffCredentialLink
+        let staffEditContext = StaffEditRenderContext { .. }
+        let staffEditBodyContext = StaffEditBodyRenderContext { .. }
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staffEditBodyContext)
             else render EditView { .. }
 
     action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
@@ -164,7 +166,8 @@ instance Controller StaffController where
         staffPayConfigurationRequired <- staffRequiresPayConfigurationRemediation staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
+        let staffEditContext = StaffEditRenderContext { .. }
+        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staffEditContext)
 
     action currentAction@UpdateStaffAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -205,13 +208,26 @@ instance Controller StaffController where
                             Right selections -> selections
                             Left _           -> []
                 _ -> fetchStaffShiftPreferenceSelections staff
+        let staffLeaveSectionVisible = hasRole Manager
+        let staffCredentialControlsAllowed = currentUserCanSendStaffCredentialLink
+        let staffEditContext = StaffEditRenderContext { selectedRosterGroupIds = currentSelectedRosterGroupIds, .. }
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
-                if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences leaveRequest leaveRequests anchorDate maybeRosterGroupId openSection)
-                    else do
-                        let selectedRosterGroupIds = renderedRosterGroupIds
-                        let selectedShiftPreferences = renderedPreferences
-                        render EditView { staff = renderedStaff, .. }
+                let renderedStaffEditContext =
+                        staffEditContext
+                            { staff = renderedStaff
+                            , selectedRosterGroupIds = renderedRosterGroupIds
+                            , selectedShiftPreferences = renderedPreferences
+                            }
+                    staffEditBodyContext =
+                        StaffEditBodyRenderContext
+                            { staffEditContext = renderedStaffEditContext
+                            , staffRemovalAllowed
+                            , staffLeaveSectionVisible
+                            , staffCredentialControlsAllowed
+                            }
+                 in if isHtmxRequest
+                        then respondHtml (renderStaffEditModalFragment staffEditBodyContext)
+                        else render EditView { .. }
         let respondStaffUpdateSuccess mutationResult successMessage =
                 if isHtmxRequest
                     then do
@@ -319,7 +335,7 @@ instance Controller StaffController where
                             actorTouchedResources
                             rosterGridInnerAndStaffPanelFragments
                             [hsx|
-                                <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                                {renderDialogOverlayClearOob}
                                 {renderToastOob ToastBottomCenter (successToast "Staff member removed")}
                             |]
                     else do
@@ -369,7 +385,7 @@ instance Controller StaffController where
                             Right _ -> respondWithTrialStaffInvitationSuccess ("Renewed invitation queued for " <> email <> " and should arrive shortly")
                             Left message -> renderTrialStaffInvitationError staff message (Just email)
 
-staffAnchorDateFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Day
+staffAnchorDateFromParamOrCurrent :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Day
 staffAnchorDateFromParamOrCurrent = do
     venueConfig <- fetchVenueConfig
     requestedDay <- case paramOrNothing @Text "anchorDate" of
@@ -383,36 +399,24 @@ staffRequiresPayConfigurationRemediation staff =
 
 renderStaffRemovalConfirmation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Day -> Maybe (Id RosterGroup) -> Html
 renderStaffRemovalConfirmation staff anchorDate maybeRosterGroupId =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Remove staff member"
-        , dialogOverlayBody = [hsx|
+    renderDialogOverlay (defaultDialogOverlayConfig
+            "Remove staff member"
+            [hsx|
             <p class="mb-0">Are you sure you want to remove this staff member? This cannot be undone.</p>
         |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Cancel"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
+            [ dialogOverlayCloseButton "Cancel"
             , OverlayButton
                 { overlayButtonLabel = "Remove staff member"
                 , overlayButtonClass = "btn btn-danger"
                 , overlayButtonAction = GeneratedDialogFormAction
                     (appShellActionByMarker @RemoveStaffOverlay)
-                    AppShellActionRoute
-                        { appShellActionRouteUrl = pathTo (RemoveStaffAction staff.id)
-                        , appShellActionRouteFields = []
-                        , appShellActionRouteCustomHtmx = []
-                        , appShellActionRouteStandardUrl = Just (pathTo (RemoveStaffAction staff.id))
-                        , appShellActionRouteExtraAttrs = []
-                        }
+                    ((defaultAppShellActionRoute (pathTo (RemoveStaffAction staff.id)))
+                        { appShellActionRouteStandardUrl = Just (pathTo (RemoveStaffAction staff.id))
+                        })
                     returnFields
                     Nothing
                 }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+            ])
   where
     returnFields =
         [("anchorDate", tshow anchorDate)]
@@ -423,7 +427,7 @@ canRenderStaffRemoval staff
     | not (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin) = pure False
     | otherwise = isNothing <$> staffRemovalBlockReason staff
 
-ensureCanRemoveStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureCanRemoveStaff :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 ensureCanRemoveStaff =
     redirectPermissionDeniedUnless (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin) "Only venue admins and owners can remove staff members."
 
@@ -447,7 +451,7 @@ buildNewTrialStaff = do
             |> set #isActive True
             |> applyVenueDefaultStaffPayAssignment venueConfig
 
-renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Day -> Maybe (Id RosterGroup) -> IO ()
+renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Day -> Maybe (Id RosterGroup) -> IO ResponseReceived
 renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems anchorDate maybeRosterGroupId =
     if isHtmxRequest
         then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds anchorDate maybeRosterGroupId)
@@ -472,21 +476,21 @@ validateTrialStaffInvitationEmail submittedEmail =
                     Failure _     -> Left "Enter a valid email address."
                     FailureHtml _ -> Left "Enter a valid email address."
 
-respondWithTrialStaffInvitationSuccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
+respondWithTrialStaffInvitationSuccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 respondWithTrialStaffInvitationSuccess message =
     respondHtml [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (successToast message)}
     |]
 
-respondWithTrialStaffInvitationFailure :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
+respondWithTrialStaffInvitationFailure :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 respondWithTrialStaffInvitationFailure message =
     respondHtml [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderDialogOverlayClearOob}
         {renderToastOob ToastBottomCenter (errorToast message)}
     |]
 
-renderTrialStaffInvitationError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> Maybe Text -> IO ()
+renderTrialStaffInvitationError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> Maybe Text -> IO ResponseReceived
 renderTrialStaffInvitationError staff message submittedEmail
     | not (isAdoptableTrialStaff staff) = respondWithTrialStaffInvitationFailure ineligibleTrialStaffInvitationMessage
     | otherwise = do
@@ -496,7 +500,7 @@ renderTrialStaffInvitationError staff message submittedEmail
         now <- getCurrentTime
         respondHtml (renderTrialStaffInvitationModalFragment now staff pendingInvitations (Just message) submittedEmail anchorDate maybeRosterGroupId)
 
-renderTrialStaffInvitationErrorForInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueInvitation -> Text -> IO ()
+renderTrialStaffInvitationErrorForInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueInvitation -> Text -> IO ResponseReceived
 renderTrialStaffInvitationErrorForInvitation invitation message =
     case invitation.staffId of
         Nothing -> respondWithTrialStaffInvitationFailure message

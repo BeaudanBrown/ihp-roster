@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 # shellcheck source=../lib/dev-db-maintenance.sh
-. "@scriptsRoot@/lib/dev-db-maintenance.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/dev-db-maintenance.sh"
 
 bepis_workspace_configure
 bepis_dev_db_acquire_maintenance_lock
 bepis_dev_db_capture_app_state
-bash "@scriptsRoot@/haskell/generated-ensure"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 dev-ensure-postgres >/dev/null
 
 if ! connection_output="$(psql -X -h "$PGHOST" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 # shellcheck source=../lib/workspace.sh
-. "@scriptsRoot@/lib/workspace.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 # shellcheck source=../lib/dev-db-maintenance.sh
-. "@scriptsRoot@/lib/dev-db-maintenance.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/dev-db-maintenance.sh"
 
-bash "@scriptsRoot@/haskell/generated-ensure"
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 
 DB_NAME="app"
 RESET_MODE=""

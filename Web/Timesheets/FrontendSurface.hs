@@ -8,6 +8,7 @@ module Web.Timesheets.FrontendSurface
     , timesheetWeekScopeMatchesConfig
     , TimesheetsMountStateValue (..)
     , timesheetsCandidateMountedFragments
+    , timesheetsMountStateForFilters
     , timesheetsSurfaceScope
     , timesheetsDaySurfaceImpl
     , timesheetsSurfaceImpl
@@ -23,10 +24,9 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surfa
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
-import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
@@ -66,6 +66,10 @@ data TimesheetsMountStateValue = TimesheetsMountStateValue
     , timesheetsMountRosterGroupFilterId :: !(Maybe UUID.UUID)
     }
     deriving (Eq, Show)
+
+timesheetsMountStateForFilters :: TimesheetViewFilters -> TimesheetsMountStateValue
+timesheetsMountStateForFilters filters =
+    TimesheetsMountStateValue filters.filterStaffId filters.filterRosterGroupId
 
 timesheetsSurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsSurfaceImpl scope mountState =

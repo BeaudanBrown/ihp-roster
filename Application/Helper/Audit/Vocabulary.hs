@@ -47,6 +47,13 @@ data AuditEventType
     | XeroConnectionFailedAudit
     | XeroReferenceSyncSucceededAudit
     | XeroReferenceSyncFailedAudit
+    | FeedbackSubmittedAudit
+    | FeedbackEditedAudit
+    | FeedbackPublishedAudit
+    | FeedbackArchivedAudit
+    | FeedbackRestoredAudit
+    | FeedbackVotedAudit
+    | FeedbackUnvotedAudit
     deriving (Bounded, Enum, Eq, Show)
 
 data AuditSourceChannel
@@ -57,6 +64,13 @@ data AuditSourceChannel
     deriving (Bounded, Enum, Eq, Show)
 
 auditEventTypeText :: AuditEventType -> Text
+auditEventTypeText FeedbackSubmittedAudit = "feedback_submitted"
+auditEventTypeText FeedbackEditedAudit = "feedback_edited"
+auditEventTypeText FeedbackPublishedAudit = "feedback_published"
+auditEventTypeText FeedbackArchivedAudit = "feedback_archived"
+auditEventTypeText FeedbackRestoredAudit = "feedback_restored"
+auditEventTypeText FeedbackVotedAudit = "feedback_voted"
+auditEventTypeText FeedbackUnvotedAudit = "feedback_unvoted"
 auditEventTypeText TimesheetApprovedAudit = "timesheet_approved"
 auditEventTypeText TimesheetUnapprovedAudit = "timesheet_unapproved"
 auditEventTypeText TimesheetApprovalResetAudit = "timesheet_approval_reset"

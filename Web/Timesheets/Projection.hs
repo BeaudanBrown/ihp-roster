@@ -4,20 +4,23 @@
 module Web.Timesheets.Projection
     ( TimesheetProjectionFragment (..)
     , TimesheetProjectionRequest (..)
+    , TimesheetFormContext (..)
+    , TimesheetFormReferences (..)
     , TimesheetSuggestion (..)
     , TimesheetSurfaceRequestState (..)
     , TimesheetWeekProjection (..)
     , currentTimesheetWindowStart
     , fetchShiftTypesForForm
-    , fetchShiftTypesForFormIncluding
-    , fetchStaffForForm
-    , fetchStaffForFormIncluding
+    , fetchTimesheetFormContext
+    , noReferencedTimesheetOptions
     , fetchTimesheetSuggestionForRosterSlot
     , fetchTimesheetWeekProjection
     , renderTimesheetProjectionFragment
     , renderTimesheetProjectionFragmentFromProjection
     , renderTimesheetWeekProjectionFragment
     , timesheetDayRenderModelFromProjection
+    , timesheetFormInputsFor
+    , timesheetFormReferencesFor
     , timesheetIndexView
     , parseApproveTimesheetEntryState
     , parseCreateTimesheetEntryFromSuggestionState
@@ -28,7 +31,6 @@ module Web.Timesheets.Projection
     , windowStartFromParamOrCurrent
     ) where
 
-import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -40,8 +42,9 @@ import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowApproved,
                                            userTimesheetShowSuggestions,
                                            userTimesheetShowWageEstimates)
-import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
-import Application.Helper.WeekBoundaries (startOfWeekFor)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds,
+                                              fetchLinkedActiveVenueStaff)
+import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -52,9 +55,8 @@ import Application.VenueTime.Model
 import Control.Monad (guard)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.Timesheets.Filters
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
@@ -64,8 +66,33 @@ import Web.Timesheets.Suggestion
 import Web.Timesheets.WageEstimates
 import Web.View.Timesheets.Index
 
+data TimesheetFormReferences = TimesheetFormReferences
+    { referencedStaffId     :: Maybe (Id Staff)
+    , referencedShiftTypeId :: Maybe (Id ShiftType)
+    }
+
+noReferencedTimesheetOptions :: TimesheetFormReferences
+noReferencedTimesheetOptions = TimesheetFormReferences { referencedStaffId = Nothing, referencedShiftTypeId = Nothing }
+
+timesheetFormReferencesFor :: TimesheetEntry -> TimesheetFormReferences
+timesheetFormReferencesFor entry =
+    TimesheetFormReferences
+        { referencedStaffId = Just (Id entry.staffId)
+        , referencedShiftTypeId = Just (Id entry.shiftTypeId)
+        }
+
+data TimesheetFormContext = TimesheetFormContext
+    { formVenueConfig           :: VenueConfig
+    , formStaffMembers          :: [Staff]
+    , formShiftTypes            :: [ShiftType]
+    , formCurrentViewerStaffId  :: Maybe UUID.UUID
+    , formSelectedStaffFilterId :: Maybe UUID.UUID
+    , formViewerIsManager       :: Bool
+    }
+
 data TimesheetWeekProjection = TimesheetWeekProjection
     { timesheetEntries              :: [TimesheetEntry]
+    , timesheetTimingByEntryId      :: !(Map.Map UUID.UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming))
     , timesheetSuggestions          :: [TimesheetSuggestion]
     , timesheetStaffMembers         :: [Staff]
     , timesheetShiftTypes           :: [ShiftType]
@@ -181,14 +208,7 @@ buildTimesheetStaffPanelEntries :: (?modelContext :: ModelContext, ?context :: C
 buildTimesheetStaffPanelEntries staffMembers entries = do
     let eligibleStaff = filter staffCanProduceTimesheets staffMembers
     let linkedUserIds = mapMaybe (.userId) eligibleStaff
-    memberships <-
-        if null linkedUserIds
-            then pure []
-            else query @VenueMembership
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#userId, linkedUserIds)
-                |> filterWhere (#isActive, True)
-                |> fetch
+    memberships <- fetchActiveVenueMembershipsByUserIds currentVenueId linkedUserIds
     let membershipsByUserId = Map.fromList [(membership.userId, membership) | membership <- memberships]
     let entryCountByStaffId = Map.fromListWith (+) [(entry.staffId, 1 :: Int) | entry <- entries]
     let approvedCountByStaffId = Map.fromListWith (+) [(entry.staffId, 1 :: Int) | entry <- entries, entry.isApproved]
@@ -276,6 +296,35 @@ fetchTimesheetSuggestionsForWindow windowStart windowEnd filters staffMembers cu
             }
 
     eitherToMaybe = either (const Nothing) Just
+
+fetchTimesheetFormContext ::
+    (?modelContext :: ModelContext, ?context :: ControllerContext) =>
+    TimesheetFormReferences ->
+    Maybe UUID.UUID ->
+    IO TimesheetFormContext
+fetchTimesheetFormContext TimesheetFormReferences { .. } formSelectedStaffFilterId = do
+    formStaffMembers <- maybe fetchStaffForForm (fetchStaffForFormIncluding . unpackId) referencedStaffId
+    formShiftTypes <- maybe fetchShiftTypesForForm (fetchShiftTypesForFormIncluding . unpackId) referencedShiftTypeId
+    currentUserStaff <- fetchCurrentUserStaff
+    let formCurrentViewerStaffId = unpackId . (.id) <$> currentUserStaff
+    formVenueConfig <- fetchVenueConfig
+    let formViewerIsManager = hasRole Manager
+    pure TimesheetFormContext { .. }
+
+timesheetFormInputsFor :: TimesheetFormContext -> TimesheetEntry -> TimesheetFormInputs
+timesheetFormInputsFor context timesheetEntry =
+    TimesheetFormInputs
+        { timesheetEntry
+        , staffMembers = context.formStaffMembers
+        , shiftTypes = context.formShiftTypes
+        , calendarRevision = context.formVenueConfig.rosterCalendarRevision
+        , selectedStaffFilterId = context.formSelectedStaffFilterId
+        , currentViewerStaffId = context.formCurrentViewerStaffId
+        , pickerStart = venueTimePickerStartTimeText context.formVenueConfig
+        , pickerEnd = venueTimePickerFinalSelectableTimeText context.formVenueConfig
+        , pickerStep = venueShiftTimeIntervalMinutes context.formVenueConfig
+        , viewerIsManager = context.formViewerIsManager
+        }
 
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffForForm = do
@@ -373,6 +422,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart 
     pure
         TimesheetWeekProjection
             { timesheetEntries = entries
+            , timesheetTimingByEntryId = Map.fromList [(unpackId entry.id, decodeTimesheetTiming entry) | entry <- entries]
             , timesheetSuggestions = suggestions
             , timesheetStaffMembers = staffMembers
             , timesheetShiftTypes = shiftTypes
@@ -430,17 +480,17 @@ viewerHasTimesheetSuggestionOnDay staffFilterId operationalDate = do
     suggestions <- fetchAuthorizedTimesheetSuggestionsForWindow operationalDate (addDays 1 operationalDate) staffFilterId
     pure (any ((== operationalDate) . timesheetSuggestionOperationalDate) suggestions)
 
-renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> TimesheetProjectionFragment -> IO (Maybe Blaze.Html)
+renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> TimesheetProjectionFragment -> IO (Maybe Markup.Html)
 renderTimesheetProjectionFragment requestKey fragment =
     profileActionSpan "timesheets.read_model.render_fragment" do
         projection <- fetchTimesheetWeekProjection requestKey
         pure (renderTimesheetWeekProjectionFragment projection fragment)
 
-renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
+renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Markup.Html
 renderTimesheetWeekProjectionFragment =
     renderTimesheetProjectionFragmentFromProjection FragmentPlain
 
-renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
+renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Markup.Html
 renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
     case fragment of
         TimesheetProjectionToolbar ->
@@ -469,6 +519,7 @@ timesheetDayRenderModelFromProjection :: TimesheetWeekProjection -> Int -> Times
 timesheetDayRenderModelFromProjection projection dayOffset =
     TimesheetDayRenderModel
         { dayEntries = projection.timesheetEntries
+        , dayTimingByEntryId = projection.timesheetTimingByEntryId
         , daySuggestions = projection.timesheetSuggestions
         , dayStaffMembers = projection.timesheetStaffMembers
         , dayShiftTypes = projection.timesheetShiftTypes
@@ -483,9 +534,10 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingByEntryId, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
     IndexView
         { entries = timesheetEntries
+        , timingByEntryId = timesheetTimingByEntryId
         , suggestions = timesheetSuggestions
         , staffMembers = timesheetStaffMembers
         , shiftTypes = timesheetShiftTypes

@@ -32,6 +32,8 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import Application.Helper.FrontendContract.Surface.SelfServiceLeave.HaskellAdapter
+import qualified Application.Helper.FrontendContract.Surface.Feedback as Feedback
+import Application.Helper.FrontendContract.Surface.Feedback.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Support as Support
 import Application.Helper.FrontendContract.Surface.Support.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
@@ -42,11 +44,12 @@ type RegisteredSurfaceAdapterFamilies =
     '[ TimesheetsAdapterFamily
      , RosterAdapterFamily
      , RosterDayTimelineAdapterFamily
-     , RosterTemplateDesignerAdapterFamily
      , LeaveRequestsAdapterFamily
      , SelfServiceLeaveAdapterFamily
      , BillingAdapterFamily
      , SupportAdapterFamily
+     , FeedbackAdapterFamily
+     , FeedbackModerationAdapterFamily
      , ProfileAdapterFamily
      , StaffAdapterFamily
      , AdminPageAdapterFamily
@@ -75,10 +78,11 @@ type RegisteredSurfaceScopeAdapterHomes =
     '[ SurfaceScopeAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
      , SurfaceScopeAdapterHome RosterAdapterFamily Roster.RosterWeek
      , SurfaceScopeAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimeline
-     , SurfaceScopeAdapterHome RosterTemplateDesignerAdapterFamily Roster.RosterTemplateDesignerScope
      , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
      , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
      , SurfaceScopeAdapterHome BillingAdapterFamily Billing.BillingVenue
+     , SurfaceScopeAdapterHome FeedbackAdapterFamily Feedback.FeedbackVenue
+     , SurfaceScopeAdapterHome FeedbackModerationAdapterFamily Feedback.FeedbackPlatform
      , SurfaceScopeAdapterHome SupportAdapterFamily Support.SupportPlatform
      , SurfaceScopeAdapterHome ProfileAdapterFamily Profile.ProfileScope
      , SurfaceScopeAdapterHome StaffAdapterFamily Profile.StaffScope
@@ -118,6 +122,10 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveFormFragment
      , SurfaceFragmentAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveHistoryFragment
      , SurfaceFragmentAdapterHome BillingAdapterFamily Billing.BillingStatus
+     , SurfaceFragmentAdapterHome FeedbackAdapterFamily Feedback.FeedbackBoard
+     , SurfaceFragmentAdapterHome FeedbackModerationAdapterFamily Feedback.FeedbackDesktopCount
+     , SurfaceFragmentAdapterHome FeedbackModerationAdapterFamily Feedback.FeedbackMobileCount
+     , SurfaceFragmentAdapterHome FeedbackModerationAdapterFamily Feedback.FeedbackReview
      , SurfaceFragmentAdapterHome SupportAdapterFamily Support.SupportAwardRates
      , SurfaceFragmentAdapterHome SupportAdapterFamily Support.SupportPublicHolidays
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileDetailsSection
@@ -153,8 +161,6 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsStructure
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsContent
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateLibrary
-     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplate
-     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateDraft
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterDay
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterLayoutConfig
@@ -164,6 +170,8 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsSection
      , SurfaceResourceAdapterHome BillingAdapterFamily Billing.Billing
+     , SurfaceResourceAdapterHome FeedbackAdapterFamily Feedback.FeedbackBoard
+     , SurfaceResourceAdapterHome FeedbackModerationAdapterFamily Feedback.FeedbackReview
      , SurfaceResourceAdapterHome SupportAdapterFamily Support.SupportAwardRates
      , SurfaceResourceAdapterHome SupportAdapterFamily Support.SupportPublicHolidays
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffProfile
@@ -224,6 +232,14 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.OpenRosterTemplateCapture
+        (requestAdapterOperationsWithoutParser "The zero-field modal launcher consumes canonical route context and has no Surface request parser")
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateCapture allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterTemplateCapture allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.OpenRosterTemplateDelete
+        (requestAdapterOperationsWithoutParser "The zero-field modal launcher consumes canonical route context and has no Surface request parser")
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.DeleteRosterTemplate
+        (requestAdapterOperationsWithoutParser "The zero-field delete endpoint consumes its route id and canonical query context")
     , surfaceOperationLocalActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage requestAdapterOperationsWithParamsPresent
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
@@ -235,6 +251,19 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DeleteUnavailabilityBlackout
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.VoteFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field vote consumes its route id and authenticated global account")
+    , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.UnvoteFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field unvote consumes its route id and authenticated global account")
+    , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.EditFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field dialog consumes its route id")
+    , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.UpdateFeedback allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.PublishFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
+    , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.ArchiveFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
+    , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.RestoreFeedback
+        (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
     , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreateFwcMapdRefreshJob
@@ -282,7 +311,6 @@ registeredSurfaceIntentAdapterRegistrations =
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.MoveRosterShiftToSlot allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DropRosterStaff allRequestAdapterOperations
-    , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
     ]
 

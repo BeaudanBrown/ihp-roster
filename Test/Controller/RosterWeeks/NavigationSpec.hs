@@ -2,9 +2,6 @@ module Test.Controller.RosterWeeks.NavigationSpec where
 
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
-import Application.RosterTemplates (RosterTemplateDraft (..),
-                                    rosterTemplateActor,
-                                    saveRosterTemplateDraft)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LByteString
@@ -17,6 +14,7 @@ import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -26,7 +24,6 @@ import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
-import Web.RosterWeeks.TemplateDesigner (startBlankRosterTemplateDesignerDraft)
 import Web.Routes
 import Web.Types
 
@@ -358,10 +355,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "data-roster-week-controls=\"manager-actions\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
-                response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab=\"templates\""
-                response `responseBodyShouldNotContain` "data-bepis-roster-template-card=\"true\""
-                response `responseBodyShouldNotContain` "data-bepis-source-ref=\"day-template-drag-source\""
-                response `responseBodyShouldNotContain` "data-bepis-source-ref=\"week-template-drag-source\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                response `responseBodyShouldContain` "Save current week as template"
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"name\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"role\""
@@ -386,7 +381,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` "Week actions"
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?"
-                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
+                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
                 response `responseBodyShouldContain` "Sort shifts"
                 response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "Roster columns"
@@ -408,15 +403,12 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
-        it "keeps templates and application targets hidden on Published rosters" $ withContext do
+        it "keeps the empty template library and Save visible for Published targets" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Live template target"
                 manager <- createUserRecord "live-template-target@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let templateActor = rosterTemplateActor manager venue True
-                Right dayDraft <- startBlankRosterTemplateDesignerDraft templateActor rosterGroup Day "Lunch service"
-                Right _ <- saveRosterTemplateDraft templateActor dayDraft.draftDesign.id
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
                 _ <- forM [0 .. 6] (createRosterDayRecord rosterWeek)
 
@@ -424,13 +416,11 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab=\"templates\""
-                response `responseBodyShouldNotContain` "roster-template-library-mount-"
-                response `responseBodyShouldNotContain` "Templates cannot be applied to a Published roster"
-                response `responseBodyShouldNotContain` "aria-label=\"Apply Lunch service\""
-                response `responseBodyShouldNotContain` "data-bepis-source-ref=\"day-template-drag-source\""
-                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
-                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"week-template-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                response `responseBodyShouldContain` "id=\"roster-template-library-mount\""
+                response `responseBodyShouldContain` "Save current week as template"
+                response `responseBodyShouldNotContain` "Apply is unavailable"
+                response `responseBodyShouldContain` "No templates are saved."
 
         it "keeps staff requiring pay remediation visible and editable in the roster staff panel" $ withContext do
             withCleanDb do

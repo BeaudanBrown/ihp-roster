@@ -28,6 +28,28 @@ billingNotificationJobKind = emailDeliveryJobKind
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Billing reconciliation" do
+        it "rejects malformed and mismatched persisted reconciliation payloads" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Invalid Job Payload Venue"
+                let cases =
+                        [ (Aeson.String "not-an-object", "application.async.error.app-job/job-malformed-persisted-payload: The stored job payload is invalid.")
+                        , (Aeson.object ["target" Aeson..= ("checkout_attempt" :: Text), "localRecordId" Aeson..= unpackId venue.id], "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid.")
+                        ]
+                forM_ cases \(payload, expectedMessage) -> do
+                    appJob <-
+                        newRecord @AppJob
+                            |> set #jobKind billingReconciliationJobKind
+                            |> set #payload payload
+                            |> set #payloadSchemaVersion 1
+                            |> set #venueId (Just (unpackId venue.id))
+                            |> set #relatedTable (Just "venue_subscriptions")
+                            |> set #relatedId (Just (unpackId venue.id))
+                            |> createRecord
+                    result <- Exception.try (performBillingReconciliationJob appJob) :: IO (Either Exception.SomeException ())
+                    case result of
+                        Right () -> expectationFailure "Expected invalid reconciliation payload failure"
+                        Left exception -> tshow exception `shouldBe` expectedMessage
+
         it "repairs a known completed Checkout from current Stripe state without changing venue writability" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Reconciliation Venue"
@@ -295,7 +317,7 @@ tests = aroundAll withDatabaseTestContext do
                 case dispatchResult of
                     Left err -> do
                         let message = cs (Exception.displayException err) :: Text
-                        message `shouldSatisfy` Text.isInfixOf "subscription_retrieve_failed"
+                        message `shouldSatisfy` Text.isInfixOf "application.async.error.app-job/job-transport-unavailable"
                         message `shouldNotSatisfy` Text.isInfixOf "sk_live_secret"
                         message `shouldNotSatisfy` Text.isInfixOf "4111111111111111"
                         message `shouldNotSatisfy` Text.isInfixOf "billing@example.test"

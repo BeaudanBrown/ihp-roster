@@ -1,5 +1,8 @@
 module Test.SurfaceDependencySpec where
 
+import Application.Feedback.LiveUpdates
+import Application.Helper.FrontendContract.Surface.Feedback.Live
+import Application.Helper.FrontendContract.Surface.Feedback.Resource
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
@@ -58,9 +61,11 @@ import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidationsWithoutContext)
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsCandidateMountedFragments,
+                                       timesheetsMountStateForFilters,
                                        timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
 import Web.Types
@@ -122,10 +127,12 @@ tests = do
                            , "timesheet-day-section-2025-01-26"
                            ]
 
-        it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
+        it "plans filtered Timesheet actor keys from typed scope and mount state through the passive dependency plan" do
             let venueId = fromWords 1 0 0 0
+            let staffId = fromWords 2 0 0 0
+            let rosterGroupId = fromWords 3 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
-            let mountState = TimesheetsMountStateValue Nothing Nothing
+            let mountState = timesheetsMountStateForFilters (TimesheetViewFilters (Just staffId) (Just rosterGroupId))
             let scope = timesheetsSurfaceScope scopeValue
             let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState
             let duplicatedMount = mountedFragments <> mountedFragments
@@ -138,6 +145,10 @@ tests = do
 
             actorFragmentKeys `shouldBe` concatMap (.targetFragments) passiveTargets
             actorFragmentKeys `shouldBe` [TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 2))]
+            map (.mountedFragmentUrl) mountedFragments
+                `shouldSatisfy` all (Text.isInfixOf ("staffFilterId=" <> tshow staffId))
+            map (.mountedFragmentUrl) mountedFragments
+                `shouldSatisfy` all (Text.isInfixOf ("rosterGroupFilterId=" <> tshow rosterGroupId))
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0
@@ -246,7 +257,7 @@ tests = do
             let rosterGroupId = Id (fromWords 8 0 0 0) :: Id RosterGroup
             let rosterDayId = Id (fromWords 9 0 0 0) :: Id RosterDay
             let scope = rosterScopeValue venueId rosterGroupId 3
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedHasTemplateLibrary = False }
             let candidates = rosterCandidateMountedFragments scope plan
             map (.mountedFragmentTargetId) candidates
                 `shouldBe`
@@ -269,20 +280,18 @@ tests = do
                     , "roster-row-" <> tshow rosterDayId <> "-2"
                     ]
 
-        it "selects the private template library fragment for library and owner-draft changes" do
+        it "selects the shared template library fragment only for the mounted roster group" do
             let venueId = fromWords 21 0 0 0
             let rosterGroupUuid = fromWords 22 0 0 0
-            let userUuid = fromWords 23 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
-            let userId = Id userUuid :: Id User
             let scopeValue = rosterScopeValue venueId rosterGroupId 3
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Just userId }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedHasTemplateLibrary = True }
             let candidates = rosterCandidateMountedFragments scopeValue plan
 
             passiveFragmentKeys (Set.singleton (rosterTemplateLibraryResource rosterGroupUuid)) (rosterSurfaceScope scopeValue) candidates
-                `shouldBe` [RosterLive.rosterTemplateLibraryLiveFragment userUuid]
-            passiveFragmentKeys (Set.singleton (rosterTemplateDraftResource userUuid)) (rosterSurfaceScope scopeValue) candidates
-                `shouldBe` [RosterLive.rosterTemplateLibraryLiveFragment userUuid]
+                `shouldBe` [RosterLive.rosterTemplateLibraryLiveFragment]
+            passiveFragmentKeys (Set.singleton (rosterTemplateLibraryResource (fromWords 23 0 0 0))) (rosterSurfaceScope scopeValue) candidates
+                `shouldBe` []
 
         it "normalizes roster wrapper containment without replacing the grid scroll owner" do
             let venueId = fromWords 7 0 0 0
@@ -292,7 +301,7 @@ tests = do
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = rosterScopeValue venueId rosterGroupId 3
             let scope = rosterSurfaceScope scopeValue
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedHasTemplateLibrary = False }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
                     , rosterDayResource rosterDayUuid
@@ -315,7 +324,7 @@ tests = do
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = rosterScopeValue venueId rosterGroupId 4
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedHasTemplateLibrary = False }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
                     , rosterSlotsStructureResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
@@ -338,7 +347,7 @@ tests = do
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = rosterScopeValue venueId rosterGroupId 4
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedHasTemplateLibrary = False }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
                     , rosterSlotsContentResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
@@ -361,7 +370,7 @@ tests = do
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = rosterScopeValue venueId rosterGroupId 4
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedHasTemplateLibrary = False }
             let resources = Set.singleton (rosterGroupStaffResource rosterGroupUuid)
 
             passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
@@ -377,7 +386,7 @@ tests = do
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = rosterScopeValue venueId rosterGroupId 4
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedHasTemplateLibrary = False }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
                     , rosterWeekStructureResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
@@ -397,7 +406,7 @@ tests = do
             let ancestorDayId = Id ancestorDayUuid :: Id RosterDay
             let childDayId = Id childDayUuid :: Id RosterDay
             let scopeValue = rosterScopeValue venueId rosterGroupId 3
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)], rosterMountedTemplateUserId = Nothing }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)], rosterMountedHasTemplateLibrary = False }
 
             passiveFragmentKeys
                 (Set.fromList [rosterDayResource ancestorDayUuid, rosterDayResource childDayUuid])
@@ -407,6 +416,28 @@ tests = do
                     [ RosterLive.rosterDaySectionLiveFragment ancestorDayUuid
                     , RosterLive.rosterRowLiveFragment childDayUuid 2
                     ]
+
+        it "plans Feedback public and private resources across actor and passive mounts without crossing mount ownership" do
+            let publicScope = feedbackVenueLiveScope (fromWords 9 0 0 0)
+            let boardResources = Set.singleton feedbackBoardResource
+            let reviewResources = Set.singleton feedbackReviewResource
+            let plannedIds resources scope candidates = map (.mountedFragmentTargetId) (planMountedFragments resources scope candidates)
+            plannedIds boardResources publicScope feedbackMountedFragments `shouldBe` ["feedback-cards"]
+            plannedIds reviewResources publicScope feedbackMountedFragments `shouldBe` []
+            plannedIds boardResources feedbackPlatformLiveScope feedbackModerationMountedFragments `shouldBe` ["feedback-review"]
+            plannedIds reviewResources feedbackPlatformLiveScope feedbackModerationMountedFragments
+                `shouldBe` ["feedback-review", "feedback-desktop-count", "feedback-mobile-count"]
+            passiveFragmentKeys boardResources publicScope feedbackMountedFragments
+                `shouldBe` map (.mountedFragmentKey) feedbackMountedFragments
+            Set.fromList (passiveFragmentKeys reviewResources feedbackPlatformLiveScope feedbackModerationMountedFragments)
+                `shouldBe` Set.fromList (map (.mountedFragmentKey) feedbackModerationMountedFragments)
+            let reviewMount = feedbackModerationSurface.surfaceImplMountConfig
+            let desktopMount = feedbackDesktopCountSurface.surfaceImplMountConfig
+            let mobileMount = feedbackMobileCountSurface.surfaceImplMountConfig
+            map (.mountedFragmentTargetId) reviewMount.mountFragments `shouldBe` ["feedback-review"]
+            map (.mountedFragmentTargetId) desktopMount.mountFragments `shouldBe` ["feedback-desktop-count"]
+            map (.mountedFragmentTargetId) mobileMount.mountFragments `shouldBe` ["feedback-mobile-count"]
+            map (.mountKey) [reviewMount, desktopMount, mobileMount] `shouldBe` ["primary", "desktop-header", "mobile-header"]
 
         it "selects support fragments through generated dependencies" do
             let awardRatesFragments = planMountedFragments (Set.fromList [supportAwardRatesResource]) supportSurfaceScope supportCandidateMountedFragments

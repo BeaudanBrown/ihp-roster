@@ -368,6 +368,7 @@ validateSurface surface =
     validateSingleScope surface
         <> validateAtMostOneMountState surface
         <> concatMap (validateDuplicateFields surface.surfaceName "scope" . scopeFields) surface.surfaceScopes
+        <> validateScopeIdentityFields surface
         <> concatMap (validateDuplicateFields surface.surfaceName "mount state" . mountStateFields) surface.surfaceMountStates
         <> concatMap (validateDuplicateFields surface.surfaceName "fragment" . fragmentParams) surface.surfaceFragments
         <> concatMap validateFragmentMountTarget surface.surfaceFragments
@@ -419,6 +420,20 @@ validateFragmentMountTarget fragment =
         [] -> [diagnostic "missing-mount-target" ("fragment " <> fragment.fragmentName <> " must declare exactly one MountTarget")]
         [fields] -> validateDuplicateFields fragment.fragmentName "mount target" fields
         _ -> [diagnostic "multiple-mount-targets" ("fragment " <> fragment.fragmentName <> " declares multiple MountTarget options")]
+
+validateScopeIdentityFields :: SurfaceIR -> [ContractDiagnostic]
+validateScopeIdentityFields surface =
+    [ diagnostic
+        "unsupported-scope-identity-wire"
+        ( "surface " <> surface.surfaceName
+            <> " scope " <> scope.scopeName
+            <> " field " <> field.fieldName
+            <> " cannot use top-level WireOptional because absent wire values have no canonical scope-key representation"
+        )
+    | scope <- surface.surfaceScopes
+    , field <- scope.scopeFields
+    , WireOptionalIR _ <- [field.fieldWire]
+    ]
 
 validateSingleScope :: SurfaceIR -> [ContractDiagnostic]
 validateSingleScope surface =
@@ -474,7 +489,7 @@ validateScopeAuthorization surface =
         authorizationPolicyName auth =
             case scopeAuthPolicy auth of
                 Just policy -> scopeAuthPolicyName policy
-                Nothing     -> error "NoAuth cannot own authorization fields"
+                Nothing     -> "no-auth"
 
 validateLinkedHighlights :: SurfaceIR -> [ContractDiagnostic]
 validateLinkedHighlights surface =

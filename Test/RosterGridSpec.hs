@@ -1,5 +1,6 @@
 module Test.RosterGridSpec where
 
+import Application.VenueTime.Model (decodeRosterShiftTiming)
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
@@ -25,16 +26,17 @@ tests = describe "Roster grid row grouping" do
             slotB = newRecord @RosterLane
             slotC = newRecord @RosterLane
 
-            mkSlot daySlot startTime staffId =
+            mkSlot daySlot startTime endTime staffId =
                 newRecord @RosterSlot
                     |> set #rosterLaneId (unpackId daySlot.id)
-                    |> setTestStartTime startTime
+                    |> setTestStartTime (Just startTime)
+                    |> setTestEndTime (Just endTime)
                     |> set #staffId staffId
 
-            first = mkSlot slotA (Just $ TimeOfDay 10 0 0) (Just (UUID.nil))
-            second = mkSlot slotB (Just $ TimeOfDay 8 0 0) (Just (UUID.nil))
-            third = mkSlot slotC (Just $ TimeOfDay 12 0 0) (Just (UUID.nil))
-            sorted = compactDayColumnSlots [] [first, second, third]
+            first = mkSlot slotA (TimeOfDay 10 0 0) (TimeOfDay 11 0 0) (Just (UUID.nil))
+            second = mkSlot slotB (TimeOfDay 8 0 0) (TimeOfDay 9 0 0) (Just (UUID.nil))
+            third = mkSlot slotC (TimeOfDay 12 0 0) (TimeOfDay 13 0 0) (Just (UUID.nil))
+            sorted = compactDayColumnSlots [] [(slot, decodeRosterShiftTiming slot) | slot <- [first, second, third]]
         map (get #rosterLaneId) sorted `shouldBe`
             [unpackId slotB.id, unpackId slotA.id, unpackId slotC.id]
 
@@ -42,10 +44,11 @@ tests = describe "Roster grid row grouping" do
         let slotA = newRecord @RosterLane
             slotB = newRecord @RosterLane
 
-            mkTimedSlot startTime =
+            mkTimedSlot startTime endTime =
                 newRecord @RosterSlot
                     |> set #rosterLaneId (unpackId slotA.id)
                     |> setTestStartTime (Just startTime)
+                    |> setTestEndTime (Just endTime)
                     |> set #staffId (Just UUID.nil)
 
             mkUntimedSlot =
@@ -55,9 +58,9 @@ tests = describe "Roster grid row grouping" do
                     |> setTestEndTime (Just $ TimeOfDay 9 0 0)
                     |> set #staffId Nothing
 
-            first = mkTimedSlot (TimeOfDay 9 0 0)
+            first = mkTimedSlot (TimeOfDay 9 0 0) (TimeOfDay 10 0 0)
             second = mkUntimedSlot
-            sorted = compactDayColumnSlots [] [second, first]
+            sorted = compactDayColumnSlots [] [(slot, decodeRosterShiftTiming slot) | slot <- [second, first]]
         map (get #rosterLaneId) sorted `shouldBe`
             [unpackId slotA.id, unpackId slotB.id]
 

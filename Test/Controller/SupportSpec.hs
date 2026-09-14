@@ -11,8 +11,6 @@ import Application.Helper.OpaqueToken (hashOpaqueToken)
 import Application.Helper.Xero
 import Application.Support.LiveUpdates
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
-import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import Data.Bits (xor)
@@ -26,12 +24,14 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsImmediately)
 import Test.Support.SurfaceContract
 import Test.Support.XeroAdmin (testXeroConfig)
 import qualified Web.ClientSession as ClientSession
@@ -556,7 +556,7 @@ tests = aroundAll withDatabaseTestContext do
                         (unavailablePath, lookup HTTP.hLocation (Wai.responseHeaders unavailableResponse))
                             `shouldBe` (unavailablePath, Just "http://localhost/RosterWeeks")
 
-                    forM_ ["/Billing/not-a-route", "/ShowRosterWindowGarbage", "/ShowRosterWindow?anchorDate=not-a-date", "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=not-a-uuid", "/ShowRosterWindow?anchorDate=2026-08-10&anchorDate=2026-08-11", "/ShowRosterWindow?anchorDate=2026-08-10&unexpected=value", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=invalid", "/RosterWeeks?rosterView"] \malformedPagePath -> do
+                    forM_ ["/Billing/not-a-route", "/ShowRosterWindowGarbage", "/ShowRosterWindow?anchorDate=not-a-date", "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=not-a-uuid", "/ShowRosterWindow?anchorDate=2026-08-10&anchorDate=2026-08-11", "/ShowRosterWindow?anchorDate=2026-08-10&unexpected=value", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=invalid", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1", "/RosterWeeks?rosterView"] \malformedPagePath -> do
                         malformedPageResponse <- callActionWithParams
                             SwitchSupportImpersonationAction
                             [ ("userId", cs (inputValue worker.id))
@@ -608,21 +608,18 @@ tests = aroundAll withDatabaseTestContext do
                     lookup HTTP.hLocation (Wai.responseHeaders ownerLeaveResponse)
                         `shouldBe` Just "http://localhost/LeaveRequests?archivePage=2&openSection=archive&section=archive"
 
-                    ownerTemplateReferenceResponse <- callActionWithParams
-                        SwitchSupportImpersonationAction
-                        [ ("userId", cs (inputValue owner.id))
-                        , ("next", "/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week")
+                    forM_
+                        [ "/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week"
+                        , "/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1"
                         ]
-                    lookup HTTP.hLocation (Wai.responseHeaders ownerTemplateReferenceResponse)
-                        `shouldBe` Just "http://localhost/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week"
-
-                    ownerTemplateConfirmationResponse <- callActionWithParams
-                        SwitchSupportImpersonationAction
-                        [ ("userId", cs (inputValue owner.id))
-                        , ("next", "/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1")
-                        ]
-                    lookup HTTP.hLocation (Wai.responseHeaders ownerTemplateConfirmationResponse)
-                        `shouldBe` Just "http://localhost/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1"
+                        \retiredTemplatePath -> do
+                            retiredTemplateResponse <- callActionWithParams
+                                SwitchSupportImpersonationAction
+                                [ ("userId", cs (inputValue owner.id))
+                                , ("next", retiredTemplatePath)
+                                ]
+                            lookup HTTP.hLocation (Wai.responseHeaders retiredTemplateResponse)
+                                `shouldBe` Just "http://localhost/RosterWeeks"
 
                     workerTimesheetResponse <- callActionWithParams
                         SwitchSupportImpersonationAction
@@ -635,10 +632,10 @@ tests = aroundAll withDatabaseTestContext do
                     workerTimelineResponse <- callActionWithParams
                         SwitchSupportImpersonationAction
                         [ ("userId", cs (inputValue worker.id))
-                        , ("next", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1")
+                        , ("next", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayDate=2026-08-11")
                         ]
                     lookup HTTP.hLocation (Wai.responseHeaders workerTimelineResponse)
-                        `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1"
+                        `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayDate=2026-08-11"
 
                     workerRosterGroupResponse <- callActionWithParams
                         SwitchSupportImpersonationAction
@@ -1126,7 +1123,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Support venue"
                 response `responseBodyShouldNotContain` "Support mode"
 
-        it "shows submitted feedback without the submit-feedback button for super admins" $ withContext do
+        it "removes feedback review from Support while retaining the Feedback navigation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Support Venue"
                 submitter <- createUserRecord "feedback-support-user@example.com" "staff" True
@@ -1134,6 +1131,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #title "Clearer publish button"
                     |> set #feedbackType Bug
                     |> set #status "new"
                     |> set #priority "normal"
@@ -1144,16 +1142,16 @@ tests = aroundAll withDatabaseTestContext do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "User Feedback"
-                response `responseBodyShouldContain` "Roster page needs a clearer publish button"
-                response `responseBodyShouldContain` "feedback-support-user@example.com"
-                response `responseBodyShouldContain` "Unread feedback: <span class=\"fw-semibold\">1</span>"
-                response `responseBodyShouldContain` ">Info</summary>"
-                response `responseBodyShouldContain` "Page</dt>"
-                response `responseBodyShouldContain` "Not reported"
+                response `responseBodyShouldNotContain` "User Feedback"
+                response `responseBodyShouldNotContain` "Roster page needs a clearer publish button"
+                response `responseBodyShouldNotContain` "feedback-support-user@example.com"
+                response `responseBodyShouldNotContain` "Unread feedback"
+                response `responseBodyShouldContain` "href=\"/Feedback\""
+                forM_ ["MarkFeedbackRead", "MarkAllFeedbackRead", "UpdateFeedbackStatus", "UpdateFeedbackPriority", "UpdateFeedbackSupportNote"] \retired ->
+                    response `responseBodyShouldNotContain` retired
                 response `responseBodyShouldNotContain` "hx-get=\"/NewFeedback\""
 
-        it "shows captured feedback diagnostics inline" $ withContext do
+        it "does not project retained feedback diagnostics on Support" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Diagnostics Venue"
                 submitter <- createUserRecord "feedback-diagnostics-user@example.com" "staff" True
@@ -1161,6 +1159,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #title "Diagnostics are available"
                     |> set #feedbackType Bug
                     |> set #status "new"
                     |> set #priority "normal"
@@ -1179,36 +1178,10 @@ tests = aroundAll withDatabaseTestContext do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Feedback Diagnostics Venue"
-                response `responseBodyShouldContain` "/LeaveRequests"
-                response `responseBodyShouldContain` "FeedbackBrowser/1.0"
-                response `responseBodyShouldContain` "Venue admin"
-                response `responseBodyShouldContain` "390 × 844"
-                response `responseBodyShouldContain` "2.625"
-                response `responseBodyShouldContain` "Mobile"
-                response `responseBodyShouldContain` "Standalone PWA"
-
-        it "marks feedback read for super admins" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Feedback Read Venue"
-                submitter <- createUserRecord "feedback-read-user@example.com" "staff" True
-                superAdmin <- createUserRecordWithPlatformRole "feedback-read-super@example.com" "staff" (Just SuperAdmin) True
-                feedbackItem <- newRecord @UserFeedbackItem
-                    |> set #venueId (unpackId venue.id)
-                    |> set #submittedByUserId (unpackId submitter.id)
-                    |> set #feedbackType Suggestion
-                    |> set #status "new"
-                    |> set #priority "normal"
-                    |> set #content "Make the copy week action clearer"
-                    |> createRecord
-
-                response <- withPasskeyVerifiedUser superAdmin do
-                    callAction (MarkFeedbackReadAction feedbackItem.id)
-
-                response `responseStatusShouldBe` status302
-                updatedFeedback <- fetch feedbackItem.id
-                updatedFeedback.readAt `shouldSatisfy` isJust
-                updatedFeedback.readByUserId `shouldBe` Just (unpackId superAdmin.id)
+                response `responseBodyShouldNotContain` "Diagnostics are available"
+                response `responseBodyShouldNotContain` "FeedbackBrowser/1.0"
+                response `responseBodyShouldNotContain` "2.625"
+                response `responseBodyShouldNotContain` "feedback-diagnostics-user@example.com"
 
         it "routes support refresh mutations through touched resources" $ withContext do
             withCleanDb do
@@ -1229,7 +1202,7 @@ tests = aroundAll withDatabaseTestContext do
                 superAdmin <- createUserRecordWithPlatformRole "support-concurrent-super@example.com" "staff" (Just SuperAdmin) True
                 ensureTestUserHasPasskey superAdmin
 
-                results <- runConcurrentActions 12 do
+                results <- runConcurrentActionsImmediately 12 do
                     withPasskeyVerifiedUser superAdmin do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction CreateFwcMapdRefreshJobAction
@@ -1245,9 +1218,3 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhereIn (#status, activeAppJobStatuses)
                     |> fetch
                 length activeJobs `shouldBe` 1
-
-runConcurrentActions :: Int -> IO a -> IO [Either SomeException a]
-runConcurrentActions count action = do
-    vars <- mapM (const newEmptyMVar) [1 .. count]
-    _ <- mapM (\var -> forkIO (try action >>= putMVar var)) vars
-    mapM takeMVar vars

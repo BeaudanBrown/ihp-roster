@@ -5,11 +5,11 @@ module Application.StaffDocuments.Rsa.Email
     , loadRsaReminderMail
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Mail
 import Application.StaffDocuments.Rsa
 import Control.Monad (void)
 import qualified Data.Text as Text
-import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.Mail.StaffDocuments.RsaReminder (RsaReminderMail (..))
@@ -49,7 +49,7 @@ loadRsaReminderMail mailKind recipientAccountId recipientAddress staffDocumentId
                             if staff.userId /= Just recipientAccountId
                                 then pure (RsaReminderMailSkipped "recipient_no_longer_linked")
                                 else if jobVenueId /= Just staffDocument.venueId || staff.venueId /= staffDocument.venueId
-                                    then fail "RSA reminder venue does not match its document and staff context"
+                                    then externalRuntimeInvariantFailure JobProvenanceInvariant "RSA reminder venue does not match its document and staff context"
                                     else pure $ RsaReminderMailReady RsaReminderMail
                                         { recipientAddress
                                         , recipientName = staffDisplayName staff
@@ -70,7 +70,7 @@ completeRsaReminderDelivery ::
     IO ()
 completeRsaReminderDelivery mailKind staffDocumentId =
     case parseRsaReminderMailKind mailKind of
-        Nothing -> fail "Unknown RSA reminder mail kind"
+        Nothing -> externalRuntimeInvariantFailure JobProvenanceInvariant "Unknown RSA reminder mail kind"
         Just reminderKind -> do
             staffDocument <- fetch (Id staffDocumentId :: Id StaffDocument)
             void (markRsaReminderSent reminderKind staffDocument)

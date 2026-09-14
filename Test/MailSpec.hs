@@ -3,7 +3,6 @@ module Test.MailSpec where
 import Application.Billing.NotificationKind (BillingNotificationKind (BillingPaymentTrouble, BillingRenewalResumed))
 import Application.Helper.Mail
 import Application.WageSourceAlert.Types
-import Control.Exception (bracket)
 import Data.Text (isInfixOf)
 import qualified Data.Text.Lazy as LazyText
 import Data.Time.Calendar (fromGregorian)
@@ -15,10 +14,10 @@ import IHP.MailPrelude
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.Mail.Mime (Address (..))
-import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import Test.Support.Environment (withEnvironmentVariable)
+import qualified IHP.HSX.Markup as HtmlRenderer
 import Web.Mail.Billing.Notification
 import Web.Mail.FeedbackNotification
 import Web.Mail.StaffDocuments.RsaReminder
@@ -174,6 +173,7 @@ tests = aroundAll withDatabaseTestContext do
                         newRecord @UserFeedbackItem
                             |> set #venueId (unpackId venue.id)
                             |> set #submittedByUserId (unpackId submitter.id)
+                            |> set #title "Escaped feedback context"
                             |> set #feedbackType Bug
                             |> set #content "<script>alert('escaped')</script>\nSecond line"
                             |> set #submittedRole (Just "worker")
@@ -192,26 +192,27 @@ tests = aroundAll withDatabaseTestContext do
                             , venue
                             , submitter
                             , venueTimezone = "Australia/Melbourne"
-                            , supportUrl = "https://app.example/Support"
+                            , feedbackUrl = "https://app.example/Feedback"
                             , fromAddress = "noreply@example.com"
                             , replyToAddress = "support@example.com"
                             }
                 let ?context = ?mocking
                 let ?mail = mail
-                let renderedHtml = LazyText.toStrict (HtmlRenderer.renderHtml (html mail))
+                let renderedHtml = LazyText.toStrict (HtmlRenderer.renderMarkupLazyText (html mail))
 
                 addressEmail (to mail) `shouldBe` "support-recipient@example.com"
                 subject `shouldBe` "New Bepis feedback submitted"
                 addressEmail from `shouldBe` "noreply@example.com"
                 fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
-                renderedHtml `shouldSatisfy` isInfixOf "&lt;script&gt;alert(&#39;escaped&#39;)&lt;/script&gt;"
+                -- Direct markup preserves apostrophes in text nodes; tag delimiters remain escaped.
+                renderedHtml `shouldSatisfy` isInfixOf "&lt;script&gt;alert('escaped')&lt;/script&gt;"
                 renderedHtml `shouldSatisfy` (not . isInfixOf "<script>")
                 renderedHtml `shouldSatisfy` isInfixOf "Browser &lt;unsafe&gt;"
                 text mail `shouldSatisfy` isInfixOf "Type: Bug"
                 text mail `shouldSatisfy` isInfixOf "Submission-time role: worker"
                 text mail `shouldSatisfy` isInfixOf "Submitted: 2026-08-20 13:15:00 Australia/Melbourne"
                 text mail `shouldSatisfy` isInfixOf "<script>alert('escaped')</script>\nSecond line"
-                text mail `shouldSatisfy` isInfixOf "Open Bepis Support: https://app.example/Support"
+                text mail `shouldSatisfy` isInfixOf "Review Bepis Feedback: https://app.example/Feedback"
 
         it "renders distinct safe wage-source failure and stale alerts" $ withContext do
             let detectedAt = UTCTime (fromGregorian 2026 8 20) 0
@@ -359,27 +360,19 @@ tests = aroundAll withDatabaseTestContext do
 
     describe "Mail settings" do
         it "loads production-safe reply-to and support defaults" $ withContext do
-            withEnv "MAIL_FROM" Nothing do
-                withEnv "MAIL_REPLY_TO" Nothing do
-                    withEnv "MAIL_SUPPORT_EMAIL" Nothing do
+            withEnvironmentVariable "MAIL_FROM" Nothing do
+                withEnvironmentVariable "MAIL_REPLY_TO" Nothing do
+                    withEnvironmentVariable "MAIL_SUPPORT_EMAIL" Nothing do
                         settings <- loadAppMailSettings
                         settings.mailFromAddress `shouldBe` "noreply@dev.local"
                         settings.mailReplyToAddress `shouldBe` "support@bepis.lol"
                         settings.mailSupportEmail `shouldBe` "support@bepis.lol"
 
         it "loads sender, reply-to, and support overrides from the environment" $ withContext do
-            withEnv "MAIL_FROM" (Just "accounts@bepis.lol") do
-                withEnv "MAIL_REPLY_TO" (Just "help@bepis.lol") do
-                    withEnv "MAIL_SUPPORT_EMAIL" (Just "support@bepis.lol") do
+            withEnvironmentVariable "MAIL_FROM" (Just "accounts@bepis.lol") do
+                withEnvironmentVariable "MAIL_REPLY_TO" (Just "help@bepis.lol") do
+                    withEnvironmentVariable "MAIL_SUPPORT_EMAIL" (Just "support@bepis.lol") do
                         settings <- loadAppMailSettings
                         settings.mailFromAddress `shouldBe` "accounts@bepis.lol"
                         settings.mailReplyToAddress `shouldBe` "help@bepis.lol"
                         settings.mailSupportEmail `shouldBe` "support@bepis.lol"
-
-withEnv :: String -> Maybe String -> IO a -> IO a
-withEnv name value action =
-    bracket (Environment.lookupEnv name <* apply value) restore (const action)
-  where
-    restore previous = apply previous
-    apply Nothing        = Environment.unsetEnv name
-    apply (Just current) = Environment.setEnv name current

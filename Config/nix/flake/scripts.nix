@@ -1,18 +1,42 @@
 { pkgs }:
 let
-    scriptBody = path:
-        builtins.replaceStrings
-            [
-                "@mailhog@"
-                "@ripgrep@"
-                "@scriptsRoot@"
-            ]
-            [
-                "${pkgs.mailhog}"
-                "${pkgs.ripgrep}"
-                "${../scripts}"
-            ]
-            (builtins.readFile path);
+    projectCommandRunner = pkgs.writeShellScript "bepis-project-command" ''
+        set -euo pipefail
+
+        relative_path="$1"
+        shift
+
+        repo_root="''${FRONTEND_REPO_ROOT:-}"
+        repo_root_is_explicit=false
+        if [ -n "$repo_root" ]; then
+            repo_root_is_explicit=true
+        else
+            repo_root="$(${pkgs.git}/bin/git rev-parse --show-toplevel 2>/dev/null || true)"
+        fi
+
+        project_marker="$repo_root/Config/nix/flake/scripts.nix"
+        if [ -n "$repo_root" ] && { [ "$repo_root_is_explicit" = true ] || [ -f "$project_marker" ]; }; then
+            if [[ "$repo_root" == *$'\n'* || "$repo_root" == *$'\r'* ]]; then
+                echo "devenv project command: checkout paths containing newlines are unsupported" >&2
+                exit 64
+            fi
+            scripts_root="$repo_root/Config/nix/scripts"
+            selected_script="$scripts_root/$relative_path"
+            if [ ! -f "$selected_script" ]; then
+                echo "devenv project command: missing working-tree script $selected_script" >&2
+                exit 66
+            fi
+        else
+            scripts_root=${../scripts}
+            selected_script="$scripts_root/$relative_path"
+            echo "devenv project command: no project checkout found; using packaged snapshot for $relative_path" >&2
+        fi
+
+        export BEPIS_SCRIPTS_ROOT="$scripts_root"
+        export BEPIS_MAILHOG_ROOT=${pkgs.mailhog}
+        export BEPIS_RIPGREP_ROOT=${pkgs.ripgrep}
+        exec ${pkgs.bash}/bin/bash "$selected_script" "$@"
+    '';
 
     script = path:
         let
@@ -20,45 +44,7 @@ let
         in
         {
             exec = ''
-                #!/usr/bin/env bash
-                set -euo pipefail
-
-                repo_root="''${FRONTEND_REPO_ROOT:-}"
-                repo_root_is_explicit=false
-                if [ -n "$repo_root" ]; then
-                    repo_root_is_explicit=true
-                else
-                    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-                fi
-
-                project_marker="$repo_root/Config/nix/flake/scripts.nix"
-                if [ -n "$repo_root" ] && { [ "$repo_root_is_explicit" = true ] || [ -f "$project_marker" ]; }; then
-                    if [[ "$repo_root" == *$'\n'* || "$repo_root" == *$'\r'* ]]; then
-                        echo "devenv project command: checkout paths containing newlines are unsupported" >&2
-                        exit 64
-                    fi
-                    working_tree_script="$repo_root/Config/nix/scripts/${relativePath}"
-                    if [ ! -f "$working_tree_script" ]; then
-                        echo "devenv project command: missing working-tree script $working_tree_script" >&2
-                        exit 66
-                    fi
-                    scripts_root_replacement="$(
-                        printf '%s' "$repo_root/Config/nix/scripts" \
-                            | sed 's/[\\&|]/\\&/g'
-                    )"
-                    # Keep caller stdin intact for interactive project commands
-                    # such as pi; read the templated script from a separate fd.
-                    exec bash /dev/fd/3 "$@" 3< <(
-                        sed \
-                            -e "s|@scriptsRoot@|$scripts_root_replacement|g" \
-                            -e 's|@mailhog@|${pkgs.mailhog}|g' \
-                            -e 's|@ripgrep@|${pkgs.ripgrep}|g' \
-                            "$working_tree_script"
-                    )
-                fi
-
-                echo "devenv project command: no project checkout found; using packaged snapshot for ${relativePath}" >&2
-                ${scriptBody path}
+                exec ${projectCommandRunner} ${pkgs.lib.escapeShellArg relativePath} "$@"
             '';
         };
 in
@@ -66,7 +52,8 @@ in
     processes = {
         # Replace IHP's static devenv processes so `devenv up` receives the
         # same workspace-specific ports as dev-start and dev-foreground.
-        ihp = pkgs.lib.mkForce (script ../scripts/dev/app);
+        web = pkgs.lib.mkForce (script ../scripts/dev/app);
+        worker = pkgs.lib.mkForce (script ../scripts/dev/worker);
         hoogle = pkgs.lib.mkForce {
             exec = ''
                 repo_root="$(git rev-parse --show-toplevel)"
@@ -83,6 +70,7 @@ in
         workspace-pi-test = script ../scripts/dev/pi-test;
         dev-agent-state-dir = script ../scripts/dev/agent-state-dir;
         dev-app = script ../scripts/dev/app;
+        dev-worker = script ../scripts/dev/worker;
         dev-workspace-info = script ../scripts/dev/workspace-info;
         dev-workspace-test = script ../scripts/dev/workspace-test;
         in-env-test = script ../scripts/dev/in-env-test;
@@ -144,6 +132,8 @@ in
         enum-authority-check = script ../scripts/haskell/enum-authority-check;
         typed-contract-authority-check = script ../scripts/haskell/typed-contract-authority-check;
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
+        application-warnings = script ../scripts/haskell/application-warnings;
+        typed-error-boundary-check = script ../scripts/haskell/typed-error-boundary-check;
         weeder-check = script ../scripts/haskell/weeder-check;
         weeder-policy-test = script ../scripts/haskell/weeder-policy-test;
         regen-types = script ../scripts/haskell/regen-types;
@@ -158,6 +148,10 @@ in
         test-db-reset = script ../scripts/db/test-db-reset;
         test-postgres = script ../scripts/db/test-postgres;
         billing-migration-check = script ../scripts/db/billing-migration-check;
+        migration-enum-commit-boundary-check = script ../scripts/db/migration-enum-commit-boundary-check;
+        migration-enum-commit-boundary-real-runner-test = script ../scripts/db/migration-enum-commit-boundary-real-runner-test;
+        migration-rehearsal = script ../scripts/db/migration-rehearsal;
+        migration-rehearsal-test = script ../scripts/db/migration-rehearsal-test;
         hspec-test = script ../scripts/haskell/hspec-test;
         hspec-pure = script ../scripts/haskell/hspec-pure;
         hspec-db = script ../scripts/haskell/hspec-db;
@@ -165,10 +159,18 @@ in
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
         verify-tooling = script ../scripts/verification/verify-tooling;
+        date-native-roster-readiness-test = script ../scripts/verification/date-native-roster-readiness-test;
         verify-all = script ../scripts/verification/verify-all;
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         billing-contract-check = script ../scripts/verification/billing-contract-check;
         deployment-module-check = script ../scripts/verification/deployment-module-check;
+        ihp-compatibility-check = script ../scripts/verification/ihp-compatibility-check;
+        observability-production-check = script ../scripts/verification/observability-production-check;
+        observability-backend-smoke = script ../scripts/verification/observability-backend-smoke;
+        otel-recent = script ../scripts/observability/recent;
+        otel-trace = script ../scripts/observability/trace;
+        otel-logs = script ../scripts/observability/logs;
+        otel-compare = script ../scripts/observability/compare;
         http-polling-policy-check = script ../scripts/verification/http-polling-policy;
         http-polling-policy-test = script ../scripts/verification/http-polling-policy-test;
         http-repository-check = script ../scripts/verification/http-repository-check;
@@ -186,6 +188,7 @@ in
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;
+        ghci-config-test = script ../scripts/haskell/ghci-config-test;
         dev-db-reset = script ../scripts/db/reset-dev;
         dev-db-maintenance-test = script ../scripts/db/dev-maintenance-test;
         seed-dev = script ../scripts/db/seed-dev;
@@ -194,6 +197,8 @@ in
         profile-app = script ../scripts/profile/app;
         otel-browser = script ../scripts/profile/otel-browser;
         otel-summary = script ../scripts/profile/otel-summary;
+        otel-runtime-benchmark = script ../scripts/profile/otel-runtime-benchmark;
+        telemetry-boundary-probe = script ../scripts/profile/telemetry-boundary-probe;
         profile-compare = script ../scripts/profile/compare;
         production-build-profile = script ../scripts/profile/production-build;
         production-build-profile-test = script ../scripts/profile/production-build-test;
@@ -211,6 +216,9 @@ in
         e2e-runtime = script ../scripts/e2e/runtime;
         e2e = script ../scripts/e2e/e2e;
         e2e-fast = script ../scripts/e2e/e2e-fast;
+        e2e-support-import-check = script ../scripts/e2e/support-import-check;
+        e2e-typecheck = script ../scripts/e2e/typecheck;
+        e2e-typecheck-test = script ../scripts/e2e/typecheck-test;
         screenshot = script ../scripts/e2e/screenshot;
         pwcli = script ../scripts/e2e/pwcli;
         pwcli-auth-save = script ../scripts/e2e/pwcli-auth-save;

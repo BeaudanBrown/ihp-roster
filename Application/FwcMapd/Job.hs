@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.FwcMapd.Job
     ( enqueueFwcMapdRefreshJob
     , fwcMapdRefreshJobDedupeKey
@@ -6,18 +8,27 @@ module Application.FwcMapd.Job
     , performFwcMapdRefreshJobWith
     ) where
 
+import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
+import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1, requireAppJobPayloadV1)
 import Application.Async.Queue
+import Application.FwcMapd.Error
 import Application.FwcMapd.Sync
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
 import Application.Helper.SurfaceResource
 import Application.WageSourceAlert.Job (enqueueWageSourceFreshnessCheck)
 import Application.WageSourceAlert.Types (WageSourceKind (FwcWageSource))
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
+
+data FwcMapdRefreshPayload = FwcMapdRefreshPayload
+
+instance Aeson.FromJSON FwcMapdRefreshPayload where
+    parseJSON = Aeson.withObject "FwcMapdRefreshPayload" (const (pure FwcMapdRefreshPayload))
 
 fwcMapdRefreshJobKind :: Text
 fwcMapdRefreshJobKind = "fwc_mapd_refresh"
@@ -55,11 +66,15 @@ performFwcMapdRefreshJobWith
     -> AppJob
     -> IO ()
 performFwcMapdRefreshJobWith syncAction appJob = do
-    syncResult <- syncAction
-    case syncResult of
-        Left err ->
-            fail (Text.unpack err)
-        Right summary -> do
+    requireAppJobPayloadV1 appJob
+    when (appJob.relatedTable /= Just "fwc_mapd_sync_runs" || isJust appJob.relatedId) do
+        throwAppJobError JobInvalidProvenance
+    void (decodeAppJobPayloadV1 @FwcMapdRefreshPayload appJob)
+    syncAttempt <- trySynchronousAppJobAction syncAction
+    case syncAttempt of
+        Left exception -> throwAppJobError (mapdJobError exception)
+        Right (Left _) -> throwAppJobError JobConfigurationUnavailable
+        Right (Right summary) -> do
             completedAt <- getCurrentTime
             void $ withDurableLiveMutationWithoutContext "support.award_rates.refresh" do
                 let resultPayload =
@@ -76,3 +91,11 @@ performFwcMapdRefreshJobWith syncAction appJob = do
                         |> updateRecord
                 void (enqueueWageSourceFreshnessCheck FwcWageSource completedJob completedAt)
                 pure (liveMutationResult () [supportAwardRatesResource])
+
+mapdJobError :: Exception.SomeException -> AppJobError
+mapdJobError exception =
+    case Exception.fromException exception of
+        Just MapdProviderUnavailable -> JobTransportUnavailable
+        Just MapdResponseMalformed   -> JobMalformedResponse
+        Just MapdSnapshotInvalid     -> JobValidationRejected
+        Nothing                      -> JobUnexpectedSynchronousFailure

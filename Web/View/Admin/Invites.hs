@@ -6,19 +6,16 @@ module Web.View.Admin.Invites
     , renderInvitesSectionFragmentWithSwap
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
-import qualified Text.Blaze.Html as Blaze
-import Text.Blaze.Html ((!))
-import qualified Text.Blaze.Html5 as Html5
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminInvitesSurfaceImpl)
 import Web.View.Admin.Common
@@ -54,12 +51,10 @@ renderInviteCreateForm rosterGroupId =
     fields = AdminAction.createVenueInvitationActionFields ""
 
 inviteCreateRoute :: Id RosterGroup -> FrontendSurfaceActionRoute
-inviteCreateRoute rosterGroupId = FrontendSurfaceActionRoute
-    { actionRouteUrl = appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)])
+inviteCreateRoute rosterGroupId = ((defaultFrontendSurfaceActionRoute (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]))
+    { actionRouteStandardUrl = Just (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)])
     , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
-    }
+    })
 
 renderInvitesSectionFragment :: UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragment =
@@ -67,26 +62,12 @@ renderInvitesSectionFragment =
 
 renderInvitesSectionFragmentWithSwap :: Maybe Text -> UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragmentWithSwap maybeSwapOob now invitations rosterGroupId =
-    renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
-        Html5.div
-            ! attr "id" (surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment noSurfaceFields)
-            ! maybeAttr "hx-swap-oob" maybeSwapOob
-            ! uiRegionTransitionAttrs UiRegionTransitionFade
-            $ renderInvitesSection now invitations rosterGroupId
-
-attr :: Text -> Text -> Blaze.Attribute
-attr name value =
-    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
-
-maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
-maybeAttr _ Nothing         = mempty
-maybeAttr name (Just value) = attr name value
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> error "Admin invites live surface requires a current venue"
+    renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
+        [hsx|<div {...attributes}>{renderInvitesSection now invitations rosterGroupId}</div>|]
+  where
+    attributes = [("id", surfaceFragmentTargetId @Surface.AdminInvitesSurface @Surface.AdminInvitesFragment noSurfaceFields)]
+        <> maybe [] (\value -> [("hx-swap-oob", value)]) maybeSwapOob
+        <> uiRegionTransitionAttrs UiRegionTransitionFade
 
 renderInviteTable :: UTCTime -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInviteTable now invitations rosterGroupId = [hsx|
@@ -147,12 +128,10 @@ renderRenewVenueInvitationForm rosterGroupId invitation =
     where
         fields = AdminAction.renewVenueInvitationActionFields (Just invitation.email)
         renewUrl = appendQueryParams (pathTo (RenewVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = renewUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just renewUrl
+        route = ((defaultFrontendSurfaceActionRoute (renewUrl))
+            { actionRouteStandardUrl = Just renewUrl
             , actionRouteExtraAttrs = [("class", "d-inline")]
-            }
+            })
 
 renderRevokeVenueInvitationForm :: Id RosterGroup -> VenueInvitation -> Html
 renderRevokeVenueInvitationForm rosterGroupId invitation =
@@ -161,9 +140,7 @@ renderRevokeVenueInvitationForm rosterGroupId invitation =
     |]
     where
         revokeUrl = appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]
-        route = FrontendSurfaceActionRoute
-            { actionRouteUrl = revokeUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just revokeUrl
+        route = ((defaultFrontendSurfaceActionRoute (revokeUrl))
+            { actionRouteStandardUrl = Just revokeUrl
             , actionRouteExtraAttrs = [("class", "d-inline")]
-            }
+            })

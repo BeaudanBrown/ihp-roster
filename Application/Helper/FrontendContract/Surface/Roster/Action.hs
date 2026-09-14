@@ -6,21 +6,35 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , addRosterRowActionFields
     , copyRosterWeekAction
     , copyRosterWeekActionFields
+    , CreateRosterTemplateCaptureActionOperation
+    , createRosterTemplateCaptureAction
+    , createRosterTemplateCaptureActionFields
     , createRosterNotificationRunAction
     , createRosterNotificationRunActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
+    , deleteRosterTemplateAction
+    , deleteRosterTemplateActionFields
     , deleteRosterWeekSlotDefinitionAction
     , deleteRosterWeekSlotDefinitionActionFields
     , NavigateRosterWeekActionOperation
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , openRosterTemplateCaptureAction
+    , openRosterTemplateCaptureActionFields
+    , openRosterTemplateDeleteAction
+    , openRosterTemplateDeleteActionFields
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
+    , parseCreateRosterTemplateCaptureActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parsePreviewRosterTemplateApplicationActionParams
+    , parsePreviewRosterTemplateCaptureActionParams
+    , PreviewRosterTemplateCaptureActionOperation
+    , previewRosterTemplateCaptureAction
+    , previewRosterTemplateCaptureActionFields
     , previewRosterTemplateApplicationAction
     , previewRosterTemplateApplicationActionFields
     , parseToggleRosterAssignmentFiltersActionParams
@@ -59,7 +73,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     ) where
 
 import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddRosterRowActionOperation,
+                                                                            CreateRosterTemplateCaptureActionOperation,
                                                                             NavigateRosterWeekActionOperation,
+                                                                            PreviewRosterTemplateCaptureActionOperation,
                                                                             ToggleRosterAssignmentFiltersActionOperation,
                                                                             ToggleRosterOwnLiveShiftHighlightActionOperation,
                                                                             ToggleRosterStaffScopeActionOperation,
@@ -74,17 +90,27 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             copyRosterWeekActionFields,
                                                                             createRosterNotificationRunAction,
                                                                             createRosterNotificationRunActionFields,
+                                                                            createRosterTemplateCaptureAction,
+                                                                            createRosterTemplateCaptureActionFields,
                                                                             createRosterWeekSlotDefinitionAction,
                                                                             createRosterWeekSlotDefinitionActionFields,
+                                                                            deleteRosterTemplateAction,
+                                                                            deleteRosterTemplateActionFields,
                                                                             deleteRosterWeekSlotDefinitionAction,
                                                                             deleteRosterWeekSlotDefinitionActionFields,
                                                                             navigateRosterWeekAction,
                                                                             navigateRosterWeekActionFields,
                                                                             navigateRosterWeekActionParamsPresent,
+                                                                            openRosterTemplateCaptureAction,
+                                                                            openRosterTemplateCaptureActionFields,
+                                                                            openRosterTemplateDeleteAction,
+                                                                            openRosterTemplateDeleteActionFields,
                                                                             parseApplyRosterTemplateApplicationActionParams,
                                                                             parseCopyRosterWeekActionParams,
                                                                             parseCreateRosterNotificationRunActionParams,
+                                                                            parseCreateRosterTemplateCaptureActionParams,
                                                                             parsePreviewRosterTemplateApplicationActionParams,
+                                                                            parsePreviewRosterTemplateCaptureActionParams,
                                                                             parseShowRosterNotificationConfirmationActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,
                                                                             parseToggleRosterOwnLiveShiftHighlightActionParams,
@@ -94,6 +120,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             parseToggleRosterWeekLiveStatusActionParams,
                                                                             previewRosterTemplateApplicationAction,
                                                                             previewRosterTemplateApplicationActionFields,
+                                                                            previewRosterTemplateCaptureAction,
+                                                                            previewRosterTemplateCaptureActionFields,
                                                                             removeRosterRowAction,
                                                                             removeRosterRowActionFields,
                                                                             showRosterNotificationConfirmationAction,

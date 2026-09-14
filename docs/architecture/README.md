@@ -17,7 +17,11 @@ bash ./bin/in-env architecture-check-fresh
 
 Use Pi's `architecture_queries` to discover current query names and arguments,
 then `architecture_query` for focused controller, request-flow, schema-table,
-module, realtime, generated-contract, or trace evidence. Queries report source
+module, realtime, generated-contract, or trace evidence. A missing facts artifact
+is generated automatically. Existing facts are accepted without regeneration
+only when their complete source, generated-contract, and parser/policy fingerprint
+is current; stale or legacy facts fail closed and direct callers must run
+`bash ./bin/in-env architecture-facts` before retrying. Queries report source
 provenance and confidence where relationships are heuristic. Do not treat a
 source scan as a compiler-perfect call graph or commit generated diagrams unless
 a ticket explicitly changes that policy.
@@ -98,6 +102,6 @@ See ADRs
 `docs/runbooks/production-build-profiling.md` for clean-builder diagnosis.
 
 Current observability boundaries are summarized in `observability.md`; exact
-profiling procedures live in `docs/runbooks/performance-profiling.md`, while
-unresolved production intent lives in
-`docs/workstreams/opentelemetry-observability.md`.
+profiling procedures live in `docs/runbooks/performance-profiling.md`, and
+production operation/security procedures live in
+`docs/runbooks/production-observability.md`.

@@ -21,9 +21,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Config
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
-import Control.Exception.Safe (SomeException, try)
-import Control.Monad (void, zipWithM)
+import Control.Monad (void)
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Set as Set
@@ -33,11 +31,14 @@ import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.Concurrency (runConcurrentActionsFromBarrier)
+import Test.Support.EmailDelivery
 import Web.Controller.Staff ()
 import Web.FrontController ()
 import Web.Routes
@@ -685,8 +686,8 @@ tests = aroundAll withDatabaseTestContext do
                 replacementJob.dedupeKey `shouldNotBe` originalJob.dedupeKey
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith testEmailRuntime originalJob
-                    performEmailDeliveryJobWith testEmailRuntime replacementJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime originalJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime replacementJob
                 staleOriginal <- fetch original.id
                 deliveredReplacement <- fetch replacement.id
                 staleOriginal.deliveredAt `shouldBe` Nothing
@@ -723,7 +724,7 @@ tests = aroundAll withDatabaseTestContext do
                 original <- createVenueInvitationRecord venue (Just manager) "concurrent-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withUserAndCurrentVenue manager venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction (RenewTrialStaffInvitationAction original.id)
@@ -749,7 +750,7 @@ tests = aroundAll withDatabaseTestContext do
                 original <- createVenueInvitationRecord venue (Just manager) "staff-accept-renew-race@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ void $ callActionWithParams CreateUserAction
                         [ ("invitationId", idToParam original.id)
                         , ("passwordHash", "test-password-123")
@@ -788,7 +789,7 @@ tests = aroundAll withDatabaseTestContext do
                 invitation <- createVenueInvitationRecord venue (Just admin) "staff-accept-removal@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ void $ callActionWithParams CreateUserAction
                         [ ("invitationId", idToParam invitation.id)
                         , ("passwordHash", "test-password-123")
@@ -838,8 +839,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 results <- withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    runConcurrentStaffActionList
-                        [ performEmailDeliveryJobWith testEmailRuntime originalJob
+                    runConcurrentActionsFromBarrier
+                        [ performEmailDeliveryJobWith enabledEmailDeliveryRuntime originalJob
                         , void $ withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callAction (RenewTrialStaffInvitationAction original.id)
@@ -1498,7 +1499,7 @@ tests = aroundAll withDatabaseTestContext do
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1537,7 +1538,7 @@ tests = aroundAll withDatabaseTestContext do
                 let preferenceKey = encodeShiftPreferenceKey 1
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1594,7 +1595,7 @@ tests = aroundAll withDatabaseTestContext do
                         . set #shiftTypeId (Just (unpackId shiftType.id))
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction removedStaff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1643,7 +1644,7 @@ tests = aroundAll withDatabaseTestContext do
                 let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow rosterSlot.rosterLaneId <> ":1"
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1683,7 +1684,7 @@ tests = aroundAll withDatabaseTestContext do
                         . setTestEndTime (Just (TimeOfDay 17 0 0))
                         . set #shiftTypeId (Just (unpackId shiftType.id))
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withUserAndCurrentVenue manager venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callActionWithParams
@@ -1729,7 +1730,7 @@ tests = aroundAll withDatabaseTestContext do
                         . set #shiftTypeId (Just (unpackId shiftType.id))
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1745,8 +1746,7 @@ tests = aroundAll withDatabaseTestContext do
                         copyResponseBody :: Text <- cs <$> IHP.Test.Mocking.responseBody copyResponse
                         copyResponseBody `shouldSatisfy` \body ->
                             "Roster week copied from the previous week." `Text.isInfixOf` body
-                                || "no longer available for rostering" `Text.isInfixOf` body
-                                || "Resolve pay configuration" `Text.isInfixOf` body
+                                || "Roster could not be copied. No changes were saved." `Text.isInfixOf` body
                     _ -> expectationFailure "Expected removal and roster copy responses"
                 removedStaff <- fetch staff.id
                 removedStaff.archivedAt `shouldSatisfy` isJust
@@ -1780,7 +1780,7 @@ tests = aroundAll withDatabaseTestContext do
                         . set #shiftTypeId (Just (unpackId shiftType.id))
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1796,8 +1796,7 @@ tests = aroundAll withDatabaseTestContext do
                         copyResponseBody :: Text <- cs <$> IHP.Test.Mocking.responseBody copyResponse
                         copyResponseBody `shouldSatisfy` \body ->
                             "Roster week copied from the previous week." `Text.isInfixOf` body
-                                || "no longer available for rostering" `Text.isInfixOf` body
-                                || "Resolve pay configuration" `Text.isInfixOf` body
+                                || "Roster could not be copied. No changes were saved." `Text.isInfixOf` body
                     _ -> expectationFailure "Expected removal and new roster copy responses"
                 removedStaff <- fetch staff.id
                 removedStaff.archivedAt `shouldSatisfy` isJust
@@ -1845,7 +1844,7 @@ tests = aroundAll withDatabaseTestContext do
                 today <- utctDay <$> getCurrentTime
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction staff.id)
                     , withUserAndCurrentVenue worker venue.id do
@@ -1873,7 +1872,7 @@ tests = aroundAll withDatabaseTestContext do
                 leaveRequest <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumPending
                 ensureTestUserHasPasskey admin
 
-                results <- runConcurrentStaffActionList
+                results <- runConcurrentActionsFromBarrier
                     [ withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -2198,27 +2197,6 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Casual
                 updatedStaff.defaultAwardLevelId `shouldBe` Nothing
-
-testEmailRuntime :: EmailDeliveryRuntime
-testEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> pure ()
-        }
-
-runConcurrentStaffActionList :: [IO result] -> IO [Either SomeException result]
-runConcurrentStaffActionList actions = do
-    resultVars <- mapM (const newEmptyMVar) actions
-    readyVars <- mapM (const newEmptyMVar) actions
-    startVar <- newEmptyMVar
-    _ <- zipWithM (\resultVar (readyVar, action) -> forkIO do
-            putMVar readyVar ()
-            _ <- readMVar startVar
-            try action >>= putMVar resultVar
-        ) resultVars (zip readyVars actions)
-    mapM_ takeMVar readyVars
-    putMVar startVar ()
-    mapM takeMVar resultVars
 
 shouldContainInOrder :: String -> [String] -> Expectation
 shouldContainInOrder haystack needles =

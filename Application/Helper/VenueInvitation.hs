@@ -4,7 +4,6 @@ import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
 import Web.Controller.Prelude
-import Web.Types
 
 venueInvitationLifetime :: NominalDiffTime
 venueInvitationLifetime = 60 * 60 * 24 * 14

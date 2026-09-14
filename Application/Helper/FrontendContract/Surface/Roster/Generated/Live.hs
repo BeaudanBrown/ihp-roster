@@ -14,7 +14,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , matchRosterRowLiveFragment
     , matchRosterSlotsGridLiveFragment
     , matchRosterStaffPanelLiveFragment
-    , matchRosterTemplateDesignerLiveScope
     , matchRosterTemplateLibraryLiveFragment
     , matchRosterWageRailLiveFragment
     , matchRosterWeekLiveScope
@@ -29,7 +28,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , rosterRowLiveFragment
     , rosterSlotsGridLiveFragment
     , rosterStaffPanelLiveFragment
-    , rosterTemplateDesignerLiveScope
     , rosterTemplateLibraryLiveFragment
     , rosterWageRailLiveFragment
     , rosterWeekLiveScope
@@ -221,39 +219,14 @@ matchRosterStaffPanelLiveFragment =
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterStaffPanel
 
-rosterTemplateDesignerLiveScope ::
-    UUID.UUID ->
-    UUID.UUID ->
-    UUID.UUID ->
-    SurfaceScope
-rosterTemplateDesignerLiveScope venueId rosterGroupId userId =
-    frontendSurfaceScope
-        @(AdapterFamilySurface Types2.RosterTemplateDesignerAdapterFamily)
-        @Types1.RosterTemplateDesignerScope
-        ( surfaceField @Types1.VenueId venueId
-            &: surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.UserId userId
-            &: noSurfaceFields
-        )
-
-matchRosterTemplateDesignerLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (UUID.UUID, ())))
-matchRosterTemplateDesignerLiveScope =
-    matchFrontendSurfaceScope
-        @(AdapterFamilySurface Types2.RosterTemplateDesignerAdapterFamily)
-        @Types1.RosterTemplateDesignerScope
-
-rosterTemplateLibraryLiveFragment ::
-    UUID.UUID ->
-    SurfaceFragmentKey
-rosterTemplateLibraryLiveFragment userId =
+rosterTemplateLibraryLiveFragment :: SurfaceFragmentKey
+rosterTemplateLibraryLiveFragment =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterTemplateLibraryFragment
-        ( surfaceField @Types1.UserId userId
-            &: noSurfaceFields
-        )
+        noSurfaceFields
 
-matchRosterTemplateLibraryLiveFragment :: SurfaceFragmentKey -> Maybe (UUID.UUID, ())
+matchRosterTemplateLibraryLiveFragment :: SurfaceFragmentKey -> Maybe ()
 matchRosterTemplateLibraryLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)

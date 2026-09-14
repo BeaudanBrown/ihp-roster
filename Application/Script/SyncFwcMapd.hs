@@ -1,6 +1,7 @@
 module Application.Script.SyncFwcMapd where
 
 import Application.FwcMapd.Sync
+import Application.Operator.Error
 import Application.Script.Prelude
 import qualified Data.Text.IO as TextIO
 
@@ -8,7 +9,7 @@ run :: Script
 run =
     runConfiguredMapdSync >>= \case
         Left errorMessage ->
-            error (cs errorMessage)
+            liftIO (exitWithScriptError (ScriptOperationFailed errorMessage))
         Right summary -> do
             liftIO do
                 TextIO.putStrLn ("Synced FWC MAPD awards: " <> intercalate ", " (map tshow summary.syncedAwardFixedIds))

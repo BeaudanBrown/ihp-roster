@@ -7,8 +7,14 @@ devenv-script-freshness-check
 echo "verify-full: explicit production manifest authority"
 production-manifest-check
 
+echo "verify-full: IHP port and executable integration"
+ihp-compatibility-check
+
 echo "verify-full: production HTTP polling policy"
 http-repository-check
+
+echo "verify-full: migration enum commit-boundary policy"
+migration-enum-commit-boundary-check
 
 echo "verify-full: zero-bypass typed contract authority"
 typed-contract-authority-check
@@ -19,11 +25,23 @@ bash ./bin/wage-authority-check
 echo "verify-full: date-native Roster runtime authority"
 bash ./bin/date-native-roster-authority-check
 
+echo "verify-full: date-native Roster read-only readiness integration"
+date-native-roster-readiness-test
+
 echo "verify-full: documentation links, anchors, archive inventory, and scoped retired terms"
 documentation-repository-check
 
+echo "verify-full: GHCi configuration bootstrap"
+ghci-config-test
+
 echo "verify-full: typecheck"
 typecheck
+
+echo "verify-full: app-owned production totality warnings"
+application-warnings
+
+echo "verify-full: typed error primitive and category boundaries"
+typed-error-boundary-check
 
 # Keep the complete default selection; never substitute a feedback-only lane here.
 echo "verify-full: complete Hspec"

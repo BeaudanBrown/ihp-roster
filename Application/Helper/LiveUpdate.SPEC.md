@@ -70,7 +70,14 @@ concrete resources. Bound cold historical queries only after preserving that
 cross-process authority. The
 generic planner contains no feature switches, custom dependencies, bridge
 conversions, or fanout callbacks. Background jobs use the same touched-resource
-boundary without request context.
+boundary through `Application.Helper.LiveUpdate.BackgroundMutation`, requiring
+only a model context. Request profiling/HTTP completion stays in
+`Web.SurfaceInvalidation`; shared sanitized telemetry lives in
+`Application.Helper.LiveUpdate.Diagnostics`. Both mutation entry points reuse
+`DurablePublisher` and bind the business action's transaction model context.
+A selector returning `Nothing` commits without publication, even for a `Left`
+value; exceptions roll back. Do not substitute generic outcome-based rollback
+or add a second dispatcher, resource registry, or transport.
 
 `setActorLiveResourcesRefresh` plans resource-backed actor updates.
 `setActorLocalFragmentsRefresh` is limited to requester-local workflows with no
@@ -96,7 +103,13 @@ matches mounted scopes.
 `focus.ts` is the sole focused-field replacement owner. It applies the exact
 Haskell-declared protection, keeps only the latest deferred refresh, refetches on
 blur, and restores configured field state. Replace-policy fragments refresh
-immediately. Reconnect/version-gap resync uses the same path and protection.
+immediately. Immediately before replacement, the focus owner captures a focused
+native element's stable server-rendered ID and viewport position. If that same
+ID remains inside the replacement, it restores focus without copying old field
+values and compensates window scroll for movement. A control outside the replaced
+region never loses focus to an earlier request's initiator; removed controls do
+not redirect focus to unrelated same-ID nodes. Reconnect/version-gap resync uses
+the same path and protection.
 
 UI-region lifecycle is opt-in only for server-declared fragment roots. Ordinary
 forms, dialogs/pickers/toasts, navigation swaps, autosave controls, and one-off

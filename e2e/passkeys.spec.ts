@@ -17,15 +17,15 @@ import { E2E_TIMEOUT } from './timeouts';
 import {
     clearE2EUserPasskeys,
     enableVirtualPasskeyAuthenticator,
-    gotoWhenReady,
     loginAsPrivilegedUserWithFreshPasskey,
-    loginAsWithFreshBrowserSession,
     openProfileSecuritySection,
     registerFirstPasskeyForCurrentUser,
     removeVirtualPasskeyAuthenticator,
     resetE2EUserPasskeySignCount,
     webauthnBaseURL,
-} from './test-helpers';
+} from './support/passkeys';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsWithFreshBrowserSession } from './support/session';
 
 test.use({ baseURL: webauthnBaseURL });
 

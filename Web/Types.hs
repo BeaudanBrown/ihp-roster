@@ -161,6 +161,7 @@ data AdminController
     | OpenXeroTimesheetPreparationAction
     | RunXeroTimesheetPreparationAction
     | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | RefreshXeroProblemTimesheetApprovalAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), timesheetEntryId :: !(Id TimesheetEntry) }
     | ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ContinueXeroTimesheetPreparationStaffStepAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
@@ -209,8 +210,20 @@ data AdminController
     deriving (Eq, Show, Data)
 
 data FeedbackController
-    = NewFeedbackAction
+    = FeedbackAction
+    | NewFeedbackAction
     | CreateFeedbackAction
+    | ShowFeedbackBoardAction
+    | VoteFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | UnvoteFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | ShowFeedbackReviewAction
+    | ShowFeedbackDesktopCountAction
+    | ShowFeedbackMobileCountAction
+    | EditFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | UpdateFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | PublishFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | ArchiveFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | RestoreFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     deriving (Eq, Show, Data)
 
 data HelpController
@@ -226,11 +239,6 @@ data SupportController
     | RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId :: !(Id VenueOnboardingInvitation) }
     | CreateFwcMapdRefreshJobAction
     | CreatePublicHolidayRefreshJobAction
-    | MarkFeedbackReadAction { feedbackItemId :: !(Id UserFeedbackItem) }
-    | MarkAllFeedbackReadAction
-    | UpdateFeedbackStatusAction { feedbackItemId :: !(Id UserFeedbackItem) }
-    | UpdateFeedbackPriorityAction { feedbackItemId :: !(Id UserFeedbackItem) }
-    | UpdateFeedbackSupportNoteAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | StartSupportImpersonationAction
     | ExitSupportImpersonationAction
     | SwitchSupportImpersonationAction
@@ -257,29 +265,13 @@ newtype LiveUpdatesWSApp
     deriving (Eq, Show, Data)
 
 data RosterTemplatesController
-    = NewRosterTemplateAction { rosterGroupId :: !(Id RosterGroup) }
-    | CreateRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup) }
-    | ShowRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
-    | ConfirmRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
-    | CreateRosterTemplateFromReferenceAction { rosterGroupId :: !(Id RosterGroup) }
-    | DiscardAndRestartRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup), rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | ShowRosterTemplateDesignerAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | UpdateRosterTemplateDayAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), dayIndex :: !Int }
-    | AddRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | UpdateRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), columnSortOrder :: !Int }
-    | DeleteRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), columnSortOrder :: !Int }
-    | UpsertRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | DeleteRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), dayIndex :: !Int, columnSortOrder :: !Int, rowIndex :: !Int }
-    | SaveRosterTemplateAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | ReloadRosterTemplateDraftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | EditRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
-    | DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
-    | PreviewRosterTemplateDropAction { rosterGroupId :: !(Id RosterGroup) }
-    | ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
+    = DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
+    | PreviewRosterTemplateApplicationAction { rosterGroupId :: !(Id RosterGroup) }
     | ApplyRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
     | ConfirmDeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
     | ShowRosterTemplateLibraryFragmentAction { rosterGroupId :: !(Id RosterGroup) }
+    | PreviewRosterTemplateCaptureAction { rosterGroupId :: !(Id RosterGroup) }
+    | CreateRosterTemplateCaptureAction { rosterGroupId :: !(Id RosterGroup) }
     deriving (Eq, Show, Data)
 
 data RosterWeeksController

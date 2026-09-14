@@ -36,6 +36,7 @@ bash ./bin/in-env verify-all
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test
 bash ./bin/in-env e2e
+bash ./bin/in-env e2e-typecheck
 bash ./bin/in-env lint
 bash ./bin/in-env format
 bash ./bin/in-env ./bin/doc-drift-check
@@ -64,8 +65,10 @@ gate; `verify-all` runs both tiers serially. `verify-full` orders cheap authorit
 production inspection/billing/deployment, then complete eight-shard Playwright.
 Local subsystem docs list narrower commands and test-selection rules.
 
-`frontend-check` runs contract drift, strict TypeScript validation including
-unused-code checks, frontend unit/DOM tests, and generated JS drift. `verify-full`
+`frontend-check` runs contract drift, strict frontend and Playwright TypeScript
+validation including unused-code checks, frontend unit/DOM tests, and generated
+JS drift. `e2e-typecheck` is the focused static Playwright authority; browser
+execution remains owned by `e2e`. `verify-full`
 generates frontend contracts once through its isolated tooling package; later
 architecture checks consume that current output. Fingerprinted per-worktree
 verification caches retain successful compilation dependencies but never omit a
@@ -126,7 +129,10 @@ epic-worktree delegation and approval boundaries.
 
 Bepis is live. Schema changes require both `Application/Schema.sql` and a safe
 IHP migration under `Application/Migration/`. Local `make db` resets development
-data and is not a production/staging upgrade path.
+data and is not a production/staging upgrade path. Use the advisory
+[migration rehearsal runbook](docs/runbooks/migration-rehearsal.md) to verify a
+named deployed predecessor through the pinned IHP runner before final
+production-clone staging acceptance.
 
 ## Generated Boundaries
 
@@ -147,6 +153,7 @@ consumed by deterministic regression tooling live beside that tooling under
 - `docs/adr/README.md` — durable decisions
 - `docs/workstreams/` — unresolved design linked to GitHub issues
 - `docs/runbooks/production-build-profiling.md` — safe NAS/grill build profiling
+- `docs/runbooks/migration-rehearsal.md` — advisory CI/operator upgrade evidence
 - GitHub Issues — only live implementation router and status tracker
 
 ## License

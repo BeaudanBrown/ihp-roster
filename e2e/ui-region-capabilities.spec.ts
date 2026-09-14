@@ -9,7 +9,7 @@ import {
     regionSettleEvent,
     regionTransitionDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
 
 type RegionEventRecord = {
     type: string;

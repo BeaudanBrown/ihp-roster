@@ -63,9 +63,6 @@ function renderMarkdown(suiteDir, profiles) {
     const componentBytes = profiles.flatMap((item) =>
         (item.summary.componentBytes || []).map((row) => ({ scenario: item.scenario, ...row }))
     ).sort((a, b) => (b.p95Bytes || 0) - (a.p95Bytes || 0));
-    const counters = profiles.flatMap((item) =>
-        (item.summary.counters || []).map((row) => ({ scenario: item.scenario, ...row }))
-    ).sort((a, b) => (b.p95Count || 0) - (a.p95Count || 0) || (b.total || 0) - (a.total || 0));
     const slowestSpanCategories = profiles.flatMap((item) =>
         (item.summary.spanCategories || []).map((row) => ({ scenario: item.scenario, ...row }))
     ).sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0));
@@ -168,14 +165,6 @@ function renderMarkdown(suiteDir, profiles) {
         '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
         ...componentBytes.slice(0, 50).map((row) =>
             `| ${row.scenario} | \`${row.route}\` | \`${row.span}\` | ${row.count} | ${formatBytes(row.medianBytes)} | ${formatBytes(row.p95Bytes)} | ${formatBytes(row.p99Bytes)} | ${formatBytes(row.maxBytes)} |`
-        ),
-        '',
-        '## Profile Counters',
-        '',
-        '| Scenario | Route | Counter | Samples | Total | Median/request | P95/request | Max/request |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
-        ...counters.slice(0, 50).map((row) =>
-            `| ${row.scenario} | \`${row.route}\` | \`${row.counter}\` | ${row.count} | ${row.total} | ${row.medianCount} | ${row.p95Count} | ${row.maxCount} |`
         ),
         '',
         '## Slowest Span Categories',

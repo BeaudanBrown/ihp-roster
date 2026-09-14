@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { E2E_TIMEOUT, gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, openAdminWithSeededPasskeySession, openRoster, openRosterSettings, runSql } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAsPrivilegedUserWithSeededPasskeySession, openAdminWithSeededPasskeySession } from './support/passkeys';
+import { openRoster, openRosterSettings } from './support/roster';
+import { runSql } from './support/database';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
 const rosterGroupId = 'a1000000-0000-0000-0000-000000000211';

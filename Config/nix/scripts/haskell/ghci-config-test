@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
+
+fixture_dir="$(mktemp -d)"
+trap 'rm -rf "$fixture_dir"' EXIT
+# Exercise the repository bootstrap with the real interpreter, but avoid loading
+# the application graph. Only the upstream-loaded command file is a fixture.
+printf 'Prelude.putStrLn "IHP_CONFIG_LOADED"\n' > "$fixture_dir/applicationGhciConfig"
+GHC_OPTS="$(ihp_roster_ghc_opts)"
+# GHCi can exit zero after startup errors: assert the sentinel and diagnostics.
+# shellcheck disable=SC2086 # GHC options are an intentional argument vector.
+IHP_LIB="$fixture_dir" ghci $GHC_OPTS -ignore-dot-ghci \
+    -ghci-script "$PWD/Config/ghci" -v0 -e 'Prelude.putStrLn "EXPRESSION_EVALUATED"' \
+    > "$fixture_dir/result.log" 2>&1
+if ! grep -qx 'IHP_CONFIG_LOADED' "$fixture_dir/result.log" \
+    || ! grep -qx 'EXPRESSION_EVALUATED' "$fixture_dir/result.log" \
+    || grep -Eq 'error:|unknown command|\*\*\* Exception' "$fixture_dir/result.log"; then
+    cat "$fixture_dir/result.log" >&2
+    echo 'ghci-config-test: bootstrap failed' >&2
+    exit 1
+fi
+echo 'ghci-config-test: real interpreter loaded configuration and evaluated expression without startup errors'

@@ -13,6 +13,11 @@ PROFILE_LOAD_DURATION="${PROFILE_LOAD_DURATION:-30s}"
 PROFILE_LOAD_VUS="${PROFILE_LOAD_VUS:-10}"
 PROFILE_LOAD_MAX_VUS="${PROFILE_LOAD_MAX_VUS:-}"
 PROFILE_LOAD_OTEL="${PROFILE_LOAD_OTEL:-0}"
+PROFILE_LOAD_PROFILING="${PROFILE_LOAD_PROFILING:-1}"
+PROFILE_LOAD_OTEL_SAMPLER="${PROFILE_LOAD_OTEL_SAMPLER:-always_on}"
+PROFILE_LOAD_OTEL_SAMPLER_ARG="${PROFILE_LOAD_OTEL_SAMPLER_ARG:-}"
+PROFILE_LOAD_REQUIRE_OTEL_TRACES="${PROFILE_LOAD_REQUIRE_OTEL_TRACES:-1}"
+PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS="${PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS:-300}"
 PROFILE_K6_ARGS=()
 
 while [ "$#" -gt 0 ]; do
@@ -27,7 +32,7 @@ Options:
   --db=app_profile_*             Profile database name
   --output-dir=path              Artifact directory
   --seed-arg=arg                 Forward an option to seed-profile
-  --scenario=name                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app
+  --scenario=name                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|staff|support|billing|auth|mixed-app
   --rate=N                       Target iterations per second (default: 10)
   --duration=30s                 k6 scenario duration (default: 30s)
   --vus=N                        Preallocated k6 virtual users (default: 10)
@@ -36,6 +41,11 @@ Options:
   --password=password            Override manifest login password
   --otel                         Run local OTel collector and emit otel-summary artifacts
   --no-otel                      Disable local OTel collector (default)
+  --profiling                    Enable diagnostic profiling (default)
+  --no-profiling                 Disable diagnostic profiling for lightweight/runtime baselines
+  --otel-sampler=name            OTEL_TRACES_SAMPLER for this run (default: always_on)
+  --otel-sampler-arg=value       Optional OTEL_TRACES_SAMPLER_ARG for this run
+  --startup-timeout=N            App startup timeout in seconds (default: 300)
 EOF
             exit 0
             ;;
@@ -95,6 +105,26 @@ EOF
             PROFILE_LOAD_OTEL=0
             shift
             ;;
+        --profiling)
+            PROFILE_LOAD_PROFILING=1
+            shift
+            ;;
+        --no-profiling)
+            PROFILE_LOAD_PROFILING=0
+            shift
+            ;;
+        --otel-sampler=*)
+            PROFILE_LOAD_OTEL_SAMPLER="${1#--otel-sampler=}"
+            shift
+            ;;
+        --otel-sampler-arg=*)
+            PROFILE_LOAD_OTEL_SAMPLER_ARG="${1#--otel-sampler-arg=}"
+            shift
+            ;;
+        --startup-timeout=*)
+            PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS="${1#--startup-timeout=}"
+            shift
+            ;;
         --)
             shift
             PROFILE_K6_ARGS+=("$@")
@@ -107,6 +137,11 @@ EOF
     esac
 done
 
+[[ "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "Profile load startup timeout must be a positive integer" >&2
+    exit 64
+}
+
 case "$PROFILE_DATABASE_NAME" in
     app_profile|app_profile_*)
         ;;
@@ -118,11 +153,11 @@ case "$PROFILE_DATABASE_NAME" in
 esac
 
 case "$PROFILE_LOAD_SCENARIO" in
-    roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app)
+    roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|staff|support|billing|auth|mixed-app)
         ;;
     *)
         echo "Unsupported load profiling scenario: $PROFILE_LOAD_SCENARIO" >&2
-        echo "Use roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, or mixed-app." >&2
+        echo "Use roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, staff, support, billing, auth, or mixed-app." >&2
         exit 1
         ;;
 esac
@@ -138,9 +173,13 @@ mkdir -p "$PROFILE_LOAD_OUTPUT_DIR"
 PROFILE_SEED_OUTPUT_DIR="$PROFILE_LOAD_OUTPUT_DIR/seed"
 PROFILE_LOG="$PROFILE_LOAD_OUTPUT_DIR/server.log"
 PROFILE_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/server.pid"
+: > "$PROFILE_LOG"
 PROFILE_K6_METRICS="$PROFILE_LOAD_OUTPUT_DIR/k6-metrics.ndjson"
 PROFILE_K6_STDOUT="$PROFILE_LOAD_OUTPUT_DIR/k6.stdout"
 PROFILE_LOAD_METADATA="$PROFILE_LOAD_OUTPUT_DIR/metadata.json"
+PROFILE_RUNTIME_SAMPLES="$PROFILE_LOAD_OUTPUT_DIR/runtime-resources.tsv"
+PROFILE_RUNTIME_SUMMARY="$PROFILE_LOAD_OUTPUT_DIR/runtime-resources.json"
+PROFILE_RUNTIME_SAMPLER_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/runtime-resources.pid"
 PROFILE_OTEL_TRACE_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-traces.json"
 PROFILE_OTEL_LOG="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.log"
 PROFILE_OTEL_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.pid"
@@ -159,9 +198,10 @@ if [ ! -f "$PROFILE_SEED_OUTPUT_DIR/manifest.json" ]; then
 fi
 
 # shellcheck source=../lib/profile-server.sh
-. "@scriptsRoot@/lib/profile-server.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/profile-server.sh"
 
 cleanup_profile_load() {
+    stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
     cleanup_profile_server
     if [ -f "$PROFILE_OTEL_PID_FILE" ]; then
         local otel_pid
@@ -208,6 +248,10 @@ finalize_profile_otel() {
         rm -f "$PROFILE_OTEL_PID_FILE"
     fi
     if [ ! -s "$PROFILE_OTEL_TRACE_FILE" ]; then
+        if [ "$PROFILE_LOAD_REQUIRE_OTEL_TRACES" = "0" ]; then
+            echo "OpenTelemetry sampler produced no spans; continuing bounded sampled-mode benchmark."
+            return 0
+        fi
         echo "OpenTelemetry collector did not produce $PROFILE_OTEL_TRACE_FILE" >&2
         echo "Collector log: $PROFILE_OTEL_LOG" >&2
         return 1
@@ -215,7 +259,7 @@ finalize_profile_otel() {
     node ./e2e/otel-profile-summary.mjs \
         "$PROFILE_OTEL_TRACE_FILE" \
         "$PROFILE_LOAD_OUTPUT_DIR" \
-        "$PROFILE_LOAD_METADATA"
+        "$PROFILE_LOAD_OUTPUT_DIR/load-profile.json"
 }
 
 otel_env=()
@@ -225,16 +269,33 @@ if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
         OTEL_SERVICE_NAME=ihp-roster-profile
         OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:24318
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:24318/v1/traces
-        OTEL_TRACES_SAMPLER=always_on
+        OTEL_TRACES_SAMPLER="$PROFILE_LOAD_OTEL_SAMPLER"
+        IHP_ROSTER_OTEL_SHUTDOWN_TIMEOUT_MS=2000
+        OTEL_BSP_MAX_QUEUE_SIZE=512
+        OTEL_BSP_MAX_EXPORT_BATCH_SIZE=128
         OTEL_BSP_SCHEDULE_DELAY=200
-        OTEL_BSP_EXPORT_TIMEOUT=5000
+        OTEL_BSP_EXPORT_TIMEOUT=1000
+        OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
+        OTEL_ATTRIBUTE_COUNT_LIMIT=64
+        OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=256
+        OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=64
+        OTEL_SPAN_EVENT_COUNT_LIMIT=64
+        OTEL_SPAN_LINK_COUNT_LIMIT=16
     )
+    if [ -n "$PROFILE_LOAD_OTEL_SAMPLER_ARG" ]; then
+        otel_env+=(OTEL_TRACES_SAMPLER_ARG="$PROFILE_LOAD_OTEL_SAMPLER_ARG")
+    fi
 fi
 
 (
     export PROFILE_DATABASE_NAME
     export PROFILE_DB_SOCKET
-    export IHP_ROSTER_PROFILING=1
+    if [ "$PROFILE_LOAD_PROFILING" = "1" ]; then
+        export IHP_ROSTER_PROFILING=1
+        export GHCRTS="${GHCRTS:+$GHCRTS }-T"
+    else
+        export IHP_ROSTER_PROFILING=0
+    fi
     if [ "${#otel_env[@]}" -gt 0 ]; then
         export "${otel_env[@]}"
     fi
@@ -245,7 +306,7 @@ fi
 PROFILE_WRAPPER_PID="$!"
 
 PROFILE_SERVER_PID=""
-for _ in $(seq 1 120); do
+for _ in $(seq 1 "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS"); do
     if [ -f "$PROFILE_PID_FILE" ]; then
         PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
     fi
@@ -269,13 +330,20 @@ for _ in $(seq 1 120); do
             --arg maxVus "${PROFILE_LOAD_MAX_VUS:-}" \
             --arg database "$PROFILE_DATABASE_NAME" \
             --arg baseUrl "$PROFILE_BASE_URL" \
+            --arg otel "$PROFILE_LOAD_OTEL" \
+            --arg profiling "$PROFILE_LOAD_PROFILING" \
+            --arg otelSampler "$PROFILE_LOAD_OTEL_SAMPLER" \
+            --arg otelSamplerArg "$PROFILE_LOAD_OTEL_SAMPLER_ARG" \
             --slurpfile manifest "$PROFILE_SEED_OUTPUT_DIR/manifest.json" \
-            '{runId:$runId, scenario:$scenario, rate:$rate, duration:$duration, vus:$vus, maxVus:$maxVus, database:$database, baseUrl:$baseUrl, seed:$manifest[0].options}' \
+            '{runId:$runId, scenario:$scenario, rate:$rate, duration:$duration, vus:$vus, maxVus:$maxVus, database:$database, baseUrl:$baseUrl, telemetry:{otel:($otel == "1"), profiling:($profiling == "1"), sampler:$otelSampler, samplerArg:$otelSamplerArg}, seed:$manifest[0].options}' \
             > "$PROFILE_LOAD_METADATA"
 
         echo "Profile load server ready at $PROFILE_BASE_URL"
         echo "Profile load database: $PROFILE_DATABASE_NAME"
         echo "Profile load scenario: $PROFILE_LOAD_SCENARIO rate=$PROFILE_LOAD_RATE duration=$PROFILE_LOAD_DURATION vus=$PROFILE_LOAD_VUS"
+
+        sample_profile_runtime_resources "$PROFILE_SERVER_PID" "$PROFILE_RUNTIME_SAMPLES" "$PROFILE_LOAD_PROFILING" "$PROFILE_DB_SOCKET" "$PROFILE_DATABASE_NAME" &
+        echo "$!" > "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
 
         k6 run \
             --out "json=$PROFILE_K6_METRICS" \
@@ -283,11 +351,20 @@ for _ in $(seq 1 120); do
             ./e2e/profile-load.js \
             | tee "$PROFILE_K6_STDOUT"
 
+        stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
+        finalize_profile_runtime_resources "$PROFILE_RUNTIME_SAMPLES" "$PROFILE_RUNTIME_SUMMARY"
+
         node ./e2e/profile-load-report.mjs \
             "$PROFILE_K6_METRICS" \
             "$PROFILE_LOAD_OUTPUT_DIR" \
             "$PROFILE_LOAD_METADATA"
         finalize_profile_otel
+        if [ "$PROFILE_LOAD_PROFILING" = "1" ]; then
+            node ./e2e/diagnostic-profile-report.mjs \
+                "$PROFILE_LOAD_OUTPUT_DIR" \
+                "${HASQL_POOL_SIZE:-20}"
+        fi
+        mkdir -p "$PWD/output/profile-load"
         ln -sfn "$PROFILE_LOAD_OUTPUT_DIR" "$PWD/output/profile-load/latest"
         echo "Profile load artifacts: $PROFILE_LOAD_OUTPUT_DIR"
         exit 0

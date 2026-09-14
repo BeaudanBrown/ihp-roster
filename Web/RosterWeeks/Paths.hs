@@ -12,7 +12,6 @@ module Web.RosterWeeks.Paths
     , rosterMoveShiftUrl
     , rosterTimelineMoveShiftUrl
     , rosterTemplateApplicationUrl
-    , rosterTemplateReferenceUrl
     , rosterDuplicateShiftUrl
     , rosterDropStaffUrl
     , rosterWarningPreferenceUrl
@@ -42,8 +41,6 @@ import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
-import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude
@@ -246,19 +243,8 @@ rosterOwnLiveShiftHighlightPreferenceUrl anchorDate rosterGroupId =
     appendQueryParams (pathTo UpdateRosterOwnLiveShiftHighlightPreferenceAction) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterTemplateApplicationUrl :: Day -> Id RosterTemplate -> Id RosterGroup -> Text
-rosterTemplateApplicationUrl anchorDate rosterTemplateId rosterGroupId =
-    appendQueryParams
-        (pathTo (ApplyRosterTemplateAction rosterTemplateId rosterGroupId))
-        [("anchorDate", formatDayParam anchorDate)]
-
-rosterTemplateReferenceUrl :: Day -> Id RosterGroup -> Text -> Text -> Text
-rosterTemplateReferenceUrl anchorDate rosterGroupId templateName templateScale =
-    appendQueryParams
-        (pathTo ShowRosterTemplateReferenceAction { rosterGroupId })
-        [ ("anchorDate", formatDayParam anchorDate)
-        , ("name", templateName)
-        , ("scale", templateScale)
-        ]
+rosterTemplateApplicationUrl _anchorDate rosterTemplateId rosterGroupId =
+    pathTo (ApplyRosterTemplateAction rosterTemplateId rosterGroupId)
 
 rosterCopyWeekUrl :: Day -> Day -> Id RosterGroup -> Text
 rosterCopyWeekUrl sourceAnchorDate targetAnchorDate rosterGroupId =

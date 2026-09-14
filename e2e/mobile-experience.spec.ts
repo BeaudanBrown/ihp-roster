@@ -1,26 +1,32 @@
 import { test, expect } from '@playwright/test';
 import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import {
-    expectContainerToManageHorizontalOverflow,
-    expectDialogToFitViewport,
-    expectNoHorizontalViewportOverflow,
-    ensureRosterLayout,
-    gotoWhenReady,
-    loginAs,
-    openNewLeaveRequestDialog,
-    loginAsPrivilegedUserWithSeededPasskeySession,
-    openAuthenticatedNavIfCollapsed,
-    openRoster,
-    openTimesheetSettings,
-    resetTimesheetDisplayPreferences,
-    webauthnBaseURL,
-} from './test-helpers';
+import { expectContainerToManageHorizontalOverflow, expectDialogToFitViewport, expectNoHorizontalViewportOverflow, openAuthenticatedNavIfCollapsed } from './support/responsive';
+import { ensureRosterLayout, openRoster } from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openNewLeaveRequestDialog } from './support/profile';
+import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
+import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 
 test.use({ baseURL: webauthnBaseURL });
 
+const timesheetScrollPersistenceTitle = 'timesheet filter and week navigation preserve horizontal scroll';
+const timesheetMobileActionsTitle = 'timesheet entries use uniform mobile actions for approved and pending entries @canonical-mobile';
+const timesheetPreferenceMutators = new Set([
+    timesheetScrollPersistenceTitle,
+    timesheetMobileActionsTitle,
+]);
+
+function resetTimesheetPreferencesForMutator(testTitle: string) {
+    if (timesheetPreferenceMutators.has(testTitle)) {
+        resetTimesheetDisplayPreferences('e2e-test@example.com');
+    }
+}
+
 test.describe('Mobile experience smoke', () => {
-    test.afterEach(() => resetTimesheetDisplayPreferences('e2e-test@example.com'));
+    test.beforeEach(({}, testInfo) => resetTimesheetPreferencesForMutator(testInfo.title));
+    test.afterEach(({}, testInfo) => resetTimesheetPreferencesForMutator(testInfo.title));
 
     test('support impersonation selector works in collapsed navigation without horizontal overflow', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(
@@ -151,7 +157,7 @@ test.describe('Mobile experience smoke', () => {
             await page.getByRole('link', { name: 'unavailability' }).click();
         }
         await expect(page).toHaveURL(/LeaveRequests/, { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('#leave-requests-content')).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Pending', exact: true })).toBeVisible();
 
         const reopenedDrawer = await openAuthenticatedNavIfCollapsed(page);
         if (reopenedDrawer) {
@@ -217,9 +223,9 @@ test.describe('Mobile experience smoke', () => {
 
     test('unavailability opens a phone-sized workflow dialog that fits the viewport', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
 
-        await expect(page.locator('#leave-requests-content')).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Pending', exact: true })).toBeVisible();
         await expectNoHorizontalViewportOverflow(page);
 
         await openNewLeaveRequestDialog(page);
@@ -463,8 +469,7 @@ test.describe('Mobile experience smoke', () => {
         }
     });
 
-    test('timesheet filter and week navigation preserve horizontal scroll', async ({ page }) => {
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
+    test(timesheetScrollPersistenceTitle, async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
@@ -514,11 +519,9 @@ test.describe('Mobile experience smoke', () => {
         const surfaceConfig = await page.locator('#timesheet-week-shell [data-bepis-surface-config]').getAttribute('data-bepis-surface-config');
         expect(surfaceConfig).toContain('timesheets');
         expect(surfaceConfig).toContain('timesheet-day-columns');
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 
-    test('timesheet entries use uniform mobile actions for approved and pending entries @canonical-mobile', async ({ page }) => {
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
+    test(timesheetMobileActionsTitle, async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
@@ -539,6 +542,5 @@ test.describe('Mobile experience smoke', () => {
         await expect(approvedEntry.getByRole('link', { name: /Edit timesheet entry for/ })).toHaveCount(1);
         await expect(pendingEntry.getByRole('link', { name: /Edit timesheet entry for/ })).toHaveCount(1);
         await expect(page.locator('.timesheet-shape-bar').first()).toBeVisible();
-        resetTimesheetDisplayPreferences('e2e-test@example.com');
     });
 });

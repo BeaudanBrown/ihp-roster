@@ -21,24 +21,24 @@ instance Controller PasskeysController where
         let stepUpRedirectTo = rawStepUpRedirectTo >>= safePasskeyReturnPath
         strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
         unless (strongAuthenticationRequired || isJust stepUpRedirectTo) do
-            redirectTo RosterWeeksAction
+            earlyReturn (redirectTo RosterWeeksAction)
         passkeys <- fetchAuthenticatedUserPasskeys
         when (null passkeys) do
-            redirectTo PasskeySetupAction
+            earlyReturn (redirectTo PasskeySetupAction)
         render StepUpView { .. }
 
     action currentAction@ShowPasskeyStepUpDialogAction = runBepis currentAction BepisDialogAction do
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
         let stepUpRedirectTo = rawStepUpRedirectTo >>= safePasskeyReturnPath
         when (isNothing stepUpRedirectTo) do
-            if isHtmxRequest
+            earlyReturn $ if isHtmxRequest
                 then do
                     setHeader ("HX-Redirect", cs (pathTo RosterWeeksAction))
                     renderPlain ""
                 else redirectTo RosterWeeksAction
         passkeys <- fetchAuthenticatedUserPasskeys
         when (null passkeys) do
-            if isHtmxRequest
+            earlyReturn $ if isHtmxRequest
                 then do
                     setHeader ("HX-Redirect", cs (pathTo PasskeySetupAction))
                     renderPlain ""
@@ -63,21 +63,21 @@ instance Controller PasskeysController where
     action currentAction@ShowPasskeyRecoveryCodeDialogAction = runBepis currentAction BepisDialogAction do
         strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
         unless strongAuthenticationRequired do
-            redirectTo RosterWeeksAction
+            earlyReturn (redirectTo RosterWeeksAction)
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
             setErrorMessage "Add your first passkey before using a recovery code."
-            redirectToPath mandatoryPasskeySetupPath
+            earlyReturn (redirectToPath mandatoryPasskeySetupPath)
         respondHtml renderPasskeyRecoveryCodeDialog
 
     action currentAction@UsePasskeyRecoveryCodeAction = runBepis currentAction BepisMutationAction do
         strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
         unless strongAuthenticationRequired do
-            redirectTo RosterWeeksAction
+            earlyReturn (redirectTo RosterWeeksAction)
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
             setErrorMessage "Add your first passkey before using a recovery code."
-            redirectToPath mandatoryPasskeySetupPath
+            earlyReturn (redirectToPath mandatoryPasskeySetupPath)
         let submittedCode = param @Text "recoveryCode"
         verified <- verifyAndConsumeRecoveryCode currentUser.id submittedCode
         if verified
@@ -94,12 +94,12 @@ instance Controller PasskeysController where
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
             setErrorMessage "Add your first passkey before sending a new-device setup link."
-            redirectToPath managementPath
+            earlyReturn (redirectToPath managementPath)
         verified <- isCurrentUserPasskeyVerified
         unless verified do
             setSession passkeyStepUpRedirectSessionKey managementPath
             strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
-            if isHtmxRequest
+            earlyReturn $ if isHtmxRequest
                 then redirectTo ShowPasskeyStepUpDialogAction
                 else do
                     setErrorMessage "Verify with your passkey before sending a new-device setup link."
@@ -126,7 +126,7 @@ instance Controller PasskeysController where
         let managementPath = passkeyManagementPath
         when (strongAuthenticationRequired && passkeyCount <= 1) do
             setErrorMessage "Venue admins and owners must keep at least one passkey on their account."
-            redirectToPath managementPath
+            earlyReturn (redirectToPath managementPath)
         ensureFreshPasskeyForManagement managementPath
 
         deleteRecord passkey
@@ -145,13 +145,13 @@ safeLocalRedirect value
     | "/" `Text.isPrefixOf` value && not ("//" `Text.isPrefixOf` value) = value
     | otherwise = profileSecurityPath
 
-ensureFreshPasskeyForManagement :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
+ensureFreshPasskeyForManagement :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
 ensureFreshPasskeyForManagement managementPath = do
     verified <- isCurrentUserPasskeyVerified
     unless verified do
         withRequestContext do
             setSession passkeyStepUpRedirectSessionKey managementPath
-            if isHtmxRequest
+            earlyReturn $ if isHtmxRequest
                 then redirectTo ShowPasskeyStepUpDialogAction
                 else do
                     setErrorMessage "Verify with your passkey before changing passkey settings."

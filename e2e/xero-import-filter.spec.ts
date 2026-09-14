@@ -7,7 +7,7 @@ import {
     xeroCandidateFilterSearchDomAttr,
 } from '../frontend/ts/generated/contracts';
 
-const appXeroScriptPath = 'static/app-xero.js';
+const appScriptPath = 'static/app.js';
 const xeroCssPath = 'static/css/features/xero.css';
 
 const searchSelector = `#valid-filter-root [${xeroCandidateFilterSearchDomAttr}]`;
@@ -93,7 +93,7 @@ test.describe('Xero import pay item filter', () => {
                 originalConsoleError(label, detail);
             };
         });
-        await page.addScriptTag({ path: appXeroScriptPath });
+        await page.addScriptTag({ path: appScriptPath });
 
         const search = page.locator(searchSelector);
         await expect(search).toHaveAttribute('aria-label', 'Search pay items');

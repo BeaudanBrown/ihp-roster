@@ -20,10 +20,10 @@ import Application.Helper.FrontendContract.AppShell (OpenPageHelpDialog,
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellCustomHtmxAttrs (..),
                                                              appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Application.Helper.View.PageHelp (PageHelpTopicId, pageHelpTopicIdToText)
 import qualified Data.Text as Text
-import Generated.Types
 import IHP.ViewPrelude
 import Web.Routes ()
 import Web.Types
@@ -118,18 +118,14 @@ renderPageHelpTrigger :: Text -> PageHelpTopicId -> Html
 renderPageHelpTrigger title topicId =
     renderAppShellActionLink
         (appShellActionByMarker @OpenPageHelpDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo ShowPageHelpAction { topic = pageHelpTopicIdToText topicId }
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Just (pathTo ShowPageHelpAction { topic = pageHelpTopicIdToText topicId })
-            , appShellActionRouteExtraAttrs =
-                [ ("class", "btn btn-sm btn-outline-secondary app-page-help-trigger")
+        ((defaultAppShellActionRoute (pathTo ShowPageHelpAction { topic = pageHelpTopicIdToText topicId }))
+            { appShellActionRouteStandardUrl = Just (pathTo ShowPageHelpAction { topic = pageHelpTopicIdToText topicId })
+            , appShellActionRouteExtraAttrs = [ ("class", "btn btn-sm btn-outline-secondary app-page-help-trigger")
                 , ("aria-label", "Help for " <> title)
                 , ("title", "Help for " <> title)
                 , ("data-turbolinks", "false")
                 ]
-            }
+            })
         [hsx|
             <i class="bi bi-question-circle" aria-hidden="true"></i>
             <span>Help</span>
@@ -221,11 +217,8 @@ renderPartialNavigationLink :: PartialNavigationLink -> Html
 renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } =
     renderAppShellActionLink
         (appShellActionByMarker @PartialNavigate)
-        AppShellActionRoute
-            { appShellActionRouteUrl = partialNavigationUrl
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx =
-                [ AppShellCustomHtmxAttrs
+        ((defaultAppShellActionRoute (partialNavigationUrl))
+            { appShellActionRouteCustomHtmx = [ AppShellCustomHtmxAttrs
                     { appShellCustomHtmxAttrMarker = "partial-navigation-htmx-attrs"
                     , appShellCustomHtmxAttrValues =
                         [ ("hx-target", "#" <> partialNavigationTargetId)
@@ -237,11 +230,10 @@ renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, part
                     }
                 ]
             , appShellActionRouteStandardUrl = Just partialNavigationUrl
-            , appShellActionRouteExtraAttrs =
-                [ ("class", partialNavigationClass)
+            , appShellActionRouteExtraAttrs = [ ("class", partialNavigationClass)
                 , ("data-turbolinks", "false")
                 ]
-            }
+            })
         [hsx|{partialNavigationLabel}|]
     where
         pushUrlValue :: Text

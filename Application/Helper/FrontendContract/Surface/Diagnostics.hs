@@ -21,11 +21,9 @@ import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
 import Application.Helper.FrontendContract.TypeError (BepisTypeError)
 import qualified Data.Aeson as Aeson
-import Data.Kind (Constraint, Type)
-import Data.Text (Text)
-import Data.Time (Day)
+import Data.Kind (Constraint)
 import qualified Data.UUID as UUID
-import GHC.TypeLits (ErrorMessage (..), Symbol)
+import GHC.TypeLits (ErrorMessage (..))
 import IHP.Prelude
 
 -- | Construction-only presence tags. They let the declaration-directed field

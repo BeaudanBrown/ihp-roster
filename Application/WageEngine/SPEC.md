@@ -120,7 +120,13 @@ holidays. It preserves every historical source
 row and still rejects conflicts within the selected snapshot. Value-identical duplicate
 semantic keys normalize. Any conflict, missing category, unsupported classification,
 inconsistent period, invalid value, identity, or owner returns a named `RateBookError`.
-Candidate order never selects a conflicting value.
+Candidate order never selects a conflicting value. Validated-rate lookup is total:
+a missing key returns `ValidatedRateLookupError`, becomes entry-local
+`MissingValidatedRate` during calculation, and reaches strict payroll/Xero workflows
+as a blocker rather than an invariant exception. A narrow corruption helper exists
+only in the internal `RateBook` module for regression tests and is not re-exported by
+the caller-facing `Application.WageEngine` facade; ordinary construction remains
+opaque and validated.
 `Application.WageEngine.RateBook` owns the structured `ProjectionRateSource`
 pairs and the sole exact renderer into `RateSourceIdentity`. The adapter carries
 each projection row ID and its exact persisted `fwc_mapd_*` source-row ID through

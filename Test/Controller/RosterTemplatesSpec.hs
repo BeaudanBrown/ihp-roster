@@ -1,556 +1,449 @@
 module Test.Controller.RosterTemplatesSpec where
 
-import Application.RosterTemplates (RosterTemplateDraft (..),
-                                    RosterTemplateSave (..),
-                                    fetchPrivateRosterTemplateDraft,
-                                    rosterTemplateActor,
-                                    rosterTemplateDraftRevision,
-                                    saveRosterTemplateDraft,
-                                    startRosterTemplateEditDraft)
-import qualified Data.ByteString.Char8 as ByteString
-import Data.Maybe (fromJust)
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.RosterShiftAssignment (RosterShiftAssignment (..),
+                                          applyRosterShiftAssignment)
+import Application.RosterTemplates
+import Data.Either (isRight)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Clock (addUTCTime)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
-import Generated.Types
+import qualified Data.UUID as UUID
+import Generated.Types hiding (createRosterTemplate)
 import IHP.ControllerPrelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import Network.Wai (Response, responseHeaders, responseStatus)
+import Network.Wai (Response, responseHeaders)
 import Test.Hspec
 import Test.Support
-import Web.Controller.RosterTemplates (referenceConfirmationSessionValue)
+import Web.Controller.RosterTemplates ()
 import Web.FrontController ()
-import Web.RosterWeeks.TemplateDesigner (startBlankRosterTemplateDesignerDraft)
+import Web.RosterWeeks.Dom (rosterTemplateLibraryFragmentId)
+import Web.RosterWeeks.TemplateApplication
 import Web.Types
+
+capturePreviewTransportFields = RosterAction.previewRosterTemplateCaptureActionFields "" Surface.KeepValidStaffAssignments Nothing Nothing
+captureCreateTransportFields = RosterAction.createRosterTemplateCaptureActionFields "" Surface.KeepValidStaffAssignments Nothing Nothing "" 0 False
+applicationPreviewTransportFields = RosterAction.previewRosterTemplateApplicationActionFields UUID.nil (fromGregorian 2026 1 1) 0 Nothing Nothing
+applicationApplyTransportFields = RosterAction.applyRosterTemplateApplicationActionFields UUID.nil (fromGregorian 2026 1 1) "" 0 Nothing Nothing
+
+templateNameParam, captureAssignmentModeParam, staleShiftTypeIdsParam, mappedShiftTypeIdsParam, expectedSourceRevisionParam, rosterCalendarRevisionParam, warningsConfirmedParam :: ByteString
+templateNameParam = cs (surfaceFieldNameFrom @Surface.TemplateName capturePreviewTransportFields)
+captureAssignmentModeParam = cs (surfaceFieldNameFrom @Surface.CaptureAssignmentMode capturePreviewTransportFields)
+staleShiftTypeIdsParam = cs (surfaceFieldNameFrom @Surface.StaleShiftTypeIds capturePreviewTransportFields)
+mappedShiftTypeIdsParam = cs (surfaceFieldNameFrom @Surface.MappedShiftTypeIds capturePreviewTransportFields)
+expectedSourceRevisionParam = cs (surfaceFieldNameFrom @Surface.ExpectedSourceRevision captureCreateTransportFields)
+rosterCalendarRevisionParam = cs (surfaceFieldNameFrom @Surface.RosterCalendarRevision captureCreateTransportFields)
+warningsConfirmedParam = cs (surfaceFieldNameFrom @Surface.WarningsConfirmed captureCreateTransportFields)
+applicationAnchorDateParam = cs (surfaceFieldNameFrom @Surface.AnchorDate applicationPreviewTransportFields)
+applicationTemplateIdParam = cs (surfaceFieldNameFrom @Surface.TemplateId applicationApplyTransportFields)
+expectedTargetRevisionParam = cs (surfaceFieldNameFrom @Surface.ExpectedTargetRevision applicationApplyTransportFields)
+deleteRosterGroupIdParam = "rosterGroupId"
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
-    describe "RosterTemplatesController" do
-        it "rejects cross-venue template routes without creating a draft" $ withContext do
+    describe "RosterTemplatesController date-native capture" do
+        it "opens an empty modal with assignment mode unselected" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Template authorized venue"
-                foreignVenue <- createVenueWithConfig "Template foreign venue"
+                fixture <- controllerCaptureFixture "Controller capture launcher"
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                            [("anchorDate", cs (tshow fixture.windowStart))]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Save current week as template"
+                response `responseBodyShouldContain` "value=\"\""
+                response `responseBodyShouldNotContain` "checked=\"checked\""
+                response `responseBodyShouldNotContain` "alert alert-warning"
+
+        it "renders one alphabetical Week-template library with Apply available for Published targets" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller template library"
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 fixture.shiftType.id OpenAssignment]
+                        }
+                Right _ <- createRosterTemplate actor fixture.rosterGroup Week "Zulu" content
+                Right _ <- createRosterTemplate actor fixture.rosterGroup Week "alpha" content
+                _ <- fixture.days !! 3 |> set #publicationState Published |> updateRecord
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams ShowRosterTemplateLibraryFragmentAction { rosterGroupId = fixture.rosterGroup.id }
+                        [("anchorDate", cs (tshow fixture.windowStart))]
+                body <- responseBody response
+                let html = cs body :: String
+                    htmlText = cs body :: Text
+
+                response `responseStatusShouldBe` status200
+                html `shouldContain` "Save current week as template"
+                html `shouldNotContain` "No templates are saved."
+                html `shouldContain` "1 shift(s)"
+                html `shouldNotContain` "Apply is unavailable"
+                html `shouldNotContain` "disabled=\"disabled\""
+                html `shouldNotContain` "Week snapshot"
+                html `shouldNotContain` "assignment mode"
+                Text.breakOn "alpha" htmlText `shouldSatisfy` (\(_, suffix) -> "Zulu" `Text.isInfixOf` suffix)
+
+        it "renders one shared library identity for authorized editors and rejects workers" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller shared library"
+                secondManager <- createUserRecord "shared-library-manager@example.com" "staff" True
+                worker <- createUserRecord "shared-library-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord fixture.venue secondManager Manager
+                _ <- createVenueMembershipRecord fixture.venue worker Worker
+                let fetchLibrary user = withUserAndCurrentVenue user fixture.venue.id do
+                        callActionWithParams ShowRosterTemplateLibraryFragmentAction { rosterGroupId = fixture.rosterGroup.id }
+                            [("anchorDate", cs (tshow fixture.windowStart))]
+                firstResponse <- fetchLibrary fixture.manager
+                secondResponse <- fetchLibrary secondManager
+                workerResponse <- fetchLibrary worker
+
+                firstResponse `responseStatusShouldBe` status200
+                secondResponse `responseStatusShouldBe` status200
+                firstResponse `responseBodyShouldContain` cs ("id=\"" <> rosterTemplateLibraryFragmentId <> "\"")
+                secondResponse `responseBodyShouldContain` cs ("id=\"" <> rosterTemplateLibraryFragmentId <> "\"")
+                firstResponse `responseBodyShouldNotContain` cs (tshow fixture.manager.id)
+                secondResponse `responseBodyShouldNotContain` cs (tshow secondManager.id)
+                workerResponse `responseStatusShouldBe` status302
+                workerResponse `responseBodyShouldNotContain` cs ("id=\"" <> rosterTemplateLibraryFragmentId <> "\"")
+
+        it "deletes through the modal workflow and refreshes the library in place" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller template delete"
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = []
+                        }
+                Right snapshot <- createRosterTemplate actor fixture.rosterGroup Week "Delete me" content
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DeleteRosterTemplateAction { rosterTemplateId = snapshot.snapshotTemplate.id }
+                            [ (applicationTemplateIdParam, cs (tshow snapshot.snapshotTemplate.id))
+                            , (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                            , (deleteRosterGroupIdParam, cs (tshow fixture.rosterGroup.id))
+                            ]
+                deleted <- fetch snapshot.snapshotTemplate.id
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+
+                response `responseStatusShouldBe` status200
+                deleted.deletedAt `shouldSatisfy` isJust
+                response `responseBodyShouldContain` "Template deleted."
+                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\""
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "roster-template-library")
+
+        it "rejects deletion when submitted roster-group context does not own the template" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller cross-group delete"
+                otherGroup <- createVenueRosterGroupWithDefaults fixture.venue "Other group" 2 True
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = []
+                        }
+                Right snapshot <- createRosterTemplate actor otherGroup Week "Other group template" content
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DeleteRosterTemplateAction { rosterTemplateId = snapshot.snapshotTemplate.id }
+                            [ ("anchorDate", cs (tshow fixture.windowStart))
+                            , ("rosterGroupId", cs (tshow fixture.rosterGroup.id))
+                            ]
+                retained <- fetch snapshot.snapshotTemplate.id
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "outside the current roster group"
+                retained.deletedAt `shouldBe` Nothing
+
+        it "previews and confirms capture from a mixed-publication source" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller capture"
+                firstDay <- fixture.days !! 0 |> set #publicationState Published |> updateRecord
+                previewResponse <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Mixed source")
+                        , (captureAssignmentModeParam, "open")
+                        ]
+                expectedSourceRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedSourceRevision captureCreateTransportFields) previewResponse
+                expectedCalendarRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.RosterCalendarRevision captureCreateTransportFields) previewResponse
+                createResponse <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams CreateRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Mixed source")
+                        , (captureAssignmentModeParam, "open")
+                        , (expectedSourceRevisionParam, expectedSourceRevision)
+                        , (rosterCalendarRevisionParam, expectedCalendarRevision)
+                        , (warningsConfirmedParam, "true")
+                        ]
+                templates <- query @RosterTemplate |> fetch
+                retainedFirstDay <- fetch firstDay.id
+                durableEventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE source = 'roster.template.capture'" ()
+
+                previewResponse `responseStatusShouldBe` status200
+                previewResponse `responseBodyShouldNotContain` "Draft/Published status"
+                createResponse `responseStatusShouldBe` status302
+                map (.name) templates `shouldBe` ["Mixed source"]
+                retainedFirstDay.publicationState `shouldBe` Published
+                durableEventCount `shouldBe` 1
+
+        it "saves warning-free POST captures directly without a confirmation step" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Direct capture"
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Direct source")
+                        , (captureAssignmentModeParam, "open")
+                        ]
+                response `responseStatusShouldBe` status302
+                templates <- query @RosterTemplate |> fetch
+                map (.name) templates `shouldBe` ["Direct source"]
+                durableEventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE source = 'roster.template.capture'" ()
+                durableEventCount `shouldBe` 1
+
+        it "rerenders authoritative requirements when source content changes after preview" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller stale capture"
+                previewResponse <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Stale source")
+                        , (captureAssignmentModeParam, "open")
+                        ]
+                expectedSourceRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedSourceRevision captureCreateTransportFields) previewResponse
+                expectedCalendarRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.RosterCalendarRevision captureCreateTransportFields) previewResponse
+                _ <- fixture.days !! 2 |> set #isClosed True |> updateRecord
+
+                staleResponse <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams CreateRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Stale source")
+                        , (captureAssignmentModeParam, "open")
+                        , (expectedSourceRevisionParam, expectedSourceRevision)
+                        , (rosterCalendarRevisionParam, expectedCalendarRevision)
+                        , (warningsConfirmedParam, "true")
+                        ]
+                templateCount <- query @RosterTemplate |> fetchCount
+
+                staleResponse `responseStatusShouldBe` status200
+                staleResponse `responseBodyShouldContain` "roster or validation requirements changed"
+                staleResponse `responseBodyShouldContain` "Stale source"
+                templateCount `shouldBe` 0
+
+        it "round-trips explicit stale Shift type mappings through typed capture actions" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller mapping capture"
+                sourceSlot <- createControllerCaptureSlot (fixture.days !! 4) fixture.shiftType
+                let archivedAt = UTCTime (fromGregorian 2026 8 24) 0
+                staleShiftType <- fixture.shiftType |> set #isActive False |> set #archivedAt (Just archivedAt) |> updateRecord
+                replacement <- newRecord @ShiftType
+                    |> set #venueId (unpackId fixture.venue.id)
+                    |> set #name "Mapped replacement"
+                    |> set #isActive True
+                    |> set #sortOrder 20
+                    |> set #payAssignmentMode RosterOnly
+                    |> createRecord
+
+                mappedPreview <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Mapped controller source")
+                        , (captureAssignmentModeParam, "keep_staff")
+                        , (staleShiftTypeIdsParam, cs (tshow staleShiftType.id))
+                        , (mappedShiftTypeIdsParam, cs (tshow replacement.id))
+                        ]
+                expectedSourceRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedSourceRevision captureCreateTransportFields) mappedPreview
+                expectedCalendarRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.RosterCalendarRevision captureCreateTransportFields) mappedPreview
+                created <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams CreateRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Mapped controller source")
+                        , (captureAssignmentModeParam, "keep_staff")
+                        , (staleShiftTypeIdsParam, cs (tshow staleShiftType.id))
+                        , (mappedShiftTypeIdsParam, cs (tshow replacement.id))
+                        , (expectedSourceRevisionParam, expectedSourceRevision)
+                        , (rosterCalendarRevisionParam, expectedCalendarRevision)
+                        , (warningsConfirmedParam, "true")
+                        ]
+                savedShift <- query @RosterTemplateShift |> fetchOne
+                retainedSource <- fetch sourceSlot.id
+
+                mappedPreview `responseStatusShouldBe` status200
+                created `responseStatusShouldBe` status302
+                savedShift.shiftTypeId `shouldBe` unpackId replacement.id
+                retainedSource.shiftTypeId `shouldBe` Just (unpackId staleShiftType.id)
+
+        it "rejects missing assignment mode and cross-venue roster groups without persistence" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller validation"
+                foreignVenue <- createVenueWithConfig "Controller foreign venue"
                 foreignGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId foreignVenue.id) |> fetchOne
-                manager <- createUserRecord "template-cross-venue@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
 
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callAction NewRosterTemplateAction { rosterGroupId = foreignGroup.id }
-                draftCount <- query @RosterTemplateDesign |> fetchCount
+                (missingMode, blankName, oversizedName, malformedAnchor, malformedMapping, malformedRevision) <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    missingMode <- callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Missing mode")
+                        ]
+                    blankName <- callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [("anchorDate", cs (tshow fixture.windowStart)), (templateNameParam, "   "), (captureAssignmentModeParam, "open")]
+                    oversizedName <- callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [("anchorDate", cs (tshow fixture.windowStart)), (templateNameParam, cs (Text.replicate 121 "x")), (captureAssignmentModeParam, "open")]
+                    malformedAnchor <- callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [("anchorDate", "not-a-date"), (templateNameParam, "Malformed date"), (captureAssignmentModeParam, "open")]
+                    malformedMapping <- callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Malformed mapping")
+                        , (captureAssignmentModeParam, "open")
+                        , (staleShiftTypeIdsParam, "not-a-uuid")
+                        , (mappedShiftTypeIdsParam, "also-not-a-uuid")
+                        ]
+                    validPreview <- callActionWithQueryParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [("anchorDate", cs (tshow fixture.windowStart)), (templateNameParam, "Malformed revision"), (captureAssignmentModeParam, "open")]
+                    expectedSourceRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedSourceRevision captureCreateTransportFields) validPreview
+                    malformedRevision <- callActionWithParams CreateRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Malformed revision")
+                        , (captureAssignmentModeParam, "open")
+                        , (expectedSourceRevisionParam, expectedSourceRevision)
+                        , (rosterCalendarRevisionParam, "not-an-int")
+                        , (warningsConfirmedParam, "true")
+                        ]
+                    pure (missingMode, blankName, oversizedName, malformedAnchor, malformedMapping, malformedRevision)
+                crossVenue <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = foreignGroup.id }
+                        [ ("anchorDate", cs (tshow fixture.windowStart))
+                        , (templateNameParam, "Foreign")
+                        , (captureAssignmentModeParam, "open")
+                        ]
+                templateCount <- query @RosterTemplate |> fetchCount
 
-                response `responseStatusShouldBe` status403
-                draftCount `shouldBe` 0
-
-        it "rerenders controlled creation validation for malformed scale and invalid names" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template input validation"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-input-validation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let submit params = withUserAndCurrentVenue manager venue.id do
-                        callActionWithParams CreateRosterTemplateDraftAction { rosterGroupId = rosterGroup.id } params
-
-                malformedScale <- submit [("name", "Valid name"), ("scale", "century"), ("startingPoint", "blank")]
-                whitespaceName <- submit [("name", "   "), ("scale", "day"), ("startingPoint", "blank")]
-                oversizedName <- submit [("name", ByteString.replicate 121 'x'), ("scale", "day"), ("startingPoint", "blank")]
-                draftCount <- query @RosterTemplateDesign |> fetchCount
-
-                malformedScale `responseStatusShouldBe` status200
-                malformedScale `responseBodyShouldContain` "Choose Day or Week"
-                whitespaceName `responseStatusShouldBe` status200
-                whitespaceName `responseBodyShouldContain` "Template names must contain"
+                missingMode `responseStatusShouldBe` status200
+                missingMode `responseBodyShouldContain` "captureAssignmentMode"
+                blankName `responseStatusShouldBe` status200
+                blankName `responseBodyShouldContain` "Template names must contain"
                 oversizedName `responseStatusShouldBe` status200
                 oversizedName `responseBodyShouldContain` "Template names must contain"
-                draftCount `shouldBe` 0
+                malformedAnchor `responseStatusShouldBe` status400
+                malformedMapping `responseStatusShouldBe` status200
+                malformedMapping `responseBodyShouldContain` "staleShiftTypeIds"
+                malformedRevision `responseStatusShouldBe` status200
+                malformedRevision `responseBodyShouldContain` "rosterCalendarRevision"
+                crossVenue `responseStatusShouldBe` status403
+                templateCount `shouldBe` 0
 
-        it "renders template creation in the roster-content card for an authorized manager" $ withContext do
+    describe "RosterTemplatesController date-native application" do
+        it "previews and applies a Week template through typed button transport" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Template controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Saved service day"
-                Right _ <- saveRosterTemplateDraft actor draft.draftDesign.id
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callAction NewRosterTemplateAction { rosterGroupId = rosterGroup.id }
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Create roster template"
-                response `responseBodyShouldContain` "Start from a blank design"
-                response `responseBodyShouldContain` "Use a roster as reference"
-                response `responseBodyShouldContain` "roster-main-panel"
-                response `responseBodyShouldContain` "Saved templates"
-                response `responseBodyShouldContain` "Saved service day"
-                response `responseBodyShouldContain` "Edit"
-                response `responseBodyShouldContain` "Delete"
-
-        it "renders read-only reference selection without materializing or mutating rosters" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template reference controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-reference-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
-                _ <- forM [0 .. 6] (createRosterDayRecord sourceWeek)
-                beforeCount <- query @RosterDay |> fetchCount
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowRosterTemplateReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Reference day"), ("scale", "day")]
-                afterCount <- query @RosterDay |> fetchCount
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Select a reference day"
-                response `responseBodyShouldContain` "Previous week"
-                response `responseBodyShouldContain` "Next week"
-                response `responseBodyShouldContain` "Use Tuesday"
-                response `responseBodyShouldNotContain` "ToggleRosterDayClosed"
-                afterCount `shouldBe` beforeCount
-
-        it "does not mark an incomplete Week reference as compatible or selectable" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Incomplete reference controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-incomplete-reference@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                _ <- createRosterDayRecord sourceWeek 0
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowRosterTemplateReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Incomplete week"), ("scale", "week")]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "This roster week is incomplete"
-                response `responseBodyShouldNotContain` "data-bepis-roster-template-designer-template-reference-compatibility"
-                response `responseBodyShouldNotContain` "Use this week as template reference"
-
-        it "binds reference confirmation identity to the confirming user" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template confirmation actor binding"
-                firstManager <- createUserRecord "template-confirmation-first@example.com" "staff" True
-                secondManager <- createUserRecord "template-confirmation-second@example.com" "staff" True
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let confirmationValue actorUserId =
-                        referenceConfirmationSessionValue
-                            "token"
-                            actorUserId
-                            rosterGroup.id
-                            (fromGregorian 2025 1 6)
-                            "Bound reference"
-                            Day
-                            (Just (fromGregorian 2025 1 7))
-                            "source-revision"
-                            Nothing
-                confirmationValue firstManager.id `shouldNotBe` confirmationValue secondManager.id
-
-        it "confirms a Day reference before creating an isolated prefilled draft" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template reference confirmation"
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-confirm-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                staff <- createStaffRecord venue Nothing "Confirm" "Worker"
-                slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                sourceDay <- createRosterDayRecord sourceWeek 1
-                sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staff 0
-                    >>= updateRecord
-                        . setTestRosterSlotBoundaries
-                            (addDays 1 (testAnchorForOffset 0))
-                            (TimeOfDay 9 0 0)
-                            (TimeOfDay 17 0 0)
-
-                bypassed <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateRosterTemplateFromReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("operationalDate", "2025-01-07")]
-                bypassDraft <- fetchPrivateRosterTemplateDraft (rosterTemplateActor manager venue True)
-                (confirmation, tampered, created) <- withUserAndCurrentVenue manager venue.id do
-                    confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("operationalDate", "2025-01-07")]
-                    confirmationToken <- hiddenInputValue "confirmationToken" confirmation
-                    tampered <- callActionWithParams CreateRosterTemplateFromReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Changed after confirmation"), ("scale", "day"), ("operationalDate", "2025-01-07"), ("confirmationToken", cs confirmationToken)]
-                    created <- callActionWithParams CreateRosterTemplateFromReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("operationalDate", "2025-01-07"), ("confirmationToken", cs confirmationToken)]
-                    pure (confirmation, tampered, created)
-                persistedSource <- fetch sourceSlot.id
-
-                bypassed `responseStatusShouldBe` status302
-                bypassDraft `shouldBe` Nothing
-                confirmation `responseStatusShouldBe` status200
-                confirmation `responseBodyShouldContain` "Confirm reference"
-                confirmation `responseBodyShouldContain` "Tuesday"
-                confirmation `responseBodyShouldContain` "No roster data will be changed"
-                tampered `responseStatusShouldBe` status302
-                created `responseStatusShouldBe` status303
-                lookup "Location" (responseHeaders created)
-                    `shouldSatisfy` maybe False (ByteString.isInfixOf "/ShowRosterTemplateDesigner")
-                persistedSource `shouldBe` sourceSlot
-
-        it "rejects a confirmation when the referenced roster content changes" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template stale confirmation"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-stale-confirmation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                staff <- createStaffRecord venue Nothing "Stale" "Worker"
-                slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                sourceDay <- createRosterDayRecord sourceWeek 0
-                sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staff 0
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Stale day"), ("scale", "day"), ("operationalDate", "2025-01-06")]
-                    confirmationToken <- hiddenInputValue "confirmationToken" confirmation
-                    _ <- sourceSlot |> set #startsAt (addUTCTime 3600 <$> sourceSlot.startsAt) |> updateRecord
-                    callActionWithParams CreateRosterTemplateFromReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Stale day"), ("scale", "day"), ("operationalDate", "2025-01-06"), ("confirmationToken", cs confirmationToken)]
-                draft <- fetchPrivateRosterTemplateDraft (rosterTemplateActor manager venue True)
-
-                response `responseStatusShouldBe` status302
-                draft `shouldBe` Nothing
-
-        it "renders isolated Day/Week editing controls that autosave complete mutations" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template designer controls"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-controls-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Service day"
-
-                let designId = (draft.draftDesign :: RosterTemplateDesign).id
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowRosterTemplateDesignerAction
-                        { rosterTemplateDesignId = designId }
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Template design"
-                response `responseBodyShouldContain` "Autosaved"
-                response `responseBodyShouldContain` "Add shift"
-                response `responseBodyShouldContain` "Add column"
-                response `responseBodyShouldContain` "Save template"
-                response `responseBodyShouldNotContain` "ToggleRosterWeekLiveStatus"
-
-        it "never persists incomplete shift submissions and autosaves a complete shift" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template shift controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-shift-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                shiftType <- ensureVenueDefaultShiftType venue
-                let actor = rosterTemplateActor manager venue True
-                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Shift day"
-                let designId = draft.draftDesign.id
-                let completeParams =
-                        [ ("dayIndex", "0")
-                        , ("columnSortOrder", "0")
-                        , ("rowIndex", "0")
-                        , ("startTime", "09:00")
-                        , ("endTime", "17:00")
-                        , ("assignment", "open")
-                        , ("shiftTypeId", cs (tshow shiftType.id))
+                fixture <- controllerCaptureFixture "Controller application"
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 fixture.shiftType.id OpenAssignment]
+                        }
+                Right snapshot <- createRosterTemplate actor fixture.rosterGroup Week "Controller week" content
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                let directRequest = RosterTemplateApplicationRequest
+                        { applicationTemplateId = snapshot.snapshotTemplate.id
+                        , applicationTargetRosterGroupId = fixture.rosterGroup.id
+                        , applicationTargetWindowStart = fixture.windowStart
+                        , applicationTargetWindowEnd = addDays 7 fixture.windowStart
+                        , applicationShiftTypeMappings = Map.empty
+                        }
+                directPreview <- previewRosterTemplateApplication actor directRequest
+                directPreview `shouldSatisfy` isRight
+                preview <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams PreviewRosterTemplateApplicationAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ (applicationTemplateIdParam, cs (tshow snapshot.snapshotTemplate.id))
+                        , (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                        , (rosterCalendarRevisionParam, cs (tshow venueConfig.rosterCalendarRevision))
                         ]
-
-                incomplete <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams UpsertRosterTemplateShiftAction { rosterTemplateDesignId = designId }
-                        (filter ((/= "endTime") . fst) completeParams)
-                afterIncomplete <- fetchPrivateRosterTemplateDraft actor
-                complete <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams UpsertRosterTemplateShiftAction { rosterTemplateDesignId = designId } completeParams
-                afterComplete <- fetchPrivateRosterTemplateDraft actor
-
-                incomplete `responseStatusShouldBe` status302
-                fmap (.draftShifts) afterIncomplete `shouldBe` Just []
-                complete `responseStatusShouldBe` status302
-                fmap (map (.assignmentState) . (.draftShifts)) afterComplete `shouldBe` Just ["open"]
-
-        it "rejects malformed shift integers, UUIDs, assignments, and day states without mutation" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template mutation validation"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-mutation-validation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                shiftType <- ensureVenueDefaultShiftType venue
-                let actor = rosterTemplateActor manager venue True
-                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Validation day"
-                let designId = draft.draftDesign.id
-                let validParams =
-                        [ ("dayIndex", "0")
-                        , ("columnSortOrder", "0")
-                        , ("rowIndex", "0")
-                        , ("startTime", "09:00")
-                        , ("endTime", "17:00")
-                        , ("assignment", "open")
-                        , ("shiftTypeId", cs (tshow shiftType.id))
+                renderedAnchorDate <- hiddenInputValue (surfaceFieldNameFrom @Surface.AnchorDate applicationApplyTransportFields) preview
+                expectedTargetRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedTargetRevision applicationApplyTransportFields) preview
+                expectedCalendarRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.RosterCalendarRevision applicationApplyTransportFields) preview
+                applied <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams ApplyRosterTemplateAction { rosterTemplateId = snapshot.snapshotTemplate.id, rosterGroupId = fixture.rosterGroup.id }
+                        [ (applicationTemplateIdParam, cs (tshow snapshot.snapshotTemplate.id))
+                        , (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                        , (expectedTargetRevisionParam, expectedTargetRevision)
+                        , (rosterCalendarRevisionParam, expectedCalendarRevision)
                         ]
-                let submitShift params = withUserAndCurrentVenue manager venue.id do
-                        callActionWithParams UpsertRosterTemplateShiftAction { rosterTemplateDesignId = designId } params
+                activeSlotCount <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetchCount
+                durableEventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE source = 'roster.template.apply'" ()
 
-                malformedRow <- submitShift (("rowIndex", "NaN") : filter ((/= "rowIndex") . fst) validParams)
-                malformedShiftType <- submitShift (("shiftTypeId", "not-a-uuid") : filter ((/= "shiftTypeId") . fst) validParams)
-                malformedAssignment <- submitShift (("assignment", "not-a-uuid") : filter ((/= "assignment") . fst) validParams)
-                malformedDay <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams UpdateRosterTemplateDayAction { rosterTemplateDesignId = designId, dayIndex = 0 }
-                        [("state", "<script>"), ("rowCount", "1")]
-                persisted <- fetchPrivateRosterTemplateDraft actor
+                preview `responseStatusShouldBe` status200
+                preview `responseBodyShouldContain` "Apply Controller week"
+                renderedAnchorDate `shouldBe` cs (tshow fixture.windowStart)
+                applied `responseStatusShouldBe` status302
+                activeSlotCount `shouldBe` 1
+                durableEventCount `shouldBe` 1
 
-                map (\response -> responseStatus response) [malformedRow, malformedShiftType, malformedAssignment, malformedDay]
-                    `shouldBe` replicate 4 status302
-                fmap (.draftShifts) persisted `shouldBe` Just []
-                fmap (map (.isClosed) . (.draftDays)) persisted `shouldBe` Just [False]
-
-        it "renders immutable edit conflict recovery actions for saved templates" $ withContext do
+        it "rerenders malformed typed application transport inside the HTMX dialog" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Template edit controls"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-edit-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right initial <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Saved day"
-                Right saved <- saveRosterTemplateDraft actor initial.draftDesign.id
-                Right editDraft <- startRosterTemplateEditDraft actor saved.savedTemplate.id
+                fixture <- controllerCaptureFixture "Controller application transport"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
 
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowRosterTemplateDesignerAction
-                        { rosterTemplateDesignId = editDraft.draftDesign.id }
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Reload latest"
-                response `responseBodyShouldContain` "Save as new"
-
-        it "offers Continue, Discard and start new, or Cancel for an occupied draft slot" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template occupied controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-occupied-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right _ <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Existing private work"
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateRosterTemplateDraftAction { rosterGroupId = rosterGroup.id }
-                        [ ("name", "Replacement week")
-                        , ("scale", "week")
-                        , ("startingPoint", "blank")
-                        ]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "A template draft is already in progress"
-                response `responseBodyShouldContain` "Continue draft"
-                response `responseBodyShouldContain` "Discard and start new"
-                response `responseBodyShouldContain` "Cancel"
-
-        it "keeps confirmed dated references independent of retired weekly provenance" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template disappearing reference"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-disappearing-reference@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                sourceDay <- createRosterDayRecord sourceWeek 0
-                let actor = rosterTemplateActor manager venue True
-                Right existing <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Keep me"
-                response <- withUserAndCurrentVenue manager venue.id do
-                    confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Replacement reference"), ("scale", "day"), ("operationalDate", "2025-01-06")]
-                    confirmationToken <- hiddenInputValue "confirmationToken" confirmation
-                    callActionWithParams DiscardAndRestartRosterTemplateDraftAction
-                        { rosterGroupId = rosterGroup.id, rosterTemplateDesignId = existing.draftDesign.id }
-                        [ ("name", "Replacement reference")
-                        , ("scale", "day")
-                        , ("startingPoint", "reference")
-                        , ("anchorDate", "2025-01-06")
-                        , ("operationalDate", "2025-01-06")
-                        , ("confirmationToken", cs confirmationToken)
-                        ]
-                retained <- fetchPrivateRosterTemplateDraft actor
-
-                response `responseStatusShouldBe` status303
-                fmap (.draftName) retained `shouldBe` Just "Replacement reference"
-
-        it "discards occupied work and starts the explicitly requested replacement" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template discard controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-discard-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right existing <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Discard me"
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams DiscardAndRestartRosterTemplateDraftAction
-                        { rosterGroupId = rosterGroup.id, rosterTemplateDesignId = existing.draftDesign.id }
-                        [("name", "Replacement week"), ("scale", "week"), ("startingPoint", "blank"), ("expectedDraftRevision", cs (rosterTemplateDraftRevision existing))]
-                replacement <- fetchPrivateRosterTemplateDraft actor
-
-                response `responseStatusShouldBe` status303
-                fmap (.draftName) replacement `shouldBe` Just "Replacement week"
-                fmap ((.scale) . (.draftDesign)) replacement `shouldBe` Just Week
-
-        it "starts a blank private draft and redirects to the isolated designer" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template blank controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-blank-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateRosterTemplateDraftAction { rosterGroupId = rosterGroup.id }
-                        [ ("name", "Standard week")
-                        , ("scale", "week")
-                        , ("startingPoint", "blank")
-                        ]
-
-                response `responseStatusShouldBe` status303
-                lookup "Location" (responseHeaders response)
-                    `shouldSatisfy` maybe False (ByteString.isInfixOf "/ShowRosterTemplateDesigner")
-
-        it "previews a saved Week template against the viewed draft week without mutating it" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template application controller"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-application-controller@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Week "Standard week"
-                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
-                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                _ <- forM [0 .. 6] (createRosterDayRecord targetWeek)
-                beforeSlots <- query @RosterSlot |> fetchCount
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowRosterTemplateApplicationConfirmationAction
-                        { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("targetDropzoneKey", "window:2025-01-06")]
-                afterSlots <- query @RosterSlot |> fetchCount
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Apply Standard week"
-                response `responseBodyShouldContain` "replace the complete viewed week"
-                response `responseBodyShouldContain` "Apply template"
-                afterSlots `shouldBe` beforeSlots
-
-                dropResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams PreviewRosterTemplateDropAction
-                        { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("sourceItemKey", idToParam saved.savedTemplate.id)
-                        , ("targetDropzoneKey", "window:2025-01-06")
-                        ]
-                dropResponse `responseStatusShouldBe` status200
-                dropResponse `responseBodyShouldContain` "Apply Standard week"
-
-        it "aborts a stale HTMX template preview with an authoritative reload" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Stale template preview venue"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "stale-template-preview@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- updateRecord (venueConfig |> set #rosterWeekStartsOn 2)
-
-                response <- withUserAndCurrentVenue manager venue.id do
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams PreviewRosterTemplateDropAction { rosterGroupId = rosterGroup.id }
-                            [ ("anchorDate", "2025-01-06")
-                            , ("rosterCalendarRevision", "1")
-                            , ("sourceItemKey", "stale-template")
-                            , ("targetDropzoneKey", "week:stale-window")
+                        callActionWithParams PreviewRosterTemplateApplicationAction { rosterGroupId = fixture.rosterGroup.id }
+                            [ (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                            , (rosterCalendarRevisionParam, cs (tshow venueConfig.rosterCalendarRevision))
                             ]
 
-                response `responseStatusShouldBe` status409
-                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
-                response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
-
-        it "applies a confirmed Week template to explicit dates" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template application mutation"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-application-mutation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Week "Standard week"
-                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
-                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                targetDays <- forM [0 .. 6] (createRosterDayRecord targetWeek)
-                _ <- newRecord @RosterLane
-                    |> set #rosterDayId (unpackId (fromJust (head targetDays)).id)
-                    |> set #name "Old lane"
-                    |> set #sortOrder 0
-                    |> createRecord
-                let targetKey :: Text = "window:2025-01-06"
-                previewResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowRosterTemplateApplicationConfirmationAction
-                        { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("targetDropzoneKey", cs targetKey)]
-                expectedVersion <- hiddenInputValue "expectedTemplateVersion" previewResponse
-                expectedRevision <- hiddenInputValue "expectedTargetRevision" previewResponse
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ApplyRosterTemplateAction
-                        { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("templateId", idToParam saved.savedTemplate.id)
-                        , ("targetDropzoneKey", cs targetKey)
-                        , ("expectedTemplateVersion", cs expectedVersion)
-                        , ("expectedTargetRevision", cs expectedRevision)
-                        ]
-                let targetDay = fromJust (head targetDays)
-                activeLanes <- query @RosterLane
-                    |> filterWhere (#rosterDayId, unpackId targetDay.id)
-                    |> filterWhere (#deletedAt, Nothing)
-                    |> fetch
-
-                response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldSatisfy` maybe False (ByteString.isInfixOf "anchorDate=2025-01-06")
-                targetDates <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-                    |> orderByAsc #operationalDate
-                    |> fetch
-                map (.operationalDate) targetDates `shouldBe` map (\dayIndex -> addDays dayIndex (fromGregorian 2025 1 6)) [0 .. 6]
-                map (.name) activeLanes `shouldBe` ["Shift"]
-
-        it "names the template and preserves existing rosters in delete confirmation" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Template delete confirmation"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                manager <- createUserRecord "template-delete-confirmation@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                let actor = rosterTemplateActor manager venue True
-                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Lunch service"
-                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ConfirmDeleteRosterTemplateAction
-                        { rosterTemplateId = saved.savedTemplate.id
-                        , rosterGroupId = rosterGroup.id
-                        }
-                        [("anchorDate", "2025-01-06")]
-                retained <- query @RosterTemplate |> filterWhere (#id, saved.savedTemplate.id) |> fetchOneOrNothing
-
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Delete Lunch service"
-                response `responseBodyShouldContain` "Existing rosters are unaffected"
-                retained `shouldSatisfy` isJust
+                response `responseBodyShouldContain` "Review template application"
+                response `responseBodyShouldContain` "templateId"
 
-hiddenInputValue :: Text -> Response -> IO Text
+data ControllerCaptureFixture = ControllerCaptureFixture
+    { venue       :: !Venue
+    , rosterGroup :: !RosterGroup
+    , manager     :: !User
+    , shiftType   :: !ShiftType
+    , windowStart :: !Day
+    , days        :: ![RosterDay]
+    }
+
+controllerCaptureFixture :: (?modelContext :: ModelContext) => Text -> IO ControllerCaptureFixture
+hiddenInputValue :: Text -> Response -> IO ByteString
 hiddenInputValue name response = do
     bodyBytes <- responseBody response
     let body = cs bodyBytes :: Text
-    let marker = "name=\"" <> name <> "\" value=\""
-    let suffix = Text.drop (Text.length marker) (snd (Text.breakOn marker body))
-    pure (Text.takeWhile (/= '"') suffix)
+        marker = "name=\"" <> name <> "\" value=\""
+        suffix = Text.drop (Text.length marker) (snd (Text.breakOn marker body))
+    pure (cs (Text.takeWhile (/= '\"') suffix))
+
+controllerCaptureFixture label = do
+    venue <- createVenueWithConfig label
+    rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    manager <- createUserRecord ("controller-capture-" <> tshow venue.id <> "@example.com") "staff" True
+    _ <- createVenueMembershipRecord venue manager Manager
+    shiftType <- ensureVenueDefaultShiftType venue
+    let windowStart = testAnchorForOffset 24
+    days <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) windowStart) dayIndex)
+    pure ControllerCaptureFixture { .. }
+
+createControllerCaptureSlot :: (?modelContext :: ModelContext) => RosterDay -> ShiftType -> IO RosterSlot
+createControllerCaptureSlot rosterDay shiftType = do
+    lane <- newRecord @RosterLane
+        |> set #rosterDayId (unpackId rosterDay.id)
+        |> set #name "Early"
+        |> set #sortOrder 0
+        |> createRecord
+    newRecord @RosterSlot
+        |> set #rosterDayId (unpackId rosterDay.id)
+        |> set #rosterLaneId (unpackId lane.id)
+        |> set #slotSortOrder 0
+        |> set #rowIndex 0
+        |> set #shiftTypeId (Just (unpackId shiftType.id))
+        |> applyRosterShiftAssignment OpenAssignment
+        |> setTestRosterSlotBoundaries rosterDay.operationalDate (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+        |> createRecord

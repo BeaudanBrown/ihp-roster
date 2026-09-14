@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
-scripts_root_placeholder="@""scriptsRoot@"
-if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
-    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-fi
+scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
 # shellcheck source=../lib/workspace.sh
 # shellcheck disable=SC1091
 . "$scripts_root/lib/workspace.sh"

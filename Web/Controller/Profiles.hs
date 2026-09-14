@@ -14,7 +14,6 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOob, successToast)
 import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateDefault))
-import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedStaffPayRateSelectionValue)
@@ -61,7 +60,7 @@ instance Controller ProfilesController where
         profileActionSpan "profile.content_fragment.respond" do
             let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
             profileActionSpan "profile.content_fragment.fetch_staff" fetchCurrentUserStaff >>= \case
-                Nothing -> accessDeniedUnless False
+                Nothing -> renderAccessDenied
                 Just staff -> do
                     let currentUserEmail = effectiveCurrentUser.email
                     (preferenceWeekdays, selectedShiftPreferences) <- profileActionSpan "profile.content_fragment.fetch_preferences" (profilePreferenceViewData (Just staff))
@@ -164,7 +163,7 @@ instance Controller ProfilesController where
                                         _ -> renderProfileResponse validStaff selectedShiftPreferences
                                     else finishCurrentUserUpdate "profile" validStaff selectedShiftPreferences "Profile updated"
 
-respondWithProfileActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> LiveMutationResult value -> Text -> IO ()
+respondWithProfileActorInvalidation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> LiveMutationResult value -> Text -> IO ResponseReceived
 respondWithProfileActorInvalidation staff mutationResult successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")

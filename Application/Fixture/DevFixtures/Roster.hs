@@ -7,6 +7,7 @@ module Application.Fixture.DevFixtures.Roster
 import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
 import Application.Fixture.DevFixtures.Staff (SeededStaff (..))
+import Application.Fixture.Error
 import Application.Fixture.Seed.Scenario
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
@@ -22,12 +23,12 @@ import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Traversable (traverse)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
-import qualified IHP.Prelude as Prelude
 
 data DevRosterSlotSeed = DevRosterSlotSeed
     { slotStaff       :: !(Maybe Staff)
@@ -89,8 +90,8 @@ seedRosterProjection scenario fixtureWeekStart venue rosterFixture staffFixture 
 
 seedPayAssignmentMatrix :: (?modelContext :: ModelContext) => RosterGroup -> Day -> [Staff] -> [ShiftType] -> IO ()
 seedPayAssignmentMatrix rosterGroup windowStart staffModes shiftModes = do
-    when (length staffModes /= 3 || length shiftModes /= 4) $
-        fail "Dev pay matrix requires three staff modes and four shift modes"
+    unless (length staffModes == 3 && length shiftModes == 4) $
+        requireFixtureResult (Left (MissingFixtureValue "dev pay matrix requires three staff modes and four shift modes"))
     rosterDays <-
         query @RosterDay
             |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
@@ -99,7 +100,7 @@ seedPayAssignmentMatrix rosterGroup windowStart staffModes shiftModes = do
             |> orderByAsc #operationalDate
             |> fetch
     when (length rosterDays < length shiftModes) $
-        fail "Dev pay matrix requires four roster days"
+        requireFixtureResult (Left (MissingFixtureValue "dev pay matrix requires four roster days"))
     forM_ (zip (take 4 rosterDays) shiftModes) \(rosterDay, shiftType) -> do
         slots <-
             query @RosterSlot
@@ -108,7 +109,7 @@ seedPayAssignmentMatrix rosterGroup windowStart staffModes shiftModes = do
                 |> orderByAsc #slotSortOrder
                 |> fetch
         when (length slots < length staffModes) $
-            fail "Dev pay matrix requires three persisted slots on each matrix day"
+            requireFixtureResult (Left (MissingFixtureValue "dev pay matrix requires three persisted slots on each matrix day"))
         forM_ (zip (take 3 slots) staffModes) \(slot, staff) -> do
             slot
                 |> set #staffId (Just (unpackId staff.id))
@@ -208,9 +209,8 @@ seedStaffShiftPreferenceRecords ::
 seedStaffShiftPreferenceRecords _ _ _ [] = pure ()
 seedStaffShiftPreferenceRecords seedValue staffIndex staff groupSlots = do
     let desiredPreferenceCount = 1 + deterministicIndex seedValue [staffIndex, 401] 5
-    let preferenceSelections =
-            take desiredPreferenceCount
-                (buildShiftPreferenceSelections seedValue staffIndex groupSlots)
+    allPreferenceSelections <- requireFixtureResult (buildShiftPreferenceSelections seedValue staffIndex groupSlots)
+    let preferenceSelections = take desiredPreferenceCount allPreferenceSelections
     createStaffShiftPreferenceRecords staff (nub preferenceSelections)
 
 createStaffShiftPreferenceRecords :: (?modelContext :: ModelContext) => Staff -> [ShiftPreferenceSelection] -> IO ()
@@ -236,20 +236,24 @@ buildShiftPreferenceSelections ::
     Int ->
     Int ->
     [(RosterGroup, [SlotName])] ->
-    [ShiftPreferenceSelection]
-buildShiftPreferenceSelections seedValue staffIndex groupSlots =
-    nub
-        [ ShiftPreferenceSelection
-            { weekdayIndex = weekdayIndex
-            , startHour = 5
-            , endHour = 23
-            }
-        | offset <- [0 :: Int .. 9]
-        , let groupIndex = deterministicIndex seedValue [staffIndex, 410, offset] (length groupSlots)
-        , let (_rosterGroup, slotNames) = groupSlots !! groupIndex
-        , not (null slotNames)
-        , let weekdayIndex = uniqueWeekdaySequence seedValue [staffIndex, 412] !! (offset `mod` 7)
-        ]
+    Either FixtureError [ShiftPreferenceSelection]
+buildShiftPreferenceSelections seedValue staffIndex groupSlots = do
+    selections <- traverse selectionForOffset [0 :: Int .. 9]
+    Right (nub (catMaybes selections))
+  where
+    weekdays = uniqueWeekdaySequence seedValue [staffIndex, 412]
+    selectionForOffset offset = do
+        let groupIndex = deterministicIndex seedValue [staffIndex, 410, offset] (length groupSlots)
+        (_rosterGroup, slotNames) <- fixtureElementAt "dev roster preference group" groupIndex groupSlots
+        if null slotNames
+            then Right Nothing
+            else do
+                weekdayIndex <- fixtureElementAt "dev roster preference weekday" (offset `mod` 7) weekdays
+                Right (Just ShiftPreferenceSelection
+                    { weekdayIndex
+                    , startHour = 5
+                    , endHour = 23
+                    })
 
 seedRosterGroup ::
     (?modelContext :: ModelContext) =>
@@ -359,7 +363,7 @@ forceAssignmentForRow ::
     Maybe ((Text, DevRosterSlotSeed), UUID)
 forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool shiftTypes usedStaffIds = do
     let slotIndex = deterministicIndex seedValue [dayIndex, rowIndex, 991] (length slotNames)
-    let slotName = slotNames !! slotIndex
+    slotName <- safeIndex slotNames slotIndex
     staff <- chooseAvailableStaff seedValue [dayIndex, rowIndex, slotIndex, 992, textHash (get #name slotName)] staffPool usedStaffIds
     pure
         ( ( get #name slotName
@@ -562,9 +566,11 @@ createRosterRow venueConfig rosterDay rosterLanes rowIndex assignments = do
             ]
     rosterSlotIds <- map Id <$> freshUUIDs (length assignedRosterLanes)
     now <- getCurrentTime
-    void (createMany (zipWith (rosterSlotRecord now rosterDate venueConfig.timezone rosterDay rowIndex) rosterSlotIds assignedRosterLanes))
+    rosterSlots <- requireFixtureResult $
+        traverse (uncurry (rosterSlotRecord now rosterDate venueConfig.timezone rosterDay rowIndex)) (zip rosterSlotIds assignedRosterLanes)
+    void (createMany rosterSlots)
     where
-        rosterSlotRecord now rosterDate timezone rosterDay rowIndex rosterSlotId (rosterLane, slotSeed) =
+        rosterSlotRecord now rosterDate timezone rosterDay rowIndex rosterSlotId (rosterLane, slotSeed) = do
             let baseSlot =
                     newRecord @RosterSlot
                         |> set #id rosterSlotId
@@ -577,20 +583,19 @@ createRosterRow venueConfig rosterDay rosterLanes rowIndex assignments = do
                         |> set #timezone timezone
                         |> set #createdAt now
                         |> set #updatedAt now
-             in case (slotSeed.slotStartTime, slotSeed.slotEndTime) of
-                    (Just startTime, Just endTime) ->
-                        let boundaries =
-                                either (error . ("Invalid seeded roster boundaries: " <>) . show) Prelude.id $
-                                    resolveShiftBoundaries timezone ShiftBoundaryInput
-                                        { shiftBoundaryDate = rosterShiftStartDate rosterDate startTime
-                                        , shiftBoundaryStartTime = startTime
-                                        , shiftBoundaryStartOccurrence = Nothing
-                                        , shiftBoundaryEndTime = endTime
-                                        , shiftBoundaryEndOccurrence = Nothing
-                                        , shiftBoundaryBreak = Nothing
-                                        }
-                         in applyRosterSlotBoundaries boundaries baseSlot
-                    _ -> baseSlot
+            case (slotSeed.slotStartTime, slotSeed.slotEndTime) of
+                (Just startTime, Just endTime) -> do
+                    boundaries <- either (Left . InvalidFixtureBoundary . tshow) Right $
+                        resolveShiftBoundaries timezone ShiftBoundaryInput
+                            { shiftBoundaryDate = rosterShiftStartDate rosterDate startTime
+                            , shiftBoundaryStartTime = startTime
+                            , shiftBoundaryStartOccurrence = Nothing
+                            , shiftBoundaryEndTime = endTime
+                            , shiftBoundaryEndOccurrence = Nothing
+                            , shiftBoundaryBreak = Nothing
+                            }
+                    Right (applyRosterSlotBoundaries boundaries baseSlot)
+                _ -> Right baseSlot
 
 seededRosterSlot :: Maybe Staff -> TimeOfDay -> Maybe UUID -> DevRosterSlotSeed
 seededRosterSlot maybeStaff startTime maybeShiftTypeId =
@@ -604,7 +609,7 @@ seededRosterSlot maybeStaff startTime maybeShiftTypeId =
 slotShiftTypeIdFor :: Int -> [Int] -> [ShiftType] -> Maybe UUID
 slotShiftTypeIdFor _ _ [] = Nothing
 slotShiftTypeIdFor seedValue keys shiftTypes =
-    Just (unpackId (get #id (shiftTypes !! deterministicIndex seedValue keys (length shiftTypes))))
+    unpackId . get #id <$> safeIndex shiftTypes (deterministicIndex seedValue keys (length shiftTypes))
 
 slotStartTimeFor :: Int -> Int -> TimeOfDay
 slotStartTimeFor slotIndex dayIndex =

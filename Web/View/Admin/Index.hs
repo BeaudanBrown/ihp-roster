@@ -2,13 +2,11 @@
 
 module Web.View.Admin.Index where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export (ReportWeekSelection,
                                   SavedPayrollWorkbookConfiguration)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
-                                                           noSurfaceFields,
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceFragmentTargetId)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminPageSurfaceImpl)
@@ -69,13 +67,7 @@ instance View IndexView where
 
 renderAdminPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderAdminPageContentSurface body =
-    renderFrontendSurfaceMount (adminPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) body
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing    -> error "Admin page surface requires a current venue"
+    renderFrontendSurfaceMount (adminPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing }) body
 
 renderConfigSectionsAccordion :: UTCTime -> [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Bool -> Html
 renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection savedPayrollWorkbookConfigurations exportSectionOpen = [hsx|

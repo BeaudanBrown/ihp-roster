@@ -12,7 +12,6 @@ module Application.Helper.WeekBoundaries
     ) where
 
 import qualified Data.List as List
-import Data.Time.Calendar (Day, addDays)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Generated.Types
 import IHP.Prelude

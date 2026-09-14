@@ -22,8 +22,8 @@ state machines.
 - **Roster week/day/shift** models a draft or published schedule. A shift has
   explicit Staff or Open assignment; nullable staff storage is not itself an
   assignment state.
-- **Roster template** is reusable Day/Week design content with immutable saved
-  versions and a private recoverable draft.
+- **Roster template** is a reusable detached roster-group Week snapshot with one
+  plan per calendar weekday and no separate authoring lifecycle.
 - **Timesheet suggestion** is a transient read model derived from an eligible
   published shift. It is not stored and is not a Timesheet status.
 - **Timesheet entry** is a worker time record which may retain immutable roster

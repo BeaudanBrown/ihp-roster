@@ -13,7 +13,6 @@ import Data.Ratio ((%))
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time.Calendar (Day, fromGregorian)
-import qualified Data.UUID as UUID
 import IHP.Prelude
 import System.Directory (createDirectoryIfMissing, getTemporaryDirectory,
                          removeFile)
@@ -23,12 +22,13 @@ import System.FilePath (takeDirectory)
 import System.IO (hClose, hIsClosed, openBinaryTempFile)
 import System.Process (readProcessWithExitCode)
 import Test.Hspec
+import Test.Support.PayrollWorkbook
 
 tests :: Spec
 tests = do
     describe "Payroll Workbook XLSX foundation" do
         it "renders deterministic typed cells and workbook presentation primitives" do
-            let workbook = minimalPayrollWorkbook (fromGregorian 2025 1 6) (fromGregorian 2025 1 12)
+            let workbook = primitiveWorkbookFixture (fromGregorian 2025 1 6) (fromGregorian 2025 1 12)
             let firstRender = renderPayrollWorkbook workbook
             let secondRender = renderPayrollWorkbook workbook
             firstRender `shouldBe` secondRender
@@ -60,7 +60,7 @@ tests = do
 
         it "publishes deterministic normalized facts as a typed Data worksheet" do
             let (day, factModel) = oneHourFactModel
-            let workbook = payrollWorkbookFromFactModel 1 factModel
+            workbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel)
             map (.name) workbook.sheets
                 `shouldBe`
                     [ "Summary 2025-01-06"
@@ -139,8 +139,11 @@ tests = do
                         ]
                     }
             let (_, factModel) = oneHourFactModel
-            payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel
-                `shouldBe` Right (payrollWorkbookFromFactModel 1 factModel)
+            workbook <- expectRight (payrollWorkbookFromDefinition defaultPayrollWorkbookDefinition 1 factModel)
+            map (.name) workbook.sheets `shouldBe`
+                [ "Summary 2025-01-06", "Hours Mon 2025-01-06", "Shift Type Hours Mon 2025-01-06"
+                , "Wages Mon 2025-01-06", "Shift Type Wages Mon 2025-01-06", "Data"
+                ]
 
         it "locks every individual family and representative ordered subsets to deterministic XLSX goldens" do
             let (_, factModel) = oneHourFactModel
@@ -234,21 +237,23 @@ tests = do
             let day = fromGregorian 2025 1 6
             let slots = map (`PayrollWorkbookHourSlot` FirstHourlyOccurrence) [18, 19]
             let firstStaff =
-                    workbookRowWith
+                    workbookFactsWith
                         "10000000-0000-0000-0000-000000000001"
                         "20000000-0000-0000-0000-000000000001"
-                        "Level 2"
-                        [1, 0]
-                        [3150, 0]
+                        "Level 2" day
+                        [ (PayrollWorkbookHourSlot 18 FirstHourlyOccurrence, 1, 3150)
+                        , (PayrollWorkbookHourSlot 19 FirstHourlyOccurrence, 0, 0)
+                        ]
             let secondStaff =
-                    workbookRowWith
+                    workbookFactsWith
                         "10000000-0000-0000-0000-000000000002"
                         "20000000-0000-0000-0000-000000000002"
-                        "Level 2"
-                        [0, 2]
-                        [0, 6500]
-            let model = PayrollWorkbookHourlyModel day day (HourlyReportWindow 18 20) slots [PayrollWorkbookDay day [firstStaff, secondStaff]]
-            let workbook = payrollWorkbookFromHourlyModel 1 model
+                        "Level 2" day
+                        [ (PayrollWorkbookHourSlot 18 FirstHourlyOccurrence, 0, 0)
+                        , (PayrollWorkbookHourSlot 19 FirstHourlyOccurrence, 2, 6500)
+                        ]
+            let model = workbookFactModel day day (HourlyReportWindow 18 20) slots (firstStaff <> secondStaff)
+            workbook <- expectRight (payrollWorkbookFromDefinition staffPresentationDefinition 1 model)
             let hoursSheet = workbook.sheets !! 1
             let wagesSheet = workbook.sheets !! 2
 
@@ -329,13 +334,13 @@ tests = do
                     , PayrollWorkbookHourSlot 19 FirstHourlyOccurrence
                     , PayrollWorkbookHourSlot 24 FirstHourlyOccurrence
                     ]
-            let row = workbookRow [0, 1.25, 2] [0, 1234, 567]
-            let days =
-                    [ PayrollWorkbookDay date (if date `elem` [rangeStart, rangeEnd] then [row] else [])
-                    | date <- [rangeStart .. rangeEnd]
+            let factsFor date = workbookFacts date
+                    [ (PayrollWorkbookHourSlot 18 FirstHourlyOccurrence, 0, 0)
+                    , (PayrollWorkbookHourSlot 19 FirstHourlyOccurrence, 1.25, 1234)
+                    , (PayrollWorkbookHourSlot 24 FirstHourlyOccurrence, 2, 567)
                     ]
-            let model = PayrollWorkbookHourlyModel rangeStart rangeEnd (HourlyReportWindow 18 25) slots days
-            let workbook = payrollWorkbookFromHourlyModel 1 model
+            let model = workbookFactModel rangeStart rangeEnd (HourlyReportWindow 18 25) slots (factsFor rangeStart <> factsFor rangeEnd)
+            workbook <- expectRight (payrollWorkbookFromDefinition staffPresentationDefinition 1 model)
             map (.name) workbook.sheets
                 `shouldBe`
                     [ "Summary 2025-01-06"
@@ -358,6 +363,7 @@ tests = do
                     , "Wages Sun 2025-01-12"
                     , "Wages Mon 2025-01-13"
                     , "Wages Tue 2025-01-14"
+                    , "Data"
                     ]
 
             let firstSummary = workbook.sheets !! 0
@@ -370,9 +376,9 @@ tests = do
             firstSummary.frozenRows `shouldBe` 0
             firstSummary.frozenColumns `shouldBe` 0
             formulaValues firstSummary `shouldContain`
-                [ "'Hours Mon 2025-01-06'!B2"
-                , "'Hours Mon 2025-01-06'!B3"
-                , "'Hours Mon 2025-01-06'!B4"
+                [ "SUMIFS('Data'!$M:$M,'Data'!$A:$A,\"2025-01-06\",'Data'!$C:$C,$V2,'Data'!$G:$G,\"award_level\",'Data'!$H:$H,\"20000000-0000-0000-0000-000000000001\",'Data'!$J:$J,18,'Data'!$K:$K,\"first\")"
+                , "SUMIFS('Data'!$M:$M,'Data'!$A:$A,\"2025-01-06\",'Data'!$C:$C,$V2,'Data'!$G:$G,\"award_level\",'Data'!$H:$H,\"20000000-0000-0000-0000-000000000001\",'Data'!$J:$J,19,'Data'!$K:$K,\"first\")"
+                , "SUMIFS('Data'!$M:$M,'Data'!$A:$A,\"2025-01-06\",'Data'!$C:$C,$V2,'Data'!$G:$G,\"award_level\",'Data'!$H:$H,\"20000000-0000-0000-0000-000000000001\",'Data'!$J:$J,24,'Data'!$K:$K,\"first\")"
                 ]
 
             let firstHours = workbook.sheets !! 2
@@ -394,8 +400,10 @@ tests = do
 
             let rendered = renderPayrollWorkbook workbook
             rendered `shouldBe` renderPayrollWorkbook workbook
+            -- Pinned against the pre-deletion live definition renderer. The
+            -- retired hourly-only hash omitted Data and referenced Hours cells.
             show (hashlazy rendered :: Digest SHA256)
-                `shouldBe` "818c1dadc894ed2cbf8cdc6d51d82beee1952a7f7dc499ce25be0b2afc2e1f3f"
+                `shouldBe` "0d8f13d9cc44551ea635328c25fe88670db5522ca72b94cd57b160d572856e4c"
             Xlsx.toXlsxEither rendered `shouldSatisfy` isRight
             let archive = Zip.toArchive rendered
             summaryXml <- archiveText "xl/worksheets/sheet1.xml" archive
@@ -405,7 +413,8 @@ tests = do
             summaryXml `shouldSatisfy` Text.isInfixOf "<tabColor rgb=\"FFFFC000\"/>"
             hoursXml `shouldSatisfy` Text.isInfixOf "<tabColor rgb=\"FF4472C4\"/>"
             wagesXml `shouldSatisfy` Text.isInfixOf "<tabColor rgb=\"FF70AD47\"/>"
-            summaryXml `shouldSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
+            summaryXml `shouldSatisfy` Text.isInfixOf "SUMIFS('Data'!$M:$M"
+            summaryXml `shouldNotSatisfy` Text.isInfixOf "Hours Mon 2025-01-06"
             summaryXml `shouldNotSatisfy` Text.isInfixOf "<autoFilter"
             summaryXml `shouldNotSatisfy` Text.isInfixOf "state=\"frozen\""
             summaryXml `shouldSatisfy` Text.isInfixOf "width=\"24"
@@ -422,9 +431,8 @@ tests = do
 
             let partialStart = fromGregorian 2025 1 7
             let partialEnd = fromGregorian 2025 1 8
-            let partialModel = PayrollWorkbookHourlyModel partialStart partialEnd (HourlyReportWindow 18 25) slots
-                    [PayrollWorkbookDay partialStart [row], PayrollWorkbookDay partialEnd []]
-            let partialWorkbook = payrollWorkbookFromHourlyModel 4 partialModel
+            let partialModel = workbookFactModel partialStart partialEnd (HourlyReportWindow 18 25) slots (factsFor partialStart)
+            partialWorkbook <- expectRight (payrollWorkbookFromDefinition staffPresentationDefinition 4 partialModel)
             map (.name) partialWorkbook.sheets
                 `shouldBe`
                     [ "Summary 2025-01-02"
@@ -432,49 +440,60 @@ tests = do
                     , "Hours Wed 2025-01-08"
                     , "Wages Tue 2025-01-07"
                     , "Wages Wed 2025-01-08"
+                    , "Data"
                     ]
             let partialSummary = fromMaybe (error "expected partial Summary sheet") (head partialWorkbook.sheets)
             take 3 (formulaValues partialSummary) `shouldBe` replicate 3 "SUM()"
 
             let fullWeekEnd = fromGregorian 2025 1 12
-            let fullWeekModel = PayrollWorkbookHourlyModel rangeStart fullWeekEnd (HourlyReportWindow 18 25) slots
-                    [PayrollWorkbookDay date (if date == rangeStart then [row] else []) | date <- [rangeStart .. fullWeekEnd]]
-            let fullWeekWorkbook = payrollWorkbookFromHourlyModel 1 fullWeekModel
-            length fullWeekWorkbook.sheets `shouldBe` 15
+            let fullWeekModel = workbookFactModel rangeStart fullWeekEnd (HourlyReportWindow 18 25) slots (factsFor rangeStart)
+            fullWeekWorkbook <- expectRight (payrollWorkbookFromDefinition staffPresentationDefinition 1 fullWeekModel)
+            length fullWeekWorkbook.sheets `shouldBe` 16
             map (.name) (take 2 fullWeekWorkbook.sheets)
                 `shouldBe` ["Summary 2025-01-06", "Hours Mon 2025-01-06"]
             let emptyHoursDay = fullWeekWorkbook.sheets !! 2
             formulaValues emptyHoursDay `shouldBe` replicate 4 "SUM()"
 
             let fortnightEnd = fromGregorian 2025 1 19
-            let fortnightModel = PayrollWorkbookHourlyModel rangeStart fortnightEnd (HourlyReportWindow 18 25) slots
-                    [PayrollWorkbookDay date (if date `elem` [rangeStart, fortnightEnd] then [row] else []) | date <- [rangeStart .. fortnightEnd]]
-            let fortnightWorkbook = payrollWorkbookFromHourlyModel 1 fortnightModel
-            length fortnightWorkbook.sheets `shouldBe` 30
+            let fortnightModel = workbookFactModel rangeStart fortnightEnd (HourlyReportWindow 18 25) slots (factsFor rangeStart <> factsFor fortnightEnd)
+            fortnightWorkbook <- expectRight (payrollWorkbookFromDefinition staffPresentationDefinition 1 fortnightModel)
+            length fortnightWorkbook.sheets `shouldBe` 31
             map (.name) (take 2 fortnightWorkbook.sheets)
                 `shouldBe` ["Summary 2025-01-06", "Summary 2025-01-13"]
-            last (map (.name) fortnightWorkbook.sheets) `shouldBe` "Wages Sun 2025-01-19"
+            drop 29 (map (.name) fortnightWorkbook.sheets) `shouldBe` ["Wages Sun 2025-01-19", "Data"]
 
         it "recalculates daily and accountant Summary formulas with LibreOffice Calc" do
             let rangeStart = fromGregorian 2025 1 12
             let rangeEnd = fromGregorian 2025 1 13
             let slots = map (`PayrollWorkbookHourSlot` FirstHourlyOccurrence) [18, 19, 24, 25]
-            let firstBucket = workbookRowWith
+            let firstBucket = workbookFactsWith
                     "10000000-0000-0000-0000-000000000001"
                     "20000000-0000-0000-0000-000000000001"
                     "LVL 3"
-            let secondBucket = workbookRowWith
+            let secondBucket = workbookFactsWith
                     "10000000-0000-0000-0000-000000000001"
                     "20000000-0000-0000-0000-000000000002"
                     "LVL 4"
-            let model = PayrollWorkbookHourlyModel rangeStart rangeEnd (HourlyReportWindow 18 26) slots
-                    [ PayrollWorkbookDay rangeStart
-                        [ firstBucket [1, 2, 3, 4] [100, 200, 300, 400]
-                        , secondBucket [5, 6, 7, 8] [500, 600, 700, 800]
+            let model = workbookFactModel rangeStart rangeEnd (HourlyReportWindow 18 26) slots
+                    ( firstBucket rangeStart
+                        [ (PayrollWorkbookHourSlot 18 FirstHourlyOccurrence, 1, 100)
+                        , (PayrollWorkbookHourSlot 19 FirstHourlyOccurrence, 2, 200)
+                        , (PayrollWorkbookHourSlot 24 FirstHourlyOccurrence, 3, 300)
+                        , (PayrollWorkbookHourSlot 25 FirstHourlyOccurrence, 4, 400)
                         ]
-                    , PayrollWorkbookDay rangeEnd
-                        [firstBucket [0.5, 1.25, 2.25, 0] [50, 125, 225, 0]]
-                    ]
+                    <> secondBucket rangeStart
+                        [ (PayrollWorkbookHourSlot 18 FirstHourlyOccurrence, 5, 500)
+                        , (PayrollWorkbookHourSlot 19 FirstHourlyOccurrence, 6, 600)
+                        , (PayrollWorkbookHourSlot 24 FirstHourlyOccurrence, 7, 700)
+                        , (PayrollWorkbookHourSlot 25 FirstHourlyOccurrence, 8, 800)
+                        ]
+                    <> firstBucket rangeEnd
+                        [ (PayrollWorkbookHourSlot 18 FirstHourlyOccurrence, 0.5, 50)
+                        , (PayrollWorkbookHourSlot 19 FirstHourlyOccurrence, 1.25, 125)
+                        , (PayrollWorkbookHourSlot 24 FirstHourlyOccurrence, 2.25, 225)
+                        , (PayrollWorkbookHourSlot 25 FirstHourlyOccurrence, 0, 0)
+                        ]
+                    )
             let expectedFormulaValues =
                     [ "Summary 2025-01-06\tT2\t3"
                     , "Summary 2025-01-06\tU2\t7"
@@ -497,7 +516,8 @@ tests = do
                     , "Wages Mon 2025-01-13\tC6\t4"
                     ]
 
-            let workbookBytes = renderPayrollWorkbook (payrollWorkbookFromHourlyModel 1 model)
+            workbook <- expectRight (payrollWorkbookFromDefinition staffPresentationDefinition 1 model)
+            let workbookBytes = renderPayrollWorkbook workbook
             maybeArtifactPath <- lookupEnv "PAYROLL_WORKBOOK_COMPATIBILITY_ARTIFACT"
             forM_ maybeArtifactPath \artifactPath -> do
                 createDirectoryIfMissing True (takeDirectory artifactPath)
@@ -510,84 +530,31 @@ tests = do
                     [ PayrollWorkbookHourSlot 26 FirstHourlyOccurrence
                     , PayrollWorkbookHourSlot 26 SecondHourlyOccurrence
                     ]
-            let model = PayrollWorkbookHourlyModel day day (HourlyReportWindow 26 27) slots [PayrollWorkbookDay day [workbookRow [1, 1] [3000, 3000]]]
-            let workbook = payrollWorkbookFromHourlyModel 1 model
+            let model = workbookFactModel day day (HourlyReportWindow 26 27) slots
+                    (workbookFacts day [(slot, 1, 3000) | slot <- slots])
+            workbook <- expectRight (payrollWorkbookFromDefinition staffPresentationDefinition 1 model)
             let summary = workbook.sheets !! 0
             let hoursSheet = workbook.sheets !! 1
             let wagesSheet = workbook.sheets !! 2
             textValues hoursSheet `shouldContain` ["02:00-03:00+1 (first)", "02:00-03:00+1 (second)"]
             textValues wagesSheet `shouldContain` ["02:00-03:00+1 (first)", "02:00-03:00+1 (second)"]
             formulaValues summary `shouldSatisfy` any (\formula ->
-                Text.isInfixOf "'Hours Sat 2026-04-04'!B2" formula
-                    && Text.isInfixOf "'Hours Sat 2026-04-04'!B3" formula
+                Text.isInfixOf "'Data'!$A:$A,\"2026-04-04\"" formula
+                    && Text.isInfixOf "'Data'!$K:$K,\"first\"" formula
+                    && Text.isInfixOf "'Data'!$K:$K,\"second\"" formula
                     && Text.isInfixOf "+" formula
                 )
+
+-- The retired hourly renderer exposed this subset without Data. The same
+-- presentations now use the live definition path, including authoritative Data.
+staffPresentationDefinition :: PayrollWorkbookDefinition
+staffPresentationDefinition = PayrollWorkbookDefinition "staff-presentation" 1
+    [PayrollWorkbookSummary, PayrollWorkbookEmployeePayBucketHours, PayrollWorkbookEmployeePayBucketWages]
 
 expectRight :: Either Text value -> IO value
 expectRight = \case
     Left message -> expectationFailure (cs message) >> fail "expected Right"
     Right value  -> pure value
-
-oneHourFactModel :: (Day, PayrollWorkbookFactModel)
-oneHourFactModel =
-    let day = fromGregorian 2025 1 6
-        slot = PayrollWorkbookHourSlot 18 FirstHourlyOccurrence
-     in ( day
-        , PayrollWorkbookFactModel
-            { payrollFactModelRangeStart = day
-            , payrollFactModelRangeEnd = day
-            , payrollFactModelWindow = HourlyReportWindow 18 19
-            , payrollFactModelHourSlots = [slot]
-            , payrollFactModelShiftTypeColumns =
-                [HourlyShiftTypeColumn (uuid "40000000-0000-0000-0000-000000000001") "Bar"]
-            , payrollFactModelFacts = [workbookFact day slot]
-            }
-        )
-
-workbookFact :: Day -> PayrollWorkbookHourSlot -> PayrollWorkbookFact
-workbookFact day slot =
-    PayrollWorkbookFact
-        { payrollFactOperationalDate = day
-        , payrollFactEntryId = uuid "30000000-0000-0000-0000-000000000001"
-        , payrollFactStaffId = uuid "10000000-0000-0000-0000-000000000001"
-        , payrollFactStaffFirstName = "Ada"
-        , payrollFactStaffLastName = "Lovelace"
-        , payrollFactShiftTypeId = uuid "40000000-0000-0000-0000-000000000001"
-        , payrollFactShiftTypeLabel = "Bar"
-        , payrollFactPayBucket = PayrollWorkbookPayBucket
-            (PayrollWorkbookAwardLevel (uuid "20000000-0000-0000-0000-000000000001"))
-            "LVL 3"
-        , payrollFactHourSlot = slot
-        , payrollFactWorkedHours = 1
-        , payrollFactPaidHours = 1.5
-        , payrollFactWageCents = 4500
-        , payrollFactActiveCalculationId = Just (uuid "50000000-0000-0000-0000-000000000001")
-        , payrollFactStaffPayVersionId = Just (uuid "60000000-0000-0000-0000-000000000001")
-        , payrollFactShiftTypePayVersionId = Just (uuid "70000000-0000-0000-0000-000000000001")
-        , payrollFactCalculationVersion = "hospitality-award-v1"
-        , payrollFactRateBookVersion = Just "fwc-mapd-2025-07"
-        }
-
-workbookRow :: [Rational] -> [Integer] -> PayrollWorkbookRow
-workbookRow = workbookRowWith
-    "10000000-0000-0000-0000-000000000001"
-    "20000000-0000-0000-0000-000000000001"
-    "LVL 3"
-
-workbookRowWith :: Text -> Text -> Text -> [Rational] -> [Integer] -> PayrollWorkbookRow
-workbookRowWith staffId payBucketId payBucketLabel hours wages =
-    PayrollWorkbookRow
-        { payrollRowStaffId = uuid staffId
-        , payrollRowStaffFirstName = "Ada"
-        , payrollRowStaffLastName = "Lovelace"
-        , payrollRowPayBucket =
-            PayrollWorkbookPayBucket
-                (PayrollWorkbookAwardLevel (uuid payBucketId))
-                payBucketLabel
-        , payrollRowHours = hours
-        , payrollRowWageCents = wages
-        , payrollRowEntryCount = 1
-        }
 
 assertLibreOfficeFormulaValues :: LBS.ByteString -> [String] -> IO ()
 assertLibreOfficeFormulaValues workbookBytes expectedFormulaValues = do
@@ -611,9 +578,6 @@ assertLibreOfficeFormulaValues workbookBytes expectedFormulaValues = do
                 ExitSuccess -> standardOutput `shouldContain` "LibreOffice formula reconciliation passed"
                 ExitFailure _ -> expectationFailure (standardOutput <> standardError)
         )
-
-uuid :: Text -> UUID
-uuid value = fromMaybe (error "invalid test UUID") (UUID.fromText value)
 
 textValues :: PayrollWorkbookSheet -> [Text]
 textValues sheet = [value | PayrollWorkbookCell { value = PayrollWorkbookText value } <- sheet.cells]

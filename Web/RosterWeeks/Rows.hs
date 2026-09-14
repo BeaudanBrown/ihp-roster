@@ -1,13 +1,19 @@
 module Web.RosterWeeks.Rows
     ( filterVisibleRosterSlots
+    , rosterSlotHasVisibleData
     , impactedRowKeysForSlotUpdate
     ) where
 
 import Data.Coerce (coerce)
-import Data.List (nub)
-import Data.Maybe (catMaybes)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+
+rosterSlotHasVisibleData :: RosterSlot -> Bool
+rosterSlotHasVisibleData slot =
+    isJust slot.staffId
+        || isJust slot.startsAt
+        || isJust slot.endsAt
+        || isJust slot.shiftTypeId
 
 impactedRowKeysForSlotUpdate :: Maybe UUID.UUID -> RosterSlot -> [RosterSlot] -> [(UUID.UUID, Int)]
 impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots =

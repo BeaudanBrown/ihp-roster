@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+for required_command in git jq migrate nix test-postgres; do
+    command -v "$required_command" >/dev/null 2>&1 || {
+        echo "migration-enum-commit-boundary-real-runner-test: required command is unavailable: $required_command" >&2
+        exit 69
+    }
+done
+
+source_repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$source_repo" ] || {
+    echo "migration-enum-commit-boundary-real-runner-test: run from an ihp-roster checkout" >&2
+    exit 66
+}
+source_repo="$(readlink -f "$source_repo")"
+harness="$source_repo/Config/nix/scripts/db/migration-rehearsal"
+fixtures="$source_repo/Test/Fixtures/migration-enum-commit-boundary"
+fixture_root="$(mktemp -d)"
+fixture_repo="$fixture_root/repository"
+mkdir -p "$fixture_repo/Application/Migration" \
+    "$fixture_repo/Config/nix/flake" "$fixture_repo/Config/nix/scripts/db"
+
+cleanup() {
+    env -u DATABASE_URL -u PGHOST -u PGPORT -u PGDATABASE -u PGUSER \
+        -u TEST_POSTGRES_ROOT -u TEST_POSTGRES_PRESERVE_ON_STOP \
+        -u TEST_POSTGRES_FSYNC -u TEST_POSTGRES_SYNCHRONOUS_COMMIT \
+        -u TEST_POSTGRES_FULL_PAGE_WRITES -u TEST_POSTGRES_ALLOW_NON_NATIVE \
+        TEST_POSTGRES_MODE=managed \
+        TEST_POSTGRES_PROFILE=migration-rehearsal \
+        TEST_POSTGRES_DURABILITY=disposable \
+        TEST_POSTGRES_REPO_ROOT="$fixture_repo" \
+        test-postgres stop >/dev/null 2>&1 || true
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+cp "$source_repo/flake.lock" "$fixture_repo/flake.lock"
+cp "$source_repo/Config/nix/scripts/db/test-postgres" \
+    "$fixture_repo/Config/nix/scripts/db/test-postgres"
+printf '{}\n' > "$fixture_repo/Config/nix/flake/scripts.nix"
+ihp_url="$(jq -r '.nodes.ihp.locked.url' "$source_repo/flake.lock")"
+ihp_revision="$(jq -r '.nodes.ihp.locked.rev' "$source_repo/flake.lock")"
+cat > "$fixture_repo/flake.nix" <<NIX
+{
+    inputs.ihp.url = "git+${ihp_url}?rev=${ihp_revision}&submodules=1";
+    outputs = { self, ihp }: { };
+}
+NIX
+printf '.pi/\n' > "$fixture_repo/.gitignore"
+cp "$fixtures/real-runner/predecessor-schema.sql" "$fixture_repo/Application/Schema.sql"
+cat > "$fixture_repo/Application/Migration/1788399999-predecessor.sql" <<'SQL'
+-- Ledger marker: Application/Schema.sql reconstructs this deployed predecessor.
+SELECT 1;
+SQL
+
+git -C "$fixture_repo" init -q
+git -C "$fixture_repo" config user.name 'Enum Commit Boundary Runner Test'
+git -C "$fixture_repo" config user.email 'enum-runner-test@example.invalid'
+git -C "$fixture_repo" add .
+git -C "$fixture_repo" commit -qm 'enum predecessor'
+predecessor_commit="$(git -C "$fixture_repo" rev-parse HEAD)"
+
+prepare_candidate() {
+    local shape="$1"
+    local assertion_revision="$2"
+    cp "$fixtures/real-runner/candidate-schema.sql" "$fixture_repo/Application/Schema.sql"
+    cp "$fixtures/$shape/Application/Migration/"*.sql "$fixture_repo/Application/Migration/"
+    mkdir -p "$fixture_repo/Application/Migration/Rehearsal/$assertion_revision"
+    cp "$fixtures/real-runner/predecessor.sql" \
+        "$fixture_repo/Application/Migration/Rehearsal/$assertion_revision/predecessor.sql"
+    cp "$fixtures/real-runner/assert.sql" \
+        "$fixture_repo/Application/Migration/Rehearsal/$assertion_revision/assert.sql"
+    git -C "$fixture_repo" add .
+    git -C "$fixture_repo" commit -qm "$shape enum candidate"
+}
+
+run_rehearsal() {
+    (
+        cd "$fixture_repo"
+        env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+            -u TEST_POSTGRES_ROOT -u TEST_POSTGRES_PRESERVE_ON_STOP \
+            -u TEST_POSTGRES_DURABILITY -u TEST_POSTGRES_FSYNC \
+            -u TEST_POSTGRES_SYNCHRONOUS_COMMIT -u TEST_POSTGRES_FULL_PAGE_WRITES \
+            -u TEST_POSTGRES_ALLOW_NON_NATIVE \
+            bash "$harness" --from-ref "$predecessor_commit"
+    )
+}
+
+prepare_candidate combined 1788400000
+if run_rehearsal >"$fixture_root/combined.out" 2>"$fixture_root/combined.err"; then
+    echo "migration-enum-commit-boundary-real-runner-test: combined revision unexpectedly passed" >&2
+    exit 1
+fi
+grep -F 'failed_revision=1788400000' "$fixture_root/combined.err" >/dev/null
+grep -F 'server_sqlstate=55P04' "$fixture_root/combined.err" >/dev/null
+
+git -C "$fixture_repo" reset --hard -q "$predecessor_commit"
+prepare_candidate split 1788400001
+if ! run_rehearsal >"$fixture_root/split.out" 2>"$fixture_root/split.err"; then
+    cat "$fixture_root/split.err" >&2
+    exit 1
+fi
+grep -F 'pending_revisions=1788400000,1788400001' "$fixture_root/split.out" >/dev/null
+grep -F 'applied_revisions=1788400000,1788400001' "$fixture_root/split.out" >/dev/null
+grep -F 'assertion_revision=1788400001' "$fixture_root/split.out" >/dev/null
+grep -F 'schema_convergence=pass' "$fixture_root/split.out" >/dev/null
+
+echo 'migration-enum-commit-boundary-real-runner-test: ok'

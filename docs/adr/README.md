@@ -32,3 +32,5 @@ Use `docs/templates/adr.md` for new ADRs.
   replace offset-based week identity while seven-day windows remain projections.
 - `0009-postgresql-is-live-freshness-authority.md` - atomic outbox/resource
   versions are authoritative; process-local hubs only route listener delivery.
+- `0010-typed-application-outcome-boundaries.md` - operation failures use typed,
+  payload-free application outcomes while known trustworthy state stays in `Right`.

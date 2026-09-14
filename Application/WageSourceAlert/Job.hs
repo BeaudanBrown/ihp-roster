@@ -6,8 +6,12 @@ module Application.WageSourceAlert.Job
     , wageSourceHealthCheckJobKind
     ) where
 
+import Application.Async.Boundary (throwAppJobError)
+import Application.Async.Error (AppJobError (..))
+import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue
 import Application.EmailDelivery
+import Application.Error.Parser (parserFailure)
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Application.WageSourceAlert.Types
@@ -22,11 +26,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (DayOfWeek (..), fromGregorian, toGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
-import IHP.ModelSupport (withTransaction)
 
 
 wageSourceHealthCheckJobKind :: Text
@@ -53,9 +54,9 @@ instance Aeson.ToJSON HealthCheckPayload where
 instance Aeson.FromJSON HealthCheckPayload where
     parseJSON = Aeson.withObject "WageSourceHealthCheckPayload" \object -> do
         rawSource <- object Aeson..: "source"
-        source <- maybe (fail "Unknown wage source") pure (parseWageSourceKind rawSource)
+        source <- maybe (parserFailure "Unknown wage source") pure (parseWageSourceKind rawSource)
         rawTrigger <- object Aeson..: "trigger"
-        trigger <- maybe (fail "Unknown wage-source health-check trigger") pure (parseRefreshTrigger rawTrigger)
+        trigger <- maybe (parserFailure "Unknown wage-source health-check trigger") pure (parseRefreshTrigger rawTrigger)
         HealthCheckPayload
             <$> pure source
             <*> pure trigger
@@ -125,28 +126,18 @@ performWageSourceHealthCheckJob ::
     (?modelContext :: ModelContext) =>
     AppJob ->
     IO ()
-performWageSourceHealthCheckJob appJob
-    | appJob.payloadSchemaVersion /= 1 =
-        fail ("Unsupported wage-source health-check payload schema version: " <> cs (tshow appJob.payloadSchemaVersion))
-    | otherwise =
-        case Aeson.fromJSON appJob.payload of
-            Aeson.Error parseError -> fail ("Invalid wage-source health-check payload: " <> parseError)
-            Aeson.Success payload -> do
-                now <- getCurrentTime
-                performHealthCheck appJob payload now
+performWageSourceHealthCheckJob appJob = do
+    payload <- decodeAppJobPayloadV1 appJob
+    now <- getCurrentTime
+    performHealthCheck appJob payload now
 
 performWageSourceHealthCheckJobAt ::
     (?modelContext :: ModelContext) =>
     UTCTime ->
     AppJob ->
     IO ()
-performWageSourceHealthCheckJobAt now appJob
-    | appJob.payloadSchemaVersion /= 1 =
-        fail ("Unsupported wage-source health-check payload schema version: " <> cs (tshow appJob.payloadSchemaVersion))
-    | otherwise =
-        case Aeson.fromJSON appJob.payload of
-            Aeson.Error parseError -> fail ("Invalid wage-source health-check payload: " <> parseError)
-            Aeson.Success payload -> performHealthCheck appJob payload now
+performWageSourceHealthCheckJobAt now appJob =
+    decodeAppJobPayloadV1 appJob >>= \payload -> performHealthCheck appJob payload now
 
 performHealthCheck ::
     (?modelContext :: ModelContext) =>
@@ -155,6 +146,15 @@ performHealthCheck ::
     UTCTime ->
     IO ()
 performHealthCheck appJob payload now = do
+    unless
+        ( appJob.relatedTable == Just "app_jobs"
+            && appJob.relatedId == Just payload.payloadSourceJobId
+        )
+        (throwAppJobError JobInvalidProvenance)
+    sourceJob <-
+        fetchOneOrNothing (Id payload.payloadSourceJobId :: Id AppJob)
+            >>= maybe (throwAppJobError JobInvalidProvenance) pure
+    unless (sourceForRefreshJobKind sourceJob.jobKind == Just payload.payloadSource) (throwAppJobError JobInvalidProvenance)
     let localToday = (resolvedInstantLocalTime (resolvedInstantFromUTC now)).localDay
     let targetYears = Set.fromList (targetPublicHolidayYears localToday)
     activeVenues <-
@@ -165,7 +165,6 @@ performHealthCheck appJob payload now = do
             |> fetch
     let activeVenueIds = map (unpackId . (.id)) activeVenues
     facts <- loadWageSourceFactsFor activeVenueIds targetYears
-    sourceJob <- fetch (Id payload.payloadSourceJobId :: Id AppJob)
     if scheduledCheckIsSuperseded now targetYears facts payload
         then completeHealthCheck appJob payload [] AnnualNotDue 0 "superseded"
         else do
@@ -542,9 +541,9 @@ weekdayIndexToDayOfWeek = \case
     _ -> Monday
 
 maximumMaybe :: Ord value => [value] -> Maybe value
-maximumMaybe []     = Nothing
-maximumMaybe values = Just (maximum values)
+maximumMaybe []             = Nothing
+maximumMaybe (first : rest) = Just (foldl' max first rest)
 
 minimumMaybe :: Ord value => [value] -> Maybe value
-minimumMaybe []     = Nothing
-minimumMaybe values = Just (minimum values)
+minimumMaybe []             = Nothing
+minimumMaybe (first : rest) = Just (foldl' min first rest)

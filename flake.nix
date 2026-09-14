@@ -1,7 +1,13 @@
 {
     inputs = {
-        ihp.url = "git+https://github.com/digitallyinduced/ihp.git?rev=df3922d1a7166b131674efa3d3555ed7195ddf70&submodules=1";
+        ihp.url = "git+https://github.com/digitallyinduced/ihp.git?rev=71b7bb685d2a60b20cd19c8a810c8931369e5efb&submodules=1";
         nixpkgs.follows = "ihp/nixpkgs";
+        # Keep Tempo's storage/retention protocol stable during the IHP upgrade.
+        # Deliberately source only Tempo from the previous package set (#540).
+        nixpkgs-tempo = {
+            url = "github:NixOS/nixpkgs/0590cd39f728e129122770c029970378a79d076a";
+            flake = false;
+        };
         flake-parts.follows = "ihp/flake-parts";
         devenv.follows = "ihp/devenv";
         systems.follows = "ihp/systems";

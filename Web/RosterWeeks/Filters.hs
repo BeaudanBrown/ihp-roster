@@ -10,8 +10,6 @@ module Web.RosterWeeks.Filters
     ) where
 
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Types

@@ -1,11 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dialogOverlayMountDomId, timePickerTriggerDomAttr } from '../frontend/ts/generated/contracts';
+import { dialogDismissedEvent, dialogOverlayMountDomId, dialogPointerDismissBlurDomAttr, timePickerTriggerDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import {
-    gotoWhenReady,
-    loginAs,
-    webauthnBaseURL,
-} from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { webauthnBaseURL } from './support/passkeys';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -61,6 +59,85 @@ test.describe('No automatic focus', () => {
         await expect(form).toBeVisible();
         await expect(form.locator(`[${timePickerTriggerDomAttr}]`).first()).toBeFocused();
     });
+
+    test('timesheet dismissal blurs pointer-opened cards but preserves keyboard focus', async ({ page }) => {
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+
+        const cardLink = page.locator('.timesheet-entry-card-link').first();
+        await expect(cardLink).toHaveAttribute(dialogPointerDismissBlurDomAttr, 'true');
+        await expect(page.locator(`.timesheet-entry-card-link:not([${dialogPointerDismissBlurDomAttr}])`)).toHaveCount(0);
+        await expect(page.locator(`[${dialogPointerDismissBlurDomAttr}]:not(.timesheet-entry-card-link)`)).toHaveCount(0);
+        const dispatchDismissal = async () => {
+            await page.locator(`#${dialogOverlayMountDomId}`).evaluate((mount, eventName) => {
+                mount.dispatchEvent(new CustomEvent(eventName, {
+                    bubbles: true,
+                    detail: { dialog: document.createElement('div'), replacement: null },
+                }));
+            }, dialogDismissedEvent);
+            await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+        };
+
+        await cardLink.focus();
+        await cardLink.dispatchEvent('pointerdown');
+        await dispatchDismissal();
+        await expect(cardLink).not.toBeFocused();
+
+        await cardLink.focus();
+        await cardLink.dispatchEvent('pointerdown');
+        await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+        await dispatchDismissal();
+        await expect(cardLink).toBeFocused();
+    });
+
+    for (const scenario of ['next-frame', 'replacement', 'moved', 'disconnected', 'keyboard-before-frame', 'duplicate', 'ordinary', 'outside-pointer', 'new-launcher-before-frame'] as const) {
+        test(`timesheet pointer-dismiss cleanup preserves ${scenario} behavior`, async ({ page }) => {
+            await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+            await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+            const result = await page.locator('.timesheet-entry-card-link').first().evaluate(async (element, { scenario, eventName, mountId }) => {
+                const link = element as HTMLElement;
+                const mount = document.getElementById(mountId)!;
+                const ordinary = document.createElement('button');
+                document.body.append(ordinary);
+                const nextLauncher = link.cloneNode(true) as HTMLElement;
+                if (scenario === 'new-launcher-before-frame') link.parentElement!.append(nextLauncher);
+                const opened = scenario === 'ordinary' ? ordinary : link;
+                const trigger = scenario === 'new-launcher-before-frame' ? nextLauncher : opened;
+                const originalBlur = trigger.blur;
+                let blurCount = 0;
+                trigger.blur = () => { blurCount += 1; originalBlur.call(trigger); };
+                opened.focus();
+                opened.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                if (scenario === 'outside-pointer') ordinary.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                if (scenario === 'moved') ordinary.focus();
+                if (scenario === 'disconnected') link.remove();
+                const dialog = document.createElement('div');
+                const dismiss = (replacement: Element | null) => mount.dispatchEvent(new CustomEvent(eventName, {
+                    bubbles: true, detail: { dialog, replacement },
+                }));
+                dismiss(scenario === 'replacement' ? document.createElement('div') : null);
+                if (scenario === 'duplicate') dismiss(null);
+                if (scenario === 'new-launcher-before-frame') {
+                    nextLauncher.focus();
+                    nextLauncher.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                }
+                if (scenario === 'keyboard-before-frame') document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
+                const immediateBlurCount = blurCount;
+                await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                const result = { immediateBlurCount, blurCount, triggerFocused: document.activeElement === trigger, otherFocused: document.activeElement === ordinary };
+                trigger.blur = originalBlur;
+                nextLauncher.remove();
+                ordinary.remove();
+                return result;
+            }, { scenario, eventName: dialogDismissedEvent, mountId: dialogOverlayMountDomId });
+            expect(result).toEqual({
+                immediateBlurCount: 0,
+                blurCount: ['next-frame', 'duplicate', 'outside-pointer', 'new-launcher-before-frame'].includes(scenario) ? 1 : 0,
+                triggerFocused: scenario === 'replacement' || scenario === 'keyboard-before-frame' || scenario === 'ordinary',
+                otherFocused: scenario === 'moved' || scenario === 'ordinary',
+            });
+        });
+    }
 
     test('timesheet cards reserve their focus outline for keyboard focus', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');

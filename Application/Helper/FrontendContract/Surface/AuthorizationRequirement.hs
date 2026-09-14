@@ -3,7 +3,6 @@ module Application.Helper.FrontendContract.Surface.AuthorizationRequirement
     , authorizeSurfaceScopeRequirement
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -55,7 +54,7 @@ authorizeSurfaceScopeRequirement (RequireCurrentVenueAdminRosterGroup venueId ro
             pure (hasRosterGroupAccess && hasRole VenueAdmin)
         else pure False
 authorizeSurfaceScopeRequirement RequireSupportSuperAdmin =
-    pure currentUserIsSuperAdmin
+    pure currentUserIsUnimpersonatedSuperAdmin
 
 currentVenueMatches :: (?context :: ControllerContext) => UUID.UUID -> Bool
 currentVenueMatches venueId =

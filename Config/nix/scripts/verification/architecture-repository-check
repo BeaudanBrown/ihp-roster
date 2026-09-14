@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bash Config/nix/scripts/architecture/repository-check
+bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/repository-check"

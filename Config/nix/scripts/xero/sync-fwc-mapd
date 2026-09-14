@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 
 DB_NAME="${1:-app}"
 case "$DB_NAME" in

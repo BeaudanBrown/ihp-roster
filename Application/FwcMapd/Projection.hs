@@ -7,8 +7,6 @@ import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (withTransaction)
-import IHP.Prelude
 
 populateAwardLevelProjection :: (?modelContext :: ModelContext) => Int -> UTCTime -> IO ()
 populateAwardLevelProjection awardFixedId syncedAt = do

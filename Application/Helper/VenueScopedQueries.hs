@@ -1,14 +1,24 @@
 module Application.Helper.VenueScopedQueries
-    ( fetchActiveVenueShiftTypes
+    ( fetchActiveVenueMembershipsByUserIds
+    , fetchActiveVenueShiftTypes
     , fetchLinkedActiveVenueStaff
     , fetchVenueShiftTypes
     , sortShiftTypesForDisplay
     ) where
 
 import Application.Helper.Staff (sortStaffForDisplay)
-import Data.List (sortOn)
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
+
+fetchActiveVenueMembershipsByUserIds :: (?modelContext :: ModelContext) => Id Venue -> [UUID.UUID] -> IO [VenueMembership]
+fetchActiveVenueMembershipsByUserIds _ [] = pure []
+fetchActiveVenueMembershipsByUserIds venueId userIds =
+    query @VenueMembership
+        |> filterWhere (#venueId, unpackId venueId)
+        |> filterWhereIn (#userId, userIds)
+        |> filterWhere (#isActive, True)
+        |> fetch
 
 -- | Active, non-archived staff with a linked user account. Use for
 -- timesheet/payroll/Xero eligibility.

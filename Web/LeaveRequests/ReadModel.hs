@@ -13,24 +13,22 @@ module Web.LeaveRequests.ReadModel
     , renderLeaveRequestsFragmentFromReadModel
     ) where
 
-import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
-import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
-import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.Profiling
 import Application.Helper.Staff (isTrialStaff)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
-import qualified Text.Blaze.Html as Blaze
+import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
+import Web.LeaveRequests.Archive (projectLeaveArchive)
 import Web.LeaveRequests.AvailabilityWarnings
 import Web.LeaveRequests.Blackouts
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
@@ -110,14 +108,7 @@ buildLeaveStaffPanelEntries :: (?modelContext :: ModelContext, ?context :: Contr
 buildLeaveStaffPanelEntries today staffMembers leaveRequests = do
     let eligibleStaff = filter (\staff -> staff.isActive && isNothing staff.archivedAt) staffMembers
     let linkedUserIds = mapMaybe (.userId) eligibleStaff
-    memberships <-
-        if null linkedUserIds
-            then pure []
-            else query @VenueMembership
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#userId, linkedUserIds)
-                |> filterWhere (#isActive, True)
-                |> fetch
+    memberships <- fetchActiveVenueMembershipsByUserIds currentVenueId linkedUserIds
     let membershipsByUserId = Map.fromList [(membership.userId, membership) | membership <- memberships]
     let currentAndFutureRequests = activeLeaveRequests leaveRequests today
     let periodCountByStaffId = Map.fromListWith (+) [(request.staffId, 1 :: Int) | request <- currentAndFutureRequests]
@@ -135,13 +126,13 @@ buildLeaveStaffPanelEntries today staffMembers leaveRequests = do
         | staff <- eligibleStaff
         ]
 
-renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsFragment -> IO (Maybe Blaze.Html)
+renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsFragment -> IO (Maybe Markup.Html)
 renderLeaveRequestsFragment fragment =
     profileActionSpan "leave.read_model.render_fragment" do
         readModel <- fetchLeaveRequestsReadModel
         pure (renderLeaveRequestsFragmentFromReadModel FragmentPlain readModel fragment)
 
-renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Blaze.Html
+renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Markup.Html
 renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
     Just $ case fragment of
         LeaveRequestsContent ->
@@ -169,7 +160,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         LeaveRequestsSectionCount section ->
             renderLeaveSectionCountLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelToday
         LeaveRequestsSectionList section ->
-            renderLeaveSectionListLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday archivePagination archivedPageRequests
+            renderLeaveSectionListLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday archive
     where
         fragmentRenderSwap = \case
             FragmentPlain        -> Nothing
@@ -177,9 +168,7 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         contentRenderer = case renderMode of
             FragmentPlain        -> renderleaveRequestsContentLiveFragment
             FragmentOob swapAttr -> renderleaveRequestsContentLiveFragmentWithSwap swapAttr
-        archivedRequests = archivedLeaveRequests readModel.leaveReadModelRequests readModel.leaveReadModelToday
-        archivePagination = buildArchivePagination currentLeaveArchivePage archivedRequests
-        archivedPageRequests = archivePageItems archivePagination archivedRequests
+        archive = projectLeaveArchive readModel.leaveReadModelRequests readModel.leaveReadModelToday currentLeaveArchivePage
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
 leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelStaffPanelEntries, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods, leaveReadModelVenueToday, leaveReadModelBlackouts } =

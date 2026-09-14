@@ -24,12 +24,11 @@ renderStaffPageModalWithTitle :: Text -> [OverlayButton] -> Html -> Html
 renderStaffPageModalWithTitle title buttons formContent =
     renderPageDialogModal
         (pathTo RosterWeeksAction)
-        DialogOverlayConfig
-            { dialogOverlayTitle = title
-            , dialogOverlayBody = formContent
-            , dialogOverlayStartButtons = []
-            , dialogOverlayButtons = buttons
-            , dialogOverlayDialogClass = staffEditDialogClass
+        (defaultDialogOverlayConfig
+            title
+            formContent
+            buttons)
+            { dialogOverlayDialogClass = staffEditDialogClass
             }
 
 
@@ -41,10 +40,9 @@ renderStaffAddTrialDialogWithButtons = renderStaffDialogWithTitle "Add Trial"
 
 renderStaffDialogWithTitle :: Text -> [OverlayButton] -> Html -> Html
 renderStaffDialogWithTitle title buttons formContent =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = title
-        , dialogOverlayBody = formContent
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = buttons
-        , dialogOverlayDialogClass = staffEditDialogClass
-        }
+    renderDialogOverlay (defaultDialogOverlayConfig
+            title
+            formContent
+            buttons)
+            { dialogOverlayDialogClass = staffEditDialogClass
+            }

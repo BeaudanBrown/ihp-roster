@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+# shellcheck source=../lib/common.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/common.sh"
+ihp_roster_configure_test_postgres
+
+database_name="date_native_roster_readiness_test_${BASHPID}"
+output_directory="$(mktemp -d)"
+cleanup() {
+    rm -rf "$output_directory"
+    psql -X -q -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 \
+        -c "DROP DATABASE IF EXISTS \"$database_name\" WITH (FORCE)" >/dev/null
+}
+trap cleanup EXIT
+
+export TEST_DATABASE_NAME="$database_name"
+export DATABASE_URL="postgresql:///$database_name?host=$TEST_DB_SOCKET"
+test-db-reset >/dev/null
+
+psql -X -q -h "$TEST_DB_SOCKET" -d "$database_name" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+CREATE TABLE roster_weeks (
+    id UUID PRIMARY KEY,
+    venue_id UUID NOT NULL,
+    roster_group_id UUID NOT NULL
+);
+CREATE TABLE roster_week_slot_definitions (
+    id UUID PRIMARY KEY,
+    roster_week_id UUID NOT NULL
+);
+CREATE TABLE roster_template_designs (
+    id UUID PRIMARY KEY,
+    scale roster_template_scale_enum NOT NULL
+);
+ALTER TABLE roster_template_days ADD COLUMN roster_template_design_id UUID;
+ALTER TABLE roster_days ADD COLUMN roster_week_id UUID;
+ALTER TABLE roster_lanes ADD COLUMN legacy_roster_week_slot_definition_id UUID;
+ALTER TABLE roster_slots ADD COLUMN roster_week_slot_definition_id UUID;
+INSERT INTO roster_weeks (id, venue_id, roster_group_id)
+SELECT md5('readiness-week-' || id::text)::uuid, venue_id, roster_group_id
+FROM roster_days;
+UPDATE roster_days
+SET roster_week_id = md5('readiness-week-' || id::text)::uuid;
+INSERT INTO roster_week_slot_definitions (id, roster_week_id)
+SELECT md5('readiness-definition-' || lane.id::text)::uuid, day.roster_week_id
+FROM roster_lanes lane
+JOIN roster_days day ON day.id = lane.roster_day_id;
+UPDATE roster_lanes
+SET legacy_roster_week_slot_definition_id = md5('readiness-definition-' || id::text)::uuid;
+UPDATE roster_slots slot
+SET roster_week_slot_definition_id = lane.legacy_roster_week_slot_definition_id
+FROM roster_lanes lane
+WHERE lane.id = slot.roster_lane_id;
+SQL
+
+current_user="$(psql -X -q -h "$TEST_DB_SOCKET" -d "$database_name" -At -v ON_ERROR_STOP=1 -c 'SELECT current_user')"
+env \
+    -u DATE_NATIVE_ROSTER_READINESS_DATABASE_URL \
+    -u DATABASE_URL \
+    -u PGPASSWORD \
+    -u PGSERVICE \
+    -u PGSERVICEFILE \
+    DATE_NATIVE_ROSTER_READINESS_APPROVAL=read-only-issue-373 \
+    DATE_NATIVE_ROSTER_READINESS_OPERATOR='Focused shell integration' \
+    DATE_NATIVE_ROSTER_READINESS_EXPECTED_DATABASE="$database_name" \
+    PGHOST="$TEST_DB_SOCKET" \
+    PGUSER="$current_user" \
+    PGDATABASE="$database_name" \
+    bash ./bin/date-native-roster-readiness preflight "$output_directory" >/dev/null
+
+jq -e '
+    .schema == "date-native-roster-readiness-v1"
+    and .capture.transactionReadOnly == "on"
+    and .totalViolationCount == 0
+    and (.checks | length) == 12
+    and all(.checks[]; (.sampleEntityIds | length) <= 25)
+' "$output_directory/audit.json" >/dev/null
+grep -Fqx 'phase=preflight' "$output_directory/capture-metadata.txt"
+grep -Fqx "database=$database_name" "$output_directory/capture-metadata.txt"
+grep -Fq 'audit.json' "$output_directory/manifest.sha256"
+grep -Fq 'capture-metadata.txt' "$output_directory/manifest.sha256"
+
+echo "date-native-roster-readiness-test: ok"

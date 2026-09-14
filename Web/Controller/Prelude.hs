@@ -9,8 +9,6 @@ module Web.Controller.Prelude
 , ensureIsUser
 , redirectTo
 , redirectToPath
-, redirectToPathSeeOther
-, redirectToSeeOther
 , redirectToUrl
 , render
 , renderJson
@@ -18,19 +16,18 @@ module Web.Controller.Prelude
 , respondHtml
 , respondFragmentHtml
 , parseIsoDayRouteParam
+, respondAndStop
+, terminateAfterIhpResponseControl
 )
 where
 
 import Application.Bepis.Prelude
-import Application.Bepis.Response (bepisFileResponse, bepisHtmlResponse,
-                                   bepisHtmxFragmentResponse, bepisJsonResponse,
-                                   bepisRedirectResponse)
+import Application.Error.Boundary (respondAndStop,
+                                   terminateAfterIhpResponseControl)
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry
 import qualified Data.Aeson as Aeson
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Typeable (Typeable)
 import Generated.Types
 import IHP.ControllerPrelude hiding (ensureIsUser, redirectTo, redirectToPath,
                               redirectToPathSeeOther, redirectToSeeOther,
@@ -38,23 +35,21 @@ import IHP.ControllerPrelude hiding (ensureIsUser, redirectTo, redirectToPath,
                               renderFile, renderJson, renderJsonWithStatusCode,
                               respondHtml)
 import qualified IHP.ControllerPrelude as IHP
-import IHP.Router.UrlGenerator (HasPath)
 import qualified IHP.ViewSupport as ViewSupport
 import Network.HTTP.Types.Status (Status, status400)
 import qualified Network.Wai as Wai
-import Text.Blaze.Html (Html)
-import Web.Routes
+import IHP.HSX.Markup (Html)
+import Web.Routes () -- AutoRoute instances.
 import Web.Types
 
-parseIsoDayRouteParam :: (?request :: Request) => Text -> IO Day
+parseIsoDayRouteParam :: (?request :: Request, ?respond :: Respond) => Text -> IO Day
 parseIsoDayRouteParam value =
     case parseTimeM True defaultTimeLocale "%F" (cs value) of
         Just day -> pure day
-        Nothing -> do
-            respondAndExit (Wai.responseLBS status400 [("Content-Type", "text/plain")] "Invalid ISO date parameter.")
-            error "unreachable"
+        Nothing ->
+            respondAndStop (Wai.responseLBS status400 [("Content-Type", "text/plain")] "Invalid ISO date parameter.")
 
-ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser = do
     IHP.ensureIsUser @user
     emitBepisFact $ BepisScopeFactValue BepisScopeFact
@@ -62,37 +57,31 @@ ensureIsUser = do
         , scopeFactLabel = "authenticated-user"
         }
 
-render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
+render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 render view = bepisHtmlResponse (IHP.render view)
 
-respondHtml :: (?context :: ControllerContext, ?request :: Request) => Html -> IO ()
+respondHtml :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Html -> IO ResponseReceived
 respondHtml html =
     if isHtmxRequest
         then bepisHtmxFragmentResponse (IHP.respondHtml html)
         else bepisHtmlResponse (IHP.respondHtml html)
 
-respondFragmentHtml :: (?context :: ControllerContext, ?request :: Request) => Html -> IO ()
+respondFragmentHtml :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Html -> IO ResponseReceived
 respondFragmentHtml html =
     bepisHtmxFragmentResponse (IHP.respondHtml html)
 
-renderJson :: (?request :: Request, Aeson.ToJSON json) => json -> IO ()
+renderJson :: (?request :: Request, ?respond :: Respond, Aeson.ToJSON json) => json -> IO ResponseReceived
 renderJson json = bepisJsonResponse (IHP.renderJson json)
 
-renderJsonWithStatusCode :: (?request :: Request, Aeson.ToJSON json) => Status -> json -> IO ()
+renderJsonWithStatusCode :: (?request :: Request, ?respond :: Respond, Aeson.ToJSON json) => Status -> json -> IO ResponseReceived
 renderJsonWithStatusCode status json = bepisJsonResponse (IHP.renderJsonWithStatusCode status json)
 
 
-redirectTo :: (?request :: Request, HasPath action) => action -> IO ()
+redirectTo :: (?request :: Request, ?respond :: Respond, HasPath action) => action -> IO ResponseReceived
 redirectTo action = bepisRedirectResponse (IHP.redirectTo action)
 
-redirectToPath :: (?request :: Request) => Text -> IO ()
+redirectToPath :: (?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 redirectToPath path = bepisRedirectResponse (IHP.redirectToPath path)
 
-redirectToUrl :: Text -> IO ()
+redirectToUrl :: (?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
 redirectToUrl url = bepisRedirectResponse (IHP.redirectToUrl url)
-
-redirectToSeeOther :: (?request :: Request, HasPath action) => action -> IO ()
-redirectToSeeOther action = bepisRedirectResponse (IHP.redirectToSeeOther action)
-
-redirectToPathSeeOther :: (?request :: Request) => Text -> IO ()
-redirectToPathSeeOther path = bepisRedirectResponse (IHP.redirectToPathSeeOther path)

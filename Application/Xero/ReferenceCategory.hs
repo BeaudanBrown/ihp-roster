@@ -5,6 +5,7 @@ module Application.Xero.ReferenceCategory
     , xeroReferenceSyncCategoryLabel
     ) where
 
+import Application.Error.Parser (parserFailure)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Set as Set
@@ -20,7 +21,7 @@ parseXeroReferenceSyncCategories value = do
     categories <- mapM parseCategory labels
     let result = Set.fromList categories
     if Set.null result
-        then fail "Xero reference sync categories cannot be empty"
+        then parserFailure "Xero reference sync categories cannot be empty"
         else pure result
   where
     parseCategory :: Text -> Aeson.Parser XeroReferenceSyncCategoryEnum
@@ -29,7 +30,7 @@ parseXeroReferenceSyncCategories value = do
         "pay_items" -> pure PayItems
         "payroll_calendars" -> pure PayrollCalendars
         "accounts" -> pure Accounts
-        unknown -> fail ("Unknown Xero reference sync category: " <> cs unknown)
+        unknown -> parserFailure ("Unknown Xero reference sync category: " <> cs unknown)
 
 xeroReferenceSyncCategoriesContain :: Set.Set XeroReferenceSyncCategoryEnum -> Set.Set XeroReferenceSyncCategoryEnum -> Bool
 xeroReferenceSyncCategoriesContain available requested = requested `Set.isSubsetOf` available

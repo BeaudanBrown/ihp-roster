@@ -11,7 +11,7 @@ than every non-test source file.
 - `production-executable-inventory.tsv` owns every packaged binary—including
   the app and worker—and traces each to an exact NixOS consumer marker.
 - `production-module-inventory.tsv` is the reviewed, generated reachability
-  closure from `Main`, `Config`, and the production script roots. Every Haskell
+  closure from `Main`, `WorkerMain`, `Config`, and the production script roots. Every Haskell
   source under `Application/`, `Web/`, and `Config/` is classified. Production
   rows enter `project-source.nix`; development rows remain available from the
   working tree and devenv shell.
@@ -30,13 +30,19 @@ package, checks its exact `bin/` set, enters every binary through the non-mutati
 GHC RTS boundary. `deployment-module-check` separately owns all deployment-module evaluations.
 
 `project-source.nix` is the production-only source seam passed through IHP's
-`projectPath` option. It excludes the complete `Test/` tree from production
-source and derivation hashes; the working tree and devenv remain unfiltered, so
-Hspec still discovers all tests and fixtures. `production-source-boundary-check`
-mutates a tracked test fixture and proves both app derivations remain identical,
-then mutates `Main.hs` and proves both change. It also rejects any `Test/` leak
-and requires all tracked schema, migration, static, and deployment-module inputs
-to remain in the filtered source.
+`projectPath` option. It admits only inventoried production Haskell, the complete
+checked-in static authority, schema and migration/cutover history, deployment
+modules, `Makefile`, and the reviewed package dependency inventory. Tests,
+top-level documentation and specs, E2E, authored frontend source, API fixtures,
+and development tooling stay in the working tree and devenv without perturbing
+production derivations. The schema package is
+separately closed over `Application/Schema.sql` instead of IHP's broader default
+`projectPath` source. `production-source-boundary-check` proves excluded edits
+remain stable and that runtime, schema, migration, static, deployment, and
+package-input edits invalidate their exact retained owners. At issue #491's
+implementation boundary, this reduced the realized source from 1,283 files and
+12,824,532 bytes to 688 files and 7,118,848 bytes: 595 files and 5,705,684 bytes
+removed. These are measured store-tree sizes, not filter estimates.
 
 The same managed IHP seam disables app-lib's unused shared way while retaining
 vanilla `.hi` interfaces and its static `.a` archive. Production entry points
@@ -49,11 +55,14 @@ launches every allowlisted executable.
 `baselines/production-build/final-regression-budget.json` owns stable ceilings
 for app-lib self-size, module count, artifact kinds/counts (including symlinked
 artifacts), production module, direct-package, and executable inventories, and
-a 600 MiB aggregate installed `.hi` limit.
+a 600 MiB aggregate installed `.hi` limit. Its `measurement_profile` retains the
+complete build baseline; `module_count_inspection_profile` is supplementary
+realized-output evidence for count-only reconciliation, not a build-time or
+memory baseline.
 `production-build-budget-check` applies them to an explicit profile, or to the
 current realized app-lib after `production-package-smoke`. The default interface
-ceiling is 16 MiB. Twelve exact, reason-bearing Roster paths have explicit
-per-file exception ceilings because GHC 9.10 serializes canonical promoted/runtime surface
+ceiling is 16 MiB. Exact, reason-bearing Roster paths have explicit per-file
+exception ceilings because GHC 9.10 serializes canonical promoted/runtime surface
 authority into those interfaces; new paths do not inherit an exception.
 
 Machine memory is deliberately evidence, not a blocking budget: process RSS is
@@ -80,6 +89,101 @@ not be promoted merely to make a build pass. Promotion requires a concrete
 production runtime, deployment, maintenance, recovery, or recurring-service
 consumer.
 
+## IHP 1.6 integration
+
+`optimized-prod-server` and `unoptimized-prod-server` are explicit compatibility
+packages: the web/worker output plus the eight reviewed production scripts.
+Existing NixOS timer/recovery paths and environments remain valid; scripts build
+as independent upstream derivations, not part of the web/worker binary build.
+Dedicated `script-*` packages/apps are forced through the same managed
+NixSupport and telemetry wrappers, avoiding upstream's private unpatched import.
+
+`WorkerMain.hs` owns worker registration; `Main.hs` owns only web startup.
+Default typecheck and Weeder include both roots. `devenv up` has separate `web`
+and `worker` processes using workspace configuration. Canonical E2E starts a
+separate worker per disposable shard and stops it before database disposal.
+Managed E2E PostgreSQL reserves 400 connections: eight shards × (two pools of
+at most 20 plus two dedicated listeners) = 336, with 64 slots for fixtures,
+administration and PostgreSQL reserves. E2E bounds `HASQL_POOL_SIZE` to 1–20
+(default 20); live capacity drift fails closed. This does not change Hspec,
+development, external or production PostgreSQL settings.
+
+Web-only dev-start and profile launchers do not implicitly start workers. Use
+`dev-worker` when independently exercising background delivery in a managed
+workspace.
+
+`Config/ghci` bootstraps with qualified base imports before loading IHP's
+application configuration; it must also work with `NoImplicitPrelude` already
+active. `ghci-config-test` uses the real interpreter and a tiny configuration
+fixture, checking both execution markers and startup diagnostics because GHCi
+can return zero after a failed startup command. `verify-full` includes it.
+
+`ihp-compatibility-check` tests the patched framework's native PORT handling,
+app/tool conflicts, range rejection and wildcard bind, plus parity of all eight
+standalone and compatibility-package scripts. `verify-full` includes it.
+The WAI telemetry patch uses failing replacements so upstream source drift
+cannot silently reintroduce URL query strings.
+
+The IHP input brings a newer Collector schema; self-metrics remain loopback-only
+using a Prometheus reader. Tempo alone stays on the pre-upgrade package set
+(`nixpkgs-tempo`, exposed as `bepis-tempo`) in development and NixOS. Tempo 3's
+storage/retention migration is deliberately outside this upgrade's scope.
+`tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
+type for observability checks; it must never enter deployment host imports.
+
+## Compiler Warning And Reachability Evidence
+
+`application-warnings` first builds dependency interfaces, then forces each
+inventoried, non-generated production subject in an isolated one-shot GHC
+session. Warning flags alone do not invalidate those interfaces; a multi-file
+forced `-c` session can load a subject's cached instances before compiling it
+and report duplicate instances. Generated/dependency code remains interface-only
+in the strict pass. Real compiler fixtures cover both cold and warm caches.
+
+Unused imports are errors. Required controller/AutoRoute instance imports say
+`()` explicitly; marker/type imports remain normal compiler-checked uses.
+Totality rejects incomplete patterns, single-pattern bindings, record updates
+and **record-selector uses**, including unsaturated selectors and record-dot
+`getField`. GHC 9.10's `incomplete-record-selectors` replaces the previously
+ineffective declaration-level `partial-fields` rule: IHP routes and wire sums
+require constructor-local labels, not unsafe getters. Exhaustive constructor
+patterns remain valid; no route/JSON metadata or application ADTs change.
+
+`weeder-check` retains its complete source sweep, canonical `weeder.toml`,
+`unused-types=false` and baseline gate. It also emits
+`build/Verification/weeder/reachability-advisory.json` (under `WEEDER_BUILD_DIR`
+when overridden), reusing the same HIE rather than compiling another graph.
+Root-set comparisons distinguish production from test/development retention.
+Script ownership comes from the existing module/script/executable inventories;
+canonical roots are narrowed, never supplemented with blanket handwritten roots.
+Class/instance/generated category roots remain conservative/unknown. The report
+names source positions, root groups, category policy, revision and source/HIE
+hashes; it is not a call-path report or evidence that every test seam is dead.
+Framework-generated executable mains have no value mapping in the executable
+inventory and remain explicitly qualified, rather than inventing one.
+
+Source changes during compilation/analysis, missing or deleted-module HIE, and
+scanner errors replace old success with an unavailable report. Freshness relies
+on the owner's completed GHC sweep and unchanged source content across it, not
+mtime ordering: GHC can retain HIE for touched but byte-identical source. The
+snapshot/report helpers are phases of that owner, not a substitute for running
+the compiler. Advisory classifications never delete code or fail the complete gate. `verify-tooling` runs independent
+real-GHC/Weeder fixtures for these contracts once alongside warning fixtures.
+
+## Authority Scanner Execution
+
+The frontend and typed-contract shell gates share `scripts/lib/authority-scan.sh`
+(relative to this directory). It normalizes ripgrep/grep match/no-match statuses
+while preserving fatal tool/regex/read errors with bounded stderr and scoped
+cleanup. Patterns, exclusions, required paths and counts remain in each gate;
+only explicit tombstones permit absent paths. Capture scanner output before
+`mapfile` rather than hiding failures in process substitutions or `|| true`.
+
+`verify-tooling` runs `scripts/authority-scan.test.mjs` (repository-relative)
+once. Its temporary repositories come from tracked source and exercise the real
+wrapper entrypoints; unrelated enum/package authorities are stubbed only in
+these scanner fixtures. Real repository gates remain separately required.
+
 ## Test-only Haskell dependencies
 
 `hspec`, `ihp-hspec`, and `QuickCheck` belong to `ihp.devHaskellPackages`, so
@@ -90,7 +194,7 @@ production module.
 
 Upstream IHP builds `app-lib.cabal` from every package registered in its GHC
 environment. `production-nix-support.nix` is the managed, fail-closed seam that
-requires exact dependency, app-library, and three executable-option markers
+requires exact dependency, app-library, shared executable-option, and telemetry entrypoint markers
 before transforming the pinned source. Production emits the unique packages from
 `production-package-dependency-inventory.tsv` instead; it never falls back to
 `ghc-pkg list`. During source generation, `ghc-pkg find-module` verifies that

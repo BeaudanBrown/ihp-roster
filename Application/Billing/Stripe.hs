@@ -7,7 +7,6 @@ module Application.Billing.Stripe
     , StripeDeploymentControls (..)
     , StripeHttpRequest (..)
     , StripeMode (..)
-    , BillingNavigationContext (..)
     , StripePortalSession (..)
     , StripePrice (..)
     , StripeRecurring (..)
@@ -46,7 +45,13 @@ module Application.Billing.Stripe
     )
 where
 
+import Application.Error.Parser (parserFailure)
+import Application.Helper.Telemetry (addTelemetryAttributes,
+                                     withProviderTelemetrySpan)
+import Application.Helper.Telemetry.Semantic (httpStatusClass,
+                                              telemetryHttpMethod)
 import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as SafeException
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
 import qualified Data.Aeson as Aeson
@@ -55,8 +60,8 @@ import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
+import Data.Either (isRight)
 import qualified Data.IORef as IORef
-import qualified Data.List as List
 import qualified Data.Text as Text hiding (show)
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
@@ -66,6 +71,7 @@ import qualified Network.HTTP.Client as Http
 import Network.HTTP.Simple
 import Network.HTTP.Types.Header (HeaderName)
 import qualified Network.HTTP.Types.URI as URI
+import OpenTelemetry.Attributes (toAttribute)
 import System.Environment (lookupEnv)
 import qualified System.IO.Error as IOError
 import System.IO.Unsafe (unsafePerformIO)
@@ -90,12 +96,6 @@ data StripeDeploymentControls = StripeDeploymentControls
     { stripeBillingEnabled         :: !Bool
     , stripeCheckoutEnabled        :: !Bool
     , stripeOwnerNavigationVisible :: !Bool
-    }
-    deriving (Eq, Show)
-
-data BillingNavigationContext = BillingNavigationContext
-    { ownerBillingNavigationVisible  :: !Bool
-    , ownerBillingSubscriptionIsLive :: !Bool
     }
     deriving (Eq, Show)
 
@@ -258,9 +258,9 @@ instance Aeson.FromJSON StripeSubscription where
     parseJSON = Aeson.withObject "StripeSubscription" \object -> do
         expectStripeObjectType object "subscription"
         item <- object Aeson..: "items" >>= parseSingleSubscriptionItem
-        unless (item.subscriptionItemQuantity == 1) (fail "Stripe Subscription item quantity must be one")
+        unless (item.subscriptionItemQuantity == 1) (parserFailure "Stripe Subscription item quantity must be one")
         case validateVenueMonthlyPrice item.subscriptionItemPrice of
-            Left message -> fail (cs message)
+            Left message -> parserFailure (cs message)
             Right _      -> pure ()
         StripeSubscription
             <$> object Aeson..: "id"
@@ -307,13 +307,13 @@ parseSingleSubscriptionItem = Aeson.withObject "StripeSubscriptionItems" \object
     items <- object Aeson..: "data"
     case items of
         [item] -> Aeson.parseJSON item
-        []     -> fail "Stripe Subscription must contain one fixed-price item"
-        _      -> fail "Stripe Subscription must not contain multiple items"
+        []     -> parserFailure "Stripe Subscription must contain one fixed-price item"
+        _      -> parserFailure "Stripe Subscription must not contain multiple items"
 
 expectStripeObjectType :: Aeson.Object -> Text -> AesonTypes.Parser ()
 expectStripeObjectType object expectedType = do
     actualType <- object Aeson..: "object"
-    unless (actualType == expectedType) (fail "Stripe response object discriminator did not match the expected contract")
+    unless (actualType == expectedType) (parserFailure "Stripe response object discriminator did not match the expected contract")
 
 data StripeClientError
     = StripeHttpError !Text
@@ -703,7 +703,7 @@ validateStripePortalRedirectUrl =
 
 validateStripeHostedRedirectUrl :: Text -> ByteString -> Text -> IO (Either Text Text)
 validateStripeHostedRedirectUrl surfaceName expectedHost url = do
-    Exception.try (parseRequest (cs url)) >>= \case
+    tryStripeSynchronous (parseRequest (cs url)) >>= \case
         Left (_ :: Exception.SomeException) -> pure (Left invalidUrlMessage)
         Right request
             | Http.secure request && Http.port request == 443 && Http.host request == expectedHost -> pure (Right url)
@@ -724,11 +724,26 @@ validateVenueMonthlyPrice price = do
     pure price
 
 sendStripeJsonRequestWith :: Aeson.FromJSON value => (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)) -> Text -> StripeHttpRequest -> IO (Either StripeClientError value)
-sendStripeJsonRequestWith transport _label stripeRequest = do
-    rawResult <- transport stripeRequest
-    pure case rawResult of
-        Left err   -> Left err
-        Right body -> decodeBodyPure body
+sendStripeJsonRequestWith transport label stripeRequest =
+    withProviderTelemetrySpan "stripe" (stripeTelemetryOperation label) (telemetryHttpMethod stripeRequest.stripeRequestMethod) isRight do
+        rawResult <- transport stripeRequest
+        pure case rawResult of
+            Left err   -> Left err
+            Right body -> decodeBodyPure body
+
+stripeTelemetryOperation :: Text -> Text
+stripeTelemetryOperation label =
+    fromMaybe "unknown" (lookup label knownOperations)
+  where
+    knownOperations =
+        [ ("Stripe price lookup", "price_lookup")
+        , ("Stripe price retrieve", "price_retrieve")
+        , ("Stripe customer create", "customer_create")
+        , ("Stripe checkout session create", "checkout_create")
+        , ("Stripe checkout session retrieve", "checkout_retrieve")
+        , ("Stripe portal session create", "portal_create")
+        , ("Stripe subscription retrieve", "subscription_retrieve")
+        ]
 
 sendStripeRawRequest :: StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)
 sendStripeRawRequest stripeRequest =
@@ -738,7 +753,13 @@ sendStripeRawRequest stripeRequest =
             requestWithHeaders <- toHttpRequest transportRequest
             Timeout.timeout transportRequest.stripeRequestTimeoutMicroseconds (httpLBS requestWithHeaders) >>= \case
                 Nothing -> pure (Left (StripeHttpError "Stripe request timed out"))
-                Just response -> decodeStripeRawResponse "Stripe request" response
+                Just response -> do
+                    let statusCode = getResponseStatusCode response
+                    addTelemetryAttributes
+                        [ ("http.response.status_code", toAttribute statusCode)
+                        , ("bepis.provider.status_class", toAttribute (httpStatusClass statusCode))
+                        ]
+                    decodeStripeRawResponse "Stripe request" response
 
 resolveStripeTransportRequest :: StripeHttpRequest -> IO (Either StripeClientError StripeHttpRequest)
 resolveStripeTransportRequest stripeRequest = do
@@ -768,7 +789,7 @@ resolveStripeTransportRequest stripeRequest = do
 
 isLoopbackHttpBaseUrl :: Text -> IO Bool
 isLoopbackHttpBaseUrl baseUrl =
-    Exception.try (parseRequest (cs baseUrl)) >>= \case
+    tryStripeSynchronous (parseRequest (cs baseUrl)) >>= \case
         Left (_ :: Exception.SomeException) -> pure False
         Right request ->
             pure $
@@ -799,8 +820,17 @@ applyRequestHeaders headers request =
 
 handleStripeHttpExceptions :: IO (Either StripeClientError value) -> IO (Either StripeClientError value)
 handleStripeHttpExceptions action =
-    action `Exception.catch` \(_ :: Exception.SomeException) ->
-        pure (Left (StripeHttpError "Stripe request failed before receiving a response"))
+    tryStripeSynchronous action >>= \case
+        Left _ -> pure (Left (StripeHttpError "Stripe request failed before receiving a response"))
+        Right value -> pure value
+
+tryStripeSynchronous :: IO value -> IO (Either Exception.SomeException value)
+tryStripeSynchronous action =
+    Exception.try action >>= \case
+        Left exception
+            | SafeException.isAsyncException exception -> Exception.throwIO (exception :: Exception.SomeException)
+            | otherwise -> pure (Left exception)
+        Right value -> pure (Right value)
 
 decodeStripeRawResponse :: Text -> Response LByteString.ByteString -> IO (Either StripeClientError LByteString.ByteString)
 decodeStripeRawResponse label response = do

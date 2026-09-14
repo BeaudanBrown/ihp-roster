@@ -21,19 +21,19 @@ instance Controller E2ETestController where
             else do
                 hasPasskey <- currentUserHasPasskey
                 unless hasPasskey do
-                    renderJsonWithStatusCode status409 (Aeson.object ["error" Aeson..= ("Current user has no passkey" :: Text)])
+                    earlyReturn $ renderJsonWithStatusCode status409 (Aeson.object ["error" Aeson..= ("Current user has no passkey" :: Text)])
                 markCurrentUserPasskeyVerified
                 renderJson (Aeson.object ["ok" Aeson..= True, "verified" Aeson..= True])
 
-ensureE2ETestEndpointEnabled :: (?request :: Request) => IO ()
+ensureE2ETestEndpointEnabled :: (?request :: Request, ?respond :: Respond) => IO ()
 ensureE2ETestEndpointEnabled = do
     enabled <- liftIO (Environment.lookupEnv "IHP_ROSTER_E2E")
     unless (enabled == Just "1") do
-        renderJsonWithStatusCode status404 (Aeson.object ["error" Aeson..= ("Not found" :: Text)])
+        earlyReturn $ renderJsonWithStatusCode status404 (Aeson.object ["error" Aeson..= ("Not found" :: Text)])
 
-ensureE2ETestToken :: (?request :: Request) => IO ()
+ensureE2ETestToken :: (?request :: Request, ?respond :: Respond) => IO ()
 ensureE2ETestToken = do
     expectedToken <- fmap (fmap (Text.strip . cs)) (liftIO (Environment.lookupEnv "E2E_TEST_TOKEN"))
     let submittedToken = Text.strip . cs <$> getHeader "X-E2E-Test-Token"
     unless (maybe False (not . Text.null) expectedToken && submittedToken == expectedToken) do
-        renderJsonWithStatusCode status403 (Aeson.object ["error" Aeson..= ("Invalid E2E test token" :: Text)])
+        earlyReturn $ renderJsonWithStatusCode status403 (Aeson.object ["error" Aeson..= ("Invalid E2E test token" :: Text)])

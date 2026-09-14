@@ -6,22 +6,20 @@ module Web.View.Admin.Exports
     , renderExportsSectionFragmentWithSwap
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             appShellActionAttrs,
+                                                             defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            renderFrontendSurfaceActionForm,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import qualified Text.Blaze.Html5 as Html5
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImplForWindow)
 import Web.View.Admin.Common
@@ -30,19 +28,13 @@ import Web.View.Prelude
 adminExportsFragmentId :: Text
 adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
 
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing    -> error "Admin exports live surface requires a current venue"
-
 renderExportsSectionFragment :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
 renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragmentWithSwap maybeSwapOob selection savedConfigurations =
-    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
+    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
             {renderExportsSection selection savedConfigurations}
@@ -149,47 +141,42 @@ savedConfigurationSummary configuration =
 
 renderAddExportButton :: ReportWeekSelection -> Html
 renderAddExportButton selection =
-    applyAppShellActionAttrs
+    [hsx|<button {...attributes}>Create new export</button>|]
+  where
+    attributes = appShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart))
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-primary"), ("type", "button")]
-            }
-        (Html5.button "Create new export")
+        (exportDialogActionRoute
+            (pathTo (NewPayrollWorkbookConfigurationAction (tshow selection.weekStart)))
+            "btn btn-outline-primary")
 
 renderEditExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderEditExportButton selection configuration =
-    applyAppShellActionAttrs
+    [hsx|<button {...attributes}>Edit</button>|]
+  where
+    attributes = appShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart))
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("type", "button")]
-            }
-        (Html5.button "Edit")
+        (exportDialogActionRoute
+            (pathTo (EditPayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
+            "btn btn-outline-secondary")
 
 renderDeleteExportButton :: ReportWeekSelection -> PayrollWorkbookConfiguration -> Html
 renderDeleteExportButton selection configuration =
-    applyAppShellActionAttrs
+    [hsx|<button {...attributes}>Delete</button>|]
+  where
+    attributes = appShellActionAttrs
         (appShellActionByMarker @AppShell.OpenPayrollWorkbookConfigurationDeleteDialog)
-        AppShellActionRoute
-            { appShellActionRouteUrl = pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart))
-            , appShellActionRouteFields = []
-            , appShellActionRouteCustomHtmx = []
-            , appShellActionRouteStandardUrl = Nothing
-            , appShellActionRouteExtraAttrs = [("class", "btn btn-outline-danger"), ("type", "button")]
-            }
-        (Html5.button "Delete")
+        (exportDialogActionRoute
+            (pathTo (ConfirmDeletePayrollWorkbookConfigurationAction configuration.id (tshow selection.weekStart)))
+            "btn btn-outline-danger")
+
+exportDialogActionRoute :: Text -> Text -> AppShellActionRoute
+exportDialogActionRoute url buttonClass =
+    (defaultAppShellActionRoute url)
+        { appShellActionRouteExtraAttrs = [("class", buttonClass), ("type", "button")]
+        }
 
 createExportRoute :: Text -> FrontendSurfaceActionRoute
-createExportRoute formId = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo CreateExportJobAction
-    , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
+createExportRoute formId = ((defaultFrontendSurfaceActionRoute (pathTo CreateExportJobAction))
+    { actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
     , actionRouteExtraAttrs = [("id", formId)]
-    }
+    })

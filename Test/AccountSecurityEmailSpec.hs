@@ -24,6 +24,7 @@ import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 import Web.Mail.Users.PasswordReset (PasswordResetMail (..))
 
 tests :: Spec
@@ -146,7 +147,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime appJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
 
                 completedJob <- fetch appJob.id
                 jobJsonText completedJob.result "deliveryStatus" `shouldBe` Just "sent"
@@ -201,7 +202,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime appJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
 
                 completedJob <- fetch appJob.id
                 jobJsonText completedJob.result "deliveryStatus" `shouldBe` Just "delivery_skipped"
@@ -217,7 +218,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith disabledEmailRuntime appJob
+                    performEmailDeliveryJobWith disabledEmailDeliveryRuntime appJob
 
                 completedJob <- fetch appJob.id
                 jobJsonText completedJob.result "deliveryStatus" `shouldBe` Just "delivery_disabled"
@@ -235,27 +236,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 failure <- withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    try (performEmailDeliveryJobWith failingEmailRuntime finalJob) :: IO (Either SomeException ())
+                    try (performEmailDeliveryJobWith (failingEmailDeliveryRuntime "provider-secret@example.com") finalJob) :: IO (Either SomeException ())
                 failure `shouldSatisfy` isLeft
                 handleEmailDeliveryFailureAfterFinalAttempt finalJob
 
                 failedToken <- fetch token.id
                 failedToken.deliveryTokenCiphertext `shouldBe` Nothing
                 tshow failedToken `shouldSatisfy` not . Text.isInfixOf "provider-secret@example.com"
-
-enabledEmailRuntime :: EmailDeliveryRuntime
-enabledEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> pure ()
-        }
-
-disabledEmailRuntime :: EmailDeliveryRuntime
-disabledEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure True
-        , deliverMail = \_ -> expectationFailure "disabled delivery must not invoke transport"
-        }
 
 accountSecurityProjectionReason :: AccountSecurityMailProjection -> Maybe Text
 accountSecurityProjectionReason = \case
@@ -265,10 +252,3 @@ accountSecurityProjectionReason = \case
 jobJsonText :: Aeson.Value -> Text -> Maybe Text
 jobJsonText value key =
     AesonTypes.parseMaybe (Aeson.withObject "account security email JSON" (Aeson..: AesonKey.fromText key)) value
-
-failingEmailRuntime :: EmailDeliveryRuntime
-failingEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> ioError (userError "provider-secret@example.com")
-        }

@@ -7,7 +7,6 @@ import Application.Helper.Mail
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (ConfigProvider)
 import Web.Mail.FeedbackNotification
 import Web.Routes ()
 import Web.Types
@@ -41,7 +40,7 @@ loadFeedbackNotificationMail recipientAddress feedbackId settings appBaseUrl = d
                 , venue
                 , submitter
                 , venueTimezone = venueConfig.timezone
-                , supportUrl = stripTrailingSlash appBaseUrl <> pathTo SupportAction
+                , feedbackUrl = stripTrailingSlash appBaseUrl <> pathTo FeedbackAction
                 , fromAddress = settings.mailFromAddress
                 , replyToAddress = settings.mailReplyToAddress
                 }

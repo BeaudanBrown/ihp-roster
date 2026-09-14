@@ -1,12 +1,10 @@
 import { expect, Page, test } from '@playwright/test';
-import {
-    E2E_TIMEOUT,
-    gotoWhenReady,
-    loginAs,
-    openAdminWithSeededPasskeySession,
-    runSql,
-    setFlatpickrDate,
-} from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openAdminWithSeededPasskeySession } from './support/passkeys';
+import { runSql } from './support/database';
+import { setFlatpickrDate } from './support/profile';
 
 type LiveSubscriptionWindow = Window & { __blackoutSubscriptionKeys?: string[] };
 
@@ -23,7 +21,7 @@ async function installSubscriptionObserver(page: Page) {
 }
 
 async function openLeaveSettings(page: Page) {
-    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
     await page.getByRole('tab', { name: 'Settings' }).click();
     await expect(page.locator('#unavailability-blackouts')).toBeVisible();
 }

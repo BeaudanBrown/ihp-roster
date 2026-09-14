@@ -22,20 +22,11 @@ import Application.Helper.PasswordResetTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
-import Application.Helper.TimeRules (parseQuarterHourMinuteOfDay)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.WeekBoundaries (startOfWeekFor, weekdayIndexLabel)
-import Application.Helper.Xero
-import Application.Helper.XeroAdminTypes
-import Application.Helper.XeroPayItems
 import Application.StaffDefaults (staffAwardRateIsAvailable)
-import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays)
-import Data.Time.Clock (utctDay)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support
@@ -53,10 +44,10 @@ import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 
 respondToProfileLiveInvalidation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     [SurfaceResourceValue] ->
-    IO ()
+    IO ResponseReceived
 respondToProfileLiveInvalidation label resources = do
     profilingEnabled <- liftIO isRequestProfilingEnabled
     redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
@@ -65,8 +56,8 @@ respondToProfileLiveInvalidation label resources = do
     respondHtml "ok"
 
 respondToVenueSettingsMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 respondToVenueSettingsMutation =
     if isHtmxRequest
         then do
@@ -78,8 +69,8 @@ respondToVenueSettingsMutation =
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 respondToRosterWindowStartDayMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO ()
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ResponseReceived
 respondToRosterWindowStartDayMutation =
     if isHtmxRequest
         then fetchVenueConfig >>= respondHtml . renderRosterWindowStartDaySettingFragment
@@ -93,9 +84,9 @@ reportSurfaceRequestErrors errors =
     setErrorMessage ("Check the submitted fields: " <> surfaceRequestFieldErrorsMessage errors)
 
 respondToShiftTypesSectionMutationWithXeroRefresh ::
-    (?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
     LiveMutationResult value ->
-    IO ()
+    IO ResponseReceived
 respondToShiftTypesSectionMutationWithXeroRefresh mutationResult =
     if isHtmxRequest
         then do
@@ -105,11 +96,11 @@ respondToShiftTypesSectionMutationWithXeroRefresh mutationResult =
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 sendStaffPasskeySetupLink ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id Staff ->
     PasskeySetupTokenPurpose ->
     Text ->
-    IO ()
+    IO ResponseReceived
 sendStaffPasskeySetupLink staffId purpose successMessage = do
     ensureCanSendStaffCredentialLink
     maybeTarget <- fetchCurrentVenueStaffUser staffId
@@ -121,9 +112,9 @@ sendStaffPasskeySetupLink staffId purpose successMessage = do
             redirectToPath staffPasskeyReturnPath
 
 sendStaffPasswordResetLink ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id Staff ->
-    IO ()
+    IO ResponseReceived
 sendStaffPasswordResetLink staffId = do
     ensureCanSendStaffCredentialLink
     fetchCurrentVenueStaffUser staffId >>= \case
@@ -140,7 +131,7 @@ sendStaffPasswordResetLink staffId = do
             redirectToPath staffPasskeyReturnPath
 
 ensureCanSendStaffCredentialLink ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 ensureCanSendStaffCredentialLink = do
     redirectPermissionDeniedUnless
@@ -148,11 +139,11 @@ ensureCanSendStaffCredentialLink = do
         "Only a venue admin, venue owner, or super admin can send account recovery links."
     ensureFreshPasskeyReadyFor staffPasskeyReturnPath
 
-rejectStaffCredentialTarget :: (?context :: ControllerContext, ?request :: Request) => IO a
-rejectStaffCredentialTarget = do
-    setErrorMessage "Choose an active linked staff login from this venue."
-    redirectTo AdminAction
-    error "unreachable"
+rejectStaffCredentialTarget :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => IO a
+rejectStaffCredentialTarget =
+    terminateAfterIhpResponseControl do
+        setErrorMessage "Choose an active linked staff login from this venue."
+        redirectTo AdminAction
 
 staffPasskeyReturnPath :: (?request :: Request) => Text
 staffPasskeyReturnPath =
@@ -333,6 +324,10 @@ instance Controller AdminController where
     action currentAction@RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisPageAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (refreshXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
+
+    action currentAction@RefreshXeroProblemTimesheetApprovalAction { xeroTimesheetPreparationRunId, timesheetEntryId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (refreshXeroProblemTimesheetApprovalAction xeroTimesheetPreparationRunId timesheetEntryId)
 
     action currentAction@ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFragmentAction do
         ensureVenueWritable
@@ -673,7 +668,7 @@ instance Controller AdminController where
                         maybePayRateSelection <- parseSubmittedShiftTypePayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
-                                mutationResult <- createShiftTypeMutation name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))
+                                mutationResult <- createShiftTypeMutation name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (surfaceFieldValue @Surface.ColourKey fields)
                                 setSuccessMessage "Shift type added"
                                 respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
                             Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
@@ -692,7 +687,7 @@ instance Controller AdminController where
                         maybePayRateSelection <- parseSubmittedShiftTypePayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
-                                mutationResult <- updateShiftTypeMutation shiftType name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))
+                                mutationResult <- updateShiftTypeMutation shiftType name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (surfaceFieldValue @Surface.ColourKey fields)
                                 unless isHtmxRequest do
                                     setSuccessMessage "Shift type updated"
                                 respondToShiftTypesSectionMutationWithXeroRefresh mutationResult

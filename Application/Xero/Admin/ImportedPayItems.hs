@@ -116,6 +116,6 @@ upsertImportedXeroPayItem connection now rate = do
         Just record -> fillRecord record |> updateRecord
         Nothing ->
             fillRecord (newRecord @XeroImportedPayItem)
-                |> set #importedByUserId (unpackId currentUser.id)
+                |> set #importedByUserId (unpackId authenticatedCurrentUser.id)
                 |> set #importedAt now
                 |> createRecord

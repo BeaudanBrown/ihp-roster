@@ -7,29 +7,19 @@ module Web.Admin.Xero.Mutations
     , importXeroEarningsRatesMutation
     , markXeroConnectionErrorMutation
     , startXeroConnectionMutation
-    , applyXeroTimesheetPreparationStaffDecisionMutation
-    , approveXeroTimesheetPreparationPayItemsMutation
-    , approveXeroTimesheetPreparationStaffStepMutation
-    , refreshXeroTimesheetPreparationMutation
-    , runXeroTimesheetPreparationMutation
-    , selectXeroTimesheetPreparationPeriodMutation
     , syncXeroReferenceDataMutation
-    , submitXeroTimesheetPreparationMutation
     , xeroConnectionTouchedResources
     , xeroPayItemsTouchedResources
     , xeroReferenceSyncTouchedResources
-    , xeroTimesheetsTouchedResources
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.SurfaceResource
 import Application.Helper.Xero
-import Application.Helper.XeroAdminTypes
 import qualified Application.Xero.Admin.ImportedPayItems as ImportedPayItems
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.ReferenceSyncJob (enqueueXeroReferenceSyncJob)
 import Application.Xero.ReferenceSyncRequest
-import qualified Application.Xero.Timesheets.Prepare as XeroPrepare
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
@@ -41,7 +31,7 @@ startXeroConnectionMutation xeroConfig now stateToken =
         oauthState <-
             newRecord @XeroOauthState
                 |> set #venueId (unpackId currentVenueId)
-                |> set #userId (unpackId currentUser.id)
+                |> set #userId (unpackId authenticatedCurrentUser.id)
                 |> set #stateToken stateToken
                 |> set #requestedScopes requiredXeroScopesText
                 |> set #redirectUri xeroConfig.redirectUri
@@ -74,7 +64,7 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
         updated <-
             connection
                 |> set #connectionStatus "disconnected"
-                |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+                |> set #disconnectedByUserId (Just (unpackId authenticatedCurrentUser.id))
                 |> set #disconnectedAt (Just now)
                 |> set #encryptedAccessToken Nothing
                 |> set #xeroConnectionRemoteId retainedRemoteConnectionId
@@ -89,7 +79,7 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
         forM_ staleConnections \staleConnection ->
             staleConnection
                 |> set #connectionStatus "disconnected"
-                |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+                |> set #disconnectedByUserId (Just (unpackId authenticatedCurrentUser.id))
                 |> set #disconnectedAt (Just now)
                 |> set #encryptedAccessToken Nothing
                 |> set #lastError (Just "Superseded by local disconnect")
@@ -213,45 +203,10 @@ importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds =
 
 syncXeroReferenceDataMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> IO (LiveMutationResult (Either Text XeroReferenceDataSyncResult))
 syncXeroReferenceDataMutation connection = do
-    result <- runXeroReferenceDataSyncRequest (Just currentUser.id) connection
+    result <- runXeroReferenceDataSyncRequest (Just authenticatedCurrentUser.id) connection
     -- The request/job boundary publishes passive transitions. Retain the same
     -- typed resource here for actor-local response planning without rebroadcast.
     pure (liveMutationResult result (xeroReferenceSyncTouchedResources currentVenueId))
-
--- Guided preparation is requester-local dialog state, not a passive live
--- surface. Its committed provider/reservation phases retain their own service
--- transactions; no durable event is emitted for an empty resource set.
-recordXeroTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> a -> IO (LiveMutationResult a)
-recordXeroTimesheetsMutation _label value =
-    pure (liveMutationResult value xeroTimesheetsTouchedResources)
-
-runXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-runXeroTimesheetPreparationMutation =
-    XeroPrepare.startXeroTimesheetPreparation >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.start"
-
-refreshXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-refreshXeroTimesheetPreparationMutation runId =
-    XeroPrepare.refreshXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.refresh"
-
-selectXeroTimesheetPreparationPeriodMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey =
-    XeroPrepare.selectXeroTimesheetPreparationPeriod runId selectedPeriodKey >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.period_select"
-
-applyXeroTimesheetPreparationStaffDecisionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Id Staff -> XeroPrepare.XeroPreparationStaffDecision -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision =
-    XeroPrepare.applyXeroPreparationStaffDecision runId staffId decision >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.staff_decision"
-
-approveXeroTimesheetPreparationPayItemsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode =
-    XeroPrepare.approveXeroPreparationPayItemDecisions runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.pay_items_approve"
-
-approveXeroTimesheetPreparationStaffStepMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-approveXeroTimesheetPreparationStaffStepMutation runId =
-    XeroPrepare.approveXeroPreparationStaffStep runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.staff_approve"
-
-submitXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-submitXeroTimesheetPreparationMutation runId maybeAccountCode =
-    XeroPrepare.submitXeroTimesheetPreparation runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.submit"
 
 xeroConnectionTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroConnectionTouchedResources venueId =
@@ -262,12 +217,6 @@ xeroConnectionTouchedResources venueId =
 xeroPayItemsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroPayItemsTouchedResources venueId =
     [adminShiftTypesResource (unpackId venueId)]
-
--- Guided preparation is dialog-local and no registered live fragment depends
--- on a Xero-timesheet resource. Keep this empty instead of emitting the retired
--- undeclared sentinel, which never selected an actor or passive target.
-xeroTimesheetsTouchedResources :: [SurfaceResourceValue]
-xeroTimesheetsTouchedResources = []
 
 xeroReferenceSyncTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroReferenceSyncTouchedResources venueId =

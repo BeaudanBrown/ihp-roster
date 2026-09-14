@@ -8,7 +8,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Prelude
 
 data AwardYearScope
     = AllAwardYears
@@ -194,8 +193,8 @@ applyAwardYearScope LatestActiveAwardYear yearOf values =
             filter (\(payload, _) -> yearOf payload == Just latestYear) values
 
 maximumMaybe :: Ord a => [a] -> Maybe a
-maximumMaybe []     = Nothing
-maximumMaybe values = Just (maximum values)
+maximumMaybe []             = Nothing
+maximumMaybe (first : rest) = Just (foldl' max first rest)
 
 isRelevantPayRate :: MapdCurationProfile -> PayRatePayload -> Bool
 isRelevantPayRate profile payRate =

@@ -15,16 +15,15 @@ import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (T
                                                    deriveFrontendSurfaceTypeName)
 import Application.Helper.FrontendContract.Surface.ContractIR (BrowserAttributeIR (..),
                                                                TabSetIR (..))
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
-                                                            ReflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectSurfaceSpec,
+                                                            ReflectTabSetPrimitive)
 import Application.Helper.FrontendContract.Surface.Values
-import Data.Typeable (Typeable)
 import IHP.Prelude
 
 surfaceTabSetAttrs ::
     forall spec tabSetMarker key.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceTabSetPrimitive spec tabSetMarker)
+    , ReflectTabSetPrimitive (SurfaceTabSetPrimitive spec tabSetMarker)
     , RequireSurfaceTabKey (SurfaceTabSetPrimitive spec tabSetMarker) key
     , Typeable key
     ) =>

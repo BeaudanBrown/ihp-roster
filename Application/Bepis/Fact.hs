@@ -29,7 +29,6 @@ import Application.Helper.Telemetry (addTelemetryAttributes, addTelemetryEvent)
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.MVar (MVar, modifyMVar_, newMVar, readMVar)
 import qualified Control.Exception as Exception
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import GHC.Generics (Generic)
 import IHP.Prelude
 import OpenTelemetry.Attributes (Attribute, toAttribute)
@@ -47,7 +46,7 @@ data BepisOperationKind
     | BepisPreferenceAction
     | BepisIntegrationAction
     | BepisExportAction
-    deriving (Eq, Show, Generic)
+    deriving (Bounded, Enum, Eq, Show, Generic)
 
 -- | Low-cardinality response shape labels. Response helpers emit these when
 -- they actually perform a response.
@@ -58,7 +57,7 @@ data BepisResponseKind
     | BepisRedirectResponse
     | BepisJsonResponse
     | BepisFileResponse
-    deriving (Eq, Show, Generic)
+    deriving (Bounded, Enum, Eq, Show, Generic)
 
 data BepisRoleKind
     = BepisOwnerRole
@@ -213,7 +212,7 @@ data BepisFactKind
     | BepisAuditFactKind
     | BepisLiveFactKind
     | BepisResponseFactKind
-    deriving (Eq, Show, Generic)
+    deriving (Bounded, Enum, Eq, Show, Generic)
 
 bepisFactKind :: BepisFact -> BepisFactKind
 bepisFactKind = \case

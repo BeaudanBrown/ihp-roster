@@ -8,17 +8,11 @@ module Application.Helper.FrontendContract.Surface.LinkedHighlight
     , frontendSurfaceLinkedHighlightMemberAttrs
     , frontendSurfaceLinkedHighlightPinAttrs
     , frontendSurfaceLinkedHighlightSourceAttrs
-    , withFrontendSurfaceLinkedHighlightMember
-    , withFrontendSurfaceLinkedHighlightPin
-    , withFrontendSurfaceLinkedHighlightSource
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import IHP.Prelude
-import qualified Text.Blaze.Html as Blaze
-import Text.Blaze.Html5 ((!))
-
-type Html = Blaze.Html
 
 frontendSurfaceLinkedHighlightSourceAttrs :: LinkedHighlightIR -> Text -> [(Text, Text)]
 frontendSurfaceLinkedHighlightSourceAttrs highlight membershipKey =
@@ -35,33 +29,21 @@ frontendSurfaceLinkedHighlightMemberAttrs highlight membershipKey maybeOrderKey 
             (Just stateAttribute, Just orderKey) ->
                 [(stateAttribute.browserAttributeDomAttribute, orderKey)]
             (Just _, Nothing) ->
-                error ("Linked highlight " <> cs highlight.linkedHighlightName <> " requires an opaque order key")
+                startupInvariantFailure ("Linked highlight " <> cs highlight.linkedHighlightName <> " requires an opaque order key")
             (Nothing, Just _) ->
-                error ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare ordered members")
+                startupInvariantFailure ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare ordered members")
 
 frontendSurfaceLinkedHighlightDefaultAttrs :: LinkedHighlightIR -> Text -> [(Text, Text)]
 frontendSurfaceLinkedHighlightDefaultAttrs highlight membershipKey =
     case linkedHighlightDefaultRole highlight of
         Just roleAttribute -> [(roleAttribute.browserAttributeDomAttribute, membershipKey)]
-        Nothing -> error ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare default activation")
+        Nothing -> startupInvariantFailure ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare default activation")
 
 frontendSurfaceLinkedHighlightPinAttrs :: LinkedHighlightIR -> Text -> [(Text, Text)]
 frontendSurfaceLinkedHighlightPinAttrs highlight membershipKey =
     case linkedHighlightPinRole highlight of
         Just roleAttribute -> [(roleAttribute.browserAttributeDomAttribute, membershipKey)]
-        Nothing -> error ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare pin activation")
-
-withFrontendSurfaceLinkedHighlightSource :: LinkedHighlightIR -> Text -> Html -> Html
-withFrontendSurfaceLinkedHighlightSource highlight membershipKey =
-    applyAttrs (frontendSurfaceLinkedHighlightSourceAttrs highlight membershipKey)
-
-withFrontendSurfaceLinkedHighlightMember :: LinkedHighlightIR -> Text -> Maybe Text -> Html -> Html
-withFrontendSurfaceLinkedHighlightMember highlight membershipKey maybeOrderKey =
-    applyAttrs (frontendSurfaceLinkedHighlightMemberAttrs highlight membershipKey maybeOrderKey)
-
-withFrontendSurfaceLinkedHighlightPin :: LinkedHighlightIR -> Text -> Html -> Html
-withFrontendSurfaceLinkedHighlightPin highlight membershipKey =
-    applyAttrs (frontendSurfaceLinkedHighlightPinAttrs highlight membershipKey)
+        Nothing -> startupInvariantFailure ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare pin activation")
 
 linkedHighlightPinRole :: LinkedHighlightIR -> Maybe BrowserAttributeIR
 linkedHighlightPinRole highlight =
@@ -87,12 +69,4 @@ linkedHighlightOrderState highlight =
 uniqueAttribute :: Text -> [BrowserAttributeIR] -> Maybe BrowserAttributeIR
 uniqueAttribute _ [] = Nothing
 uniqueAttribute _ [attribute] = Just attribute
-uniqueAttribute label _ = error ("Checked linked-highlight IR contains more than one " <> cs label)
-
-applyAttrs :: [(Text, Text)] -> Html -> Html
-applyAttrs attributes html =
-    foldl' (\current (name, value) -> current ! attr name value) html attributes
-
-attr :: Text -> Text -> Blaze.Attribute
-attr name value =
-    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
+uniqueAttribute label _ = startupInvariantFailure ("Checked linked-highlight IR contains more than one " <> cs label)

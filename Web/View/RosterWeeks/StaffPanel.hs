@@ -10,7 +10,8 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog
                                                      OpenTrialStaffInvitationDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
+                                                             appShellActionAttrs,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionHtmxControl)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
@@ -25,13 +26,12 @@ import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterStaf
                                                                       rosterStaffPanelSortRowAttrs,
                                                                       rosterStaffPanelTabAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.Staff (isAdoptableTrialStaff)
-import Application.Helper.View (staffDisplayName)
 import Application.VenueRole (parseVenueRole, venueRoleLabel)
-import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
                             rosterStaffPanelFragmentId,
@@ -84,9 +84,8 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurren
             {renderRosterStaffPanelTable panelStaffMembers panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id renderedPanelStaff}
         |]
         templatePanelContent = do
-            templateUserId <- panelModel.staffPanelTemplateUserId
             templateLibrary <- panelModel.staffPanelTemplateLibrary
-            pure (renderRosterTemplateLibraryFragment templateUserId panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
+            pure (renderRosterTemplateLibraryFragment panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
         settingsPanelContent = renderRosterSettingsPanel panelModel
 
 
@@ -150,13 +149,7 @@ renderRosterStaffPanelHeader anchorDate currentRosterGroupId hasMultipleRosterGr
 
 rosterStaffOverlayRoute :: Text -> AppShellActionRoute
 rosterStaffOverlayRoute actionUrl =
-    AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
-        , appShellActionRouteCustomHtmx = []
-        , appShellActionRouteStandardUrl = Nothing
-        , appShellActionRouteExtraAttrs = []
-        }
+    (defaultAppShellActionRoute (actionUrl))
 
 renderOpenRosterStaffCreateDialogButton :: Day -> Id RosterGroup -> Html
 renderOpenRosterStaffCreateDialogButton anchorDate currentRosterGroupId =
@@ -242,12 +235,10 @@ renderStaffScopeToggle :: (?context :: ControllerContext) => Day -> Id RosterGro
 renderStaffScopeToggle anchorDate currentRosterGroupId panelScope =
     renderFrontendSurfaceActionForm
         (RosterAction.toggleRosterStaffScopeAction fields)
-        FrontendSurfaceActionRoute
-            { actionRouteUrl = actionUrl
-            , actionRouteCustomHtmx = []
-            , actionRouteStandardUrl = Just actionUrl
+        ((defaultFrontendSurfaceActionRoute (actionUrl))
+            { actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("class", "mb-0 roster-staff-scope-toggle")]
-            }
+            })
         [hsx|
             <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
             {renderStaffScopeToggleButton fields currentRosterGroupId panelScope}
@@ -287,13 +278,12 @@ renderRosterStaffPanelEntry panelStaffMembers anchorDate currentRosterGroupId en
 renderRosterStaffPanelEntryRow :: Day -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow anchorDate currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
     let staffKey = "staff:" <> tshow entry.staff.id
-     in SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef staffKey $
-        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterStaffLinkedHighlight staffKey $
-            applyAppShellActionAttrs
-                (appShellActionByMarker @OpenRosterStaffEditDialog)
+        attributes = SurfaceInteraction.frontendSurfaceSourceRefAttrs rosterStaffDragSourceRef staffKey
+            <> SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs rosterStaffLinkedHighlight staffKey
+            <> appShellActionAttrs (appShellActionByMarker @OpenRosterStaffEditDialog)
                 (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("anchorDate", tshow anchorDate), ("rosterGroupId", tshow currentRosterGroupId)]))
-                [hsx|
-                    <tr class="app-side-panel-entry roster-staff-panel-entry"
+     in [hsx|
+                    <tr {...attributes} class="app-side-panel-entry roster-staff-panel-entry"
                     {...rosterStaffPanelSortRowAttrs staffKey staffDisplayLabel staffRoleLabel entry.assignedShiftCount entry.staff.idealShiftsPerWeek}
                     aria-disabled="false"
                     role="button"
@@ -320,8 +310,8 @@ renderRosterStaffPanelEntryCell _ _ _ _ entry RosterStaffShiftsColumn = [hsx|
 |]
 renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionColumn =
     let locateButton =
-            SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin rosterStaffLinkedHighlight ("staff:" <> tshow entry.staff.id) [hsx|
-                <button type="button"
+            [hsx|
+                <button {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs rosterStaffLinkedHighlight ("staff:" <> tshow entry.staff.id))} type="button"
                         class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button roster-staff-locate-button"
                         aria-label={"Locate shifts for " <> staffDisplayLabel}
                         aria-pressed="false">

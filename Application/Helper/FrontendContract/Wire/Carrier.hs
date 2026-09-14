@@ -52,6 +52,7 @@ module Application.Helper.FrontendContract.Wire.Carrier
     , (|:)
     ) where
 
+import Application.Error.Parser (parserFailure)
 import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
                                                          closedScalarLiteral,
                                                          parseClosedScalarLiteral)
@@ -61,23 +62,21 @@ import qualified Application.Helper.FrontendContract.Naming as Naming
 import Application.Helper.FrontendContract.Reflect (ReflectFrontendContractRegistry,
                                                     reflectFrontendContracts)
 import Application.Helper.FrontendContract.Registry (RegisteredFrontendContracts,
-                                                     registeredFrontendContractIR)
+                                                     checkedRegisteredFrontendContract)
+import Application.Helper.FrontendContract.TypeError (BepisTypeError)
 import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValueWith,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
+import Application.Helper.NominalText (NominalText (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Foldable (toList)
-import Data.Kind (Type)
-import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
-import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
+import Data.Typeable (tyConName, typeRep, typeRepTyCon)
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
-import Application.Helper.FrontendContract.TypeError (BepisTypeError)
-import Application.Helper.NominalText (NominalText (..))
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, symbolVal)
+import GHC.TypeLits (ErrorMessage (ShowType, Text, (:<>:)))
 import IHP.Prelude
 
 -- | Canonical recursive Haskell source type selected by a declared global wire.
@@ -402,7 +401,7 @@ instance
 requiredObjectField :: forall marker. Typeable marker => Aeson.Object -> AesonTypes.Parser Aeson.Value
 requiredObjectField object =
     maybe
-        (fail ("missing required field " <> cs (fieldName @marker)))
+        (parserFailure ("missing required field " <> cs (fieldName @marker)))
         pure
         (KeyMap.lookup (AesonKey.fromText (fieldName @marker)) object)
 
@@ -430,13 +429,13 @@ instance KnownWireCodec 'WireBool where
 instance KnownWireCodec 'WireUUID where
     carrierWireJson = Aeson.String . UUID.toText
     parseCarrierWire = Aeson.withText "FrontendContract WireUUID" \value ->
-        maybe (fail "FrontendContract UUID field is malformed") pure (UUID.fromText value)
+        maybe (parserFailure "FrontendContract UUID field is malformed") pure (UUID.fromText value)
 
 instance KnownWireCodec 'WireDay where
     carrierWireJson = Aeson.String . cs . formatTime defaultTimeLocale "%F"
     parseCarrierWire = Aeson.withText "FrontendContract WireDay" \value ->
         maybe
-            (fail "FrontendContract day field is malformed")
+            (parserFailure "FrontendContract day field is malformed")
             pure
             (parseTimeM True defaultTimeLocale "%F" (cs value))
 
@@ -444,13 +443,13 @@ instance KnownClosedScalar value => KnownWireCodec ('WireClosed value) where
     carrierWireJson = Aeson.String . closedScalarLiteral
     parseCarrierWire = Aeson.withText "FrontendContract WireClosed" \literal ->
         maybe
-            (fail ("FrontendContract closed scalar has invalid literal: " <> cs literal))
+            (parserFailure ("FrontendContract closed scalar has invalid literal: " <> cs literal))
             pure
             (parseClosedScalarLiteral @value literal)
 
 instance NominalText value => KnownWireCodec ('WireDomain value) where
     carrierWireJson = Aeson.String . renderNominalText
-    parseCarrierWire = Aeson.withText "FrontendContract WireDomain" (either (fail . cs) pure . parseNominalText)
+    parseCarrierWire = Aeson.withText "FrontendContract WireDomain" (either (parserFailure . cs) pure . parseNominalText)
 
 instance KnownWireCodec 'WireUnknown where
     carrierWireJson = id
@@ -521,7 +520,10 @@ parseRecord ::
     AesonTypes.Parser result
 parseRecord =
     parseRecordWith @marker @(RecordFieldSpecs (SchemaIn RegisteredFrontendContracts marker))
-        registeredFrontendContractIR
+        registeredContractIR
+
+registeredContractIR :: Contract.FrontendContractIR
+registeredContractIR = Contract.frontendContractIR checkedRegisteredFrontendContract
 
 parseRecordWith ::
     forall marker fields result.
@@ -560,7 +562,7 @@ parseEvent ::
     AesonTypes.Parser result
 parseEvent =
     parseRecordWith @marker @(EventFieldSpecs RegisteredFrontendContracts marker)
-        registeredFrontendContractIR
+        registeredContractIR
 
 -- Tagged unions --------------------------------------------------------------
 
@@ -631,7 +633,7 @@ class ParseUnionCases (cases :: [UnionCaseSpec]) where
 
 instance ParseUnionCases '[] where
     parseDeclaredUnionCase tag _ NoUnionCaseParsers =
-        fail ("validated FrontendContract union case is unavailable: " <> cs tag)
+        parserFailure ("validated FrontendContract union case is unavailable: " <> cs tag)
 
 instance
     ( Typeable marker
@@ -668,7 +670,7 @@ parseTaggedUnion ::
     AesonTypes.Parser result
 parseTaggedUnion =
     parseTaggedUnionWith @marker @(SchemaIn RegisteredFrontendContracts marker)
-        registeredFrontendContractIR
+        registeredContractIR
 
 parseTaggedUnionWith ::
     forall marker schema result.

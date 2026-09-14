@@ -8,6 +8,13 @@ unavailability views.
 - Read `SPEC.md` first.
 - Preserve exclusive `end_date` semantics.
 - Keep projection/read-model work out of the controller when practical.
+- Keep context resolution, scoped target loading and submission adaptation in
+  `Request.hs`; keep outcome/HTTP/copy/fallback/actor refresh in `Responses.hs`.
+  Preserve access-before-target-before-parse ordering and post-commit Staff
+  relookup. Context is not authorization evidence.
+- Keep `Mutations.hs` as the single submission/review transaction and resource
+  authority. Do not add a generic workflow layer around its review operation.
+  The adopted dependency roles are checked in `scripts/architecture/workflow-boundaries.mjs`.
 - Keep Profile and roster self-service integration in the shared
   `SelfService.hs` Surface renderer; context-owned views provide only mount
   placement and optional history selection.

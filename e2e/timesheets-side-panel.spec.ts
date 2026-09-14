@@ -8,15 +8,12 @@ import {
     timesheetsTimesheetStaffHighlightPinDomAttr,
     timesheetsTimesheetStaffHighlightSourceDomAttr,
 } from '../frontend/ts/generated/contracts';
-import {
-    defaultE2ERosterGroupId,
-    E2E_TIMEOUT,
-    gotoWhenReady,
-    loginAs,
-    openTimesheetSettings,
-    resetTimesheetDisplayPreferences,
-    runSql,
-} from './test-helpers';
+import { defaultE2ERosterGroupId } from './support/roster';
+import { E2E_TIMEOUT } from './timeouts';
+import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
+import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { runSql } from './support/database';
 
 const secondRosterGroupId = 'a1000000-0000-0000-0000-000000000213';
 

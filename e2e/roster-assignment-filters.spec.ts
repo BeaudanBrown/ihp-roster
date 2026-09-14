@@ -8,9 +8,9 @@ import {
     openRoster,
     openRosterSettings,
     openRosterShiftDialog,
-    querySql,
     rosterShiftDialogStaffOptionValues,
-} from './test-helpers';
+} from './support/roster';
+import { querySql } from './support/database';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { weekOffset: 1 });

@@ -1,14 +1,14 @@
 module Application.FwcMapd.Payload where
 
-import qualified Control.Exception as Exception
+import Application.Error.Parser (parserFailure)
+import Application.Error.Runtime (throwExternalRuntime)
+import Application.FwcMapd.Error
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
 import Data.Scientific (Scientific)
-import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import IHP.ControllerPrelude
-import IHP.Prelude
 
 data MapdSyncSummary = MapdSyncSummary
     { syncedAwardFixedIds        :: ![Int]
@@ -220,13 +220,13 @@ textFromJsonValue = \case
     Aeson.String value -> pure value
     Aeson.Number value -> pure (cs (show value))
     Aeson.Bool value -> pure (if value then "true" else "false")
-    Aeson.Null -> fail "expected non-null JSON value"
+    Aeson.Null -> parserFailure "expected non-null JSON value"
     Aeson.Array values -> pure (cs (show (Vector.toList values)))
     Aeson.Object value -> pure (cs (show value))
 
 decodePayloads :: Aeson.FromJSON a => Text -> [Aeson.Value] -> IO [(a, Aeson.Value)]
-decodePayloads label rawValues =
+decodePayloads _label rawValues =
     forM rawValues \rawValue ->
         case Aeson.parseEither Aeson.parseJSON rawValue of
-            Left errorMessage -> Exception.throwIO (userError ("FWC MAPD " <> cs label <> " decode failed: " <> errorMessage))
+            Left _        -> throwExternalRuntime MapdResponseMalformed
             Right payload -> pure (payload, rawValue)

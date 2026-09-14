@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+
+expected_modules=(
+    database
+    exports
+    mail
+    passkeys
+    profile
+    responsive
+    roster
+    runtime
+    session
+    timesheets
+)
+
+if [[ -e e2e/test-helpers.ts ]]; then
+    echo "e2e-support-import-check: omnibus e2e/test-helpers.ts must not exist" >&2
+    exit 1
+fi
+
+if rg -n "test-helpers|from ['\"]\./support['\"]" e2e --glob '*.ts'; then
+    echo "e2e-support-import-check: found an omnibus or compatibility-facade import" >&2
+    exit 1
+fi
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+printf '%s\n' "${expected_modules[@]}" | sort >"$tmp_dir/expected"
+find e2e/support -maxdepth 1 -type f -name '*.ts' -printf '%f\n' \
+    | sed 's/\.ts$//' \
+    | sort >"$tmp_dir/actual"
+if ! diff -u "$tmp_dir/expected" "$tmp_dir/actual"; then
+    echo "e2e-support-import-check: focused support-module inventory changed; update the ownership check and e2e/AGENTS.md together" >&2
+    exit 1
+fi
+
+for module in "${expected_modules[@]}"; do
+    if ! rg -q "from ['\"]\./support/${module}['\"]" e2e --glob '*.spec.ts'; then
+        echo "e2e-support-import-check: support/$module.ts has no direct spec consumer" >&2
+        exit 1
+    fi
+done
+
+rg -o '^export (async )?(function|const|type|interface|class) [A-Za-z0-9_]+' e2e/support/*.ts \
+    | awk '{ print $NF }' \
+    | sort \
+    | uniq -d >"$tmp_dir/duplicate-exports"
+if [[ -s "$tmp_dir/duplicate-exports" ]]; then
+    echo "e2e-support-import-check: support symbols must have one owner; duplicate exports:" >&2
+    cat "$tmp_dir/duplicate-exports" >&2
+    exit 1
+fi
+
+for shared_state in uniqueE2ECounter cachedBrowserSessions; do
+    if [[ "$(rg -l "^(let|const) ${shared_state}\\b" e2e/support/*.ts | wc -l)" -ne 1 ]]; then
+        echo "e2e-support-import-check: shared state $shared_state must have exactly one owner" >&2
+        exit 1
+    fi
+done
+
+echo "e2e-support-import-check: focused support ownership, state, and direct imports verified"

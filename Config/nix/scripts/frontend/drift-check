@@ -4,12 +4,13 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-shopt -s nullglob
-entries=(frontend/ts/app*.ts)
-if [ "${#entries[@]}" -eq 0 ]; then
-    echo "frontend-drift-check: no frontend/ts/app*.ts entrypoints found" >&2
-    exit 1
-fi
+entries=(frontend/ts/app.ts frontend/ts/dev-timer-tracking.ts)
+for entry in "${entries[@]}"; do
+    if [ ! -f "$entry" ]; then
+        echo "frontend-drift-check: missing entrypoint $entry" >&2
+        exit 1
+    fi
+done
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
@@ -39,3 +40,16 @@ for entry in "${entries[@]}"; do
         exit 1
     fi
 done
+
+shopt -s nullglob
+unexpected_outputs=()
+for output in static/app*.js; do
+    if [ "$output" != static/app.js ]; then
+        unexpected_outputs+=("$output")
+    fi
+done
+if [ "${#unexpected_outputs[@]}" -ne 0 ]; then
+    echo "frontend-drift-check: unexpected generated app bundles remain; run bash ./bin/in-env frontend-build" >&2
+    printf '  %s\n' "${unexpected_outputs[@]}" >&2
+    exit 1
+fi

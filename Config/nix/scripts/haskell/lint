@@ -3,4 +3,14 @@ set -euo pipefail
 if [ $# -gt 0 ]; then
     exec hlint -j -XQuasiQuotes "$@"
 fi
+mapfile -t app_sources < <(
+    awk -F '\t' 'NR > 1 && $2 == "production" && $1 ~ /\.hs$/ { print $1 }' Config/nix/production-module-inventory.tsv \
+        | grep -Ev '(^|/)Generated(/|\.|$)' \
+        | sort -u
+)
+if ((${#app_sources[@]} == 0)); then
+    echo "lint: no app-owned production sources discovered" >&2
+    exit 1
+fi
+hlint -j -XQuasiQuotes --only='Avoid restricted function' "${app_sources[@]}"
 hlint -j -XQuasiQuotes Main.hs Web/ Application/Helper/ Config/

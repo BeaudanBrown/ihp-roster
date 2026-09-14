@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { E2E_TIMEOUT, loginAs } from './test-helpers';
+import { loginAs } from './support/session';
+import { E2E_TIMEOUT } from './timeouts';
 
 test.describe('Browser failure recovery', () => {
     test('shows a useful recovery page for a malformed roster bookmark', async ({ page }) => {

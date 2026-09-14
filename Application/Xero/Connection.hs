@@ -5,7 +5,7 @@ module Application.Xero.Connection
     , persistXeroRefreshedTokens
     , forceRefreshXeroConnectionAccess
     , refreshXeroConnectionAccess
-    , refreshXeroConnectionAccessWithoutBroadcast
+    , durableXeroClientErrorText
     , xeroClientErrorText
     ) where
 
@@ -17,7 +17,7 @@ import Control.Monad (void)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationWithoutContext)
 
 xeroClientErrorText :: XeroClientError -> Text
 xeroClientErrorText (XeroHttpError message) = message
@@ -92,14 +92,6 @@ reusableXeroAccessToken now xeroConfig connection =
 
 xeroAccessTokenReuseMargin :: NominalDiffTime
 xeroAccessTokenReuseMargin = 5 * 60
-
-refreshXeroConnectionAccessWithoutBroadcast ::
-    (?modelContext :: ModelContext) =>
-    XeroConfig ->
-    XeroConnection ->
-    IO (Either Text (XeroConnection, Text))
-refreshXeroConnectionAccessWithoutBroadcast xeroConfig connection =
-    refreshXeroConnectionAccess xeroConfig connection
 
 persistXeroRefreshedTokens ::
     (?modelContext :: ModelContext) =>

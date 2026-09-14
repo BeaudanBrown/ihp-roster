@@ -7,15 +7,15 @@ import {
     assignRosterShiftStaff,
     existingRosterShiftLaunchers,
     firstEditableRosterDaySection,
-    gotoWhenReady,
-    openAdminWithSeededPasskeySession,
     openRoster,
     openRosterSettings,
     removeRowFromRosterDay,
     rosterDayAddButtonForSection,
     rosterDayRemoveButtonForSection,
     rosterShiftLaunchers,
-} from './test-helpers';
+} from './support/roster';
+import { gotoWhenReady } from './support/runtime';
+import { openAdminWithSeededPasskeySession } from './support/passkeys';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page);

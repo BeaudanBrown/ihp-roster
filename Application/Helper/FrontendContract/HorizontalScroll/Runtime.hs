@@ -10,6 +10,8 @@ module Application.Helper.FrontendContract.HorizontalScroll.Runtime
     , horizontalDragAttrs
     ) where
 
+import Application.Error.Parser (parserFailure)
+import Application.Error.Startup (startupInvariantFailure)
 import qualified Application.Helper.FrontendContract.HorizontalScroll as Contract
 import Application.Helper.FrontendContract.Values (domAttrValue,
                                                    enumLiteralValue)
@@ -125,7 +127,7 @@ validateSnapConfig config = case config of
     HorizontalSnapNearestItem selector ->
         HorizontalSnapNearestItem (validateRequiredText "Horizontal snap item selector" selector)
     HorizontalSnapEqualGroups (HorizontalSnapGroupCount count)
-        | count <= 0 -> error "Horizontal snap group count must be positive"
+        | count <= 0 -> startupInvariantFailure "Horizontal snap group count must be positive"
         | otherwise -> config
     HorizontalSnapEqualGroups (HorizontalSnapGroupProperty { horizontalSnapGroupProperty, horizontalSnapGroupScopeSelector }) ->
         HorizontalSnapEqualGroups HorizontalSnapGroupProperty
@@ -139,7 +141,7 @@ validateOptionalSelector label (Just value) = Just (validateRequiredText label v
 
 validateRequiredText :: Text -> Text -> Text
 validateRequiredText label value
-    | Text.null (Text.strip value) = error (cs label <> " must not be empty")
+    | Text.null (Text.strip value) = startupInvariantFailure (cs label <> " must not be empty")
     | otherwise = value
 
 instance ContractReference Contract.HorizontalSnapMode where
@@ -148,7 +150,7 @@ instance ContractReference Contract.HorizontalSnapMode where
     parseContractReference = Aeson.withText "HorizontalSnapMode" \value ->
         if value `elem` horizontalSnapModeValues
             then pure value
-            else fail "Unknown HorizontalSnapMode"
+            else parserFailure "Unknown HorizontalSnapMode"
 
 horizontalSnapModeValues :: [Text]
 horizontalSnapModeValues =

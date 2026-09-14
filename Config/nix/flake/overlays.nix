@@ -4,9 +4,9 @@
             ihp-ide = prev.haskell.lib.overrideCabal hprev.ihp-ide (old: {
                 postPatch = (old.postPatch or "") + ''
                     substituteInPlace IHP/IDE/PortConfig.hs \
-                        --replace-fail 'import System.Posix.Types (Fd(..))' $'import System.Posix.Types (Fd(..))\nimport qualified System.Environment as Env\nimport Text.Read (readMaybe)' \
                         --replace-fail "Socket.tupleToHostAddress (127, 0, 0, 1)" "Socket.tupleToHostAddress (0, 0, 0, 0)" \
-                        --replace-fail $'findAvailablePortConfig :: IO PortConfig\nfindAvailablePortConfig = do\n        let portConfigs :: [PortConfig] = take 100 (map toEnum [0..])\n        go portConfigs\n    where\n        go (portConfig : rest) = do\n            available <- isPortConfigAvailable portConfig\n            if available\n                then pure portConfig\n                else go rest\n        go [] = error "findAvailablePortConfig: No port configuration found"' $'findAvailablePortConfig :: IO PortConfig\nfindAvailablePortConfig = do\n    configuredPort <- Env.lookupEnv "PORT"\n    case configuredPort >>= (readMaybe :: String -> Maybe Int) of\n        Just port\n            | port > 0 && port < 65535 -> do\n                let portConfig = PortConfig\n                        { appPort = fromIntegral port\n                        , toolServerPort = fromIntegral (port + 1)\n                        }\n                available <- isPortConfigAvailable portConfig\n                unless available do\n                    error ("Configured PORT requires both " <> show port <> " and " <> show (port + 1) <> " to be available")\n                pure portConfig\n        Just port -> error ("Configured PORT is outside the valid TCP range: " <> show port)\n        Nothing -> findFirstAvailablePortConfig\n\nfindFirstAvailablePortConfig :: IO PortConfig\nfindFirstAvailablePortConfig = do\n    let portConfigs :: [PortConfig] = take 100 (map toEnum [0..])\n    go portConfigs\n    where\n        go (portConfig : rest) = do\n            available <- isPortConfigAvailable portConfig\n            if available\n                then pure portConfig\n                else go rest\n        go [] = error "findAvailablePortConfig: No port configuration found"'
+                        --replace-fail 'envAppPort :: Maybe Socket.PortNumber' 'envAppPort :: Maybe Int' \
+                        --replace-fail '        Just appPort -> pure PortConfig { appPort = appPort, toolServerPort = appPort + 1 }' $'        Just port\n            | port > 0 && port < 65535 -> do\n                let portConfig = PortConfig { appPort = fromIntegral port, toolServerPort = fromIntegral (port + 1) }\n                available <- isPortConfigAvailable portConfig\n                unless available do\n                    error ("Configured PORT requires both " <> show port <> " and " <> show (port + 1) <> " to be available")\n                pure portConfig\n        Just port -> error ("Configured PORT is outside the valid TCP range: " <> show port)'
                 '';
             });
 
@@ -22,9 +22,9 @@
                         (old: {
                             postPatch = (old.postPatch or "") + ''
                                 substituteInPlace src/OpenTelemetry/Instrumentation/Wai.hs \
-                                    --replace '("url.query", toAttribute $ T.decodeUtf8 $ rawQueryString req)' \
+                                    --replace-fail '("url.query", toAttribute $ T.decodeUtf8 $ rawQueryString req)' \
                                               '("bepis.http.query_redacted", toAttribute True)' \
-                                    --replace '("http.target", toAttribute $ T.decodeUtf8 (rawPathInfo req <> rawQueryString req))' \
+                                    --replace-fail '("http.target", toAttribute $ T.decodeUtf8 (rawPathInfo req <> rawQueryString req))' \
                                               '("http.target", toAttribute $ T.decodeUtf8 (rawPathInfo req))'
                             '';
                         })

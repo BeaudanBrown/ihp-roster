@@ -12,7 +12,7 @@
  *
  * Custom IHP routes still belong to their controller's AutoRoute registry and
  * are not exceptions. Websocket applications are a separate typed mount kind
- * and are not controller declarations. A frontend app*.ts entrypoint is global
+ * and are not controller declarations. The frontend app.ts entrypoint is global
  * unless its output asset is listed here with an accountable subsystem owner
  * and specific reason; stale, ownerless, reasonless, or duplicate exceptions fail.
  *

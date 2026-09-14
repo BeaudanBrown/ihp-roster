@@ -12,7 +12,6 @@ module Application.WageEngine
     , RateSourceIdentity (..)
     , ProjectionRateSource (..)
     , projectionRateSourceIdentity
-    , rateSourceIdentityReferencesProjection
     , projectionRateSourceFromIdentity
     , RateSourceOwner (..)
     , EffectivePeriod (..)
@@ -22,6 +21,7 @@ module Application.WageEngine
     , ValidatedRateBook
     , AwardRateContext (..)
     , RateBookError (..)
+    , ValidatedRateLookupError (..)
     , mkValidatedRateBook
     , validatedRateBookVersion
     , validatedRateBookEffectivePeriod

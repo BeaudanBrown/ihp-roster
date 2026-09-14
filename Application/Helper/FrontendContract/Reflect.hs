@@ -8,11 +8,13 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.Reflect
-    ( ReflectFrontendContractRegistry (..)
+    ( ReflectAppShellActionPrimitive (..)
+    , ReflectFrontendContractRegistry (..)
     , ReflectFrontendContractSpec (..)
     , reflectFrontendContracts
     ) where
 
+import Application.Error.Domain (DomainError, domainErrorCodes)
 import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
                                                          closedScalarLiterals,
                                                          closedScalarSourceModule)
@@ -24,7 +26,8 @@ import Application.Helper.FrontendContract.Naming (deriveDomAttributeName,
                                                    deriveJsonFieldName,
                                                    nameToKebab)
 import qualified Application.Helper.FrontendContract.Naming as Naming
-import Data.Typeable (tyConName, typeRep, typeRepTyCon)
+import Application.Helper.FrontendContract.Reflect.Core
+import Data.Typeable (tyConModule, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
 reflectFrontendContracts :: forall contracts. ReflectFrontendContractRegistry contracts => FrontendContractIR
@@ -77,17 +80,7 @@ instance (ReflectBrowserReachability reachability, ReflectSchemaPrimitive schema
     reflectGlobalPrimitive = GlobalSchemaIR (reflectBrowserReachability @reachability) (reflectSchemaPrimitive @schema)
 
 instance (ReflectBrowserReachability reachability, Typeable marker, ReflectFieldList fields) => ReflectGlobalPrimitive ('Event reachability marker fields) where
-    reflectGlobalPrimitive = GlobalEventIR (reflectBrowserReachability @reachability) (typeMarker @marker) (deriveEventName "bepis" (typeMarker @marker)) (reflectFieldList @fields)
-
-class ReflectBrowserReachability (reachability :: BrowserReachability) where
-    reflectBrowserReachability :: BrowserReachabilityIR
-
-instance ReflectBrowserReachability 'BrowserUnreachable where reflectBrowserReachability = BrowserUnreachableIR
-instance ReflectBrowserReachability 'BrowserTypeOnly where reflectBrowserReachability = BrowserTypeOnlyIR
-instance ReflectBrowserReachability 'BrowserGuard where reflectBrowserReachability = BrowserGuardIR
-instance ReflectBrowserReachability 'BrowserInbound where reflectBrowserReachability = BrowserInboundIR
-instance ReflectBrowserReachability 'BrowserOutbound where reflectBrowserReachability = BrowserOutboundIR
-instance ReflectBrowserReachability 'BrowserBidirectional where reflectBrowserReachability = BrowserBidirectionalIR
+    reflectGlobalPrimitive = GlobalEventIR (reflectBrowserReachability @reachability) (typeMarker @marker) (deriveEventName "bepis" (typeMarker @marker)) (reflectFieldList @_ @fields)
 
 instance Typeable marker => ReflectGlobalPrimitive ('DomId marker) where
     reflectGlobalPrimitive = GlobalDomIdIR (typeMarker @marker) (nameToKebab (typeMarker @marker))
@@ -116,13 +109,37 @@ instance (Typeable marker, KnownSymbol value) => ReflectGlobalPrimitive ('Consta
 instance ReflectGlobalPrimitive ('Project 'InteractionDomProjection) where
     reflectGlobalPrimitive = GlobalProjectionIR InteractionDomProjectionIR
 
-instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectGlobalPrimitive ('AppShellAction marker fields options) where
-    reflectGlobalPrimitive = GlobalAppShellActionIR AppShellActionIR
+instance ReflectDomainErrorList errors => ReflectGlobalPrimitive ('ErrorCodes errors) where
+    reflectGlobalPrimitive = GlobalErrorCodesIR (reflectDomainErrorList @errors)
+
+class ReflectDomainErrorList (errors :: [Type]) where
+    reflectDomainErrorList :: [ErrorCodeIR]
+
+instance ReflectDomainErrorList '[] where
+    reflectDomainErrorList = []
+
+instance (DomainError domainError, ReflectDomainErrorList rest) => ReflectDomainErrorList (domainError ': rest) where
+    reflectDomainErrorList =
+        [ ErrorCodeIR
+            { errorCodeMarker = qualifiedTypeMarker @domainError
+            , errorCodeValue = code
+            }
+        | code <- domainErrorCodes @domainError
+        ] <> reflectDomainErrorList @rest
+
+class ReflectAppShellActionPrimitive (primitive :: GlobalPrimitive) where
+    reflectAppShellActionPrimitive :: AppShellActionIR
+
+instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectAppShellActionPrimitive ('AppShellAction marker fields options) where
+    reflectAppShellActionPrimitive = AppShellActionIR
         { appShellActionMarker = typeMarker @marker
         , appShellActionName = protocolName @marker Naming.ActionName
-        , appShellActionFields = reflectFieldList @fields
+        , appShellActionFields = reflectFieldList @_ @fields
         , appShellActionOptions = reflectAppShellActionOptionList @options
         }
+
+instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectGlobalPrimitive ('AppShellAction marker fields options) where
+    reflectGlobalPrimitive = GlobalAppShellActionIR (reflectAppShellActionPrimitive @('AppShellAction marker fields options))
 
 class ReflectAppShellActionOptionList (options :: [AppShellActionOption]) where
     reflectAppShellActionOptionList :: [HtmxActionOptionIR]
@@ -190,7 +207,7 @@ class ReflectSchemaPrimitive (schema :: SchemaPrimitive) where
     reflectSchemaPrimitive :: SchemaIR
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectSchemaPrimitive ('Record marker fields) where
-    reflectSchemaPrimitive = RecordIR (typeMarker @marker) (typeName @marker) (reflectFieldList @fields)
+    reflectSchemaPrimitive = RecordIR (typeMarker @marker) (typeName @marker) (reflectFieldList @_ @fields)
 
 instance (Typeable marker, ReflectTypeList cases) => ReflectSchemaPrimitive ('Enum marker cases) where
     reflectSchemaPrimitive = EnumIR (typeMarker @marker) (typeName @marker) (reflectTypeListKebab @cases)
@@ -232,40 +249,17 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectUnionCase ('Case m
     reflectUnionCase = UnionCaseIR
         { unionCaseMarker = typeMarker @marker
         , unionCaseTag = nameToKebab (typeMarker @marker)
-        , unionCaseFields = reflectFieldList @fields
+        , unionCaseFields = reflectFieldList @_ @fields
         }
 
-class ReflectFieldList (fields :: [FieldSpec]) where
-    reflectFieldList :: [FieldIR]
-
-instance ReflectFieldList '[] where
-    reflectFieldList = []
-
-instance (ReflectField field, ReflectFieldList rest) => ReflectFieldList (field ': rest) where
-    reflectFieldList = reflectField @field : reflectFieldList @rest
-
-class ReflectField (field :: FieldSpec) where
-    reflectField :: FieldIR
-
 instance (Typeable marker, ReflectWire wire) => ReflectField ('Field marker wire) where
-    reflectField = reflectedField @marker @wire RequiredField
+    reflectField = reflectedFieldWith @marker @wire deriveJsonFieldName RequiredField
 
 instance (Typeable marker, ReflectWire wire) => ReflectField ('OptionalField marker wire) where
-    reflectField = reflectedField @marker @wire OptionalFieldPresence
+    reflectField = reflectedFieldWith @marker @wire deriveJsonFieldName OptionalFieldPresence
 
 instance (Typeable marker, ReflectWire wire) => ReflectField ('NullableField marker wire) where
-    reflectField = reflectedField @marker @wire NullableFieldPresence
-
-reflectedField :: forall marker wire. (Typeable marker, ReflectWire wire) => FieldPresence -> FieldIR
-reflectedField presence = FieldIR
-    { fieldMarker = typeMarker @marker
-    , fieldName = deriveJsonFieldName (typeMarker @marker)
-    , fieldWire = reflectWire @wire
-    , fieldPresence = presence
-    }
-
-class ReflectWire (wire :: WireType) where
-    reflectWire :: WireIR
+    reflectField = reflectedFieldWith @marker @wire deriveJsonFieldName NullableFieldPresence
 
 instance ReflectWire 'WireText where reflectWire = WireTextIR
 instance ReflectWire 'WireInt where reflectWire = WireIntIR
@@ -275,10 +269,10 @@ instance ReflectWire 'WireDay where reflectWire = WireDayIR
 instance Typeable value => ReflectWire ('WireClosed value) where reflectWire = WireClosedIR (typeName @value) (closedScalarSourceModule @value) (typeName @value)
 instance Typeable value => ReflectWire ('WireDomain value) where reflectWire = WireDomainIR (closedScalarSourceModule @value) (typeName @value)
 instance ReflectWire 'WireUnknown where reflectWire = WireUnknownIR
-instance ReflectWire inner => ReflectWire ('WireList inner) where reflectWire = WireListIR (reflectWire @inner)
-instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWire = WireOptionalIR (reflectWire @inner)
-instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @inner)
-instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (typeName @marker)
+instance ReflectWire inner => ReflectWire ('WireList inner) where reflectWire = WireListIR (reflectWire @_ @inner)
+instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWire = WireOptionalIR (reflectWire @_ @inner)
+instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @_ @inner)
+instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (typeMarker @marker)
 instance ReflectWire 'WireSurfaceScope where reflectWire = WireSurfaceScopeIR
 instance ReflectWire 'WireSurfaceFragmentKey where reflectWire = WireSurfaceFragmentKeyIR
 
@@ -302,3 +296,8 @@ typeName = typeMarker @marker
 
 typeMarker :: forall marker. Typeable marker => Text
 typeMarker = cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))
+
+qualifiedTypeMarker :: forall marker. Typeable marker => Text
+qualifiedTypeMarker =
+    let tyCon = typeRepTyCon (typeRep (Proxy @marker))
+     in cs (tyConModule tyCon <> "." <> tyConName tyCon)

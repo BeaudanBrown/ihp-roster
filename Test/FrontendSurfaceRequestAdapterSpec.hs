@@ -30,6 +30,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
+                                                            defaultFrontendSurfaceActionRoute,
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceIntentForm)
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
@@ -60,7 +61,7 @@ import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Action as FixtureAction
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Intent as FixtureIntent
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import qualified IHP.HSX.Markup as HtmlRenderer
 import Wai.Request.Params.Middleware (RequestBody (FormBody),
                                       requestBodyVaultKey)
 import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
@@ -353,16 +354,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 69
+        length actionDeclarations `shouldBe` 81
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 64
+        length generatedActionOperations `shouldBe` 76
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 64
+            `shouldBe` 76
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 64
+            `shouldBe` 76
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 46
+            `shouldBe` 49
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -394,6 +395,9 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("roster", "toggle-roster-day-closed")
                 , ("roster", "add-roster-row")
                 , ("roster", "remove-roster-row")
+                , ("roster", "open-roster-template-capture")
+                , ("roster", "open-roster-template-delete")
+                , ("roster", "delete-roster-template")
                 , ("leave-requests", "approve-leave-request")
                 , ("leave-requests", "deny-leave-request")
                 , ("leave-requests", "delete-unavailability-blackout")
@@ -403,6 +407,12 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("admin-shift-types", "autosave-shift-type-name")
                 , ("admin-shift-types", "autosave-shift-type-selection")
                 , ("admin-xero", "sync-xero-payroll-reference-data")
+                , ("feedback", "vote-feedback")
+                , ("feedback", "unvote-feedback")
+                , ("feedback-moderation", "archive-feedback")
+                , ("feedback-moderation", "edit-feedback")
+                , ("feedback-moderation", "publish-feedback")
+                , ("feedback-moderation", "restore-feedback")
                 ]
 
         intentDeclarations <-
@@ -418,10 +428,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceIntentAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length intentDeclarations `shouldBe` 6
+        length intentDeclarations `shouldBe` 5
         length intentInventory `shouldBe` length intentDeclarations
         let generatedIntentOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) intentInventory
-        length generatedIntentOperations `shouldBe` 6
+        length generatedIntentOperations `shouldBe` 5
         generatedIntentOperations
             `shouldSatisfy` all
                 (\operations ->
@@ -439,6 +449,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 map (.generatedModuleName) generatedModules
                     `shouldBe`
                         [ "Application.Helper.FrontendContract.Surface.Admin.Generated.Action"
+                        , "Application.Helper.FrontendContract.Surface.Feedback.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Profile.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Roster.Generated.Action"
@@ -532,7 +543,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , "move-roster-shift-to-slot"
                 , "duplicate-roster-shift-to-day"
                 , "drop-roster-staff"
-                , "preview-roster-template-application"
                 ]
         map intentFormName timelineForms `shouldBe` ["move-roster-timeline-shift"]
 
@@ -542,7 +552,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("drop-roster-staff", "/DropRosterStaff?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 12)
-                , ("preview-roster-template-application", "/PreviewRosterTemplateDrop?rosterGroupId=00000000-0000-0000-0000-000000000222&amp;anchorDate=2025-01-27", 11)
                 , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayDate=2025-01-29", 13)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
@@ -763,7 +772,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
 renderIntentFormText :: FrontendSurfaceIntentForm -> Text
 renderIntentFormText intentForm =
-    cs (HtmlRenderer.renderHtml (renderFrontendSurfaceIntentForm intentForm mempty))
+    cs (HtmlRenderer.renderMarkupLazyText (renderFrontendSurfaceIntentForm intentForm mempty))
 
 assertRosterIntentFormMetadata :: (Text, Text, Int) -> Text -> Expectation
 assertRosterIntentFormMetadata (intentName, actionUrl, expectedFieldCount) html = do
@@ -899,13 +908,7 @@ requestWithParams params =
             }
 
 emptyActionRoute :: Text -> FrontendSurfaceActionRoute
-emptyActionRoute url =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = url
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+emptyActionRoute = defaultFrontendSurfaceActionRoute
 
 sectionActionRoute :: Text -> Text -> FrontendSurfaceActionRoute
 sectionActionRoute url target =

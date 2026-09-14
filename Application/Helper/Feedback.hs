@@ -1,24 +1,12 @@
 module Application.Helper.Feedback
-    ( SupportUnreadFeedbackCount (..)
-    , allowedFeedbackPriorities
-    , allowedFeedbackStatuses
-    , fetchSupportUnreadFeedbackCount
-    ) where
+    ( PrivateFeedbackCount (..), fetchPrivateFeedbackCount ) where
 
 import Generated.Types
 import IHP.ControllerPrelude
 
-newtype SupportUnreadFeedbackCount = SupportUnreadFeedbackCount Int
+newtype PrivateFeedbackCount = PrivateFeedbackCount Int
 
-fetchSupportUnreadFeedbackCount :: (?modelContext :: ModelContext) => IO SupportUnreadFeedbackCount
-fetchSupportUnreadFeedbackCount = do
-    unreadItems <- query @UserFeedbackItem
-        |> filterWhere (#readAt, Nothing)
-        |> fetch
-    pure (SupportUnreadFeedbackCount (length unreadItems))
-
-allowedFeedbackStatuses :: [Text]
-allowedFeedbackStatuses = ["new", "triaged", "planned", "in_progress", "done", "closed"]
-
-allowedFeedbackPriorities :: [Text]
-allowedFeedbackPriorities = ["low", "normal", "high"]
+fetchPrivateFeedbackCount :: (?modelContext :: ModelContext) => IO PrivateFeedbackCount
+fetchPrivateFeedbackCount = PrivateFeedbackCount <$> (query @UserFeedbackItem
+    |> filterWhere (#lifecycle, Private)
+    |> fetchCount)

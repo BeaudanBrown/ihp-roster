@@ -9,64 +9,7 @@ import {
     type SurfaceTabSetDiagnostic,
 } from "../surface-tab-set/runtime";
 import { assertDeepEqual, assertEqual, test } from "./harness";
-
-class MiniElement {
-    readonly children: MiniElement[] = [];
-    parentElement: MiniElement | null = null;
-    readonly id: string;
-    private readonly attrs = new Map<string, string>();
-
-    constructor(attrs: Record<string, string> = {}, id = "") {
-        this.id = id;
-        Object.entries(attrs).forEach(([name, value]) => this.attrs.set(name, value));
-    }
-
-    appendChild(child: MiniElement): MiniElement {
-        child.parentElement = this;
-        this.children.push(child);
-        return child;
-    }
-
-    append(child: MiniElement): MiniElement {
-        return this.appendChild(child);
-    }
-
-    replaceChildren(...children: MiniElement[]): void {
-        this.children.splice(0, this.children.length);
-        children.forEach((child) => this.append(child));
-    }
-
-    getAttribute(name: string): string | null {
-        return this.attrs.get(name) ?? null;
-    }
-
-    setAttribute(name: string, value: string): void {
-        this.attrs.set(name, value);
-    }
-
-    closest(selector: string): MiniElement | null {
-        let current: MiniElement | null = this;
-        while (current) {
-            const attribute = selector.match(/^\[([^\]]+)\]$/)?.[1];
-            if (attribute && current.getAttribute(attribute) !== null) return current;
-            current = current.parentElement;
-        }
-        return null;
-    }
-
-    querySelectorAll(selector: string): MiniElement[] {
-        const attribute = selector.match(/^\[([^\]]+)\]$/)?.[1];
-        const found: MiniElement[] = [];
-        const visit = (owner: MiniElement) => {
-            for (const child of owner.children) {
-                if (attribute && child.getAttribute(attribute) !== null) found.push(child);
-                visit(child);
-            }
-        };
-        visit(this);
-        return found;
-    }
-}
+import { MiniElement } from "./mini-dom";
 
 function tab(key: "staff" | "settings", selected: boolean): MiniElement {
     return new MiniElement({

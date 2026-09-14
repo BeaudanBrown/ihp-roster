@@ -13,15 +13,18 @@ const facts = JSON.parse(fs.readFileSync(factsPath, "utf8"));
 const modulesByName = new Map((facts.modules || []).map((module) => [module.name, module]));
 
 const sharedRequestRuntimeClosure = [
+  "Application.Error.Parser",
   "Application.Helper.FrontendContract.ClosedScalar",
   "Application.Helper.FrontendContract.Core",
   "Application.Helper.FrontendContract.DSL",
   "Application.Helper.FrontendContract.Interaction",
   "Application.Helper.FrontendContract.Naming",
+  "Application.Helper.FrontendContract.Reflect.Core",
   "Application.Helper.FrontendContract.Surface.ContractIR",
   "Application.Helper.FrontendContract.Surface.Diagnostics",
   "Application.Helper.FrontendContract.Surface.DSL",
   "Application.Helper.FrontendContract.Surface.HaskellAdapter.Association",
+  "Application.Helper.FrontendContract.Surface.Identity.Types",
   "Application.Helper.FrontendContract.Surface.Reflect",
   "Application.Helper.FrontendContract.Surface.Request",
   "Application.Helper.FrontendContract.Surface.Request.Runtime",

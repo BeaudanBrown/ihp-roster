@@ -1,0 +1,19 @@
+{
+  "diagnostic": {
+    "minimumQuerySamples": 1,
+    "minimumGhcRuntimeSamples": 2,
+    "minimumProcessRuntimeSamples": 1,
+    "minimumPoolSamples": 1,
+    "maximumPoolAcquisitionTimeouts": 0,
+    "maximumLiveDropsOrErrors": 0
+  },
+  "loadCorrectness": {
+    "maximumFailureRate": 0,
+    "maximumCheckFailureRate": 0,
+    "maximumCleanRunDropRate": 0.01
+  },
+  "notes": [
+    "Diagnostic budgets cover evidence presence and correctness only; host-sensitive latency budgets require a matched baseline.",
+    "The sampled production runtime overhead budget remains defined in docs/architecture/observability.md."
+  ]
+}

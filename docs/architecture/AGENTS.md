@@ -8,6 +8,8 @@ Project-local architecture commands are declared in `.pi/architecture.json` and 
 
 Whole-project generated outputs are written under `output/architecture/`, which is gitignored initially. Focused query outputs are written under `.pi/tmp/architecture-query/` or `.pi/tmp/architecture-trace/`.
 
+Focused queries share one fact-currency boundary. Facts record a SHA-256 fingerprint of every scanned Haskell/frontend file, generated Bepis contract input, and fact-parser/policy source. A missing facts artifact is generated automatically; an existing artifact is queried only when its complete fingerprint is current. Stale or legacy facts fail closed with the recovery command `bash ./bin/in-env architecture-facts`; current facts are read without regeneration.
+
 Use these wrappers from the project environment:
 
 ```bash
@@ -50,6 +52,31 @@ architecture gate owns only authored-entrypoint/Layout parity. Rare intentional
 exceptions belong in `scripts/architecture/wiring-policy.mjs` with an
 accountable subsystem owner and specific reason. Ownerless, reasonless,
 duplicate, or stale exceptions fail the gate.
+
+## Adopted Workflow Import Boundaries
+
+`workflow-boundaries.mjs` under `scripts/architecture/` owns a small, explicit
+set of adopted module roles. `architecture-facts` records observed imports,
+owners, consumed exceptions and violations; the architecture gate and
+`conventions` query consume that same evidence. Changes to its parser or policy
+invalidate the fact fingerprint. Fixtures run in `verify-tooling`; run them
+alone with `bash ./bin/in-env node --test scripts/architecture/workflow-boundaries.test.mjs`.
+
+The guard rejects Application-to-Web imports, mutation-to-adopted-workflow/
+response/view imports, workflow-to-adopted-response imports, response-to-adopted-
+mutation imports, and direct passive-publisher imports in workflow/response
+owners. It permits the exact named response import exception only with explicit
+`type` namespace selectors (not bare uppercase names or constructors); missing
+owners/reasons, duplicate, unknown, broad or stale exceptions fail. Check
+source-line diagnostics in both positive and deliberately violating fixtures
+when extending roles. Unadopted modules are not inferred from their names.
+
+This is lexical import evidence, not a compiler call graph: facade reexports,
+local IO, implicit contexts, rollback and subjective depth still need review and
+semantic tests. No blanket IHP import ban, business-effects inventory or
+file/export-count policy. Keep generated-contract and Weeder authority intact.
+The retained extension contract lives in `Web/Controller/AGENTS.md`, not a
+parallel provisional workstream.
 
 ## Bepis-IHP Boundary
 

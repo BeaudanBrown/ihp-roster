@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
-. "@scriptsRoot@/lib/ghc.sh"
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 
 PROFILE_LIVE_RUN_ID="${PROFILE_LIVE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
 PROFILE_LIVE_OUTPUT_DIR="${PROFILE_LIVE_OUTPUT_DIR:-$PWD/output/profile-live-invalidation/$PROFILE_LIVE_RUN_ID}"

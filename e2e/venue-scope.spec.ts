@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { rosterStaffPanelSortRowDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, runSql } from './test-helpers';
+import { gotoWhenReady } from './support/runtime';
+import { runSql } from './support/database';
 
 async function login(page: Page) {
     await gotoWhenReady(page, '/NewSession', '#email');
@@ -35,7 +36,7 @@ test.describe('Venue-scoped navigation', () => {
         await expect(page.locator('#timesheet-week-shell')).toContainText('Alpha Crew');
         await expect(page.locator('#timesheet-week-shell')).not.toContainText('Beta Crew');
 
-        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-shell');
         await expect(page.locator('#leave-requests-content')).toContainText('Alpha Crew');
         await expect(page.locator('#leave-requests-content')).not.toContainText('Beta Crew');
     });

@@ -5,6 +5,7 @@ module Test.Support.SurfaceContract
 
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import IHP.Prelude
+import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status (Status, status200)
 import Network.Wai (Response)

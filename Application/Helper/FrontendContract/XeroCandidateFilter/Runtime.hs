@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.XeroCandidateFilter.Runtime
     , xeroCandidateFilterEmptyAttrs
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.Values (domAttrValue)
 import Application.Helper.FrontendContract.Wire.Carrier
 import qualified Application.Helper.FrontendContract.XeroCandidateFilter as Contract
@@ -45,7 +46,7 @@ canonicalXeroCandidateFilterDom = XeroCandidateFilterDom
 
 xeroCandidateSearchProjection :: [Text] -> XeroCandidateSearchProjection
 xeroCandidateSearchProjection fields
-    | Text.null normalized = error "Xero candidate search projection must not be empty"
+    | Text.null normalized = startupInvariantFailure "Xero candidate search projection must not be empty"
     | otherwise = XeroCandidateSearchProjection normalized
     where
         normalized = Text.unwords (concatMap (Text.words . Text.toLower) fields)

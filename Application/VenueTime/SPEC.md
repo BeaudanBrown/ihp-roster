@@ -50,6 +50,14 @@ end at the shift end, but must itself have positive elapsed duration. Copy
 occurrence selections are applied only to target endpoints that actually repeat,
 so one week-copy selection can coexist with ordinary shifts.
 
+Persisted Timesheet and roster rows are decoded through opaque
+`ValidatedTimesheetTiming` and `ValidatedRosterShiftTiming` values. Corrupt
+boundary shapes or timezone snapshots return typed integrity errors; projection
+functions consume only validated values. Read models retain those outcomes,
+while edit forms may independently recover a clock only when its timezone
+snapshot is trustworthy. Strict approval, publication, copy, wage, export, and
+Xero paths never use lossy recovery and fail closed on any decode error.
+
 ## Verification
 
 ```bash

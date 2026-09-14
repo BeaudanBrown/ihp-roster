@@ -5,6 +5,7 @@ import Application.Helper.Xero
 import Application.Xero.Keepalive
 import Application.Xero.ReferenceSyncJob
 import Config
+import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
@@ -58,6 +59,30 @@ tests = aroundAll withDatabaseTestContext do
                 length referenceJobs `shouldBe` 2
                 keepaliveJobs `shouldSatisfy` any (\job -> job.relatedId == Just (unpackId bothConnection.id) && job.dedupeKey == Just (xeroConnectionKeepaliveDedupeKey bothConnection))
                 referenceJobs `shouldSatisfy` any (\job -> job.relatedId == Just (unpackId bothConnection.id) && job.dedupeKey == Just (xeroReferenceSyncDedupeKey bothConnection))
+
+        it "rejects malformed and mismatched persisted keepalive payloads" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Invalid Keepalive Payload Venue"
+                owner <- createUserRecord "xero-invalid-keepalive@example.com" "staff" True
+                connection <- createKeepaliveXeroConnection venue owner (Just (negate (8 * oneDay))) "tenant-valid" "active"
+                let cases =
+                        [ (Aeson.String "not-an-object", "application.async.error.app-job/job-malformed-persisted-payload: The stored job payload is invalid.")
+                        , (Aeson.object ["xeroConnectionId" Aeson..= tshow connection.id, "tenantId" Aeson..= ("tenant-other" :: Text)], "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid.")
+                        ]
+                forM_ cases \(payload, expectedMessage) -> do
+                    appJob <-
+                        newRecord @AppJob
+                            |> set #jobKind xeroConnectionKeepaliveJobKind
+                            |> set #payload payload
+                            |> set #payloadSchemaVersion 1
+                            |> set #venueId (Just connection.venueId)
+                            |> set #relatedTable (Just "xero_connections")
+                            |> set #relatedId (Just (unpackId connection.id))
+                            |> createRecord
+                    result <- Exception.try (performXeroConnectionKeepaliveJob appJob) :: IO (Either Exception.SomeException ())
+                    case result of
+                        Right () -> expectationFailure "Expected invalid keepalive payload failure"
+                        Left exception -> tshow exception `shouldBe` expectedMessage
 
         it "serializes token keepalive behind the shared tenant lease" $ withContext do
             withCleanDb do
@@ -194,7 +219,7 @@ keepaliveJobRequest :: XeroConnection -> AppJobRequest
 keepaliveJobRequest connection =
     AppJobRequest
         { jobKind = xeroConnectionKeepaliveJobKind
-        , payload = Aeson.object []
+        , payload = Aeson.object ["xeroConnectionId" Aeson..= tshow connection.id, "tenantId" Aeson..= connection.tenantId]
         , payloadSchemaVersion = 1
         , requestedByUserId = Nothing
         , venueId = Just connection.venueId

@@ -2,11 +2,13 @@
 
 module Web.View.LeaveRequests.Index where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.Controller (leaveRequestIsArchivedOn)
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffEditDialog)
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker,
+                                                             appShellActionAttrs,
+                                                             defaultAppShellActionRoute)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
@@ -21,26 +23,22 @@ import Application.Helper.FrontendContract.Surface.LeaveRequests.StaffPanel (Lea
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
+                                                            defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import Application.Helper.FrontendContract.Surface.Values
 import Data.Coerce (coerce)
-import Data.List (sortOn)
-import Data.Ord (Down (..))
 import qualified Data.Text as Text
+import Web.LeaveRequests.Archive
 import Web.LeaveRequests.AvailabilityWarnings
 import Web.LeaveRequests.Blackouts
 import Web.View.Prelude
 
 leaveRequestsActionRoute :: Text -> FrontendSurfaceActionRoute
 leaveRequestsActionRoute actionUrl =
-    FrontendSurfaceActionRoute
-        { actionRouteUrl = actionUrl
-        , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Nothing
-        , actionRouteExtraAttrs = []
-        }
+    (defaultFrontendSurfaceActionRoute (actionUrl))
 
 data LeaveStaffPanelEntry = LeaveStaffPanelEntry
     { panelStaff        :: !Staff
@@ -116,7 +114,9 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelHasActions = False
                 , appPanelActions = mempty
                 , appPanelHasCustomHeader = True
-                , appPanelCustomHeader = renderSidePanelHeaderToggle leaveSidePanelRenderAttrs
+                , appPanelCustomHeader = if currentUserIsManager
+                    then renderLeaveRequestsHeader leaveRequests today archiveIsOpen
+                    else renderSidePanelHeaderToggle leaveSidePanelRenderAttrs
                 , appPanelClass = "overflow-hidden"
                 , appPanelBodyClass = ""
                 , appPanelBody = renderleaveRequestsContentLiveFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen warningThreshold warningPeriods
@@ -154,6 +154,45 @@ renderLeaveRequestsShell IndexView { .. } =
             {mountedPage}
         </section>
     |]
+
+renderLeaveRequestsHeader :: [LeaveRequest] -> Day -> Bool -> Html
+renderLeaveRequestsHeader leaveRequests today archiveIsOpen = [hsx|
+    <div class="app-panel-header app-side-panel-header app-side-panel-header-tabs">
+        {renderSidePanelTabsWithBadges "Unavailability sections" tabs}
+        {renderSidePanelToggle leaveSidePanelRenderAttrs}
+    </div>
+|]
+  where
+    tabs =
+        [ tab leavePendingSection "leave-pending" "Pending" "bi bi-hourglass-split"
+        , tab leaveApprovedSection "leave-approved" "Approved" "bi bi-check-circle"
+        , tab leaveDeniedSection "leave-denied" "Denied" "bi bi-x-circle"
+        , tab leaveArchiveSection "leave-archive" "Archive" "bi bi-archive"
+        ]
+    tab section paneId label icon =
+        ( SidePanelTabConfig
+            { sidePanelTabId = paneId <> "-tab"
+            , sidePanelTabPaneId = paneId
+            , sidePanelTabLabel = label
+            , sidePanelTabIconClass = icon
+            , sidePanelTabIsSelected = section == (if archiveIsOpen then leaveArchiveSection else leavePendingSection)
+            , sidePanelTabClass = "app-side-panel-tab-with-badge"
+            , sidePanelTabAttrs = leaveRequestTabAttrs archiveIsOpen section <> [("aria-describedby", leaveSectionCountFragmentId section)]
+            }
+        , [hsx|<span class="app-side-panel-tab-badge">{renderLeaveSectionCountLiveFragment section leaveRequests today}</span>|]
+        )
+
+-- Each page mounts one fixed-default variant; selection remains transient within that mount.
+leaveRequestTabAttrs :: Bool -> LeaveSectionValue -> [(Text, Text)]
+leaveRequestTabAttrs archiveIsOpen section = case (archiveIsOpen, section) of
+    (False, LeavePendingSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.PendingTabKey
+    (False, LeaveApprovedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.ApprovedTabKey
+    (False, LeaveDeniedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.DeniedTabKey
+    (False, LeaveArchiveSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveRequestTabs @Surface.ArchiveTabKey
+    (True, LeavePendingSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.PendingTabKey
+    (True, LeaveApprovedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.ApprovedTabKey
+    (True, LeaveDeniedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.DeniedTabKey
+    (True, LeaveArchiveSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.ArchiveTabKey
 
 renderLeaveSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> [LeaveStaffPanelEntry] -> Html
 renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests staffMembers staffPanelEntries =
@@ -204,18 +243,8 @@ renderLeaveStaffPanel staffMembers entries = [hsx|
 
 renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> LeaveStaffPanelEntry -> Html
 renderLeaveStaffPanelEntry staffMembers entry =
-    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource leaveStaffPeriodsLinkedHighlight staffKey $
-        applyAppShellActionAttrs
-            (appShellActionByMarker @OpenRosterStaffEditDialog)
-            AppShellActionRoute
-                { appShellActionRouteUrl = pathTo (EditStaffAction entry.panelStaff.id)
-                , appShellActionRouteFields = []
-                , appShellActionRouteCustomHtmx = []
-                , appShellActionRouteStandardUrl = Nothing
-                , appShellActionRouteExtraAttrs = []
-                }
-            [hsx|
-                <tr class="app-side-panel-entry leave-staff-panel-entry" role="button" tabindex="0"
+    [hsx|
+                <tr {...entryAttrs} class="app-side-panel-entry leave-staff-panel-entry" role="button" tabindex="0"
                     {...leaveStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelPeriodCount entry.panelPendingCount}>
                     <th scope="row" class="app-side-panel-cell app-side-panel-name"><span class="app-side-panel-name-primary">{staffName}</span></th>
                     <td class="app-side-panel-cell app-side-panel-role">{roleLabel}</td>
@@ -224,12 +253,15 @@ renderLeaveStaffPanelEntry staffMembers entry =
                 </tr>
             |]
   where
+    entryAttrs = SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightSourceAttrs leaveStaffPeriodsLinkedHighlight staffKey
+        <> appShellActionAttrs (appShellActionByMarker @OpenRosterStaffEditDialog)
+            (defaultAppShellActionRoute (pathTo (EditStaffAction entry.panelStaff.id)))
     staffKey = "staff:" <> tshow entry.panelStaff.id
     staffName = staffDisplayName staffMembers entry.panelStaff
     roleLabel = Text.toTitle (Text.replace "_" " " entry.panelStaffRole)
     locateButton =
-        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin leaveStaffPeriodsLinkedHighlight staffKey [hsx|
-            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button leave-staff-locate-button"
+        [hsx|
+            <button {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightPinAttrs leaveStaffPeriodsLinkedHighlight staffKey)} type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button leave-staff-locate-button"
                     aria-label={"Locate unavailable periods for " <> staffName} aria-pressed="false">
                 {renderSidePanelLocateIcon}
             </button>
@@ -471,18 +503,16 @@ renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|
 
 renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
 renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen = [hsx|
-    <div class="accordion leave-request-accordion" id="leave-request-manager-sections">
-        {renderManagerSection "leave-pending" "Pending" leavePendingCountFragmentId leavePendingListFragmentId pendingRequests staffMembers currentViewerStaffId (not archiveIsOpen) True}
-        {renderManagerSection "leave-approved" "Approved" leaveApprovedCountFragmentId leaveApprovedListFragmentId approvedRequests staffMembers currentViewerStaffId False True}
-        {renderManagerSection "leave-denied" "Denied" leaveDeniedCountFragmentId leaveDeniedListFragmentId deniedRequests staffMembers currentViewerStaffId False True}
-        {renderArchiveSection archivePagination archivedPageRequests staffMembers currentViewerStaffId archiveIsOpen}
+    <div class="tab-content" id="leave-request-manager-sections">
+        {renderManagerSection "leave-pending" leavePendingListFragmentId pendingRequests staffMembers currentViewerStaffId (not archiveIsOpen)}
+        {renderManagerSection "leave-approved" leaveApprovedListFragmentId approvedRequests staffMembers currentViewerStaffId False}
+        {renderManagerSection "leave-denied" leaveDeniedListFragmentId deniedRequests staffMembers currentViewerStaffId False}
+        {renderRequestTabPane "leave-archive" archiveIsOpen (renderArchivePageContent Nothing archive staffMembers currentViewerStaffId)}
     </div>
 |]
     where
         activeRequests = filter (not . leaveRequestIsArchivedOn today) leaveRequests
-        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
-        archivePagination = buildArchivePagination archivePage archivedRequests
-        archivedPageRequests = archivePageItems archivePagination archivedRequests
+        archive = projectLeaveArchive leaveRequests today archivePage
         pendingRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumPending) . (.status)) activeRequests)
         approvedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) activeRequests)
         deniedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumDenied) . (.status)) activeRequests)
@@ -491,14 +521,14 @@ renderLeaveSectionCountLiveFragment :: LeaveSectionValue -> [LeaveRequest] -> Da
 renderLeaveSectionCountLiveFragment section leaveRequests today
     | section == leaveApprovedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (approvedLeaveRequests leaveRequests today)
     | section == leaveDeniedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (deniedLeaveRequests leaveRequests today)
-    | section == leaveArchiveSection = renderArchiveCountLiveFragment (buildArchivePagination 1 (archivedLeaveRequests leaveRequests today))
+    | section == leaveArchiveSection = renderArchiveCountLiveFragment (archivePagination (projectLeaveArchive leaveRequests today 1))
     | otherwise = renderManagerSectionCount (leaveSectionCountFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today)
 
-renderLeaveSectionListLiveFragment :: (?context :: ControllerContext) => LeaveSectionValue -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> ArchivePagination -> [LeaveRequest] -> Html
-renderLeaveSectionListLiveFragment section leaveRequests staffMembers currentViewerStaffId today archivePagination archivedPageRequests
+renderLeaveSectionListLiveFragment :: (?context :: ControllerContext) => LeaveSectionValue -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> ArchiveProjection -> Html
+renderLeaveSectionListLiveFragment section leaveRequests staffMembers currentViewerStaffId today archive
     | section == leaveApprovedSection = renderManagerSectionList (leaveSectionListFragmentId section) (approvedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
     | section == leaveDeniedSection = renderManagerSectionList (leaveSectionListFragmentId section) (deniedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
-    | section == leaveArchiveSection = renderArchivePageContent Nothing archivePagination archivedPageRequests staffMembers currentViewerStaffId
+    | section == leaveArchiveSection = renderArchivePageContent Nothing archive staffMembers currentViewerStaffId
     | otherwise = renderManagerSectionList (leaveSectionListFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
 
 pendingLeaveRequests, approvedLeaveRequests, deniedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
@@ -506,79 +536,21 @@ pendingLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter 
 approvedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) (activeLeaveRequests leaveRequests today))
 deniedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumDenied) . (.status)) (activeLeaveRequests leaveRequests today))
 
-activeLeaveRequests, archivedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
+activeLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
 activeLeaveRequests leaveRequests today = filter (not . leaveRequestIsArchivedOn today) leaveRequests
-archivedLeaveRequests leaveRequests today = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
 
-archivePageSize :: Int
-archivePageSize = 10
-
-data ArchivePagination = ArchivePagination
-    { archivePaginationCurrentPage :: Int
-    , archivePaginationTotalPages  :: Int
-    , archivePaginationTotalItems  :: Int
-    }
-
-buildArchivePagination :: Int -> [LeaveRequest] -> ArchivePagination
-buildArchivePagination requestedPage archivedRequests =
-    ArchivePagination
-        { archivePaginationCurrentPage = currentPage
-        , archivePaginationTotalPages = totalPages
-        , archivePaginationTotalItems = totalItems
-        }
-    where
-        totalItems = length archivedRequests
-        totalPages = max 1 ((totalItems + archivePageSize - 1) `div` archivePageSize)
-        currentPage = min totalPages (max 1 requestedPage)
-
-archivePageItems :: ArchivePagination -> [LeaveRequest] -> [LeaveRequest]
-archivePageItems ArchivePagination { archivePaginationCurrentPage } =
-    take archivePageSize . drop ((archivePaginationCurrentPage - 1) * archivePageSize)
-
-renderArchiveSection :: (?context :: ControllerContext) => ArchivePagination -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
-renderArchiveSection archivePagination@ArchivePagination { archivePaginationTotalItems } requests staffMembers currentViewerStaffId archiveIsOpen = [hsx|
-    <section class="accordion-item app-panel mb-3 leave-request-section" id="leave-archive">
-        <h2 class="accordion-header" id="leave-archive-heading">
-            <button
-                class={if archiveIsOpen then ("accordion-button" :: Text) else "accordion-button collapsed"}
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#leave-archive-collapse"
-                aria-expanded={if archiveIsOpen then ("true" :: Text) else "false"}
-                aria-controls="leave-archive-collapse"
-                aria-label="Archive"
-            >
-                <span class="leave-request-accordion-title" data-label={"Archive (" <> tshow archivePaginationTotalItems <> ")"}>Archive (<span id={leaveArchiveCountFragmentId}>{tshow archivePaginationTotalItems}</span>)</span>
-            </button>
-        </h2>
-        <div
-            id="leave-archive-collapse"
-            class={if archiveIsOpen then ("accordion-collapse collapse show" :: Text) else "accordion-collapse collapse"}
-            aria-labelledby="leave-archive-heading"
-            data-bs-parent="#leave-request-manager-sections"
-        >
-            <div class="accordion-body">
-                {renderArchivePageContent Nothing archivePagination requests staffMembers currentViewerStaffId}
-            </div>
-        </div>
-    </section>
-|]
 
 renderArchivePageContentOob :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Html
 renderArchivePageContentOob leaveRequests staffMembers currentViewerStaffId today archivePage =
-    renderArchivePageContent (Just "outerHTML") archivePagination archivedPageRequests staffMembers currentViewerStaffId
-    where
-        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
-        archivePagination = buildArchivePagination archivePage archivedRequests
-        archivedPageRequests = archivePageItems archivePagination archivedRequests
+    renderArchivePageContent (Just "outerHTML") (projectLeaveArchive leaveRequests today archivePage) staffMembers currentViewerStaffId
 
 renderArchiveCountLiveFragment :: ArchivePagination -> Html
 renderArchiveCountLiveFragment ArchivePagination { archivePaginationTotalItems } = [hsx|
     <span id={leaveArchiveCountFragmentId}>{tshow archivePaginationTotalItems}</span>
 |]
 
-renderArchivePageContent :: (?context :: ControllerContext) => Maybe Text -> ArchivePagination -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
-renderArchivePageContent maybeSwapOob archivePagination requests staffMembers currentViewerStaffId = [hsx|
+renderArchivePageContent :: (?context :: ControllerContext) => Maybe Text -> ArchiveProjection -> [Staff] -> Maybe UUID -> Html
+renderArchivePageContent maybeSwapOob ArchiveProjection { archivePagination, archivedPageRequests = requests } staffMembers currentViewerStaffId = [hsx|
     <div id={leaveArchiveListFragmentId} hx-swap-oob={maybeSwapOob}>
         {renderArchivePagination "leave-request-archive-pagination-top" archivePagination}
         {unless (null requests) (renderArchiveRequestList requests staffMembers currentViewerStaffId)}
@@ -682,20 +654,16 @@ renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archiveP
         href = appendQueryParams (pathTo LeaveRequestsAction) pageParam
         fragmentHref = appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) (pageParam <> [("swapOob", "true")])
 
-renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Bool -> Html
-renderManagerSection sectionId title countFragmentId listFragmentId requests staffMembers currentViewerStaffId isOpen showActions =
-    renderAppAccordionItem AppAccordionItemConfig
-        { appAccordionItemId = sectionId
-        , appAccordionItemParentId = "leave-request-manager-sections"
-        , appAccordionItemTitle = title
-        , appAccordionItemIsOpen = isOpen
-        , appAccordionItemClass = "leave-request-section"
-        , appAccordionItemBodyClass = ""
-        , appAccordionItemButtonContent = [hsx|
-            <span class="leave-request-accordion-title" data-label={title <> " (" <> tshow (length requests) <> ")"}>{title} ({renderManagerSectionCount countFragmentId requests})</span>
-        |]
-        , appAccordionItemBody = renderManagerSectionList listFragmentId requests staffMembers currentViewerStaffId showActions
-        }
+renderRequestTabPane :: Text -> Bool -> Html -> Html
+renderRequestTabPane paneId isSelected body = [hsx|
+    <section id={paneId} class={classes [("tab-pane", True), ("active show", isSelected)]} role="tabpanel" aria-labelledby={paneId <> "-tab"} tabindex="0">
+        {body}
+    </section>
+|]
+
+renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
+renderManagerSection paneId listFragmentId requests staffMembers currentViewerStaffId isSelected =
+    renderRequestTabPane paneId isSelected (renderManagerSectionList listFragmentId requests staffMembers currentViewerStaffId True)
 
 renderManagerSectionCount :: Text -> [LeaveRequest] -> Html
 renderManagerSectionCount countFragmentId requests = [hsx|
@@ -794,7 +762,7 @@ renderReviewActionForm action buttonClass label =
     case action of
         ApproveLeaveRequestAction {} -> render (LeaveRequestsAction.approveLeaveRequestAction LeaveRequestsAction.approveLeaveRequestActionFields)
         DenyLeaveRequestAction {} -> render (LeaveRequestsAction.denyLeaveRequestAction LeaveRequestsAction.denyLeaveRequestActionFields)
-        _ -> error "unsupported leave request review action"
+        _ -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "unsupported leave request review action"
     where
         render actionContract =
             renderFrontendSurfaceActionForm

@@ -11,8 +11,8 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Text.Blaze.Html (Html)
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 import Web.View.StaffProfileForm (renderShiftPreferenceDayRow)
 
 fixtureConfig :: OrderedRangeBrowserConfig
@@ -69,10 +69,10 @@ pureTests = do
         it "rejects incomplete semantic value inventories and invalid initial state" do
             let missingLabel = fixtureConfig { orderedRangeValueLabels = ["5 AM", "6 AM"] }
             evaluate (Text.length (orderedRangeConfigJson missingLabel))
-                `shouldThrow` errorCall "Ordered range labels must cover every allowed value"
+                `shouldThrow` errorCall "Bepis startup invariant failed: Ordered range labels must cover every allowed value"
             let crossedState = fixtureState { orderedRangeStartValue = 7, orderedRangeEndValue = 6 }
             evaluate (Text.length (orderedRangeStateJson fixtureConfig crossedState))
-                `shouldThrow` errorCall "Ordered range start value must not exceed end value"
+                `shouldThrow` errorCall "Bepis startup invariant failed: Ordered range start value must not exceed end value"
 
 databaseTests :: Spec
 databaseTests = aroundAll withDatabaseTestContext do
@@ -102,4 +102,4 @@ databaseTests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` not . Text.isInfixOf "is-unavailable"
 
 renderText :: Html -> Text
-renderText = cs . HtmlRenderer.renderHtml
+renderText = cs . HtmlRenderer.renderMarkupLazyText

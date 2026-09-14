@@ -1,5 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { E2E_TIMEOUT, ensureRosterLayout, openRoster, resetCanonicalRosterAssignedShiftFixture } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
+import { ensureRosterLayout, openRoster, resetCanonicalRosterAssignedShiftFixture } from './support/roster';
 
 async function expectShiftModificationHighlight(target: Locator) {
     await expect(target).toHaveClass(/bepis-dropzone-highlight/, { timeout: E2E_TIMEOUT.assertion });

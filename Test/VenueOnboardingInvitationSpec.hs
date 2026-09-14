@@ -19,6 +19,7 @@ import IHP.Prelude
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
 import Test.Support
+import Test.Support.EmailDelivery
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -81,7 +82,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime appJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 updatedJob <- fetch appJob.id
@@ -105,8 +106,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime expiredJob
-                    performEmailDeliveryJobWith enabledEmailRuntime revokedJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime expiredJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime revokedJob
 
                 updatedExpired <- fetch expired.id
                 updatedRevoked <- fetch revoked.id
@@ -131,20 +132,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performEmailDeliveryJobWith enabledEmailRuntime appJob
+                    performEmailDeliveryJobWith enabledEmailDeliveryRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 inputValue updatedInvitation.deliveryStatus `shouldBe` "queued"
                 updatedInvitation.deliveredAt `shouldBe` Nothing
                 completedJob <- fetch appJob.id
                 jobJsonText completedJob.result "reason" `shouldBe` Just "consumed"
-
-enabledEmailRuntime :: EmailDeliveryRuntime
-enabledEmailRuntime =
-    EmailDeliveryRuntime
-        { deliveryIsDisabled = pure False
-        , deliverMail = \_ -> pure ()
-        }
 
 jobJsonText :: Aeson.Value -> Text -> Maybe Text
 jobJsonText value key =
