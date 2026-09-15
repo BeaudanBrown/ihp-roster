@@ -6,6 +6,7 @@ import Application.Helper.Pay
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.Helper.TimesheetSelection (TimesheetSelection (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Timesheets.Preview
 import qualified Data.Aeson as Aeson
@@ -183,6 +184,7 @@ createPreviewFixtureFromPlan plan = do
                 , readinessXeroPayRunStatus = Nothing
                 , readinessRemoteTimesheets = []
                 , readinessSkippedStaffIds = []
+                , readinessSelection = AllEligible
                 }
         , periodStart
         , periodEnd

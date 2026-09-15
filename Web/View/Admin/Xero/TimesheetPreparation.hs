@@ -50,6 +50,8 @@ import qualified Data.Text as Text
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminXeroTimesheetPreparationWaitSurfaceImpl)
 import Web.View.Admin.Xero.TimesheetPreparation.Review
+import Web.View.Admin.Xero.ShiftSelection (renderChooseXeroShiftsButton)
+import Web.TimesheetSelection (selectedWorkedHours)
 import Web.View.Admin.Xero.TimesheetPreparation.StaffMappings
 import Web.View.Prelude
 
@@ -214,6 +216,7 @@ renderXeroTimesheetPreparationPayItemsStep view =
             [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
                 {renderStepNotice "Xero account" "Choose the account for new Xero pay items."}
+                {renderChooseXeroShiftsButton view.preparationRun.id}
                 {renderExclusionWarnings view}
                 {renderManagedPayItemBlockers view}
                 {renderAccountCodeSelection view}
@@ -236,7 +239,9 @@ renderXeroTimesheetPreparationSubmittingDialog view =
             [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
                 {renderExclusionWarnings view}
-                <div>Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced.</div>
+                {renderChooseXeroShiftsButton view.preparationRun.id}
+                <p>{tshow (length (List.nub (map (.staffId) view.preparationSelectedEntries)))} staff · {tshow (length view.preparationSelectedEntries)} shifts · {tshow (selectedWorkedHours view.preparationSelectedEntries)} worked hours selected.</p>
+                <div>Confirm Xero draft timesheet submission? Selected employees’ editable drafts will be replaced in full with these selected shifts. Unselected existing content for those employees is removed. Employees with no selected shifts remain untouched.</div>
                 {renderXeroPreparationOverlayForm (noAppShellActionFields @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-reviewed-submit-form")] mempty}
             </div>
         |]
@@ -250,6 +255,7 @@ renderXeroTimesheetPreparationBlockingDialog view message =
             "Xero submission blocked"
             [hsx|
             <div class="d-flex flex-column gap-2">
+                {renderChooseXeroShiftsButton view.preparationRun.id}
                 {renderPreparationBlockingIssues view message}
             </div>
             {renderXeroPreparationOverlayForm (noAppShellActionFields @RefreshXeroTimesheetPreparationOverlay) (pathTo (ShowXeroTimesheetPreparationSummaryAction view.preparationRun.id)) [("id", "xero-preparation-back-form")] mempty}

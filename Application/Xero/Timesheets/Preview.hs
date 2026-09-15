@@ -15,6 +15,7 @@ module Application.Xero.Timesheets.Preview
     )
 where
 
+import Application.Helper.TimesheetSelection
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
@@ -203,7 +204,8 @@ fetchPreparedPreviewInput ::
     IO (Either Text XeroTimesheetPreviewInput)
 fetchPreparedPreviewInput request connection = do
     input <- fetchPreviewInput request connection
-    case lateBindingProposals input of
+    let selected = validateTimesheetSelection (unpackId request.readinessVenueId) request.readinessPeriodStart request.readinessPeriodEnd request.readinessSelection input.previewTimesheetEntries
+    case (either (Left . renderTimesheetSelectionFailure) (const (Right ())) selected) >> lateBindingProposals input of
         Left message -> pure (Left message)
         Right [] -> pure (Right input)
         Right proposals ->
@@ -227,8 +229,9 @@ fetchPreviewInput request connection = do
             |> orderBy #operationalDate
             |> orderBy #startsAt
             |> fetch
-    let includedEntries =
-            approvedEntries
+    let selectedEntries = either (const []) (\value -> value) (validateTimesheetSelection (unpackId request.readinessVenueId) request.readinessPeriodStart request.readinessPeriodEnd request.readinessSelection approvedEntries)
+        includedEntries =
+            selectedEntries
                 |> filter (\entry -> entry.staffId `notElem` request.readinessSkippedStaffIds)
     staffMappings <-
         query @XeroStaffMapping

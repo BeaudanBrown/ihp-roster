@@ -39,6 +39,8 @@ import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.ReconciliationReview (XeroTimesheetReconciliationNotice (..),
                                                          reconciliationReviewNotices)
+import Application.Helper.TimesheetSelection
+import Application.Xero.Timesheets.Selection
 import Application.Xero.Timesheets.Submission
 import Application.Xero.WorkflowState (xeroPayItemRequirementIsProposed)
 import Control.Monad (void)
@@ -194,6 +196,10 @@ loadPreparationView ::
     XeroTimesheetReadiness ->
     IO (XeroPreparationResult XeroTimesheetPreparationView)
 loadPreparationView run connection decisions readiness = do
+    candidates <- fetchPreparationSelectionCandidates run
+    let selectedEntries = case preparationReadinessRequest run [] of
+            Left _ -> []
+            Right request -> either (const []) (\value -> value) (validateTimesheetSelection run.venueId request.readinessPeriodStart request.readinessPeriodEnd request.readinessSelection candidates)
     let baseReadinessView = preparationReadinessView run readiness
         issueEntryIds =
             mapMaybe (.timesheetIssueTimesheetEntryId)
@@ -270,6 +276,7 @@ loadPreparationView run connection decisions readiness = do
                 , preparationStaffStepApproved = staffStepApproved
                 , preparationPostedPayRunBlocked = postedBlocked
                 , preparationCanSubmit = canSubmit
+                , preparationSelectedEntries = selectedEntries
                 , preparationPreviewRows = submissionPreviewRows
                 , preparationSubmissionRun = maybeSubmissionRun
                 }
@@ -433,8 +440,7 @@ selectXeroTimesheetPreparationPeriod runId selectedPeriodKey =
                 Just option | option.periodOptionBlocked ->
                     pure (preparationFailure (fromMaybe "This Xero pay period cannot be prepared." option.periodOptionBlockReason))
                 Just option -> do
-                    updatedRun <-
-                        run
+                    let periodRun = run
                             |> set #selectedPayrollCalendarId (Just option.periodOptionPayrollCalendarId)
                             |> set #selectedPayrollCalendarName (Just option.periodOptionPayrollCalendarName)
                             |> set #selectedPeriodKey (Just option.periodOptionKey)
@@ -445,7 +451,11 @@ selectXeroTimesheetPreparationPeriod runId selectedPeriodKey =
                             |> set #xeroPayRunStatus option.periodOptionXeroPayRunStatus
                             |> set #status Preparing
                             |> set #errorSummary Nothing
-                            |> updateRecord
+                    candidates <- fetchPreparationSelectionCandidates periodRun
+                    updatedRun <- periodRun
+                        |> set #selectedEntriesJson (Just (Aeson.toJSON (map timesheetSelectionIdentity candidates)))
+                        |> set #previewPayloadJson (Aeson.object [])
+                        |> updateRecord
                     refreshXeroTimesheetPreparation updatedRun.id
 
 
@@ -566,12 +576,12 @@ fetchPreparationPayItemRequirements run connection xeroEarningsRates =
                 else fetchForPeriod period
   where
     fetchForPeriod period = do
-        skippedStaffIds <- fetchPreparationNotPaidStaffIds connection
-        fetchPeriodXeroLocalEarningsBuckets
-                (Id run.venueId)
-                period.selectedPreparationPeriodStart
-                period.selectedPreparationPeriodEnd
-                skippedStaffIds >>= \case
+        candidates <- fetchPreparationSelectionCandidates run
+        let selected = do
+                request <- either (const (Left InvalidTimesheetSelection)) Right (preparationReadinessRequest run [])
+                validateTimesheetSelection run.venueId period.selectedPreparationPeriodStart period.selectedPreparationPeriodEnd request.readinessSelection candidates
+            entries = either (const []) (\value -> value) selected
+        fetchXeroLocalEarningsBucketsForEntries (Id run.venueId) entries >>= \case
                     Left appError -> pure (Left appError)
                     Right (XeroBucketsBlocked problems) ->
                         pure (Right (PayItemRequirementsBlocked (PayItemRequirementsBucketsBlocked problems)))

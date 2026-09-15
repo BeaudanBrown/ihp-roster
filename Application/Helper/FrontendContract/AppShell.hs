@@ -10,6 +10,11 @@ module Application.Helper.FrontendContract.AppShell
     , OpenPageHelpDialog
     , OpenPayrollWorkbookConfigurationDialog
     , OpenTimesheetSelectionDialog
+    , OpenXeroShiftSelection
+    , RefreshXeroShiftSelection
+    , ChangeXeroShiftSelectionGroup
+    , SaveXeroShiftSelection
+    , SelectionRunUpdatedAtField
     , RefreshTimesheetSelectionDialog
     , ChangeTimesheetSelectionGroup
     , GenerateSelectedTimesheetExport
@@ -131,6 +136,11 @@ data OpenFeedbackDialog
 data OpenPageHelpDialog
 data OpenPayrollWorkbookConfigurationDialog
 data OpenTimesheetSelectionDialog
+data OpenXeroShiftSelection
+data RefreshXeroShiftSelection
+data ChangeXeroShiftSelectionGroup
+data SaveXeroShiftSelection
+data SelectionRunUpdatedAtField
 data RefreshTimesheetSelectionDialog
 data ChangeTimesheetSelectionGroup
 data GenerateSelectedTimesheetExport
@@ -264,6 +274,17 @@ type AppShellContract =
               ]
          , AppShellAction ChangeTimesheetSelectionGroup TimesheetSelectionFields TimesheetSelectionSubmitOptions
          , AppShellAction GenerateSelectedTimesheetExport TimesheetSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction OpenXeroShiftSelection '[] DialogLauncherOptions
+         , AppShellAction RefreshXeroShiftSelection XeroShiftSelectionFields
+             '[ AppShellHtmxMethod 'AppShellPost
+              , AppShellHtmxTarget DialogOverlayMount
+              , AppShellHtmxSwap "innerHTML"
+              , AppShellHtmxTrigger "change"
+              , AppShellHtmxSync "#timesheet-selection-form:replace"
+              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+              ]
+         , AppShellAction ChangeXeroShiftSelectionGroup XeroShiftSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction SaveXeroShiftSelection XeroShiftSelectionFields TimesheetSelectionSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
          , AppShellAction CreatePayrollWorkbookConfigurationOverlay
             '[ Field ExportAnchorDateField 'WireDay
@@ -450,6 +471,11 @@ type AppShellContract =
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
          ]
+
+type XeroShiftSelectionFields =
+    '[ Field SelectionRunUpdatedAtField 'WireText
+     , Field SelectedTimesheetEntriesField ('WireList 'WireText)
+     ]
 
 type TimesheetSelectionFields =
     '[ Field SelectionRangeStartField 'WireDay

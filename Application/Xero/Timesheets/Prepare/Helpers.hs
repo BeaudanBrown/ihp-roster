@@ -37,6 +37,7 @@ module Application.Xero.Timesheets.Prepare.Helpers
 import Application.Error.Types (AppResult)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
+import Application.Helper.TimesheetSelection
 import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Connection (durableXeroClientErrorText)
@@ -245,6 +246,11 @@ preparationReadinessRequest run remoteTimesheets = do
         , readinessXeroPayRunStatus = run.xeroPayRunStatus
         , readinessRemoteTimesheets = remoteTimesheets
         , readinessSkippedStaffIds = []
+        , readinessSelection = case run.selectedEntriesJson of
+            Just value -> case Aeson.fromJSON value of
+                Aeson.Success identities -> ExplicitSelection identities
+                Aeson.Error _ -> ExplicitSelection []
+            Nothing -> ExplicitSelection []
         }
 
 preparationReadinessView :: XeroTimesheetPreparationRun -> XeroTimesheetReadiness -> XeroTimesheetReadinessView

@@ -448,6 +448,7 @@ Application/Xero/Timesheets/ProviderWrite.hs	production	runtime	Main	Reachable f
 Application/Xero/Timesheets/Reconciliation.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/ReconciliationReview.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Reservation.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/Selection.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Submission.hs	production	runtime	Main	Reachable from Main
 Application/Xero/WorkflowState.hs	production	runtime	Main	Reachable from Main
 Config/Config.hs	production	runtime	Main	Reachable from Main
@@ -467,6 +468,7 @@ Web/Controller/Admin/Xero/Connection.hs	production	runtime	Main	Reachable from M
 Web/Controller/Admin/Xero/ImportedPayItems.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/ReferenceSync.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Responses.hs	production	runtime	Main	Reachable from Main
+Web/Controller/Admin/Xero/Selection.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/StaffMappings.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Auth.hs	production	runtime	Main	Reachable from Main
@@ -555,6 +557,7 @@ Web/Staff/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Staff/ProfileSurfaceRequest.hs	production	runtime	Main	Reachable from Main
 Web/StaffDocuments/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/SurfaceInvalidation.hs	production	runtime	Main	Reachable from Main
+Web/TimesheetSelection.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/EntryWorkflow.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Filters.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/FrontendSurface.hs	production	runtime	Main	Reachable from Main
@@ -578,6 +581,7 @@ Web/View/Admin/VenueSettings.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/Connection.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/ImportedPayItems.hs	production	runtime	Main	Reachable from Main
+Web/View/Admin/Xero/ShiftSelection.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/StaffMappingDialog.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Xero/TimesheetPreparation/Review.hs	production	runtime	Main	Reachable from Main

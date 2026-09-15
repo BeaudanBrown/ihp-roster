@@ -14,6 +14,7 @@ module Application.Helper.XeroTimesheetReadiness
 import Application.Error.Boundary (withSynchronousAppErrorFallback)
 import Application.Error.Domain (projectDomainError)
 import Application.Error.Types (AppResult)
+import Application.Helper.TimesheetSelection
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
@@ -83,6 +84,7 @@ data XeroTimesheetReadinessRequest = XeroTimesheetReadinessRequest
     , readinessXeroPayRunStatus    :: !(Maybe Text)
     , readinessRemoteTimesheets    :: ![XeroTimesheetRef]
     , readinessSkippedStaffIds     :: ![UUID]
+    , readinessSelection           :: !TimesheetSelection
     }
     deriving (Eq, Show)
 
@@ -98,7 +100,12 @@ validateXeroTimesheetReadiness request =
     validate = do
         maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
         now <- getCurrentTime
-        periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+        allPeriodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+        let selectedResult = case request.readinessSelection of
+                AllEligible -> Right allPeriodEntries
+                selection -> validateTimesheetSelection (unpackId request.readinessVenueId) request.readinessPeriodStart request.readinessPeriodEnd selection allPeriodEntries
+            periodEntries = either (const []) (\value -> value) selectedResult
+            selectionBlockers = either (\failure -> [blockerWith "selection_changed" (renderTimesheetSelectionFailure failure)]) (const []) selectedResult
         notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
         let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
             entriesBeforeCalendarFilter = filter (not . staffIsSkipped baseSkippedStaffIds . (.staffId)) periodEntries
@@ -118,7 +125,7 @@ validateXeroTimesheetReadiness request =
             approvedEntries = approvedSubmittableEntries entries
             includedStaffIds = List.nub (map (.staffId) approvedEntries)
         wageSourceResult <- enforceFinalWageEntries approvedEntries
-        fetchPeriodXeroLocalEarningsBucketsExcludingEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds previousConnectionEntryIds >>= \case
+        fetchXeroLocalEarningsBucketsForEntries request.readinessVenueId approvedEntries >>= \case
             Left appError -> pure (Left appError)
             Right bucketOutcome -> do
                 let (bucketProblems, buckets, bucketEntryIdsByKey) = case bucketOutcome of
@@ -132,7 +139,8 @@ validateXeroTimesheetReadiness request =
                 maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
                 let blockers =
                         concat
-                            [ connectionBlockers maybeConnection
+                            [ selectionBlockers
+                            , connectionBlockers maybeConnection
                             , referenceSyncBlockers now maybeConnection
                             , calendarBlockers request maybeCalendar
                             , entryBlockers entries

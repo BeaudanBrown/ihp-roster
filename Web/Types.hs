@@ -174,6 +174,10 @@ data AdminController
     | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ContinueXeroTimesheetPreparationStaffStepAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | OpenXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | RefreshXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | ChangeXeroShiftSelectionGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text, selectGroup :: Bool }
+    | SaveXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ShowXeroTimesheetPreparationSummaryAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }

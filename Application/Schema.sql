@@ -2141,6 +2141,7 @@ CREATE TABLE xero_timesheet_preparation_runs (
     selected_payroll_calendar_id TEXT DEFAULT NULL,
     selected_payroll_calendar_name TEXT,
     selected_period_key TEXT DEFAULT NULL,
+    selected_entries_json JSONB DEFAULT NULL,
     pay_period_start DATE DEFAULT NULL,
     pay_period_end DATE DEFAULT NULL,
     payment_date DATE,

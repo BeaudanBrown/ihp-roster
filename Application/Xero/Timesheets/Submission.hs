@@ -172,7 +172,7 @@ buildFreshSubmissionPlan request connection remoteTimesheets = do
                             Right _ -> case buildXeroTimesheetPreviewRun previewInput of
                                 Left message -> pure (submissionFailure message)
                                 Right previewRun -> do
-                                    reservations <- mapM (previewReservation connection) previewRun.previewRunTimesheets
+                                    reservations <- mapM (previewReservation connection previewInput.previewTimesheetEntries) previewRun.previewRunTimesheets
                                     reviews <- reviewXeroTimesheetReservations reservations remoteTimesheets
                                     let reviewSnapshot = reconciliationReviewSnapshotJson reviews
                                     pure $ submissionSuccess FreshSubmissionPlan
@@ -242,10 +242,11 @@ persistAndSubmitPreview submittedByUserId preparationRunId xeroClient accessToke
 previewReservation ::
     (?modelContext :: ModelContext) =>
     XeroConnection ->
+    [TimesheetEntry] ->
     XeroTimesheetPreview ->
     IO XeroTimesheetReservation
-previewReservation connection preview = do
-    sourceEntries <- fetchPreviewSourceEntries preview
+previewReservation connection reviewedEntries preview = do
+    let sourceEntries = filter (\entry -> unpackId entry.id `elem` preview.previewSourceEntryIds) reviewedEntries
     let staffId = case preview.previewStaffIds of
             staffIdValue : _ -> staffIdValue
             []              -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Xero timesheet preview has no source staff id."
@@ -442,12 +443,6 @@ operationIdempotencyKey submission =
 xeroTimesheetSubmissionRequestJson :: XeroTimesheetPreview -> Aeson.Value
 xeroTimesheetSubmissionRequestJson preview =
     Aeson.Array (Vector.fromList [preview.previewRequestObjectJson])
-
-fetchPreviewSourceEntries :: (?modelContext :: ModelContext) => XeroTimesheetPreview -> IO [TimesheetEntry]
-fetchPreviewSourceEntries preview =
-    query @TimesheetEntry
-        |> filterWhereIn (#id, map Id preview.previewSourceEntryIds)
-        |> fetch
 
 markSubmissionSubmitted :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> UTCTime -> [XeroTimesheetRef] -> IO XeroTimesheetSubmission
 markSubmissionSubmitted submission now refs = do

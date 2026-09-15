@@ -5,6 +5,7 @@ import Application.Helper.TimesheetPayLedger (ApprovedPayLedgerError (..))
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.Helper.TimesheetSelection (TimesheetSelection (..))
 import Application.Helper.XeroTimesheetReadiness hiding
                                                  (validateXeroTimesheetReadiness)
 import qualified Application.Helper.XeroTimesheetReadiness as Readiness
@@ -883,6 +884,7 @@ createReadinessFixtureWithMappings readyMapped calendarType periodStart periodEn
                     , readinessXeroPayRunStatus = Nothing
                     , readinessRemoteTimesheets = []
                     , readinessSkippedStaffIds = []
+                    , readinessSelection = AllEligible
                     }
             }
     when readyMapped do

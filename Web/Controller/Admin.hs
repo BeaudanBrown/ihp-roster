@@ -30,6 +30,7 @@ import qualified Data.Text as Text
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support
+import qualified Web.Controller.Admin.Xero.Selection as XeroSelection
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
@@ -340,6 +341,21 @@ instance Controller AdminController where
     action currentAction@ContinueXeroTimesheetPreparationStaffStepAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (continueXeroTimesheetPreparationStaffStepAction xeroTimesheetPreparationRunId)
+
+    action currentAction@OpenXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero (XeroSelection.openXeroShiftSelectionAction xeroTimesheetPreparationRunId)
+
+    action currentAction@RefreshXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero (XeroSelection.refreshXeroShiftSelectionAction xeroTimesheetPreparationRunId)
+
+    action currentAction@ChangeXeroShiftSelectionGroupAction { xeroTimesheetPreparationRunId, selectionDay, selectGroup } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero do
+            day <- mapM parseIsoDayRouteParam selectionDay
+            XeroSelection.changeXeroShiftSelectionGroupAction xeroTimesheetPreparationRunId day selectGroup
+
+    action currentAction@SaveXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (XeroSelection.saveXeroShiftSelectionAction xeroTimesheetPreparationRunId)
 
     action currentAction@SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

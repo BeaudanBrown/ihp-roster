@@ -16,7 +16,7 @@ import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldE
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View.Overlay
-import qualified Data.Map.Strict as Map
+import Web.TimesheetSelection (fetchTimesheetSelectionRows)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.Exports.Mutations (requestSelectedExportMutation)
@@ -107,27 +107,12 @@ showSelection initiallyAll errorMessage request = do
         Just message -> respondHtml message
         Nothing -> do
             entries <- fetchExportSelectionCandidates request.exportType request.rangeStart request.rangeEnd
-            staffById <- fetchStaffMap entries
-            shifts <- fetchReportShiftTypes entries
-            let shiftsById = Map.fromList [(unpackId shift.id, shift.name) | shift <- shifts]
-                rows = map (toRow staffById shiftsById) entries
-                available = map (.selectionRowToken) rows
+            rows <- fetchTimesheetSelectionRows entries
+            let available = map (.selectionRowToken) rows
                 selected = if initiallyAll then available else filter (`elem` request.tokens) available
                 changed = any (`notElem` available) request.tokens
                 message = errorMessage <|> if changed then Just (renderTimesheetSelectionFailure ChangedTimesheetSelection) else Nothing
             respondHtml (renderSelection request rows selected message)
-  where
-    toRow staffById shiftsById entry = TimesheetSelectionRow
-        { selectionRowDay = entry.operationalDate
-        , selectionRowToken = encodeTimesheetSelectionIdentity (timesheetSelectionIdentity entry)
-        , selectionRowStaff = maybe "Unknown staff" (\staff -> staff.firstName <> " " <> staff.lastName) (Map.lookup entry.staffId staffById)
-        , selectionRowShift = Map.findWithDefault "Unknown shift type" entry.shiftTypeId shiftsById
-        , selectionRowWorkedHours = realToFrac (diffUTCTime entry.endsAt entry.startsAt - breakSeconds entry) / 3600
-        }
-    breakSeconds entry = case (entry.breakStartsAt, entry.breakEndsAt) of
-        (Just start, Just end) -> diffUTCTime end start
-        _ -> 0
-
 renderSelection :: ExportSelectionRequest -> [TimesheetSelectionRow] -> [Text] -> Maybe Text -> Html
 renderSelection request rows selected message = renderDialogOverlay DialogOverlayConfig
     { dialogOverlayTitle = "Choose shifts for export"
