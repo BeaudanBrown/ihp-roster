@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Bepis.Tooling.Core.OwnedFile (withExclusiveLock, writeFileAtomic)
+import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock, withExclusiveLock, writeFileAtomic)
 import Control.Concurrent (threadDelay)
 import Control.Exception (SomeException, throwIO, try)
 import qualified Data.ByteString.Char8 as ByteString
@@ -32,6 +32,11 @@ atomicWriteTest :: IO ()
 atomicWriteTest = withSystemTempDirectory "bepis-tooling-core" $ \root -> do
     let target = root </> "state" </> "owned.json"
         lock = root </> "state" </> "operation.lock"
+    withExclusiveLock lock $ do
+        unavailable <- tryWithExclusiveLock lock (pure ())
+        case unavailable of
+            Nothing -> pure ()
+            Just () -> throwIO (ExitFailure 1)
     failedLockAction <- try (withExclusiveLock lock (throwIO (ExitFailure 71))) :: IO (Either SomeException ())
     case failedLockAction of
         Left _ -> withExclusiveLock lock (pure ())

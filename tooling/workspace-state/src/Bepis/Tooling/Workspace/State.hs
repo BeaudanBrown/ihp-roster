@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bepis.Tooling.Workspace.State
-    ( Registry (..)
+    ( PathProblem (..)
+    , Registry (..)
     , WorkspaceIdentity (..)
     , WorkspaceRecord (..)
     , WorkspaceStatus (..)
@@ -10,6 +11,7 @@ module Bepis.Tooling.Workspace.State
     , encodeRegistry
     , encodeWorkspaceIdentity
     , identityFileName
+    , inspectCanonicalPath
     , readRegistry
     , readWorkspaceIdentity
     , registryFileRelativePath
@@ -22,6 +24,7 @@ module Bepis.Tooling.Workspace.State
     ) where
 
 import Bepis.Tooling.Core.OwnedFile (withExclusiveLock, writeFileAtomic)
+import Control.Exception (IOException, catch, throwIO)
 import Control.Monad (unless)
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), eitherDecodeStrict',
                    encode, object, withObject, (.:), (.=))
@@ -32,8 +35,12 @@ import qualified Data.ByteString.Lazy as LazyByteString
 import Data.List (nub)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import System.Directory (doesFileExist)
-import System.FilePath (isAbsolute, normalise, splitDirectories, (</>))
+import System.Directory (doesFileExist, makeAbsolute, pathIsSymbolicLink)
+import System.FilePath (isAbsolute, normalise, splitDirectories, takeDirectory, (</>))
+import System.IO.Error (isDoesNotExistError)
+
+data PathProblem = NonCanonicalPath FilePath | SymlinkPathComponent FilePath
+    deriving (Eq, Show)
 
 data WorkspaceIdentity = WorkspaceIdentity
     { epic         :: Int
@@ -125,6 +132,22 @@ validAbsolutePath path =
     isAbsolute path && path /= "/" && normalise path == path
         && not (any (`elem` [".", ".."]) (splitDirectories path))
         && '\n' `notElem` path && '\r' `notElem` path
+
+inspectCanonicalPath :: FilePath -> IO (Either PathProblem ())
+inspectCanonicalPath requested = do
+    absolute <- normalise <$> makeAbsolute requested
+    if absolute /= requested || any (`elem` [".", ".."]) (splitDirectories requested)
+        then pure (Left (NonCanonicalPath requested))
+        else inspect requested
+  where
+    inspect "/" = pure (Right ())
+    inspect component = do
+        linked <- pathIsSymbolicLink component `catchMissing` pure False
+        if linked then pure (Left (SymlinkPathComponent component)) else inspect (takeDirectory component)
+    catchMissing action fallback = action `catch` handler
+      where
+        handler :: IOException -> IO Bool
+        handler errorValue = if isDoesNotExistError errorValue then fallback else throwIO errorValue
 
 identityFileName, registryFileRelativePath, registryLockRelativePath :: FilePath
 identityFileName = ".bepis-epic-worktree.json"

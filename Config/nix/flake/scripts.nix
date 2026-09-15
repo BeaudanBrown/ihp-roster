@@ -192,6 +192,7 @@ in
         ghci-config-test = script ../scripts/haskell/ghci-config-test;
         dev-db-reset = script ../scripts/db/reset-dev;
         dev-db-maintenance-test = script ../scripts/db/dev-maintenance-test;
+        postgres-lifecycle-test = script ../scripts/db/postgres-lifecycle-test;
         seed-dev = script ../scripts/db/seed-dev;
         seed-profile = script ../scripts/db/seed-profile;
         profile-test-server = script ../scripts/profile/test-server;

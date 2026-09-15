@@ -7,6 +7,7 @@
         {
             packages.bepis-tooling-core = tooling.core;
             packages.bepis-workspace-state = tooling.workspaceState;
+            packages.bepis-postgres = tooling.postgres;
 
             devShells.tooling = pkgs.mkShell {
                 packages = [

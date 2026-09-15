@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bepis.Tooling.Workspace.Command (runWorkspaceCommand) where
@@ -15,7 +16,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import System.Directory (canonicalizePath, createDirectoryIfMissing, createFileLink, doesDirectoryExist,
                          doesFileExist, doesPathExist, getCurrentDirectory,
-                         getDirectoryContents, makeAbsolute, pathIsSymbolicLink)
+                         getDirectoryContents, pathIsSymbolicLink)
 import System.Environment (getArgs, lookupEnv)
 import System.Exit (ExitCode (..), exitWith)
 import System.FilePath (isAbsolute, normalise, takeDirectory, takeFileName, (</>))
@@ -552,7 +553,7 @@ workspaceConfiguration = do
     postgresSocket <- case postgresMode of
         "managed" -> do
             unless (isAbsolute postgresRoot && postgresRoot `notElem` unsafeRoots root) (failure 64 ("refusing unsafe development PostgreSQL root: " <> postgresRoot))
-            rejectSymlinkPath postgresRoot
+            -- The PostgreSQL lifecycle owner validates path components before mutation.
             pure (postgresRoot </> "socket")
         "external" -> do
             socket <- fromMaybe "" <$> lookupEnv "DEV_POSTGRES_SOCKET"
@@ -620,18 +621,10 @@ unsafeRoots :: FilePath -> [FilePath]
 unsafeRoots root = ["/", "/tmp", "/var", "/var/tmp", "/run", "/run/user", root]
 
 rejectSymlinkPath :: FilePath -> IO ()
-rejectSymlinkPath requested = do
-    absolute <- normalise <$> makeAbsolute requested
-    unless (absolute == requested) (failure 73 ("state path must be canonical: " <> requested))
-    inspect absolute
-  where
-    inspect "/" = pure ()
-    inspect component = do
-        symlink <- pathIsSymbolicLink component `catch` absent
-        when symlink (failure 73 ("refusing symlinked state path component: " <> component))
-        inspect (takeDirectory component)
-    absent :: IOException -> IO Bool
-    absent errorValue = if isDoesNotExistError errorValue then pure False else throwIO errorValue
+rejectSymlinkPath requested = inspectCanonicalPath requested >>= \case
+    Left (NonCanonicalPath path) -> failure 73 ("state path must be canonical: " <> path)
+    Left (SymlinkPathComponent component) -> failure 73 ("refusing symlinked state path component: " <> component)
+    Right () -> pure ()
 
 ensureNativeState :: FilePath -> FilePath -> String -> IO ()
 ensureNativeState stateDir root uid = do

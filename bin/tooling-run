@@ -22,8 +22,11 @@ case "$family" in
     workspace)
         component="bepis-workspace-state:exe:bepis-workspace-state"
         ;;
+    postgres)
+        component="bepis-postgres:exe:bepis-postgres"
+        ;;
     -h|--help|help|"")
-        echo "Usage: $program workspace [ARGS...]"
+        echo "Usage: $program workspace|postgres [ARGS...]"
         exit 0
         ;;
     *)

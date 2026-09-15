@@ -9,6 +9,7 @@ Bepis application, IHP, schema generation, or `build/Verification`.
 bin/tooling-run workspace contract
 bin/tooling-run workspace resolve --path "$PWD" --json
 bin/tooling-run workspace info --json
+bin/tooling-run postgres profile hspec status
 bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=tooling/dist-newstyle all
 bash ./bin/in-env tooling-foundation-test
 ```
@@ -24,6 +25,10 @@ there is no stale-binary fallback or prebuilt execution mode.
 - `bepis-workspace-state`: sole owner of strict v1 registry/identity state, slot
   allocation, named provisioning, and workspace runtime layout. It invokes local
   Git and initialization commands but has no GitHub or application dependency.
+- `bepis-postgres`: typed managed/external and durable/disposable PostgreSQL
+  profiles, owned-root validation, lifecycle/maintenance locks, bounded startup
+  logs, E2E capacity, cleanup, and development app-recovery coordination. Schema
+  and fixture loading remain application-owned shell commands.
 
 Nix package sources include only each package directory. A core source change
 invalidates its dependent workspace derivation; workspace changes do not alter

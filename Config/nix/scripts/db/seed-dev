@@ -7,8 +7,7 @@ set -euo pipefail
 # shellcheck source=../lib/dev-db-maintenance.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/dev-db-maintenance.sh"
 
-bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
-
+ORIGINAL_ARGS=("$@")
 DB_NAME="app"
 RESET_MODE=""
 SCRIPT_ARGS=()
@@ -31,6 +30,24 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
+if [ -n "$RESET_MODE" ] && [ "$RESET_MODE" != "--force" ]; then
+    echo "Unsupported flag: $RESET_MODE" >&2
+    echo "Usage: seed-dev [app|app_test] [--force] [seed-options...]" >&2
+    exit 1
+fi
+
+if [ "$DB_NAME" = app ]; then
+    bepis_workspace_configure
+    if [ "${BEPIS_DEV_DB_MAINTENANCE_HELD:-0}" != 1 ]; then
+        launcher="$(bepis_dev_db_tooling_launcher)"
+        exec "$launcher" postgres maintenance-run "$DEVENV_AGENT_STATE_DIR/database-maintenance.lock" \
+            "dev-db-maintenance: another reset or seed operation is already running for this workspace" -- \
+            env BEPIS_DEV_DB_MAINTENANCE_HELD=1 bash "$0" "${ORIGINAL_ARGS[@]}"
+    fi
+fi
+
+bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
+
 case "$DB_NAME" in
     app_test)
         if ! connection_output="$(psql -X -h "$DB_SOCKET" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then
@@ -43,9 +60,7 @@ case "$DB_NAME" in
         test-db-reset
         ;;
     app)
-        bepis_workspace_configure
         DB_SOCKET="$PGHOST"
-        bepis_dev_db_acquire_maintenance_lock
         bepis_dev_db_capture_app_state
         dev-ensure-postgres >/dev/null
         if ! connection_output="$(psql -X -h "$DB_SOCKET" -d postgres -At -v ON_ERROR_STOP=1 -c 'SELECT 1' 2>&1)"; then
@@ -61,12 +76,6 @@ case "$DB_NAME" in
         exit 1
         ;;
 esac
-
-if [ -n "$RESET_MODE" ] && [ "$RESET_MODE" != "--force" ]; then
-    echo "Unsupported flag: $RESET_MODE" >&2
-    echo "Usage: seed-dev [app|app_test] [--force] [seed-options...]" >&2
-    exit 1
-fi
 
 export DATABASE_URL="postgresql:///$DB_NAME?host=$DB_SOCKET"
 DEV_PASSKEY_SEED_FILE="${DEV_PASSKEY_SEED_FILE:-$PWD/build/dev-passkeys.sql}"

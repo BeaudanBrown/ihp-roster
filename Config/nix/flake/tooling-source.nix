@@ -8,4 +8,8 @@
         path = root + /tooling/workspace-state;
         name = "bepis-workspace-state-source";
     };
+    postgres = builtins.path {
+        path = root + /tooling/postgres;
+        name = "bepis-postgres-source";
+    };
 }

@@ -36,6 +36,7 @@
                     pkgs.libreoffice
                     pkgs.k6
                     pkgs.jq
+                    pkgs.just
                     pkgs.gh
                     pkgs.lsof
                     pkgs.procps

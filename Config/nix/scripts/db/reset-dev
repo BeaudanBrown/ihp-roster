@@ -6,7 +6,12 @@ set -euo pipefail
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/dev-db-maintenance.sh"
 
 bepis_workspace_configure
-bepis_dev_db_acquire_maintenance_lock
+if [ "${BEPIS_DEV_DB_MAINTENANCE_HELD:-0}" != 1 ]; then
+    launcher="$(bepis_dev_db_tooling_launcher)"
+    exec "$launcher" postgres maintenance-run "$DEVENV_AGENT_STATE_DIR/database-maintenance.lock" \
+        "dev-db-maintenance: another reset or seed operation is already running for this workspace" -- \
+        env BEPIS_DEV_DB_MAINTENANCE_HELD=1 bash "$0" "$@"
+fi
 bepis_dev_db_capture_app_state
 bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
 dev-ensure-postgres >/dev/null
