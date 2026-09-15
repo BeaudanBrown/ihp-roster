@@ -301,6 +301,7 @@ Application/Helper/Telemetry.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Telemetry/Semantic.hs	production	runtime	Main	Reachable from Main
 Application/Helper/TimeRules.hs	production	runtime	Main	Reachable from Main
 Application/Helper/TimesheetPayLedger.hs	production	runtime	Main	Reachable from Main
+Application/Helper/TimesheetSelection.hs	production	runtime	Main	Reachable from Main
 Application/Helper/UiRegion.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Url.hs	production	runtime	Main	Reachable from Main
 Application/Helper/UserPreferences.hs	production	runtime	Main	Reachable from Main

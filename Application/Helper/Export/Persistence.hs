@@ -1,32 +1,12 @@
 module Application.Helper.Export.Persistence where
 
 import Application.Helper.Controller
-import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Types
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
 import Generated.Types
 import IHP.ControllerPrelude
-
-persistReadyExportJob ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Text ->
-    Day ->
-    Day ->
-    Aeson.Value ->
-    Text ->
-    Text ->
-    Text ->
-    Text ->
-    Maybe Text ->
-    UTCTime ->
-    Int ->
-    [Pair] ->
-    IO ExportJob
-persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails = do
-    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
-    persistReadyExportJobForEntries entries exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt entryCount auditDetails
 
 persistReadyExportJobForEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
