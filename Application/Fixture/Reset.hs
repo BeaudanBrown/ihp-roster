@@ -54,6 +54,7 @@ applicationTableNames =
     , "operational_incidents"
     , "operational_incident_events"
     , "operational_incident_event_recipients"
+    , "host_watchdog_dispatches"
     , "email_delivery_provider_states"
     , "email_delivery_webhook_events"
     , "email_delivery_resend_requests"

@@ -7,6 +7,7 @@ Application/AccountSecurityEmail/Types.hs	production	runtime	Main	Reachable from
 Application/Architecture/Contracts.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Async/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Async/Error.hs	production	runtime	Main	Reachable from Main
+Application/Async/Heartbeat.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Async/Payload.hs	production	runtime	Main	Reachable from Main
 Application/Async/Queue.hs	production	runtime	Main	Reachable from Main
 Application/Async/Registry.hs	production	runtime	WorkerMain	Reachable from WorkerMain

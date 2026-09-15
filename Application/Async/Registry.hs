@@ -4,6 +4,7 @@ module Application.Async.Registry
 
 import Application.Async.Boundary (runAppJobBoundary, throwAppJobError)
 import Application.Async.Error (AppJobError (JobUnknownKind))
+import Application.Async.Heartbeat
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.Notifications
 import Application.Billing.Reconciliation
@@ -48,7 +49,8 @@ jobMaximumAttempts kind
 
 registeredJobKinds :: [Text]
 registeredJobKinds =
-    [ emailDeliveryJobKind
+    [ workerHeartbeatJobKind
+    , emailDeliveryJobKind
     , fwcMapdRefreshJobKind
     , publicHolidayRefreshJobKind
     , wageSourceHealthCheckJobKind
@@ -64,6 +66,7 @@ dispatchAppJobByKind ::
     IO ()
 dispatchAppJobByKind appJob =
     case appJob.jobKind of
+        kind | kind == workerHeartbeatJobKind -> performWorkerHeartbeatJob appJob
         kind | kind == emailDeliveryJobKind -> performEmailDeliveryJob appJob
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob

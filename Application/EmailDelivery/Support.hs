@@ -26,6 +26,7 @@ data NotificationHealth = NotificationHealth
     { openIncidents       :: ![OperationalIncident]
     , zeroRecipientEvents :: ![OperationalIncidentEvent]
     , recentDeliveries    :: ![NotificationDeliveryHealth]
+    , recentHostDispatches :: ![HostWatchdogDispatch]
     }
 
 fetchNotificationHealth :: (?modelContext :: ModelContext) => IO NotificationHealth
@@ -54,6 +55,11 @@ fetchNotificationHealth = do
             |> fetch
     let statesByJob = Map.fromList [(unpackId state.emailDeliveryJobId, state) | state <- states]
     let recentDeliveries = map (deliveryHealth statesByJob) jobs
+    recentHostDispatches <-
+        query @HostWatchdogDispatch
+            |> orderByDesc #attemptedAt
+            |> limit 50
+            |> fetch
     pure NotificationHealth { .. }
 
 deliveryHealth :: Map.Map UUID EmailDeliveryProviderState -> AppJob -> NotificationDeliveryHealth

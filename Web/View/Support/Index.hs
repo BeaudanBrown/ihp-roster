@@ -137,6 +137,10 @@ renderNotificationHealthPanel health =
                     <h3 class="h6">Recent delivery outcomes</h3>
                     {renderRecentDeliveries health.recentDeliveries}
                 </div>
+                <div>
+                    <h3 class="h6">Host watchdog direct delivery</h3>
+                    {renderHostWatchdogDispatches health.recentHostDispatches}
+                </div>
                 <p class="small text-muted mb-0">Transitions with no eligible recipient: {tshow (length health.zeroRecipientEvents)}. Delivery-disabled and unknown historical provider states are preserved explicitly.</p>
             </div>
         |]
@@ -177,6 +181,26 @@ renderDeliveryRow delivery = [hsx|
         <td>{if isJust (delivery.providerState >>= (.smtpAcceptedAt)) then ("accepted" :: Text) else "not accepted"}</td>
         <td>{maybe "unknown" (.providerStatus) delivery.providerState}</td>
         <td>{renderResendControl delivery}</td>
+    </tr>
+|]
+
+renderHostWatchdogDispatches :: [HostWatchdogDispatch] -> Html
+renderHostWatchdogDispatches [] = [hsx|<p class="small text-muted">No host-local watchdog deliveries.</p>|]
+renderHostWatchdogDispatches dispatches = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Attempted</th><th>Status</th><th>Provider reference</th></tr></thead>
+            <tbody>{forEach dispatches renderHostWatchdogDispatch}</tbody>
+        </table>
+    </div>
+|]
+
+renderHostWatchdogDispatch :: HostWatchdogDispatch -> Html
+renderHostWatchdogDispatch dispatch = [hsx|
+    <tr>
+        <td>{tshow dispatch.attemptedAt}</td>
+        <td>{dispatch.dispatchStatus}</td>
+        <td>{fromMaybe "not available" dispatch.providerEmailId}</td>
     </tr>
 |]
 

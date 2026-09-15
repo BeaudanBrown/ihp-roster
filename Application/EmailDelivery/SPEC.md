@@ -145,6 +145,18 @@ then. Enabled obsolete jobs are `delivery_skipped`; disabled jobs are
 failure paths clear recoverable password/passkey delivery material. Direct account-mail
 transport and domain-specific transport fakes no longer exist.
 
+## Host watchdog direct delivery
+
+The Rozzy host watchdog is the sole worker-independent exception to queued
+application delivery. Its systemd-owned local outbox snapshots active platform
+super-admin recipients through security-definer database functions exposed only
+to the peer-authenticated `bepis_watchdog` role. It sends the same bounded
+operational transition through Resend with a stable event/recipient idempotency
+key, then mirrors the incident event and aggregate direct dispatch outcome into
+Support. It never reads customer/payroll records or application provider secrets,
+and cannot send business notifications. Database or Resend failure retains the
+same local event for retry; it does not create reminders or a fallback channel.
+
 ## Closed transport architecture and operations
 
 The production mail-kind producer registry is closed and checked against the dispatch
