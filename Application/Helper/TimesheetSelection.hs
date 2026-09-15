@@ -92,17 +92,24 @@ validateTimesheetSelection venueId rangeStart rangeEnd selection candidates
 
 -- | Establish the snapshot BEFORE any selection or dependent payroll reads.
 -- The callback must consume these entries and their sealed facts here, not
--- refetch after returning. Invoke at a top-level transaction boundary; Xero's
--- final reservation additionally locks/revalidates before provider writes.
-withTimesheetSelectionSnapshot ::
+-- refetch after returning. Must be the first database operation in an existing
+-- transaction (such as the durable export mutation), or establishes its own.
+-- Xero's final reservation additionally locks/revalidates before provider writes.
+withTimesheetSelectionSnapshot :: forall result.
     (?modelContext :: ModelContext) =>
     UUID -> Day -> Day -> TimesheetSelection ->
     ((?modelContext :: ModelContext) => IO [TimesheetEntry]) ->
     ((?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Either Text result)) ->
     IO (Either Text result)
-withTimesheetSelectionSnapshot venueId rangeStart rangeEnd selection fetchEligible consume = withTransaction do
-    unsafeSqlExec "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ" ()
-    candidates <- fetchEligible
-    case validateTimesheetSelection venueId rangeStart rangeEnd selection candidates of
-        Left failure -> pure (Left (renderTimesheetSelectionFailure failure))
-        Right entries -> consume entries
+withTimesheetSelectionSnapshot venueId rangeStart rangeEnd selection fetchEligible consume =
+    if isJust ?modelContext.transactionRunner
+        then inSnapshot
+        else withTransaction inSnapshot
+  where
+    inSnapshot :: (?modelContext :: ModelContext) => IO (Either Text result)
+    inSnapshot = do
+        unsafeSqlExecDiscardResult "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ" ()
+        candidates <- fetchEligible
+        case validateTimesheetSelection venueId rangeStart rangeEnd selection candidates of
+            Left failure -> pure (Left (renderTimesheetSelectionFailure failure))
+            Right entries -> consume entries
