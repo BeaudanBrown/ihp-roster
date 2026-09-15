@@ -141,7 +141,9 @@ direct read model. Timeline lane/overlap geometry is display-only and never
 redefines persisted `row_index`. Roster wage estimates use the same canonical
 unsealed boundary as a Timesheet suggestion; roster-only shifts contribute
 neither totals nor errors. Wage visibility and staff filtering remain
-server-authorized and transient.
+server-authorized and transient. Draft wage-source maintenance warnings are
+visible only to platform super admins on both full pages and fragment responses;
+ordinary venue roles retain amounts and calculation errors, not provider warnings.
 
 Managers receive Staff, Templates, and Settings in the shared transient SidePanel.
 Feature content and authorization remain roster-owned. Its toggle uses

@@ -1849,7 +1849,7 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseBodyShouldContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary-total"
                 adminResponse `responseBodyShouldContain` "1 wage estimate error"
-                adminResponse `responseBodyShouldContain` "Wage source warning"
+                adminResponse `responseBodyShouldNotContain` "Wage source warning"
                 adminResponse `responseBodyShouldNotContain` "draft shift excluded"
                 adminResponse `responseBodyShouldNotContain` "roster-only excluded"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-summary-warning"
@@ -1870,7 +1870,7 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                 alphaToolbarResponse `responseBodyShouldContain` "$150.00"
                 alphaToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
-                alphaToolbarResponse `responseBodyShouldContain` "Wage source warning"
+                alphaToolbarResponse `responseBodyShouldNotContain` "Wage source warning"
                 alphaToolbarResponse `responseBodyShouldNotContain` "$230.00"
 
                 alphaWageRailResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1892,6 +1892,11 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                 supportToolbarResponse `responseBodyShouldContain` "$150.00"
                 supportToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
+                supportToolbarResponse `responseBodyShouldContain` "Wage source warning"
+
+                supportPageResponse <- withUserAndCurrentVenue supportAdmin venue.id do
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                supportPageResponse `responseBodyShouldContain` "Wage source warning"
 
                 ownerToolbarResponse <- withUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1902,6 +1907,7 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                 ownerToolbarResponse `responseBodyShouldContain` "$150.00"
                 ownerToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
+                ownerToolbarResponse `responseBodyShouldNotContain` "Wage source warning"
 
                 bravoToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

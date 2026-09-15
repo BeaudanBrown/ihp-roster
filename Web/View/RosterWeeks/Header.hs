@@ -4,6 +4,7 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
+import Application.Helper.ControllerContext (currentUserIsSuperAdmin)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
@@ -75,9 +76,9 @@ renderRosterWageFailures prediction
   where
     failureCount = length prediction.predictionCalculationFailures
 
-renderRosterWageSourceWarnings :: RosterWagePrediction -> Html
+renderRosterWageSourceWarnings :: (?context :: ControllerContext) => RosterWagePrediction -> Html
 renderRosterWageSourceWarnings prediction
-    | null prediction.predictionSourceWarnings = mempty
+    | not currentUserIsSuperAdmin || null prediction.predictionSourceWarnings = mempty
     | otherwise = [hsx|
         <span class="text-warning" role="status" title="Draft estimate uses wage sources requiring attention">
             Wage source warning
