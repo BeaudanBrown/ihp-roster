@@ -16,6 +16,10 @@
         path = root + /tooling/epic-lifecycle;
         name = "bepis-epic-lifecycle-source";
     };
+    artifacts = builtins.path {
+        path = root + /tooling/artifacts;
+        name = "bepis-artifacts-source";
+    };
     postgres = builtins.path {
         path = root + /tooling/postgres;
         name = "bepis-postgres-source";

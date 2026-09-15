@@ -2,11 +2,17 @@
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
+export BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run"
 wrapper="$repo_root/Config/nix/scripts/haskell/hls-lsp"
 cache_command="$repo_root/Config/nix/scripts/haskell/hls-cache"
 fixture_root="$(mktemp -d)"
 hls_pid=""
+hls_pid2=""
 cleanup() {
+    if [ -n "$hls_pid2" ]; then
+        kill "$hls_pid2" 2>/dev/null || true
+        wait "$hls_pid2" 2>/dev/null || true
+    fi
     if [ -n "$hls_pid" ]; then
         kill "$hls_pid" 2>/dev/null || true
         wait "$hls_pid" 2>/dev/null || true
@@ -66,6 +72,22 @@ printf '%s\n' --lsp --test-argument >"$fixture_root/expected-args"
 cmp -s "$fixture_root/expected-args" "$primary_output/args" || fail "wrapper changed HLS arguments"
 [ "$(stat -c %a "${primary_cache%/xdg}")" = 700 ] || fail "cache root is not mode 0700"
 
+secondary_output="$fixture_root/secondary-output"
+mkdir -p "$secondary_output"
+(
+    cd "$fixture_repo"
+    BEPIS_HLS_CACHE_PARENT="$cache_parent" \
+    BEPIS_HLS_SERVER_COMMAND="$fixture_root/bin/fake-hls" \
+    HLS_TEST_OUTPUT="$secondary_output" \
+        exec bash "$wrapper" --lsp --second-client
+) &
+hls_pid2="$!"
+for _ in $(seq 1 100); do
+    [ -f "$secondary_output/started" ] && break
+    sleep 0.05
+done
+[ -f "$secondary_output/started" ] || fail "second HLS client blocked behind the first cache user"
+
 status_json="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" status --json)"
 [ "$(jq -r '.state' <<<"$status_json")" = present ] || fail "status did not report the cache"
 [ "$(jq -r '.active' <<<"$status_json")" = true ] || fail "status did not report the live HLS lock"
@@ -77,8 +99,10 @@ active_clear_status=$?
 set -e
 [ "$active_clear_status" -eq 75 ] || fail "clear did not refuse an active HLS cache: $active_clear"
 
-kill "$hls_pid"
+kill "$hls_pid2" "$hls_pid"
+wait "$hls_pid2" 2>/dev/null || true
 wait "$hls_pid" 2>/dev/null || true
+hls_pid2=""
 hls_pid=""
 dry_run="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" clear)"
 [[ "$dry_run" == *"dry run"* ]] || fail "clear was not dry-run by default"

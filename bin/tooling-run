@@ -31,8 +31,11 @@ case "$family" in
     epic)
         component="bepis-epic-lifecycle:exe:bepis-epic-lifecycle"
         ;;
+    artifacts)
+        component="bepis-artifacts:exe:bepis-artifacts"
+        ;;
     -h|--help|help|"")
-        echo "Usage: $program workspace|postgres|runtime|epic [ARGS...]"
+        echo "Usage: $program workspace|postgres|runtime|epic|artifacts [ARGS...]"
         exit 0
         ;;
     *)
@@ -44,9 +47,15 @@ esac
 build_dir="$repo_root/tooling/dist-newstyle"
 project_file="tooling/cabal.project"
 command -v cabal >/dev/null 2>&1 || { echo "$program: cabal is unavailable in the tooling environment" >&2; exit 69; }
+command -v flock >/dev/null 2>&1 || { echo "$program: flock is unavailable in the tooling environment" >&2; exit 69; }
+mkdir -p "$build_dir"
+exec 9>>"$build_dir/.launcher-build.lock"
+flock 9
 cd "$repo_root"
 cabal build --offline --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component" >&2
 binary="$(cabal list-bin --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component")"
+flock -u 9
+exec 9>&-
 [ -x "$binary" ] || { echo "$program: successful build did not produce $component" >&2; exit 70; }
 if [ "${1:-}" = --print-binary ]; then
     printf '%s\n' "$binary"

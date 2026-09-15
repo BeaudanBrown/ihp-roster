@@ -13,6 +13,7 @@ bin/tooling-run postgres profile hspec status
 bin/tooling-run runtime process observe PID OWNER LABEL WORKSPACE
 bin/tooling-run epic orient --json
 bin/tooling-run epic manage preflight --epic 564 --json
+bin/tooling-run artifacts snapshot --root "$PWD" --inventory-command COMMAND
 bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=tooling/dist-newstyle all
 bash ./bin/in-env tooling-foundation-test
 ```
@@ -36,6 +37,11 @@ there is no stale-binary fallback or prebuilt execution mode.
   publication, scoped process-group termination/escalation, bounded readiness,
   and optional equal-weight systemd/cgroup execution. Service launch recipes
   remain small shell adapters; runtime diagnostics are explicit commands.
+- `bepis-artifacts`: application-independent owned cache roots, lifecycle locks,
+  explicit path/value inventory hashing, atomic manifests, stable-input generation,
+  and validate-before-publish managed trees. Application-specific inventories,
+  generators, validators, retention markers, and compiler option recipes remain
+  thin script adapters.
 - `bepis-epic-lifecycle`: live GitHub orientation plus non-mutating Git impact,
   divergence, conflict, runtime, and remote-publication inspection. Sync requires
   `--apply`; integration and cleanup require `--approve`. Mutations revalidate

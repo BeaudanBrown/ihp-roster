@@ -227,6 +227,12 @@ v1 workspace identity, pinned refs, all remote endpoints before a rebase, owned
 runtime evidence, HLS cache cleanup, and lock-protected compare-and-delete
 registry state before destructive worktree or branch cleanup.
 
+`bepis-artifacts` owns cache markers and lifecycle locks, deterministic explicit
+inventory hashing, atomic generation manifests, stable-input publication, and
+validated managed-tree replacement. HLS, generated Haskell, frontend contracts,
+Surface adapters, JavaScript bundles, and GHC cache adapters retain their public
+commands while supplying only application-specific inventories and recipes.
+
 ## Frontend-contract tooling package
 
 `frontend-contract-tool-module-inventory.tsv` is the exact closure of the three

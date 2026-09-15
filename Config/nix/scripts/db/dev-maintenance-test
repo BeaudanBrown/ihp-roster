@@ -24,6 +24,9 @@ export DEVENV_AGENT_STATE_DIR="$fixture_root/state"
 export PORT=65431
 mkdir -p "$DEVENV_AGENT_STATE_DIR"
 launcher="$repo_root/bin/tooling-run"
+# Keep compilation outside the lock-readiness assertion: this fixture measures
+# maintenance ownership, not fresh local launcher build latency.
+"$launcher" postgres --print-binary >/dev/null
 "$launcher" postgres maintenance-run "$DEVENV_AGENT_STATE_DIR/database-maintenance.lock" \
     "dev-db-maintenance: another reset or seed operation is already running for this workspace" -- \
     bash -c 'touch "$1"; sleep 30' bash "$fixture_root/lock-ready" &

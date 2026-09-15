@@ -10,6 +10,7 @@
             packages.bepis-postgres = tooling.postgres;
             packages.bepis-runtime = tooling.runtime;
             packages.bepis-epic-lifecycle = tooling.epicLifecycle;
+            packages.bepis-artifacts = tooling.artifacts;
 
             devShells.tooling = pkgs.mkShell {
                 packages = [

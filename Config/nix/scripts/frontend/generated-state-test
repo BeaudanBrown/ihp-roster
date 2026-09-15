@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
+tooling_launcher="$repo_root/bin/tooling-run"
+artifacts_binary="$("$tooling_launcher" artifacts --print-binary)"
 fixture_root="$(mktemp -d)"
 holder_pid=""
 cleanup() {
@@ -19,37 +21,54 @@ exit 1
 EOF
     chmod +x "$fixture_root/$name/ghc"
 done
-cat >"$fixture_root/dev-agent-state-dir" <<EOF
-#!/usr/bin/env bash
-printf '%s\\n' '$fixture_root/state'
-EOF
-chmod +x "$fixture_root/dev-agent-state-dir"
-
-cd "$repo_root"
-# shellcheck source=generated-state-lib
-. Config/nix/scripts/frontend/generated-state-lib
-hash_a="$(PATH="$fixture_root/a:$fixture_root:$PATH" frontend_contract_input_hash)"
-hash_b="$(PATH="$fixture_root/b:$fixture_root:$PATH" frontend_contract_input_hash)"
+hash_a="$(cd "$repo_root" && PATH="$fixture_root/a:$PATH" "$artifacts_binary" snapshot --root "$repo_root" --inventory-command "$repo_root/Config/nix/scripts/frontend/contracts-input-inventory")"
+hash_b="$(cd "$repo_root" && PATH="$fixture_root/b:$PATH" "$artifacts_binary" snapshot --root "$repo_root" --inventory-command "$repo_root/Config/nix/scripts/frontend/contracts-input-inventory")"
 [ "$hash_a" = "$hash_b" ] || fail "equivalent GHC installations produced different fingerprints"
 
-PATH="$fixture_root:$PATH"
-export PATH
-(
-    # shellcheck source=generated-state-lib
-    . Config/nix/scripts/frontend/generated-state-lib
-    frontend_generated_watch_lock
-    touch "$fixture_root/locked"
-    sleep 30
-) &
+cat >"$fixture_root/hold" <<EOF
+#!/usr/bin/env bash
+touch "$fixture_root/locked"
+sleep 30
+EOF
+chmod +x "$fixture_root/hold"
+"$artifacts_binary" lock-exec --lock "$fixture_root/watch.lock" -- "$fixture_root/hold" &
 holder_pid=$!
-for _ in $(seq 1 50); do [ -f "$fixture_root/locked" ] && break; sleep 0.02; done
+for _ in $(seq 1 100); do [ -f "$fixture_root/locked" ] && break; sleep 0.02; done
 [ -f "$fixture_root/locked" ] || fail "watch lock holder did not start"
-if (frontend_generated_watch_lock); then
-    fail "second generated watcher acquired the lifetime lock"
-fi
+set +e
+"$artifacts_binary" lock-exec --lock "$fixture_root/watch.lock" --nonblocking -- true >/dev/null 2>&1
+second_status=$?
+set -e
+[ "$second_status" -eq 75 ] || fail "second watcher acquired lifetime lock"
 kill "$holder_pid"
 wait "$holder_pid" 2>/dev/null || true
 holder_pid=""
-frontend_generated_watch_lock
+
+mkdir -p "$fixture_root/generation"
+printf 'before\n' >"$fixture_root/generation/input"
+cat >"$fixture_root/input-inventory" <<'EOF'
+#!/usr/bin/env bash
+printf 'path\tinput\n'
+EOF
+cat >"$fixture_root/output-inventory" <<'EOF'
+#!/usr/bin/env bash
+printf 'path\toutput\n'
+EOF
+cat >"$fixture_root/moving-generator" <<'EOF'
+#!/usr/bin/env bash
+printf 'generated\n' >output
+printf 'after\n' >input
+EOF
+chmod +x "$fixture_root/"{input-inventory,output-inventory,moving-generator}
+set +e
+"$artifacts_binary" generate --mode sync --root "$fixture_root/generation" \
+    --lock "$fixture_root/generation.lock" --manifest "$fixture_root/manifest.json" \
+    --input-command "$fixture_root/input-inventory" --output-command "$fixture_root/output-inventory" -- \
+    "$fixture_root/moving-generator" >/dev/null 2>&1
+moving_status=$?
+set -e
+[ "$moving_status" -eq 75 ] || fail "input movement stamped stale success"
+[ ! -e "$fixture_root/manifest.json" ] || fail "input movement published a manifest"
+[ -f "$fixture_root/generation/output" ] || fail "failed generation discarded recovery output"
 
 echo "frontend-generated-state-test: ok"

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
+export BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run"
 ghc_library="$repo_root/Config/nix/scripts/lib/ghc.sh"
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT

@@ -17,6 +17,7 @@ mkdir -p "$fixture_repo"
 
 managed_fixture_postgres() {
     env -u DATABASE_URL -u PGHOST -u PGPORT -u PGDATABASE -u PGUSER \
+        BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
         TEST_POSTGRES_MODE=managed \
         TEST_POSTGRES_PROFILE=migration-rehearsal \
         TEST_POSTGRES_REPO_ROOT="$fixture_repo" \
@@ -71,6 +72,7 @@ run_harness() {
     (
         cd "$fixture_repo"
         env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+            BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
             bash "$harness" "$@"
     )
 }
@@ -90,7 +92,8 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "$fixture_root/unpinned-bin/migrate"
 chmod +x "$fixture_root/unpinned-bin/migrate"
 if (
     cd "$fixture_repo"
-    PATH="$fixture_root/unpinned-bin:$PATH" bash "$harness" --from-ref "$predecessor_commit"
+    BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
+        PATH="$fixture_root/unpinned-bin:$PATH" bash "$harness" --from-ref "$predecessor_commit"
 ) >"$fixture_root/unpinned.out" 2>"$fixture_root/unpinned.err"; then
     echo "migration-rehearsal-test: expected an unpinned migrate binary to be rejected" >&2
     exit 1
@@ -188,6 +191,7 @@ git -C "$fixture_repo" commit -qm 'interrupt candidate migration'
 (
     cd "$fixture_repo"
     exec env -u TEST_POSTGRES_MODE -u TEST_DB_SOCKET -u DATABASE_URL -u PGHOST \
+        BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run" \
         bash "$harness" --from-ref "$predecessor_commit"
 ) >"$fixture_root/interrupt.out" 2>"$fixture_root/interrupt.err" &
 interrupt_pid=$!

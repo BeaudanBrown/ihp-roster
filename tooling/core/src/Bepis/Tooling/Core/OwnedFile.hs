@@ -4,6 +4,7 @@
 module Bepis.Tooling.Core.OwnedFile
     ( tryWithExclusiveLock
     , withExclusiveLock
+    , withSharedLock
     , writeFileAtomic
     ) where
 
@@ -24,7 +25,8 @@ import System.Posix.Types (Fd (Fd))
 
 foreign import capi interruptible "sys/file.h flock" c_flock :: CInt -> CInt -> IO CInt
 
-lockExclusive, lockNonBlocking, lockUnlock :: CInt
+lockShared, lockExclusive, lockNonBlocking, lockUnlock :: CInt
+lockShared = 1
 lockExclusive = 2
 lockNonBlocking = 4
 lockUnlock = 8
@@ -36,6 +38,21 @@ withExclusiveLock path action = do
     createDirectoryIfMissing True (takeDirectory path)
     bracket open closeFd $ \fd ->
         bracket_ (flock fd lockExclusive) (flock fd lockUnlock) action
+  where
+    open = openFd path ReadWrite defaultFileFlags
+        { creat = Just (ownerReadMode `unionFileModes` ownerWriteMode)
+        , cloexec = True
+        , nofollow = True
+        }
+    flock (Fd fd) operation = throwErrnoIfMinus1Retry_ "flock" (c_flock fd operation)
+
+-- | Hold a Linux advisory shared lock for exactly the supplied action.
+-- Multiple cache users may coexist while an exclusive cleanup waits.
+withSharedLock :: FilePath -> IO a -> IO a
+withSharedLock path action = do
+    createDirectoryIfMissing True (takeDirectory path)
+    bracket open closeFd $ \fd ->
+        bracket_ (flock fd lockShared) (flock fd lockUnlock) action
   where
     open = openFd path ReadWrite defaultFileFlags
         { creat = Just (ownerReadMode `unionFileModes` ownerWriteMode)

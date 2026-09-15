@@ -9,8 +9,9 @@ fail() { echo "haskell-generated-ensure-test: $*" >&2; exit 1; }
 fixture_repo="$fixture_root/repo"
 fake_bin="$fixture_root/bin"
 mkdir -p "$fixture_repo/Application" "$fixture_repo/Config/nix/scripts/haskell" "$fixture_repo/build" "$fake_bin" "$fixture_root/ihp"
-cp "$repo_root/Config/nix/scripts/haskell/generated-state-lib" "$fixture_repo/Config/nix/scripts/haskell/generated-state-lib"
 cp "$repo_root/Config/nix/scripts/haskell/generated-ensure" "$fixture_repo/Config/nix/scripts/haskell/generated-ensure"
+cp "$repo_root/Config/nix/scripts/haskell/generated-input-inventory" "$fixture_repo/Config/nix/scripts/haskell/generated-input-inventory"
+cp "$repo_root/Config/nix/scripts/haskell/generated-output-inventory" "$fixture_repo/Config/nix/scripts/haskell/generated-output-inventory"
 printf 'CREATE TABLE alpha ();\n' >"$fixture_repo/Application/Schema.sql"
 printf 'CREATE TABLE ihp_jobs ();\n' >"$fixture_root/ihp/IHPSchema.sql"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$fake_bin/build-generated-code"
@@ -40,6 +41,7 @@ run_ensure() {
         export HASKELL_REGEN_TYPES_COMMAND="$fake_bin/regen-fixture"
         export HASKELL_GENERATED_TEST_COUNT="$fixture_root/count"
         export BEPIS_SCRIPTS_ROOT="$fixture_repo/Config/nix/scripts"
+        export BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run"
         bash Config/nix/scripts/haskell/generated-ensure
     )
 }

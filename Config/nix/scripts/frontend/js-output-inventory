@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'path\t%s\n' static/app.js static/dev-timer-tracking.js
