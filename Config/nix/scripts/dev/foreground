@@ -27,9 +27,9 @@ if [ -n "${BEPIS_PUBLIC_APP_BASE_URL:-}" ]; then
     export APP_BASE_URL="$BEPIS_PUBLIC_APP_BASE_URL"
 fi
 APP_PID=""
+WORKER_PID=""
 FRONTEND_WATCH_PID=""
 FRONTEND_GENERATED_WATCH_PID=""
-APP_WAS_ALREADY_RUNNING=0
 MAILHOG_STARTED=0
 OBSERVABILITY_STARTED=0
 POSTGRES_STARTED=0
@@ -83,6 +83,7 @@ remove_owned_pid_file() {
 }
 
 cleanup() {
+    stop_process_group "$WORKER_PID"
     stop_process_group "$APP_PID"
     stop_process_group "$FRONTEND_WATCH_PID"
     stop_process_group "$FRONTEND_GENERATED_WATCH_PID"
@@ -99,7 +100,9 @@ cleanup() {
         dev-postgres stop >/dev/null 2>&1 || true
     fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ "$OBSERVABILITY_ENABLED" = "1" ]; then
     if dev-observability-status >/dev/null 2>&1; then
@@ -152,12 +155,8 @@ if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
 fi
 
 if curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
-    APP_WAS_ALREADY_RUNNING=1
-    echo "App server already running at $APP_BASE_URL; frontend watchers active; MailHog available at $MAILHOG_BASE_URL"
-    if [ "$OBSERVABILITY_ENABLED" = "1" ]; then
-        echo "Dev observability available at http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
-        echo "Existing app process was left unchanged; restart it if it was not started with IHP_ROSTER_OTEL=1."
-    fi
+    echo "App server already running at $APP_HEALTH_URL; stop it before starting the foreground stack." >&2
+    exit 75
 else
     if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
         echo "Port $PORT is occupied but not responding to $APP_HEALTH_URL." >&2
@@ -173,9 +172,21 @@ else
     fi
     setsid start &
     APP_PID=$!
-    wait "$APP_PID"
 fi
 
-if [ "$APP_WAS_ALREADY_RUNNING" = "1" ] && [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
-    wait "$MAILHOG_PID"
-fi
+# Run the same registered AppJob consumers as production, using this workspace's
+# database and service configuration. Both just dev and just ddev enter here.
+echo "Starting background job worker for slot $BEPIS_WORKSPACE_SLOT..."
+setsid dev-worker &
+WORKER_PID=$!
+
+# Do not leave a healthy-looking web server running without its job consumer.
+# An unexpected clean exit is a stack failure too; EXIT tears down owned groups.
+children=("$WORKER_PID" "$FRONTEND_WATCH_PID" "$FRONTEND_GENERATED_WATCH_PID")
+[ -z "$APP_PID" ] || children+=("$APP_PID")
+if [ "$MAILHOG_STARTED" = "1" ]; then children+=("$MAILHOG_PID"); fi
+status=0
+wait -n "${children[@]}" || status=$?
+echo "A development stack process exited (status=$status); stopping owned services." >&2
+if [ "$status" = "0" ]; then status=1; fi
+exit "$status"

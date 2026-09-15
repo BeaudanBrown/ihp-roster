@@ -108,6 +108,13 @@ administration and PostgreSQL reserves. E2E bounds `HASQL_POOL_SIZE` to 1–20
 (default 20); live capacity drift fails closed. This does not change Hspec,
 development, external or production PostgreSQL settings.
 
+`just dev` and `just ddev` start the registered AppJob worker alongside the web
+app through `dev-foreground`, with the same workspace database and environment.
+An app, worker, or frontend watcher exit shuts down the owned stack; Ctrl-C also
+stops worker descendants before owned PostgreSQL is stopped. Do not also launch
+a standalone worker for these foreground sessions. Foreground launch refuses an
+already-running app; stop the previous session before switching launch modes.
+
 Web-only dev-start and profile launchers do not implicitly start workers. Use
 `dev-worker` when independently exercising background delivery in a managed
 workspace.
