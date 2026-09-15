@@ -2,6 +2,8 @@ module Test.Support.XeroAdmin where
 
 import Application.Helper.Xero
 import Config
+import Application.Helper.TimesheetSelection (timesheetSelectionIdentity)
+import qualified Application.Xero.Timesheets.Preview as AppPreview
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
@@ -363,8 +365,10 @@ createPreparationRunForFixture ::
     Preview.PreviewFixture ->
     XeroTimesheetPreparationRunStatusEnum ->
     IO XeroTimesheetPreparationRun
-createPreparationRunForFixture fixture status =
+createPreparationRunForFixture fixture status = do
+    input <- AppPreview.fetchPreviewInput fixture.request fixture.connection
     newRecord @XeroTimesheetPreparationRun
+        |> set #selectedEntriesJson (Just (Aeson.toJSON (map timesheetSelectionIdentity input.previewTimesheetEntries)))
         |> set #venueId (unpackId fixture.venue.id)
         |> set #xeroConnectionId (unpackId fixture.connection.id)
         |> set #createdByUserId (unpackId fixture.owner.id)

@@ -41,6 +41,33 @@ test.describe('Payroll export downloads', () => {
         expect(standardDownload.suggestedFilename()).toBe(fileName);
 
         await gotoExports(page);
+        await standardCard.getByRole('button', { name: 'Filtered…' }).click();
+        const selectionDialog = page.getByRole('dialog', { name: 'Choose shifts for export' });
+        await expect(selectionDialog).toBeVisible();
+        await expect(selectionDialog).toContainText(`${currentWeek.weekStart} – ${currentWeek.weekEnd}`);
+        const selectedDownload = selectionDialog.getByRole('button', { name: 'Download selected shifts' });
+        const shifts = selectionDialog.getByRole('checkbox');
+        expect(await shifts.count()).toBeGreaterThan(0);
+        const clearResponse = page.waitForResponse(response => response.url().includes('/ClearTimesheetExportGroup'));
+        await selectionDialog.getByRole('button', { name: 'Clear all', exact: true }).click();
+        expect((await clearResponse).ok()).toBe(true);
+        await expect(selectionDialog.getByRole('status')).toContainText('0 shifts selected');
+        await expect(selectedDownload).toBeDisabled();
+        await shifts.first().check();
+        await expect(selectionDialog.getByRole('status')).toContainText('1 shifts selected');
+        await expect(selectedDownload).toBeEnabled();
+        await selectionDialog.getByRole('button', { name: 'Select all', exact: true }).click();
+        await expect(selectionDialog.locator('input[type="checkbox"]:not(:checked)')).toHaveCount(0);
+        const filteredDownloadEvent = page.waitForEvent('download');
+        await selectedDownload.click();
+        const filteredDownload = await filteredDownloadEvent;
+        expect(filteredDownload.suggestedFilename()).toBe(fileName);
+        expect(await readZipEntryText(filteredDownload, 'xl/worksheets/sheet1.xml'))
+            .toEqual(await readZipEntryText(standardDownload, 'xl/worksheets/sheet1.xml'));
+        await selectionDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(selectionDialog).toHaveCount(0);
+
+        await gotoExports(page);
         await page.getByRole('button', { name: 'Create new export' }).click();
         const addDialog = page.getByRole('dialog', { name: 'Add export' });
         await expect(addDialog).toBeVisible();

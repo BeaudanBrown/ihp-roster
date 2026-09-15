@@ -96,7 +96,7 @@ tests = aroundAll withDatabaseTestContext do
                 standard.savedPayrollWorkbookConfigurationRecord.name `shouldBe` "Payroll Workbook"
                 standard.savedPayrollWorkbookConfigurationRecord.revision `shouldBe` 0
                 standard.savedPayrollWorkbookConfigurationDefinition.payrollWorkbookDefinitionSheetFamilies
-                    `shouldBe` availablePayrollWorkbookSheetFamilies
+                    `shouldBe` defaultPayrollWorkbookDefinition.payrollWorkbookDefinitionSheetFamilies
 
                 asCurrentVenueUser admin venue.id (deleteSavedPayrollWorkbookConfiguration standard.savedPayrollWorkbookConfigurationRecord.id)
                     `shouldReturn` Right ()
@@ -336,7 +336,7 @@ tests = aroundAll withDatabaseTestContext do
                         ()
                     standardRows `shouldBe` [("Payroll Workbook", 0)]
                     map fromOnly familyKeys
-                        `shouldBe` map payrollWorkbookSheetFamilyKey availablePayrollWorkbookSheetFamilies
+                        `shouldBe` map payrollWorkbookSheetFamilyKey defaultPayrollWorkbookDefinition.payrollWorkbookDefinitionSheetFamilies
                     expandablePosition <- try
                         (sqlExecDiscardResult
                             "INSERT INTO payroll_workbook_edit_migration_acceptance.payroll_workbook_configuration_families (configuration_id, family_key, position) SELECT id, 'future-family', 25 FROM payroll_workbook_edit_migration_acceptance.payroll_workbook_configurations"

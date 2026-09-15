@@ -3,6 +3,7 @@ module Test.Controller.ExportsSpec where
 import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             seedWeekDayNames)
 import Application.Helper.Export
+import Application.Helper.TimesheetSelection
 import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
                                     TimesheetIntegrityError (TimesheetTimingInvalid))
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
@@ -47,6 +48,42 @@ archiveEntryText path archive =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        forM_ [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] \exportType ->
+            it (cs ("uses precisely the reviewed selection for " <> exportJobTypeToText exportType)) $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Selected export"
+                    owner <- createUserRecord "selected-export@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue owner VenueOwner
+                    staff <- createStaffRecord venue (Just owner) "Selected" "Worker"
+                    let day = fromGregorian 2025 1 10
+                    first <- createApprovedTimesheetEntryRecordAt venue staff owner day (UTCTime day 0)
+                    second <- createApprovedTimesheetEntryRecordAt venue staff owner (addDays 1 day) (UTCTime day 0)
+                    let directParams = [("exportType", cs (exportJobTypeToText exportType)), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12")]
+                        selectedParams entries =
+                            [ ("selectionExportType", cs (exportJobTypeToText exportType))
+                            , ("selectionRangeStart", "2025-01-06")
+                            , ("selectionRangeEnd", "2025-01-12")
+                            , ("selectedTimesheetEntries", cs (Aeson.encode (map (encodeTimesheetSelectionIdentity . timesheetSelectionIdentity) entries)))
+                            ]
+                        newestJob = query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                    direct <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams CreateExportJobAction directParams)
+                    direct `responseStatusShouldBe` status302
+                    allJob <- newestJob
+                    allSelected <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first, second]))
+                    allSelected `responseStatusShouldBe` status302
+                    selectedAllJob <- newestJob
+                    selectedAllJob.fileContents `shouldBe` allJob.fileContents
+                    selectedResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first]))
+                    selectedResponse `responseStatusShouldBe` status302
+                    selectedJob <- newestJob
+                    sources <- query @ExportJobEntry |> filterWhere (#exportJobId, unpackId selectedJob.id) |> fetch
+                    map (.timesheetEntryId) sources `shouldBe` [unpackId first.id]
+                    -- Stale and empty filtered requests never create ready jobs.
+                    _ <- first |> set #updatedAt (addUTCTime 1 first.updatedAt) |> updateRecord
+                    _ <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams [first]))
+                    _ <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id (callActionWithParams GenerateSelectedTimesheetExportAction (selectedParams []))
+                    query @ExportJob |> fetchCount >>= (`shouldBe` 3)
+
         it "redirects unauthenticated users from export jobs page" $ withContext do
             response <- callAction ExportJobsAction
             response `responseStatusShouldBe` status302

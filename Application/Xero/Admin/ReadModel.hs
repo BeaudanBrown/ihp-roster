@@ -29,7 +29,6 @@ import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
 import Application.Xero.WorkflowState (xeroStaffMappingIsUnmapped,
                                        xeroStaffMappingIsVerified)
-import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Char as Char

@@ -1662,7 +1662,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 summaryResponse `responseStatusShouldBe` status200
                 summaryResponse `responseBodyShouldContain` "Confirm Xero draft timesheets"
-                summaryResponse `responseBodyShouldContain` "Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced."
+                summaryResponse `responseBodyShouldContain` "Unselected existing content for those employees is removed."
                 summaryResponse `responseBodyShouldContain` "Confirm and submit"
                 summaryResponse `responseBodyShouldNotContain` "Timesheet summary"
                 summaryResponse `responseBodyShouldNotContain` "Approved shifts"
@@ -2056,8 +2056,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 approvalResponse `responseStatusShouldBe` status200
                 approvalResponse `responseBodyShouldContain` "Confirm Xero draft timesheets"
-                approvalResponse `responseBodyShouldContain` "Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced."
-                approvalResponse `responseBodyShouldContain` "excluded from Xero submission"
+                approvalResponse `responseBodyShouldContain` "Unselected existing content for those employees is removed."
+                approvalResponse `responseBodyShouldContain` "Employees with no selected shifts remain untouched."
                 assertEveryDialogSubmitUsesLoading approvalResponse
                 approvalResponse `responseBodyShouldNotContain` "Approved shifts"
                 approvalResponse `responseBodyShouldNotContain` "Estimated wages"
@@ -2108,7 +2108,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                 callAction (ConfirmXeroTimesheetPreparationSubmissionAction run.id)
 
                 confirmationResponse `responseStatusShouldBe` status200
-                confirmationResponse `responseBodyShouldContain` "Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced."
+                confirmationResponse `responseBodyShouldContain` "Unselected existing content for those employees is removed."
                 confirmationResponse `responseBodyShouldContain` "Confirm and submit"
                 confirmationResponse `responseBodyShouldNotContain` "Latest Xero check"
                 assertEveryDialogSubmitUsesLoading confirmationResponse
@@ -2235,7 +2235,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
                 preparationRun.status `shouldBe` ReadyForPreview
 
-        it "hard-blocks guided Xero preparation when the selected Xero pay run is posted" $ withContext do
+        it "allows guided Xero preparation when the selected Xero pay run is posted" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 markOtherFixtureStaffNotPaid fixture
@@ -2278,10 +2278,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Readiness validation"
-                response `responseBodyShouldContain` "posted"
-                response `responseBodyShouldContain` "Draft timesheet creation is blocked"
+                response `responseBodyShouldContain` "Confirm and submit"
+                response `responseBodyShouldNotContain` "Draft timesheet creation is blocked"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                preparationRun.status `shouldBe` XeroTimesheetPreparationRunStatusEnumBlocked
+                preparationRun.status `shouldBe` ReadyForPreview
                 preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
                 preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
 
@@ -2342,7 +2342,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 submissionResponse `responseStatusShouldBe` status200
                 submissionResponse `responseBodyShouldContain` "Xero submission blocked"
-                submissionResponse `responseBodyShouldContain` "Xero already has a non-draft timesheet for this employee and period"
+                submissionResponse `responseBodyShouldContain` "Xero already has a non-editable timesheet for this employee and period"
                 submissionResponse `responseBodyShouldContain` ">Back<"
                 submissionResponse `responseBodyShouldNotContain` "Confirm and submit"
 

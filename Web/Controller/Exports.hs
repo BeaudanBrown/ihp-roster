@@ -148,9 +148,13 @@ instance Controller ExportsController where
 
     action currentAction@RefreshTimesheetExportSelectionAction = runBepis currentAction BepisFormAction refreshExportSelection
 
-    action currentAction@ChangeTimesheetExportSelectionGroupAction { selectionDay, selectGroup } = runBepis currentAction BepisFormAction do
+    action currentAction@SelectTimesheetExportGroupAction { selectionDay } = runBepis currentAction BepisFormAction do
         day <- mapM parseIsoDayRouteParam selectionDay
-        changeExportSelectionGroup day selectGroup
+        changeExportSelectionGroup day True
+
+    action currentAction@ClearTimesheetExportGroupAction { selectionDay } = runBepis currentAction BepisFormAction do
+        day <- mapM parseIsoDayRouteParam selectionDay
+        changeExportSelectionGroup day False
 
     action currentAction@GenerateSelectedTimesheetExportAction = runBepis currentAction BepisExportAction do
         ensureVenueWritable

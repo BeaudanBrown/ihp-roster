@@ -348,10 +348,15 @@ instance Controller AdminController where
     action currentAction@RefreshXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFormAction do
         requireCurrentVenueOwnerForXero (XeroSelection.refreshXeroShiftSelectionAction xeroTimesheetPreparationRunId)
 
-    action currentAction@ChangeXeroShiftSelectionGroupAction { xeroTimesheetPreparationRunId, selectionDay, selectGroup } = runBepis currentAction BepisFormAction do
+    action currentAction@SelectXeroShiftGroupAction { xeroTimesheetPreparationRunId, selectionDay } = runBepis currentAction BepisFormAction do
         requireCurrentVenueOwnerForXero do
             day <- mapM parseIsoDayRouteParam selectionDay
-            XeroSelection.changeXeroShiftSelectionGroupAction xeroTimesheetPreparationRunId day selectGroup
+            XeroSelection.changeXeroShiftSelectionGroupAction xeroTimesheetPreparationRunId day True
+
+    action currentAction@ClearXeroShiftGroupAction { xeroTimesheetPreparationRunId, selectionDay } = runBepis currentAction BepisFormAction do
+        requireCurrentVenueOwnerForXero do
+            day <- mapM parseIsoDayRouteParam selectionDay
+            XeroSelection.changeXeroShiftSelectionGroupAction xeroTimesheetPreparationRunId day False
 
     action currentAction@SaveXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

@@ -21,7 +21,7 @@ import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.Exports.Mutations (requestSelectedExportMutation)
 import Web.View.TimesheetSelection
-import IHP.ViewPrelude (Html, hsx)
+import IHP.ViewPrelude (Html)
 
 -- HTTP transport is confined to this workflow; Application consumes only the
 -- shared typed selection and never reads request parameters.
@@ -146,7 +146,7 @@ renderSelection request rows selected message = renderDialogOverlay DialogOverla
     generateAttrs = appShellActionAttrs (appShellActionByMarker @Shell.GenerateSelectedTimesheetExport) (buttonRoute (pathTo GenerateSelectedTimesheetExportAction))
     groupControl day select = [hsx|<button {...attributes}>{label}</button>|]
       where
-        attributes = appShellActionAttrs (appShellActionByMarker @Shell.ChangeTimesheetSelectionGroup) (buttonRoute (pathTo (ChangeTimesheetExportSelectionGroupAction (tshow <$> day) select)))
+        attributes = appShellActionAttrs (appShellActionByMarker @Shell.ChangeTimesheetSelectionGroup) (buttonRoute (pathTo (if select then SelectTimesheetExportGroupAction (tshow <$> day) else ClearTimesheetExportGroupAction (tshow <$> day))))
         label = (if select then "Select " else "Clear ") <> (if isNothing day then "all" else "day") :: Text
 
 renderFilteredExportButton :: Day -> Day -> ExportJobType -> Maybe UUID -> Html

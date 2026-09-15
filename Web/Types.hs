@@ -110,7 +110,8 @@ data ExportsController
     | CreateExportJobAction
     | OpenTimesheetExportSelectionAction
     | RefreshTimesheetExportSelectionAction
-    | ChangeTimesheetExportSelectionGroupAction { selectionDay :: Maybe Text, selectGroup :: Bool }
+    | SelectTimesheetExportGroupAction { selectionDay :: Maybe Text }
+    | ClearTimesheetExportGroupAction { selectionDay :: Maybe Text }
     | GenerateSelectedTimesheetExportAction
     | NewPayrollWorkbookConfigurationAction { anchorDate :: !Text }
     | EditPayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
@@ -176,7 +177,8 @@ data AdminController
     | SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | OpenXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | RefreshXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
-    | ChangeXeroShiftSelectionGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text, selectGroup :: Bool }
+    | SelectXeroShiftGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text }
+    | ClearXeroShiftGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text }
     | SaveXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ShowXeroTimesheetPreparationSummaryAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }

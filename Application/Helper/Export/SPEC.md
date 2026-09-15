@@ -20,6 +20,20 @@ cross-module safety and payroll contracts.
 - A generation failure or empty Staff Hours result does not persist a misleading
   export. ZIP bytes are base64 only at the text-backed persistence boundary.
 
+## Reviewed Selections
+
+- Download retains all-eligible behavior. Filtered selections are operation-local,
+  default to all eligible entries, and never change the period. Every output and
+  source-provenance row consumes the same validated snapshot. Explicit empty,
+  foreign, out-of-period, unapproved, deleted or changed identities fail closed;
+  refreshed checklists require review, never automatic retries.
+- The optional Xero pay-items family is excluded from standard definitions.
+  Its weekly dates follow the venue week start. Rows aggregate selected sealed
+  quantities by staff and actual provider pay-item identity, not display label.
+  Missing employee mappings do not block manual entry; unresolved pay items do.
+  Ordinary sheets require no Xero setup. Nothing subtracts previously paid or
+  submitted work or calculates payroll adjustments, tax, super or net pay.
+
 ## Output Safety
 
 - Every CSV cell passes through `Render.csvCell`, including spreadsheet-formula

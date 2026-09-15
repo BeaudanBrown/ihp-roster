@@ -90,6 +90,19 @@ tests = do
             workbookXml `shouldSatisfy` Text.isInfixOf "state=\"hidden\""
 
     describe "Payroll Workbook composable definitions" do
+        it "keeps Xero pay-item identities separate and aggregates exact daily quantities" do
+            let (day, factModel) = oneHourFactModel
+                definition = PayrollWorkbookDefinition "manual-xero" 1 [PayrollWorkbookXeroPayItems]
+                quantity rate units = PayrollWorkbookXeroQuantity "00000000-0000-0000-0000-000000000001" "Ava Worker" rate "Same display name" day units
+            workbook <- expectRight (payrollWorkbookFromDefinitionWithXeroQuantities (Just [quantity "rate-a" (1 % 3), quantity "rate-a" (2 % 3), quantity "rate-b" (1 % 7)]) definition 1 factModel)
+            map (.name) workbook.sheets `shouldBe` ["Xero 2025-01-06", "Data"]
+            let sheet = fromMaybe (error "missing sheet") (head workbook.sheets)
+                values = [cell.value | cell <- sheet.cells, cell.column == 3, cell.row > 1]
+            values `shouldBe` [PayrollWorkbookNumber 1, PayrollWorkbookNumber (1 / 7)]
+            textValues sheet `shouldSatisfy` elem "2025-01-12"
+            payrollWorkbookFromDefinition definition 1 factModel `shouldBe` Left "Xero pay-items sheet requires resolved selected earnings quantities."
+            defaultPayrollWorkbookDefinition.payrollWorkbookDefinitionSheetFamilies `shouldSatisfy` notElem PayrollWorkbookXeroPayItems
+
         it "expands valid presentation families in declared order and always appends hidden Data" do
             let (_, factModel) = oneHourFactModel
             let definition = PayrollWorkbookDefinition

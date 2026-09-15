@@ -219,9 +219,14 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 
 - Each preparation run explicitly selects one synced calendar and period. Only
   mapped employees assigned by Xero to that calendar are eligible. The period
-  selector shows every eligible past and future period and selects the newest
-  non-posted option by default. Selecting a period checks its current Xero pay
-  run without downloading remote timesheet history. After concise owner
+  selector shows every eligible past and future period, irrespective of pay-run
+  status. Pay-run status is reference context, never upload authority. Selecting
+  a period initializes an explicit approved-entry selection; changing periods
+  resets it. Selection drives readiness, preparation, preview and reservation,
+  and legacy preparations without a selection require review. Changed source
+  identities must be reviewed again rather than silently omitted or retried.
+  Selecting a period checks current Xero pay runs without downloading remote
+  timesheet history. After concise owner
   confirmation, submission performs one fresh reconciliation read and
   immediately creates or updates safe drafts from that state; unsafe provider
   states block before writes. Confirmation does not carry an earlier remote
@@ -232,6 +237,11 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   The initial read omits the optional `page` query parameter because live Xero
   returns 400 for an explicitly requested empty page 1; later full-result pages
   use page 2 onward.
+- Confirmation authorizes complete replacement of selected employees' editable
+  drafts: unselected content for those employees is removed. Employees without
+  selected entries remain untouched. Processed timesheets remain non-editable
+  even when another draft pay run exists; the optional Xero pay-items workbook
+  supports manual entry without suggesting deletion or automatic adjustment.
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.

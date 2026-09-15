@@ -20,7 +20,6 @@ import Web.Controller.Prelude
 import Web.TimesheetSelection (fetchTimesheetSelectionRows)
 import Web.View.TimesheetSelection
 import Web.View.Admin.Xero.ShiftSelection (renderSelection)
-import IHP.ViewPrelude (hsx)
 
 type SelectionContext = (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond)
 

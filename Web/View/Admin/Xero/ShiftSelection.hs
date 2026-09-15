@@ -34,7 +34,7 @@ renderSelection run rows selected message = renderDialogOverlay DialogOverlayCon
     saveAttrs = appShellActionAttrs (appShellActionByMarker @Shell.SaveXeroShiftSelection) (buttonRoute (pathTo (SaveXeroShiftSelectionAction run.id)))
     groupControl day select = [hsx|<button {...attributes}>{label}</button>|]
       where
-        attributes = appShellActionAttrs (appShellActionByMarker @Shell.ChangeXeroShiftSelectionGroup) (buttonRoute (pathTo (ChangeXeroShiftSelectionGroupAction run.id (tshow <$> day) select)))
+        attributes = appShellActionAttrs (appShellActionByMarker @Shell.ChangeXeroShiftSelectionGroup) (buttonRoute (pathTo (if select then SelectXeroShiftGroupAction run.id (tshow <$> day) else ClearXeroShiftGroupAction run.id (tshow <$> day))))
         label = (if select then "Select " else "Clear ") <> (if isNothing day then "all" else "day") :: Text
 
 renderChooseXeroShiftsButton :: Id XeroTimesheetPreparationRun -> Html
