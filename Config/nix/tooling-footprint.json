@@ -51,6 +51,7 @@
   },
   "foundationSlice": {
     "issue": 566,
+    "snapshotCommit": "4f7a55e4",
     "deletionTargetImplementationLines": 7375,
     "integrationWiring": {
       "baselineCommit": "008241bc",

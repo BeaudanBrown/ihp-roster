@@ -24,12 +24,8 @@ function baselineLines(commit, paths) {
     }, 0);
 }
 
-function workingLines(paths) {
-    return paths.reduce((total, path) => total + physicalLines(readFileSync(join(repo, path), 'utf8')), 0);
-}
-
-function addedLinesSince(commit, paths) {
-    const rows = execFileSync('git', ['diff', '--numstat', commit, '--', ...paths], { cwd: repo, encoding: 'utf8' });
+function addedLinesBetween(before, after, paths) {
+    const rows = execFileSync('git', ['diff', '--numstat', before, after, '--', ...paths], { cwd: repo, encoding: 'utf8' });
     return rows.trim().split('\n').filter(Boolean).reduce((total, row) => {
         const [added] = row.split('\t');
         assert.match(added, /^\d+$/);
@@ -64,12 +60,12 @@ test('foundation overhead remains separated from migration deletion targets', ()
     const foundation = contract.foundationSlice;
     let ownedLines = 0;
     for (const [name, category] of Object.entries(foundation.categories)) {
-        const actual = workingLines(category.paths);
+        const actual = baselineLines(foundation.snapshotCommit, category.paths);
         assert.equal(actual, category.added, `${name} foundation count drifted`);
         ownedLines += actual;
     }
     const wiring = foundation.integrationWiring;
-    const wiringLines = addedLinesSince(wiring.baselineCommit, wiring.paths);
+    const wiringLines = addedLinesBetween(wiring.baselineCommit, foundation.snapshotCommit, wiring.paths);
     assert.equal(wiringLines, wiring.added, 'foundation wiring count drifted');
     assert.equal(ownedLines + wiringLines, foundation.totalAddedIncludingWiring);
     assert.ok(foundation.totalAddedIncludingWiring < foundation.deletionTargetImplementationLines);
