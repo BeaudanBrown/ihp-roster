@@ -75,6 +75,7 @@ in
         dev-workspace-test = script ../scripts/dev/workspace-test;
         in-env-test = script ../scripts/dev/in-env-test;
         dev-runtime-isolation-test = script ../scripts/dev/runtime-isolation-test;
+        runtime-lifecycle-test = script ../scripts/dev/runtime-lifecycle-test;
         devenv-script-freshness-check = script ../scripts/dev/script-freshness-check;
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;

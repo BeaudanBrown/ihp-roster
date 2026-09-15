@@ -18,7 +18,7 @@ import System.FilePath (takeDirectory, takeFileName)
 import System.IO (hClose, hFlush, openBinaryTempFile)
 import System.IO.Error (catchIOError)
 import System.Posix.Files (ownerReadMode, ownerWriteMode, unionFileModes)
-import System.Posix.IO (OpenFileFlags (cloexec, creat), OpenMode (ReadWrite),
+import System.Posix.IO (OpenFileFlags (cloexec, creat, nofollow), OpenMode (ReadWrite),
                         closeFd, defaultFileFlags, openFd)
 import System.Posix.Types (Fd (Fd))
 
@@ -40,6 +40,7 @@ withExclusiveLock path action = do
     open = openFd path ReadWrite defaultFileFlags
         { creat = Just (ownerReadMode `unionFileModes` ownerWriteMode)
         , cloexec = True
+        , nofollow = True
         }
     flock (Fd fd) operation = throwErrnoIfMinus1Retry_ "flock" (c_flock fd operation)
 
@@ -54,6 +55,7 @@ tryWithExclusiveLock path action = do
     open = openFd path ReadWrite defaultFileFlags
         { creat = Just (ownerReadMode `unionFileModes` ownerWriteMode)
         , cloexec = True
+        , nofollow = True
         }
     flock (Fd fd) operation = throwErrnoIfMinus1Retry_ "flock" (c_flock fd operation)
     tryFlock (Fd fd) operation = do

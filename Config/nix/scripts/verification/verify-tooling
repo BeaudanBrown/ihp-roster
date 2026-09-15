@@ -51,6 +51,9 @@ echo "verify-tooling: generated-code provenance and watcher ownership"
 bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure-test"
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-test"
 
+echo "verify-tooling: owned runtime lifecycle harness"
+runtime-lifecycle-test
+
 echo "verify-tooling: managed PostgreSQL lifecycle and maintenance harnesses"
 dev-db-maintenance-test
 postgres-lifecycle-test

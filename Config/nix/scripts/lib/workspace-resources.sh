@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
+# shellcheck source=runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 
 bepis_workspace_resource_warn() {
     echo "workspace-cpu: warning: $*" >&2
@@ -61,23 +63,7 @@ bepis_workspace_resource_exec() {
     local slot="$3"
     shift 3
 
-    if [ "${BEPIS_WORKSPACE_CPU_SHARING:-on}" = off ]; then
-        bepis_workspace_resource_warn "CPU sharing explicitly disabled; launching uncontained"
-        exec "$@"
-    fi
-    if ! bepis_workspace_resource_available; then
-        bepis_workspace_resource_warn "cgroup v2 user-systemd unavailable; launching uncontained"
-        exec "$@"
-    fi
-    if ! bepis_workspace_resource_prepare "$common_dir" "$kind" "$slot"; then
-        bepis_workspace_resource_warn "cannot prepare equal-weight workspace slice; launching uncontained"
-        exec "$@"
-    fi
-    if bepis_workspace_resource_in_expected_slice; then
-        exec "$@"
-    fi
-    exec "${BEPIS_SYSTEMD_RUN_COMMAND:-systemd-run}" --user --scope --quiet --collect \
-        --slice="$BEPIS_WORKSPACE_RESOURCE_SLICE" -- "$@"
+    exec "$(bepis_runtime_launcher)" runtime resource exec "$common_dir" "$kind" "$slot" -- "$@"
 }
 
 # Re-exec one outer development command into the same equal-weight workspace

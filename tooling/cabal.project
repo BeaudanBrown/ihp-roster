@@ -2,3 +2,4 @@ packages:
   tooling/core
   tooling/workspace-state
   tooling/postgres
+  tooling/runtime

@@ -8,6 +8,10 @@
         path = root + /tooling/workspace-state;
         name = "bepis-workspace-state-source";
     };
+    runtime = builtins.path {
+        path = root + /tooling/runtime;
+        name = "bepis-runtime-source";
+    };
     postgres = builtins.path {
         path = root + /tooling/postgres;
         name = "bepis-postgres-source";

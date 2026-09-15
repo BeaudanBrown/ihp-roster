@@ -21,5 +21,6 @@ Focused verification:
 bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=tooling/dist-newstyle all
 bash ./bin/in-env tooling-foundation-test
 bash ./bin/in-env postgres-lifecycle-test
-nix build .#bepis-tooling-core .#bepis-workspace-state .#bepis-postgres
+bash ./bin/in-env runtime-lifecycle-test
+nix build .#bepis-tooling-core .#bepis-workspace-state .#bepis-postgres .#bepis-runtime
 ```

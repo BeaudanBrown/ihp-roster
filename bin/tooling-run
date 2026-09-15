@@ -25,8 +25,11 @@ case "$family" in
     postgres)
         component="bepis-postgres:exe:bepis-postgres"
         ;;
+    runtime)
+        component="bepis-runtime:exe:bepis-runtime"
+        ;;
     -h|--help|help|"")
-        echo "Usage: $program workspace|postgres [ARGS...]"
+        echo "Usage: $program workspace|postgres|runtime [ARGS...]"
         exit 0
         ;;
     *)
@@ -42,5 +45,9 @@ cd "$repo_root"
 cabal build --offline --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component" >&2
 binary="$(cabal list-bin --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component")"
 [ -x "$binary" ] || { echo "$program: successful build did not produce $component" >&2; exit 70; }
+if [ "${1:-}" = --print-binary ]; then
+    printf '%s\n' "$binary"
+    exit 0
+fi
 cd "$invocation_dir"
 exec "$binary" "$@"

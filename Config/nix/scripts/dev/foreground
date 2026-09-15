@@ -4,6 +4,8 @@ set -euo pipefail
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 # shellcheck source=../lib/workspace-resources.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace-resources.sh"
+# shellcheck source=../lib/runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 bepis_workspace_configure
 bepis_workspace_resource_reexec_dev "$(command -v dev-foreground)" "$@"
 bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure"
@@ -16,6 +18,12 @@ STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
 FRONTEND_GENERATED_WATCH_PID_FILE="$STATE_DIR/frontend-generated-watch.pid"
+APP_PID_FILE="$STATE_DIR/foreground-app.pid"
+WORKER_PID_FILE="$STATE_DIR/worker.pid"
+MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
+TEMPO_PID_FILE="$STATE_DIR/tempo.pid"
+COLLECTOR_PID_FILE="$STATE_DIR/otel-collector.pid"
+GRAFANA_PID_FILE="$STATE_DIR/grafana.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
 DB_SOCKET="$PGHOST"
 APP_HEALTH_URL="$APP_BASE_URL"
@@ -31,71 +39,31 @@ WORKER_PID=""
 FRONTEND_WATCH_PID=""
 FRONTEND_GENERATED_WATCH_PID=""
 MAILHOG_STARTED=0
-OBSERVABILITY_STARTED=0
 POSTGRES_STARTED=0
 MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
 OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
 OBSERVABILITY_ENABLED="${IHP_ROSTER_DEV_OBSERVABILITY:-0}"
 
 mkdir -p "$STATE_DIR"
-if [ -f "$PID_FILE" ]; then
-    existing_pid="$(cat "$PID_FILE")"
-    if [ "$existing_pid" != "$BASHPID" ] && kill -0 "$existing_pid" 2>/dev/null; then
+bepis_runtime_ensure_invocation_token
+if existing_status="$(bepis_runtime_observe "$PID_FILE" devenv 2>/dev/null)"; then
+    existing_pid="$(awk '{for (i=1; i<=NF; i++) if ($i ~ /^pid=/) {sub(/^pid=/, "", $i); print $i}}' <<<"$existing_status")"
+    if [ "$existing_pid" != "$BASHPID" ]; then
         echo "Foreground development already owns this workspace (pid=$existing_pid)." >&2
         exit 75
     fi
 fi
-printf '%s\n' "$BASHPID" >"$PID_FILE"
-export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
-mkdir -p "$XDG_CACHE_HOME"
-
-frontend-generated-ensure
-
-if curl --connect-timeout 1 --max-time 2 -fsS "$MAILHOG_BASE_URL/api/v2/messages" >/dev/null 2>&1; then
-    MAILHOG_STARTED=0
-else
-    "$MAILHOG_BIN" \
-        -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
-        -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-        -api-bind-addr "127.0.0.1:$MAILHOG_PORT" &
-    MAILHOG_PID=$!
-    MAILHOG_STARTED=1
-fi
-
-stop_process_group() {
-    local pid="$1"
-    [ -n "$pid" ] || return 0
-    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-    for _ in $(seq 1 20); do
-        kill -0 -- "-$pid" 2>/dev/null || break
-        sleep 0.1
-    done
-    if kill -0 -- "-$pid" 2>/dev/null; then
-        kill -KILL -- "-$pid" 2>/dev/null || true
-    fi
-    wait "$pid" 2>/dev/null || true
-}
-
-remove_owned_pid_file() {
-    local file="$1"
-    local expected="$2"
-    [ -f "$file" ] && [ "$(cat "$file")" = "$expected" ] && rm -f "$file"
-}
-
+bepis_runtime_adopt "$PID_FILE" devenv "$BASHPID"
 cleanup() {
-    stop_process_group "$WORKER_PID"
-    stop_process_group "$APP_PID"
-    stop_process_group "$FRONTEND_WATCH_PID"
-    stop_process_group "$FRONTEND_GENERATED_WATCH_PID"
-    remove_owned_pid_file "$FRONTEND_WATCH_PID_FILE" "$FRONTEND_WATCH_PID"
-    remove_owned_pid_file "$FRONTEND_GENERATED_WATCH_PID_FILE" "$FRONTEND_GENERATED_WATCH_PID"
-    remove_owned_pid_file "$PID_FILE" "$BASHPID"
-    if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
-        kill "$MAILHOG_PID" 2>/dev/null || true
-    fi
-    if [ "${OBSERVABILITY_STARTED:-0}" = "1" ]; then
-        dev-observability-stop >/dev/null 2>&1 || true
-    fi
+    bepis_runtime_stop_invocation "$WORKER_PID_FILE" worker 2000 >/dev/null 2>&1 || true
+    bepis_runtime_stop_invocation "$APP_PID_FILE" app 2000 >/dev/null 2>&1 || true
+    bepis_runtime_stop_invocation "$FRONTEND_WATCH_PID_FILE" frontend-watch 2000 >/dev/null 2>&1 || true
+    bepis_runtime_stop_invocation "$FRONTEND_GENERATED_WATCH_PID_FILE" frontend-generated-watch 2000 >/dev/null 2>&1 || true
+    bepis_runtime_release "$PID_FILE" devenv "$BASHPID" >/dev/null || true
+    bepis_runtime_stop_invocation "$MAILHOG_PID_FILE" mailhog 2000 >/dev/null 2>&1 || true
+    bepis_runtime_stop_invocation "$GRAFANA_PID_FILE" grafana 2000 >/dev/null 2>&1 || true
+    bepis_runtime_stop_invocation "$COLLECTOR_PID_FILE" otel-collector 2000 >/dev/null 2>&1 || true
+    bepis_runtime_stop_invocation "$TEMPO_PID_FILE" tempo 2000 >/dev/null 2>&1 || true
     if [ "${POSTGRES_STARTED:-0}" = "1" ]; then
         dev-postgres stop >/dev/null 2>&1 || true
     fi
@@ -104,12 +72,27 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
+mkdir -p "$XDG_CACHE_HOME"
+frontend-generated-ensure
+
+if curl --connect-timeout 1 --max-time 2 -fsS "$MAILHOG_BASE_URL/api/v2/messages" >/dev/null 2>&1; then
+    MAILHOG_STARTED=0
+else
+    mailhog_result="$(bepis_runtime_start_result "$MAILHOG_PID_FILE" "$LOG_FILE" mailhog "$MAILHOG_BIN" \
+        -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
+        -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
+        -api-bind-addr "127.0.0.1:$MAILHOG_PORT")"
+    MAILHOG_PID="$(bepis_runtime_result_value "$mailhog_result" pid)"
+    if [ "$(bepis_runtime_result_value "$mailhog_result" created)" = true ]; then MAILHOG_STARTED=1; fi
+fi
+
 if [ "$OBSERVABILITY_ENABLED" = "1" ]; then
     if dev-observability-status >/dev/null 2>&1; then
-        OBSERVABILITY_STARTED=0
+        :
     else
-        dev-observability-start
-        OBSERVABILITY_STARTED=1
+        observability_output="$(dev-observability-start)"
+        printf '%s\n' "$observability_output"
     fi
     export IHP_ROSTER_OTEL="${IHP_ROSTER_OTEL:-1}"
     export IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS="${IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS:-1}"
@@ -122,7 +105,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://127.0.
 export OTEL_TRACES_SAMPLER="${OTEL_TRACES_SAMPLER:-always_on}"
 telemetry_revision="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
 telemetry_version="${telemetry_revision:0:12}"
-export OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment.name=development,service.version=$telemetry_version,service.instance.id=$(hostname),host.name=$(hostname),bepis.workspace.kind=$BEPIS_WORKSPACE_KIND,bepis.deployment.slot=$BEPIS_WORKSPACE_SLOT,vcs.ref.head.revision=$telemetry_revision}"
+export OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment.name=development,service.version=$telemetry_version,service.instance.id=${HOSTNAME:-localhost},host.name=${HOSTNAME:-localhost},bepis.workspace.kind=$BEPIS_WORKSPACE_KIND,bepis.deployment.slot=$BEPIS_WORKSPACE_SLOT,vcs.ref.head.revision=$telemetry_revision}"
 export IHP_ROSTER_OTEL_SHUTDOWN_TIMEOUT_MS="${IHP_ROSTER_OTEL_SHUTDOWN_TIMEOUT_MS:-2000}"
 export OTEL_BSP_MAX_QUEUE_SIZE="${OTEL_BSP_MAX_QUEUE_SIZE:-512}"
 export OTEL_BSP_MAX_EXPORT_BATCH_SIZE="${OTEL_BSP_MAX_EXPORT_BATCH_SIZE:-128}"
@@ -135,12 +118,10 @@ export OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT="${OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT:-64}"
 export OTEL_SPAN_EVENT_COUNT_LIMIT="${OTEL_SPAN_EVENT_COUNT_LIMIT:-64}"
 export OTEL_SPAN_LINK_COUNT_LIMIT="${OTEL_SPAN_LINK_COUNT_LIMIT:-16}"
 
-setsid frontend-generated-watch &
-FRONTEND_GENERATED_WATCH_PID=$!
-printf '%s\n' "$FRONTEND_GENERATED_WATCH_PID" >"$FRONTEND_GENERATED_WATCH_PID_FILE"
-setsid frontend-watch &
-FRONTEND_WATCH_PID=$!
-printf '%s\n' "$FRONTEND_WATCH_PID" >"$FRONTEND_WATCH_PID_FILE"
+frontend_generated_result="$(bepis_runtime_start_result "$FRONTEND_GENERATED_WATCH_PID_FILE" "$STATE_DIR/frontend-generated-watch.log" frontend-generated-watch frontend-generated-watch)"
+FRONTEND_GENERATED_WATCH_PID="$(bepis_runtime_result_value "$frontend_generated_result" pid)"
+frontend_watch_result="$(bepis_runtime_start_result "$FRONTEND_WATCH_PID_FILE" "$STATE_DIR/frontend-watch.log" frontend-watch frontend-watch)"
+FRONTEND_WATCH_PID="$(bepis_runtime_result_value "$frontend_watch_result" pid)"
 sleep 0.1
 for watcher_pid in "$FRONTEND_GENERATED_WATCH_PID" "$FRONTEND_WATCH_PID"; do
     if ! kill -0 "$watcher_pid" 2>/dev/null; then
@@ -164,29 +145,31 @@ else
         lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >&2 || true
         exit 1
     fi
-    echo "[dev-foreground] launching start with observability (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
     echo "Starting slot $BEPIS_WORKSPACE_SLOT app at $APP_BASE_URL with frontend watchers, PostgreSQL, and MailHog at $MAILHOG_BASE_URL..."
     if [ "$OBSERVABILITY_ENABLED" = "1" ]; then
         echo "Tracing env: OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
         echo "Grafana Explore: http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
     fi
-    setsid start &
-    APP_PID=$!
+    app_result="$(bepis_runtime_start_result "$APP_PID_FILE" "$LOG_FILE" app start)"
+    APP_PID="$(bepis_runtime_result_value "$app_result" pid)"
 fi
 
 # Run the same registered AppJob consumers as production, using this workspace's
 # database and service configuration. Both just dev and just ddev enter here.
 echo "Starting background job worker for slot $BEPIS_WORKSPACE_SLOT..."
-setsid dev-worker &
-WORKER_PID=$!
+worker_result="$(bepis_runtime_start_result "$WORKER_PID_FILE" "$STATE_DIR/worker.log" worker dev-worker)"
+WORKER_PID="$(bepis_runtime_result_value "$worker_result" pid)"
 
 # Do not leave a healthy-looking web server running without its job consumer.
-# An unexpected clean exit is a stack failure too; EXIT tears down owned groups.
-children=("$WORKER_PID" "$FRONTEND_WATCH_PID" "$FRONTEND_GENERATED_WATCH_PID")
-[ -z "$APP_PID" ] || children+=("$APP_PID")
-if [ "$MAILHOG_STARTED" = "1" ]; then children+=("$MAILHOG_PID"); fi
-status=0
-wait -n "${children[@]}" || status=$?
-echo "A development stack process exited (status=$status); stopping owned services." >&2
-if [ "$status" = "0" ]; then status=1; fi
-exit "$status"
+# Detached children publish ownership evidence; this foreground owner observes
+# them until a signal or child failure triggers scoped cleanup.
+while true; do
+    sleep 0.2
+    bepis_runtime_observe "$WORKER_PID_FILE" worker >/dev/null 2>&1 || break
+    bepis_runtime_observe "$FRONTEND_WATCH_PID_FILE" frontend-watch >/dev/null 2>&1 || break
+    bepis_runtime_observe "$FRONTEND_GENERATED_WATCH_PID_FILE" frontend-generated-watch >/dev/null 2>&1 || break
+    [ -z "$APP_PID" ] || bepis_runtime_observe "$APP_PID_FILE" app >/dev/null 2>&1 || break
+    [ "$MAILHOG_STARTED" != "1" ] || bepis_runtime_observe "$MAILHOG_PID_FILE" mailhog >/dev/null 2>&1 || break
+done
+echo "A development stack process exited; stopping owned services." >&2
+exit 1

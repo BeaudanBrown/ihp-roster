@@ -10,6 +10,7 @@ bin/tooling-run workspace contract
 bin/tooling-run workspace resolve --path "$PWD" --json
 bin/tooling-run workspace info --json
 bin/tooling-run postgres profile hspec status
+bin/tooling-run runtime process observe PID OWNER LABEL WORKSPACE
 bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=tooling/dist-newstyle all
 bash ./bin/in-env tooling-foundation-test
 ```
@@ -29,6 +30,10 @@ there is no stale-binary fallback or prebuilt execution mode.
   profiles, owned-root validation, lifecycle/maintenance locks, bounded startup
   logs, E2E capacity, cleanup, and development app-recovery coordination. Schema
   and fixture loading remain application-owned shell commands.
+- `bepis-runtime`: workspace-state-dependent owned-process evidence, concurrent
+  publication, scoped process-group termination/escalation, bounded readiness,
+  and optional equal-weight systemd/cgroup execution. Service launch recipes
+  remain small shell adapters; runtime diagnostics are explicit commands.
 
 Nix package sources include only each package directory. A core source change
 invalidates its dependent workspace derivation; workspace changes do not alter
