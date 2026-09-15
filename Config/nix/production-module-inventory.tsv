@@ -342,6 +342,7 @@ Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Coverage.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Job.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Override.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Sync.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
