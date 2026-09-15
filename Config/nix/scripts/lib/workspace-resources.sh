@@ -29,11 +29,6 @@ bepis_workspace_resource_systemctl() {
     "$command" --user "$@"
 }
 
-bepis_workspace_resource_systemd_run() {
-    local command="${BEPIS_SYSTEMD_RUN_COMMAND:-systemd-run}"
-    "$command" --user "$@"
-}
-
 bepis_workspace_resource_available() {
     [ "$(stat -fc %T /sys/fs/cgroup 2>/dev/null || true)" = cgroup2fs ] \
         && command -v "${BEPIS_SYSTEMCTL_COMMAND:-systemctl}" >/dev/null 2>&1 \

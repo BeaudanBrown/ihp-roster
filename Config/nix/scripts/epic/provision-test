@@ -61,13 +61,15 @@ provision_json="$(
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 265 --base roster --json
+        bash "$provision_command" --epic 265 --base roster --name public-holidays --json
 )"
-expected_path="$fixture_root/repo-epic-265"
+expected_path="$fixture_root/repo-public-holidays"
 [ "$(jq -r '.epic' <<<"$provision_json")" = "265" ] || fail "report omitted epic"
 [ "$(jq -r '.targetBranch' <<<"$provision_json")" = "roster" ] || fail "report did not record actual target"
 [ "$(jq -r '.baseCommit' <<<"$provision_json")" = "$base_commit" ] || fail "report omitted resolved base commit"
-[ "$(jq -r '.branch' <<<"$provision_json")" = "epic-265" ] || fail "unstable branch convention"
+[ "$(jq -r '.branch' <<<"$provision_json")" = "epic-265-public-holidays" ] || fail "unexpected branch name"
+[ "$(jq -r 'keys | sort | join(",")' <<<"$provision_json")" = "appUrl,baseCommit,branch,epic,mailhogUrl,path,slot,targetBranch" ] \
+    || fail "published provision JSON fields changed"
 [ "$(jq -r '.path' <<<"$provision_json")" = "$expected_path" ] || fail "unstable sibling path convention"
 [ "$(jq -r '.slot' <<<"$provision_json")" = "1" ] || fail "report omitted allocated slot"
 [ "$(jq -r '.appUrl' <<<"$provision_json")" = "http://127.0.0.1:8003" ] || fail "unexpected app URL"
@@ -81,7 +83,7 @@ expected_path="$fixture_root/repo-epic-265"
 [ "$(readlink "$expected_path/.env")" = "$fixture_repo/.env" ] || fail "worktree .env does not reference the primary checkout"
 [ -L "$expected_path/.ghci" ] || fail "worktree .ghci is not a symlink"
 [ "$(readlink "$expected_path/.ghci")" = "$fixture_repo/.ghci" ] || fail "worktree .ghci does not reference the primary checkout"
-[ "$(git -C "$expected_path" branch --show-current)" = "epic-265" ] || fail "worktree branch mismatch"
+[ "$(git -C "$expected_path" branch --show-current)" = "epic-265-public-holidays" ] || fail "worktree branch mismatch"
 assert_contains "$(cat "$direnv_log")" "allow $expected_path"
 assert_contains "$(cat "$direnv_log")" "exec $expected_path true"
 
@@ -91,7 +93,7 @@ second_json="$(
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 265 --base roster --json
+        bash "$provision_command" --epic 265 --base roster --name public-holidays --json
 )"
 [ "$(jq -r '.path' <<<"$second_json")" = "$expected_path" ] || fail "repeat changed workspace"
 [ -L "$expected_path/.env" ] || fail "repeat provisioning replaced the .env symlink"
@@ -100,11 +102,31 @@ second_json="$(
 [ "$(readlink "$expected_path/.ghci")" = "$fixture_repo/.ghci" ] || fail "repeat provisioning changed the .ghci target"
 common_dir="$(git -C "$fixture_repo" rev-parse --path-format=absolute --git-common-dir)"
 registry_file="$common_dir/bepis/epic-worktrees/registry.json"
+[ "$(jq -r 'keys | sort | join(",")' "$expected_path/.bepis-epic-worktree.json")" = "epic,kind,slot,targetBranch,version" ] \
+    || fail "named provisioning changed v1 identity fields"
+[ "$(jq -r '.version' "$expected_path/.bepis-epic-worktree.json")" = 1 ] \
+    || fail "named provisioning changed v1 identity version"
+[ "$(jq -r '.workspaces[0] | keys | sort | join(",")' "$registry_file")" = "branch,epic,kind,path,slot,targetBranch" ] \
+    || fail "named provisioning changed v1 registry fields"
 [ "$(jq '.workspaces | length' "$registry_file")" = "1" ] || fail "repeat duplicated registration"
 [ "$(git -C "$fixture_repo" worktree list --porcelain | grep -c '^worktree ')" = "2" ] || fail "repeat duplicated worktree"
 
+set +e
+renamed_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 265 --base roster --name renamed-goal --json 2>&1
+)"
+renamed_status=$?
+set -e
+[ "$renamed_status" -eq 65 ] || fail "conflicting explicit name was accepted"
+assert_contains "$renamed_output" "conflicts with requested workspace name"
+[ -d "$expected_path" ] || fail "conflicting name removed the existing worktree"
+
 # Existing unsafe sibling directories must not be overwritten or registered.
-unsafe_path="$fixture_root/repo-epic-266"
+unsafe_path="$fixture_root/repo-staffing-rules"
 mkdir "$unsafe_path"
 printf 'keep\n' >"$unsafe_path/sentinel"
 set +e
@@ -113,7 +135,7 @@ unsafe_output="$(
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 266 --base roster --json 2>&1
+        bash "$provision_command" --epic 266 --base roster --name staffing-rules --json 2>&1
 )"
 unsafe_status=$?
 set -e
@@ -130,7 +152,7 @@ init_output="$(
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
         EPIC_PROVISION_FAIL_DIRENV=1 \
-        bash "$provision_command" --epic 267 --base roster --json 2>&1
+        bash "$provision_command" --epic 267 --base roster --name initialization --json 2>&1
 )"
 init_status=$?
 set -e
@@ -139,27 +161,27 @@ assert_contains "$init_output" "direnv/Nix initialization failed"
 [ "$(jq '[.workspaces[] | select(.epic == 267)] | length' "$registry_file")" = "0" ] || fail "failed initialization was registered"
 
 # A safe pre-existing branch is resumed at the stable sibling path.
-git -C "$fixture_repo" branch epic-268 "$base_commit"
+git -C "$fixture_repo" branch epic-268-schedule-export "$base_commit"
 resumed_json="$(
     cd "$fixture_repo"
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 268 --base roster --json
+        bash "$provision_command" --epic 268 --base roster --name schedule-export --json
 )"
-[ "$(jq -r '.path' <<<"$resumed_json")" = "$fixture_root/repo-epic-268" ] || fail "existing branch was not resumed"
-[ "$(git -C "$fixture_root/repo-epic-268" branch --show-current)" = "epic-268" ] || fail "resumed worktree branch mismatch"
+[ "$(jq -r '.path' <<<"$resumed_json")" = "$fixture_root/repo-schedule-export" ] || fail "existing branch was not resumed"
+[ "$(git -C "$fixture_root/repo-schedule-export" branch --show-current)" = "epic-268-schedule-export" ] || fail "resumed worktree branch mismatch"
 
 # A conventionally named but unrelated branch is ambiguous and must be refused.
 unrelated_commit="$(printf 'unrelated\n' | git -C "$fixture_repo" commit-tree "$(git -C "$fixture_repo" rev-parse 'HEAD^{tree}')")"
-git -C "$fixture_repo" branch epic-269 "$unrelated_commit"
+git -C "$fixture_repo" branch epic-269-payroll-rules "$unrelated_commit"
 set +e
 unrelated_output="$(
     cd "$fixture_repo"
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 269 --base roster --json 2>&1
+        bash "$provision_command" --epic 269 --base roster --name payroll-rules --json 2>&1
 )"
 unrelated_status=$?
 set -e
@@ -167,7 +189,7 @@ set -e
 assert_contains "$unrelated_output" "does not descend from requested base"
 [ "$(jq '[.workspaces[] | select(.epic == 269)] | length' "$registry_file")" = "0" ] || fail "unrelated branch was registered"
 
-# Registration failure after initialization must roll back any registry record.
+# Registration failure after initialization retains resumable Git state but no registry record.
 set +e
 readonly_output="$(
     cd "$fixture_repo"
@@ -175,26 +197,29 @@ readonly_output="$(
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
         EPIC_PROVISION_READONLY_AFTER_INIT=1 \
-        bash "$provision_command" --epic 270 --base roster --json 2>&1
+        bash "$provision_command" --epic 270 --base roster --name audit-log --json 2>&1
 )"
 readonly_status=$?
 set -e
-chmod u+w "$fixture_root/repo-epic-270"
+chmod u+w "$fixture_root/repo-audit-log" 2>/dev/null || true
 [ "$readonly_status" -ne 0 ] || fail "unwritable identity path unexpectedly provisioned"
 assert_contains "$readonly_output" "registry unchanged"
+[ -d "$fixture_root/repo-audit-log" ] || fail "failed registration removed resumable worktree"
+git -C "$fixture_repo" show-ref --verify --quiet refs/heads/epic-270-audit-log \
+    || fail "failed registration removed resumable branch"
 [ "$(jq '[.workspaces[] | select(.epic == 270)] | length' "$registry_file")" = "0" ] \
     || fail "failed identity write left a partial registry record"
 
 # Stable sibling symlinks must never redirect provisioning elsewhere.
 mkdir "$fixture_root/symlink-target"
-ln -s "$fixture_root/symlink-target" "$fixture_root/repo-epic-271"
+ln -s "$fixture_root/symlink-target" "$fixture_root/repo-permission-sync"
 set +e
 symlink_output="$(
     cd "$fixture_repo"
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 271 --base roster --json 2>&1
+        bash "$provision_command" --epic 271 --base roster --name permission-sync --json 2>&1
 )"
 symlink_status=$?
 set -e
@@ -210,7 +235,7 @@ without_env_json="$(
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 273 --base roster --json
+        bash "$provision_command" --epic 273 --base roster --name local-config --json
 )"
 without_env_path="$(jq -r '.path' <<<"$without_env_json")"
 [ ! -e "$without_env_path/.env" ] && [ ! -L "$without_env_path/.env" ] \
@@ -226,7 +251,7 @@ printf ':load Main.hs\n' >"$fixture_repo/.ghci"
     PATH="$fake_bin:$PATH" \
         EPIC_WORKTREE_COMMAND="$registry_command" \
         EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
-        bash "$provision_command" --epic 273 --base roster --json >/dev/null
+        bash "$provision_command" --epic 273 --base roster --name local-config --json >/dev/null
 )
 [ ! -L "$without_env_path/.env" ] || fail "existing worktree .env was replaced with a symlink"
 [ "$(cat "$without_env_path/.env")" = "LOCAL=keep" ] || fail "existing worktree .env content changed"
@@ -234,10 +259,60 @@ printf ':load Main.hs\n' >"$fixture_repo/.ghci"
 [ "$(cat "$without_env_path/.ghci")" = ":load Local.hs" ] || fail "existing worktree .ghci content changed"
 
 set +e
-missing_base_output="$(cd "$fixture_repo" && bash "$provision_command" --epic 272 2>&1)"
+missing_base_output="$(cd "$fixture_repo" && bash "$provision_command" --epic 272 --name missing-base 2>&1)"
 missing_base_status=$?
 set -e
 [ "$missing_base_status" -eq 64 ] || fail "missing explicit base ref was accepted"
 assert_contains "$missing_base_output" "requires --base"
+
+set +e
+missing_name_output="$(cd "$fixture_repo" && bash "$provision_command" --epic 272 --base roster 2>&1)"
+missing_name_status=$?
+invalid_name_output="$(cd "$fixture_repo" && bash "$provision_command" --epic 272 --base roster --name three-word-title 2>&1)"
+invalid_name_status=$?
+numeric_name_output="$(cd "$fixture_repo" && bash "$provision_command" --epic 272 --base roster --name 272 2>&1)"
+numeric_name_status=$?
+duplicate_name_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 274 --base roster --name public-holidays --json 2>&1
+)"
+duplicate_name_status=$?
+set -e
+[ "$missing_name_status" -eq 64 ] || fail "missing workspace name was accepted"
+assert_contains "$missing_name_output" "requires --name"
+[ "$invalid_name_status" -eq 64 ] || fail "three-word workspace name was accepted"
+assert_contains "$invalid_name_output" "one or two lowercase kebab-case words"
+[ "$numeric_name_status" -eq 64 ] || fail "numeric-only workspace name was accepted"
+assert_contains "$numeric_name_output" "one or two lowercase kebab-case words"
+[ "$duplicate_name_status" -eq 65 ] || fail "duplicate workspace name was accepted"
+assert_contains "$duplicate_name_output" "refusing existing path"
+
+# Existing numeric-only registrations remain usable and are not renamed when
+# callers reprovision them through the new required-name interface.
+legacy_path="$fixture_root/repo-epic-275"
+git -C "$fixture_repo" worktree add --quiet -b epic-275 "$legacy_path" "$base_commit"
+(
+    cd "$legacy_path"
+    EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash "$registry_command" register --epic 275 --target roster --branch epic-275 --path "$legacy_path" --kind epic >/dev/null
+)
+legacy_json="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 275 --base roster --name legacy-title --json
+)"
+[ "$(jq -r '.path' <<<"$legacy_json")" = "$legacy_path" ] || fail "legacy registration was not resumed"
+[ "$(jq -r '.branch' <<<"$legacy_json")" = "epic-275" ] || fail "legacy branch was renamed"
+[ "$(jq -r 'keys | sort | join(",")' <<<"$legacy_json")" = "appUrl,baseCommit,branch,epic,mailhogUrl,path,slot,targetBranch" ] \
+    || fail "legacy provision JSON fields changed"
+[ "$(jq -r 'keys | sort | join(",")' "$legacy_path/.bepis-epic-worktree.json")" = "epic,kind,slot,targetBranch,version" ] \
+    || fail "named provisioning changed v1 identity fields"
+[ "$(jq -r '.version' "$legacy_path/.bepis-epic-worktree.json")" = 1 ] \
+    || fail "named provisioning changed v1 identity version"
 
 echo "epic-worktree-provision-test: ok"

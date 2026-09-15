@@ -11,6 +11,10 @@ const resolveCommand = (name) => execFileSync('bash', ['-c', 'command -v "$1"', 
 const bash = resolveCommand('bash');
 const rg = resolveCommand('rg');
 const entrypoints = ['frontend-surface-guardrails', 'typed-contract-authority-check'].map((name) => ({ name, path: resolveCommand(name) }));
+const frontendGuards = [
+    { name: 'frontend-no-ts-nocheck', path: bash, args: [join(repo, 'Config/nix/scripts/frontend/no-ts-nocheck')] },
+    { name: 'frontend-no-broad-switch-defaults', path: bash, args: [join(repo, 'Config/nix/scripts/frontend/no-broad-switch-defaults')] },
+];
 // Derive fixture topology from tracked source, not a second gate inventory.
 const sources = execFileSync('git', ['ls-files', '-z'], { cwd: repo, encoding: 'utf8' }).split('\0').filter(Boolean);
 
@@ -44,7 +48,7 @@ function env(root, path = `${join(root, 'stub-bin')}:${process.env.PATH}`) {
 }
 
 function run(root, entrypoint, path) {
-    const result = spawnSync(entrypoint.path, [], { cwd: root, env: env(root, path), encoding: 'utf8', timeout: 30_000, maxBuffer: 4 * 1024 * 1024 });
+    const result = spawnSync(entrypoint.path, entrypoint.args ?? [], { cwd: root, env: env(root, path), encoding: 'utf8', timeout: 30_000, maxBuffer: 4 * 1024 * 1024 });
     assert.ifError(result.error);
     assert.deepEqual(readdirSync(join(root, 'scan-temp')), [], 'scanner temporary files leaked');
     return result;
@@ -185,4 +189,30 @@ test('surface wrapper propagates a discovery error instead of losing it in mapfi
     const root = fixture(t);
     stubRg(root, `for arg in "$@"; do if [[ "$arg" == -l ]]; then echo 'discovery read error' >&2; exit 2; fi; done\nexec '${rg}' "$@"`);
     failed(run(root, entrypoints[0]), /discovery read error/);
+});
+
+for (const guard of frontendGuards) {
+    test(`${guard.name}: scanner errors fail closed`, (t) => {
+        const root = fixture(t);
+        stubRg(root, "echo 'fixture scanner failure' >&2; exit 2");
+        failed(run(root, guard), /rg scan failed \(status 2\).*fixture scanner failure/s);
+    });
+
+    test(`${guard.name}: no match remains successful`, (t) => {
+        const root = fixture(t);
+        const result = run(root, guard);
+        assert.equal(result.status, 0, result.stderr);
+    });
+}
+
+test('frontend-no-ts-nocheck: forbidden match remains rejected', (t) => {
+    const root = fixture(t);
+    put(root, 'frontend/ts/scanner-fixture.ts', '// @ts-nocheck\n');
+    failed(run(root, frontendGuards[0]), /@ts-nocheck is not allowed/);
+});
+
+test('frontend-no-broad-switch-defaults: broad default remains rejected', (t) => {
+    const root = fixture(t);
+    put(root, 'frontend/ts/scanner-fixture.ts', 'switch (value) {\n    default:\n        return value;\n}\n');
+    failed(run(root, frontendGuards[1]), /Broad switch default without assertNever/);
 });

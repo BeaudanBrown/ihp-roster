@@ -110,6 +110,8 @@ second_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 
 assert_contains "$second_output" "slot 1"
 fixture_common_dir="$(git -C "$fixture_repo" rev-parse --path-format=absolute --git-common-dir)"
 registry_file="$fixture_common_dir/bepis/epic-worktrees/registry.json"
+[ -f "$fixture_common_dir/bepis/epic-worktrees/registry.lock" ] \
+    || fail "registration did not use the published registry.lock path"
 [ "$(jq '.workspaces | length' "$registry_file")" = "1" ] \
     || fail "idempotent registration duplicated the workspace"
 

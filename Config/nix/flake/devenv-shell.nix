@@ -30,8 +30,6 @@
                     pkgs.esbuild
                     pkgs.typescript
                     pkgs.haskellPackages.weeder
-                    # Verification-only root evidence (stdlib TOML/JSON); not a runtime dependency.
-                    pkgs.python3
                     pkgs.mailhog
                     pkgs.poppler-utils
                     # Verification-only spreadsheet recalculation; excluded from ihp-app/production.
@@ -43,7 +41,7 @@
                     pkgs.procps
                     # flock protects workspace, database, and generated-state operations.
                     pkgs.util-linux
-                    # Offline API contracts and workbook verification invoke python3.
+                    # Verification roots, offline API contracts and workbook checks invoke python3.
                     pkgs.python3
                     # Browser export checks inspect downloaded XLSX archives.
                     pkgs.unzip

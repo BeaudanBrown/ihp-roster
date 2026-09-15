@@ -6,11 +6,13 @@ program="epic-worktree-provision"
 
 usage() {
     cat <<'EOF'
-Usage: epic-worktree-provision --epic NUMBER --base REF [--json]
+Usage: epic-worktree-provision --epic NUMBER --base REF --name NAME [--json]
 
-Creates or discovers the stable epic-N branch and sibling REPOSITORY-epic-N
-worktree, initializes its direnv/Nix state without starting services, and
-registers it in the shared epic worktree registry.
+Creates or discovers the stable epic-N-NAME branch and sibling REPOSITORY-NAME
+worktree. NAME is a one- or two-word lowercase kebab-case description of the
+epic goal. Existing v1 registrations retain their recorded branch and path.
+The command initializes direnv/Nix state without starting services and registers
+the worktree in the shared epic worktree registry.
 EOF
 }
 
@@ -27,10 +29,11 @@ done
 
 epic=""
 base_ref=""
+name=""
 json=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --epic|--base)
+        --epic|--base|--name)
             option="$1"
             [ "$#" -ge 2 ] || die 64 "missing value for $option"
             value="$2"
@@ -38,6 +41,7 @@ while [ "$#" -gt 0 ]; do
             case "$option" in
                 --epic) epic="$value" ;;
                 --base) base_ref="$value" ;;
+                --name) name="$value" ;;
             esac
             ;;
         --json)
@@ -54,7 +58,10 @@ done
 
 [ -n "$epic" ] || die 64 "provisioning requires --epic"
 [ -n "$base_ref" ] || die 64 "provisioning requires --base"
+[ -n "$name" ] || die 64 "provisioning requires --name"
 [[ "$epic" =~ ^[1-9][0-9]*$ ]] || die 64 "epic must be a positive integer: $epic"
+[[ "$name" =~ ^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)?$ ]] \
+    || die 64 "name must be one or two lowercase kebab-case words: $name"
 if [[ "$base_ref" == *$'\n'* || "$base_ref" == *$'\r'* ]]; then
     die 64 "base ref may not contain line breaks"
 fi
@@ -77,9 +84,9 @@ main_worktree="$(realpath "${main_worktree_line#worktree }")"
 
 base_commit="$(git -C "$primary_root" rev-parse --verify --end-of-options "$base_ref^{commit}" 2>/dev/null || true)"
 [ -n "$base_commit" ] || die 66 "base ref does not resolve to a commit: $base_ref"
-branch="epic-$epic"
+branch="epic-$epic-$name"
 repo_name="$(basename "$primary_root")"
-derived_path="$(dirname "$primary_root")/${repo_name}-epic-${epic}"
+derived_path="$(dirname "$primary_root")/${repo_name}-${name}"
 [ ! -L "$derived_path" ] || die 65 "refusing symlink at stable sibling path: $derived_path"
 path="$(realpath -m "$derived_path")"
 [ "$path" = "$derived_path" ] || die 65 "derived sibling path is not canonical: $derived_path"
@@ -109,13 +116,20 @@ existing_json="$(run_registry resolve --epic "$epic" --json 2>/dev/null)"
 existing_status=$?
 set -e
 if [ "$existing_status" -eq 0 ]; then
-    jq -e --arg target "$base_ref" --arg branch "$branch" --arg path "$path" '
+    legacy_branch="epic-$epic"
+    legacy_path="$(dirname "$primary_root")/${repo_name}-epic-${epic}"
+    jq -e \
+        --arg target "$base_ref" \
+        --arg namedBranch "$branch" --arg namedPath "$path" \
+        --arg legacyBranch "$legacy_branch" --arg legacyPath "$legacy_path" '
         .targetBranch == $target
-        and .branch == $branch
-        and .path == $path
         and .status == "active"
+        and ((.branch == $namedBranch and .path == $namedPath)
+             or (.branch == $legacyBranch and .path == $legacyPath))
     ' <<<"$existing_json" >/dev/null \
-        || die 65 "existing epic registration conflicts with stable provisioning identity"
+        || die 65 "existing epic registration conflicts with requested workspace name"
+    branch="$(jq -r '.branch' <<<"$existing_json")"
+    path="$(jq -r '.path' <<<"$existing_json")"
 elif [ "$existing_status" -ne 66 ]; then
     die "$existing_status" "cannot inspect existing epic registration"
 fi

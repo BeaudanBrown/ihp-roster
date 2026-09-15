@@ -96,7 +96,7 @@ run_primary() {
     )
 }
 
-provision="$(run_primary epic-worktree-provision --epic 999 --base roster --json)"
+provision="$(run_primary epic-worktree-provision --epic 999 --base roster --name workflow-acceptance --json)"
 epic_path="$(jq -r '.path' <<<"$provision")"
 run_epic() {
     (
@@ -165,7 +165,7 @@ cleanup_plan="$(run_primary epic-worktree-manage cleanup --epic 999 --json)"
 [ -d "$epic_path" ] || fail "unapproved cleanup removed worktree"
 run_primary epic-worktree-manage cleanup --epic 999 --approve --json >/dev/null
 [ ! -e "$epic_path" ] || fail "approved cleanup left worktree"
-git -C "$primary_repo" show-ref --verify --quiet refs/heads/epic-999 \
+git -C "$primary_repo" show-ref --verify --quiet "refs/heads/$(jq -r '.branch' <<<"$provision")" \
     && fail "approved cleanup left epic branch"
 [ "$(git -C "$primary_repo" show HEAD:primary-only)" = 'primary work' ] \
     || fail "integration or cleanup changed primary work"

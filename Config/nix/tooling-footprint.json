@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "historicalAuditBaseline": {
+    "commit": "5b0f68c6171b5cca0ce29b49966634c3a8cf6903",
+    "inventoryFiles": 280,
+    "inventoryPhysicalLines": 30856,
+    "shellFiles": 205,
+    "shellPhysicalLines": 18350,
+    "migrationCandidateFiles": 41,
+    "migrationCandidatePhysicalLines": 7375,
+    "retainedTestFiles": 50,
+    "retainedTestPhysicalLines": 6025
+  },
+  "baselineSlice": {
+    "commit": "5b0f68c6171b5cca0ce29b49966634c3a8cf6903",
+    "categories": {
+      "implementation": {
+        "before": 580,
+        "after": 600,
+        "paths": [
+          "Config/nix/scripts/epic/provision",
+          "Config/nix/scripts/frontend/no-broad-switch-defaults",
+          "Config/nix/scripts/frontend/no-ts-nocheck",
+          "Config/nix/scripts/lib/workspace-resources.sh"
+        ]
+      },
+      "test": {
+        "before": 1120,
+        "after": 1279,
+        "paths": [
+          "Config/nix/scripts/epic/concurrency-test",
+          "Config/nix/scripts/epic/provision-test",
+          "Config/nix/scripts/epic/workflow-acceptance-test",
+          "Config/nix/scripts/epic/worktree-test",
+          "scripts/authority-scan.test.mjs",
+          "scripts/tooling-footprint.test.mjs"
+        ]
+      },
+      "support": {
+        "before": 546,
+        "after": 551,
+        "paths": [
+          ".pi/skills/maintenance-audit/references/scan-process.md",
+          "AGENTS.md",
+          "Config/nix/flake/devenv-shell.nix",
+          "Config/nix/scripts/verification/verify-tooling"
+        ]
+      }
+    }
+  }
+}

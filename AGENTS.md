@@ -26,7 +26,11 @@ parallel Markdown task tracker.
 
 ## Epic Worktree Delegation
 
-In a checkout with `.bepis-epic-worktree.json`, first run:
+Delegation and work selection are explicit user decisions. When provisioning a
+new epic worktree, derive a unique one- or two-word lowercase kebab-case name
+from the epic goal and pass it as `--name` (for example,
+`--name public-holidays`); do not use a generic numeric-only worktree name. In
+a checkout with `.bepis-epic-worktree.json`, first run:
 
 ```bash
 bash ./bin/in-env epic-worktree orient
