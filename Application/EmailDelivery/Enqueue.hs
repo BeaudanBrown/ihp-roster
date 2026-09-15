@@ -91,11 +91,11 @@ emailDeliveryDedupeKey request =
         , request.mailKind
         , request.semanticEventKey
         , tshow request.recipientAccountId
-        , recipientAddressDigest request.recipientAddress
+        , emailRecipientAddressDigest request.recipientAddress
         ]
 
-recipientAddressDigest :: Text -> Text
-recipientAddressDigest address =
+emailRecipientAddressDigest :: Text -> Text
+emailRecipientAddressDigest address =
     tshow
         ( Hash.hash
             (TextEncoding.encodeUtf8 (Text.toCaseFold (Text.strip address))) :: Hash.Digest Hash.SHA256

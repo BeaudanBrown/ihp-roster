@@ -853,6 +853,89 @@ CREATE TABLE app_jobs (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE SET NULL
 );
 
+-- Durable single-fire operational incident authority. Producers retain only
+-- bounded symptom codes and safe metadata; raw provider errors never belong here.
+CREATE TABLE operational_incidents (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    category TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    stable_identity TEXT NOT NULL,
+    affected_source TEXT NOT NULL,
+    venue_id UUID DEFAULT NULL,
+    first_observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    opened_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    resolved_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    state TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    impact_key TEXT NOT NULL,
+    impact_rank INT NOT NULL,
+    symptom_codes JSONB DEFAULT '[]'::JSONB NOT NULL,
+    safe_metadata JSONB DEFAULT '{}'::JSONB NOT NULL,
+    occurrence_count INT DEFAULT 1 NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (category, scope_key, stable_identity),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    CHECK (state IN ('open', 'resolved')),
+    CHECK (severity IN ('info', 'warning', 'critical')),
+    CHECK ((impact_rank >= 0) AND (impact_rank <= 100)),
+    CHECK (occurrence_count > 0),
+    CHECK ((char_length(category) >= 1) AND (char_length(category) <= 80)),
+    CHECK ((char_length(scope_key) >= 1) AND (char_length(scope_key) <= 160)),
+    CHECK ((char_length(stable_identity) >= 1) AND (char_length(stable_identity) <= 240)),
+    CHECK ((char_length(affected_source) >= 1) AND (char_length(affected_source) <= 120)),
+    CHECK ((char_length(impact_key) >= 1) AND (char_length(impact_key) <= 160)),
+    CHECK (jsonb_typeof(symptom_codes) = 'array'),
+    CHECK (octet_length(symptom_codes::TEXT) <= 2048),
+    CHECK (jsonb_typeof(safe_metadata) = 'object'),
+    CHECK (octet_length(safe_metadata::TEXT) <= 4096)
+);
+CREATE TABLE operational_incident_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    operational_incident_id UUID NOT NULL,
+    event_sequence INT NOT NULL,
+    transition TEXT NOT NULL,
+    event_key TEXT NOT NULL,
+    observed_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    severity TEXT NOT NULL,
+    impact_key TEXT NOT NULL,
+    symptom_codes JSONB DEFAULT '[]'::JSONB NOT NULL,
+    safe_metadata JSONB DEFAULT '{}'::JSONB NOT NULL,
+    notification_required BOOLEAN NOT NULL,
+    eligible_recipient_count INT DEFAULT 0 NOT NULL,
+    recipients_reconciled_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (operational_incident_id, event_sequence),
+    UNIQUE (event_key),
+    FOREIGN KEY (operational_incident_id) REFERENCES operational_incidents (id) ON DELETE RESTRICT,
+    CHECK (event_sequence > 0),
+    CHECK (transition IN ('opened', 'impact_escalated', 'recovered', 'recurred')),
+    CHECK (severity IN ('info', 'warning', 'critical')),
+    CHECK (eligible_recipient_count >= 0),
+    CHECK ((char_length(event_key) >= 1) AND (char_length(event_key) <= 320)),
+    CHECK ((char_length(impact_key) >= 1) AND (char_length(impact_key) <= 160)),
+    CHECK (jsonb_typeof(symptom_codes) = 'array'),
+    CHECK (octet_length(symptom_codes::TEXT) <= 2048),
+    CHECK (jsonb_typeof(safe_metadata) = 'object'),
+    CHECK (octet_length(safe_metadata::TEXT) <= 4096)
+);
+CREATE TABLE operational_incident_event_recipients (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    operational_incident_event_id UUID NOT NULL,
+    recipient_user_id UUID NOT NULL,
+    recipient_address TEXT NOT NULL,
+    recipient_address_digest TEXT NOT NULL,
+    email_delivery_job_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (operational_incident_event_id, recipient_user_id, recipient_address_digest),
+    FOREIGN KEY (operational_incident_event_id) REFERENCES operational_incident_events (id) ON DELETE RESTRICT,
+    FOREIGN KEY (recipient_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    CHECK ((char_length(recipient_address) >= 3) AND (char_length(recipient_address) <= 320)),
+    CHECK (char_length(recipient_address_digest) = 64)
+);
+
 -- schema-nav: roster-planning
 CREATE TABLE roster_templates (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,

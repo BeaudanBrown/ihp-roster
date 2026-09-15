@@ -24,6 +24,7 @@ export const producerDispatchMarkers = new Map([
   ["billingNotificationMailKind", "isBillingNotificationMailKind"],
   ["emailVerificationMailKind", "isAccountSecurityMailKind"],
   ["feedbackSubmittedMailKind", "feedbackSubmittedMailKind"],
+  ["operationalIncidentMailKind", "operationalIncidentMailKind"],
   ["passkeySetupMailKind", "isAccountSecurityMailKind"],
   ["passwordResetMailKind", "isAccountSecurityMailKind"],
   ["rosterNotificationMailKind", "isRosterNotificationMailKind"],

@@ -32,6 +32,8 @@ import Application.Helper.Telemetry (addProviderTelemetryStatusClass,
                                      withProviderTelemetrySpan)
 import Application.InvitationDelivery.Email
 import Application.InvitationDelivery.Types
+import Application.OperationalIncident.Email
+import Application.OperationalIncident.Types (operationalIncidentMailKind)
 import Application.RosterNotification.Email
 import Application.StaffDocuments.Rsa.Email
 import Application.VenueInvitation.Mutations (withVenueInvitationLockInCurrentTransaction)
@@ -155,6 +157,19 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
                     Just mail -> do
                         deliverMail mail
                         completeEmailDelivery appJob payload "sent" Nothing
+            mailKind | mailKind == operationalIncidentMailKind -> do
+                maybeMail <-
+                    loadOperationalIncidentMail
+                        payload.payloadRecipientAccountId
+                        payload.payloadRecipientAddress
+                        payload.payloadDomainReferenceId
+                        AppMailSettings { .. }
+                        appBaseUrl
+                case maybeMail of
+                    Nothing -> completeEmailDelivery appJob payload "delivery_skipped" (Just "domain_reference_missing")
+                    Just mail -> do
+                        deliverMail mail
+                        completeEmailDelivery appJob payload "sent" Nothing
             mailKind | isAwardDriftMailKind mailKind -> do
                 projection <-
                     loadAwardDriftMail
@@ -225,6 +240,7 @@ knownEmailDeliveryMailKind :: Text -> Bool
 knownEmailDeliveryMailKind mailKind =
     mailKind == feedbackSubmittedMailKind
         || isWageSourceAlertMailKind mailKind
+        || mailKind == operationalIncidentMailKind
         || isAwardDriftMailKind mailKind
         || isBillingNotificationMailKind mailKind
         || isRosterNotificationMailKind mailKind
@@ -237,6 +253,7 @@ emailDeliveryRelatedTableAllowed :: Text -> Text -> Bool
 emailDeliveryRelatedTableAllowed mailKind relatedTable
     | mailKind == feedbackSubmittedMailKind = relatedTable == "user_feedback_items"
     | isWageSourceAlertMailKind mailKind = relatedTable == "app_jobs"
+    | mailKind == operationalIncidentMailKind = relatedTable == "operational_incident_events"
     | isAwardDriftMailKind mailKind = relatedTable == "fwc_mapd_awards"
     | isBillingNotificationMailKind mailKind = billingNotificationReferenceTable mailKind == Just relatedTable
     | isRosterNotificationMailKind mailKind = relatedTable == "roster_notification_runs"
