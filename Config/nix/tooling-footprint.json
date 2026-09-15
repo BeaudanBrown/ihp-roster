@@ -13,6 +13,7 @@
   },
   "baselineSlice": {
     "commit": "5b0f68c6171b5cca0ce29b49966634c3a8cf6903",
+    "snapshotCommit": "008241bc",
     "categories": {
       "implementation": {
         "before": 580,
@@ -47,5 +48,54 @@
         ]
       }
     }
+  },
+  "foundationSlice": {
+    "issue": 566,
+    "deletionTargetImplementationLines": 7375,
+    "integrationWiring": {
+      "baselineCommit": "008241bc",
+      "added": 10,
+      "paths": [
+        "Config/nix/flake/scripts.nix",
+        "Config/nix/scripts/haskell/module-name-check",
+        "Config/nix/scripts/verification/verify-tooling",
+        "Config/nix/tests/verification-source.nix",
+        "flake.nix"
+      ]
+    },
+    "categories": {
+      "implementation": {
+        "added": 190,
+        "paths": [
+          "bin/tooling-run",
+          "tooling/core/src/Bepis/Tooling/Core/OwnedFile.hs",
+          "tooling/workspace-state/app/Main.hs",
+          "tooling/workspace-state/src/Bepis/Tooling/Workspace/State.hs"
+        ]
+      },
+      "test": {
+        "added": 200,
+        "paths": [
+          "Config/nix/scripts/verification/tooling-foundation-test",
+          "tooling/core/test/Main.hs",
+          "tooling/workspace-state/test/Main.hs"
+        ]
+      },
+      "support": {
+        "added": 195,
+        "paths": [
+          "Config/nix/flake/tooling-packages.nix",
+          "Config/nix/flake/tooling-source.nix",
+          "Config/nix/flake/tooling.nix",
+          "tooling/AGENTS.md",
+          "tooling/README.md",
+          "tooling/cabal.project",
+          "tooling/hie.yaml",
+          "tooling/core/bepis-tooling-core.cabal",
+          "tooling/workspace-state/bepis-workspace-state.cabal"
+        ]
+      }
+    },
+    "totalAddedIncludingWiring": 595
   }
 }

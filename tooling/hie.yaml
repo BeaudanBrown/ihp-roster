@@ -1,0 +1,12 @@
+cradle:
+  cabal:
+    - path: "./core/src"
+      component: "lib:bepis-tooling-core"
+    - path: "./core/test"
+      component: "bepis-tooling-core:test:bepis-tooling-core-test"
+    - path: "./workspace-state/src"
+      component: "lib:bepis-workspace-state"
+    - path: "./workspace-state/app"
+      component: "bepis-workspace-state:exe:bepis-workspace-state"
+    - path: "./workspace-state/test"
+      component: "bepis-workspace-state:test:bepis-workspace-state-test"

@@ -22,6 +22,9 @@ haskell_files() {
 expected_module_for_path() {
     local file="$1"
     local without_ext="${file%.hs}"
+    case "$without_ext" in
+        tooling/*/src/*) without_ext="${without_ext#tooling/*/src/}" ;;
+    esac
     printf '%s\n' "${without_ext//\//.}"
 }
 
@@ -32,7 +35,7 @@ while IFS= read -r file; do
         Setup.hs)
             continue
             ;;
-        Main.hs)
+        Main.hs|tooling/*/app/Main.hs|tooling/*/test/Main.hs)
             expected="Main"
             ;;
         Config/Config.hs)

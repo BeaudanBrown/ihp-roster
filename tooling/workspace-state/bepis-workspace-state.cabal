@@ -1,0 +1,43 @@
+cabal-version: 3.0
+name: bepis-workspace-state
+version: 0.1.0.0
+build-type: Simple
+license: Apache-2.0
+
+library
+  exposed-modules: Bepis.Tooling.Workspace.State
+  hs-source-dirs: src
+  build-depends:
+      aeson
+    , base >=4.18 && <5
+    , bepis-tooling-core
+    , bytestring
+    , filepath
+    , text
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat -Werror
+
+executable bepis-workspace-state
+  main-is: Main.hs
+  hs-source-dirs: app
+  build-depends:
+      aeson
+    , base
+    , bepis-workspace-state
+    , bytestring
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat -Werror
+
+test-suite bepis-workspace-state-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  build-depends:
+      base
+    , bepis-workspace-state
+    , bytestring
+    , directory
+    , filepath
+    , temporary
+  default-language: GHC2021
+  ghc-options: -Wall -Wcompat -Werror

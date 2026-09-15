@@ -11,6 +11,9 @@ production-source-boundary-check
 production-build-profile-test
 production-build-budget-test
 
+echo "verify-tooling: independent Haskell tooling foundation"
+tooling-foundation-test
+
 echo "verify-tooling: checker parser and publication fixtures"
 weeder-policy-test
 node --test scripts/application-warnings.test.mjs scripts/weeder-reachability.test.mjs

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+program="tooling-foundation-test"
+repo_root="$(git rev-parse --show-toplevel)"
+fixture_root="$(mktemp -d)"
+cleanup() {
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "$program: $*" >&2
+    exit 1
+}
+
+cabal test --project-dir="$repo_root" --project-file=tooling/cabal.project \
+    --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null
+core_test="$(cabal list-bin --project-dir="$repo_root" --project-file=tooling/cabal.project \
+    --builddir="$repo_root/tooling/dist-newstyle" bepis-tooling-core:test:bepis-tooling-core-test)"
+
+lock="$fixture_root/interop.lock"
+ready="$fixture_root/holder-ready"
+"$core_test" --hold-lock "$lock" "$ready" 10000000 &
+holder=$!
+for _ in $(seq 1 100); do
+    [ -f "$ready" ] && break
+    sleep 0.01
+done
+[ -f "$ready" ] || fail "Haskell lock holder did not become ready"
+if flock -n "$lock" true; then
+    fail "Bash flock entered while Haskell held the lock"
+fi
+kill -TERM "$holder"
+wait "$holder" 2>/dev/null || true
+flock -n "$lock" true || fail "terminated Haskell holder retained the lock"
+
+rm -f "$ready"
+"$core_test" --spawn-child "$lock" "$ready"
+[ -f "$ready" ] || fail "close-on-exec lock probe did not run"
+flock -w 0.5 "$lock" true || fail "executed child inherited the Haskell lock descriptor"
+
+fixture_repo="$fixture_root/repo"
+mkdir -p "$fixture_repo"
+(
+    cd "$repo_root"
+    git ls-files --cached --others --exclude-standard -z \
+        | tar --null --files-from=- --create
+) | tar --extract --directory="$fixture_repo"
+chmod +x "$fixture_repo/bin/tooling-run"
+
+cold="$fixture_root/cold.out"
+warm="$fixture_root/warm.out"
+BEPIS_TOOLING_ENV=1 "$fixture_repo/bin/tooling-run" workspace contract >"$cold"
+BEPIS_TOOLING_ENV=1 "$fixture_repo/bin/tooling-run" workspace contract >"$warm"
+grep -q '"identityVersion":1' "$cold" || fail "cold launcher omitted workspace contract"
+cmp -s "$cold" "$warm" || fail "warm launcher changed command output"
+
+printf '\nthis is not Haskell\n' >>"$fixture_repo/tooling/workspace-state/app/Main.hs"
+if BEPIS_TOOLING_ENV=1 "$fixture_repo/bin/tooling-run" workspace contract >"$fixture_root/dirty.out" 2>"$fixture_root/dirty.err"; then
+    fail "dirty compile failure executed successfully"
+fi
+if grep -q '"identityVersion":1' "$fixture_root/dirty.out"; then
+    fail "dirty compile failure fell back to the old executable"
+fi
+
+git -C "$repo_root" show HEAD:tooling/workspace-state/app/Main.hs >"$fixture_repo/tooling/workspace-state/app/Main.hs" 2>/dev/null \
+    || cp "$repo_root/tooling/workspace-state/app/Main.hs" "$fixture_repo/tooling/workspace-state/app/Main.hs"
+mkdir -p "$fixture_repo/tooling/workspace-state/app/Fixture"
+printf 'module Fixture.Untracked where\ninvalid =\n' >"$fixture_repo/tooling/workspace-state/app/Fixture/Untracked.hs"
+awk '{ print; if ($0 == "module Main (main) where") print "\nimport Fixture.Untracked ()" }' \
+    "$fixture_repo/tooling/workspace-state/app/Main.hs" >"$fixture_root/Main.hs"
+mv "$fixture_root/Main.hs" "$fixture_repo/tooling/workspace-state/app/Main.hs"
+if BEPIS_TOOLING_ENV=1 "$fixture_repo/bin/tooling-run" workspace contract >"$fixture_root/untracked.out" 2>"$fixture_root/untracked.err"; then
+    fail "untracked compile failure executed successfully"
+fi
+if grep -q '"identityVersion":1' "$fixture_root/untracked.out"; then
+    fail "untracked compile failure fell back to the old executable"
+fi
+
+nix_value() {
+    nix eval --raw --impure --expr "$1"
+}
+flake_ref="path:$repo_root"
+packages_expr="let f = builtins.getFlake \"$flake_ref\"; p = f.inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}; in import $repo_root/Config/nix/flake/tooling-packages.nix { pkgs = p; root = $fixture_repo; }"
+core_before="$(nix_value "((${packages_expr}).core).drvPath")"
+workspace_before="$(nix_value "((${packages_expr}).workspaceState).drvPath")"
+production_before="$(nix_value "let f = builtins.getFlake \"$flake_ref\"; p = f.inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}; in toString (import $repo_root/Config/nix/flake/project-source.nix { pkgs = p; root = $fixture_repo; })")"
+
+mkdir -p "$fixture_repo/tooling/unrelated-family"
+printf 'unrelated\n' >"$fixture_repo/tooling/unrelated-family/source"
+[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "unrelated family invalidated core"
+[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_before" ] || fail "unrelated family invalidated workspace"
+[ "$(nix_value "let f = builtins.getFlake \"$flake_ref\"; p = f.inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}; in toString (import $repo_root/Config/nix/flake/project-source.nix { pkgs = p; root = $fixture_repo; })")" = "$production_before" ] \
+    || fail "tooling-only input changed production source"
+
+printf '\n-- workspace-only invalidation probe\n' >>"$fixture_repo/tooling/workspace-state/src/Bepis/Tooling/Workspace/State.hs"
+workspace_edited="$(nix_value "((${packages_expr}).workspaceState).drvPath")"
+[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "workspace edit invalidated core"
+[ "$workspace_edited" != "$workspace_before" ] || fail "workspace source edit did not invalidate workspace"
+
+printf '\n-- dependency invalidation probe\n' >>"$fixture_repo/tooling/core/src/Bepis/Tooling/Core/OwnedFile.hs"
+core_after="$(nix_value "((${packages_expr}).core).drvPath")"
+workspace_after="$(nix_value "((${packages_expr}).workspaceState).drvPath")"
+[ "$core_after" != "$core_before" ] || fail "core source edit did not invalidate core"
+[ "$workspace_after" != "$workspace_edited" ] || fail "core source edit did not invalidate its workspace dependent"
+
+echo "$program: ok"

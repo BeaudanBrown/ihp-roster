@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+program="bepis-tooling-run"
+script_path="$(realpath "$0")"
+repo_root="$(realpath "$(dirname "$script_path")/..")"
+if [[ "$repo_root" == *$'\n'* || "$repo_root" == *$'\r'* ]]; then
+    echo "$program: checkout paths containing line breaks are unsupported" >&2
+    exit 64
+fi
+
+if [ "${BEPIS_TOOLING_ENV:-0}" != 1 ]; then
+    command -v nix >/dev/null 2>&1 || { echo "$program: nix is required" >&2; exit 69; }
+    exec nix develop "path:$repo_root#tooling" --no-write-lock-file -c \
+        env BEPIS_TOOLING_ENV=1 "$script_path" "$@"
+fi
+
+family="${1:-}"
+[ "$#" -gt 0 ] && shift
+case "$family" in
+    workspace)
+        component="bepis-workspace-state:exe:bepis-workspace-state"
+        ;;
+    -h|--help|help|"")
+        echo "Usage: $program workspace [ARGS...]"
+        exit 0
+        ;;
+    *)
+        echo "$program: unknown tool family: $family" >&2
+        exit 64
+        ;;
+esac
+
+build_dir="$repo_root/tooling/dist-newstyle"
+project_file="tooling/cabal.project"
+command -v cabal >/dev/null 2>&1 || { echo "$program: cabal is unavailable in the tooling environment" >&2; exit 69; }
+cd "$repo_root"
+cabal build --offline --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component" >&2
+binary="$(cabal list-bin --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component")"
+[ -x "$binary" ] || { echo "$program: successful build did not produce $component" >&2; exit 70; }
+exec "$binary" "$@"
