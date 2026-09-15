@@ -172,6 +172,21 @@ issue and, when cross-system design remains unresolved, a new workstream.
   source identity and rate remain unchanged in the resulting key.
   `Application.Xero.PayrollSourceKey` owns that exact source/rate suffix.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
+- Venue-scoped Xero operational incidents use three exact terminal triggers:
+  persisted `reauthorization_required`; the reference-sync retry policy's terminal
+  or exhausted branch; and a persisted per-operation timesheet submission in
+  `failed` or reconciliation `blocked` after its bounded write path. Queued,
+  pending, retry-wait, ordinary connection errors, and other transient failures
+  are silent. Connection incidents resolve only from the authoritative active or
+  disconnected connection row; complete reference publication resolves reference
+  exhaustion. Each submission id remains a distinct actionable incident and
+  resolves only when that same operation becomes submitted, skipped, or superseded
+  by an explicit fresh preparation—connection recovery never resolves it and no
+  path auto-resubmits payroll. Recurrence emits a new event; unchanged observations
+  emit no reminders. Metadata is limited to local operation/connection ids,
+  attempt count and action code, never staff, payroll/customer content, tokens or
+  raw provider errors. Recipients use the shared active platform-super-admin
+  snapshot, not venue membership.
 - Readiness, persisted preview, preparation-owned submission, retry, and guided preparation
   use the shared strict wage-source enforcement boundary. Any included entry's
   calculation or source failure blocks the complete operation; imported overrides

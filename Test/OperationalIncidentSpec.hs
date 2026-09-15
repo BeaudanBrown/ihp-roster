@@ -3,8 +3,10 @@ module Test.OperationalIncidentSpec where
 import Application.EmailDelivery (emailDeliveryJobKind)
 import Application.OperationalIncident
 import Control.Concurrent.Async (concurrently)
+import Control.Monad (void)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
+import Data.Either (isLeft)
 import Data.Time.Clock (addUTCTime)
 import Generated.Types
 import IHP.ControllerPrelude

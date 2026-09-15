@@ -14,13 +14,15 @@ where
 
 import Application.Error.Boundary (withSynchronousAppErrorFallback)
 import Application.Error.Domain (projectDomainError)
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Error.Types (AppResult)
 import Application.Helper.Xero
 import Application.Helper.XeroTimesheetReadiness
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Application.Xero.Connection
+import Application.Xero.Incident (reconcileXeroSubmissionIncident)
 import Application.Xero.Timesheets.Error (XeroPreparationError (..))
 import Application.Xero.Timesheets.Preview
 import Application.Xero.Timesheets.ProviderWrite
@@ -31,6 +33,7 @@ import Application.Xero.Timesheets.Reservation
 import Application.Xero.WorkflowState (xeroSubmissionIsInProgress,
                                        xeroSubmissionIsSuperseded,
                                        xeroSubmissionRunStatusFromStatuses)
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.List as List
@@ -449,15 +452,18 @@ fetchPreviewSourceEntries preview =
 markSubmissionSubmitted :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> UTCTime -> [XeroTimesheetRef] -> IO XeroTimesheetSubmission
 markSubmissionSubmitted submission now refs = do
     let maybeRef = List.find (\ref -> ref.xeroTimesheetEmployeeId == submission.xeroEmployeeId) refs <|> listToMaybe refs
-    submission
-        |> set #status XeroTimesheetSubmissionStatusEnumSubmitted
-        |> set #responsePayloadJson (xeroTimesheetRefsResponseJson refs)
-        |> set #xeroTimesheetId (maybeRef >>= (.xeroTimesheetId))
-        |> set #xeroTimesheetStatus (maybeRef >>= (.xeroTimesheetStatus))
-        |> set #attemptCount (submission.attemptCount + 1)
-        |> set #lastError Nothing
-        |> set #submittedAt (Just now)
-        |> updateRecord
+    updated <-
+        submission
+            |> set #status XeroTimesheetSubmissionStatusEnumSubmitted
+            |> set #responsePayloadJson (xeroTimesheetRefsResponseJson refs)
+            |> set #xeroTimesheetId (maybeRef >>= (.xeroTimesheetId))
+            |> set #xeroTimesheetStatus (maybeRef >>= (.xeroTimesheetStatus))
+            |> set #attemptCount (submission.attemptCount + 1)
+            |> set #lastError Nothing
+            |> set #submittedAt (Just now)
+            |> updateRecord
+    void (reconcileXeroSubmissionIncident now updated)
+    pure updated
 
 uncertainSubmissionError :: XeroClientError -> Text
 uncertainSubmissionError err =
@@ -465,23 +471,30 @@ uncertainSubmissionError err =
         <> durableXeroClientErrorText err
 
 markSubmissionFailed :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> UTCTime -> Text -> IO XeroTimesheetSubmission
-markSubmissionFailed submission now message =
-    submission
-        |> set #status XeroTimesheetSubmissionStatusEnumFailed
-        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message])
-        |> set #attemptCount (submission.attemptCount + 1)
-        |> set #lastError (Just message)
-        |> set #submittedAt (Just now)
-        |> updateRecord
+markSubmissionFailed submission now message = do
+    updated <-
+        submission
+            |> set #status XeroTimesheetSubmissionStatusEnumFailed
+            |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message])
+            |> set #attemptCount (submission.attemptCount + 1)
+            |> set #lastError (Just message)
+            |> set #submittedAt (Just now)
+            |> updateRecord
+    void (reconcileXeroSubmissionIncident now updated)
+    pure updated
 
 markSubmissionBlockedAfterAttempt :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> XeroClientError -> Text -> IO XeroTimesheetSubmission
-markSubmissionBlockedAfterAttempt submission writeError message =
-    submission
-        |> set #status XeroTimesheetSubmissionStatusEnumBlocked
-        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message, "providerError" Aeson..= durableXeroClientErrorText writeError])
-        |> set #attemptCount (submission.attemptCount + 1)
-        |> set #lastError (Just message)
-        |> updateRecord
+markSubmissionBlockedAfterAttempt submission writeError message = do
+    now <- getCurrentTime
+    updated <-
+        submission
+            |> set #status XeroTimesheetSubmissionStatusEnumBlocked
+            |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message, "providerError" Aeson..= durableXeroClientErrorText writeError])
+            |> set #attemptCount (submission.attemptCount + 1)
+            |> set #lastError (Just message)
+            |> updateRecord
+    void (reconcileXeroSubmissionIncident now updated)
+    pure updated
 
 runStatusFromSubmissions :: [XeroTimesheetSubmission] -> XeroSubmissionRunStatusEnum
 runStatusFromSubmissions = xeroSubmissionRunStatusFromStatuses . map (.status)

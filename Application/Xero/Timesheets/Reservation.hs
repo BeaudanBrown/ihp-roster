@@ -15,6 +15,7 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   throwExternalRuntime)
 import Application.Helper.Hasql (isUniqueViolation)
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
+import Application.Xero.Incident (reconcileXeroSubmissionIncidentInCurrentTransaction)
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
 import Application.Xero.Timesheets.ReconciliationReview
@@ -167,7 +168,7 @@ reconcileReservation ::
     IO (XeroTimesheetReservation, Maybe XeroTimesheetSubmission, XeroTimesheetReconciliationDecision)
 reconcileReservation remoteTimesheets reservation = do
     active <- fetchActiveReservation reservation
-    existing <- mapM failAbandonedPendingSubmission active
+    existing <- mapM failAbandonedPendingSubmissionInCurrentTransaction active
     let local = existingSubmission <$> existing
         scopedRemote = filter (remoteMatchesReservation reservation) remoteTimesheets
         decision = reconcileXeroTimesheet local scopedRemote
@@ -182,25 +183,26 @@ failAbandonedXeroTimesheetSubmissionsForPeriod ::
     Day ->
     Day ->
     IO ()
-failAbandonedXeroTimesheetSubmissionsForPeriod connectionId periodStart periodEnd = do
-    pendingSubmissions <-
-        query @XeroTimesheetSubmission
-            |> filterWhere (#xeroConnectionId, connectionId)
-            |> filterWhere (#payPeriodStart, periodStart)
-            |> filterWhere (#payPeriodEnd, periodEnd)
-            |> filterWhere (#status, XeroTimesheetSubmissionStatusEnumPending)
-            |> fetch
-    void (mapM failAbandonedPendingSubmission pendingSubmissions)
+failAbandonedXeroTimesheetSubmissionsForPeriod connectionId periodStart periodEnd =
+    withTransaction do
+        pendingSubmissions <-
+            query @XeroTimesheetSubmission
+                |> filterWhere (#xeroConnectionId, connectionId)
+                |> filterWhere (#payPeriodStart, periodStart)
+                |> filterWhere (#payPeriodEnd, periodEnd)
+                |> filterWhere (#status, XeroTimesheetSubmissionStatusEnumPending)
+                |> fetch
+        void (mapM failAbandonedPendingSubmissionInCurrentTransaction pendingSubmissions)
 
 abandonedPendingMessage :: Text
 abandonedPendingMessage =
     "Bepis could not confirm whether Xero received this timesheet because the submission was interrupted. Check Xero, then start a fresh preparation to retry."
 
-failAbandonedPendingSubmission ::
+failAbandonedPendingSubmissionInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     XeroTimesheetSubmission ->
     IO XeroTimesheetSubmission
-failAbandonedPendingSubmission submission
+failAbandonedPendingSubmissionInCurrentTransaction submission
     | not (xeroSubmissionIsInProgress submission.status) = pure submission
     | otherwise = do
         now <- getCurrentTime
@@ -215,6 +217,7 @@ failAbandonedPendingSubmission submission
                         |> set #submittedAt (Just now)
                         |> updateRecord
                 refreshAbandonedSubmissionRun now failed
+                void (reconcileXeroSubmissionIncidentInCurrentTransaction now failed)
                 pure failed
 
 refreshAbandonedSubmissionRun ::
@@ -323,8 +326,10 @@ supersedeExisting ::
     Maybe XeroTimesheetSubmission ->
     IO ()
 supersedeExisting Nothing = pure ()
-supersedeExisting (Just submission) =
-    void (submission |> set #status XeroTimesheetSubmissionStatusEnumSuperseded |> updateRecord)
+supersedeExisting (Just submission) = do
+    now <- getCurrentTime
+    superseded <- submission |> set #status XeroTimesheetSubmissionStatusEnumSuperseded |> updateRecord
+    void (reconcileXeroSubmissionIncidentInCurrentTransaction now superseded)
 
 insertSubmissionEntry ::
     (?modelContext :: ModelContext) =>

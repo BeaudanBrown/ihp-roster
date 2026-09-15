@@ -72,16 +72,16 @@ import qualified Test.FrontendContractSpec
 import qualified Test.FrontendContractsSpec
 import qualified Test.FrontendSurfaceAdapterGeneratorSpec
 import qualified Test.FrontendSurfaceDslSpec
-import qualified Test.MarkupRenderingSpec
-import qualified Test.OperationalIncidentSpec
 import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FrontendSurfaceRequestAdapterSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.HorizontalScrollSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
+import qualified Test.MarkupRenderingSpec
 import qualified Test.MutationBoundarySpec
 import qualified Test.NotFoundRecoverySpec
+import qualified Test.OperationalIncidentSpec
 import qualified Test.OperatorScriptSpec
 import qualified Test.OrderedRangeSpec
 import qualified Test.OverlaySpec
@@ -137,6 +137,7 @@ import qualified Test.XeroCandidateFilterSpec
 import qualified Test.XeroContractSpec
 import qualified Test.XeroEmployeeIdSpec
 import qualified Test.XeroImportedPayItemsSpec
+import qualified Test.XeroIncidentSpec
 import qualified Test.XeroKeepaliveSpec
 import qualified Test.XeroReferenceDemandSpec
 import qualified Test.XeroReferenceSyncJobSpec
@@ -548,6 +549,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "XeroContract", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = SmallFixture, definitionExternalMocks = [XeroHttpMock], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroContractSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "XeroEmployeeId", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroEmployeeIdSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "XeroImportedPayItems", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroImportedPayItemsSpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroIncident", definitionEstimatedRuntimeSeconds = 0.5, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroIncidentSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroKeepalive", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroKeepaliveSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroReferenceDemand", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroReferenceDemandSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroReferenceSyncJob", definitionEstimatedRuntimeSeconds = 1.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroReferenceSyncJobSpec.tests

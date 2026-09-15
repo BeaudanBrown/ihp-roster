@@ -22,6 +22,8 @@ import Application.Async.Queue
 import Application.Error.Runtime (ExternalRuntimeCategory (CheckedConfigurationInvariant),
                                   throwExternalRuntimeMessage)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroReferenceSyncStateResource)
+import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
+                                                         withDurableLiveMutationWithoutContext)
 import Application.Helper.SurfaceResource
 import Application.Helper.Telemetry (addJobRetryExhaustedTelemetryEvent,
                                      addJobRetryScheduledTelemetryEvent)
@@ -32,6 +34,7 @@ import Application.Helper.Xero
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Admin.ReferenceSyncPolicy
 import Application.Xero.Connection
+import Application.Xero.Incident (reconcileXeroReferenceSyncIncident)
 import Application.Xero.ReferenceCategory
 import Application.Xero.ReferenceSyncFence
 import Control.Concurrent (threadDelay)
@@ -46,8 +49,6 @@ import Generated.Types
 import IHP.ControllerPrelude
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (randomRIO)
-import Application.Helper.LiveUpdate.BackgroundMutation (withDurableLiveMutationOutcomeWithoutContext,
-                                withDurableLiveMutationWithoutContext)
 
 data XeroReferenceDataSource = XeroReferenceDataSource
     { refreshReferenceAccess                 :: XeroConnection -> IO (Either XeroClientError (XeroConnection, Text))
@@ -59,9 +60,9 @@ data XeroReferenceDataSource = XeroReferenceDataSource
     }
 
 data XeroReferenceSyncRuntime = XeroReferenceSyncRuntime
-    { currentReferenceSyncTime       :: IO UTCTime
-    , sleepForReferenceSyncMicros    :: Int -> IO ()
-    , referenceSyncJitterSeconds     :: IO Int
+    { currentReferenceSyncTime    :: IO UTCTime
+    , sleepForReferenceSyncMicros :: Int -> IO ()
+    , referenceSyncJitterSeconds  :: IO Int
     }
 
 data XeroReferenceSyncJobPayload = XeroReferenceSyncJobPayload
@@ -314,6 +315,8 @@ runLeasedReferenceSync runtime source appJob payload connection = do
                                     counts.payrollCalendarCount
                                     counts.accountCount
                             withReferenceSyncMutation "xero.reference_sync.completed" refreshedConnection.venueId (completeReferenceSyncJob appJob result completedCategories)
+                            completedAt <- runtime.currentReferenceSyncTime
+                            void (reconcileXeroReferenceSyncIncident completedAt refreshedConnection False)
                     ) `Exception.onException` terminalizeInterruptedReferenceSyncRun runtime appJob syncRun refreshedConnection
     runAttempt `Exception.onException` terminalizeInterruptedReferenceSyncRun runtime appJob syncRun connection
 
@@ -428,15 +431,17 @@ handleReferenceSyncFailure runtime appJob payload connection maybeSyncRun failur
     jitterSeconds <- runtime.referenceSyncJitterSeconds
     case xeroReferenceSyncRetryDecision payload.requestedAt now payload.retryNumber jitterSeconds failure.cause of
         RetryXeroReferenceSyncAt retryAt
-            | retryNumberAtLimit payload.retryNumber -> throwFinalReferenceSyncFailure payload failure
+            | retryNumberAtLimit payload.retryNumber -> throwFinalReferenceSyncFailure connection payload failure
             | otherwise -> do
                 addJobRetryScheduledTelemetryEvent xeroReferenceSyncJobKind (nextBoundedRetryNumber payload.retryNumber)
                 scheduleReferenceSyncRetry appJob connection payload retryAt failure.phaseName message
-        FailXeroReferenceSync -> throwFinalReferenceSyncFailure payload failure
+        FailXeroReferenceSync -> throwFinalReferenceSyncFailure connection payload failure
 
-throwFinalReferenceSyncFailure :: XeroReferenceSyncJobPayload -> XeroReferencePhaseFailure -> IO value
-throwFinalReferenceSyncFailure payload failure = do
+throwFinalReferenceSyncFailure :: (?modelContext :: ModelContext) => XeroConnection -> XeroReferenceSyncJobPayload -> XeroReferencePhaseFailure -> IO value
+throwFinalReferenceSyncFailure connection payload failure = do
     addJobRetryExhaustedTelemetryEvent xeroReferenceSyncJobKind (boundedRetryNumber payload.retryNumber)
+    now <- getCurrentTime
+    void (reconcileXeroReferenceSyncIncident now connection True)
     throwAppJobError (xeroReferenceJobError failure.cause)
 
 xeroReferenceJobError :: XeroClientError -> AppJobError

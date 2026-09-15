@@ -420,6 +420,7 @@ Application/Xero/Admin/ReferenceData.hs	production	runtime	Main	Reachable from M
 Application/Xero/Admin/ReferenceSyncPolicy.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Connection.hs	production	runtime	Main	Reachable from Main
 Application/Xero/EmployeeId.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Incident.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Keepalive.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Xero/PayrollSourceKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceCategory.hs	production	runtime	Main	Reachable from Main

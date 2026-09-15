@@ -10,6 +10,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
+import Data.Either (isRight)
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Generated.Types
@@ -22,7 +23,7 @@ import Test.Support
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Resend webhook delivery visibility" do
-        it "verifies raw-body signatures and rejects replay-window violations" do
+        it "verifies raw-body signatures and rejects replay-window violations" $ \_ -> do
             now <- getCurrentTime
             let body = "{\"type\":\"email.sent\"}"
             let (secret, headers) = signedFixture now body "msg_signature"
