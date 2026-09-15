@@ -1,5 +1,6 @@
 module Application.WageSourceAlert.Job
     ( enqueueWageSourceFreshnessCheck
+    , enqueueWageSourcePeriodicReconciliation
     , handleWageSourceRefreshFailureAfterFinalAttempt
     , performWageSourceHealthCheckJob
     , performWageSourceHealthCheckJobAt
@@ -10,8 +11,9 @@ import Application.Async.Boundary (throwAppJobError)
 import Application.Async.Error (AppJobError (..))
 import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue
-import Application.EmailDelivery
+import Application.OperationalIncident
 import Application.Error.Parser (parserFailure)
+import Application.PublicHolidays.Override (fetchActivePublicHolidayOverrides, usableOverrideYears)
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Application.WageSourceAlert.Types
@@ -36,7 +38,7 @@ wageSourceHealthCheckJobKind = "wage_source_health_check"
 data HealthCheckPayload = HealthCheckPayload
     { payloadSource          :: !WageSourceKind
     , payloadTrigger         :: !RefreshTrigger
-    , payloadSourceJobId     :: !UUID
+    , payloadSourceJobId     :: !(Maybe UUID)
     , payloadEnqueuedAt      :: !UTCTime
     , payloadAnchorSuccessAt :: !(Maybe UTCTime)
     }
@@ -60,7 +62,7 @@ instance Aeson.FromJSON HealthCheckPayload where
         HealthCheckPayload
             <$> pure source
             <*> pure trigger
-            <*> object Aeson..: "sourceJobId"
+            <*> object Aeson..:? "sourceJobId"
             <*> object Aeson..: "enqueuedAt"
             <*> object Aeson..:? "anchorSuccessAt"
 
@@ -81,16 +83,35 @@ enqueueWageSourceFreshnessCheck ::
     AppJob ->
     UTCTime ->
     IO AppJob
-enqueueWageSourceFreshnessCheck source sourceJob completedAt =
+enqueueWageSourceFreshnessCheck source sourceJob completedAt = do
+    -- Recovery is evaluated immediately from persisted facts; the delayed check
+    -- independently evaluates the freshness boundary without sending reminders.
+    void (enqueueWageSourcePeriodicReconciliation source)
     enqueueHealthCheckOnce
         HealthCheckPayload
             { payloadSource = source
             , payloadTrigger = ScheduledFreshnessCheck
-            , payloadSourceJobId = unpackId sourceJob.id
+            , payloadSourceJobId = Just (unpackId sourceJob.id)
             , payloadEnqueuedAt = completedAt
             , payloadAnchorSuccessAt = Just completedAt
             }
         (Just (addUTCTime (sourceMaximumAge source + 1) completedAt))
+
+enqueueWageSourcePeriodicReconciliation ::
+    (?modelContext :: ModelContext) =>
+    WageSourceKind ->
+    IO AppJob
+enqueueWageSourcePeriodicReconciliation source = do
+    now <- getCurrentTime
+    enqueueHealthCheckOnce
+        HealthCheckPayload
+            { payloadSource = source
+            , payloadTrigger = ScheduledFreshnessCheck
+            , payloadSourceJobId = Nothing
+            , payloadEnqueuedAt = now
+            , payloadAnchorSuccessAt = Nothing
+            }
+        Nothing
 
 handleWageSourceRefreshFailureAfterFinalAttempt ::
     (?modelContext :: ModelContext) =>
@@ -111,7 +132,7 @@ handleWageSourceRefreshFailureAfterFinalAttempt sourceJob
                             HealthCheckPayload
                                 { payloadSource = source
                                 , payloadTrigger = FinalRefreshFailure
-                                , payloadSourceJobId = unpackId persistedSourceJob.id
+                                , payloadSourceJobId = Just (unpackId persistedSourceJob.id)
                                 , payloadEnqueuedAt = now
                                 , payloadAnchorSuccessAt = Nothing
                                 }
@@ -146,15 +167,22 @@ performHealthCheck ::
     UTCTime ->
     IO ()
 performHealthCheck appJob payload now = do
-    unless
-        ( appJob.relatedTable == Just "app_jobs"
-            && appJob.relatedId == Just payload.payloadSourceJobId
-        )
-        (throwAppJobError JobInvalidProvenance)
-    sourceJob <-
-        fetchOneOrNothing (Id payload.payloadSourceJobId :: Id AppJob)
-            >>= maybe (throwAppJobError JobInvalidProvenance) pure
-    unless (sourceForRefreshJobKind sourceJob.jobKind == Just payload.payloadSource) (throwAppJobError JobInvalidProvenance)
+    sourceJob <- case payload.payloadSourceJobId of
+        Just sourceJobId -> do
+            unless
+                ( appJob.relatedTable == Just "app_jobs"
+                    && appJob.relatedId == Just sourceJobId
+                )
+                (throwAppJobError JobInvalidProvenance)
+            persisted <-
+                fetchOneOrNothing (Id sourceJobId :: Id AppJob)
+                    >>= maybe (throwAppJobError JobInvalidProvenance) pure
+            unless (sourceForRefreshJobKind persisted.jobKind == Just payload.payloadSource) (throwAppJobError JobInvalidProvenance)
+            pure persisted
+        Nothing -> do
+            unless (isNothing appJob.relatedTable && isNothing appJob.relatedId && payload.payloadTrigger == ScheduledFreshnessCheck)
+                (throwAppJobError JobInvalidProvenance)
+            pure appJob
     let localToday = (resolvedInstantLocalTime (resolvedInstantFromUTC now)).localDay
     let targetYears = Set.fromList (targetPublicHolidayYears localToday)
     activeVenues <-
@@ -165,37 +193,33 @@ performHealthCheck appJob payload now = do
             |> fetch
     let activeVenueIds = map (unpackId . (.id)) activeVenues
     facts <- loadWageSourceFactsFor activeVenueIds targetYears
+    overrideYears <- case payload.payloadSource of
+        FwcWageSource -> pure Set.empty
+        DataVicWageSource -> do
+            holidays <-
+                query @PublicHoliday
+                    |> filterWhere (#jurisdiction, "VIC" :: Text)
+                    |> filterWhere (#isRegional, False)
+                    |> fetch
+            overrides <- fetchActivePublicHolidayOverrides
+            pure (usableOverrideYears now holidays overrides)
     if scheduledCheckIsSuperseded now targetYears facts payload
         then completeHealthCheck appJob payload [] AnnualNotDue 0 "superseded"
         else do
-            let (healthCandidates, annualEvaluation) = evaluateHealthCandidates now localToday activeVenues facts sourceJob payload
+            let (healthCandidates, annualEvaluation) = evaluateHealthCandidates now localToday activeVenues facts overrideYears sourceJob payload
             let failureCandidates = evaluateFailureCandidate now targetYears facts sourceJob payload
             let candidates = failureCandidates <> healthCandidates
-            recipients <- activeSuperAdmins
-            withTransaction do
-                completed <-
-                    appJob
-                        |> set #status JobStatusSucceeded
-                        |> set #lastError Nothing
-                        |> set #lockedAt Nothing
-                        |> set #lockedBy Nothing
-                        |> set #result (healthCheckResult payload candidates annualEvaluation (length recipients) "evaluated")
-                        |> updateRecord
-                forM_ candidates \candidate ->
-                    forM_ recipients \recipient ->
-                        void $
-                            enqueueEmailDelivery
-                                EmailDeliveryRequest
-                                    { mailKind = alertMailKind candidate.snapshot.source candidate.snapshot.alertKind
-                                    , recipientAccountId = unpackId recipient.id
-                                    , recipientAddress = recipient.email
-                                    , domainReferenceTable = "app_jobs"
-                                    , domainReferenceId = unpackId completed.id
-                                    , semanticEventKey = candidate.semanticKey
-                                    , requestedByUserId = sourceJob.requestedByUserId
-                                    , venueId = candidate.snapshot.annualTriggerVenueId
-                                    }
-            emitBoundedTelemetry payload (length candidates) (length recipients) "evaluated"
+            reconciliation <- reconcileWageSourceIncident now payload candidates
+            let recipientCount = reconciliationRecipientCount reconciliation
+            void $
+                appJob
+                    |> set #status JobStatusSucceeded
+                    |> set #lastError Nothing
+                    |> set #lockedAt Nothing
+                    |> set #lockedBy Nothing
+                    |> set #result (healthCheckResult payload candidates annualEvaluation recipientCount "evaluated")
+                    |> updateRecord
+            emitBoundedTelemetry payload (length candidates) recipientCount "evaluated"
 
 completeHealthCheck ::
     (?modelContext :: ModelContext) =>
@@ -271,17 +295,18 @@ evaluateHealthCandidates ::
     Day ->
     [Venue] ->
     WageSourceFacts ->
+    Set.Set Integer ->
     AppJob ->
     HealthCheckPayload ->
     ([AlertCandidate], AnnualEvaluation)
-evaluateHealthCandidates now localToday activeVenues facts sourceJob payload =
+evaluateHealthCandidates now localToday activeVenues facts overrideYears sourceJob payload =
     case payload.payloadSource of
         FwcWageSource ->
             let freshnessCandidates = fwcFreshnessCandidates now facts sourceJob
                 (annualCandidates, annualEvaluation) = fwcAnnualCandidates now localToday activeVenues facts sourceJob
              in (freshnessCandidates <> annualCandidates, annualEvaluation)
         DataVicWageSource ->
-            (dataVicHealthCandidates now localToday facts sourceJob, AnnualNotDue)
+            (dataVicHealthCandidates now localToday facts overrideYears sourceJob, AnnualNotDue)
 
 fwcFreshnessCandidates :: UTCTime -> WageSourceFacts -> AppJob -> [AlertCandidate]
 fwcFreshnessCandidates now facts sourceJob =
@@ -300,14 +325,14 @@ fwcFreshnessCandidates now facts sourceJob =
             , semanticKey = "wage-source:fwc_mapd:" <> key
             }
 
-dataVicHealthCandidates :: UTCTime -> Day -> WageSourceFacts -> AppJob -> [AlertCandidate]
-dataVicHealthCandidates now localToday facts sourceJob =
+dataVicHealthCandidates :: UTCTime -> Day -> WageSourceFacts -> Set.Set Integer -> AppJob -> [AlertCandidate]
+dataVicHealthCandidates now localToday facts overrideYears sourceJob =
     missingCandidate <> staleCandidate
   where
     targetYears = Set.fromList (targetPublicHolidayYears localToday)
     diagnostics = evaluateDataVicDiagnostics (PolicyClock now) targetYears facts.factDataVicSnapshots
-    missingYears = sort [year | DataVicSnapshotMissing year <- diagnostics]
-    staleFacts = sort [(year, completedAt) | DataVicSnapshotStale year completedAt _ <- diagnostics]
+    missingYears = sort [year | DataVicSnapshotMissing year <- diagnostics, Set.notMember year overrideYears]
+    staleFacts = sort [(year, completedAt) | DataVicSnapshotStale year completedAt _ <- diagnostics, Set.notMember year overrideYears]
     missingCandidate =
         [ AlertCandidate
             { snapshot = baseSnapshot SourceMissingAlert DataVicWageSource now sourceJob missingYears Nothing (Just dataVicMaximumAge)
@@ -429,13 +454,60 @@ validSuccessBasis now targetYears facts DataVicWageSource =
     | year <- Set.toAscList targetYears
     ]
 
-activeSuperAdmins :: (?modelContext :: ModelContext) => IO [User]
-activeSuperAdmins =
-    query @User
-        |> filterWhere (#platformRole, Just SuperAdmin)
-        |> filterWhere (#deactivatedAt, Nothing)
-        |> orderByAsc #id
-        |> fetch
+reconcileWageSourceIncident ::
+    (?modelContext :: ModelContext) =>
+    UTCTime ->
+    HealthCheckPayload ->
+    [AlertCandidate] ->
+    IO ReconciliationResult
+reconcileWageSourceIncident now payload candidates =
+    reconcileOperationalIncident
+        IncidentObservation
+            { category = "wage_source"
+            , scopeKey = "global"
+            , stableIdentity = wageSourceText payload.payloadSource
+            , affectedSource = wageSourceText payload.payloadSource
+            , venueId = Nothing
+            , observedAt = now
+            , isActive = not (null candidates)
+            , severity = if any (isCoverageImpact . (.snapshot)) candidates then IncidentCritical else IncidentWarning
+            , impactKey = wageSourceImpactKey candidates
+            , impactRank = wageSourceImpactRank candidates
+            , symptomCodes = sort (nub (map (alertKindText . (.alertKind) . (.snapshot)) candidates))
+            , safeMetadata = wageSourceSafeMetadata payload candidates
+            }
+
+reconciliationRecipientCount :: ReconciliationResult -> Int
+reconciliationRecipientCount = \case
+    IncidentTransitionRecorded _ event _ -> event.eligibleRecipientCount
+    IncidentUnchanged _ -> 0
+
+wageSourceImpactRank :: [AlertCandidate] -> Int
+wageSourceImpactRank [] = 0
+wageSourceImpactRank candidates =
+    min 100 $
+        10
+            + (if any (isCoverageImpact . (.snapshot)) candidates then 20 else 0)
+            + (if any (not . isCoverageImpact . (.snapshot)) candidates && any (isCoverageImpact . (.snapshot)) candidates then 5 else 0)
+            + length (nub (concatMap ((.affectedYears) . (.snapshot)) candidates))
+
+wageSourceImpactKey :: [AlertCandidate] -> Text
+wageSourceImpactKey [] = "healthy"
+wageSourceImpactKey candidates =
+    "impact:" <> digestText (Text.intercalate "|" (sort (map (.semanticKey) candidates)))
+
+isCoverageImpact :: WageSourceAlertSnapshot -> Bool
+isCoverageImpact snapshot = snapshot.alertKind /= RefreshFailedAlert
+
+wageSourceSafeMetadata :: HealthCheckPayload -> [AlertCandidate] -> Aeson.Value
+wageSourceSafeMetadata payload candidates =
+    Aeson.object
+        [ "source" Aeson..= wageSourceText payload.payloadSource
+        , "trigger" Aeson..= refreshTriggerText payload.payloadTrigger
+        , "sourceJobId" Aeson..= payload.payloadSourceJobId
+        , "affectedYears" Aeson..= sort (nub (concatMap ((.affectedYears) . (.snapshot)) candidates))
+        , "latestValidSuccessAt" Aeson..= maximumMaybe (mapMaybe ((.latestValidSuccessAt) . (.snapshot)) candidates)
+        ]
 
 sourceForRefreshJobKind :: Text -> Maybe WageSourceKind
 sourceForRefreshJobKind "fwc_mapd_refresh"       = Just FwcWageSource
@@ -477,8 +549,8 @@ enqueueHealthCheckOnceWithResult payload runAt = do
                         , payloadSchemaVersion = 1
                         , requestedByUserId = Nothing
                         , venueId = Nothing
-                        , relatedTable = Just "app_jobs"
-                        , relatedId = Just payload.payloadSourceJobId
+                        , relatedTable = "app_jobs" <$ payload.payloadSourceJobId
+                        , relatedId = payload.payloadSourceJobId
                         , dedupeKey = Just dedupeKey
                         , runAt
                         }

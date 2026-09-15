@@ -19,7 +19,6 @@ export const retiredMailJobKinds = [
 // corresponding dispatch guard at the single transport boundary. Keeping this
 // mapping closed makes a newly introduced producer fail until it is registered.
 export const producerDispatchMarkers = new Map([
-  ["alertMailKind", "isWageSourceAlertMailKind"],
   ["awardDriftMailKind", "isAwardDriftMailKind"],
   ["billingNotificationMailKind", "isBillingNotificationMailKind"],
   ["emailVerificationMailKind", "isAccountSecurityMailKind"],
@@ -34,7 +33,6 @@ export const producerDispatchMarkers = new Map([
 ]);
 
 const producerArgumentCounts = new Map([
-  ["alertMailKind", 2],
   ["awardDriftMailKind", 1],
   ["billingNotificationMailKind", 1],
   ["rsaReminderMailKind", 1],

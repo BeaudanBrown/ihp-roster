@@ -336,10 +336,10 @@ Application/InvitationDelivery/Enqueue.hs	production	runtime	Main	Reachable from
 Application/InvitationDelivery/Types.hs	production	runtime	Main	Reachable from Main
 Application/Job/App.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
-Application/OperationalIncident.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/OperationalIncident.hs	production	runtime	Main	Reachable from Main
 Application/OperationalIncident/Email.hs	production	runtime	Main	Reachable from Main
-Application/OperationalIncident/Persistence.hs	development	unreachable	-	Not reachable from an explicit production executable root
-Application/OperationalIncident/Reconciliation.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/OperationalIncident/Persistence.hs	production	runtime	Main	Reachable from Main
+Application/OperationalIncident/Reconciliation.hs	production	runtime	Main	Reachable from Main
 Application/OperationalIncident/Types.hs	production	runtime	Main	Reachable from Main
 Application/Operator/Error.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
