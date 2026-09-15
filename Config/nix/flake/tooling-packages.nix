@@ -7,6 +7,7 @@ let
             bepis-workspace-state = self.callCabal2nix "bepis-workspace-state" sources.workspaceState { };
             bepis-postgres = self.callCabal2nix "bepis-postgres" sources.postgres { };
             bepis-runtime = self.callCabal2nix "bepis-runtime" sources.runtime { };
+            bepis-epic-lifecycle = self.callCabal2nix "bepis-epic-lifecycle" sources.epicLifecycle { };
         };
     };
 in
@@ -16,5 +17,6 @@ in
     workspaceState = haskellPackages.bepis-workspace-state;
     postgres = haskellPackages.bepis-postgres;
     runtime = haskellPackages.bepis-runtime;
+    epicLifecycle = haskellPackages.bepis-epic-lifecycle;
     ghc = haskellPackages.ghcWithPackages (p: [ p.aeson p.temporary ]);
 }

@@ -11,6 +11,8 @@ bin/tooling-run workspace resolve --path "$PWD" --json
 bin/tooling-run workspace info --json
 bin/tooling-run postgres profile hspec status
 bin/tooling-run runtime process observe PID OWNER LABEL WORKSPACE
+bin/tooling-run epic orient --json
+bin/tooling-run epic manage preflight --epic 564 --json
 bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=tooling/dist-newstyle all
 bash ./bin/in-env tooling-foundation-test
 ```
@@ -34,6 +36,11 @@ there is no stale-binary fallback or prebuilt execution mode.
   publication, scoped process-group termination/escalation, bounded readiness,
   and optional equal-weight systemd/cgroup execution. Service launch recipes
   remain small shell adapters; runtime diagnostics are explicit commands.
+- `bepis-epic-lifecycle`: live GitHub orientation plus non-mutating Git impact,
+  divergence, conflict, runtime, and remote-publication inspection. Sync requires
+  `--apply`; integration and cleanup require `--approve`. Mutations revalidate
+  pinned refs, worktree/registry identity, remote rebase safety, and owned runtime
+  state. The `epic-worktree` and `epic-worktree-manage` scripts remain adapters.
 
 Nix package sources include only each package directory. A core source change
 invalidates its dependent workspace derivation; workspace changes do not alter

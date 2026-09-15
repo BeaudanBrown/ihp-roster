@@ -216,6 +216,17 @@ transitively—`aeson` retains QuickCheck and monolithic `ihp` retains Hspec—b
 those packages are not direct app declarations. Hspec, compile-failure, and
 tooling dependencies remain in their separate development/tool package sets.
 
+## Independent developer tooling packages
+
+`.#tooling` exposes the app-independent packages documented in
+`tooling/README.md`. Epic orientation and Git lifecycle ownership live in
+`bepis-epic-lifecycle`; compatibility scripts only locate `bin/tooling-run` and
+provide service paths. Planning is read-only, synchronization requires
+`--apply`, and integration or cleanup requires `--approve`. The owner validates
+v1 workspace identity, pinned refs, all remote endpoints before a rebase, owned
+runtime evidence, HLS cache cleanup, and lock-protected compare-and-delete
+registry state before destructive worktree or branch cleanup.
+
 ## Frontend-contract tooling package
 
 `frontend-contract-tool-module-inventory.tsv` is the exact closure of the three

@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bepis.Tooling.Workspace.Command (runWorkspaceCommand) where
+module Bepis.Tooling.Workspace.Command (runWorkspaceCommand, runtimeStateDirectoriesFor) where
 
 import Bepis.Tooling.Workspace.State
 import Control.Exception (Exception, IOException, catch, throwIO)
@@ -11,7 +11,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Lazy.Char8 as LazyByteString
 import Data.Char (isAsciiLower, isDigit)
-import Data.List (find, intercalate, isPrefixOf, sortOn)
+import Data.List (find, intercalate, isPrefixOf, nub, sortOn)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import System.Directory (canonicalizePath, createDirectoryIfMissing, createFileLink, doesDirectoryExist,
@@ -36,6 +36,16 @@ data Options = Options
     { optionValues :: [(String, String)]
     , optionFlags  :: [String]
     }
+
+runtimeStateDirectoriesFor :: FilePath -> IO [FilePath]
+runtimeStateDirectoriesFor workspacePath = do
+    uid <- show <$> getEffectiveUserID
+    workspaceId <- hashPrefix workspacePath
+    configuredState <- lookupEnv "DEVENV_AGENT_STATE_DIR"
+    configuredRoot <- lookupEnv "BEPIS_WORKSPACE_STATE_ROOT"
+    let defaults = [workspacePath </> ".devenv/agent", "/tmp/bepis-dev-runtime-" <> uid <> "-" <> workspaceId]
+        rooted = maybe [] (\root -> [root </> "workspace-" <> workspaceId]) configuredRoot
+    pure (nub (maybe defaults (: defaults) configuredState <> rooted))
 
 runWorkspaceCommand :: IO ()
 runWorkspaceCommand = run `catch` handleToolError

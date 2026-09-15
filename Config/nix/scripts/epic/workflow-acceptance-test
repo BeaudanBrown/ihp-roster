@@ -2,6 +2,8 @@
 set -euo pipefail
 
 program="epic-worktree-workflow-acceptance-test"
+repository_root="$(git rev-parse --show-toplevel)"
+tooling_launcher="$repository_root/bin/tooling-run"
 
 fail() {
     echo "$program: $*" >&2
@@ -91,6 +93,7 @@ run_primary() {
         PATH="$mock_bin:$PATH" \
         EPIC_GH_LOG="$fixture_root/gh.log" \
         EPIC_GH_STATE_DIR="$fixture_root/gh-state" \
+        BEPIS_TOOLING_LAUNCHER="$tooling_launcher" \
         EPIC_WORKTREE_COMMAND="$(command -v epic-worktree)" \
             "$@"
     )
@@ -101,7 +104,8 @@ epic_path="$(jq -r '.path' <<<"$provision")"
 run_epic() {
     (
         cd "$epic_path"
-        PATH="$mock_bin:$PATH" EPIC_GH_LOG="$fixture_root/gh.log" EPIC_GH_STATE_DIR="$fixture_root/gh-state" "$@"
+        PATH="$mock_bin:$PATH" EPIC_GH_LOG="$fixture_root/gh.log" EPIC_GH_STATE_DIR="$fixture_root/gh-state" \
+            BEPIS_TOOLING_LAUNCHER="$tooling_launcher" "$@"
     )
 }
 [ "$(jq -r '.slot' <<<"$provision")" = 1 ] || fail "provisioning did not allocate slot 1"

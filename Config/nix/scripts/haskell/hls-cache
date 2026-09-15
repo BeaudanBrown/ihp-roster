@@ -12,7 +12,7 @@ usage() {
     cat <<'EOF'
 Usage:
   hls-cache status [--json]
-  hls-cache clear [--apply] [--json]
+  hls-cache clear [--registered-path PATH] [--apply] [--json]
   hls-cache stale --all [--apply] [--json]
   hls-cache legacy [--apply] [--json]
 
@@ -45,16 +45,25 @@ esac
 apply=false
 json=false
 all=false
+registered_path=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --apply) apply=true; shift ;;
         --json) json=true; shift ;;
         --all) all=true; shift ;;
+        --registered-path)
+            [ "$#" -ge 2 ] || die 64 "missing value for --registered-path"
+            registered_path="$2"
+            shift 2
+            ;;
         -h|--help) usage; exit 0 ;;
         *) die 64 "unknown option: $1" ;;
     esac
 done
 
+if [ -n "$registered_path" ] && [ "$command_name" != clear ]; then
+    die 64 "--registered-path is valid only with clear"
+fi
 if [ "$command_name" != stale ] && [ "$all" = true ]; then
     die 64 "--all is valid only with stale"
 fi
@@ -65,7 +74,11 @@ if [ "$command_name" = stale ] && [ "$all" = false ]; then
     die 64 "stale requires --all"
 fi
 
-bepis_hls_cache_resolve_workspace
+if [ -n "$registered_path" ]; then
+    bepis_hls_cache_identity_for_path "$registered_path"
+else
+    bepis_hls_cache_resolve_workspace
+fi
 
 if [ "$command_name" = legacy ]; then
     legacy_root="${BEPIS_HLS_LEGACY_ROOT:-${XDG_CACHE_HOME:-/tmp/nix-cache}/ghcide}"

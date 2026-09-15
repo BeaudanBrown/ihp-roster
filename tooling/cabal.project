@@ -3,3 +3,4 @@ packages:
   tooling/workspace-state
   tooling/postgres
   tooling/runtime
+  tooling/epic-lifecycle

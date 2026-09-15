@@ -6,6 +6,7 @@ module Bepis.Tooling.Workspace.State
     , WorkspaceIdentity (..)
     , WorkspaceRecord (..)
     , WorkspaceStatus (..)
+    , compareAndDeleteWorkspace
     , decodeRegistry
     , decodeWorkspaceIdentity
     , encodeRegistry
@@ -18,6 +19,7 @@ module Bepis.Tooling.Workspace.State
     , registryLockRelativePath
     , validateRegistry
     , withRegistryLock
+    , withRegisteredWorkspaceCleanup
     , writeRegistryUnlocked
     , writeWorkspaceIdentity
     , writeWorkspaceIdentityUnlocked
@@ -194,6 +196,22 @@ writeRegistryUnlocked common = writeFileAtomic (common </> registryFileRelativeP
 
 writeWorkspaceIdentityUnlocked :: FilePath -> WorkspaceIdentity -> IO ()
 writeWorkspaceIdentityUnlocked root = writeFileAtomic (root </> identityFileName) . encodeWorkspaceIdentity
+
+compareAndDeleteWorkspace :: FilePath -> WorkspaceRecord -> IO Bool
+compareAndDeleteWorkspace common expected = withRegisteredWorkspaceCleanup common expected (pure ())
+
+withRegisteredWorkspaceCleanup :: FilePath -> WorkspaceRecord -> IO () -> IO Bool
+withRegisteredWorkspaceCleanup common expected cleanup = withRegistryLock common $ do
+    decoded <- readRegistry common
+    case decoded of
+        Right (Just registry) | validateRegistry common registry == Right () ->
+            case filter ((== recordEpic expected) . recordEpic) (workspaces registry) of
+                [actual] | actual == expected -> do
+                    cleanup
+                    writeRegistryUnlocked common registry {workspaces = filter ((/= recordEpic expected) . recordEpic) (workspaces registry)}
+                    pure True
+                _ -> pure False
+        _ -> pure False
 
 writeWorkspaceIdentity :: FilePath -> FilePath -> WorkspaceIdentity -> IO ()
 writeWorkspaceIdentity common root identity = withRegistryLock common (writeWorkspaceIdentityUnlocked root identity)

@@ -28,8 +28,11 @@ case "$family" in
     runtime)
         component="bepis-runtime:exe:bepis-runtime"
         ;;
+    epic)
+        component="bepis-epic-lifecycle:exe:bepis-epic-lifecycle"
+        ;;
     -h|--help|help|"")
-        echo "Usage: $program workspace|postgres|runtime [ARGS...]"
+        echo "Usage: $program workspace|postgres|runtime|epic [ARGS...]"
         exit 0
         ;;
     *)
