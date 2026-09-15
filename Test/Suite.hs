@@ -76,6 +76,7 @@ import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FrontendSurfaceRequestAdapterSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.HorizontalScrollSpec
+import qualified Test.HostWatchdogSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MarkupRenderingSpec
@@ -532,6 +533,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "SurfaceDependency", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.SurfaceDependencySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "SurfaceGuard", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.SurfaceGuardSpec.tests
     , databaseSuite CleanStateNotRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "ToggleButton", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.ToggleButtonSpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "HostWatchdog", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = ProductSupport, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.HostWatchdogSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "HorizontalScroll", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.HorizontalScrollSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PwaInstall", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PwaInstallSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "OrderedRange.Contract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.OrderedRangeSpec.pureTests

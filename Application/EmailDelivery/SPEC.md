@@ -156,6 +156,10 @@ key, then mirrors the incident event and aggregate direct dispatch outcome into
 Support. It never reads customer/payroll records or application provider secrets,
 and cannot send business notifications. Database or Resend failure retains the
 same local event for retry; it does not create reminders or a fallback channel.
+The same boundary projects only Rozzy's latest backup-snapshot and isolated
+restore-verification timestamps plus bounded unit result labels. Backup contents,
+snapshot identifiers, repository credentials and routine success email remain
+outside the application database.
 
 ## Closed transport architecture and operations
 

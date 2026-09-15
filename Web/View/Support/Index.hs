@@ -138,7 +138,8 @@ renderNotificationHealthPanel health =
                     {renderRecentDeliveries health.recentDeliveries}
                 </div>
                 <div>
-                    <h3 class="h6">Host watchdog direct delivery</h3>
+                    <h3 class="h6">Host watchdog and backup verification</h3>
+                    {renderHostWatchdogStatus health.hostWatchdogStatus}
                     {renderHostWatchdogDispatches health.recentHostDispatches}
                 </div>
                 <p class="small text-muted mb-0">Transitions with no eligible recipient: {tshow (length health.zeroRecipientEvents)}. Delivery-disabled and unknown historical provider states are preserved explicitly.</p>
@@ -182,6 +183,21 @@ renderDeliveryRow delivery = [hsx|
         <td>{maybe "unknown" (.providerStatus) delivery.providerState}</td>
         <td>{renderResendControl delivery}</td>
     </tr>
+|]
+
+renderHostWatchdogStatus :: Maybe HostWatchdogStatus -> Html
+renderHostWatchdogStatus Nothing = [hsx|<p class="small text-muted">No host watchdog status has been reconciled.</p>|]
+renderHostWatchdogStatus (Just status) = [hsx|
+    <dl class="row small mb-3">
+        <dt class="col-sm-3">Latest backup snapshot</dt>
+        <dd class="col-sm-9">{maybe "not observed" tshow status.lastBackupSnapshotAt}</dd>
+        <dt class="col-sm-3">Latest isolated restore verification</dt>
+        <dd class="col-sm-9">{maybe "not observed" tshow status.lastRestoreVerifiedAt}</dd>
+        <dt class="col-sm-3">Unit results</dt>
+        <dd class="col-sm-9">backup {status.backupResult}; verification {status.verificationResult}</dd>
+        <dt class="col-sm-3">Observed</dt>
+        <dd class="col-sm-9">{tshow status.observedAt}</dd>
+    </dl>
 |]
 
 renderHostWatchdogDispatches :: [HostWatchdogDispatch] -> Html

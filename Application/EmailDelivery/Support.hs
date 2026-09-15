@@ -27,6 +27,7 @@ data NotificationHealth = NotificationHealth
     , zeroRecipientEvents :: ![OperationalIncidentEvent]
     , recentDeliveries    :: ![NotificationDeliveryHealth]
     , recentHostDispatches :: ![HostWatchdogDispatch]
+    , hostWatchdogStatus   :: !(Maybe HostWatchdogStatus)
     }
 
 fetchNotificationHealth :: (?modelContext :: ModelContext) => IO NotificationHealth
@@ -60,6 +61,7 @@ fetchNotificationHealth = do
             |> orderByDesc #attemptedAt
             |> limit 50
             |> fetch
+    hostWatchdogStatus <- query @HostWatchdogStatus |> fetchOneOrNothing
     pure NotificationHealth { .. }
 
 deliveryHealth :: Map.Map UUID EmailDeliveryProviderState -> AppJob -> NotificationDeliveryHealth
