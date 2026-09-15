@@ -4,6 +4,7 @@ set -euo pipefail
 program="bepis-tooling-run"
 script_path="$(realpath "$0")"
 repo_root="$(realpath "$(dirname "$script_path")/..")"
+invocation_dir="$PWD"
 if [[ "$repo_root" == *$'\n'* || "$repo_root" == *$'\r'* ]]; then
     echo "$program: checkout paths containing line breaks are unsupported" >&2
     exit 64
@@ -38,4 +39,5 @@ cd "$repo_root"
 cabal build --offline --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component" >&2
 binary="$(cabal list-bin --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component")"
 [ -x "$binary" ] || { echo "$program: successful build did not produce $component" >&2; exit 70; }
+cd "$invocation_dir"
 exec "$binary" "$@"

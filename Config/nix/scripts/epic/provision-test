@@ -52,6 +52,9 @@ fi
 if [ "${EPIC_PROVISION_READONLY_AFTER_INIT:-}" = 1 ] && [ "${1:-}" = exec ]; then
     chmod a-w "$2"
 fi
+if [ "${EPIC_PROVISION_READONLY_REGISTRY_AFTER_INIT:-}" = 1 ] && [ "${1:-}" = exec ]; then
+    chmod a-w "$EPIC_PROVISION_REGISTRY_DIR"
+fi
 EOF
 chmod +x "$fake_bin/direnv"
 direnv_log="$fixture_root/direnv.log"
@@ -209,6 +212,43 @@ git -C "$fixture_repo" show-ref --verify --quiet refs/heads/epic-270-audit-log \
     || fail "failed registration removed resumable branch"
 [ "$(jq '[.workspaces[] | select(.epic == 270)] | length' "$registry_file")" = "0" ] \
     || fail "failed identity write left a partial registry record"
+recovered_json="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 270 --base roster --name audit-log --json
+)"
+[ "$(jq -r '.epic' <<<"$recovered_json")" = 270 ] || fail "retained publication state was not resumable"
+[ "$(jq '[.workspaces[] | select(.epic == 270)] | length' "$registry_file")" = 1 ] \
+    || fail "publication retry did not create exactly one registry record"
+
+# Failed registry publication retains an identity whose slot is reused on retry.
+registry_dir="$(dirname "$registry_file")"
+set +e
+publication_output="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" \
+        EPIC_WORKTREE_COMMAND="$registry_command" \
+        EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        EPIC_PROVISION_READONLY_REGISTRY_AFTER_INIT=1 \
+        EPIC_PROVISION_REGISTRY_DIR="$registry_dir" \
+        bash "$provision_command" --epic 276 --base roster --name publication-retry --json 2>&1
+)"
+publication_status=$?
+set -e
+chmod u+w "$registry_dir"
+[ "$publication_status" -eq 73 ] || fail "registry publication failure was hidden"
+assert_contains "$publication_output" "identity retained for resumable retry"
+publication_identity="$fixture_root/repo-publication-retry/.bepis-epic-worktree.json"
+[ -f "$publication_identity" ] || fail "failed publication removed retained identity"
+retained_slot="$(jq -r '.slot' "$publication_identity")"
+publication_retry="$(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 276 --base roster --name publication-retry --json
+)"
+[ "$(jq -r '.slot' <<<"$publication_retry")" = "$retained_slot" ] || fail "publication retry changed retained slot"
 
 # Stable sibling symlinks must never redirect provisioning elsewhere.
 mkdir "$fixture_root/symlink-target"
@@ -314,5 +354,26 @@ legacy_json="$(
     || fail "named provisioning changed v1 identity fields"
 [ "$(jq -r '.version' "$legacy_path/.bepis-epic-worktree.json")" = 1 ] \
     || fail "named provisioning changed v1 identity version"
+
+# Simultaneous identical requests converge on one branch, path, slot and record.
+first_concurrent="$fixture_root/concurrent-first.json"
+second_concurrent="$fixture_root/concurrent-second.json"
+(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 277 --base roster --name concurrent-owner --json >"$first_concurrent"
+) &
+first_pid=$!
+(
+    cd "$fixture_repo"
+    PATH="$fake_bin:$PATH" EPIC_PROVISION_DIRENV_LOG="$direnv_log" \
+        bash "$provision_command" --epic 277 --base roster --name concurrent-owner --json >"$second_concurrent"
+) &
+second_pid=$!
+wait "$first_pid"
+wait "$second_pid"
+cmp -s "$first_concurrent" "$second_concurrent" || fail "simultaneous identical requests returned different workspaces"
+[ "$(jq '[.workspaces[] | select(.epic == 277)] | length' "$registry_file")" = 1 ] \
+    || fail "simultaneous identical requests published duplicate records"
 
 echo "epic-worktree-provision-test: ok"

@@ -3,6 +3,7 @@ set -euo pipefail
 unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 repo_root="$(git rev-parse --show-toplevel)"
+export BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run"
 registry_command="$repo_root/Config/nix/scripts/epic/worktree"
 fixture_root="$(mktemp -d)"
 main_pid=""

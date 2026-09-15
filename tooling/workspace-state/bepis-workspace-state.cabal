@@ -5,15 +5,20 @@ build-type: Simple
 license: Apache-2.0
 
 library
-  exposed-modules: Bepis.Tooling.Workspace.State
+  exposed-modules:
+      Bepis.Tooling.Workspace.Command
+      Bepis.Tooling.Workspace.State
   hs-source-dirs: src
   build-depends:
       aeson
     , base >=4.18 && <5
     , bepis-tooling-core
     , bytestring
+    , directory
     , filepath
+    , process
     , text
+    , unix
   default-language: GHC2021
   ghc-options: -Wall -Wcompat -Werror
 
@@ -21,10 +26,8 @@ executable bepis-workspace-state
   main-is: Main.hs
   hs-source-dirs: app
   build-depends:
-      aeson
-    , base
+      base
     , bepis-workspace-state
-    , bytestring
   default-language: GHC2021
   ghc-options: -Wall -Wcompat -Werror
 

@@ -6,7 +6,8 @@ modules. Keep package sources narrow in `Config/nix/flake/tooling-source.nix`.
 
 Add a module only with an immediate caller. Prefer a small interface hiding
 ownership, locking, atomic publication, or validated state behavior over generic
-helpers. Keep workspace-state independent of runtime and network access.
+helpers. Workspace-state owns deterministic runtime layout, but remains
+independent of service/process lifecycle and network access.
 
 Run selected commands through `bin/tooling-run`; it builds the current worktree
 before execution and must never fall back to an old binary. Locks interoperate

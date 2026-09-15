@@ -2,11 +2,11 @@
 
 module Main (main) where
 
-import Bepis.Tooling.Workspace.State (WorkspaceIdentity (..),
-                                      decodeWorkspaceIdentity,
-                                      encodeWorkspaceIdentity,
-                                      readWorkspaceIdentity,
-                                      registryLockRelativePath,
+import Bepis.Tooling.Workspace.State (Registry (..), WorkspaceIdentity (..),
+                                      WorkspaceRecord (..), decodeRegistry,
+                                      decodeWorkspaceIdentity, encodeRegistry,
+                                      encodeWorkspaceIdentity, readWorkspaceIdentity,
+                                      registryLockRelativePath, validateRegistry,
                                       writeWorkspaceIdentity)
 import Control.Exception (throwIO)
 import qualified Data.ByteString.Char8 as ByteString
@@ -30,6 +30,15 @@ main = withSystemTempDirectory "bepis-workspace-state" $ \root -> do
         "{\"version\":1,\"epic\":564,\"targetBranch\":\"roster\",\"slot\":4,\"kind\":\"epic\",\"name\":\"haskell-tooling\"}"
     assertLeft "v2 identity accepted" $ decodeWorkspaceIdentity $ ByteString.pack
         "{\"version\":2,\"epic\":564,\"targetBranch\":\"roster\",\"slot\":4,\"kind\":\"epic\"}"
+    let record = WorkspaceRecord 564 "roster" "epic-564-haskell-tooling" "/repo-haskell-tooling" 4
+        registry = Registry "/repo/.git" [record]
+    assertEqual "v1 registry round trip" (Right registry) (decodeRegistry (encodeRegistry registry))
+    assertEqual "valid registry" (Right ()) (validateRegistry "/repo/.git" registry)
+    assertLeft "duplicate registry slot accepted" $ validateRegistry "/repo/.git"
+        registry {workspaces = [record, WorkspaceRecord 565 "roster" "epic-565-other" "/repo-other" 4]}
+    assertLeft "foreign registry owner accepted" $ validateRegistry "/other/.git" registry
+    assertLeft "non-canonical registry path accepted" $ decodeRegistry $ ByteString.pack
+        "{\"version\":1,\"commonGitDir\":\"/repo/.git\",\"workspaces\":[{\"epic\":564,\"targetBranch\":\"roster\",\"branch\":\"epic-564\",\"path\":\"/repo/../bad\",\"slot\":4,\"kind\":\"epic\"}]}"
 
 assertEqual :: (Eq value, Show value) => String -> value -> value -> IO ()
 assertEqual label expected actual =
