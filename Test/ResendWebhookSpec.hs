@@ -2,6 +2,7 @@ module Test.ResendWebhookSpec where
 
 import Application.EmailDelivery.Correlation
 import Application.EmailDelivery.Resend (requestOperationalEmailResend)
+import Application.EmailDelivery.Support (NotificationHealth (..), NotificationIncidentEventHealth (..), fetchNotificationHealth)
 import Application.EmailDelivery.ResendWebhook
 import Application.OperationalIncident
 import qualified "crypton" Crypto.Hash as Hash
@@ -68,26 +69,36 @@ tests = aroundAll withDatabaseTestContext do
                     _ -> expectationFailure "expected unknown-message result"
                 query @EmailDeliveryProviderState |> fetchCount >>= (`shouldBe` 0)
 
-        it "permits only audited operational resends by an active super admin" $ withContext do
+        it "permits only audited operational resends of a suppressed delivery by an active super admin" $ withContext do
             withCleanDb do
                 actor <- createUserRecordWithPlatformRole "resend-actor@example.com" "staff" (Just SuperAdmin) True
                 ordinary <- createUserRecord "resend-ordinary@example.com" "staff" True
                 now <- getCurrentTime
                 _ <- reconcileOperationalIncident (incidentObservation now)
                 original <- query @AppJob |> filterWhere (#jobKind, "email_delivery" :: Text) |> fetchOne
-                disabled <-
-                    original
-                        |> set #status JobStatusSucceeded
-                        |> set #result (Aeson.object ["deliveryStatus" Aeson..= ("delivery_disabled" :: Text)])
+                provider <- prepareProviderCorrelation original
+                _ <-
+                    provider
+                        |> set #providerStatus "suppressed"
+                        |> set #providerStatusAt (Just now)
                         |> updateRecord
+                suppressed <- original |> set #status JobStatusSucceeded |> updateRecord
 
-                requestOperationalEmailResend ordinary disabled "operator reviewed" `shouldReturn` Nothing
-                replacement <- requestOperationalEmailResend actor disabled "operator reviewed"
+                requestOperationalEmailResend ordinary suppressed "operator reviewed" `shouldReturn` Nothing
+                replacement <- requestOperationalEmailResend actor suppressed "operator reviewed"
                 replacement `shouldSatisfy` isJust
                 [audit] <- query @EmailDeliveryResendRequest |> fetch
                 audit.originalEmailDeliveryJobId `shouldBe` unpackId original.id
                 audit.requestedByUserId `shouldBe` unpackId actor.id
                 audit.replacementEmailDeliveryJobId `shouldBe` (unpackId . (.id) <$> replacement)
+
+                health <- fetchNotificationHealth
+                case health.recentIncidentEvents of
+                    [eventHealth] -> do
+                        eventHealth.event.eventSequence `shouldBe` 1
+                        eventHealth.recipientSnapshotCount `shouldBe` 1
+                        eventHealth.failedCount `shouldBe` 1
+                    _ -> expectationFailure "expected one recent incident transition"
 
         it "records an adverse provider incident and recovery from authoritative events" $ withContext do
             withCleanDb do

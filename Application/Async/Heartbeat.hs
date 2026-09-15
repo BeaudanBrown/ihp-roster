@@ -7,7 +7,6 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 
 workerHeartbeatJobKind :: Text
 workerHeartbeatJobKind = "worker_heartbeat"

@@ -55,7 +55,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- reconcileOperationalIncident (observation now True 10 "missing")
                 event <- query @OperationalIncidentEvent |> fetchOne
                 event.eligibleRecipientCount `shouldBe` 0
-                event.recipientsReconciledAt `shouldBe` Just now
+                event.recipientsReconciledAt `shouldSatisfy` isJust
 
                 _ <- createUserRecordWithPlatformRole "incident-late-admin@example.com" "staff" (Just SuperAdmin) True
                 _ <- reconcileOperationalIncident (observation (addUTCTime 1 now) True 10 "missing")

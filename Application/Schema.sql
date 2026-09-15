@@ -764,16 +764,16 @@ CREATE TABLE public_holiday_overrides (
     verified_at TIMESTAMP WITH TIME ZONE NOT NULL,
     review_due_at TIMESTAMP WITH TIME ZONE NOT NULL,
     retired_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    correction_before JSONB NOT NULL,
+    correction_after JSONB NOT NULL,
     review_cycle INT DEFAULT 1 NOT NULL,
     reviewed_by_user_id UUID DEFAULT NULL,
     review_action TEXT DEFAULT 'initial_verification' NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    correction_before JSONB NOT NULL,
-    correction_after JSONB NOT NULL,
-    FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT public_holiday_override_reviewer_fk FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (review_due_at > verified_at),
-    CHECK (review_cycle > 0),
-    CHECK ((char_length(review_action) >= 1) AND (char_length(review_action) <= 160))
+    CONSTRAINT public_holiday_override_review_cycle_positive CHECK (review_cycle > 0),
+    CONSTRAINT public_holiday_override_review_action_bounded CHECK ((char_length(review_action) >= 1) AND (char_length(review_action) <= 160))
 );
 CREATE UNIQUE INDEX public_holiday_overrides_active_year ON public_holiday_overrides (jurisdiction, target_year) WHERE retired_at IS NULL;
 
@@ -884,8 +884,8 @@ CREATE TABLE operational_incidents (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE (category, scope_key, stable_identity),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    CHECK (state IN ('open', 'resolved')),
-    CHECK (severity IN ('info', 'warning', 'critical')),
+    CHECK ((state = 'open') OR (state = 'resolved')),
+    CHECK ((severity = 'info') OR (severity = 'warning') OR (severity = 'critical')),
     CHECK ((impact_rank >= 0) AND (impact_rank <= 100)),
     CHECK (occurrence_count > 0),
     CHECK ((char_length(category) >= 1) AND (char_length(category) <= 80)),
@@ -917,8 +917,8 @@ CREATE TABLE operational_incident_events (
     UNIQUE (event_key),
     FOREIGN KEY (operational_incident_id) REFERENCES operational_incidents (id) ON DELETE RESTRICT,
     CHECK (event_sequence > 0),
-    CHECK (transition IN ('opened', 'impact_escalated', 'recovered', 'recurred')),
-    CHECK (severity IN ('info', 'warning', 'critical')),
+    CHECK ((transition = 'opened') OR (transition = 'impact_escalated') OR (transition = 'recovered') OR (transition = 'recurred')),
+    CHECK ((severity = 'info') OR (severity = 'warning') OR (severity = 'critical')),
     CHECK (eligible_recipient_count >= 0),
     CHECK ((char_length(event_key) >= 1) AND (char_length(event_key) <= 320)),
     CHECK ((char_length(impact_key) >= 1) AND (char_length(impact_key) <= 160)),
@@ -954,7 +954,7 @@ CREATE TABLE email_delivery_provider_states (
     UNIQUE (message_id),
     UNIQUE (provider_email_id),
     FOREIGN KEY (email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
-    CHECK (provider_status IN ('unknown', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')),
+    CHECK ((provider_status = 'unknown') OR (provider_status = 'delivered') OR (provider_status = 'bounced') OR (provider_status = 'complained') OR (provider_status = 'failed') OR (provider_status = 'suppressed')),
     CHECK ((char_length(message_id) >= 3) AND (char_length(message_id) <= 320)),
     CHECK (provider_email_id IS NULL OR char_length(provider_email_id) <= 160)
 );
@@ -969,8 +969,8 @@ CREATE TABLE email_delivery_webhook_events (
     received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     processing_outcome TEXT NOT NULL,
     UNIQUE (svix_id),
-    CHECK (event_type IN ('email.sent', 'email.delivered', 'email.bounced', 'email.complained', 'email.failed', 'email.suppressed')),
-    CHECK (processing_outcome IN ('correlated', 'unknown_message', 'ignored_older_status')),
+    CHECK ((event_type = 'email.sent') OR (event_type = 'email.delivered') OR (event_type = 'email.bounced') OR (event_type = 'email.complained') OR (event_type = 'email.failed') OR (event_type = 'email.suppressed')),
+    CHECK ((processing_outcome = 'correlated') OR (processing_outcome = 'unknown_message') OR (processing_outcome = 'ignored_older_status')),
     CHECK ((char_length(svix_id) >= 1) AND (char_length(svix_id) <= 160)),
     CHECK ((char_length(provider_email_id) >= 1) AND (char_length(provider_email_id) <= 160)),
     CHECK (message_id IS NULL OR char_length(message_id) <= 320)
@@ -3169,7 +3169,7 @@ CREATE TABLE host_watchdog_dispatches (
     UNIQUE (operational_incident_event_id, recipient_address_digest),
     FOREIGN KEY (operational_incident_event_id) REFERENCES operational_incident_events (id) ON DELETE RESTRICT,
     CHECK (char_length(recipient_address_digest) = 64),
-    CHECK (dispatch_status IN ('sent', 'failed')),
+    CHECK ((dispatch_status = 'sent') OR (dispatch_status = 'failed')),
     CHECK (provider_email_id IS NULL OR char_length(provider_email_id) <= 160)
 );
 

@@ -12,7 +12,7 @@ CREATE TABLE email_delivery_provider_states (
     UNIQUE (message_id),
     UNIQUE (provider_email_id),
     FOREIGN KEY (email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
-    CHECK (provider_status IN ('unknown', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')),
+    CHECK ((provider_status = 'unknown') OR (provider_status = 'delivered') OR (provider_status = 'bounced') OR (provider_status = 'complained') OR (provider_status = 'failed') OR (provider_status = 'suppressed')),
     CHECK ((char_length(message_id) >= 3) AND (char_length(message_id) <= 320)),
     CHECK (provider_email_id IS NULL OR char_length(provider_email_id) <= 160)
 );
@@ -27,8 +27,8 @@ CREATE TABLE email_delivery_webhook_events (
     received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     processing_outcome TEXT NOT NULL,
     UNIQUE (svix_id),
-    CHECK (event_type IN ('email.sent', 'email.delivered', 'email.bounced', 'email.complained', 'email.failed', 'email.suppressed')),
-    CHECK (processing_outcome IN ('correlated', 'unknown_message', 'ignored_older_status')),
+    CHECK ((event_type = 'email.sent') OR (event_type = 'email.delivered') OR (event_type = 'email.bounced') OR (event_type = 'email.complained') OR (event_type = 'email.failed') OR (event_type = 'email.suppressed')),
+    CHECK ((processing_outcome = 'correlated') OR (processing_outcome = 'unknown_message') OR (processing_outcome = 'ignored_older_status')),
     CHECK ((char_length(svix_id) >= 1) AND (char_length(svix_id) <= 160)),
     CHECK ((char_length(provider_email_id) >= 1) AND (char_length(provider_email_id) <= 160)),
     CHECK (message_id IS NULL OR char_length(message_id) <= 320)

@@ -1,5 +1,6 @@
 module Application.EmailDelivery.Support
     ( NotificationDeliveryHealth (..)
+    , NotificationIncidentEventHealth (..)
     , NotificationHealth (..)
     , fetchNotificationHealth
     ) where
@@ -12,7 +13,6 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Map.Strict as Map
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusTimedOut))
 
 data NotificationDeliveryHealth = NotificationDeliveryHealth
     { job            :: !AppJob
@@ -22,10 +22,19 @@ data NotificationDeliveryHealth = NotificationDeliveryHealth
     , canResend      :: !Bool
     }
 
+data NotificationIncidentEventHealth = NotificationIncidentEventHealth
+    { event                  :: !OperationalIncidentEvent
+    , recipientSnapshotCount :: !Int
+    , deliveredCount         :: !Int
+    , failedCount            :: !Int
+    , pendingCount           :: !Int
+    }
+
 data NotificationHealth = NotificationHealth
-    { openIncidents       :: ![OperationalIncident]
-    , zeroRecipientEvents :: ![OperationalIncidentEvent]
-    , recentDeliveries    :: ![NotificationDeliveryHealth]
+    { openIncidents        :: ![OperationalIncident]
+    , recentIncidentEvents :: ![NotificationIncidentEventHealth]
+    , zeroRecipientEvents  :: ![OperationalIncidentEvent]
+    , recentDeliveries     :: ![NotificationDeliveryHealth]
     , recentHostDispatches :: ![HostWatchdogDispatch]
     , hostWatchdogStatus   :: !(Maybe HostWatchdogStatus)
     }
@@ -38,12 +47,28 @@ fetchNotificationHealth = do
             |> orderByDesc #lastObservedAt
             |> limit 50
             |> fetch
-    zeroRecipientEvents <-
+    incidentEvents <-
         query @OperationalIncidentEvent
-            |> filterWhere (#eligibleRecipientCount, 0)
             |> orderByDesc #observedAt
-            |> limit 25
+            |> limit 50
             |> fetch
+    eventRecipients <-
+        query @OperationalIncidentEventRecipient
+            |> filterWhereIn (#operationalIncidentEventId, map (unpackId . (.id)) incidentEvents)
+            |> fetch
+    eventJobs <-
+        query @AppJob
+            |> filterWhereIn (#id, map (Id . (.emailDeliveryJobId)) eventRecipients)
+            |> fetch
+    eventProviderStates <-
+        query @EmailDeliveryProviderState
+            |> filterWhereIn (#emailDeliveryJobId, map (Id . unpackId . (.id)) eventJobs)
+            |> fetch
+    let eventJobsById = Map.fromList [(unpackId appJob.id, appJob) | appJob <- eventJobs]
+        eventStatesByJob = Map.fromList [(unpackId state.emailDeliveryJobId, state) | state <- eventProviderStates]
+        recipientsByEvent = Map.fromListWith (<>) [(recipient.operationalIncidentEventId, [recipient]) | recipient <- eventRecipients]
+        recentIncidentEvents = map (incidentEventHealth recipientsByEvent eventJobsById eventStatesByJob) incidentEvents
+        zeroRecipientEvents = filter ((== 0) . (.eligibleRecipientCount)) incidentEvents
     jobs <-
         query @AppJob
             |> filterWhere (#jobKind, emailDeliveryJobKind)
@@ -63,6 +88,33 @@ fetchNotificationHealth = do
             |> fetch
     hostWatchdogStatus <- query @HostWatchdogStatus |> fetchOneOrNothing
     pure NotificationHealth { .. }
+
+incidentEventHealth ::
+    Map.Map UUID [OperationalIncidentEventRecipient] ->
+    Map.Map UUID AppJob ->
+    Map.Map UUID EmailDeliveryProviderState ->
+    OperationalIncidentEvent ->
+    NotificationIncidentEventHealth
+incidentEventHealth recipientsByEvent jobsById statesByJob event =
+    let recipients = Map.findWithDefault [] (unpackId event.id) recipientsByEvent
+        outcomes = map (recipientOutcome jobsById statesByJob) recipients
+        recipientSnapshotCount = length recipients
+        deliveredCount = length (filter (== "delivered") outcomes)
+        failedCount = length (filter (== "failed") outcomes)
+        pendingCount = recipientSnapshotCount - deliveredCount - failedCount
+     in NotificationIncidentEventHealth { .. }
+
+recipientOutcome :: Map.Map UUID AppJob -> Map.Map UUID EmailDeliveryProviderState -> OperationalIncidentEventRecipient -> Text
+recipientOutcome jobsById statesByJob recipient =
+    case Map.lookup recipient.emailDeliveryJobId jobsById of
+        Nothing -> "pending"
+        Just appJob
+            | appJob.status `elem` [JobStatusFailed, JobStatusTimedOut] -> "failed"
+            | payloadText "deliveryStatus" appJob.result == Just "delivery_disabled" -> "failed"
+            | otherwise -> case (.providerStatus) <$> Map.lookup recipient.emailDeliveryJobId statesByJob of
+                Just "delivered" -> "delivered"
+                Just status | status `elem` ["bounced", "complained", "failed", "suppressed"] -> "failed"
+                _ -> "pending"
 
 deliveryHealth :: Map.Map UUID EmailDeliveryProviderState -> AppJob -> NotificationDeliveryHealth
 deliveryHealth states appJob =

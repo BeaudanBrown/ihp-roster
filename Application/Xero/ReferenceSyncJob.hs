@@ -316,7 +316,7 @@ runLeasedReferenceSync runtime source appJob payload connection = do
                                     counts.accountCount
                             withReferenceSyncMutation "xero.reference_sync.completed" refreshedConnection.venueId (completeReferenceSyncJob appJob result completedCategories)
                             completedAt <- runtime.currentReferenceSyncTime
-                            void (reconcileXeroReferenceSyncIncident completedAt refreshedConnection False)
+                            void (reconcileXeroReferenceSyncIncident completedAt refreshedConnection Set.empty)
                     ) `Exception.onException` terminalizeInterruptedReferenceSyncRun runtime appJob syncRun refreshedConnection
     runAttempt `Exception.onException` terminalizeInterruptedReferenceSyncRun runtime appJob syncRun connection
 
@@ -441,7 +441,7 @@ throwFinalReferenceSyncFailure :: (?modelContext :: ModelContext) => XeroConnect
 throwFinalReferenceSyncFailure connection payload failure = do
     addJobRetryExhaustedTelemetryEvent xeroReferenceSyncJobKind (boundedRetryNumber payload.retryNumber)
     now <- getCurrentTime
-    void (reconcileXeroReferenceSyncIncident now connection True)
+    void (reconcileXeroReferenceSyncIncident now connection payload.requestedCategories)
     throwAppJobError (xeroReferenceJobError failure.cause)
 
 xeroReferenceJobError :: XeroClientError -> AppJobError

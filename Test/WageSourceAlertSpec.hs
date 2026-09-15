@@ -50,6 +50,19 @@ tests = aroundAll withDatabaseTestContext do
                     Right () -> expectationFailure "Expected invalid wage-source health-check provenance"
                     Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
 
+        it "coalesces only the current periodic sweep instead of being permanently blocked by an older check" $ withContext do
+            withCleanDb do
+                legacy <-
+                    newRecord @AppJob
+                        |> set #jobKind wageSourceHealthCheckJobKind
+                        |> set #dedupeKey (Just "wage-source-health-check:fwc_mapd:scheduled_freshness_check:Nothing")
+                        |> createRecord
+
+                first <- enqueueWageSourcePeriodicReconciliation FwcWageSource
+                second <- enqueueWageSourcePeriodicReconciliation FwcWageSource
+                first.id `shouldBe` second.id
+                first.id `shouldNotBe` legacy.id
+
         it "waits for the final refresh attempt and records manual/timer class without raw errors" $ withContext do
             withCleanDb do
                 manualUser <- createUserRecord "source-manual@example.com" "staff" True

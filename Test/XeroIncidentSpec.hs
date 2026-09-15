@@ -2,6 +2,7 @@ module Test.XeroIncidentSpec where
 
 import Application.Xero.Incident
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -26,7 +27,7 @@ tests = aroundAll withDatabaseTestContext do
                 now <- getCurrentTime
 
                 _ <- reconcileXeroConnectionIncident now connectionA
-                _ <- reconcileXeroReferenceSyncIncident now connectionA False
+                _ <- reconcileXeroReferenceSyncIncident now connectionA Set.empty
                 query @OperationalIncident |> fetchCount >>= (`shouldBe` 0)
 
                 _ <- reconcileXeroConnectionIncident now (connectionA |> set #connectionStatus "reauthorization_required")
@@ -48,16 +49,22 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- reconcileXeroConnectionIncident now reauth
                 _ <- reconcileXeroConnectionIncident now connection
                 _ <- reconcileXeroConnectionIncident now reauth
-                _ <- reconcileXeroReferenceSyncIncident now connection True
-                _ <- reconcileXeroReferenceSyncIncident now connection True
-                _ <- reconcileXeroReferenceSyncIncident now connection False
+                _ <- reconcileXeroReferenceSyncIncident now connection (Set.singleton XeroStaff)
+                _ <- reconcileXeroReferenceSyncIncident now connection (Set.singleton XeroStaff)
+                _ <- reconcileXeroReferenceSyncIncident now connection (Set.singleton Accounts)
+                _ <- reconcileXeroReferenceSyncIncident now connection Set.empty
 
                 incidents <- query @OperationalIncident |> orderByAsc #category |> fetch
                 map (.category) incidents `shouldMatchList` ["xero_reauthorization_required", "xero_reference_sync_exhausted"]
                 tokenEvents <- eventsForCategory "xero_reauthorization_required"
                 map (.transition) tokenEvents `shouldBe` ["opened", "recovered", "recurred"]
                 referenceEvents <- eventsForCategory "xero_reference_sync_exhausted"
-                map (.transition) referenceEvents `shouldBe` ["opened", "recovered"]
+                map (.transition) referenceEvents `shouldBe` ["opened", "impact_escalated", "recovered"]
+                map (.impactKey) referenceEvents
+                    `shouldBe` [ "xero_reference_sync_requires_intervention:staff"
+                               , "xero_reference_sync_requires_intervention:staff,accounts"
+                               , "xero_reference_sync_requires_intervention:"
+                               ]
 
         it "keeps affected submission operations distinct until explicit operation resolution" $ withContext do
             withCleanDb do

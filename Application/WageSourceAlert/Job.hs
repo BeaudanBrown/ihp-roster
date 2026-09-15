@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -565,8 +566,17 @@ healthCheckDedupeKey payload =
         [ "wage-source-health-check"
         , wageSourceText payload.payloadSource
         , refreshTriggerText payload.payloadTrigger
-        , tshow payload.payloadSourceJobId
+        , healthCheckIdentity payload
         ]
+
+-- Host sweeps may run repeatedly. Coalesce only within one hour so a completed
+-- periodic check cannot permanently suppress later failure or recovery checks.
+-- Source-job-triggered checks retain their permanent semantic identity.
+healthCheckIdentity :: HealthCheckPayload -> Text
+healthCheckIdentity payload =
+    case payload.payloadSourceJobId of
+        Just sourceJobId -> tshow sourceJobId
+        Nothing -> tshow (floor (utcTimeToPOSIXSeconds payload.payloadEnqueuedAt / 3600) :: Integer)
 
 renderBasis :: [(Maybe Integer, Maybe UTCTime)] -> Text
 renderBasis basis =

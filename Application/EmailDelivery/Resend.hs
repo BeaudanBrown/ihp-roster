@@ -9,7 +9,6 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusTimedOut))
 
 data ResendPayload = ResendPayload
     { mailKind           :: !Text

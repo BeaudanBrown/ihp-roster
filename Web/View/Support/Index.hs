@@ -4,7 +4,7 @@
 
 module Web.View.Support.Index where
 
-import Application.EmailDelivery.Support (NotificationDeliveryHealth (..), NotificationHealth (..))
+import Application.EmailDelivery.Support (NotificationDeliveryHealth (..), NotificationHealth (..), NotificationIncidentEventHealth (..))
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
@@ -134,6 +134,10 @@ renderNotificationHealthPanel health =
                     {renderOpenIncidents health.openIncidents}
                 </div>
                 <div>
+                    <h3 class="h6">Recent incident transitions</h3>
+                    {renderRecentIncidentEvents health.recentIncidentEvents}
+                </div>
+                <div>
                     <h3 class="h6">Recent delivery outcomes</h3>
                     {renderRecentDeliveries health.recentDeliveries}
                 </div>
@@ -160,6 +164,31 @@ renderOpenIncidents incidents = [hsx|
 renderIncidentRow :: OperationalIncident -> Html
 renderIncidentRow incident = [hsx|
     <tr><td>{incident.category}</td><td>{incident.affectedSource}</td><td>{incident.severity}</td><td>{tshow incident.lastObservedAt}</td></tr>
+|]
+
+renderRecentIncidentEvents :: [NotificationIncidentEventHealth] -> Html
+renderRecentIncidentEvents [] = [hsx|<p class="small text-muted">No durable incident transitions.</p>|]
+renderRecentIncidentEvents events = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Observed</th><th>Transition</th><th>Sequence</th><th>Eligible</th><th>Snapshot</th><th>Delivered</th><th>Failed</th><th>Pending</th></tr></thead>
+            <tbody>{forEach events renderIncidentEventRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderIncidentEventRow :: NotificationIncidentEventHealth -> Html
+renderIncidentEventRow eventHealth = [hsx|
+    <tr>
+        <td>{tshow eventHealth.event.observedAt}</td>
+        <td>{eventHealth.event.transition}</td>
+        <td>{tshow eventHealth.event.eventSequence}</td>
+        <td>{tshow eventHealth.event.eligibleRecipientCount}</td>
+        <td>{tshow eventHealth.recipientSnapshotCount}</td>
+        <td>{tshow eventHealth.deliveredCount}</td>
+        <td>{tshow eventHealth.failedCount}</td>
+        <td>{tshow eventHealth.pendingCount}</td>
+    </tr>
 |]
 
 renderRecentDeliveries :: [NotificationDeliveryHealth] -> Html

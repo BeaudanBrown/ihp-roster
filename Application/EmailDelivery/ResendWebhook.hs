@@ -7,7 +7,6 @@ module Application.EmailDelivery.ResendWebhook
 
 import Application.Error.Runtime (ExternalRuntimeCategory (PersistedRuntimeInvariant), externalRuntimeInvariantFailure)
 import Application.OperationalIncident
-import Application.OperationalIncident.Types (operationalIncidentMailKind)
 import qualified "crypton" Crypto.Hash as Hash
 import qualified "crypton" Crypto.MAC.HMAC as HMAC
 import qualified Data.Aeson as Aeson

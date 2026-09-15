@@ -8,7 +8,11 @@ module Application.Xero.Incident
 
 import Application.OperationalIncident.Reconciliation
 import Application.OperationalIncident.Types
+import Application.Xero.ReferenceCategory (xeroReferenceSyncCategoryLabel)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -46,9 +50,18 @@ xeroConnectionObservation now connection =
             ]
         }
 
-reconcileXeroReferenceSyncIncident :: (?modelContext :: ModelContext) => UTCTime -> XeroConnection -> Bool -> IO ReconciliationResult
-reconcileXeroReferenceSyncIncident now connection exhausted =
-    reconcileOperationalIncident
+reconcileXeroReferenceSyncIncident :: (?modelContext :: ModelContext) => UTCTime -> XeroConnection -> Set.Set XeroReferenceSyncCategoryEnum -> IO ReconciliationResult
+reconcileXeroReferenceSyncIncident now connection failedCategories = withTransaction do
+    existing <-
+        query @OperationalIncident
+            |> filterWhere (#category, "xero_reference_sync_exhausted" :: Text)
+            |> filterWhere (#scopeKey, venueScope connection.venueId)
+            |> filterWhere (#stableIdentity, tshow (unpackId connection.id))
+            |> fetchOneOrNothing
+    let priorCategories = maybe Set.empty (referenceCategoriesFromMetadata . (.safeMetadata)) existing
+        affectedCategories = if Set.null failedCategories then Set.empty else priorCategories <> failedCategories
+        categoryLabels = map xeroReferenceSyncCategoryLabel (Set.toAscList affectedCategories)
+    reconcileOperationalIncidentInCurrentTransaction
         IncidentObservation
             { category = "xero_reference_sync_exhausted"
             , scopeKey = venueScope connection.venueId
@@ -56,16 +69,32 @@ reconcileXeroReferenceSyncIncident now connection exhausted =
             , affectedSource = "xero"
             , venueId = Just connection.venueId
             , observedAt = now
-            , isActive = exhausted
+            , isActive = not (Set.null failedCategories)
             , severity = IncidentWarning
-            , impactKey = "xero_reference_sync_requires_intervention"
-            , impactRank = 1
-            , symptomCodes = ["reference_sync_retries_exhausted" | exhausted]
+            , impactKey = "xero_reference_sync_requires_intervention:" <> Text.intercalate "," categoryLabels
+            , impactRank = length categoryLabels
+            , symptomCodes = ["reference_sync_retries_exhausted" | not (Set.null failedCategories)]
             , safeMetadata = Aeson.object
                 [ "connectionId" Aeson..= unpackId connection.id
+                , "affectedCategories" Aeson..= categoryLabels
                 , "requiredAction" Aeson..= ("inspect_xero_reference_sync" :: Text)
                 ]
             }
+
+referenceCategoriesFromMetadata :: Aeson.Value -> Set.Set XeroReferenceSyncCategoryEnum
+referenceCategoriesFromMetadata =
+    Set.fromList
+        . mapMaybe referenceCategoryFromLabel
+        . fromMaybe []
+        . AesonTypes.parseMaybe (Aeson.withObject "Xero reference incident metadata" (\object -> object Aeson..:? "affectedCategories" Aeson..!= []))
+
+referenceCategoryFromLabel :: Text -> Maybe XeroReferenceSyncCategoryEnum
+referenceCategoryFromLabel = \case
+    "staff" -> Just XeroStaff
+    "pay_items" -> Just PayItems
+    "payroll_calendars" -> Just PayrollCalendars
+    "accounts" -> Just Accounts
+    _ -> Nothing
 
 reconcileXeroSubmissionIncident :: (?modelContext :: ModelContext) => UTCTime -> XeroTimesheetSubmission -> IO ReconciliationResult
 reconcileXeroSubmissionIncident now submission =

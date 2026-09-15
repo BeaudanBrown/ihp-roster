@@ -13,7 +13,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 
 reconcileOperationalIncident ::
     (?modelContext :: ModelContext) =>

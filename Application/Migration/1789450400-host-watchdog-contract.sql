@@ -13,7 +13,7 @@ CREATE TABLE host_watchdog_dispatches (
     UNIQUE (operational_incident_event_id, recipient_address_digest),
     FOREIGN KEY (operational_incident_event_id) REFERENCES operational_incident_events (id) ON DELETE RESTRICT,
     CHECK (char_length(recipient_address_digest) = 64),
-    CHECK (dispatch_status IN ('sent', 'failed')),
+    CHECK ((dispatch_status = 'sent') OR (dispatch_status = 'failed')),
     CHECK (provider_email_id IS NULL OR char_length(provider_email_id) <= 160)
 );
 
