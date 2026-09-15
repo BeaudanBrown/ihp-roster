@@ -1,5 +1,6 @@
 module Application.OperationalIncident.Reconciliation
     ( reconcileOperationalIncident
+    , reconcileOperationalIncidentInCurrentTransaction
     ) where
 
 import Application.EmailDelivery.Enqueue
@@ -18,7 +19,14 @@ reconcileOperationalIncident ::
     (?modelContext :: ModelContext) =>
     IncidentObservation ->
     IO ReconciliationResult
-reconcileOperationalIncident observation = withTransaction do
+reconcileOperationalIncident observation =
+    withTransaction (reconcileOperationalIncidentInCurrentTransaction observation)
+
+reconcileOperationalIncidentInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    IncidentObservation ->
+    IO ReconciliationResult
+reconcileOperationalIncidentInCurrentTransaction observation = do
     lockIncidentIdentity (incidentLockKey observation)
     existing <-
         query @OperationalIncident

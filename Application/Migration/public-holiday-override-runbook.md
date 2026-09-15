@@ -90,7 +90,12 @@ ROLLBACK;
 ```
 
 Verify Support shows `Verified override` and the deadline, separately from the
-failed DataVic refresh job. Ordinary venue users must not receive the generic
+failed DataVic refresh job. The scheduled public-holiday sweep reconciles one
+single-fire event exactly seven days before the deadline and one escalation at
+expiry. Initial observation after expiry emits only the overdue event. Repeated
+sweeps and restarts do not send reminders. Event metadata includes jurisdiction,
+year, verification source, deadline, review cycle and reviewed action; no provider
+payload is retained. Ordinary venue users must not receive the generic
 wage-source warning on roster or timesheet full pages or fragments. Calculation
 errors and final payroll gates remain unchanged. Check an affected draft dated
 25 September uses holiday rates; historical sealed results do not recalculate.
@@ -107,6 +112,12 @@ to report provider health. This rollout does not change refresh scheduling.
 There is intentionally no automatic release on a successful HTTP response or
 expiry. Before the deadline, either reverify in a new audited revision, or
 perform a separately approved cutover:
+
+Every approved extension increments `review_cycle`, records the reviewing platform
+super-admin and bounded action, resolves the prior cycle and creates no warning for
+the new cycle until its own seven-day window. Validated retirement records the same
+audit fields and resolves the active cycle. These mutations remain runbook-gated;
+there is intentionally no generic Support-page extension or retirement button.
 
 1. Capture the repaired provider payload, schema and retrieval time. Confirm
    format, date/year identity, uniqueness, complete year coverage and all known

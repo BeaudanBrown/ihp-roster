@@ -3,7 +3,6 @@ module Web.Mail.OperationalIncident
     , operationalIncidentSubject
     ) where
 
-import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import IHP.MailPrelude
 import qualified IHP.HSX.Markup as Markup
@@ -17,6 +16,7 @@ data OperationalIncidentMail = OperationalIncidentMail
     , severity         :: !Text
     , symptomCodes     :: ![Text]
     , observedAt       :: !UTCTime
+    , safeMetadata     :: !Text
     , supportUrl       :: !Text
     , fromAddress      :: !Text
     , replyToAddress   :: !Text
@@ -38,6 +38,7 @@ instance BuildMail OperationalIncidentMail where
                 <dt>Severity</dt><dd>{mail.severity}</dd>
                 <dt>Observed</dt><dd>{tshow mail.observedAt}</dd>
                 {symptomsHtml mail.symptomCodes}
+                <dt>Safe metadata</dt><dd><code>{mail.safeMetadata}</code></dd>
             </dl>
             <p><a href={mail.supportUrl}>Open Bepis Support</a></p>
         |]
@@ -53,6 +54,7 @@ instance BuildMail OperationalIncidentMail where
             , "Severity: " <> mail.severity
             , "Observed: " <> tshow mail.observedAt
             , "Symptoms: " <> renderSymptoms mail.symptomCodes
+            , "Safe metadata: " <> mail.safeMetadata
             , ""
             , "Open Bepis Support: " <> mail.supportUrl
             ]

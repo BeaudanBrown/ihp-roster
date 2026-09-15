@@ -1,6 +1,7 @@
 module Test.PublicHolidayOverrideSpec where
 
 import Application.PublicHolidays.Override
+import Application.PublicHolidays.OverrideIncident
 import Application.PublicHolidays.Sync
 import Application.WageSourceFacts
 import Application.WageSourcePolicy
@@ -68,6 +69,48 @@ overrideFixture = newRecord @PublicHolidayOverride
 databaseTests :: Spec
 databaseTests = aroundAll withDatabaseTestContext do
     describe "public holiday override persistence" do
+        it "emits exact review-window and expiry transitions without reminders" $ withContext do
+            withCleanDb do
+                _ <- createUserRecordWithPlatformRole "override-alert@example.com" "staff" (Just SuperAdmin) True
+                mapM_ createRecord calendar
+                _ <- createRecord overrideFixture
+                let windowOpens = addUTCTime (negate (7 * 24 * 60 * 60)) reviewDueAt
+                _ <- reconcilePublicHolidayOverridesAt (addUTCTime (-1) windowOpens)
+                query @OperationalIncidentEvent |> fetchCount >>= (`shouldBe` 0)
+                _ <- reconcilePublicHolidayOverridesAt windowOpens
+                _ <- reconcilePublicHolidayOverridesAt (addUTCTime 1 windowOpens)
+                _ <- reconcilePublicHolidayOverridesAt reviewDueAt
+                events <- query @OperationalIncidentEvent |> orderByAsc #eventSequence |> fetch
+                map (.transition) events `shouldBe` ["opened", "impact_escalated"]
+                map (.impactKey) events `shouldBe` ["review_window", "expired"]
+                incident <- query @OperationalIncident |> fetchOne
+                incident.stableIdentity `shouldBe` "VIC:2026:1"
+                incident.state `shouldBe` "open"
+
+        it "initially observes overdue only and starts a new audited cycle on extension" $ withContext do
+            withCleanDb do
+                actor <- createUserRecordWithPlatformRole "override-reviewer@example.com" "staff" (Just SuperAdmin) True
+                mapM_ createRecord calendar
+                override <- createRecord overrideFixture
+                _ <- reconcilePublicHolidayOverridesAt reviewDueAt
+                firstEvents <- query @OperationalIncidentEvent |> fetch
+                map (.impactKey) firstEvents `shouldBe` ["expired"]
+
+                let reviewedAt = addUTCTime 60 reviewDueAt
+                let nextDue = addUTCTime (30 * 24 * 60 * 60) reviewedAt
+                extended <- extendPublicHolidayOverrideReview actor override.id nextDue "verified calendar retained" reviewedAt
+                extended `shouldSatisfy` isJust
+                refreshed <- fetch override.id
+                refreshed.reviewCycle `shouldBe` 2
+                refreshed.reviewedByUserId `shouldBe` Just (unpackId actor.id)
+                incidents <- query @OperationalIncident |> orderByAsc #createdAt |> fetch
+                map (.stableIdentity) incidents `shouldBe` ["VIC:2026:1"]
+                map (.state) incidents `shouldBe` ["resolved"]
+
+                retired <- retirePublicHolidayOverride actor override.id "validated return to provider authority" (addUTCTime 1 reviewedAt)
+                retired `shouldSatisfy` isJust
+                fetchActivePublicHolidayOverrides `shouldReturn` []
+
         it "corrects only the known rows, retains import timestamps and records an idempotent audit" $ withContext do
             withCleanDb do
                 records <- loadDataVicHolidayFixture

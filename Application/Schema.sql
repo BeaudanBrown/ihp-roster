@@ -764,9 +764,16 @@ CREATE TABLE public_holiday_overrides (
     verified_at TIMESTAMP WITH TIME ZONE NOT NULL,
     review_due_at TIMESTAMP WITH TIME ZONE NOT NULL,
     retired_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    review_cycle INT DEFAULT 1 NOT NULL,
+    reviewed_by_user_id UUID DEFAULT NULL,
+    review_action TEXT DEFAULT 'initial_verification' NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     correction_before JSONB NOT NULL,
     correction_after JSONB NOT NULL,
-    CHECK (review_due_at > verified_at)
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (review_due_at > verified_at),
+    CHECK (review_cycle > 0),
+    CHECK ((char_length(review_action) >= 1) AND (char_length(review_action) <= 160))
 );
 CREATE UNIQUE INDEX public_holiday_overrides_active_year ON public_holiday_overrides (jurisdiction, target_year) WHERE retired_at IS NULL;
 

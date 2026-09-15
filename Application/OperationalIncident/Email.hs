@@ -4,7 +4,9 @@ module Application.OperationalIncident.Email
 
 import Application.Helper.Mail
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.Mail.OperationalIncident
@@ -44,6 +46,7 @@ loadOperationalIncidentMail recipientAccountId recipientAddress eventId settings
                         , severity = event.severity
                         , symptomCodes = symptoms
                         , observedAt = event.observedAt
+                        , safeMetadata = TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode event.safeMetadata))
                         , supportUrl = Text.dropWhileEnd (== '/') appBaseUrl <> pathTo SupportAction
                         , fromAddress = settings.mailFromAddress
                         , replyToAddress = settings.mailReplyToAddress
