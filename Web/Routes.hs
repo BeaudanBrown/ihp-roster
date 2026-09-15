@@ -16,6 +16,14 @@ instance AutoRoute ExportsController
 instance AutoRoute StaffDocumentsController
 instance AutoRoute BillingController
 instance AutoRoute StripeWebhooksController
+instance AutoRoute ResendWebhooksController where
+    customRoutes = do
+        string "/webhooks/resend"
+        endOfInput
+        onlyAllowMethods [POST]
+        pure ResendWebhookAction
+
+    customPathTo ResendWebhookAction = Just "/webhooks/resend"
 instance AutoRoute E2ETestController where
     customRoutes = do
         string "/__e2e/mark-passkey-verified"

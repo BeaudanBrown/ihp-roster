@@ -3,6 +3,8 @@ module Web.Controller.Support where
 import Application.Async.Queue (EnqueueAppJobResult (..),
                                 fetchActiveAppJobByDedupeKey,
                                 fetchLatestAppJobByKind)
+import Application.EmailDelivery.Resend (requestOperationalEmailResend)
+import Application.EmailDelivery.Support (fetchNotificationHealth)
 import Application.FwcMapd.Job (enqueueFwcMapdRefreshJob,
                                 fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
@@ -56,6 +58,7 @@ instance Controller SupportController where
         now <- getCurrentTime
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        notificationHealth <- fetchNotificationHealth
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         let xeroDiagnosticSubmissionId = ""
         let xeroTimesheetDiagnostic = Nothing
@@ -71,6 +74,7 @@ instance Controller SupportController where
         now <- getCurrentTime
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        notificationHealth <- fetchNotificationHealth
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         let xeroDiagnosticSubmissionId = Text.strip (paramOrDefault @Text "" "submissionId")
         let maybeSubmissionUuid
@@ -115,6 +119,7 @@ instance Controller SupportController where
         canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        notificationHealth <- fetchNotificationHealth
         now <- getCurrentTime
         let xeroDiagnosticSubmissionId = ""
         let xeroTimesheetDiagnostic = Nothing
@@ -226,6 +231,22 @@ instance Controller SupportController where
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Public holiday refresh is already queued or running."
         respondToPublicHolidayRefresh
+
+    action currentAction@CreateSupportEmailResendAction { emailDeliveryJobId } = runBepis currentAction BepisMutationAction do
+        ensureFreshPasskeyReady
+        let reason = Text.strip (paramOrDefault @Text "" "reason")
+        original <-
+            query @AppJob
+                |> filterWhere (#id, emailDeliveryJobId)
+                |> filterWhere (#jobKind, "email_delivery" :: Text)
+                |> fetchOneOrNothing
+        result <- case original of
+            Nothing -> pure Nothing
+            Just appJob -> requestOperationalEmailResend currentUser appJob reason
+        case result of
+            Just _ -> setSuccessMessage "Operational notification resend queued with audit provenance."
+            Nothing -> setErrorMessage "This notification is not eligible for an explicit resend."
+        redirectTo SupportAction
 
     action currentAction@StartSupportImpersonationAction = runBepis currentAction BepisMutationAction do
         ensureCurrentVenue

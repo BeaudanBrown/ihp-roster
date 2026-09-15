@@ -4,6 +4,7 @@
 
 module Web.View.Support.Index where
 
+import Application.EmailDelivery.Support (NotificationDeliveryHealth (..), NotificationHealth (..))
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
@@ -50,6 +51,7 @@ data IndexView = IndexView
     , xeroDiagnosticSubmissionId    :: Text
     , xeroTimesheetDiagnostic       :: Maybe XeroTimesheetDiagnostic
     , xeroTimesheetDiagnosticError  :: Maybe Text
+    , notificationHealth            :: NotificationHealth
     }
 
 instance View IndexView where
@@ -95,6 +97,7 @@ instance View IndexView where
                     "Public Holidays"
                     (Just "Victorian public holiday cache used by payroll penalty calculations.")
                     (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+            notificationHealthPanel = renderNotificationHealthPanel notificationHealth
             page =
                 renderAppPage (AppPageConfig
                     { appPageTitle = "Support"
@@ -104,6 +107,7 @@ instance View IndexView where
                     , appPageWidthClass = ""
                     , appPageBody = [hsx|
                         <div class="app-page-stack">
+                            {notificationHealthPanel}
                             {xeroDiagnosticPanel}
                             {signInMethodsPanel}
                             {awardRatesPanel}
@@ -117,6 +121,74 @@ instance View IndexView where
                 {renderFrontendSurfaceMount supportSurface page}
             </section>
         |]
+
+renderNotificationHealthPanel :: NotificationHealth -> Html
+renderNotificationHealthPanel health =
+    simpleAppPanel
+        "Notification Health"
+        (Just "Durable incident transitions, recipient outcomes and Resend delivery state. Delivered means accepted by the recipient's mail server, not inbox placement.")
+        [hsx|
+            <div class="d-flex flex-column gap-4">
+                <div>
+                    <h3 class="h6">Open incidents</h3>
+                    {renderOpenIncidents health.openIncidents}
+                </div>
+                <div>
+                    <h3 class="h6">Recent delivery outcomes</h3>
+                    {renderRecentDeliveries health.recentDeliveries}
+                </div>
+                <p class="small text-muted mb-0">Transitions with no eligible recipient: {tshow (length health.zeroRecipientEvents)}. Delivery-disabled and unknown historical provider states are preserved explicitly.</p>
+            </div>
+        |]
+
+renderOpenIncidents :: [OperationalIncident] -> Html
+renderOpenIncidents [] = [hsx|<p class="small text-muted">No open operational incidents.</p>|]
+renderOpenIncidents incidents = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Category</th><th>Source</th><th>Severity</th><th>Last observed</th></tr></thead>
+            <tbody>{forEach incidents renderIncidentRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderIncidentRow :: OperationalIncident -> Html
+renderIncidentRow incident = [hsx|
+    <tr><td>{incident.category}</td><td>{incident.affectedSource}</td><td>{incident.severity}</td><td>{tshow incident.lastObservedAt}</td></tr>
+|]
+
+renderRecentDeliveries :: [NotificationDeliveryHealth] -> Html
+renderRecentDeliveries [] = [hsx|<p class="small text-muted">No durable email deliveries.</p>|]
+renderRecentDeliveries deliveries = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Created</th><th>Kind</th><th>Queue</th><th>SMTP</th><th>Provider</th><th></th></tr></thead>
+            <tbody>{forEach deliveries renderDeliveryRow}</tbody>
+        </table>
+    </div>
+|]
+
+renderDeliveryRow :: NotificationDeliveryHealth -> Html
+renderDeliveryRow delivery = [hsx|
+    <tr>
+        <td>{tshow delivery.job.createdAt}</td>
+        <td>{fromMaybe "unknown" delivery.mailKind}</td>
+        <td>{jobStatusLabel delivery.job.status}</td>
+        <td>{if isJust (delivery.providerState >>= (.smtpAcceptedAt)) then ("accepted" :: Text) else "not accepted"}</td>
+        <td>{maybe "unknown" (.providerStatus) delivery.providerState}</td>
+        <td>{renderResendControl delivery}</td>
+    </tr>
+|]
+
+renderResendControl :: NotificationDeliveryHealth -> Html
+renderResendControl delivery
+    | not delivery.canResend = mempty
+    | otherwise = [hsx|
+        <form method="POST" action={CreateSupportEmailResendAction delivery.job.id} class="d-flex gap-2">
+            <input class="form-control form-control-sm" type="text" name="reason" required="required" maxlength="240" placeholder="Reviewed reason" />
+            <button class="btn btn-sm btn-outline-danger" type="submit">Resend</button>
+        </form>
+    |]
 
 renderXeroTimesheetDiagnosticPanel :: Text -> Maybe XeroTimesheetDiagnostic -> Maybe Text -> Html
 renderXeroTimesheetDiagnosticPanel submissionId maybeDiagnostic maybeError =

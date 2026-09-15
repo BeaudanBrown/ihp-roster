@@ -21,6 +21,7 @@ import Application.Async.Error (AppJobError (..))
 import Application.Async.Payload (decodeAppJobPayloadV1)
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
+import Application.EmailDelivery.Correlation
 import Application.EmailDelivery.Enqueue
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
@@ -92,7 +93,7 @@ performEmailDeliveryJobWith ::
     IO ()
 performEmailDeliveryJobWith runtime@EmailDeliveryRuntime { deliverMail } appJob = do
     payload <- decodeAppJobPayloadV1 appJob
-    performPayload (runtime { deliverMail = deliverJobMail deliverMail }) appJob payload
+    performPayload (runtime { deliverMail = deliverJobMail appJob deliverMail }) appJob payload
         `Exception.catch` handleAccountSecurityCipherError
 
 handleAccountSecurityCipherError :: AccountSecurityTokenCipherError -> IO value
@@ -102,14 +103,26 @@ handleAccountSecurityCipherError = \case
 
 -- SMTP diagnostics remain local to the provider boundary. Only the closed safe
 -- transport classification reaches IHP.
-deliverJobMail :: BuildMail mail => (forall value. BuildMail value => value -> IO ()) -> mail -> IO ()
-deliverJobMail deliver mail =
-    withProviderTelemetrySpan "email" "send" "SMTP" isRight deliveryAttempt >>= \case
-        Left _   -> throwAppJobError JobTransportUnavailable
-        Right () -> pure ()
+deliverJobMail ::
+    (?modelContext :: ModelContext, BuildMail mail) =>
+    AppJob ->
+    (forall value. BuildMail value => value -> IO ()) ->
+    mail ->
+    IO ()
+deliverJobMail appJob deliver mail = do
+    providerState <- prepareProviderCorrelation appJob
+    let correlated =
+            CorrelatedMail
+                { wrappedMail = mail
+                , correlationMessageId = providerState.messageId
+                , correlationIdempotencyKey = "app-job/" <> tshow (unpackId appJob.id)
+                }
+    withProviderTelemetrySpan "email" "send" "SMTP" isRight (deliveryAttempt correlated) >>= \case
+        Left _ -> throwAppJobError JobTransportUnavailable
+        Right () -> getCurrentTime >>= void . markSmtpAccepted providerState
   where
-    deliveryAttempt = do
-        result <- trySynchronousAppJobAction (deliver mail)
+    deliveryAttempt correlated = do
+        result <- trySynchronousAppJobAction (deliver correlated)
         addProviderTelemetryStatusClass (if isRight result then "accepted" else "unavailable")
         pure result
 

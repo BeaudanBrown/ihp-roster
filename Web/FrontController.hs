@@ -24,6 +24,7 @@ import Web.Controller.LiveUpdates () -- Mounted controller instance.
 import Web.Controller.Passkeys () -- Mounted controller instance.
 import Web.Controller.PasswordResets () -- Mounted controller instance.
 import Web.Controller.Profiles () -- Mounted controller instance.
+import Web.Controller.ResendWebhooks () -- Mounted controller instance.
 import Web.Controller.RosterTemplates () -- Mounted controller instance.
 import Web.Controller.RosterWeeks () -- Mounted controller instance.
 import Web.Controller.Sessions () -- Mounted controller instance.
@@ -51,6 +52,7 @@ instance FrontController WebApplication where
         , parseRoute @StaffDocumentsController
         , parseRoute @BillingController
         , parseRoute @StripeWebhooksController
+        , parseRoute @ResendWebhooksController
         , parseRoute @E2ETestController
         , parseRoute @AdminController
         , parseRoute @FeedbackController

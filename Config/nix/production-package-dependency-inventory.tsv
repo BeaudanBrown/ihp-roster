@@ -99,7 +99,7 @@ IHP.HSX.Markup	ihp-hsx	Application/Helper/Profiling.hs via Main
 IHP.HSX.MarkupQQ	ihp-hsx	Application/Helper/FrontendContract/Surface/Interaction.hs via Main
 IHP.InputValue	ihp	Application/Helper/Passkeys.hs via Main
 IHP.Job.Runner	ihp	Web/Worker.hs via WorkerMain
-IHP.Job.Types	ihp	Application/Helper/JobStatus.hs via Main
+IHP.Job.Types	ihp	Application/EmailDelivery/Resend.hs via Main
 IHP.LoginSupport.Helper.Controller	ihp	Web/Controller/Auth.hs via Main
 IHP.LoginSupport.Middleware	ihp	Application/Helper/Authentication.hs via Main
 IHP.LoginSupport.Types	ihp	Web/Types.hs via Main

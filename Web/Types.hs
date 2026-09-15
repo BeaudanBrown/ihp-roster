@@ -143,6 +143,10 @@ data StripeWebhooksController
     = StripeWebhookAction
     deriving (Eq, Show, Data)
 
+data ResendWebhooksController
+    = ResendWebhookAction
+    deriving (Eq, Show, Data)
+
 data E2ETestController
     = MarkE2EPasskeyVerifiedAction
     deriving (Eq, Show, Data)
@@ -239,6 +243,7 @@ data SupportController
     | RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId :: !(Id VenueOnboardingInvitation) }
     | CreateFwcMapdRefreshJobAction
     | CreatePublicHolidayRefreshJobAction
+    | CreateSupportEmailResendAction { emailDeliveryJobId :: !(Id AppJob) }
     | StartSupportImpersonationAction
     | ExitSupportImpersonationAction
     | SwitchSupportImpersonationAction

@@ -25,8 +25,12 @@ Application/Billing/Reconciliation.hs	production	runtime	Main	Reachable from Mai
 Application/Billing/Stripe.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Correlation.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Resend.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/ResendWebhook.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Support.hs	production	runtime	Main	Reachable from Main
 Application/Error/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Error/Domain.hs	production	runtime	Main	Reachable from Main
 Application/Error/Foundation.hs	production	runtime	Main	Reachable from Main
@@ -472,6 +476,7 @@ Web/Controller/Passkeys.hs	production	runtime	Main	Reachable from Main
 Web/Controller/PasswordResets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Prelude.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Profiles.hs	production	runtime	Main	Reachable from Main
+Web/Controller/ResendWebhooks.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterTemplates.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterWeeks.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterWeeks/Validation.hs	production	runtime	Main	Reachable from Main

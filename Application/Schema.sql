@@ -935,6 +935,52 @@ CREATE TABLE operational_incident_event_recipients (
     CHECK ((char_length(recipient_address) >= 3) AND (char_length(recipient_address) <= 320)),
     CHECK (char_length(recipient_address_digest) = 64)
 );
+CREATE TABLE email_delivery_provider_states (
+    email_delivery_job_id UUID PRIMARY KEY NOT NULL,
+    message_id TEXT NOT NULL,
+    provider_email_id TEXT DEFAULT NULL,
+    smtp_accepted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    provider_status TEXT DEFAULT 'unknown' NOT NULL,
+    provider_status_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (message_id),
+    UNIQUE (provider_email_id),
+    FOREIGN KEY (email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    CHECK (provider_status IN ('unknown', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')),
+    CHECK ((char_length(message_id) >= 3) AND (char_length(message_id) <= 320)),
+    CHECK (provider_email_id IS NULL OR char_length(provider_email_id) <= 160)
+);
+CREATE TABLE email_delivery_webhook_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    svix_id TEXT NOT NULL,
+    signature_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    event_type TEXT NOT NULL,
+    provider_email_id TEXT NOT NULL,
+    message_id TEXT DEFAULT NULL,
+    event_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    processing_outcome TEXT NOT NULL,
+    UNIQUE (svix_id),
+    CHECK (event_type IN ('email.sent', 'email.delivered', 'email.bounced', 'email.complained', 'email.failed', 'email.suppressed')),
+    CHECK (processing_outcome IN ('correlated', 'unknown_message', 'ignored_older_status')),
+    CHECK ((char_length(svix_id) >= 1) AND (char_length(svix_id) <= 160)),
+    CHECK ((char_length(provider_email_id) >= 1) AND (char_length(provider_email_id) <= 160)),
+    CHECK (message_id IS NULL OR char_length(message_id) <= 320)
+);
+CREATE TABLE email_delivery_resend_requests (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    original_email_delivery_job_id UUID NOT NULL,
+    replacement_email_delivery_job_id UUID DEFAULT NULL,
+    requested_by_user_id UUID NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE (replacement_email_delivery_job_id),
+    FOREIGN KEY (original_email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    FOREIGN KEY (replacement_email_delivery_job_id) REFERENCES app_jobs (id) ON DELETE RESTRICT,
+    FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(reason) >= 1) AND (char_length(reason) <= 240))
+);
 
 -- schema-nav: roster-planning
 CREATE TABLE roster_templates (
