@@ -463,7 +463,6 @@ renderExclusionWarnings view =
 preparationBlockingMessage :: XeroTimesheetPreparationView -> Maybe Text
 preparationBlockingMessage view =
     ((.timesheetIssueMessage) <$> listToMaybe (preparationBlockingIssues view))
-        <|> (if view.preparationPostedPayRunBlocked then view.preparationRun.errorSummary else Nothing)
 
 preparationBlockingIssues :: XeroTimesheetPreparationView -> [XeroTimesheetIssueView]
 preparationBlockingIssues view =

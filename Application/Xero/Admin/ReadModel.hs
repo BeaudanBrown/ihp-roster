@@ -307,7 +307,6 @@ derivedPeriodOptions today payRuns approvedOperationalDates calendar =
                 periodStart = addDays (offset * periodLength) currentStart
                 periodEnd = addDays (periodLength - 1) periodStart
                 maybePayRun = findPayRun calendar periodStart periodEnd payRuns
-            guard (not (maybe False isPostedPayRun maybePayRun))
             pure (periodOptionFrom today calendar periodStart periodEnd maybePayRun True)
 
 staffPayrollCalendarAssignments :: [XeroStaffMapping] -> [XeroEmployee] -> Map.Map UUID Text
@@ -368,11 +367,8 @@ periodOptionFrom today calendar periodStart periodEnd maybePayRun derivedFromSyn
         , periodOptionPaymentDate = (maybePayRun >>= (.paymentDate)) <|> calendar.paymentDate
         , periodOptionXeroPayRunId = (.xeroPayRunId) <$> maybePayRun
         , periodOptionXeroPayRunStatus = maybePayRun >>= (.payRunStatus)
-        , periodOptionBlocked = maybe False isPostedPayRun maybePayRun
-        , periodOptionBlockReason =
-            if maybe False isPostedPayRun maybePayRun
-                then Just "This Xero pay run is posted."
-                else Nothing
+        , periodOptionBlocked = False
+        , periodOptionBlockReason = Nothing
         , periodOptionDerivedFromSyncedXero = derivedFromSyncedXero || isJust maybePayRun
         , periodOptionWithinDefaultWindow = xeroPeriodOverlapsDefaultWindow today periodStart periodEnd
         , periodOptionLatestSubmissionStatus = Nothing
@@ -384,11 +380,11 @@ xeroPeriodOverlapsDefaultWindow today periodStart periodEnd =
     periodEnd >= addDays (-7) today && periodStart <= addDays 7 today
 
 findPayRun :: XeroPayrollCalendar -> Day -> Day -> [XeroPayRun] -> Maybe XeroPayRun
-findPayRun calendar periodStart periodEnd =
-    List.find \payRun ->
-        payRun.xeroPayrollCalendarId == calendar.xeroPayrollCalendarId
-            && payRun.payPeriodStart == periodStart
-            && payRun.payPeriodEnd == periodEnd
+findPayRun calendar periodStart periodEnd payRuns =
+    listToMaybe (List.sortOn (.xeroPayRunId) (filter matches payRuns))
+  where
+    matches payRun = payRun.xeroPayrollCalendarId == calendar.xeroPayrollCalendarId
+        && payRun.payPeriodStart == periodStart && payRun.payPeriodEnd == periodEnd
 
 samePeriodOption :: XeroTimesheetPeriodOption -> XeroTimesheetPeriodOption -> Bool
 samePeriodOption left right =
@@ -399,10 +395,6 @@ samePeriodOption left right =
 xeroPeriodOptionKey :: Text -> Day -> Day -> Text
 xeroPeriodOptionKey calendarId periodStart periodEnd =
     calendarId <> ":" <> tshow periodStart <> ":" <> tshow periodEnd
-
-isPostedPayRun :: XeroPayRun -> Bool
-isPostedPayRun payRun =
-    maybe False ((== "posted") . Text.toLower . Text.strip) payRun.payRunStatus
 
 xeroTimesheetReadinessView :: XeroTimesheetReadiness -> XeroTimesheetReadinessView
 xeroTimesheetReadinessView readiness =

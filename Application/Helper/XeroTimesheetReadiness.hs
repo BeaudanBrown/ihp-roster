@@ -519,7 +519,7 @@ duplicateBlockers request entries mappings remoteTimesheets =
         |> map \remote ->
             (blockerWith
                 "existing_xero_timesheet"
-                "Xero already has a non-draft timesheet for this employee and period. Update or delete it in Xero before continuing."
+                "Xero already has a non-editable timesheet for this employee and period. Bepis cannot replace processed timesheets, even with another draft pay run. Use a custom workbook containing the Xero pay-items sheet for manual entry in Xero."
             )
                 { xeroBlockerXeroObjectId = remote.xeroTimesheetId }
 

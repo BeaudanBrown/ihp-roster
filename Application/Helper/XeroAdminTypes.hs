@@ -207,7 +207,6 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationPendingDecisionCount        :: Int
     , preparationManualStaffDecisionCount    :: Int
     , preparationStaffStepApproved           :: Bool
-    , preparationPostedPayRunBlocked         :: Bool
     , preparationCanSubmit                   :: Bool
     , preparationSelectedEntries             :: [TimesheetEntry]
     , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]

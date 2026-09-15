@@ -244,7 +244,6 @@ loadPreparationView run connection decisions readiness = do
                 payItemRows = map (preparationPayItemRow decisions) (filter activePayItemRequirement payItemRequirements)
                 pendingDecisionCount = length (filter pendingManualPreparationDecision decisions)
                 manualStaffDecisionCount = length (filter (.preparationStaffNeedsDecision) staffDecisionRows)
-                postedBlocked = preparationRunPosted run
                 proposedPayItemCount = length (filter ((== XeroPayItemRequirementStatusEnumProposed) . (.payItemRequirementStatus) . (.preparationPayItemRequirement)) payItemRows)
                 pendingPayItemDecisionCount = length (filter pendingPayItemCreateDecision decisions)
                 staffStepApproved = any staffStepApprovalApplied decisions
@@ -252,7 +251,6 @@ loadPreparationView run connection decisions readiness = do
                     preparationRunHasPeriod run
                         && not requirementsBlocked
                         && connection.connectionStatus == "active"
-                        && not postedBlocked
                         && pendingDecisionCount == 0
                         && pendingPayItemDecisionCount == 0
                         && manualStaffDecisionCount == 0
@@ -274,7 +272,6 @@ loadPreparationView run connection decisions readiness = do
                 , preparationPendingDecisionCount = pendingDecisionCount
                 , preparationManualStaffDecisionCount = manualStaffDecisionCount
                 , preparationStaffStepApproved = staffStepApproved
-                , preparationPostedPayRunBlocked = postedBlocked
                 , preparationCanSubmit = canSubmit
                 , preparationSelectedEntries = selectedEntries
                 , preparationPreviewRows = submissionPreviewRows
