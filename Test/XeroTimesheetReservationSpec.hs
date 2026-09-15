@@ -294,7 +294,6 @@ remoteTimesheet fixture timesheetId status =
         , xeroTimesheetEndDate = fixture.periodEnd
         , xeroTimesheetStatus = Just status
         , xeroTimesheetHours = Nothing
-        , xeroTimesheetLines = []
         , xeroTimesheetRaw = Aeson.object []
         }
 

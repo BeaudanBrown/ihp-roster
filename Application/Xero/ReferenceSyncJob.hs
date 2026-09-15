@@ -733,11 +733,11 @@ defaultXeroReferenceDataSource :: (?modelContext :: ModelContext) => XeroReferen
 defaultXeroReferenceDataSource =
     XeroReferenceDataSource
         { refreshReferenceAccess = refreshAccess
-        , fetchReferenceEmployees = \accessToken tenantId -> currentXeroClient >>= \client -> client.fetchPayrollEmployees accessToken tenantId
-        , fetchReferenceEarningsRatePage = \accessToken tenantId page -> currentXeroClient >>= \client -> client.fetchEarningsRatesPage accessToken tenantId page
-        , fetchReferencePayrollCalendars = \accessToken tenantId -> currentXeroClient >>= \client -> client.fetchPayrollCalendars accessToken tenantId
-        , fetchReferenceAccounts = \accessToken tenantId -> currentXeroClient >>= \client -> client.fetchAccounts accessToken tenantId
-        , fetchReferencePayrollSettingsAccounts = \accessToken tenantId -> currentXeroClient >>= \client -> client.fetchPayrollSettingsAccounts accessToken tenantId
+        , fetchReferenceEmployees = \accessToken tenantId -> currentXeroPayrollClient >>= \client -> client.payrollFetchEmployees accessToken tenantId
+        , fetchReferenceEarningsRatePage = \accessToken tenantId page -> currentXeroPayrollClient >>= \client -> client.payrollFetchEarningsRatesPage accessToken tenantId page
+        , fetchReferencePayrollCalendars = \accessToken tenantId -> currentXeroPayrollClient >>= \client -> client.payrollFetchCalendars accessToken tenantId
+        , fetchReferenceAccounts = \accessToken tenantId -> currentXeroPayrollClient >>= \client -> client.payrollFetchAccounts accessToken tenantId
+        , fetchReferencePayrollSettingsAccounts = \accessToken tenantId -> currentXeroPayrollClient >>= \client -> client.payrollFetchSettingsAccounts accessToken tenantId
         }
     where
         refreshAccess connection =
@@ -749,8 +749,8 @@ defaultXeroReferenceDataSource =
                             markXeroConnectionReauthorizationRequired connection "Stored Xero credentials could not be read. Reconnect Xero to continue."
                             pure (Left (XeroDecodeError "Stored Xero credentials require reconnection."))
                         Right refreshToken -> do
-                            client <- currentXeroClient
-                            client.refreshXeroToken config refreshToken >>= \case
+                            client <- currentXeroConnectionClient
+                            client.connectionRefreshXeroToken config refreshToken >>= \case
                                 Left err
                                     | isXeroRefreshTokenExpiredError err -> do
                                         markXeroConnectionReauthorizationRequired connection "Xero needs to be reconnected because the refresh token expired or was revoked."

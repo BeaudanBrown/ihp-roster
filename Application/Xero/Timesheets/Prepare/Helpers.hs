@@ -124,7 +124,7 @@ markPreparationFailed run message =
         |> set #errorSummary (Just message)
         |> updateRecord
 
-fetchXeroDraftPayRuns :: XeroClient -> Text -> Text -> IO (Either Text [XeroPayRunRef])
+fetchXeroDraftPayRuns :: XeroPayrollClient -> Text -> Text -> IO (Either Text [XeroPayRunRef])
 fetchXeroDraftPayRuns xeroClient accessToken tenantId =
     fetchPage 1 []
     where
@@ -136,7 +136,7 @@ fetchXeroDraftPayRuns xeroClient accessToken tenantId =
                         , xeroPayRunOrder = Just "PayRunPeriodStartDate DESC"
                         , xeroPayRunPage = Just page
                         }
-            fetchPayRuns xeroClient accessToken tenantId query >>= \case
+            xeroClient.payrollFetchPayRuns accessToken tenantId query >>= \case
                 Left err -> pure (Left ("Xero pay-run check failed: " <> durableXeroClientErrorText err))
                 Right refs ->
                     let nextAcc = acc <> refs

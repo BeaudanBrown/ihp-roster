@@ -23,6 +23,7 @@ import System.IO.Error (tryIOError)
 import System.Exit (die)
 import Test.Support (createTestPasskeyRecord)
 import Test.Support.XeroAdmin
+import Test.Support.Environment (withEnvironmentVariable)
 import qualified Test.Support.XeroTimesheet as Preview
 
 withE2EXero :: IO a -> IO a
@@ -60,24 +61,27 @@ withE2EXero action = do
             , fetchPayRuns = \_ tenant query ->
                 fmap (fmap (if fromMaybe 1 query.xeroPayRunPage == 1 then Prelude.id else const [])) (readFixture tenant "payRuns")
             , fetchTimesheetsForPeriod = const scopedPeriod
-            , createTimesheet = \_ tenant _ body -> case Aeson.fromJSON body of
-                Aeson.Success [sheet] -> do
-                    period <- scopedPeriod tenant (Just "calendar-preview") sheet.xeroTimesheetStartDate sheet.xeroTimesheetEndDate
-                    pure $ case period of
-                        Right _ | sheet.xeroTimesheetEmployeeId == "employee-a" && sheet.xeroTimesheetStatus == Just "DRAFT" ->
-                            Right [sheet
-                                { xeroTimesheetId = Just "e2e-created-timesheet"
-                                , xeroTimesheetRaw = case sheet.xeroTimesheetRaw of
-                                    Aeson.Object raw -> Aeson.Object (KeyMap.insert "TimesheetID" (Aeson.String "e2e-created-timesheet") raw)
-                                    value -> value
-                                }]
-                        _ -> Left (XeroHttpError "Unexpected E2E Xero timesheet create")
-                _ -> pure (Left (XeroHttpError "Invalid E2E Xero timesheet create"))
+            , createTimesheetDraftV1 = \_ tenant _ draft -> do
+                period <- scopedPeriod tenant draft.xeroTimesheetDraftPayrollCalendarId draft.xeroTimesheetDraftStartDate draft.xeroTimesheetDraftEndDate
+                let response = Aeson.object
+                        [ "TimesheetID" Aeson..= ("e2e-created-timesheet" :: Text)
+                        , "EmployeeID" Aeson..= draft.xeroTimesheetDraftEmployeeId
+                        , "StartDate" Aeson..= draft.xeroTimesheetDraftStartDate
+                        , "EndDate" Aeson..= draft.xeroTimesheetDraftEndDate
+                        , "Status" Aeson..= ("DRAFT" :: Text)
+                        ]
+                pure $ case period of
+                    Right _ | draft.xeroTimesheetDraftEmployeeId == "employee-a" ->
+                        case Aeson.fromJSON response of
+                            Aeson.Success sheet -> Right [sheet]
+                            Aeson.Error _ -> Left (XeroHttpError "Invalid E2E Xero timesheet response")
+                    _ -> Left (XeroHttpError "Unexpected E2E Xero timesheet create")
             }
     -- Rate pacing/retry clocks have focused Hspec authority. Local browser
     -- fixtures need the real job/publication, not waits for a remote rate limit.
-    withXeroReferenceSyncRuntimeForTest (XeroReferenceSyncRuntime getCurrentTime (const (pure ())) (pure 0)) $
-        withXeroConfigForTest (Right testXeroConfig) (withXeroClientForTest client action)
+    withEnvironmentVariable "XERO_TIMESHEET_CREATE_PROTOCOL" (Just "v1") $
+        withXeroReferenceSyncRuntimeForTest (XeroReferenceSyncRuntime getCurrentTime (const (pure ())) (pure 0)) $
+            withXeroConfigForTest (Right testXeroConfig) (withXeroClientForTest client action)
 
 -- Each browser example gets its own venue, owner and sealed approvals. Reuse the
 -- canonical payroll builder instead of hand-authoring incomplete ledger SQL.

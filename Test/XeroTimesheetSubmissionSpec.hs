@@ -8,6 +8,7 @@ import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.ReconciliationReview
 import Application.Xero.Timesheets.Submission
 import qualified Application.Xero.Timesheets.Submission as Submission
+import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -23,6 +24,7 @@ import IHP.Test.Mocking
 import Network.HTTP.Types.Status (status200, status404, status409, status500,
                                   status504)
 import qualified Network.Wai as Wai
+import System.Environment (lookupEnv, setEnv, unsetEnv)
 import Test.Hspec
 import Test.Support
 import Test.Support.XeroAdmin (createPreparationRunForFixture)
@@ -51,7 +53,7 @@ expectSubmissionResult = \case
 
 tests :: Spec
 tests =
-    aroundAll withDatabaseTestContext do
+    aroundAll withDatabaseTestContext $ around_ (withXeroCreateProtocol "v1") do
         describe "Xero draft timesheet submission" do
             (identitySpec, payrollSpec) <- runIO XeroMock.loadXeroOpenApiSpecs
 
@@ -99,12 +101,25 @@ tests =
                                     Text.length submission.idempotencyKey `shouldSatisfy` (<= 128)
                                     Aeson.decode (Aeson.encode submission.requestPayloadJson) `shouldSatisfy` isSingletonArray
                                     submission.responsePayloadJson `shouldSatisfy` responseHasTimesheets
-                                    submission.xeroTimesheetId `shouldBe` Just "timesheet-id"
+                                    submission.xeroTimesheetId `shouldBe` Just XeroMock.testTimesheetId
                                     submission.xeroTimesheetStatus `shouldBe` Just "DRAFT"
                                     let submissionId = unpackId (get #id submission) :: UUID
                                     entries <- query @XeroTimesheetSubmissionEntry |> filterWhere (#xeroTimesheetSubmissionId, submissionId) |> fetch
                                     map (.timesheetEntryId) entries `shouldBe` map (unpackId . (.id)) fixture.entries
                                 _ -> expectationFailure "expected one Xero timesheet submission row"
+
+            it "uses Payroll AU v2 creation only when the rollout gate is explicit" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    prepareConnectionForStrictMock fixture.connection
+                    result <- withXeroCreateProtocol "v2" $
+                        submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [XeroMock.jsonResponse status200 XeroMock.timesheetV2Fixture] []
+                    run <- expectRun result
+                    submission <- onlySubmissionForRun run
+                    submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
+                    submission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 0 (InitialXeroTimesheetCreate XeroTimesheetCreateV2)
+                    submission.xeroTimesheetStatus `shouldBe` Just "Draft"
 
             it "submits late-bound components approved before Xero setup" $ withContext do
                 withCleanDb do
@@ -176,25 +191,28 @@ tests =
                                     submission.idempotencyKey
                                         `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 0 (UpdateXeroTimesheetDraft "timesheet-id")
                                     submission.requestPayloadJson `shouldSatisfy` jsonValueContainsText "timesheet-id"
-                                    submission.xeroTimesheetId `shouldBe` Just "timesheet-id"
+                                    submission.xeroTimesheetId `shouldBe` Just XeroMock.testTimesheetId
                                 _ -> expectationFailure "expected one Xero timesheet submission row"
 
             it "replaces a confirmed missing prior draft with a prior-id-specific stable key" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
-                    firstResult <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] []
+                    firstResult <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetCreateResponse] []
                     firstRun <- expectRun firstResult
                     firstSubmission <- onlySubmissionForRun firstRun
+                    firstSubmission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
+                    firstSubmission.xeroTimesheetId `shouldBe` Just XeroMock.testTimesheetId
+                    firstSubmission.xeroTimesheetStatus `shouldBe` Just "DRAFT"
 
-                    secondResult <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] []
+                    secondResult <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetCreateResponse] []
                     secondRun <- expectRun secondResult
                     secondSubmission <- onlySubmissionForRun secondRun
 
                     refreshedFirst <- fetch firstSubmission.id
                     refreshedFirst.status `shouldBe` XeroTimesheetSubmissionStatusEnumSuperseded
                     secondSubmission.idempotencyKey
-                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId secondSubmission.id) 0 (ReplaceMissingXeroTimesheetDraft)
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId secondSubmission.id) 0 (ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV1)
                     secondSubmission.idempotencyKey `shouldNotBe` firstSubmission.idempotencyKey
                     submissionExistingTimesheetIdForTest secondSubmission `shouldBe` Nothing
 
@@ -203,15 +221,15 @@ tests =
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
 
-                    _ <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] []
-                    replacement <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] [] >>= expectRun
+                    _ <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetCreateResponse] []
+                    replacement <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetCreateResponse] [] >>= expectRun
                     let snapshot = AesonTypes.parseMaybe (Aeson.withObject "duplicate snapshot" (Aeson..: "reconciliationReview")) replacement.xeroDuplicateCheckJson
                     reviewedSnapshot <- maybe (expectationFailure "Expected persisted reconciliation snapshot" >> fail "missing snapshot") pure snapshot
                     notices <- reconciliationReviewNotices reviewedSnapshot |> either (\message -> expectationFailure (cs message) >> pure []) pure
 
                     map (.reconciliationNoticeSeverity) notices `shouldBe` [ReconciliationWarning]
                     map (.reconciliationNoticeMessage) notices
-                        `shouldBe` ["Bepis previously created Xero draft timesheet-id, but it is now missing. Confirm to create a replacement draft."]
+                        `shouldBe` ["Bepis previously created Xero draft " <> XeroMock.testTimesheetId <> ", but it is now missing. Confirm to create a replacement draft."]
 
             it "blocks unsafe fresh Xero state before creating a preparation submission or provider write" $ withContext do
                 withCleanDb do
@@ -228,7 +246,7 @@ tests =
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
-                    firstRun <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] [] >>= expectRun
+                    firstRun <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetCreateResponse] [] >>= expectRun
                     firstSubmission <- onlySubmissionForRun firstRun
                     _ <- firstSubmission |> set #status XeroTimesheetSubmissionStatusEnumPending |> updateRecord
                     preparation <- createPreparationRunForFixture fixture ReadyForPreview
@@ -257,7 +275,7 @@ tests =
                             payrollSpec
                             fixture
                             [timesheetsResponse fixture "employee-id" "DRAFT", emptyTimesheetsResponse]
-                            [successfulTimesheetResponse]
+                            [successfulTimesheetCreateResponse]
                             [XeroMock.jsonResponse status404 (Aeson.object ["error" Aeson..= ("missing" :: Text)])]
                     run <- expectRun result
                     submission <- onlySubmissionForRun run
@@ -265,7 +283,7 @@ tests =
                     submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                     submission.attemptCount `shouldBe` 2
                     submission.idempotencyKey
-                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 1 (ReplaceMissingXeroTimesheetDraft)
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 1 (ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV1)
 
             it "blocks when an update 404 refetch observes a non-draft transition" $ withContext do
                 withCleanDb do
@@ -375,7 +393,7 @@ tests =
                             , emptyTimesheetsResponse
                             ]
                             [ XeroMock.jsonResponse status409 (Aeson.object ["error" Aeson..= ("create conflict" :: Text)])
-                            , successfulTimesheetResponse
+                            , successfulTimesheetCreateResponse
                             ]
                             [XeroMock.jsonResponse status404 (Aeson.object ["error" Aeson..= ("deleted" :: Text)])]
                     run <- expectRun result
@@ -384,7 +402,7 @@ tests =
                     submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                     submission.attemptCount `shouldBe` 3
                     submission.idempotencyKey
-                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 2 (ReplaceMissingXeroTimesheetDraft)
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 2 (ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV1)
 
             it "fails an uncertain write with guidance to reconcile through fresh preparation" $ withContext do
                 withCleanDb do
@@ -556,6 +574,9 @@ emptyTimesheetsResponse = XeroMock.jsonResponse status200 (Aeson.object ["Timesh
 successfulTimesheetResponse :: Wai.Response
 successfulTimesheetResponse = XeroMock.jsonResponse status200 XeroMock.timesheetsFixture
 
+successfulTimesheetCreateResponse :: Wai.Response
+successfulTimesheetCreateResponse = XeroMock.jsonResponse status200 XeroMock.timesheetsFixture
+
 timesheetsResponse :: PreviewFixture -> Text -> Text -> Wai.Response
 timesheetsResponse fixture =
     timesheetsResponseWithDates (tshow fixture.periodStart) (tshow fixture.periodEnd)
@@ -591,6 +612,13 @@ submissionExistingTimesheetIdForTest submission =
         firstObject <- maybe (fail "missing request") pure (array Vector.!? 0)
         AesonTypes.withObject "request object" (AesonTypes..:? "TimesheetID") firstObject
 
+
+withXeroCreateProtocol :: String -> IO a -> IO a
+withXeroCreateProtocol value action =
+    Exception.bracket
+        (lookupEnv "XERO_TIMESHEET_CREATE_PROTOCOL" <* setEnv "XERO_TIMESHEET_CREATE_PROTOCOL" value)
+        (maybe (unsetEnv "XERO_TIMESHEET_CREATE_PROTOCOL") (setEnv "XERO_TIMESHEET_CREATE_PROTOCOL"))
+        (const action)
 
 testXeroConfig :: XeroConfig
 testXeroConfig =

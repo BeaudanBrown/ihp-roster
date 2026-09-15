@@ -1,9 +1,12 @@
 module Application.Helper.Xero.Types
     ( XeroClient (..)
+    , XeroConnectionClient (..)
+    , XeroPayrollClient (..)
     , XeroClientError (..)
     , XeroRetryAfter (..)
     , XeroConfig (..)
     , XeroAccountRef (..)
+    , XeroEarningsRateCreate (..)
     , XeroEarningsRateRef (..)
     , XeroHttpRequest (..)
     , XeroEmployeeRef (..)
@@ -14,9 +17,12 @@ module Application.Helper.Xero.Types
     , XeroPayrollCalendarRef (..)
     , XeroRequestBody (..)
     , XeroRequestBaseUrls (..)
+    , XeroTimesheetCreateProtocol (..)
+    , XeroTimesheetDetailRef (..)
+    , XeroTimesheetDraft (..)
+    , XeroTimesheetDraftLine (..)
     , XeroTimesheetLineRef (..)
     , XeroTimesheetObjectResponse (..)
-    , XeroTimesheetQuery (..)
     , XeroTimesheetRef (..)
     , XeroTimesheetsResponse (..)
     , XeroTenant (..)
@@ -27,6 +33,8 @@ module Application.Helper.Xero.Types
     , XeroPayrollCalendarsResponse (..)
     , XeroAccountsResponse (..)
     , firstPresent
+    , xeroConnectionClient
+    , xeroPayrollClient
     )
 where
 
@@ -100,6 +108,21 @@ instance Aeson.FromJSON XeroEmployeeRef where
             <*> optionalText object ["Status", "status"]
             <*> pure value
     parseJSON _ = parserFailure "Expected Xero employee object"
+
+data XeroEarningsRateCreate = XeroEarningsRateCreate
+    { xeroEarningsRateCreateName             :: !Text
+    , xeroEarningsRateCreateTypeOfUnits      :: !Text
+    , xeroEarningsRateCreateEarningsType     :: !Text
+    , xeroEarningsRateCreateRateType         :: !Text
+    , xeroEarningsRateCreateRatePerUnit      :: !(Maybe Scientific)
+    , xeroEarningsRateCreateIsSubjectToTax   :: !Bool
+    , xeroEarningsRateCreateIsSubjectToSuper :: !Bool
+    , xeroEarningsRateCreateIsReportableAsW1 :: !Bool
+    , xeroEarningsRateCreateIsQualifyingEarnings :: !Bool
+    , xeroEarningsRateCreateAccountCode      :: !(Maybe Text)
+    , xeroEarningsRateCreateExpenseAccountId :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
 
 data XeroEarningsRateRef = XeroEarningsRateRef
     { xeroEarningsRateId          :: !Text
@@ -194,9 +217,11 @@ instance Aeson.FromJSON XeroPayRunRef where
     parseJSON _ = parserFailure "Expected Xero pay run object"
 
 data XeroTimesheetLineRef = XeroTimesheetLineRef
-    { xeroTimesheetLineEarningsRateId :: !(Maybe Text)
+    { xeroTimesheetLineId             :: !(Maybe Text)
+    , xeroTimesheetLineDate           :: !Day
+    , xeroTimesheetLineEarningsRateId :: !Text
     , xeroTimesheetLineTrackingItemId :: !(Maybe Text)
-    , xeroTimesheetLineUnits          :: ![Scientific]
+    , xeroTimesheetLineQuantity       :: !Scientific
     , xeroTimesheetLineRaw            :: !Aeson.Value
     }
     deriving (Eq, Show)
@@ -204,11 +229,13 @@ data XeroTimesheetLineRef = XeroTimesheetLineRef
 instance Aeson.FromJSON XeroTimesheetLineRef where
     parseJSON value@(Aeson.Object object) =
         XeroTimesheetLineRef
-            <$> optionalText object ["EarningsRateID", "earningsRateID", "earningsRateId"]
+            <$> optionalText object ["TimesheetLineID", "timesheetLineID", "timesheetLineId"]
+            <*> requiredDay object ["Date", "date"]
+            <*> requiredText object ["EarningsRateID", "earningsRateID", "earningsRateId"]
             <*> optionalText object ["TrackingItemID", "trackingItemID", "trackingItemId"]
-            <*> optionalScientificList object ["NumberOfUnits", "numberOfUnits"]
+            <*> requiredScientific object ["NumberOfUnits", "numberOfUnits"]
             <*> pure value
-    parseJSON _ = parserFailure "Expected Xero timesheet line object"
+    parseJSON _ = parserFailure "Expected Xero v2 timesheet line object"
 
 data XeroTimesheetRef = XeroTimesheetRef
     { xeroTimesheetId         :: !(Maybe Text)
@@ -217,7 +244,6 @@ data XeroTimesheetRef = XeroTimesheetRef
     , xeroTimesheetEndDate    :: !Day
     , xeroTimesheetStatus     :: !(Maybe Text)
     , xeroTimesheetHours      :: !(Maybe Scientific)
-    , xeroTimesheetLines      :: ![XeroTimesheetLineRef]
     , xeroTimesheetRaw        :: !Aeson.Value
     }
     deriving (Eq, Show)
@@ -231,15 +257,43 @@ instance Aeson.FromJSON XeroTimesheetRef where
             <*> requiredDay object ["EndDate", "endDate"]
             <*> optionalText object ["Status", "status"]
             <*> optionalScientific object ["Hours", "hours", "TotalHours", "totalHours"]
-            <*> optionalTimesheetLines object
             <*> pure value
-    parseJSON _ = parserFailure "Expected Xero timesheet object"
+    parseJSON _ = parserFailure "Expected Xero timesheet summary object"
 
-data XeroTimesheetQuery = XeroTimesheetQuery
-    { xeroTimesheetIfModifiedSince :: !(Maybe UTCTime)
-    , xeroTimesheetWhere           :: !(Maybe Text)
-    , xeroTimesheetOrder           :: !(Maybe Text)
-    , xeroTimesheetPage            :: !(Maybe Int)
+data XeroTimesheetDetailRef = XeroTimesheetDetailRef
+    { xeroTimesheetDetailSummary :: !XeroTimesheetRef
+    , xeroTimesheetLines         :: ![XeroTimesheetLineRef]
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroTimesheetDetailRef where
+    parseJSON value@(Aeson.Object object) = do
+        summary <- Aeson.parseJSON value
+        lines <- requiredTimesheetLines summary.xeroTimesheetStartDate object
+        pure XeroTimesheetDetailRef
+            { xeroTimesheetDetailSummary = summary
+            , xeroTimesheetLines = lines
+            }
+    parseJSON _ = parserFailure "Expected Xero timesheet detail object"
+
+data XeroTimesheetCreateProtocol
+    = XeroTimesheetCreateV1
+    | XeroTimesheetCreateV2
+    deriving (Eq, Show)
+
+data XeroTimesheetDraftLine = XeroTimesheetDraftLine
+    { xeroTimesheetDraftLineEarningsRateId :: !Text
+    , xeroTimesheetDraftLineTrackingItemId :: !(Maybe Text)
+    , xeroTimesheetDraftLineQuantities     :: ![Scientific]
+    }
+    deriving (Eq, Show)
+
+data XeroTimesheetDraft = XeroTimesheetDraft
+    { xeroTimesheetDraftPayrollCalendarId :: !(Maybe Text)
+    , xeroTimesheetDraftEmployeeId        :: !Text
+    , xeroTimesheetDraftStartDate         :: !Day
+    , xeroTimesheetDraftEndDate           :: !Day
+    , xeroTimesheetDraftLines             :: ![XeroTimesheetDraftLine]
     }
     deriving (Eq, Show)
 
@@ -290,6 +344,29 @@ data XeroClientError
     | XeroNoTenantsError
     deriving (Eq, Show)
 
+data XeroConnectionClient = XeroConnectionClient
+    { connectionExchangeCodeForToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
+    , connectionFetchConnectedTenants :: Text -> IO (Either XeroClientError [XeroTenant])
+    , connectionDeleteXeroConnection :: Text -> Text -> IO (Either XeroClientError ())
+    , connectionRefreshXeroToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
+    }
+
+data XeroPayrollClient = XeroPayrollClient
+    { payrollFetchEmployees :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
+    , payrollFetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
+    , payrollFetchEarningsRatesPage :: Text -> Text -> Int -> IO (Either XeroClientError [XeroEarningsRateRef])
+    , payrollFetchCalendars :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
+    , payrollFetchAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
+    , payrollFetchSettingsAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
+    , payrollFetchPayRuns :: Text -> Text -> XeroPayRunQuery -> IO (Either XeroClientError [XeroPayRunRef])
+    , payrollCreateEarningsRate :: Text -> Text -> Text -> XeroEarningsRateCreate -> IO (Either XeroClientError [XeroEarningsRateRef])
+    , payrollFetchTimesheetsForPeriod :: Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
+    , payrollFetchTimesheetDetail :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetDetailRef)
+    , payrollCreateTimesheetDraftV1 :: Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+    , payrollCreateTimesheetDraftV2 :: Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+    , payrollReplaceTimesheetDraft :: Text -> Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+    }
+
 data XeroClient = XeroClient
     { exchangeCodeForToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
     , fetchConnectedTenants :: Text -> IO (Either XeroClientError [XeroTenant])
@@ -302,13 +379,40 @@ data XeroClient = XeroClient
     , fetchAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
     , fetchPayrollSettingsAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
     , fetchPayRuns :: Text -> Text -> XeroPayRunQuery -> IO (Either XeroClientError [XeroPayRunRef])
-    , createPayItem :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
-    , fetchTimesheets :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
+    , createEarningsRate :: Text -> Text -> Text -> XeroEarningsRateCreate -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchTimesheetsForPeriod :: Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
-    , fetchTimesheet :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
-    , createTimesheet :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
-    , updateTimesheet :: Text -> Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
+    , fetchTimesheetDetail :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetDetailRef)
+    , createTimesheetDraftV1 :: Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+    , createTimesheetDraftV2 :: Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+    , replaceTimesheetDraft :: Text -> Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
     }
+
+xeroConnectionClient :: XeroClient -> XeroConnectionClient
+xeroConnectionClient client =
+    XeroConnectionClient
+        { connectionExchangeCodeForToken = client.exchangeCodeForToken
+        , connectionFetchConnectedTenants = client.fetchConnectedTenants
+        , connectionDeleteXeroConnection = client.deleteXeroConnection
+        , connectionRefreshXeroToken = client.refreshXeroToken
+        }
+
+xeroPayrollClient :: XeroClient -> XeroPayrollClient
+xeroPayrollClient client =
+    XeroPayrollClient
+        { payrollFetchEmployees = client.fetchPayrollEmployees
+        , payrollFetchEarningsRates = client.fetchEarningsRates
+        , payrollFetchEarningsRatesPage = client.fetchEarningsRatesPage
+        , payrollFetchCalendars = client.fetchPayrollCalendars
+        , payrollFetchAccounts = client.fetchAccounts
+        , payrollFetchSettingsAccounts = client.fetchPayrollSettingsAccounts
+        , payrollFetchPayRuns = client.fetchPayRuns
+        , payrollCreateEarningsRate = client.createEarningsRate
+        , payrollFetchTimesheetsForPeriod = client.fetchTimesheetsForPeriod
+        , payrollFetchTimesheetDetail = client.fetchTimesheetDetail
+        , payrollCreateTimesheetDraftV1 = client.createTimesheetDraftV1
+        , payrollCreateTimesheetDraftV2 = client.createTimesheetDraftV2
+        , payrollReplaceTimesheetDraft = client.replaceTimesheetDraft
+        }
 
 newtype XeroEmployeesResponse = XeroEmployeesResponse { unXeroEmployeesResponse :: [XeroEmployeeRef] }
 
@@ -376,7 +480,7 @@ instance Aeson.FromJSON XeroTimesheetsResponse where
             Nothing             -> parseXeroListResponse XeroTimesheetsResponse "Timesheets" value
     parseJSON value = parseXeroListResponse XeroTimesheetsResponse "Timesheets" value
 
-newtype XeroTimesheetObjectResponse = XeroTimesheetObjectResponse { unXeroTimesheetObjectResponse :: XeroTimesheetRef }
+newtype XeroTimesheetObjectResponse = XeroTimesheetObjectResponse { unXeroTimesheetObjectResponse :: XeroTimesheetDetailRef }
 
 instance Aeson.FromJSON XeroTimesheetObjectResponse where
     parseJSON value@(Aeson.Object object) =
@@ -440,17 +544,39 @@ optionalScientific object keys =
         Just value      -> Aeson.parseJSON value
         Nothing         -> pure Nothing
 
-optionalScientificList :: Aeson.Object -> [Text] -> AesonTypes.Parser [Scientific]
-optionalScientificList object keys =
+requiredScientific :: Aeson.Object -> [Text] -> AesonTypes.Parser Scientific
+requiredScientific object keys =
     case firstPresent object keys of
         Just value -> Aeson.parseJSON value
-        Nothing    -> pure []
+        Nothing    -> parserFailure ("Missing required Xero number field: " <> cs (Text.intercalate "/" keys))
 
-optionalTimesheetLines :: Aeson.Object -> AesonTypes.Parser [XeroTimesheetLineRef]
-optionalTimesheetLines object =
+requiredTimesheetLines :: Day -> Aeson.Object -> AesonTypes.Parser [XeroTimesheetLineRef]
+requiredTimesheetLines periodStart object =
     case firstPresent object ["TimesheetLines", "timesheetLines"] of
-        Just value -> Aeson.parseJSON value
-        Nothing    -> pure []
+        Just (Aeson.Array values) -> concat <$> mapM parseProtocolLine (Vector.toList values)
+        Just _ -> parserFailure "Expected Xero timesheet detail lines array"
+        Nothing -> parserFailure "Missing Xero timesheet detail lines"
+  where
+    parseProtocolLine value@(Aeson.Object lineObject) =
+        case firstPresent lineObject ["NumberOfUnits", "numberOfUnits"] of
+            Just (Aeson.Array quantities) -> do
+                earningsRateId <- requiredText lineObject ["EarningsRateID", "earningsRateID", "earningsRateId"]
+                trackingItemId <- optionalText lineObject ["TrackingItemID", "trackingItemID", "trackingItemId"]
+                lineId <- optionalText lineObject ["TimesheetLineID", "timesheetLineID", "timesheetLineId"]
+                units <- mapM Aeson.parseJSON (Vector.toList quantities)
+                pure
+                    [ XeroTimesheetLineRef
+                        { xeroTimesheetLineId = lineId
+                        , xeroTimesheetLineDate = addDays (fromIntegral offset) periodStart
+                        , xeroTimesheetLineEarningsRateId = earningsRateId
+                        , xeroTimesheetLineTrackingItemId = trackingItemId
+                        , xeroTimesheetLineQuantity = quantity
+                        , xeroTimesheetLineRaw = value
+                        }
+                    | (offset, quantity) <- zip [0 :: Int ..] units
+                    ]
+            _ -> (: []) <$> Aeson.parseJSON value
+    parseProtocolLine _ = parserFailure "Expected Xero timesheet line object"
 
 parseXeroDayText :: Text -> AesonTypes.Parser Day
 parseXeroDayText value =

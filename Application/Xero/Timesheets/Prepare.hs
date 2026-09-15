@@ -152,7 +152,7 @@ refreshXeroTimesheetPreparation runId = do
                                             |> updateRecord
                                     loadXeroTimesheetPreparationView runId
                                 Right (refreshedConnection, accessToken) -> do
-                                    xeroClient <- currentXeroClient
+                                    xeroClient <- currentXeroPayrollClient
                                     fetchXeroDraftPayRuns xeroClient accessToken refreshedConnection.tenantId >>= \case
                                         Left message -> do
                                             _ <- markPreparationFailed run message
@@ -419,7 +419,7 @@ ensurePreparationPayItemsReady run maybeAccountCode = do
                             refreshXeroConnectionAccess config connection >>= \case
                                 Left message -> pure (Left message)
                                 Right (refreshedConnection, accessToken) -> do
-                                    xeroClient <- currentXeroClient
+                                    xeroClient <- currentXeroPayrollClient
                                     now <- getCurrentTime
                                     createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements >>= \case
                                         Left message -> pure (Left message)

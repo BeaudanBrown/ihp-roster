@@ -806,9 +806,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 response `responseStatusShouldBe` status302
                 connection <- query @XeroConnection |> fetchOne
-                connection.tenantId `shouldBe` "tenant-id"
+                connection.tenantId `shouldBe` XeroMock.testTenantId
                 connection.tenantName `shouldBe` Just "Demo Company"
-                connection.xeroConnectionRemoteId `shouldBe` Just "connection-id"
+                connection.xeroConnectionRemoteId `shouldBe` Just XeroMock.testConnectionId
                 connection.connectionStatus `shouldBe` "active"
                 decryptXeroToken testXeroConfig.tokenEncryptionKey connection.encryptedRefreshToken `shouldBe` Right "refresh-token"
                 fmap (decryptXeroToken testXeroConfig.tokenEncryptionKey) connection.encryptedAccessToken `shouldBe` Just (Right "access-token")
@@ -1592,11 +1592,11 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         { fetchPayRuns = \token tenant query -> do
                             IORef.modifyIORef' selectionReads (<> ["drafts"])
                             fetchPayRuns xeroClient token tenant query
-                        , fetchTimesheets = \_ _ _ -> unexpectedPayrollCall "unscoped timesheets"
                         , fetchTimesheetsForPeriod = \_ _ _ _ _ -> unexpectedPayrollCall "timesheets"
-                        , createPayItem = \_ _ _ _ -> unexpectedPayrollCall "pay items"
-                        , createTimesheet = \_ _ _ _ -> unexpectedPayrollCall "create"
-                        , updateTimesheet = \_ _ _ _ _ -> unexpectedPayrollCall "update"
+                        , createEarningsRate = \_ _ _ _ -> unexpectedPayrollCall "pay items"
+                        , createTimesheetDraftV1 = \_ _ _ _ -> unexpectedPayrollCall "create v1"
+                        , createTimesheetDraftV2 = \_ _ _ _ -> unexpectedPayrollCall "create v2"
+                        , replaceTimesheetDraft = \_ _ _ _ _ -> unexpectedPayrollCall "update"
                         }
                 summaryResponse <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest summaryClient do
@@ -1978,11 +1978,11 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 let tokenResponse = XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)
                 baseClient <- referenceSyncXeroClientForFixture tokenResponse fixture.connection
                 let xeroClient = (payItemCreateXeroClient tokenResponse requestsRef)
-                        { fetchPayrollEmployees = fetchPayrollEmployees baseClient
-                        , fetchPayrollCalendars = fetchPayrollCalendars baseClient
-                        , fetchAccounts = fetchAccounts baseClient
-                        , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
-                        , fetchPayRuns = fetchPayRuns baseClient
+                        { fetchPayrollEmployees = baseClient.fetchPayrollEmployees
+                        , fetchPayrollCalendars = baseClient.fetchPayrollCalendars
+                        , fetchAccounts = baseClient.fetchAccounts
+                        , fetchPayrollSettingsAccounts = baseClient.fetchPayrollSettingsAccounts
+                        , fetchPayRuns = baseClient.fetchPayRuns
                         , fetchTimesheetsForPeriod = \_ _ _ _ _ -> do
                             IORef.modifyIORef' timesheetFetchCountRef (+ 1)
                             IORef.readIORef remoteTimesheetsResultRef
@@ -2122,11 +2122,11 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 let tokenResponse = XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)
                 baseClient <- referenceSyncXeroClientForFixture tokenResponse fixture.connection
                 let xeroClient = (payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef (Just 0))
-                        { fetchPayrollEmployees = fetchPayrollEmployees baseClient
-                        , fetchPayrollCalendars = fetchPayrollCalendars baseClient
-                        , fetchAccounts = fetchAccounts baseClient
-                        , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
-                        , fetchPayRuns = fetchPayRuns baseClient
+                        { fetchPayrollEmployees = baseClient.fetchPayrollEmployees
+                        , fetchPayrollCalendars = baseClient.fetchPayrollCalendars
+                        , fetchAccounts = baseClient.fetchAccounts
+                        , fetchPayrollSettingsAccounts = baseClient.fetchPayrollSettingsAccounts
+                        , fetchPayRuns = baseClient.fetchPayRuns
                         }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
@@ -2270,9 +2270,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                 IORef.modifyIORef' calls (<> ["drafts"])
                                 pure (liveResult (xeroPayRunRefFromRecord payRun))
                             , fetchTimesheetsForPeriod = \_ _ _ _ _ -> unexpected "timesheets"
-                            , createPayItem = \_ _ _ _ -> unexpected "pay items"
-                            , createTimesheet = \_ _ _ _ -> unexpected "create"
-                            , updateTimesheet = \_ _ _ _ _ -> unexpected "update"
+                            , createEarningsRate = \_ _ _ _ -> unexpected "pay items"
+                            , createTimesheetDraftV1 = \_ _ _ _ -> unexpected "create v1"
+                            , createTimesheetDraftV2 = \_ _ _ _ -> unexpected "create v2"
+                            , replaceTimesheetDraft = \_ _ _ _ _ -> unexpected "update"
                             }
                     response <- withXeroConfigForTest (Right testXeroConfig) do
                         withXeroClientForTest client do
@@ -2306,7 +2307,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                             , xeroTimesheetEndDate = fixture.periodEnd
                             , xeroTimesheetStatus = Just "APPROVED"
                             , xeroTimesheetHours = Nothing
-                            , xeroTimesheetLines = []
                             , xeroTimesheetRaw = Aeson.object []
                             }
                 baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
@@ -2511,8 +2511,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                             latest <- fetch run.id
                             _ <- latest |> set #selectedEntriesJson (Just (Aeson.toJSON ([] :: [TimesheetSelectionIdentity]))) |> updateRecord
                             pure (Right [])
-                        , createTimesheet = \_ _ _ _ -> IORef.modifyIORef' writes (+ 1) >> pure (Right [])
-                        , updateTimesheet = \_ _ _ _ _ -> IORef.modifyIORef' writes (+ 1) >> pure (Right [])
+                        , createTimesheetDraftV1 = \_ _ _ _ -> IORef.modifyIORef' writes (+ 1) >> pure (Right [])
+                        , createTimesheetDraftV2 = \_ _ _ _ -> IORef.modifyIORef' writes (+ 1) >> pure (Right [])
+                        , replaceTimesheetDraft = \_ _ _ _ _ -> IORef.modifyIORef' writes (+ 1) >> pure (Right [])
                         }
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest client do

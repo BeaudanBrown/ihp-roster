@@ -411,7 +411,6 @@ remoteTimesheetRef timesheetId employeeId start end status =
         , xeroTimesheetEndDate = end
         , xeroTimesheetStatus = status
         , xeroTimesheetHours = Nothing
-        , xeroTimesheetLines = []
         , xeroTimesheetRaw = Aeson.object []
         }
 

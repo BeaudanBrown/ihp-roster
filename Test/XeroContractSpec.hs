@@ -59,10 +59,10 @@ tests =
                                         [ void <$> client.exchangeCodeForToken XeroMock.testConfig "code"
                                         , void <$> client.fetchConnectedTenants "token"
                                         , client.deleteXeroConnection "token" "connection"
-                                        , void <$> client.createPayItem "token" "tenant" "key" (Aeson.object [])
-                                        , void <$> client.fetchTimesheets "token" "tenant" XeroMock.sampleTimesheetQuery
-                                        , void <$> client.fetchTimesheet "token" "tenant" "timesheet"
-                                        , void <$> client.updateTimesheet "token" "tenant" "key" "timesheet" (Aeson.object [])
+                                        , void <$> client.createEarningsRate "token" "tenant" "key" XeroMock.sampleEarningsRateCreate
+                                        , void <$> client.fetchTimesheetDetail "token" "tenant" "timesheet"
+                                        , void <$> client.createTimesheetDraftV2 "token" "tenant" "key" XeroMock.sampleTimesheetDraft
+                                        , void <$> client.replaceTimesheetDraft "token" "tenant" "key" "timesheet" XeroMock.sampleTimesheetDraft
                                         ]
                                     ]
 
@@ -94,8 +94,7 @@ tests =
             XeroPayItemProbe.validateEarningsRatesV2ProbeOptions missingConnection `shouldSatisfy` isLeft
             let validProbe = missingConnection { XeroPayItemProbe.optionConnectionId = Just "connection-id" }
             XeroPayItemProbe.validateEarningsRatesV2ProbeOptions validProbe `shouldBe` Right ()
-            let mutationCombination = validProbe { XeroPayItemProbe.optionConfirmPost = True, XeroPayItemProbe.optionRequirementKey = Just "requirement" }
-            XeroPayItemProbe.validateEarningsRatesV2ProbeOptions mutationCombination `shouldSatisfy` isLeft
+            XeroPayItemProbe.parseOptions validProbe ["--confirm-post"] `shouldSatisfy` isLeft
 
         it "constructs Identity token exchange and refresh requests from the vendored token URL" do
             XeroMock.assertSpecContains identitySpec "tokenUrl: https://identity.xero.com/connect/token"
@@ -129,7 +128,6 @@ tests =
                 , ("/PayrollCalendars", buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
                 , ("/Settings", buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id")
                 , ("/PayRuns", buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery)
-                , ("/Timesheets/{TimesheetID}", buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
                 ]
                 \(specPath, request) -> do
                     XeroMock.assertSpecOperation payrollSpec specPath "get"
@@ -149,6 +147,12 @@ tests =
             xeroEarningsRatesMaxPagesFromEnvironment (Just "250") `shouldBe` Right 250
             xeroEarningsRatesMaxPagesFromEnvironment (Just "0") `shouldSatisfy` isLeft
             xeroEarningsRatesMaxPagesFromEnvironment (Just "not-a-number") `shouldSatisfy` isLeft
+
+        it "keeps v2 timesheet creation behind an explicit rollout gate" do
+            xeroTimesheetCreateProtocolFromEnvironment Nothing `shouldBe` Right XeroTimesheetCreateV1
+            xeroTimesheetCreateProtocolFromEnvironment (Just "v1") `shouldBe` Right XeroTimesheetCreateV1
+            xeroTimesheetCreateProtocolFromEnvironment (Just "v2") `shouldBe` Right XeroTimesheetCreateV2
+            xeroTimesheetCreateProtocolFromEnvironment (Just "enabled") `shouldSatisfy` isLeft
 
         it "bounds period-timesheet pages before issuing more provider requests" do
             xeroTimesheetPageWithinLimit 1 `shouldBe` True
@@ -177,7 +181,7 @@ tests =
             XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
             XeroMock.headerValue "Accept" request `shouldBe` Just "application/json"
             request.xeroRequestBody `shouldBe` Nothing
-            assertRequest (buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id") "GET" XeroMock.xeroPayrollServer "/Timesheets/timesheet-id"
+            assertRequest (buildFetchTimesheetDetailRequest "access-token" "tenant-id" "timesheet-id") "GET" XeroMock.xeroPayrollV2Server "/Timesheets/timesheet-id"
 
         it "constructs PayRuns list query parameters and If-Modified-Since header in documented locations" do
             XeroMock.assertSpecOperation payrollSpec "/PayRuns" "get"
@@ -185,15 +189,6 @@ tests =
             request.xeroRequestMethod `shouldBe` "GET"
             request.xeroRequestUrl
                 `shouldBe` "https://api.xero.com/payroll.xro/1.0/PayRuns?where=PayrollCalendarID%3D%3DGuid%28%22calendar-id%22%29&order=PayRunPeriodStartDate%20DESC&page=2"
-            XeroMock.headerValue "If-Modified-Since" request `shouldBe` Just "Thu, 30 Apr 2026 01:02:03 GMT"
-            XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
-
-        it "constructs Timesheets list query parameters and If-Modified-Since header in documented locations" do
-            XeroMock.assertSpecOperation payrollSpec "/Timesheets" "get"
-            let request = buildFetchTimesheetsRequest "access-token" "tenant-id" XeroMock.sampleTimesheetQuery
-            request.xeroRequestMethod `shouldBe` "GET"
-            request.xeroRequestUrl
-                `shouldBe` "https://api.xero.com/payroll.xro/1.0/Timesheets?where=EmployeeID%3D%3DGuid%28%22employee-1%22%29&order=StartDate%20DESC&page=2"
             XeroMock.headerValue "If-Modified-Since" request `shouldBe` Just "Thu, 30 Apr 2026 01:02:03 GMT"
             XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
 
@@ -227,32 +222,48 @@ tests =
                         Either String XeroTimesheetsResponse
             fmap (map (.xeroTimesheetHours) . unXeroTimesheetsResponse) decoded `shouldBe` Right [Just 12.5]
 
-        it "constructs Payroll AU write requests with idempotency headers and documented body envelopes" do
-            XeroMock.assertSpecOperation payrollSpec "/Timesheets" "post"
+        it "constructs typed protocol-specific Payroll AU writes" do
+            XeroMock.assertSpecOperation payrollV2Spec "/Timesheets" "post"
             XeroMock.assertSpecOperation payrollSpec "/Timesheets/{TimesheetID}" "post"
-            XeroMock.assertSpecContains payrollSpec "name: Idempotency-Key"
             XeroMock.assertSpecOperation earningsRatesSpec "/earningsRates" "post"
-            XeroMock.assertOperationContains payrollSpec "/Timesheets" "post" "type: array"
-            XeroMock.assertOperationContains payrollSpec "/Timesheets/{TimesheetID}" "post" "type: array"
 
-            let earningsRateRequest = buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" XeroMock.sampleEarningsRateBody
+            let earningsRateRequest = buildCreateEarningsRateRequest "access-token" "tenant-id" "idem-pay-items" XeroMock.sampleEarningsRateCreate
             assertRequest earningsRateRequest "POST" XeroMock.xeroPayrollV2Server "/earningsRates"
             assertWriteHeaders earningsRateRequest "idem-pay-items"
             XeroMock.jsonBody earningsRateRequest `shouldSatisfy` XeroMock.hasObjectField "Name"
-            XeroMock.jsonBody earningsRateRequest `shouldSatisfy` XeroMock.hasObjectField "EarningsType"
-            XeroMock.jsonBody earningsRateRequest `shouldSatisfy` XeroMock.hasObjectField "RateType"
 
-            let createRequest = buildCreateTimesheetRequest "access-token" "tenant-id" "idem-create" XeroMock.sampleTimesheetArrayBody
-            assertWriteRequest createRequest "/Timesheets" "idem-create"
-            XeroMock.jsonBody createRequest `shouldSatisfy` XeroMock.isJsonArray
+            let createRequest = either (error . cs) id (buildCreateTimesheetDraftRequest "access-token" "tenant-id" "idem-create" XeroMock.sampleTimesheetDraft)
+            assertRequest createRequest "POST" XeroMock.xeroPayrollV2Server "/Timesheets"
+            assertWriteHeaders createRequest "idem-create"
+            XeroMock.jsonBody createRequest `shouldSatisfy` XeroMock.hasObjectField "payrollCalendarID"
+            XeroMock.jsonBody createRequest `shouldSatisfy` XeroMock.hasObjectField "timesheetLines"
 
-            let updateRequest = buildUpdateTimesheetRequest "access-token" "tenant-id" "idem-update" "timesheet-id" XeroMock.sampleTimesheetArrayBody
+            let updateRequest = buildReplaceTimesheetDraftRequest "access-token" "tenant-id" "idem-update" "timesheet-id" XeroMock.sampleTimesheetDraft
             assertWriteRequest updateRequest "/Timesheets/timesheet-id" "idem-update"
             XeroMock.jsonBody updateRequest `shouldSatisfy` XeroMock.isJsonArray
 
         it "validates every app Xero endpoint request builder against the vendored OpenAPI operations" do
             forM_ (XeroMock.xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec earningsRatesSpec) \(spec, contract, request) ->
                 XeroMock.validateXeroRequest spec contract request
+
+        it "validates representative responses against every used JSON response schema" do
+            let responseCases =
+                    [ (identitySpec, "/Connections", "get", XeroMock.connectionsFixture)
+                    , (payrollSpec, "/Employees", "get", XeroMock.employeesFixture)
+                    , (payrollSpec, "/PayrollCalendars", "get", XeroMock.calendarsFixture)
+                    , (payrollSpec, "/Settings", "get", XeroMock.payrollSettingsFixture)
+                    , (payrollSpec, "/PayRuns", "get", XeroMock.payRunsFixture)
+                    , (accountingSpec, "/Accounts", "get", XeroMock.accountsFixture)
+                    , (earningsRatesSpec, "/earningsRates", "get", XeroMock.earningsRatesFixture)
+                    , (earningsRatesSpec, "/earningsRates", "post", XeroMock.earningsRatesFixture)
+                    , (payrollV2Spec, "/Timesheets", "get", XeroMock.timesheetsV2Fixture)
+                    , (payrollSpec, "/Timesheets", "post", XeroMock.timesheetsFixture)
+                    , (payrollV2Spec, "/Timesheets", "post", XeroMock.timesheetV2Fixture)
+                    , (payrollV2Spec, "/Timesheets/{TimesheetID}", "get", XeroMock.timesheetV2Fixture)
+                    , (payrollSpec, "/Timesheets/{TimesheetID}", "post", XeroMock.timesheetsFixture)
+                    ]
+            forM_ responseCases \(spec, path, method, body) ->
+                XeroMock.assertResponseMatchesOpenApiSchema spec path method body
 
         it "covers every concrete Xero client operation in the OpenAPI contract table" do
             List.sort (map (XeroMock.contractName . middleOfThree) (XeroMock.xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec earningsRatesSpec))
@@ -277,19 +288,19 @@ tests =
                     refreshResult `shouldSatisfy` isRight
 
                     tenantsResult <- client.fetchConnectedTenants "access-token"
-                    fmap (map (.tenantId)) tenantsResult `shouldBe` Right ["tenant-id"]
+                    fmap (map (.tenantId)) tenantsResult `shouldBe` Right [XeroMock.testTenantId]
 
                     deleteResult <- client.deleteXeroConnection "access-token" "connection-id"
                     deleteResult `shouldBe` Right ()
 
                     employeesResult <- client.fetchPayrollEmployees "access-token" "tenant-id"
-                    fmap (map (.xeroEmployeeId)) employeesResult `shouldBe` Right ["employee-id"]
+                    fmap (map (.xeroEmployeeId)) employeesResult `shouldBe` Right [XeroMock.testEmployeeId]
 
                     earningsResult <- client.fetchEarningsRates "access-token" "tenant-id"
-                    fmap (map (.xeroEarningsRateId)) earningsResult `shouldBe` Right ["earnings-rate-id"]
+                    fmap (map (.xeroEarningsRateId)) earningsResult `shouldBe` Right [XeroMock.testEarningsRateId]
 
                     calendarsResult <- client.fetchPayrollCalendars "access-token" "tenant-id"
-                    fmap (map (.xeroPayrollCalendarId)) calendarsResult `shouldBe` Right ["calendar-id"]
+                    fmap (map (.xeroPayrollCalendarId)) calendarsResult `shouldBe` Right [XeroMock.testCalendarId]
 
                     accountsResult <- client.fetchAccounts "access-token" "tenant-id"
                     fmap (map (.xeroAccountCode)) accountsResult `shouldBe` Right [Just "477"]
@@ -298,25 +309,25 @@ tests =
                     fmap (map (.xeroAccountType)) settingsAccountsResult `shouldBe` Right [Just "WAGESEXPENSE"]
 
                     payRunsResult <- client.fetchPayRuns "access-token" "tenant-id" XeroMock.samplePayRunQuery
-                    fmap (map (.xeroPayRunId)) payRunsResult `shouldBe` Right ["pay-run-id"]
+                    fmap (map (.xeroPayRunId)) payRunsResult `shouldBe` Right [XeroMock.testPayRunId]
 
-                    payItemResult <- client.createPayItem "access-token" "tenant-id" "idem-pay-items" XeroMock.sampleEarningsRateBody
-                    fmap (map (.xeroEarningsRateId)) payItemResult `shouldBe` Right ["earnings-rate-id"]
-
-                    timesheetsResult <- client.fetchTimesheets "access-token" "tenant-id" XeroMock.sampleTimesheetQuery
-                    fmap (map (.xeroTimesheetEmployeeId)) timesheetsResult `shouldBe` Right ["employee-id"]
+                    payItemResult <- client.createEarningsRate "access-token" "tenant-id" "idem-pay-items" XeroMock.sampleEarningsRateCreate
+                    fmap (map (.xeroEarningsRateId)) payItemResult `shouldBe` Right [XeroMock.testEarningsRateId]
 
                     periodTimesheetsResult <- client.fetchTimesheetsForPeriod "access-token" "tenant-id" (Just "calendar-id") (fromGregorian 2026 5 4) (fromGregorian 2026 5 10)
-                    fmap (map (.xeroTimesheetEmployeeId)) periodTimesheetsResult `shouldBe` Right ["employee-id"]
+                    fmap (map (.xeroTimesheetEmployeeId)) periodTimesheetsResult `shouldBe` Right [XeroMock.testEmployeeId]
 
-                    timesheetResult <- client.fetchTimesheet "access-token" "tenant-id" "timesheet-id"
-                    fmap (.xeroTimesheetEmployeeId) timesheetResult `shouldBe` Right "employee-id"
+                    timesheetResult <- client.fetchTimesheetDetail "access-token" "tenant-id" "timesheet-id"
+                    fmap ((.xeroTimesheetEmployeeId) . (.xeroTimesheetDetailSummary)) timesheetResult `shouldBe` Right XeroMock.testEmployeeId
 
-                    createTimesheetResult <- client.createTimesheet "access-token" "tenant-id" "idem-create" XeroMock.sampleTimesheetArrayBody
-                    fmap (map (.xeroTimesheetEmployeeId)) createTimesheetResult `shouldBe` Right ["employee-id"]
+                    createTimesheetV1Result <- client.createTimesheetDraftV1 "access-token" "tenant-id" "idem-create-v1" XeroMock.sampleTimesheetDraft
+                    fmap (map (.xeroTimesheetEmployeeId)) createTimesheetV1Result `shouldBe` Right [XeroMock.testEmployeeId]
 
-                    updateTimesheetResult <- client.updateTimesheet "access-token" "tenant-id" "idem-update" "timesheet-id" XeroMock.sampleTimesheetArrayBody
-                    fmap (map (.xeroTimesheetEmployeeId)) updateTimesheetResult `shouldBe` Right ["employee-id"]
+                    createTimesheetV2Result <- client.createTimesheetDraftV2 "access-token" "tenant-id" "idem-create-v2" XeroMock.sampleTimesheetDraft
+                    fmap (map (.xeroTimesheetEmployeeId)) createTimesheetV2Result `shouldBe` Right [XeroMock.testEmployeeId]
+
+                    updateTimesheetResult <- client.replaceTimesheetDraft "access-token" "tenant-id" "idem-update" "timesheet-id" XeroMock.sampleTimesheetDraft
+                    fmap (map (.xeroTimesheetEmployeeId)) updateTimesheetResult `shouldBe` Right [XeroMock.testEmployeeId]
 
         it "detects documented Earnings Rates response-shape drift through the strict localhost transport" do
             let responseVariants =
@@ -328,8 +339,8 @@ tests =
                 XeroMock.withStrictXeroMockEarningsRateResponse identitySpec payrollSpec responseVariant \urls ->
                     withXeroRequestBaseUrlsForTest urls do
                         client <- currentXeroClient
-                        result <- client.createPayItem "access-token" "tenant-id" "idem-response-variant" XeroMock.sampleEarningsRateBody
-                        fmap (map (.xeroEarningsRateId)) result `shouldBe` Right ["earnings-rate-id"]
+                        result <- client.createEarningsRate "access-token" "tenant-id" "idem-response-variant" XeroMock.sampleEarningsRateCreate
+                        fmap (map (.xeroEarningsRateId)) result `shouldBe` Right [XeroMock.testEarningsRateId]
 
         it "rejects malformed localhost mock requests before returning fixtures" do
             XeroMock.withStrictXeroMockBaseUrl identitySpec payrollSpec \baseUrl -> do
@@ -390,12 +401,12 @@ expectedContractCaseNames =
     , "accounts list"
     , "payroll settings accounts"
     , "pay runs list"
-    , "timesheets list"
     , "period timesheets list"
-    , "timesheet show"
+    , "timesheet detail"
     , "earnings rate create"
-    , "timesheet create"
-    , "timesheet update"
+    , "timesheet create v1"
+    , "timesheet create v2"
+    , "timesheet replace v1"
     ]
 
 coveredXeroClientOperationNames :: [Text]
