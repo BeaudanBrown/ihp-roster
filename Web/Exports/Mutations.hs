@@ -5,11 +5,13 @@ module Web.Exports.Mutations
     , exportJobTouchedResources
     , recordExportDownloadMutation
     , requestFixedExportMutation
+    , requestSelectedExportMutation
     , requestFixedExportWithPayrollWorkbookDefinitionMutation
     ) where
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Export
+import Application.Helper.TimesheetSelection (TimesheetSelection)
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import qualified Control.Exception as Exception
@@ -25,6 +27,16 @@ requestFixedExportMutation exportType rangeStart rangeEnd =
 requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
 requestFixedExportWithPayrollWorkbookDefinitionMutation definition rangeStart rangeEnd =
     requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd)
+
+requestSelectedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSelection -> ExportJobType -> Maybe (Id PayrollWorkbookConfiguration) -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
+requestSelectedExportMutation selection exportType configurationId rangeStart rangeEnd =
+    case (exportType, configurationId) of
+        (PayrollWorkbookXlsx, Just configurationId) ->
+            fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
+                Left _ -> pure (Left "That Payroll Workbook configuration is unavailable. Close the dialog and choose an existing export.")
+                Right configuration -> requestExportMutation (requestPayrollWorkbookXlsxExportWithSelection selection configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd)
+        (_, Just _) -> pure (Left "This configuration can only generate Payroll Workbooks.")
+        (_, Nothing) -> requestExportMutation (requestFixedExportWithSelection selection exportType rangeStart rangeEnd)
 
 -- Keep the database context abstract until the durable transaction supplies it;
 -- a pre-built IO action would perform export writes on the outer connection.

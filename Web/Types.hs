@@ -108,6 +108,10 @@ data LeaveRequestsController
 data ExportsController
     = ExportJobsAction
     | CreateExportJobAction
+    | OpenTimesheetExportSelectionAction
+    | RefreshTimesheetExportSelectionAction
+    | ChangeTimesheetExportSelectionGroupAction { selectionDay :: Maybe Text, selectGroup :: Bool }
+    | GenerateSelectedTimesheetExportAction
     | NewPayrollWorkbookConfigurationAction { anchorDate :: !Text }
     | EditPayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId :: !(Id PayrollWorkbookConfiguration), anchorDate :: !Text }
     | CreatePayrollWorkbookConfigurationAction

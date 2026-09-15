@@ -20,6 +20,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
+import Web.Exports.Selection (renderFilteredExportButton)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImplForWindow)
 import Web.View.Admin.Common
@@ -117,6 +118,7 @@ renderSavedConfigurationCard selection configuration = [hsx|
             </div>
             <div class="d-flex flex-wrap gap-2">
                 {downloadForm}
+                {renderFilteredExportButton selection.weekStart selection.weekEnd PayrollWorkbookXlsx (Just (unpackId configurationRecord.id))}
                 {renderEditExportButton selection configurationRecord}
                 {renderDeleteExportButton selection configurationRecord}
             </div>

@@ -9,6 +9,14 @@ module Application.Helper.FrontendContract.AppShell
     , OpenFeedbackDialog
     , OpenPageHelpDialog
     , OpenPayrollWorkbookConfigurationDialog
+    , OpenTimesheetSelectionDialog
+    , RefreshTimesheetSelectionDialog
+    , ChangeTimesheetSelectionGroup
+    , GenerateSelectedTimesheetExport
+    , SelectionRangeStartField
+    , SelectionRangeEndField
+    , SelectionExportTypeField
+    , SelectedTimesheetEntriesField
     , OpenPayrollWorkbookConfigurationDeleteDialog
     , CreatePayrollWorkbookConfigurationOverlay
     , UpdatePayrollWorkbookConfigurationOverlay
@@ -106,6 +114,7 @@ module Application.Helper.FrontendContract.AppShell
     , InvitationEmailField
     ) where
 
+import Application.Helper.Export.Types (ExportJobType)
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Overlay (DialogOverlayMount)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
@@ -121,6 +130,14 @@ data PartialNavigationHtmxAttrs
 data OpenFeedbackDialog
 data OpenPageHelpDialog
 data OpenPayrollWorkbookConfigurationDialog
+data OpenTimesheetSelectionDialog
+data RefreshTimesheetSelectionDialog
+data ChangeTimesheetSelectionGroup
+data GenerateSelectedTimesheetExport
+data SelectionRangeStartField
+data SelectionRangeEndField
+data SelectionExportTypeField
+data SelectedTimesheetEntriesField
 data OpenPayrollWorkbookConfigurationDeleteDialog
 data CreatePayrollWorkbookConfigurationOverlay
 data UpdatePayrollWorkbookConfigurationOverlay
@@ -236,6 +253,17 @@ type AppShellContract =
             '[]
             DialogLauncherOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions
+         , AppShellAction OpenTimesheetSelectionDialog TimesheetSelectionFields DialogLauncherOptions
+         , AppShellAction RefreshTimesheetSelectionDialog TimesheetSelectionFields
+             '[ AppShellHtmxMethod 'AppShellPost
+              , AppShellHtmxTarget DialogOverlayMount
+              , AppShellHtmxSwap "innerHTML"
+              , AppShellHtmxTrigger "change"
+              , AppShellHtmxSync "#timesheet-selection-form:replace"
+              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+              ]
+         , AppShellAction ChangeTimesheetSelectionGroup TimesheetSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction GenerateSelectedTimesheetExport TimesheetSelectionFields TimesheetSelectionSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
          , AppShellAction CreatePayrollWorkbookConfigurationOverlay
             '[ Field ExportAnchorDateField 'WireDay
@@ -422,6 +450,23 @@ type AppShellContract =
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
          ]
+
+type TimesheetSelectionFields =
+    '[ Field SelectionRangeStartField 'WireDay
+     , Field SelectionRangeEndField 'WireDay
+     , Field SelectionExportTypeField ('WireClosed ExportJobType)
+     , OptionalField PayrollWorkbookConfigurationIdField 'WireUUID
+     , Field SelectedTimesheetEntriesField ('WireList 'WireText)
+     ]
+
+type TimesheetSelectionSubmitOptions =
+    '[ AppShellHtmxMethod 'AppShellPost
+     , AppShellHtmxInclude "#timesheet-selection-form"
+     , AppShellHtmxTarget DialogOverlayMount
+     , AppShellHtmxSwap "innerHTML"
+     , AppShellHtmxSync "#timesheet-selection-form:replace"
+     , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     ]
 
 type DialogLauncherFields = '[]
 

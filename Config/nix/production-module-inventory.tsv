@@ -495,6 +495,7 @@ Web/Controller/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Users.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Exports/Responses.hs	production	runtime	Main	Reachable from Main
+Web/Exports/Selection.hs	production	runtime	Main	Reachable from Main
 Web/Exports/WorkbookConfigurations.hs	production	runtime	Main	Reachable from Main
 Web/FrontController.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/Archive.hs	production	runtime	Main	Reachable from Main
@@ -622,6 +623,7 @@ Web/View/StaffProfileSections.hs	production	runtime	Main	Reachable from Main
 Web/View/Static/InstallApp.hs	production	runtime	Main	Reachable from Main
 Web/View/Static/Welcome.hs	production	runtime	Main	Reachable from Main
 Web/View/Support/Index.hs	production	runtime	Main	Reachable from Main
+Web/View/TimesheetSelection.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/New.hs	production	runtime	Main	Reachable from Main

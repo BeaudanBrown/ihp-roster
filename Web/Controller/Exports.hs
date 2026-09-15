@@ -24,6 +24,7 @@ import Web.Exports.Mutations (deletePayrollWorkbookConfigurationMutation,
                               requestFixedExportMutation,
                               requestFixedExportWithPayrollWorkbookDefinitionMutation)
 import Web.Exports.Responses
+import Web.Exports.Selection (openExportSelection, refreshExportSelection, changeExportSelectionGroup, generateSelectedExport)
 import Web.Exports.WorkbookConfigurations (createSavedWorkbookFromRequest,
                                           editSavedWorkbookFromRequest)
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
@@ -142,6 +143,18 @@ instance Controller ExportsController where
 
     action currentAction@ExportJobsAction = runBepis currentAction BepisExportAction do
         redirectToPath (pathTo AdminAction <> "#exports")
+
+    action currentAction@OpenTimesheetExportSelectionAction = runBepis currentAction BepisFormAction openExportSelection
+
+    action currentAction@RefreshTimesheetExportSelectionAction = runBepis currentAction BepisFormAction refreshExportSelection
+
+    action currentAction@ChangeTimesheetExportSelectionGroupAction { selectionDay, selectGroup } = runBepis currentAction BepisFormAction do
+        day <- mapM parseIsoDayRouteParam selectionDay
+        changeExportSelectionGroup day selectGroup
+
+    action currentAction@GenerateSelectedTimesheetExportAction = runBepis currentAction BepisExportAction do
+        ensureVenueWritable
+        generateSelectedExport respondWithGeneratedExportDownload
 
     action currentAction@CreateExportJobAction = runBepis currentAction BepisExportAction do
         ensureVenueWritable
