@@ -682,6 +682,26 @@ export const toggleBreakRegionDomAttr = "data-bepis-toggle-break-region" as cons
 
 export const toggleConfigDomAttr = "data-bepis-toggle-config" as const;
 
+export const checkboxListRootDomAttr = "data-bepis-checkbox-list-root" as const;
+
+export const checkboxListGroupDomAttr = "data-bepis-checkbox-list-group" as const;
+
+export const checkboxListItemDomAttr = "data-bepis-checkbox-list-item" as const;
+
+export const checkboxListGroupToggleDomAttr = "data-bepis-checkbox-list-group-toggle" as const;
+
+export const checkboxListSelectAllDomAttr = "data-bepis-checkbox-list-select-all" as const;
+
+export const checkboxListClearAllDomAttr = "data-bepis-checkbox-list-clear-all" as const;
+
+export const checkboxListCountDomAttr = "data-bepis-checkbox-list-count" as const;
+
+export const checkboxListTotalDomAttr = "data-bepis-checkbox-list-total" as const;
+
+export const checkboxListWeightDomAttr = "data-bepis-checkbox-list-weight" as const;
+
+export const checkboxListSubmitDomAttr = "data-bepis-checkbox-list-submit" as const;
+
 export type TimePickerConfig = { rangeStart: string; rangeEnd: string; stepMinutes: number; emptyLabel: string };
 export function isTimePickerConfig(value: unknown): value is TimePickerConfig {
     return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"], ["rangeStart", "rangeEnd", "stepMinutes", "emptyLabel"]) && (typeof value["rangeStart"] === "string") && (typeof value["rangeEnd"] === "string") && (typeof value["stepMinutes"] === "number" && Number.isInteger(value["stepMinutes"])) && (typeof value["emptyLabel"] === "string");

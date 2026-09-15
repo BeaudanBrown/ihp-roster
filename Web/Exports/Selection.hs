@@ -15,7 +15,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
-import Application.Helper.View.Overlay
 import Web.TimesheetSelection (fetchTimesheetSelectionRows)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -114,24 +113,23 @@ showSelection initiallyAll errorMessage request = do
                 message = errorMessage <|> if changed then Just (renderTimesheetSelectionFailure ChangedTimesheetSelection) else Nothing
             respondHtml (renderSelection request rows selected message)
 renderSelection :: ExportSelectionRequest -> [TimesheetSelectionRow] -> [Text] -> Maybe Text -> Html
-renderSelection request rows selected message = renderDialogOverlay DialogOverlayConfig
-    { dialogOverlayTitle = "Choose shifts for export"
-    , dialogOverlayBody = renderAppShellActionForm
-        (appShellActionByMarker @Shell.RefreshTimesheetSelectionDialog)
-        ((defaultAppShellActionRoute (pathTo RefreshTimesheetExportSelectionAction)) { appShellActionRouteExtraAttrs = [("id", "timesheet-selection-form")] })
+renderSelection request rows selected message = renderTimesheetSelectionDialog TimesheetSelectionDialog
+    { selectionDialogTitle = "Choose shifts for export"
+    , selectionDialogBody = renderAppShellActionForm
+        (appShellActionByMarker @Shell.GenerateSelectedTimesheetExport)
+        ((defaultAppShellActionRoute (pathTo GenerateSelectedTimesheetExportAction)) { appShellActionRouteExtraAttrs = timesheetSelectionFormAttributes })
         [hsx|
             {maybe mempty renderError message}
-            <p>{tshow request.rangeStart} – {tshow request.rangeEnd}. Review this selection before downloading.</p>
             <input type="hidden" name={surfaceFieldNameFrom @Shell.SelectionRangeStartField fields} value={tshow request.rangeStart} />
             <input type="hidden" name={surfaceFieldNameFrom @Shell.SelectionRangeEndField fields} value={tshow request.rangeEnd} />
             <input type="hidden" name={surfaceFieldNameFrom @Shell.SelectionExportTypeField fields} value={exportJobTypeToText request.exportType} />
             <input type="hidden" name={surfaceFieldNameFrom @Shell.PayrollWorkbookConfigurationIdField fields} value={maybe "" tshow request.configurationId} />
-            {renderTimesheetSelectionChecklist (surfaceFieldNameFrom @Shell.SelectedTimesheetEntriesField fields) rows selected groupControl}
-            <button {...generateAttrs} disabled={null selected}>Download selected shifts</button>
+            {renderTimesheetSelectionChecklist (surfaceFieldNameFrom @Shell.SelectedTimesheetEntriesField fields) rows selected}
         |]
-    , dialogOverlayStartButtons = []
-    , dialogOverlayButtons = [dialogOverlayCloseButton "Cancel"]
-    , dialogOverlayDialogClass = "modal-lg"
+    , selectionDialogSubmitLabel = "Download selected shifts"
+    , selectionDialogSubmitAction = appShellActionByMarker @Shell.GenerateSelectedTimesheetExport
+    , selectionDialogSubmitRoute = defaultAppShellActionRoute (pathTo GenerateSelectedTimesheetExportAction)
+    , selectionDialogHasSelection = not (null selected)
     }
   where
     renderError text = [hsx|<p class="alert alert-warning" role="alert">{text}</p>|]
@@ -142,12 +140,6 @@ renderSelection request rows selected message = renderDialogOverlay DialogOverla
             &: surfaceOptionalField @Shell.PayrollWorkbookConfigurationIdField request.configurationId
             &: surfaceField @Shell.SelectedTimesheetEntriesField selected
             &: noSurfaceFields)
-    buttonRoute url = (defaultAppShellActionRoute url) { appShellActionRouteExtraAttrs = [("type", "button"), ("class", "btn btn-outline-primary")] }
-    generateAttrs = appShellActionAttrs (appShellActionByMarker @Shell.GenerateSelectedTimesheetExport) (buttonRoute (pathTo GenerateSelectedTimesheetExportAction))
-    groupControl day select = [hsx|<button {...attributes}>{label}</button>|]
-      where
-        attributes = appShellActionAttrs (appShellActionByMarker @Shell.ChangeTimesheetSelectionGroup) (buttonRoute (pathTo (if select then SelectTimesheetExportGroupAction (tshow <$> day) else ClearTimesheetExportGroupAction (tshow <$> day))))
-        label = (if select then "Select " else "Clear ") <> (if isNothing day then "all" else "day") :: Text
 
 renderFilteredExportButton :: Day -> Day -> ExportJobType -> Maybe UUID -> Html
 renderFilteredExportButton start end exportType configurationId = [hsx|<button {...attributes}>Filtered…</button>|]

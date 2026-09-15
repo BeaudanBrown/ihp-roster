@@ -1,12 +1,29 @@
-module Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities) where
+module Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities, fetchAvailableWorkbookSheetFamilies) where
 
-import Application.Helper.Export.PayrollWorkbook (PayrollWorkbookXeroQuantity (..))
+import Application.Helper.Export.PayrollWorkbook (PayrollWorkbookXeroQuantity (..), PayrollWorkbookSheetFamily (..), availablePayrollWorkbookSheetFamilies)
 import Application.WageEngine.Types (WageCalculation (..), EarningsComponent (..))
 import Application.WagePublication (datedEarningsComponentsWithOrdinal)
 import Application.Xero.Timesheets.Preview
 import qualified Data.Map.Strict as Map
 import Generated.Types
 import IHP.ControllerPrelude
+
+-- Editor availability is deliberately not shift-specific readiness. Existing
+-- saved definitions remain intact; generation still validates selected sources.
+fetchAvailableWorkbookSheetFamilies :: (?modelContext :: ModelContext) => Id Venue -> IO [PayrollWorkbookSheetFamily]
+fetchAvailableWorkbookSheetFamilies venueId = do
+    connection <- query @XeroConnection
+        |> filterWhere (#venueId, unpackId venueId)
+        |> filterWhere (#connectionStatus, "active")
+        |> filterWhere (#disconnectedAt, Nothing)
+        |> fetchOneOrNothing
+    hasPayItems <- case connection of
+        Nothing -> pure False
+        Just connection -> query @XeroEarningsRate
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#providerAvailable, True)
+            |> fetchExists
+    pure (filter (\family -> family /= PayrollWorkbookXeroPayItems || hasPayItems) availablePayrollWorkbookSheetFamilies)
 
 -- Read-only: exports consume approval routing or already-established bindings;
 -- they never provision pay items, verify employee mappings, or call Xero.

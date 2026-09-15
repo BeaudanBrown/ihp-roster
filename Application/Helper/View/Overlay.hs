@@ -23,6 +23,7 @@ module Application.Helper.View.Overlay
 
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
+                                                             appShellActionAttrs,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Overlay.Runtime
@@ -52,6 +53,7 @@ data OverlayButtonAction
     | DialogFormAction !Text !Text ![(Text, Text)] !(Maybe Text)
     | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !(Maybe Text) !Text !Text
     | GeneratedDialogFormAction !AppShellActionIR !AppShellActionRoute ![(Text, Text)] !(Maybe Text)
+    | GeneratedDialogButtonAction !AppShellActionIR !AppShellActionRoute !Bool
 
 data OverlayButton = OverlayButton
     { overlayButtonLabel  :: !Text
@@ -224,6 +226,12 @@ renderOverlayButton context button =
                     {button.overlayButtonLabel}
                 </button>
             </form>
+        |]
+        GeneratedDialogButtonAction appShellAction route enabled -> [hsx|
+            <button type="button" class={button.overlayButtonClass} disabled={not enabled}
+                    {...appShellActionAttrs appShellAction route}>
+                {button.overlayButtonLabel}
+            </button>
         |]
         GeneratedDialogFormAction appShellAction route hiddenFields maybeConfirm -> case context of
             MountedOverlayButton ->

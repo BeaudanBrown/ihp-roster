@@ -389,6 +389,56 @@ test.describe('Xero timesheet preparation', () => {
         expect(querySql(`SELECT COUNT(*) FROM timesheet_pay_calculations WHERE timesheet_entry_id = 'a1000000-0000-0000-0000-000000000091';`)).toBe(originalLedgerCount);
     });
 
+    test('keeps Xero shift toggles local and saves through the shared footer', async ({ page }, testInfo) => {
+        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
+        await openXeroPage(page);
+        await page.getByRole('button', { name: 'Upload timesheets', exact: true }).click();
+        await page.getByRole('button', { name: 'Continue', exact: true }).click();
+        // The preparation fixture excludes everyone as not paid. Make those
+        // staff eligible for this checklist-only test after opening preparation.
+        runSql(`
+            INSERT INTO xero_employees (venue_id, xero_connection_id, xero_employee_id, display_name, raw_payload, synced_at)
+            SELECT venue_id, xero_connection_id, 'checklist-' || staff_id::text, 'Checklist employee',
+                '{"PayrollCalendarID":"e2e-timesheet-calendar"}'::jsonb, NOW()
+            FROM xero_staff_mappings WHERE xero_connection_id = '${xeroConnectionId}'
+            ON CONFLICT (xero_connection_id, xero_employee_id) DO UPDATE SET provider_available = TRUE, provider_unavailable_at = NULL;
+            UPDATE xero_connections SET connection_status = 'active', disconnected_at = NULL, last_error = NULL
+            WHERE id = '${xeroConnectionId}';
+            UPDATE xero_staff_mappings SET mapping_status = 'verified', xero_employee_id = 'checklist-' || staff_id::text
+            WHERE xero_connection_id = '${xeroConnectionId}';
+        `);
+        try {
+            await page.getByRole('button', { name: 'Choose shifts…', exact: true }).click();
+            const dialog = page.getByRole('dialog', { name: 'Choose shifts for Xero' });
+            await expect(dialog).toBeVisible();
+            await expect(dialog).not.toContainText('Only selected shifts contribute');
+            const save = dialog.getByRole('button', { name: 'Use selected shifts' });
+            await expect(save).toHaveAttribute('form', 'timesheet-selection-form');
+            await expect(dialog.locator('form').getByRole('button', { name: 'Use selected shifts' })).toHaveCount(0);
+            await dialog.getByRole('button', { name: 'Clear all' }).click();
+            await expect(save).toBeDisabled();
+            await expect(dialog.getByRole('status')).toContainText('0 shifts selected');
+            await dialog.locator('legend label').first().click();
+            await expect(dialog.locator('legend input').first()).toBeChecked();
+            await expect(save).toBeEnabled();
+            await page.setViewportSize({ width: 360, height: 740 });
+            await expect(save).toBeInViewport();
+            expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+            await testInfo.attach('xero-selection-mobile', { body: await page.screenshot(), contentType: 'image/png' });
+            const savedResponse = page.waitForResponse(response => response.url().includes('/SaveXeroShiftSelection'));
+            await save.click();
+            expect((await savedResponse).ok()).toBe(true);
+            await expect(dialog).toHaveCount(0);
+        } finally {
+            runSql(`
+                UPDATE xero_staff_mappings SET mapping_status = 'not_applicable', xero_employee_id = NULL
+                WHERE xero_connection_id = '${xeroConnectionId}';
+                UPDATE xero_employees SET provider_available = FALSE, provider_unavailable_at = NOW()
+                WHERE xero_connection_id = '${xeroConnectionId}' AND xero_employee_id LIKE 'checklist-%';
+            `);
+        }
+    });
+
     test('opens the guided preparation modal with a default Xero pay period selected', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
         await openXeroPage(page);

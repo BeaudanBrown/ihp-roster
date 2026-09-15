@@ -26,8 +26,12 @@ cross-module safety and payroll contracts.
   default to all eligible entries, and never change the period. Every output and
   source-provenance row consumes the same validated snapshot. Explicit empty,
   foreign, out-of-period, unapproved, deleted or changed identities fail closed;
-  refreshed checklists require review, never automatic retries.
+  refreshed checklists require review, never automatic retries. Checkbox changes
+  remain local until submission; the server still validates every selected identity.
 - The optional Xero pay-items family is excluded from standard definitions.
+  Editors offer it only with an active venue Xero connection and synced pay items;
+  employee mappings and shift-specific routing completeness are not prerequisites.
+  Existing saved definitions remain intact if that setup becomes unavailable.
   Its weekly dates follow the venue week start. Rows aggregate selected sealed
   quantities by staff and actual provider pay-item identity, not display label.
   Missing employee mappings do not block manual entry; unresolved pay items do.

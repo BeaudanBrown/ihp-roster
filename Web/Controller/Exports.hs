@@ -67,7 +67,7 @@ data PayrollWorkbookConfigurationDraftOperation
     | MoveDraftSheetDown
 
 respondWithPayrollWorkbookConfigurationDraftControl ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
     PayrollWorkbookConfigurationDraftOperation ->
     Day ->
     Text ->
@@ -92,10 +92,7 @@ respondWithPayrollWorkbookConfigurationDraftControl operation anchorDate name fa
             , payrollWorkbookConfigurationDraftRevision = revision
             , payrollWorkbookConfigurationDraftError = Nothing
             }
-    respondWithDraft draft =
-        if isHtmxRequest
-            then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft)
-            else redirectToPath (adminExportsPath anchorDate)
+    respondWithDraft = respondWithWorkbookEditor anchorDate
     respondWithDraftError draft message =
         respondWithDraft draft { payrollWorkbookConfigurationDraftError = Just message }
 

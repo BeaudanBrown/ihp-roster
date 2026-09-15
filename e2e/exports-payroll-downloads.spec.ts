@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
+import { checkboxListItemDomAttr, checkboxListGroupToggleDomAttr } from '../frontend/ts/generated/contracts';
 import {
     currentReportWeek,
     generatePayrollReport,
@@ -15,7 +16,7 @@ test.use({ baseURL: webauthnBaseURL });
 test.describe('Payroll export downloads', () => {
     test.setTimeout(E2E_TIMEOUT.test);
 
-    test('venue admin creates, edits, generates, and deletes ordered Payroll Workbook exports', async ({ page }) => {
+    test('venue admin creates, edits, generates, and deletes ordered Payroll Workbook exports', async ({ page }, testInfo) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
@@ -44,19 +45,41 @@ test.describe('Payroll export downloads', () => {
         await standardCard.getByRole('button', { name: 'Filtered…' }).click();
         const selectionDialog = page.getByRole('dialog', { name: 'Choose shifts for export' });
         await expect(selectionDialog).toBeVisible();
-        await expect(selectionDialog).toContainText(`${currentWeek.weekStart} – ${currentWeek.weekEnd}`);
+        await expect(selectionDialog).not.toContainText('Review this selection');
+        await expect(selectionDialog.locator('legend').first()).toHaveText(/^[A-Za-z]+ \d{2}\/\d{2}$/);
         const selectedDownload = selectionDialog.getByRole('button', { name: 'Download selected shifts' });
-        const shifts = selectionDialog.getByRole('checkbox');
+        await expect(selectedDownload).toHaveAttribute('form', 'timesheet-selection-form');
+        await expect(selectionDialog.locator('form').getByRole('button', { name: 'Download selected shifts' })).toHaveCount(0);
+        const shifts = selectionDialog.locator(`[${checkboxListItemDomAttr}]`);
+        const firstDay = selectionDialog.locator('fieldset').first();
+        const dayCheckbox = firstDay.locator(`[${checkboxListGroupToggleDomAttr}]`);
+        const firstDayShifts = firstDay.locator(`[${checkboxListItemDomAttr}]`);
+        const selectionRequests: string[] = [];
+        const recordSelectionRequest = (request: import('@playwright/test').Request) => {
+            if (request.method() === 'POST') selectionRequests.push(request.url());
+        };
+        page.on('request', recordSelectionRequest);
         expect(await shifts.count()).toBeGreaterThan(0);
-        const clearResponse = page.waitForResponse(response => response.url().includes('/ClearTimesheetExportGroup'));
         await selectionDialog.getByRole('button', { name: 'Clear all', exact: true }).click();
-        expect((await clearResponse).ok()).toBe(true);
         await expect(selectionDialog.getByRole('status')).toContainText('0 shifts selected');
         await expect(selectedDownload).toBeDisabled();
-        await shifts.first().check();
+        await shifts.first().locator('..').click();
         await expect(selectionDialog.getByRole('status')).toContainText('1 shifts selected');
         await expect(selectedDownload).toBeEnabled();
+        expect(await firstDayShifts.count()).toBeGreaterThan(1);
+        await expect(dayCheckbox).not.toBeChecked();
+        for (const shift of await firstDayShifts.all()) await shift.check();
+        await expect(dayCheckbox).toBeChecked();
+        await firstDay.locator('legend label').click();
+        await expect(firstDay.locator(`[${checkboxListItemDomAttr}]:checked`)).toHaveCount(0);
+        await expect(dayCheckbox).not.toBeChecked();
+        await firstDay.locator('legend label').click();
+        await expect(dayCheckbox).toBeChecked();
+        await expect(firstDay.locator('input:not(:checked)')).toHaveCount(0);
         await selectionDialog.getByRole('button', { name: 'Select all', exact: true }).click();
+        expect(selectionRequests).toEqual([]);
+        page.off('request', recordSelectionRequest);
+        await page.screenshot({ path: testInfo.outputPath('selection-checklist.png') });
         await expect(selectionDialog.locator('input[type="checkbox"]:not(:checked)')).toHaveCount(0);
         const filteredDownloadEvent = page.waitForEvent('download');
         await selectedDownload.click();

@@ -10,6 +10,7 @@ import "./interaction-contracts.test";
 import "./interaction-runtime.test";
 import "./shared.test";
 import "./toggle.test";
+import "./checkbox-lists.test";
 import "./time-picker.test";
 import "./ordered-range.test";
 import "./horizontal-scroll.test";

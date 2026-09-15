@@ -6,6 +6,7 @@ module Web.Exports.Responses
     ( adminExportsPath
     , payrollWorkbookConfigurationErrorMessage
     , respondWithNewWorkbookEditor
+    , respondWithWorkbookEditor
     , respondWithSavedWorkbookEditor
     , respondWithWorkbookDeleteConfirmation
     , respondWithWorkbookDeletion
@@ -14,6 +15,7 @@ module Web.Exports.Responses
     ) where
 
 import Application.Helper.Export
+import Application.Helper.Export.XeroPayItems (fetchAvailableWorkbookSheetFamilies)
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminExportsLiveScope)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
@@ -28,7 +30,7 @@ import Web.Exports.WorkbookConfigurations (WorkbookEditorOutcome (..))
 import Web.View.Admin.PayrollWorkbookConfigurationDialog
 
 respondWithWorkbookEditorOutcome ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
     WorkbookEditorOutcome ->
     IO ResponseReceived
 respondWithWorkbookEditorOutcome = \case
@@ -42,14 +44,14 @@ respondWithWorkbookEditorOutcome = \case
         respondWithPayrollWorkbookConfigurationMutation anchorDate "Payroll Workbook export updated." result
 
 respondWithNewWorkbookEditor ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
     Day ->
     IO ResponseReceived
 respondWithNewWorkbookEditor anchorDate =
     respondWithWorkbookEditor anchorDate newPayrollWorkbookConfigurationDraft
 
 respondWithSavedWorkbookEditor ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
     Day ->
     Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration ->
     IO ResponseReceived
@@ -58,13 +60,15 @@ respondWithSavedWorkbookEditor anchorDate = \case
     Right configuration -> respondWithWorkbookEditor anchorDate (savedPayrollWorkbookConfigurationDraft configuration)
 
 respondWithWorkbookEditor ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
     Day ->
     PayrollWorkbookConfigurationDraft ->
     IO ResponseReceived
 respondWithWorkbookEditor anchorDate draft =
     if isHtmxRequest
-        then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft)
+        then do
+            availableFamilies <- fetchAvailableWorkbookSheetFamilies currentVenueId
+            respondHtml (renderPayrollWorkbookConfigurationDialog availableFamilies anchorDate draft)
         else redirectToPath (adminExportsPath anchorDate)
 
 respondWithWorkbookDeleteConfirmation ::
@@ -132,14 +136,14 @@ respondWithPayrollWorkbookConfigurationMutation anchorDate message mutationResul
             redirectToPath (adminExportsPath anchorDate)
 
 respondWithPayrollWorkbookConfigurationEditorError ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) =>
     Day ->
     PayrollWorkbookConfigurationDraft ->
     Text ->
     IO ResponseReceived
 respondWithPayrollWorkbookConfigurationEditorError anchorDate draft message =
     if isHtmxRequest
-        then respondHtml (renderPayrollWorkbookConfigurationDialog anchorDate draft { payrollWorkbookConfigurationDraftError = Just message })
+        then respondWithWorkbookEditor anchorDate draft { payrollWorkbookConfigurationDraftError = Just message }
         else do
             setErrorMessage message
             redirectToPath (adminExportsPath anchorDate)

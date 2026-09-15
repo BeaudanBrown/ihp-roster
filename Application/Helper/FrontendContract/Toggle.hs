@@ -25,6 +25,16 @@ module Application.Helper.FrontendContract.Toggle
     , ToggleLabelState
     , ToggleTransport
     , ToggleBreakRegion
+    , CheckboxListRoot
+    , CheckboxListGroup
+    , CheckboxListItem
+    , CheckboxListGroupToggle
+    , CheckboxListSelectAll
+    , CheckboxListClearAll
+    , CheckboxListCount
+    , CheckboxListTotal
+    , CheckboxListWeight
+    , CheckboxListSubmit
     ) where
 
 import Application.Helper.FrontendContract.DSL
@@ -60,6 +70,19 @@ data ToggleLabelState
 data ToggleTransport
 data ToggleBreakRegion
 
+-- Deferred native checkbox lists. Weights are generic non-negative quantities;
+-- the server owns their meaning and validates selection only on final submission.
+data CheckboxListRoot
+data CheckboxListGroup
+data CheckboxListItem
+data CheckboxListGroupToggle
+data CheckboxListSelectAll
+data CheckboxListClearAll
+data CheckboxListCount
+data CheckboxListTotal
+data CheckboxListWeight
+data CheckboxListSubmit
+
 type ToggleContract =
     Global Toggle
         '[ BrowserGuardSchema (Enum TogglePresentationState '[Checked, Unchecked])
@@ -82,4 +105,14 @@ type ToggleContract =
          , DomAttr ToggleTransport
          , DomAttr ToggleBreakRegion
          , DomAttr ToggleConfig
+         , DomAttr CheckboxListRoot
+         , DomAttr CheckboxListGroup
+         , DomAttr CheckboxListItem
+         , DomAttr CheckboxListGroupToggle
+         , DomAttr CheckboxListSelectAll
+         , DomAttr CheckboxListClearAll
+         , DomAttr CheckboxListCount
+         , DomAttr CheckboxListTotal
+         , DomAttr CheckboxListWeight
+         , DomAttr CheckboxListSubmit
          ]
