@@ -26,24 +26,28 @@ parallel Markdown task tracker.
 
 ## Epic Worktree Delegation
 
-Delegation and work selection are explicit user decisions. In a checkout with
-`.bepis-epic-worktree.json`, first run:
+In a checkout with `.bepis-epic-worktree.json`, first run:
 
 ```bash
 bash ./bin/in-env epic-worktree orient
 ```
 
-Present the ready/active/blocked frontier and wait. Never select, start, move, or
-close a sub-issue automatically. Implement and commit the chosen issue, present
-verification, then wait for approval before closure. Synchronization,
-integration, epic closure, and cleanup are separate approval boundaries.
+A user may delegate one issue, an ordered set of issues, or an entire epic. For
+a delegated epic, repeatedly select the next open, unblocked sub-issue from the
+native GitHub dependency graph, implement it, commit it, and continue without
+requesting confirmation between issues. Pause only when progress requires an
+unexpected user decision, including material product ambiguity, conflicting
+contracts, destructive or customer-data-risking work, a consequential
+architectural choice, unavailable credentials, or a blocking infrastructure
+failure. Do not silently broaden scope to repair unrelated failures.
 
 Run commands through the current worktree's `bin/in-env`. Before runtime E2E in
 a sibling checkout, confirm `dev-workspace-info --json` reports its expected
 path and slot. For an unpushed completed epic, prefer
 `epic-worktree-manage sync --strategy rebase --apply`, verify it, then
-`integrate --mode ff-only --approve`; do not combine integration, issue closure,
-or cleanup.
+`integrate --mode ff-only --approve`. GitHub mutations, synchronization,
+integration, epic closure, and cleanup must continue to respect approval
+boundaries imposed by the agent harness.
 
 ## Product And Framework
 
@@ -99,15 +103,32 @@ application modules or retain stale baseline entries.
 
 Use the repo wrapper unless you are already inside the devenv shell. Run
 `bin/in-env` commands serially: concurrent wrapper entries can race on generated
-`.devenv` shell files and produce false setup failures. Use cheap/focused checks
-before expensive full gates, and validate worktree identity before starting any
-runtime-dependent E2E check. Stop and report infrastructure failures separately
-from code failures instead of broadening an integration task into runtime repair.
+`.devenv` shell files and produce false setup failures. Stop and report
+infrastructure failures separately from code failures instead of broadening an
+implementation task into runtime repair.
+
+During delegated epic implementation, keep each intermediate commit mechanically
+sound. After code edits, inspect language-server diagnostics and run:
+
+```bash
+bash ./bin/in-env typecheck
+```
+
+Run additional per-commit checks only when required to keep generated artifacts,
+schema contracts, migrations, or other hard build boundaries valid, or when a
+change is unusually risky. Schema changes must still include their
+customer-data-preserving migration in the same commit; run `regen-types` and the
+minimum migration/schema checks needed to establish that hard boundary.
+
+Defer broad Hspec, frontend, E2E, lint, formatting, coverage, weeder,
+documentation-drift, and full verification gates until the epic implementation
+phase is complete. Then run affected focused checks, the appropriate
+repository-wide gates, and final Standards and Spec review. Available gates
+include:
 
 ```bash
 bash ./bin/in-env verify-fast
 bash ./bin/in-env verify-full
-bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test
 bash ./bin/in-env hspec-coverage
 bash ./bin/in-env frontend-check
@@ -118,8 +139,7 @@ bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env ./bin/doc-drift-check
 ```
 
-After schema changes, run `regen-types`, typecheck, migration/schema checks, and
-local parser/startup verification. After controller changes, run focused Hspec;
-after UI/integration changes, run focused E2E or screenshots as appropriate.
+Before runtime E2E, validate worktree identity. Do not defer safety-critical
+migration correctness merely to reduce verification time.
 
 When reporting, be extremely concise; sacrifice grammar for concision.
