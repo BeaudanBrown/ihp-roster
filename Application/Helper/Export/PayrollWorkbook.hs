@@ -8,6 +8,8 @@ module Application.Helper.Export.PayrollWorkbook
     , PayrollWorkbookFilter (..)
     , PayrollWorkbookSheet (..)
     , PayrollWorkbookSheetFamily (..)
+    , PayrollWorkbookXeroQuantity (..)
+    , payrollWorkbookFromDefinitionWithXeroQuantities
     , availablePayrollWorkbookSheetFamilies
     , currentPayrollWorkbookDefinitionVersion
     , defaultPayrollWorkbookCellStyle
@@ -100,6 +102,7 @@ data PayrollWorkbookSheetFamily
     | PayrollWorkbookShiftTypeHours
     | PayrollWorkbookEmployeePayBucketWages
     | PayrollWorkbookShiftTypeWages
+    | PayrollWorkbookXeroPayItems
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 instance InputValue PayrollWorkbookSheetFamily where
@@ -117,7 +120,7 @@ defaultPayrollWorkbookDefinition =
     PayrollWorkbookDefinition
         { payrollWorkbookDefinitionKey = "builtin-default"
         , payrollWorkbookDefinitionVersion = currentPayrollWorkbookDefinitionVersion
-        , payrollWorkbookDefinitionSheetFamilies = availablePayrollWorkbookSheetFamilies
+        , payrollWorkbookDefinitionSheetFamilies = filter (/= PayrollWorkbookXeroPayItems) availablePayrollWorkbookSheetFamilies
         }
 
 currentPayrollWorkbookDefinitionVersion :: Int
@@ -130,6 +133,7 @@ availablePayrollWorkbookSheetFamilies =
     , PayrollWorkbookShiftTypeHours
     , PayrollWorkbookEmployeePayBucketWages
     , PayrollWorkbookShiftTypeWages
+    , PayrollWorkbookXeroPayItems
     ]
 
 payrollWorkbookSheetFamilyKey :: PayrollWorkbookSheetFamily -> Text
@@ -139,6 +143,7 @@ payrollWorkbookSheetFamilyKey = \case
     PayrollWorkbookShiftTypeHours         -> "shift-type-hours"
     PayrollWorkbookEmployeePayBucketWages -> "employee-pay-bucket-wages"
     PayrollWorkbookShiftTypeWages         -> "shift-type-wages"
+    PayrollWorkbookXeroPayItems           -> "xero-pay-items"
 
 payrollWorkbookSheetFamilyConfigurationLabel :: PayrollWorkbookSheetFamily -> Text
 payrollWorkbookSheetFamilyConfigurationLabel = \case
@@ -147,6 +152,7 @@ payrollWorkbookSheetFamilyConfigurationLabel = \case
     PayrollWorkbookShiftTypeHours         -> "Hours by Shift Type"
     PayrollWorkbookEmployeePayBucketWages -> "Wages by Staff"
     PayrollWorkbookShiftTypeWages         -> "Wages by Shift Type"
+    PayrollWorkbookXeroPayItems           -> "Xero pay items"
 
 payrollWorkbookSheetFamilyFromText :: Text -> Either Text PayrollWorkbookSheetFamily
 payrollWorkbookSheetFamilyFromText value =
@@ -156,6 +162,7 @@ payrollWorkbookSheetFamilyFromText value =
         "shift-type-hours"          -> Right PayrollWorkbookShiftTypeHours
         "employee-pay-bucket-wages" -> Right PayrollWorkbookEmployeePayBucketWages
         "shift-type-wages"          -> Right PayrollWorkbookShiftTypeWages
+        "xero-pay-items"            -> Right PayrollWorkbookXeroPayItems
         unsupported                 -> Left ("Unsupported Payroll Workbook sheet family: " <> unsupported <> ".")
 
 defaultPayrollWorkbookCellStyle :: PayrollWorkbookCellStyle
@@ -179,16 +186,30 @@ payrollWorkbookFromDefinition ::
     Int ->
     PayrollWorkbookFactModel ->
     Either Text PayrollWorkbook
-payrollWorkbookFromDefinition definition rosterWeekStartsOn factModel = do
+payrollWorkbookFromDefinition = payrollWorkbookFromDefinitionWithXeroQuantities Nothing
+
+data PayrollWorkbookXeroQuantity = PayrollWorkbookXeroQuantity
+    { xeroQuantityStaffId :: UUID
+    , xeroQuantityStaffName :: Text
+    , xeroQuantityPayItemId :: Text
+    , xeroQuantityPayItemName :: Text
+    , xeroQuantityDate :: Day
+    , xeroQuantityUnits :: Rational
+    } deriving (Eq, Show)
+
+payrollWorkbookFromDefinitionWithXeroQuantities :: Maybe [PayrollWorkbookXeroQuantity] -> PayrollWorkbookDefinition -> Int -> PayrollWorkbookFactModel -> Either Text PayrollWorkbook
+payrollWorkbookFromDefinitionWithXeroQuantities quantities definition rosterWeekStartsOn factModel = do
     validatePayrollWorkbookDefinition definition
-    pure (payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel)
+    when (PayrollWorkbookXeroPayItems `elem` definition.payrollWorkbookDefinitionSheetFamilies && isNothing quantities)
+        (Left "Xero pay-items sheet requires resolved selected earnings quantities.")
+    pure (payrollWorkbookFromValidatedDefinition (fromMaybe [] quantities) definition rosterWeekStartsOn factModel)
 
 payrollWorkbookFromValidatedDefinition ::
-    PayrollWorkbookDefinition ->
+    [PayrollWorkbookXeroQuantity] -> PayrollWorkbookDefinition ->
     Int ->
     PayrollWorkbookFactModel ->
     PayrollWorkbook
-payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
+payrollWorkbookFromValidatedDefinition quantities definition rosterWeekStartsOn factModel =
     let projected = payrollWorkbookHourlyModelFromFacts factModel
      in PayrollWorkbook
             { sheets = concatMap (familySheets projected) definition.payrollWorkbookDefinitionSheetFamilies <> [dataSheet factModel]
@@ -205,7 +226,35 @@ payrollWorkbookFromValidatedDefinition definition rosterWeekStartsOn factModel =
             map (dailySheet projected DailyWages) projected.payrollModelDays
         PayrollWorkbookShiftTypeWages ->
             map (shiftTypeSheet factModel shiftTypeModel ShiftTypeWages) [factModel.payrollFactModelRangeStart .. factModel.payrollFactModelRangeEnd]
+        PayrollWorkbookXeroPayItems ->
+            map (xeroPayItemsSheet quantities) (summaryWeekAnchors rosterWeekStartsOn projected)
     shiftTypeModel = shiftTypeModelFromFacts factModel.payrollFactModelFacts
+
+xeroPayItemsSheet :: [PayrollWorkbookXeroQuantity] -> Day -> PayrollWorkbookSheet
+xeroPayItemsSheet quantities weekStart = PayrollWorkbookSheet
+    { name = "Xero " <> tshow weekStart
+    , hidden = False
+    , cells = zipWith (cell 1) [1 ..] (map PayrollWorkbookText (["Employee", "Pay item"] <> map tshow days <> ["Total"]))
+        <> concat (zipWith rowCells [2 ..] (Map.toAscList grouped))
+    , columnWidths = [(1, 32), (2, 36)] <> [(column, 16) | column <- [3 .. 10]]
+    , hiddenColumns = []
+    , tabColor = Nothing
+    , autoFilter = Nothing
+    , frozenRows = 1
+    , frozenColumns = 2
+    }
+  where
+    days = [weekStart .. addDays 6 weekStart]
+    inWeek = filter (\quantity -> quantity.xeroQuantityDate `elem` days) quantities
+    grouped = Map.fromListWith (Map.unionWith (+))
+        [ ((quantity.xeroQuantityStaffId, quantity.xeroQuantityPayItemId, quantity.xeroQuantityStaffName, quantity.xeroQuantityPayItemName), Map.singleton quantity.xeroQuantityDate quantity.xeroQuantityUnits)
+        | quantity <- inWeek ]
+    cell row column value = PayrollWorkbookCell row column value defaultPayrollWorkbookCellStyle
+    rowCells row ((_, _, staffName, itemName), byDate) =
+        zipWith (cell row) [1 ..]
+            (map PayrollWorkbookText [staffName, itemName]
+                <> map (PayrollWorkbookNumber . fromRational . (\day -> Map.findWithDefault 0 day byDate)) days
+                <> [PayrollWorkbookNumber (fromRational (sum (Map.elems byDate)))])
 
 validatePayrollWorkbookDefinition :: PayrollWorkbookDefinition -> Either Text ()
 validatePayrollWorkbookDefinition definition

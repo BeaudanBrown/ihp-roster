@@ -16,6 +16,7 @@ import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
+import Application.Helper.Export.XeroPayItems
 import Application.Helper.Telemetry (withExportTelemetrySpan)
 import Application.Helper.TimesheetSelection
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -122,8 +123,11 @@ requestPayrollWorkbookForEntries entries definition rangeStart rangeEnd = do
                 let calculationsByEntryId = calculationMap includedEntries calculations
                 case buildPayrollWorkbookFactModel rangeStart rangeEnd venueConfig includedEntries staffById payBucketsByEntryId shiftLabelsByEntryId shiftTypeColumns calculationsByEntryId of
                     Left message -> pure (Left message)
-                    Right factModel ->
-                        case payrollWorkbookFromDefinition definition venueConfig.rosterWeekStartsOn factModel of
+                    Right factModel -> do
+                        quantities <- if PayrollWorkbookXeroPayItems `elem` definition.payrollWorkbookDefinitionSheetFamilies
+                            then fmap Just <$> fetchWorkbookXeroQuantities currentVenueId rangeStart rangeEnd includedEntries
+                            else pure (Right Nothing)
+                        case quantities >>= (\resolved -> payrollWorkbookFromDefinitionWithXeroQuantities resolved definition venueConfig.rosterWeekStartsOn factModel) of
                             Left message -> pure (Left message)
                             Right workbook -> persistModel definition includedEntries versionManifestsByEntryId factModel workbook
   where

@@ -6,6 +6,8 @@ module Application.Xero.Timesheets.Preview
     , buildXeroTimesheetPreviewRun
     , createPersistedXeroTimesheetPreview
     , fetchPreviewInput
+    , fetchEarningsInputForEntries
+    , resolveComponentEarningsRouting
     , fetchPreparedPreviewInput
     , periodDays
     , xeroReadinessSnapshotJson
@@ -249,9 +251,21 @@ fetchPreviewInput request connection = do
     let entries =
             calendarEligibleEntries
                 |> filter (not . (`elem` previousConnectionEntryIds) . unpackId . (.id))
+    input <- fetchEarningsInputForEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd connection entries
+    pure input { previewStaffMappings = staffMappings, previewRemoteTimesheets = request.readinessRemoteTimesheets }
+
+-- Shared sealed earnings read model. Unlike submission eligibility, manual
+-- workbook quantities must not depend on employee mappings or calendar routing.
+fetchEarningsInputForEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> XeroConnection -> [TimesheetEntry] -> IO XeroTimesheetPreviewInput
+fetchEarningsInputForEntries venueId periodStart periodEnd connection entries = do
+    staffMappings <- query @XeroStaffMapping
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> filterWhereIn (#staffId, map (.staffId) entries)
+        |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
+        |> fetch
     staffMembers <-
         query @Staff
-            |> filterWhere (#venueId, unpackId request.readinessVenueId)
+            |> filterWhere (#venueId, unpackId venueId)
             |> filterWhereIn (#id, map (Id . (.staffId)) entries)
             |> fetch
     staffPayVersions <-
@@ -292,9 +306,9 @@ fetchPreviewInput request connection = do
     let calculations = Map.mapMaybe (\case Left _ -> Nothing; Right calculation -> calculation) loadedCalculations
     awardLevels <- query @AwardLevel |> fetch
     pure XeroTimesheetPreviewInput
-        { previewVenueId = request.readinessVenueId
-        , previewPeriodStart = request.readinessPeriodStart
-        , previewPeriodEnd = request.readinessPeriodEnd
+        { previewVenueId = venueId
+        , previewPeriodStart = periodStart
+        , previewPeriodEnd = periodEnd
         , previewTimesheetEntries = entries
         , previewStaff = staffMembers
         , previewStaffMappings = staffMappings
@@ -308,7 +322,7 @@ fetchPreviewInput request connection = do
         , previewComponentRowsByCalculationId = Map.fromListWith (<>) [(row.timesheetPayCalculationId, [row]) | row <- componentRows]
         , previewLateBindingsByComponentId = Map.fromList [(binding.timesheetPayEarningsComponentId, binding) | binding <- lateBindings]
         , previewAwardLevels = awardLevels
-        , previewRemoteTimesheets = request.readinessRemoteTimesheets
+        , previewRemoteTimesheets = []
         }
 
 mappingIncludesEntry :: TimesheetEntry -> XeroStaffMapping -> Bool
@@ -411,7 +425,23 @@ componentContribution ::
     (Int, Day, EarningsComponent) ->
     Either Text SegmentContribution
 componentContribution input payCalculation entry staff xeroEmployeeId staffVersionId shiftVersionId componentRow (_, componentDate, component) = do
-    (localBucketKey, earningsRateId) <- case (component.publishedXeroLocalBucketKey, component.publishedXeroEarningsRateId) of
+    (localBucketKey, earningsRateId) <- resolveComponentEarningsRouting input payCalculation entry staff staffVersionId shiftVersionId componentRow componentDate component
+    pure SegmentContribution
+        { contributionStaffId = unpackId staff.id
+        , contributionXeroEmployeeId = xeroEmployeeId
+        , contributionEntryId = unpackId entry.id
+        , contributionStaffVersionId = staffVersionId
+        , contributionShiftVersionId = shiftVersionId
+        , contributionOperationalDate = payCalculation.operationalDate
+        , contributionLocalBucketKey = localBucketKey
+        , contributionEarningsRateId = earningsRateId
+        , contributionUnit = component.unitType
+        , contributionUnits = component.quantity
+        }
+
+resolveComponentEarningsRouting :: XeroTimesheetPreviewInput -> TimesheetPayCalculation -> TimesheetEntry -> Staff -> UUID -> UUID -> TimesheetPayEarningsComponent -> Day -> EarningsComponent -> Either Text (Text, Text)
+resolveComponentEarningsRouting input payCalculation entry staff staffVersionId shiftVersionId componentRow componentDate component =
+    case (component.publishedXeroLocalBucketKey, component.publishedXeroEarningsRateId) of
         (Just sealedBucketKey, Just sealedEarningsRateId) -> pure (sealedBucketKey, sealedEarningsRateId)
         (Nothing, Nothing)
             | component.publishedXeroMappingLegacyFallback -> do
@@ -428,18 +458,6 @@ componentContribution input payCalculation entry staff xeroEmployeeId staffVersi
                 binding <- maybeToEither ("Approved component has no Xero earnings routing for entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId componentRow.id) input.previewLateBindingsByComponentId)
                 pure (binding.localBucketKey, binding.xeroEarningsRateId)
         _ -> Left ("Approved component has an incomplete sealed Xero earnings mapping for entry " <> tshow (unpackId entry.id))
-    pure SegmentContribution
-        { contributionStaffId = unpackId staff.id
-        , contributionXeroEmployeeId = xeroEmployeeId
-        , contributionEntryId = unpackId entry.id
-        , contributionStaffVersionId = staffVersionId
-        , contributionShiftVersionId = shiftVersionId
-        , contributionOperationalDate = payCalculation.operationalDate
-        , contributionLocalBucketKey = localBucketKey
-        , contributionEarningsRateId = earningsRateId
-        , contributionUnit = component.unitType
-        , contributionUnits = component.quantity
-        }
 
 approvedImportedPayItemForVersions :: XeroTimesheetPreviewInput -> UUID -> UUID -> Maybe XeroImportedPayItem
 approvedImportedPayItemForVersions input staffVersionId shiftVersionId = do
