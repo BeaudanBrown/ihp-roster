@@ -604,18 +604,6 @@ preparationPayItemRequirementsError = \case
     PayItemRequirementsBucketsBlocked _ -> "Cannot derive managed pay items until the approved pay-ledger blockers are corrected."
     PayItemRequirementsNoApprovedBuckets -> "There are no approved pay buckets in the selected Xero period."
 
-fetchPreparationNotPaidStaffIds ::
-    (?modelContext :: ModelContext) =>
-    XeroConnection ->
-    IO [UUID]
-fetchPreparationNotPaidStaffIds connection = do
-    mappings <-
-        query @XeroStaffMapping
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, NotApplicable)
-            |> fetch
-    pure (map (.staffId) mappings)
-
 ensurePreparationDecisionProposals ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
