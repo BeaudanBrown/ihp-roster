@@ -90,24 +90,22 @@ tests = do
             map bucketErrorSafeMessage causes `shouldSatisfy` all (not . Text.isInfixOf "private derivation detail")
 
     describe "Xero timesheet API parsing" do
-        it "parses Timesheets envelopes with Microsoft JSON dates and line units" do
-            let payload = "{\"Timesheets\":[{\"TimesheetID\":\"ts-1\",\"EmployeeID\":\"employee-1\",\"StartDate\":\"/Date(1777248000000+0000)/\",\"EndDate\":\"/Date(1777766400000+0000)/\",\"Status\":\"DRAFT\",\"Hours\":17.0,\"TimesheetLines\":[{\"EarningsRateID\":\"earnings-1\",\"NumberOfUnits\":[2.0,10.0,0.0,0.0,5.0,0.0,0.0]}]}]}"
+        it "parses summary envelopes without treating omitted lines as empty detail" do
+            let payload = "{\"Timesheets\":[{\"TimesheetID\":\"ts-1\",\"EmployeeID\":\"employee-1\",\"StartDate\":\"/Date(1777248000000+0000)/\",\"EndDate\":\"/Date(1777766400000+0000)/\",\"Status\":\"DRAFT\",\"Hours\":17.0}]}"
             let decoded = Aeson.eitherDecode payload :: Either String XeroTimesheetsResponse
             fmap (map (.xeroTimesheetId) . unXeroTimesheetsResponse) decoded `shouldBe` Right [Just "ts-1"]
-            case decoded of
-                Left err -> expectationFailure err
-                Right response ->
-                    case unXeroTimesheetsResponse response of
-                        timesheet : _ -> do
-                            timesheet.xeroTimesheetStartDate `shouldBe` fromGregorian 2026 4 27
-                            timesheet.xeroTimesheetEndDate `shouldBe` fromGregorian 2026 5 3
-                            map (.xeroTimesheetLineUnits) timesheet.xeroTimesheetLines `shouldBe` [[2, 10, 0, 0, 5, 0, 0]]
-                        [] -> expectationFailure "expected parsed timesheet"
 
-        it "parses single Timesheet envelopes" do
-            let payload = "{\"Timesheet\":{\"TimesheetID\":\"ts-2\",\"EmployeeID\":\"employee-2\",\"StartDate\":\"2026-04-27\",\"EndDate\":\"2026-05-03\",\"Status\":\"DRAFT\",\"TimesheetLines\":[]}}"
+        it "normalizes v1 quantity arrays to dated detail lines" do
+            let payload = "{\"Timesheet\":{\"TimesheetID\":\"ts-2\",\"EmployeeID\":\"employee-2\",\"StartDate\":\"2026-04-27\",\"EndDate\":\"2026-05-03\",\"Status\":\"DRAFT\",\"TimesheetLines\":[{\"EarningsRateID\":\"earnings-1\",\"NumberOfUnits\":[2,10,0,0,5,0,0]}]}}"
             let decoded = Aeson.eitherDecode payload :: Either String XeroTimesheetObjectResponse
-            fmap (xeroTimesheetId . unXeroTimesheetObjectResponse) decoded `shouldBe` Right (Just "ts-2")
+            fmap (map (\line -> (line.xeroTimesheetLineDate, line.xeroTimesheetLineQuantity)) . (.xeroTimesheetLines) . unXeroTimesheetObjectResponse) decoded
+                `shouldBe` Right (zip [fromGregorian 2026 4 27 .. fromGregorian 2026 5 3] [2,10,0,0,5,0,0])
+
+        it "parses v2 dated scalar detail lines and remote line ids" do
+            let payload = "{\"timesheet\":{\"timesheetID\":\"ts-v2\",\"employeeID\":\"employee-2\",\"startDate\":\"2026-04-27\",\"endDate\":\"2026-05-03\",\"status\":\"Draft\",\"timesheetLines\":[{\"timesheetLineID\":\"line-1\",\"date\":\"2026-04-28\",\"earningsRateID\":\"earnings-1\",\"trackingItemID\":\"tracking-1\",\"numberOfUnits\":3.5}]}}"
+            let decoded = Aeson.eitherDecode payload :: Either String XeroTimesheetObjectResponse
+            fmap (map (\line -> (line.xeroTimesheetLineId, line.xeroTimesheetLineDate, line.xeroTimesheetLineQuantity)) . (.xeroTimesheetLines) . unXeroTimesheetObjectResponse) decoded
+                `shouldBe` Right [(Just "line-1", fromGregorian 2026 4 28, 3.5)]
 
         it "normalizes Xero ISO date-time variants to calendar dates" do
             let variants :: [Text]
@@ -168,16 +166,6 @@ tests = do
                     , xeroPayRunPage = Just 2
                     }
                 `shouldBe` "https://api.xero.com/payroll.xro/1.0/PayRuns?where=PayrollCalendarID%3D%3DGuid%28%22calendar-1%22%29&order=PayRunPeriodStartDate%20DESC&page=2"
-
-        it "generates encoded Timesheets query URLs" do
-            xeroTimesheetsUrl
-                XeroTimesheetQuery
-                    { xeroTimesheetIfModifiedSince = Nothing
-                    , xeroTimesheetWhere = Just "EmployeeID==Guid(\"employee-1\")"
-                    , xeroTimesheetOrder = Just "StartDate DESC"
-                    , xeroTimesheetPage = Just 2
-                    }
-                `shouldBe` "https://api.xero.com/payroll.xro/1.0/Timesheets?where=EmployeeID%3D%3DGuid%28%22employee-1%22%29&order=StartDate%20DESC&page=2"
 
     aroundAll withDatabaseTestContext do
       describe "Xero draft-timesheet readiness" do
@@ -726,7 +714,6 @@ tests = do
                                     , xeroTimesheetEndDate = fromGregorian 2026 5 3
                                     , xeroTimesheetStatus = Just "DRAFT"
                                     , xeroTimesheetHours = Nothing
-                                    , xeroTimesheetLines = []
                                     , xeroTimesheetRaw = Aeson.Null
                                     }
                                 ]
@@ -751,7 +738,6 @@ tests = do
                                     , xeroTimesheetEndDate = fromGregorian 2026 5 3
                                     , xeroTimesheetStatus = Just "APPROVED"
                                     , xeroTimesheetHours = Nothing
-                                    , xeroTimesheetLines = []
                                     , xeroTimesheetRaw = Aeson.Null
                                     }
                                 ]
@@ -775,7 +761,6 @@ tests = do
                                     , xeroTimesheetEndDate = fromGregorian 2026 5 3
                                     , xeroTimesheetStatus = Just "DRAFT"
                                     , xeroTimesheetHours = Nothing
-                                    , xeroTimesheetLines = []
                                     , xeroTimesheetRaw = Aeson.Null
                                     }
                                 ]

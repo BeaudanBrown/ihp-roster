@@ -202,6 +202,5 @@ remoteWithTimesheetId timesheetId status =
         , xeroTimesheetEndDate = fromGregorian 2026 8 9
         , xeroTimesheetStatus = status
         , xeroTimesheetHours = Nothing
-        , xeroTimesheetLines = []
         , xeroTimesheetRaw = Aeson.Null
         }

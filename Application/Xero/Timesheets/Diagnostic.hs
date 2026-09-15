@@ -52,7 +52,8 @@ data XeroTimesheetDiagnosticSnapshot = XeroTimesheetDiagnosticSnapshot
 
 data XeroTimesheetDiagnosticLine = XeroTimesheetDiagnosticLine
     { diagnosticLineOrdinal           :: !Int
-    , diagnosticLineEarningsRateRef   :: !(Maybe Text)
+    , diagnosticLineDate              :: !Day
+    , diagnosticLineEarningsRateRef   :: !Text
     , diagnosticLineUnits             :: ![Scientific]
     , diagnosticLinePayItemFound      :: !Bool
     , diagnosticLineRateType          :: !(Maybe Text)
@@ -79,8 +80,8 @@ fetchXeroTimesheetDiagnostic submission connection =
                     refreshXeroConnectionAccess xeroConfig connection >>= \case
                         Left _ -> pure (Left DiagnosticXeroConnectionUnavailable)
                         Right (refreshedConnection, accessToken) -> do
-                            client <- currentXeroClient
-                            client.fetchTimesheet accessToken refreshedConnection.tenantId timesheetId >>= \case
+                            client <- currentXeroPayrollClient
+                            client.payrollFetchTimesheetDetail accessToken refreshedConnection.tenantId timesheetId >>= \case
                                 Left _ -> pure (Left DiagnosticXeroTimesheetUnavailable)
                                 Right remote
                                     | not (remoteMatchesSubmission submission remote) ->
@@ -88,7 +89,7 @@ fetchXeroTimesheetDiagnostic submission connection =
                                     | otherwise -> do
                                         let rateIds =
                                                 List.nub
-                                                    ( mapMaybe (.xeroTimesheetLineEarningsRateId) remote.xeroTimesheetLines
+                                                    ( map (.xeroTimesheetLineEarningsRateId) remote.xeroTimesheetLines
                                                         <> snapshotRateIds (firstRequestObject submission.requestPayloadJson)
                                                         <> snapshotRateIds (storedResponseObject submission.responsePayloadJson)
                                                     )
@@ -99,13 +100,14 @@ fetchXeroTimesheetDiagnostic submission connection =
                                                 |> fetch
                                         pure (Right (buildDiagnostic submission timesheetId rates remote))
 
-remoteMatchesSubmission :: XeroTimesheetSubmission -> XeroTimesheetRef -> Bool
-remoteMatchesSubmission submission remote =
-    remote.xeroTimesheetEmployeeId == submission.xeroEmployeeId
-        && remote.xeroTimesheetStartDate == submission.payPeriodStart
-        && remote.xeroTimesheetEndDate == submission.payPeriodEnd
+remoteMatchesSubmission :: XeroTimesheetSubmission -> XeroTimesheetDetailRef -> Bool
+remoteMatchesSubmission submission detail =
+    let remote = detail.xeroTimesheetDetailSummary
+     in remote.xeroTimesheetEmployeeId == submission.xeroEmployeeId
+            && remote.xeroTimesheetStartDate == submission.payPeriodStart
+            && remote.xeroTimesheetEndDate == submission.payPeriodEnd
 
-buildDiagnostic :: XeroTimesheetSubmission -> Text -> [XeroEarningsRate] -> XeroTimesheetRef -> XeroTimesheetDiagnostic
+buildDiagnostic :: XeroTimesheetSubmission -> Text -> [XeroEarningsRate] -> XeroTimesheetDetailRef -> XeroTimesheetDiagnostic
 buildDiagnostic submission timesheetId rates remote =
     let rateMap = Map.fromList [(rate.xeroEarningsRateId, rate) | rate <- rates]
      in XeroTimesheetDiagnostic
@@ -129,15 +131,16 @@ snapshotFromStoredResponse :: Map.Map Text XeroEarningsRate -> Aeson.Value -> Xe
 snapshotFromStoredResponse rateMap payload =
     snapshotFromValue rateMap "Stored Xero response" (storedResponseObject payload)
 
-snapshotFromRemote :: Map.Map Text XeroEarningsRate -> XeroTimesheetRef -> XeroTimesheetDiagnosticSnapshot
+snapshotFromRemote :: Map.Map Text XeroEarningsRate -> XeroTimesheetDetailRef -> XeroTimesheetDiagnosticSnapshot
 snapshotFromRemote rateMap remote =
-    XeroTimesheetDiagnosticSnapshot
-        { diagnosticSnapshotLabel = "Current Xero draft"
-        , diagnosticSnapshotStatus = remote.xeroTimesheetStatus
-        , diagnosticSnapshotProviderUpdatedAt = providerUpdatedAt remote.xeroTimesheetRaw
-        , diagnosticSnapshotHasValidationErrors = hasValidationErrors remote.xeroTimesheetRaw
-        , diagnosticSnapshotLines = zipWith (diagnosticLine rateMap) [1 ..] remote.xeroTimesheetLines
-        }
+    let summary = remote.xeroTimesheetDetailSummary
+     in XeroTimesheetDiagnosticSnapshot
+            { diagnosticSnapshotLabel = "Current Xero draft"
+            , diagnosticSnapshotStatus = summary.xeroTimesheetStatus
+            , diagnosticSnapshotProviderUpdatedAt = providerUpdatedAt summary.xeroTimesheetRaw
+            , diagnosticSnapshotHasValidationErrors = hasValidationErrors summary.xeroTimesheetRaw
+            , diagnosticSnapshotLines = zipWith (diagnosticLine rateMap) [1 ..] remote.xeroTimesheetLines
+            }
 
 snapshotFromValue :: Map.Map Text XeroEarningsRate -> Text -> Maybe Aeson.Value -> XeroTimesheetDiagnosticSnapshot
 snapshotFromValue rateMap label maybeValue =
@@ -169,27 +172,22 @@ storedResponseObject (Aeson.Object object) = do
 storedResponseObject _ = Nothing
 
 timesheetLines :: Aeson.Value -> [XeroTimesheetLineRef]
-timesheetLines (Aeson.Object object) =
-    case lookupAny ["TimesheetLines", "timesheetLines"] object of
-        Just (Aeson.Array values) -> mapMaybe decodeLine (Vector.toList values)
-        _                         -> []
-  where
-    decodeLine value =
-        case Aeson.fromJSON value of
-            Aeson.Success line -> Just line
-            Aeson.Error _      -> Nothing
-timesheetLines _ = []
+timesheetLines value =
+    case Aeson.fromJSON value :: Aeson.Result XeroTimesheetDetailRef of
+        Aeson.Success detail -> detail.xeroTimesheetLines
+        Aeson.Error _        -> []
 
 snapshotRateIds :: Maybe Aeson.Value -> [Text]
-snapshotRateIds = maybe [] (mapMaybe (.xeroTimesheetLineEarningsRateId) . timesheetLines)
+snapshotRateIds = maybe [] (map (.xeroTimesheetLineEarningsRateId) . timesheetLines)
 
 diagnosticLine :: Map.Map Text XeroEarningsRate -> Int -> XeroTimesheetLineRef -> XeroTimesheetDiagnosticLine
 diagnosticLine rateMap ordinal line =
-    let maybeRate = line.xeroTimesheetLineEarningsRateId >>= (`Map.lookup` rateMap)
+    let maybeRate = Map.lookup line.xeroTimesheetLineEarningsRateId rateMap
      in XeroTimesheetDiagnosticLine
             { diagnosticLineOrdinal = ordinal
-            , diagnosticLineEarningsRateRef = redactedRef <$> line.xeroTimesheetLineEarningsRateId
-            , diagnosticLineUnits = line.xeroTimesheetLineUnits
+            , diagnosticLineDate = line.xeroTimesheetLineDate
+            , diagnosticLineEarningsRateRef = redactedRef line.xeroTimesheetLineEarningsRateId
+            , diagnosticLineUnits = [line.xeroTimesheetLineQuantity]
             , diagnosticLinePayItemFound = isJust maybeRate
             , diagnosticLineRateType = (.rateType) =<< maybeRate
             , diagnosticLineTypeOfUnits = maybeRate >>= rawPayloadText ["TypeOfUnits", "typeOfUnits"] . (.rawPayload)

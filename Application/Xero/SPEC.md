@@ -136,9 +136,12 @@ issue and, when cross-system design remains unresolved, a new workstream.
   Xero preparation with the explicit correction/reapproval path.
 - Offline request contracts use checksum-pinned, unmodified official Identity,
   Payroll AU v1/v2, and Accounting OpenAPI files from one upstream commit.
-  Payroll AU v2 Earnings Rates reads and creation lack official upstream
-  operations; their separately named local supplement records documentation
-  provenance, pagination, and explicit response-shape assumptions.
+  Representative used-operation requests and responses are also validated against
+  their referenced schemas; any observed provider divergence remains narrow and
+  documented rather than weakening the vendored contract. Payroll AU v2 Earnings
+  Rates reads and creation lack official upstream operations; their separately
+  named local supplement records documentation provenance, pagination, and
+  explicit response-shape assumptions.
 - Synced payroll calendars are retained reference data. Calendar and period
   choice is explicit on each guided preparation run; no global
   `xero_payroll_calendar_selections` fallback is read or written.
@@ -268,7 +271,10 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   AU v2 timesheet endpoint scoped to the selected payroll calendar and period.
   The initial read omits the optional `page` query parameter because live Xero
   returns 400 for an explicitly requested empty page 1; later full-result pages
-  use page 2 onward.
+  use page 2 onward. Collection results are summary values and never imply that
+  omitted lines are empty. By-id diagnostics use Payroll AU v2 and normalize its
+  dated scalar lines; persisted historical v1 detail arrays are normalized by
+  period position.
 - Confirmation authorizes complete replacement of selected employees' editable
   drafts: unselected content for those employees is removed. Employees without
   selected entries remain untouched. Processed timesheets remain non-editable
@@ -326,13 +332,24 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   derived from its immutable local submission identity and operation sequence.
   Re-entering that exact persisted operation reuses its key; a fresh preparation
   or recovery transition to a different provider operation receives a new key.
-  Legacy employee/period keys fail closed after deployment and require fresh
-  preparation rather than risking reuse across independent draft updates.
+  New keys include the create/replace protocol so incompatible writes cannot
+  share a key; historical `create`, `update`, and `replace` operations remain
+  readable as v1 without rewriting their payload or key. Legacy employee/period
+  keys fail closed after deployment and require fresh preparation rather than
+  risking reuse across independent draft updates.
 - Provider outcomes that cannot be confirmed are recorded as failed with explicit
   check-Xero guidance; persisted payloads are never replayed. Fresh preparation is
   the only retry path. A pending reservation blocks concurrent writes for two
   minutes, after which the next reconciliation fails it as abandoned and proceeds
   from fresh provider state.
+- OAuth/connection operations and typed payroll operations are separate projected
+  clients. Payroll callers provide typed earnings-rate and timesheet drafts; the
+  adapter owns v1 array and v2 object serialization. Whole-draft replacement stays
+  on Payroll AU v1. New draft creation defaults to v1. Enabling v2 requires the
+  explicit `XERO_TIMESHEET_CREATE_PROTOCOL=v2` rollout setting only after approved
+  disposable AU Demo Company create/read/v1-replace evidence. Rollback is removal
+  or `v1`; it affects only future reservations, while each persisted operation
+  retains its original protocol and no remote data is deleted or recreated.
 
 Canonical calculation and bucket behavior lives in `Timesheets/Prepare.hs`,
 `Timesheets/Buckets.hs`, `Timesheets/LateBindings.hs`, `Timesheets/Preview.hs`,

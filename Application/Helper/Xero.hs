@@ -1,9 +1,12 @@
 module Application.Helper.Xero
     ( XeroClient (..)
+    , XeroConnectionClient (..)
+    , XeroPayrollClient (..)
     , XeroClientError (..)
     , XeroRetryAfter (..)
     , XeroConfig (..)
     , XeroAccountRef (..)
+    , XeroEarningsRateCreate (..)
     , XeroEarningsRateRef (..)
     , XeroHttpRequest (..)
     , XeroEmployeeRef (..)
@@ -14,16 +17,20 @@ module Application.Helper.Xero
     , XeroPayrollCalendarRef (..)
     , XeroRequestBody (..)
     , XeroRequestBaseUrls (..)
+    , XeroTimesheetCreateProtocol (..)
+    , XeroTimesheetDetailRef (..)
+    , XeroTimesheetDraft (..)
+    , XeroTimesheetDraftLine (..)
     , XeroTimesheetLineRef (..)
     , XeroTimesheetObjectResponse (..)
-    , XeroTimesheetQuery (..)
     , XeroTimesheetRef (..)
     , XeroTimesheetsResponse (..)
     , XeroTenant (..)
     , XeroTokenResponse (..)
     , buildXeroAuthorizationUrl
-    , buildCreatePayItemRequest
-    , buildCreateTimesheetRequest
+    , buildCreateEarningsRateRequest
+    , buildCreateTimesheetDraftV1Request
+    , buildCreateTimesheetDraftRequest
     , buildDeleteXeroConnectionRequest
     , buildExchangeCodeForTokenRequest
     , buildFetchConnectedTenantsRequest
@@ -34,12 +41,13 @@ module Application.Helper.Xero
     , buildFetchPayrollCalendarsRequest
     , buildFetchPayrollSettingsAccountsRequest
     , buildFetchPayrollEmployeesRequest
-    , buildFetchTimesheetRequest
-    , buildFetchTimesheetsRequest
+    , buildFetchTimesheetDetailRequest
     , buildFetchTimesheetsForPeriodRequest
     , buildRefreshXeroTokenRequest
-    , buildUpdateTimesheetRequest
+    , buildReplaceTimesheetDraftRequest
     , currentXeroClient
+    , currentXeroConnectionClient
+    , currentXeroPayrollClient
     , decryptXeroToken
     , encryptXeroToken
     , generateXeroStateToken
@@ -47,15 +55,17 @@ module Application.Helper.Xero
     , requiredXeroScopes
     , requiredXeroScopesText
     , readXeroEarningsRatesMaxPages
+    , readXeroTimesheetCreateProtocol
     , xeroEarningsRatesDefaultMaxPages
     , xeroEarningsRatesMaxPagesFromEnvironment
     , xeroEarningsRatesPageSize
     , withXeroClientForTest
     , withXeroConfigForTest
     , withXeroRequestBaseUrlsForTest
+    , decodePersistedXeroTimesheetDraft
     , xeroPayRunsUrl
+    , xeroTimesheetCreateProtocolFromEnvironment
     , xeroTimesheetPageWithinLimit
-    , xeroTimesheetsUrl
     )
 where
 
@@ -65,6 +75,7 @@ import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withProviderTelemetrySpan)
 import Application.Helper.Telemetry.Semantic (httpStatusClass,
                                               telemetryHttpMethod)
+import Application.Error.Parser (parserFailure)
 import Application.Helper.Xero.Types
 import qualified Control.Exception as Exception
 import qualified Control.Exception.Safe as SafeException
@@ -75,6 +86,7 @@ import "crypton" Crypto.Error (CryptoError, CryptoFailable (..))
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.Random (getRandomBytes)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString.Base64 as Base64
@@ -86,6 +98,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Time.Format as TimeFormat
+import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple
 import Network.HTTP.Types.Header (HeaderName, hRetryAfter)
@@ -221,12 +234,12 @@ defaultXeroClient =
         , fetchAccounts = fetchAccountsRequest
         , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccountsRequest
         , fetchPayRuns = fetchPayRunsRequest
-        , createPayItem = createPayItemRequest
-        , fetchTimesheets = fetchTimesheetsRequest
+        , createEarningsRate = createEarningsRateRequest
         , fetchTimesheetsForPeriod = fetchTimesheetsForPeriodRequest
-        , fetchTimesheet = fetchTimesheetRequest
-        , createTimesheet = createTimesheetRequest
-        , updateTimesheet = updateTimesheetRequest
+        , fetchTimesheetDetail = fetchTimesheetDetailRequest
+        , createTimesheetDraftV1 = createTimesheetDraftV1Request
+        , createTimesheetDraftV2 = createTimesheetDraftRequest
+        , replaceTimesheetDraft = replaceTimesheetDraftRequest
         }
 
 xeroClientRef :: IORef.IORef XeroClient
@@ -243,6 +256,12 @@ xeroRequestBaseUrlsOverrideRef = unsafePerformIO (IORef.newIORef Nothing)
 
 currentXeroClient :: IO XeroClient
 currentXeroClient = IORef.readIORef xeroClientRef
+
+currentXeroConnectionClient :: IO XeroConnectionClient
+currentXeroConnectionClient = xeroConnectionClient <$> currentXeroClient
+
+currentXeroPayrollClient :: IO XeroPayrollClient
+currentXeroPayrollClient = xeroPayrollClient <$> currentXeroClient
 
 defaultXeroRequestBaseUrls :: XeroRequestBaseUrls
 defaultXeroRequestBaseUrls =
@@ -335,6 +354,18 @@ xeroEarningsRatesMaxPagesFromEnvironment (Just rawValue) =
         Just maxPages | maxPages > 0 -> Right maxPages
         _ -> Left (XeroHttpError "XERO_EARNINGS_RATES_MAX_PAGES must be a positive integer.")
 
+-- V2 creation remains an explicit rollout gate until disposable Demo Company
+-- create/read/v1-replace interoperability evidence is approved.
+readXeroTimesheetCreateProtocol :: IO (Either Text XeroTimesheetCreateProtocol)
+readXeroTimesheetCreateProtocol =
+    xeroTimesheetCreateProtocolFromEnvironment . fmap cs <$> lookupEnv "XERO_TIMESHEET_CREATE_PROTOCOL"
+
+xeroTimesheetCreateProtocolFromEnvironment :: Maybe Text -> Either Text XeroTimesheetCreateProtocol
+xeroTimesheetCreateProtocolFromEnvironment Nothing = Right XeroTimesheetCreateV1
+xeroTimesheetCreateProtocolFromEnvironment (Just "v1") = Right XeroTimesheetCreateV1
+xeroTimesheetCreateProtocolFromEnvironment (Just "v2") = Right XeroTimesheetCreateV2
+xeroTimesheetCreateProtocolFromEnvironment (Just _) = Left "XERO_TIMESHEET_CREATE_PROTOCOL must be v1 or v2."
+
 fetchAllEarningsRatePages :: XeroRequestBaseUrls -> Text -> Text -> Int -> Int -> Set.Set Text -> [XeroEarningsRateRef] -> IO (Either XeroClientError [XeroEarningsRateRef])
 fetchAllEarningsRatePages urls accessToken tenantId maxPages page seenIds acc
     | page > maxPages =
@@ -379,17 +410,11 @@ fetchPayRunsRequest accessToken tenantId query = do
     fmap unXeroPayRunsResponse <$>
         sendXeroJsonRequest "Xero payroll pay runs request" (buildFetchPayRunsRequestWith urls accessToken tenantId query)
 
-createPayItemRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
-createPayItemRequest accessToken tenantId idempotencyKey body = do
+createEarningsRateRequest :: Text -> Text -> Text -> XeroEarningsRateCreate -> IO (Either XeroClientError [XeroEarningsRateRef])
+createEarningsRateRequest accessToken tenantId idempotencyKey earningsRate = do
     urls <- currentXeroRequestBaseUrls
     fmap unXeroEarningsRatesResponse <$>
-        sendXeroJsonRequest "Xero payroll earnings rate create request" (buildCreatePayItemRequestWith urls accessToken tenantId idempotencyKey body)
-
-fetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
-fetchTimesheetsRequest accessToken tenantId query = do
-    urls <- currentXeroRequestBaseUrls
-    fmap unXeroTimesheetsResponse <$>
-        sendXeroJsonRequest "Xero payroll timesheets request" (buildFetchTimesheetsRequestWith urls accessToken tenantId query)
+        sendXeroJsonRequest "Xero payroll earnings rate create request" (buildCreateEarningsRateRequestWith urls accessToken tenantId idempotencyKey earningsRate)
 
 fetchTimesheetsForPeriodRequest :: Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
 fetchTimesheetsForPeriodRequest accessToken tenantId maybeCalendarId periodStart periodEnd = do
@@ -418,23 +443,32 @@ xeroTimesheetPageLimit = 100
 xeroTimesheetPageWithinLimit :: Int -> Bool
 xeroTimesheetPageWithinLimit page = page >= 1 && page <= xeroTimesheetPageLimit
 
-fetchTimesheetRequest :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
-fetchTimesheetRequest accessToken tenantId timesheetId = do
+fetchTimesheetDetailRequest :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetDetailRef)
+fetchTimesheetDetailRequest accessToken tenantId timesheetId = do
     urls <- currentXeroRequestBaseUrls
     fmap unXeroTimesheetObjectResponse <$>
-        sendXeroJsonRequest "Xero payroll timesheet request" (buildFetchTimesheetRequestWith urls accessToken tenantId timesheetId)
+        sendXeroJsonRequest "Xero payroll timesheet detail request" (buildFetchTimesheetDetailRequestWith urls accessToken tenantId timesheetId)
 
-createTimesheetRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
-createTimesheetRequest accessToken tenantId idempotencyKey body = do
+createTimesheetDraftV1Request :: Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+createTimesheetDraftV1Request accessToken tenantId idempotencyKey draft = do
     urls <- currentXeroRequestBaseUrls
     fmap unXeroTimesheetsResponse <$>
-        sendXeroJsonRequest "Xero payroll timesheet create request" (buildCreateTimesheetRequestWith urls accessToken tenantId idempotencyKey body)
+        sendXeroJsonRequest "Xero payroll v1 timesheet create request" (buildCreateTimesheetDraftV1RequestWith urls accessToken tenantId idempotencyKey draft)
 
-updateTimesheetRequest :: Text -> Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
-updateTimesheetRequest accessToken tenantId idempotencyKey timesheetId body = do
+createTimesheetDraftRequest :: Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+createTimesheetDraftRequest accessToken tenantId idempotencyKey draft = do
+    urls <- currentXeroRequestBaseUrls
+    case buildCreateTimesheetDraftRequestWith urls accessToken tenantId idempotencyKey draft of
+        Left err -> pure (Left (XeroSemanticError err))
+        Right request -> do
+            result <- sendXeroJsonRequest "Xero payroll v2 timesheet create request" request
+            pure (fmap ((: []) . (.xeroTimesheetDetailSummary) . unXeroTimesheetObjectResponse) result)
+
+replaceTimesheetDraftRequest :: Text -> Text -> Text -> Text -> XeroTimesheetDraft -> IO (Either XeroClientError [XeroTimesheetRef])
+replaceTimesheetDraftRequest accessToken tenantId idempotencyKey timesheetId draft = do
     urls <- currentXeroRequestBaseUrls
     fmap unXeroTimesheetsResponse <$>
-        sendXeroJsonRequest "Xero payroll timesheet update request" (buildUpdateTimesheetRequestWith urls accessToken tenantId idempotencyKey timesheetId body)
+        sendXeroJsonRequest "Xero payroll v1 timesheet replacement request" (buildReplaceTimesheetDraftRequestWith urls accessToken tenantId idempotencyKey timesheetId draft)
 
 buildExchangeCodeForTokenRequest :: XeroConfig -> Text -> XeroHttpRequest
 buildExchangeCodeForTokenRequest =
@@ -559,21 +593,13 @@ buildFetchPayRunsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroPayRu
 buildFetchPayRunsRequestWith urls accessToken tenantId query =
     buildXeroPayrollGetRequest accessToken tenantId (xeroPayRunsUrlWith urls query) (payRunQueryHeaders query)
 
-buildCreatePayItemRequest :: Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
-buildCreatePayItemRequest =
-    buildCreatePayItemRequestWith defaultXeroRequestBaseUrls
+buildCreateEarningsRateRequest :: Text -> Text -> Text -> XeroEarningsRateCreate -> XeroHttpRequest
+buildCreateEarningsRateRequest =
+    buildCreateEarningsRateRequestWith defaultXeroRequestBaseUrls
 
-buildCreatePayItemRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
-buildCreatePayItemRequestWith urls accessToken tenantId idempotencyKey =
-    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollV2BaseUrl <> "/earningsRates")
-
-buildFetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> XeroHttpRequest
-buildFetchTimesheetsRequest =
-    buildFetchTimesheetsRequestWith defaultXeroRequestBaseUrls
-
-buildFetchTimesheetsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroTimesheetQuery -> XeroHttpRequest
-buildFetchTimesheetsRequestWith urls accessToken tenantId query =
-    buildXeroPayrollGetRequest accessToken tenantId (xeroTimesheetsUrlWith urls query) (timesheetQueryHeaders query)
+buildCreateEarningsRateRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> XeroEarningsRateCreate -> XeroHttpRequest
+buildCreateEarningsRateRequestWith urls accessToken tenantId idempotencyKey earningsRate =
+    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollV2BaseUrl <> "/earningsRates") (xeroEarningsRateCreateJson earningsRate)
 
 buildFetchTimesheetsForPeriodRequest :: Text -> Text -> Maybe Text -> Day -> Day -> Int -> XeroHttpRequest
 buildFetchTimesheetsForPeriodRequest =
@@ -594,29 +620,123 @@ buildFetchTimesheetsForPeriodRequestWith urls accessToken tenantId maybeCalendar
     url = urls.xeroPayrollV2BaseUrl <> "/Timesheets" <> TextEncoding.decodeUtf8 (URI.renderQuery True params)
     renderDay = cs . TimeFormat.formatTime defaultTimeLocale "%F"
 
-buildFetchTimesheetRequest :: Text -> Text -> Text -> XeroHttpRequest
-buildFetchTimesheetRequest =
-    buildFetchTimesheetRequestWith defaultXeroRequestBaseUrls
+buildFetchTimesheetDetailRequest :: Text -> Text -> Text -> XeroHttpRequest
+buildFetchTimesheetDetailRequest =
+    buildFetchTimesheetDetailRequestWith defaultXeroRequestBaseUrls
 
-buildFetchTimesheetRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> XeroHttpRequest
-buildFetchTimesheetRequestWith urls accessToken tenantId timesheetId =
-    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/Timesheets/" <> timesheetId) []
+buildFetchTimesheetDetailRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> XeroHttpRequest
+buildFetchTimesheetDetailRequestWith urls accessToken tenantId timesheetId =
+    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollV2BaseUrl <> "/Timesheets/" <> timesheetId) []
 
-buildCreateTimesheetRequest :: Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
-buildCreateTimesheetRequest =
-    buildCreateTimesheetRequestWith defaultXeroRequestBaseUrls
+buildCreateTimesheetDraftV1Request :: Text -> Text -> Text -> XeroTimesheetDraft -> XeroHttpRequest
+buildCreateTimesheetDraftV1Request =
+    buildCreateTimesheetDraftV1RequestWith defaultXeroRequestBaseUrls
 
-buildCreateTimesheetRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
-buildCreateTimesheetRequestWith urls accessToken tenantId idempotencyKey =
-    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/Timesheets")
+buildCreateTimesheetDraftV1RequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> XeroTimesheetDraft -> XeroHttpRequest
+buildCreateTimesheetDraftV1RequestWith urls accessToken tenantId idempotencyKey draft =
+    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/Timesheets") (xeroTimesheetDraftV1Json draft)
 
-buildUpdateTimesheetRequest :: Text -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
-buildUpdateTimesheetRequest =
-    buildUpdateTimesheetRequestWith defaultXeroRequestBaseUrls
+buildCreateTimesheetDraftRequest :: Text -> Text -> Text -> XeroTimesheetDraft -> Either Text XeroHttpRequest
+buildCreateTimesheetDraftRequest =
+    buildCreateTimesheetDraftRequestWith defaultXeroRequestBaseUrls
 
-buildUpdateTimesheetRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
-buildUpdateTimesheetRequestWith urls accessToken tenantId idempotencyKey timesheetId =
-    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/Timesheets/" <> timesheetId)
+buildCreateTimesheetDraftRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> XeroTimesheetDraft -> Either Text XeroHttpRequest
+buildCreateTimesheetDraftRequestWith urls accessToken tenantId idempotencyKey draft = do
+    body <- xeroTimesheetDraftV2Json draft
+    pure (buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollV2BaseUrl <> "/Timesheets") body)
+
+buildReplaceTimesheetDraftRequest :: Text -> Text -> Text -> Text -> XeroTimesheetDraft -> XeroHttpRequest
+buildReplaceTimesheetDraftRequest =
+    buildReplaceTimesheetDraftRequestWith defaultXeroRequestBaseUrls
+
+buildReplaceTimesheetDraftRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Text -> XeroTimesheetDraft -> XeroHttpRequest
+buildReplaceTimesheetDraftRequestWith urls accessToken tenantId idempotencyKey timesheetId draft =
+    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/Timesheets/" <> timesheetId) (xeroTimesheetDraftV1Json draft)
+
+xeroEarningsRateCreateJson :: XeroEarningsRateCreate -> Aeson.Value
+xeroEarningsRateCreateJson earningsRate =
+    Aeson.object $
+        [ "Name" Aeson..= earningsRate.xeroEarningsRateCreateName
+        , "TypeOfUnits" Aeson..= earningsRate.xeroEarningsRateCreateTypeOfUnits
+        , "EarningsType" Aeson..= earningsRate.xeroEarningsRateCreateEarningsType
+        , "RateType" Aeson..= earningsRate.xeroEarningsRateCreateRateType
+        , "IsSubjectToTax" Aeson..= earningsRate.xeroEarningsRateCreateIsSubjectToTax
+        , "IsSubjectToSuper" Aeson..= earningsRate.xeroEarningsRateCreateIsSubjectToSuper
+        , "IsReportableAsW1" Aeson..= earningsRate.xeroEarningsRateCreateIsReportableAsW1
+        , "IsQualifyingEarnings" Aeson..= earningsRate.xeroEarningsRateCreateIsQualifyingEarnings
+        ]
+            <> maybe [] (\value -> ["RatePerUnit" Aeson..= value]) earningsRate.xeroEarningsRateCreateRatePerUnit
+            <> maybe [] (\value -> ["AccountCode" Aeson..= value]) earningsRate.xeroEarningsRateCreateAccountCode
+            <> maybe [] (\value -> ["ExpenseAccountID" Aeson..= value]) earningsRate.xeroEarningsRateCreateExpenseAccountId
+
+xeroTimesheetDraftV1Json :: XeroTimesheetDraft -> Aeson.Value
+xeroTimesheetDraftV1Json draft =
+    Aeson.Array $ Vector.singleton $ Aeson.object
+        [ "EmployeeID" Aeson..= draft.xeroTimesheetDraftEmployeeId
+        , "StartDate" Aeson..= draft.xeroTimesheetDraftStartDate
+        , "EndDate" Aeson..= draft.xeroTimesheetDraftEndDate
+        , "Status" Aeson..= ("DRAFT" :: Text)
+        , "TimesheetLines" Aeson..= map v1Line draft.xeroTimesheetDraftLines
+        ]
+  where
+    v1Line line = Aeson.object $
+        [ "EarningsRateID" Aeson..= line.xeroTimesheetDraftLineEarningsRateId
+        , "NumberOfUnits" Aeson..= line.xeroTimesheetDraftLineQuantities
+        ] <> maybe [] (\trackingId -> ["TrackingItemID" Aeson..= trackingId]) line.xeroTimesheetDraftLineTrackingItemId
+
+xeroTimesheetDraftV2Json :: XeroTimesheetDraft -> Either Text Aeson.Value
+xeroTimesheetDraftV2Json draft = do
+    payrollCalendarId <- maybe (Left "A Payroll AU v2 timesheet create requires a payroll calendar id.") Right draft.xeroTimesheetDraftPayrollCalendarId
+    validateTimesheetDraftQuantities draft
+    pure $ Aeson.object
+        [ "payrollCalendarID" Aeson..= payrollCalendarId
+        , "employeeID" Aeson..= draft.xeroTimesheetDraftEmployeeId
+        , "startDate" Aeson..= draft.xeroTimesheetDraftStartDate
+        , "endDate" Aeson..= draft.xeroTimesheetDraftEndDate
+        , "timesheetLines" Aeson..= concatMap datedLines draft.xeroTimesheetDraftLines
+        ]
+  where
+    dates = [draft.xeroTimesheetDraftStartDate .. draft.xeroTimesheetDraftEndDate]
+    datedLines line =
+        [ Aeson.object $
+            [ "date" Aeson..= date
+            , "earningsRateID" Aeson..= line.xeroTimesheetDraftLineEarningsRateId
+            , "numberOfUnits" Aeson..= quantity
+            ] <> maybe [] (\trackingId -> ["trackingItemID" Aeson..= trackingId]) line.xeroTimesheetDraftLineTrackingItemId
+        | (date, quantity) <- zip dates line.xeroTimesheetDraftLineQuantities
+        , quantity /= 0
+        ]
+
+validateTimesheetDraftQuantities :: XeroTimesheetDraft -> Either Text ()
+validateTimesheetDraftQuantities draft =
+    unless (all ((== expectedCount) . length . (.xeroTimesheetDraftLineQuantities)) draft.xeroTimesheetDraftLines) $
+        Left "Xero timesheet line quantities must contain exactly one value for every day in the pay period."
+  where
+    expectedCount = fromIntegral (diffDays draft.xeroTimesheetDraftEndDate draft.xeroTimesheetDraftStartDate) + 1
+
+decodePersistedXeroTimesheetDraft :: Aeson.Value -> Either Text XeroTimesheetDraft
+decodePersistedXeroTimesheetDraft value = do
+    draft <- Bifunctor.first cs (AesonTypes.parseEither parseDraft value)
+    validateTimesheetDraftQuantities draft
+    pure draft
+  where
+    parseDraft (Aeson.Array values) =
+        case Vector.toList values of
+            [objectValue] -> parseDraft objectValue
+            _ -> parserFailure "Expected one persisted Xero timesheet request object"
+    parseDraft objectValue = Aeson.withObject "persisted Xero timesheet request" (\object -> do
+        xeroTimesheetDraftPayrollCalendarId <- object Aeson..:? "PayrollCalendarID"
+        xeroTimesheetDraftEmployeeId <- object Aeson..: "EmployeeID"
+        xeroTimesheetDraftStartDate <- object Aeson..: "StartDate"
+        xeroTimesheetDraftEndDate <- object Aeson..: "EndDate"
+        lineValues <- object Aeson..: "TimesheetLines"
+        xeroTimesheetDraftLines <- mapM parseLine lineValues
+        pure XeroTimesheetDraft { .. }) objectValue
+    parseLine = Aeson.withObject "persisted Xero timesheet line" \object -> do
+        xeroTimesheetDraftLineEarningsRateId <- object Aeson..: "EarningsRateID"
+        xeroTimesheetDraftLineTrackingItemId <- object Aeson..:? "TrackingItemID"
+        xeroTimesheetDraftLineQuantities <- object Aeson..: "NumberOfUnits"
+        pure XeroTimesheetDraftLine { .. }
 
 buildXeroPayrollGetRequest :: Text -> Text -> Text -> [(HeaderName, ByteString)] -> XeroHttpRequest
 buildXeroPayrollGetRequest accessToken tenantId url extraHeaders =
@@ -693,9 +813,10 @@ xeroTelemetryOperation label =
         , ("Xero payroll earnings rate create request", "earnings_rate_create")
         , ("Xero payroll timesheets request", "timesheets")
         , ("Xero payroll period timesheets request", "period_timesheets")
-        , ("Xero payroll timesheet request", "timesheet")
-        , ("Xero payroll timesheet create request", "timesheet_create")
-        , ("Xero payroll timesheet update request", "timesheet_update")
+        , ("Xero payroll timesheet detail request", "timesheet_detail_v2")
+        , ("Xero payroll v1 timesheet create request", "timesheet_create_v1")
+        , ("Xero payroll v2 timesheet create request", "timesheet_create_v2")
+        , ("Xero payroll v1 timesheet replacement request", "timesheet_replace_v1")
         , ("Xero disconnect request", "connection_delete")
         ]
 
@@ -714,26 +835,6 @@ toHttpRequest xeroRequest = do
 applyRequestHeaders :: [(HeaderName, ByteString)] -> Request -> Request
 applyRequestHeaders headers request =
     foldl' (\current (name, value) -> setRequestHeader name [value] current) request headers
-
-xeroTimesheetsUrl :: XeroTimesheetQuery -> String
-xeroTimesheetsUrl query =
-    cs (xeroTimesheetsUrlWith defaultXeroRequestBaseUrls query)
-
-xeroTimesheetsUrlWith :: XeroRequestBaseUrls -> XeroTimesheetQuery -> Text
-xeroTimesheetsUrlWith urls query =
-    urls.xeroPayrollBaseUrl <> "/Timesheets" <> renderedQuery
-    where
-        params =
-            catMaybes
-                [ ("where",) . TextEncoding.encodeUtf8 <$> query.xeroTimesheetWhere
-                , ("order",) . TextEncoding.encodeUtf8 <$> query.xeroTimesheetOrder
-                , ("page",) . TextEncoding.encodeUtf8 . tshow <$> query.xeroTimesheetPage
-                ]
-        renderedQuery = TextEncoding.decodeUtf8 (URI.renderQuery True (map (Bifunctor.second Just) params))
-
-timesheetQueryHeaders :: XeroTimesheetQuery -> [(HeaderName, ByteString)]
-timesheetQueryHeaders query =
-    maybe [] (\time -> [("If-Modified-Since", cs (TimeFormat.formatTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" time))]) query.xeroTimesheetIfModifiedSince
 
 xeroPayRunsUrl :: XeroPayRunQuery -> String
 xeroPayRunsUrl query =

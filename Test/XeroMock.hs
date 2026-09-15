@@ -14,7 +14,10 @@ import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import qualified Data.Time.Format as TimeFormat
+import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
+import qualified Data.Yaml as Yaml
 import IHP.Prelude
 import Network.HTTP.Simple (Request, parseRequest, setRequestBodyJSON,
                             setRequestHeader, setRequestMethod)
@@ -29,8 +32,9 @@ import Test.Hspec
 import Text.Read (readMaybe)
 
 data OpenApiSpec = OpenApiSpec
-    { specPath :: !FilePath
-    , specText :: !Text
+    { specPath     :: !FilePath
+    , specText     :: !Text
+    , specDocument :: !Aeson.Value
     }
 
 data PathMatch
@@ -92,8 +96,22 @@ xeroPayrollServer = "https://api.xero.com/payroll.xro/1.0"
 xeroPayrollV2Server :: Text
 xeroPayrollV2Server = "https://api.xero.com/payroll.xro/2.0"
 
+testConnectionId, testTenantId, testTimesheetId, testCalendarId, testEmployeeId, testLineId, testEarningsRateId, testAccountId, testPayRunId :: Text
+testConnectionId = "00000000-0000-4000-8000-000000000000"
+testTenantId = "99999999-9999-4999-8999-999999999999"
+testTimesheetId = "11111111-1111-4111-8111-111111111111"
+testCalendarId = "22222222-2222-4222-8222-222222222222"
+testEmployeeId = "33333333-3333-4333-8333-333333333333"
+testLineId = "44444444-4444-4444-8444-444444444444"
+testEarningsRateId = "55555555-5555-4555-8555-555555555555"
+testAccountId = "66666666-6666-4666-8666-666666666666"
+testPayRunId = "77777777-7777-4777-8777-777777777777"
+
 loadOpenApiSpec :: FilePath -> IO OpenApiSpec
-loadOpenApiSpec path = OpenApiSpec path <$> TextIO.readFile path
+loadOpenApiSpec specPath = do
+    specText <- TextIO.readFile specPath
+    specDocument <- Yaml.decodeFileEither specPath >>= either (error . show) pure
+    pure OpenApiSpec { .. }
 
 loadXeroOpenApiSpecs :: IO (OpenApiSpec, OpenApiSpec)
 loadXeroOpenApiSpecs = do
@@ -116,10 +134,6 @@ xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec e
       , (payrollReadContract "pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }
       , buildFetchPayRunsRequest "access-token" "tenant-id" samplePayRunQuery
       )
-    , ( payrollSpec
-      , (payrollReadContract "timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }
-      , buildFetchTimesheetsRequest "access-token" "tenant-id" sampleTimesheetQuery
-      )
     , ( payrollV2Spec
       , (payrollReadContract "period timesheets list" "/Timesheets" "/Timesheets" ["filter", "startDate", "endDate", "page"])
             { contractSpecServer = Just xeroPayrollV2Server
@@ -128,10 +142,11 @@ xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec e
             }
       , buildFetchTimesheetsForPeriodRequest "access-token" "tenant-id" (Just "calendar-id") (fromGregorian 2026 5 4) (fromGregorian 2026 5 10) 2
       )
-    , (payrollSpec, payrollReadContract "timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
-    , (earningsRatesSpec, payrollEarningsRateCreateContract "earnings rate create" "/earningsRates", buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" sampleEarningsRateBody)
-    , (payrollSpec, payrollWriteContract "timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, buildCreateTimesheetRequest "access-token" "tenant-id" "idem-create" sampleTimesheetArrayBody)
-    , (payrollSpec, payrollWriteContract "timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, buildUpdateTimesheetRequest "access-token" "tenant-id" "idem-update" "timesheet-id" sampleTimesheetArrayBody)
+    , (payrollV2Spec, payrollV2ReadContract "timesheet detail" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], buildFetchTimesheetDetailRequest "access-token" "tenant-id" "timesheet-id")
+    , (earningsRatesSpec, payrollEarningsRateCreateContract "earnings rate create" "/earningsRates", buildCreateEarningsRateRequest "access-token" "tenant-id" "idem-pay-items" sampleEarningsRateCreate)
+    , (payrollSpec, payrollWriteContract "timesheet create v1" "/Timesheets" "/Timesheets" JsonArrayBody, buildCreateTimesheetDraftV1Request "access-token" "tenant-id" "idem-create-v1" sampleTimesheetDraft)
+    , (payrollV2Spec, payrollV2WriteContract "timesheet create v2" "/Timesheets" "/Timesheets" (JsonObjectWithFields ["payrollCalendarID", "employeeID", "startDate", "endDate", "timesheetLines"]), either (error . cs) id (buildCreateTimesheetDraftRequest "access-token" "tenant-id" "idem-create-v2" sampleTimesheetDraft))
+    , (payrollSpec, payrollWriteContract "timesheet replace v1" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, buildReplaceTimesheetDraftRequest "access-token" "tenant-id" "idem-update" "timesheet-id" sampleTimesheetDraft)
     ]
 
 tokenContract :: Text -> BodyContract -> XeroEndpointContract
@@ -182,6 +197,13 @@ payrollReadContract name specPath requestPath documentedParams =
         , contractBody = NoRequestBody
         }
 
+payrollV2ReadContract :: Text -> Text -> Text -> [Text] -> XeroEndpointContract
+payrollV2ReadContract name specPath requestPath documentedParams =
+    (payrollReadContract name specPath requestPath documentedParams)
+        { contractSpecServer = Just xeroPayrollV2Server
+        , contractRequestServer = xeroPayrollV2Server
+        }
+
 accountingReadContract :: Text -> Text -> Text -> XeroEndpointContract
 accountingReadContract name specPath requestPath =
     (payrollReadContract name specPath requestPath [])
@@ -203,6 +225,13 @@ payrollWriteContract name specPath requestPath body =
         , contractDocumentedParams = ["Idempotency-Key"]
         , contractAllowedQueries = []
         , contractBody = body
+        }
+
+payrollV2WriteContract :: Text -> Text -> Text -> BodyContract -> XeroEndpointContract
+payrollV2WriteContract name specPath requestPath body =
+    (payrollWriteContract name specPath requestPath body)
+        { contractSpecServer = Just xeroPayrollV2Server
+        , contractRequestServer = xeroPayrollV2Server
         }
 
 payrollEarningsRateReadContract :: Text -> Text -> XeroEndpointContract
@@ -252,6 +281,10 @@ sampleEarningsRateBody =
         , "TypeOfUnits" Aeson..= ("Hours" :: Text)
         ]
 
+sampleEarningsRateCreate :: XeroEarningsRateCreate
+sampleEarningsRateCreate =
+    XeroEarningsRateCreate "Bepis - Ordinary" "Hours" "ORDINARYTIMEEARNINGS" "RATEPERUNIT" Nothing True True True True Nothing Nothing
+
 sampleTimesheetArrayBody :: Aeson.Value
 sampleTimesheetArrayBody =
     Aeson.Array (Vector.fromList [sampleTimesheetObject])
@@ -259,20 +292,21 @@ sampleTimesheetArrayBody =
 sampleTimesheetObject :: Aeson.Value
 sampleTimesheetObject =
     Aeson.object
-        [ "EmployeeID" Aeson..= ("employee-id" :: Text)
+        [ "EmployeeID" Aeson..= testEmployeeId
         , "StartDate" Aeson..= ("2026-05-04" :: Text)
         , "EndDate" Aeson..= ("2026-05-10" :: Text)
         , "Status" Aeson..= ("DRAFT" :: Text)
         , "TimesheetLines" Aeson..= [Aeson.object ["EarningsRateID" Aeson..= ("earnings-id" :: Text), "NumberOfUnits" Aeson..= ([2 :: Int, 0, 0, 0, 0, 0, 0] :: [Int])]]
         ]
 
-sampleTimesheetQuery :: XeroTimesheetQuery
-sampleTimesheetQuery =
-    XeroTimesheetQuery
-        { xeroTimesheetIfModifiedSince = Just (UTCTime (fromGregorian 2026 4 30) (secondsToDiffTime 3723))
-        , xeroTimesheetWhere = Just "EmployeeID==Guid(\"employee-1\")"
-        , xeroTimesheetOrder = Just "StartDate DESC"
-        , xeroTimesheetPage = Just 2
+sampleTimesheetDraft :: XeroTimesheetDraft
+sampleTimesheetDraft =
+    XeroTimesheetDraft
+        { xeroTimesheetDraftPayrollCalendarId = Just testCalendarId
+        , xeroTimesheetDraftEmployeeId = testEmployeeId
+        , xeroTimesheetDraftStartDate = fromGregorian 2026 5 4
+        , xeroTimesheetDraftEndDate = fromGregorian 2026 5 10
+        , xeroTimesheetDraftLines = [XeroTimesheetDraftLine testEarningsRateId Nothing [2, 0, 0, 0, 0, 0, 0]]
         }
 
 samplePayRunQuery :: XeroPayRunQuery
@@ -286,6 +320,11 @@ samplePayRunQuery =
 
 validateXeroRequest :: OpenApiSpec -> XeroEndpointContract -> XeroHttpRequest -> Expectation
 validateXeroRequest spec contract request = do
+    validateXeroRequestStructure spec contract request
+    assertRequestBodyMatchesOpenApiSchema spec contract request
+
+validateXeroRequestStructure :: OpenApiSpec -> XeroEndpointContract -> XeroHttpRequest -> Expectation
+validateXeroRequestStructure spec contract request = do
     assertContractSpecOperation spec contract
     request.xeroRequestMethod `shouldBe` contract.contractMethod
     assertRequestPath contract request
@@ -371,6 +410,160 @@ assertBodyContract contract request =
                         (contract.contractName <> " should use OpenAPI array body envelope")
                 _ ->
                     expectationFailure (cs (contract.contractName <> " should use a JSON body"))
+
+assertRequestBodyMatchesOpenApiSchema :: OpenApiSpec -> XeroEndpointContract -> XeroHttpRequest -> Expectation
+assertRequestBodyMatchesOpenApiSchema spec contract request =
+    case request.xeroRequestBody of
+        Just (XeroJsonBody body) ->
+            case operationJsonSchema spec contract.contractSpecPath (Text.toLower (TextEncoding.decodeUtf8 contract.contractMethod)) ["requestBody", "content", "application/json", "schema"] of
+                Nothing -> expectationFailure (cs (contract.contractName <> " has a JSON body but no OpenAPI request schema"))
+                Just schema -> assertJsonMatchesSchema spec schema body
+        _ -> pure ()
+
+assertResponseMatchesOpenApiSchema :: OpenApiSpec -> Text -> Text -> Aeson.Value -> Expectation
+assertResponseMatchesOpenApiSchema spec path method body =
+    case operationJsonSchema spec path method ["responses", "200", "content", "application/json", "schema"] of
+        Nothing -> expectationFailure (cs ("Missing OpenAPI 200 JSON response schema for " <> method <> " " <> path))
+        Just schema -> assertJsonMatchesSchema spec schema body
+
+operationJsonSchema :: OpenApiSpec -> Text -> Text -> [Text] -> Maybe Aeson.Value
+operationJsonSchema spec path method suffix =
+    lookupJsonPath (["paths", path, method] <> suffix) spec.specDocument
+
+lookupJsonPath :: [Text] -> Aeson.Value -> Maybe Aeson.Value
+lookupJsonPath [] value = Just value
+lookupJsonPath (key : rest) (Aeson.Object object) =
+    KeyMap.lookup (Key.fromText key) object >>= lookupJsonPath rest
+lookupJsonPath _ _ = Nothing
+
+assertJsonMatchesSchema :: OpenApiSpec -> Aeson.Value -> Aeson.Value -> Expectation
+assertJsonMatchesSchema spec schema value =
+    case validateJsonSchema spec [] schema value of
+        Left message -> expectationFailure (cs message)
+        Right () -> pure ()
+
+validateJsonSchema :: OpenApiSpec -> [Text] -> Aeson.Value -> Aeson.Value -> Either Text ()
+validateJsonSchema spec path (Aeson.Object schema) value
+    | Just (Aeson.String ref) <- KeyMap.lookup "$ref" schema =
+        maybe (Left (atPath path ("unresolved schema reference " <> ref))) (\resolved -> validateJsonSchema spec path resolved value) (resolveLocalSchemaRef spec ref)
+    | value == Aeson.Null
+    , KeyMap.lookup "nullable" schema == Just (Aeson.Bool True) = Right ()
+    | Just (Aeson.Array alternatives) <- KeyMap.lookup "oneOf" schema = validateAlternativeSchemas alternatives
+    | Just (Aeson.Array alternatives) <- KeyMap.lookup "anyOf" schema = validateAlternativeSchemas alternatives
+    | Just (Aeson.Array schemas) <- KeyMap.lookup "allOf" schema = mapM_ (\child -> validateJsonSchema spec path child value) (Vector.toList schemas)
+    | otherwise = do
+        validateSchemaType
+        validateEnum
+        validateFormat
+        validateBounds
+        validateObject
+        validateArray
+  where
+    validateAlternativeSchemas alternatives =
+        case mapMaybe (either (const Nothing) Just . (\candidate -> validateJsonSchema spec path candidate value)) (Vector.toList alternatives) of
+            _ : _ -> Right ()
+            [] -> Left (atPath path "value does not match any permitted schema")
+    validateSchemaType =
+        case KeyMap.lookup "type" schema of
+            Just (Aeson.String "object") | not (isObject value) -> mismatch "object"
+            Just (Aeson.String "array") | not (isArray value) -> mismatch "array"
+            Just (Aeson.String "string") | not (isString value) -> mismatch "string"
+            Just (Aeson.String "number") | not (isNumber value) -> mismatch "number"
+            Just (Aeson.String "integer") | not (isIntegerNumber value) -> mismatch "integer"
+            Just (Aeson.String "boolean") | not (isBoolean value) -> mismatch "boolean"
+            _ -> Right ()
+    validateEnum =
+        case KeyMap.lookup "enum" schema of
+            Just (Aeson.Array allowed) | value `notElem` Vector.toList allowed -> Left (atPath path "value is outside the OpenAPI enum")
+            _ -> Right ()
+    validateFormat =
+        case (KeyMap.lookup "format" schema, value) of
+            (Just (Aeson.String "uuid"), Aeson.String text)
+                | isNothing (UUID.fromText text) -> Left (atPath path "string is not a UUID")
+            (Just (Aeson.String "date"), Aeson.String text)
+                | isNothing (TimeFormat.parseTimeM True TimeFormat.defaultTimeLocale "%F" (cs text) :: Maybe Day) -> Left (atPath path "string is not an ISO date")
+            (Just (Aeson.String "date-time"), Aeson.String text)
+                | isNothing (TimeFormat.parseTimeM True TimeFormat.defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" (cs text) :: Maybe UTCTime) -> Left (atPath path "string is not an ISO UTC date-time")
+            _ -> Right ()
+    validateBounds = do
+        case (KeyMap.lookup "minLength" schema, value) of
+            (Just (Aeson.Number minimumLength), Aeson.String text)
+                | fromIntegral (Text.length text) < minimumLength -> Left (atPath path "string is shorter than minLength")
+            _ -> Right ()
+        case (KeyMap.lookup "maxLength" schema, value) of
+            (Just (Aeson.Number maximumLength), Aeson.String text)
+                | fromIntegral (Text.length text) > maximumLength -> Left (atPath path "string is longer than maxLength")
+            _ -> Right ()
+        case (KeyMap.lookup "minItems" schema, value) of
+            (Just (Aeson.Number minimumItems), Aeson.Array values)
+                | fromIntegral (Vector.length values) < minimumItems -> Left (atPath path "array has fewer than minItems")
+            _ -> Right ()
+        case (KeyMap.lookup "maxItems" schema, value) of
+            (Just (Aeson.Number maximumItems), Aeson.Array values)
+                | fromIntegral (Vector.length values) > maximumItems -> Left (atPath path "array has more than maxItems")
+            _ -> Right ()
+        case (KeyMap.lookup "minimum" schema, value) of
+            (Just (Aeson.Number minimumValue), Aeson.Number number)
+                | number < minimumValue -> Left (atPath path "number is below minimum")
+            _ -> Right ()
+        case (KeyMap.lookup "maximum" schema, value) of
+            (Just (Aeson.Number maximumValue), Aeson.Number number)
+                | number > maximumValue -> Left (atPath path "number is above maximum")
+            _ -> Right ()
+    validateObject =
+        case value of
+            Aeson.Object object -> do
+                case KeyMap.lookup "required" schema of
+                    Just (Aeson.Array required) -> forM_ (Vector.toList required) \case
+                        Aeson.String field
+                            | not (KeyMap.member (Key.fromText field) object) -> Left (atPath (path <> [field]) "required field is missing")
+                        _ -> Right ()
+                    _ -> Right ()
+                case KeyMap.lookup "properties" schema of
+                    Just (Aeson.Object properties) ->
+                        forM_ (KeyMap.toList properties) \(field, fieldSchema) ->
+                            forM_ (KeyMap.lookup field object) (validateJsonSchema spec (path <> [Key.toText field]) fieldSchema)
+                    _ -> Right ()
+            _ -> Right ()
+    validateArray =
+        case (value, KeyMap.lookup "items" schema) of
+            (Aeson.Array values, Just itemSchema) ->
+                forM_ (zip [0 :: Int ..] (Vector.toList values)) \(index, item) ->
+                    validateJsonSchema spec (path <> [tshow index]) itemSchema item
+            _ -> Right ()
+    mismatch expected = Left (atPath path ("expected " <> expected <> ", got " <> jsonValueType value))
+    isObject Aeson.Object {} = True
+    isObject _ = False
+    isArray Aeson.Array {} = True
+    isArray _ = False
+    isString Aeson.String {} = True
+    isString _ = False
+    isNumber Aeson.Number {} = True
+    isNumber _ = False
+    isIntegerNumber (Aeson.Number number) = fromInteger (round number) == number
+    isIntegerNumber _ = False
+    isBoolean Aeson.Bool {} = True
+    isBoolean _ = False
+validateJsonSchema _ path _ _ = Left (atPath path "OpenAPI schema node is not an object")
+
+resolveLocalSchemaRef :: OpenApiSpec -> Text -> Maybe Aeson.Value
+resolveLocalSchemaRef spec ref = do
+    pointer <- Text.stripPrefix "#/" ref
+    lookupJsonPath (map unescapePointer (Text.splitOn "/" pointer)) spec.specDocument
+  where
+    unescapePointer = Text.replace "~1" "/" . Text.replace "~0" "~"
+
+atPath :: [Text] -> Text -> Text
+atPath [] message = message
+atPath path message = Text.intercalate "." path <> ": " <> message
+
+jsonValueType :: Aeson.Value -> Text
+jsonValueType Aeson.Object {} = "object"
+jsonValueType Aeson.Array {} = "array"
+jsonValueType Aeson.String {} = "string"
+jsonValueType Aeson.Number {} = "number"
+jsonValueType Aeson.Bool {} = "boolean"
+jsonValueType Aeson.Null = "null"
 
 assertOperationOrSpecContains :: OpenApiSpec -> XeroEndpointContract -> Text -> Expectation
 assertOperationOrSpecContains spec contract expected =
@@ -485,7 +678,7 @@ malformedMockRequests =
     , ( "wrong Timesheets body envelope"
       , 400
       , \baseUrl -> do
-            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/Timesheets"))
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/2.0/Timesheets"))
             pure
                 ( request
                     |> setRequestMethod "POST"
@@ -493,13 +686,13 @@ malformedMockRequests =
                     |> setRequestHeader "Accept" ["application/json"]
                     |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"]
                     |> setRequestHeader "Idempotency-Key" ["idem-create"]
-                    |> setRequestBodyJSON (Aeson.object ["Timesheets" Aeson..= [sampleTimesheetObject]])
+                    |> setRequestBodyJSON sampleTimesheetArrayBody
                 )
       )
     , ( "unknown Timesheets query param"
       , 400
       , \baseUrl -> do
-            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/Timesheets?unexpected=1"))
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/2.0/Timesheets?unexpected=1"))
             pure (request |> setRequestMethod "GET" |> setRequestHeader "Authorization" ["Bearer access-token"] |> setRequestHeader "Accept" ["application/json"] |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"])
       )
     , ( "unexpected method"
@@ -582,7 +775,7 @@ xeroStrictMockApp identitySpec payrollSpec payrollV2Spec accountingSpec earnings
         Nothing ->
             respond (jsonResponse status404 (Aeson.object ["error" Aeson..= ("unexpected Xero mock endpoint" :: Text)]))
         Just (spec, contract, response) -> do
-            validation <- Exception.try (validateXeroRequest spec contract mockRequest)
+            validation <- Exception.try (validateXeroRequestStructure spec contract mockRequest)
             case validation of
                 Left (err :: Exception.SomeException) ->
                     respond (jsonResponse status400 (Aeson.object ["error" Aeson..= (show err :: Text)]))
@@ -622,18 +815,22 @@ xeroStrictMockApp identitySpec payrollSpec payrollV2Spec accountingSpec earnings
                                     , contractAllowedQueries = ["filter", "startDate", "endDate"]
                                     }
                         pure (Just (payrollV2Spec, contract, response))
-                (method, "/payroll.xro/1.0/Timesheets")
+                    | method == methodPost -> do
+                        response <- nextTimesheetResponse "create" timesheetCreateResponseRef (jsonResponse status200 timesheetV2Fixture)
+                        let contract = (payrollV2WriteContract "mock timesheet create v2" "/Timesheets" "/Timesheets" (JsonObjectWithFields ["payrollCalendarID", "employeeID", "startDate", "endDate", "timesheetLines"])) { contractRequestServer = baseUrl <> "/payroll.xro/2.0" }
+                        pure (Just (payrollV2Spec, contract, response))
+                (method, "/payroll.xro/2.0/Timesheets/timesheet-id")
                     | method == methodGet -> do
-                        response <- nextTimesheetResponse "list" timesheetListResponseRef (jsonResponse status200 timesheetsFixture)
-                        pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, response))
+                        let contract = (payrollV2ReadContract "mock timesheet detail" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" []) { contractRequestServer = baseUrl <> "/payroll.xro/2.0" }
+                        pure (Just (payrollV2Spec, contract, jsonResponse status200 timesheetV2Fixture))
+                (method, "/payroll.xro/1.0/Timesheets")
                     | method == methodPost -> do
                         response <- nextTimesheetResponse "create" timesheetCreateResponseRef (jsonResponse status200 timesheetsFixture)
-                        pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, response))
+                        pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet create v1" "/Timesheets" "/Timesheets" JsonArrayBody, response))
                 (method, "/payroll.xro/1.0/Timesheets/timesheet-id")
-                    | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], jsonResponse status200 timesheetFixture))
                     | method == methodPost -> do
                         response <- nextTimesheetResponse "update" timesheetUpdateResponseRef (jsonResponse status200 timesheetsFixture)
-                        pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, response))
+                        pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet replace v1" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, response))
                 _ -> pure Nothing
 
         nextEarningsRateResponse = IORef.atomicModifyIORef' earningsRateResponseRef \case
@@ -718,8 +915,8 @@ connectionsFixture :: Aeson.Value
 connectionsFixture =
     Aeson.toJSON
         [ Aeson.object
-            [ "id" Aeson..= ("connection-id" :: Text)
-            , "tenantId" Aeson..= ("tenant-id" :: Text)
+            [ "id" Aeson..= testConnectionId
+            , "tenantId" Aeson..= testTenantId
             , "tenantName" Aeson..= ("Demo Company" :: Text)
             ]
         ]
@@ -729,9 +926,10 @@ employeesFixture =
     Aeson.object
         [ "Employees" Aeson..=
             [ Aeson.object
-                [ "EmployeeID" Aeson..= ("employee-id" :: Text)
+                [ "EmployeeID" Aeson..= testEmployeeId
                 , "FirstName" Aeson..= ("Ada" :: Text)
                 , "LastName" Aeson..= ("Lovelace" :: Text)
+                , "DateOfBirth" Aeson..= ("/Date(322560000000+0000)/" :: Text)
                 , "Email" Aeson..= ("ada@example.test" :: Text)
                 , "Status" Aeson..= ("ACTIVE" :: Text)
                 ]
@@ -748,7 +946,7 @@ earningsRatesFixture =
 earningsRateFixture :: Aeson.Value
 earningsRateFixture =
     Aeson.object
-        [ "EarningsRateID" Aeson..= ("earnings-rate-id" :: Text)
+        [ "EarningsRateID" Aeson..= testEarningsRateId
         , "Name" Aeson..= ("Ordinary Hours" :: Text)
         , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
         , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
@@ -760,7 +958,7 @@ accountsFixture =
     Aeson.object
         [ "Accounts" Aeson..=
             [ Aeson.object
-                [ "AccountID" Aeson..= ("account-id" :: Text)
+                [ "AccountID" Aeson..= testAccountId
                 , "Code" Aeson..= ("477" :: Text)
                 , "Name" Aeson..= ("Wages and Salaries" :: Text)
                 , "Type" Aeson..= ("EXPENSE" :: Text)
@@ -776,7 +974,7 @@ payrollSettingsFixture =
             Aeson.object
                 [ "Accounts" Aeson..=
                     [ Aeson.object
-                        [ "AccountID" Aeson..= ("account-id" :: Text)
+                        [ "AccountID" Aeson..= testAccountId
                         , "Code" Aeson..= ("477" :: Text)
                         , "Name" Aeson..= ("Wages and Salaries" :: Text)
                         , "Type" Aeson..= ("WAGESEXPENSE" :: Text)
@@ -790,7 +988,7 @@ calendarsFixture =
     Aeson.object
         [ "PayrollCalendars" Aeson..=
             [ Aeson.object
-                [ "PayrollCalendarID" Aeson..= ("calendar-id" :: Text)
+                [ "PayrollCalendarID" Aeson..= testCalendarId
                 , "Name" Aeson..= ("Weekly" :: Text)
                 , "CalendarType" Aeson..= ("WEEKLY" :: Text)
                 , "StartDate" Aeson..= ("2026-05-04" :: Text)
@@ -804,8 +1002,8 @@ payRunsFixture =
     Aeson.object
         [ "PayRuns" Aeson..=
             [ Aeson.object
-                [ "PayRunID" Aeson..= ("pay-run-id" :: Text)
-                , "PayrollCalendarID" Aeson..= ("calendar-id" :: Text)
+                [ "PayRunID" Aeson..= testPayRunId
+                , "PayrollCalendarID" Aeson..= testCalendarId
                 , "PayRunPeriodStartDate" Aeson..= ("2026-05-04" :: Text)
                 , "PayRunPeriodEndDate" Aeson..= ("2026-05-10" :: Text)
                 , "PaymentDate" Aeson..= ("2026-05-11" :: Text)
@@ -822,20 +1020,59 @@ timesheetFixture :: Aeson.Value
 timesheetFixture =
     Aeson.object ["Timesheet" Aeson..= timesheetObjectFixture]
 
+timesheetsV2Fixture :: Aeson.Value
+timesheetsV2Fixture =
+    Aeson.object
+        [ "timesheets" Aeson..=
+            [ Aeson.object
+                [ "timesheetID" Aeson..= ("11111111-1111-4111-8111-111111111111" :: Text)
+                , "payrollCalendarID" Aeson..= ("22222222-2222-4222-8222-222222222222" :: Text)
+                , "employeeID" Aeson..= ("33333333-3333-4333-8333-333333333333" :: Text)
+                , "startDate" Aeson..= ("2026-05-04" :: Text)
+                , "endDate" Aeson..= ("2026-05-10" :: Text)
+                , "status" Aeson..= ("Draft" :: Text)
+                , "totalHours" Aeson..= (2 :: Int)
+                ]
+            ]
+        ]
+
+timesheetV2Fixture :: Aeson.Value
+timesheetV2Fixture =
+    Aeson.object
+        [ "timesheet" Aeson..=
+            Aeson.object
+                [ "timesheetID" Aeson..= ("11111111-1111-4111-8111-111111111111" :: Text)
+                , "payrollCalendarID" Aeson..= ("22222222-2222-4222-8222-222222222222" :: Text)
+                , "employeeID" Aeson..= ("33333333-3333-4333-8333-333333333333" :: Text)
+                , "startDate" Aeson..= ("2026-05-04" :: Text)
+                , "endDate" Aeson..= ("2026-05-10" :: Text)
+                , "status" Aeson..= ("Draft" :: Text)
+                , "totalHours" Aeson..= (2 :: Int)
+                , "timesheetLines" Aeson..=
+                    [ Aeson.object
+                        [ "timesheetLineID" Aeson..= testLineId
+                        , "date" Aeson..= ("2026-05-04" :: Text)
+                        , "earningsRateID" Aeson..= testEarningsRateId
+                        , "numberOfUnits" Aeson..= (2 :: Int)
+                        ]
+                    ]
+                ]
+        ]
+
 timesheetObjectFixture :: Aeson.Value
 timesheetObjectFixture = timesheetObject (fromGregorian 2026 5 4) (fromGregorian 2026 5 10)
 
 timesheetObject periodStart periodEnd =
     Aeson.object
-        [ "TimesheetID" Aeson..= ("timesheet-id" :: Text)
-        , "EmployeeID" Aeson..= ("employee-id" :: Text)
+        [ "TimesheetID" Aeson..= testTimesheetId
+        , "EmployeeID" Aeson..= testEmployeeId
         , "StartDate" Aeson..= tshow periodStart
         , "EndDate" Aeson..= tshow periodEnd
         , "Status" Aeson..= ("DRAFT" :: Text)
         , "Hours" Aeson..= (2 :: Int)
         , "TimesheetLines" Aeson..=
             [ Aeson.object
-                [ "EarningsRateID" Aeson..= ("earnings-rate-id" :: Text)
+                [ "EarningsRateID" Aeson..= testEarningsRateId
                 , "NumberOfUnits" Aeson..= ([2 :: Int, 0, 0, 0, 0, 0, 0] :: [Int])
                 ]
             ]

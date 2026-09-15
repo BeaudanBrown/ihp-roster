@@ -50,12 +50,12 @@ successfulXeroClient tokenResponse tenants =
         , fetchAccounts = \_ _ -> pure (Right [])
         , fetchPayrollSettingsAccounts = \_ _ -> pure (Right [])
         , fetchPayRuns = \_ _ _ -> pure (Right [])
-        , createPayItem = \_ _ _ _ -> pure (Right [])
-        , fetchTimesheets = \_ _ _ -> pure (Right [])
+        , createEarningsRate = \_ _ _ _ -> pure (Right [])
         , fetchTimesheetsForPeriod = \_ _ _ _ _ -> pure (Right [])
-        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError "unused"))
-        , createTimesheet = \_ _ _ _ -> pure (Right [])
-        , updateTimesheet = \_ _ _ _ _ -> pure (Right [])
+        , fetchTimesheetDetail = \_ _ _ -> pure (Left (XeroHttpError "unused"))
+        , createTimesheetDraftV1 = \_ _ _ _ -> pure (Right [])
+        , createTimesheetDraftV2 = \_ _ _ _ -> pure (Right [])
+        , replaceTimesheetDraft = \_ _ _ _ _ -> pure (Right [])
         }
 
 referenceSyncXeroClientForFixture :: (?modelContext :: ModelContext) => XeroTokenResponse -> XeroConnection -> IO XeroClient
@@ -148,12 +148,12 @@ referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars =
         , fetchAccounts = \_ _ -> pure (Right (accountRefsFromEarningsRates earningsRates))
         , fetchPayrollSettingsAccounts = \_ _ -> pure (Right (wagesExpenseAccountRefsFromEarningsRates earningsRates))
         , fetchPayRuns = \_ _ _ -> pure (Right [])
-        , createPayItem = \_ _ _ _ -> pure (Right [])
-        , fetchTimesheets = \_ _ _ -> pure (Right [])
+        , createEarningsRate = \_ _ _ _ -> pure (Right [])
         , fetchTimesheetsForPeriod = \_ _ _ _ _ -> pure (Right [])
-        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError "unused"))
-        , createTimesheet = \_ _ _ _ -> pure (Right [])
-        , updateTimesheet = \_ _ _ _ _ -> pure (Right [])
+        , fetchTimesheetDetail = \_ _ _ -> pure (Left (XeroHttpError "unused"))
+        , createTimesheetDraftV1 = \_ _ _ _ -> pure (Right [])
+        , createTimesheetDraftV2 = \_ _ _ _ -> pure (Right [])
+        , replaceTimesheetDraft = \_ _ _ _ _ -> pure (Right [])
         }
 
 accountRefsFromEarningsRates :: [XeroEarningsRateRef] -> [XeroAccountRef]
@@ -183,11 +183,23 @@ payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef maybeVerified
             requests <- IORef.readIORef requestsRef
             let createdRates = concatMap (xeroPayItemRequestEarningsRateRefs . snd) requests
             pure (Right (maybe createdRates (`take` createdRates) maybeVerifiedLimit))
-        , createPayItem = \_ _ idempotencyKey body -> do
-            IORef.modifyIORef' requestsRef (<> [(idempotencyKey, body)])
+        , createEarningsRate = \_ _ idempotencyKey body -> do
+            IORef.modifyIORef' requestsRef (<> [(idempotencyKey, earningsRateCreateJson body)])
             pure (Right [])
         }
 
+
+earningsRateCreateJson :: XeroEarningsRateCreate -> Aeson.Value
+earningsRateCreateJson body =
+    Aeson.object $
+        [ "Name" Aeson..= body.xeroEarningsRateCreateName
+        , "EarningsType" Aeson..= body.xeroEarningsRateCreateEarningsType
+        , "RateType" Aeson..= body.xeroEarningsRateCreateRateType
+        , "TypeOfUnits" Aeson..= body.xeroEarningsRateCreateTypeOfUnits
+        , "RatePerUnit" Aeson..= body.xeroEarningsRateCreateRatePerUnit
+        ]
+            <> maybe [] (\value -> ["AccountCode" Aeson..= value]) body.xeroEarningsRateCreateAccountCode
+            <> maybe [] (\value -> ["ExpenseAccountID" Aeson..= value]) body.xeroEarningsRateCreateExpenseAccountId
 
 xeroPayItemRequestEarningsRateRefs :: Aeson.Value -> [XeroEarningsRateRef]
 xeroPayItemRequestEarningsRateRefs body =
@@ -237,12 +249,12 @@ failingRefreshXeroClient message =
         , fetchAccounts = \_ _ -> pure (Left (XeroHttpError message))
         , fetchPayrollSettingsAccounts = \_ _ -> pure (Left (XeroHttpError message))
         , fetchPayRuns = \_ _ _ -> pure (Left (XeroHttpError message))
-        , createPayItem = \_ _ _ _ -> pure (Left (XeroHttpError message))
-        , fetchTimesheets = \_ _ _ -> pure (Left (XeroHttpError message))
+        , createEarningsRate = \_ _ _ _ -> pure (Left (XeroHttpError message))
         , fetchTimesheetsForPeriod = \_ _ _ _ _ -> pure (Left (XeroHttpError message))
-        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError message))
-        , createTimesheet = \_ _ _ _ -> pure (Left (XeroHttpError message))
-        , updateTimesheet = \_ _ _ _ _ -> pure (Left (XeroHttpError message))
+        , fetchTimesheetDetail = \_ _ _ -> pure (Left (XeroHttpError message))
+        , createTimesheetDraftV1 = \_ _ _ _ -> pure (Left (XeroHttpError message))
+        , createTimesheetDraftV2 = \_ _ _ _ -> pure (Left (XeroHttpError message))
+        , replaceTimesheetDraft = \_ _ _ _ _ -> pure (Left (XeroHttpError message))
         }
 
 createTestXeroOauthState ::

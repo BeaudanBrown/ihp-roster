@@ -108,14 +108,14 @@ disconnectXeroConnection connection = do
                             setErrorMessage message
                             redirectTo XeroAction
                 Right (refreshedConnection, accessToken) -> do
-                    xeroClient <- currentXeroClient
+                    xeroClient <- currentXeroConnectionClient
                     remoteIdResult <- resolveXeroRemoteConnectionId xeroClient refreshedConnection accessToken
                     case remoteIdResult of
                         Left message -> do
                             _ <- markXeroConnectionErrorMutation refreshedConnection message
                             completeLocalXeroDisconnect refreshedConnection refreshedConnection.xeroConnectionRemoteId "skipped_remote_id_missing"
                         Right remoteConnectionId -> do
-                            deleteResult <- deleteXeroConnection xeroClient accessToken remoteConnectionId
+                            deleteResult <- xeroClient.connectionDeleteXeroConnection accessToken remoteConnectionId
                             case deleteResult of
                                 Left err -> do
                                     let message = "Xero disconnect failed: " <> xeroClientErrorText err
@@ -148,7 +148,7 @@ localDisconnectMessage connection remoteDisconnectStatus =
 
 resolveXeroRemoteConnectionId ::
     (?modelContext :: ModelContext) =>
-    XeroClient ->
+    XeroConnectionClient ->
     XeroConnection ->
     Text ->
     IO (Either Text Text)
@@ -156,7 +156,7 @@ resolveXeroRemoteConnectionId xeroClient connection accessToken =
     case connection.xeroConnectionRemoteId of
         Just remoteConnectionId -> pure (Right remoteConnectionId)
         Nothing -> do
-            tenantsResult <- fetchConnectedTenants xeroClient accessToken
+            tenantsResult <- xeroClient.connectionFetchConnectedTenants accessToken
             case tenantsResult of
                 Left err -> pure (Left ("Could not look up Xero connections before disconnecting: " <> xeroClientErrorText err))
                 Right tenants ->
@@ -203,14 +203,14 @@ completeXeroOAuthCallback now actorUserId oauthState code =
     readXeroConfig >>= \case
         Left message -> failXeroConnectionAttempt message (Just oauthState)
         Right xeroConfig -> do
-            xeroClient <- currentXeroClient
-            tokenResult <- exchangeCodeForToken xeroClient xeroConfig code
+            xeroClient <- currentXeroConnectionClient
+            tokenResult <- xeroClient.connectionExchangeCodeForToken xeroConfig code
             case tokenResult of
                 Left err -> do
                     _ <- consumeXeroOAuthStateMutation oauthState now
                     failXeroConnectionAttempt ("Xero token exchange failed: " <> xeroClientErrorText err) (Just oauthState)
                 Right tokenResponse -> do
-                    tenantsResult <- fetchConnectedTenants xeroClient tokenResponse.accessToken
+                    tenantsResult <- xeroClient.connectionFetchConnectedTenants tokenResponse.accessToken
                     case tenantsResult of
                         Left err -> do
                             _ <- consumeXeroOAuthStateMutation oauthState now

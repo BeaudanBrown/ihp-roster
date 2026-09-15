@@ -339,6 +339,7 @@ renderXeroDiagnosticLines lines = [hsx|
             <thead>
                 <tr>
                     <th>Line</th>
+                    <th>Date</th>
                     <th>Earnings rate ref</th>
                     <th>Units</th>
                     <th>Pay item</th>
@@ -357,7 +358,8 @@ renderXeroDiagnosticLine :: XeroTimesheetDiagnosticLine -> Html
 renderXeroDiagnosticLine line = [hsx|
     <tr>
         <td>{tshow line.diagnosticLineOrdinal}</td>
-        <td><code>{fromMaybe "missing" line.diagnosticLineEarningsRateRef}</code></td>
+        <td>{tshow line.diagnosticLineDate}</td>
+        <td><code>{line.diagnosticLineEarningsRateRef}</code></td>
         <td>{Text.intercalate ", " (map tshow line.diagnosticLineUnits)}</td>
         <td>{renderXeroDiagnosticPayItemStatus line}</td>
         <td>{fromMaybe "Not found" line.diagnosticLineRateType}</td>

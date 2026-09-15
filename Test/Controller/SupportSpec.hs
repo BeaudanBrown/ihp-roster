@@ -146,7 +146,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #syncedAt now
                         |> createRecord
                 baseClient <- currentXeroClient
-                let remote =
+                let remoteSummary =
                         XeroTimesheetRef
                             { xeroTimesheetId = Just "sensitive-timesheet-id"
                             , xeroTimesheetEmployeeId = "sensitive-employee-id"
@@ -154,10 +154,14 @@ tests = aroundAll withDatabaseTestContext do
                             , xeroTimesheetEndDate = periodEnd
                             , xeroTimesheetStatus = Just "DRAFT"
                             , xeroTimesheetHours = Just 8.5
-                            , xeroTimesheetLines = [XeroTimesheetLineRef (Just "sensitive-earnings-rate-id") Nothing [8.5, 0, 0, 0, 0, 0, 0] rawLine]
                             , xeroTimesheetRaw = rawTimesheet
                             }
-                let diagnosticClient = baseClient { fetchTimesheet = \_ _ _ -> pure (Right remote) }
+                let remote =
+                        XeroTimesheetDetailRef
+                            { xeroTimesheetDetailSummary = remoteSummary
+                            , xeroTimesheetLines = [XeroTimesheetLineRef Nothing periodStart "sensitive-earnings-rate-id" Nothing 8.5 rawLine]
+                            }
+                let diagnosticClient = baseClient { fetchTimesheetDetail = \_ _ _ -> pure (Right remote) }
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest diagnosticClient do

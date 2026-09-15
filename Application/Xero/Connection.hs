@@ -66,9 +66,9 @@ forceRefreshXeroConnectionAccess xeroConfig connection =
             markXeroConnectionReauthorizationRequired connection friendly
             pure (Left friendly)
         Right refreshToken -> do
-            xeroClient <- currentXeroClient
+            xeroClient <- currentXeroConnectionClient
             now <- getCurrentTime
-            refreshResult <- refreshXeroToken xeroClient xeroConfig refreshToken
+            refreshResult <- xeroClient.connectionRefreshXeroToken xeroConfig refreshToken
             case refreshResult of
                 Right tokenResponse -> do
                     updated <- persistXeroRefreshedTokens now xeroConfig connection tokenResponse

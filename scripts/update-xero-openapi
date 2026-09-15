@@ -8,7 +8,9 @@ RAW_BASE="https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI"
 REF="${1:-master}"
 LOCAL_SUPPLEMENT="xero-payroll-au-v2-earnings-rates.local.yaml"
 LOCAL_DOC_URL="https://developer.xero.com/documentation/api/payrollau/earningsrates"
-LOCAL_RETRIEVED_AT="2026-07-30"
+# Historical retrieval date recorded by the supplement itself. Refreshing the
+# official bundle must preserve it rather than substituting the refresh date.
+LOCAL_RETRIEVED_AT="2026-08-03"
 
 require_path() {
     local file="$1"

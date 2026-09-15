@@ -7,6 +7,7 @@ module Application.Xero.Timesheets.Reservation
     , XeroTimesheetReservationOutcome (..)
     , failAbandonedXeroTimesheetSubmissionsForPeriod
     , reserveXeroTimesheetSubmissionRun
+    , reserveXeroTimesheetSubmissionRunWithProtocol
     , reviewXeroTimesheetReservations
     ) where
 
@@ -14,7 +15,8 @@ import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure,
                                   throwExternalRuntime)
 import Application.Helper.Hasql (isUniqueViolation)
-import Application.Helper.Xero.Types (XeroTimesheetRef (..))
+import Application.Helper.Xero.Types (XeroTimesheetCreateProtocol (..),
+                                      XeroTimesheetRef (..))
 import Application.Xero.Incident (reconcileXeroSubmissionIncidentInCurrentTransaction)
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
@@ -74,7 +76,17 @@ reserveXeroTimesheetSubmissionRun ::
     [XeroTimesheetReservation] ->
     [XeroTimesheetRef] ->
     IO XeroTimesheetReservationOutcome
-reserveXeroTimesheetSubmissionRun runTemplate reservations remoteTimesheets =
+reserveXeroTimesheetSubmissionRun =
+    reserveXeroTimesheetSubmissionRunWithProtocol XeroTimesheetCreateV1
+
+reserveXeroTimesheetSubmissionRunWithProtocol ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetCreateProtocol ->
+    XeroSubmissionRun ->
+    [XeroTimesheetReservation] ->
+    [XeroTimesheetRef] ->
+    IO XeroTimesheetReservationOutcome
+reserveXeroTimesheetSubmissionRunWithProtocol createProtocol runTemplate reservations remoteTimesheets =
     case validateReservations runTemplate reservations of
         Just message -> pure (XeroTimesheetReservationInvalid message)
         Nothing -> do
@@ -86,7 +98,7 @@ reserveXeroTimesheetSubmissionRun runTemplate reservations remoteTimesheets =
                             Left message -> pure (XeroTimesheetReservationInvalid message)
                             Right lockedReservations -> do
                                 mapM_ lockReservation (List.sortOn reservationLockKey lockedReservations)
-                                reserveInCurrentTransaction runTemplate lockedReservations remoteTimesheets
+                                reserveInCurrentTransaction createProtocol runTemplate lockedReservations remoteTimesheets
             case result of
                 Right outcome -> pure outcome
                 Left sessionError
@@ -171,11 +183,12 @@ validateReservations runTemplate reservations
 
 reserveInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
+    XeroTimesheetCreateProtocol ->
     XeroSubmissionRun ->
     [XeroTimesheetReservation] ->
     [XeroTimesheetRef] ->
     IO XeroTimesheetReservationOutcome
-reserveInCurrentTransaction runTemplate reservations remoteTimesheets = do
+reserveInCurrentTransaction createProtocol runTemplate reservations remoteTimesheets = do
     reconciliations <- mapM (reconcileReservation remoteTimesheets) reservations
     case inProgressRunIds reconciliations of
         runIds@(_ : _)
@@ -186,7 +199,7 @@ reserveInCurrentTransaction runTemplate reservations remoteTimesheets = do
                 Just decision -> pure (XeroTimesheetReservationBlocked decision)
                 Nothing -> do
                     run <- runTemplate |> createRecord
-                    submissions <- mapM (persistReservation run) reconciliations
+                    submissions <- mapM (persistReservation createProtocol run) reconciliations
                     forM_ run.xeroTimesheetPreparationRunId \preparationId -> do
                         preparation <- fetch preparationId
                         preparation |> set #xeroSubmissionRunId (Just (unpackId run.id)) |> updateRecordDiscardResult
@@ -328,12 +341,13 @@ firstBlockedDecision reconciliations =
 
 persistReservation ::
     (?modelContext :: ModelContext) =>
+    XeroTimesheetCreateProtocol ->
     XeroSubmissionRun ->
     (XeroTimesheetReservation, Maybe XeroTimesheetSubmission, XeroTimesheetReconciliationDecision) ->
     IO XeroTimesheetSubmission
-persistReservation run (reservation, existing, decision) = do
+persistReservation createProtocol run (reservation, existing, decision) = do
     operation <-
-        case xeroTimesheetOperationForDecision decision of
+        case xeroTimesheetOperationForDecision createProtocol decision of
             Just value -> pure value
             Nothing -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Non-write Xero reconciliation decision reached reservation persistence"
     supersedeExisting existing

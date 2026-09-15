@@ -12,7 +12,8 @@ module Application.Xero.Timesheets.ProviderWrite
     , xeroTimesheetWriteOperationFromPersistence
     ) where
 
-import Application.Helper.Xero.Types (XeroClientError (..))
+import Application.Helper.Xero.Types (XeroClientError (..),
+                                      XeroTimesheetCreateProtocol (..))
 import Application.Xero.Timesheets.Reconciliation (XeroTimesheetReconciliationDecision (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -23,9 +24,9 @@ import IHP.Prelude
 import Text.Read (readMaybe)
 
 data XeroTimesheetWriteOperation
-    = InitialXeroTimesheetCreate
+    = InitialXeroTimesheetCreate !XeroTimesheetCreateProtocol
     | UpdateXeroTimesheetDraft !Text
-    | ReplaceMissingXeroTimesheetDraft
+    | ReplaceMissingXeroTimesheetDraft !XeroTimesheetCreateProtocol
     deriving (Eq, Show)
 
 data XeroTimesheetWriteFailureAction
@@ -35,20 +36,20 @@ data XeroTimesheetWriteFailureAction
     | FailXeroTimesheetWrite
     deriving (Eq, Show)
 
-xeroTimesheetOperationForDecision :: XeroTimesheetReconciliationDecision -> Maybe XeroTimesheetWriteOperation
-xeroTimesheetOperationForDecision CreateXeroTimesheet = Just InitialXeroTimesheetCreate
-xeroTimesheetOperationForDecision (UpdateXeroDraft timesheetId) = Just (UpdateXeroTimesheetDraft timesheetId)
-xeroTimesheetOperationForDecision (ReplaceMissingXeroDraft _) = Just ReplaceMissingXeroTimesheetDraft
-xeroTimesheetOperationForDecision XeroSubmissionInProgress = Nothing
-xeroTimesheetOperationForDecision BlockXeroNonDraft {} = Nothing
-xeroTimesheetOperationForDecision BlockDistinctXeroTimesheets {} = Nothing
-xeroTimesheetOperationForDecision BlockUnknownXeroStatus {} = Nothing
-xeroTimesheetOperationForDecision BlockMissingXeroTimesheetId {} = Nothing
+xeroTimesheetOperationForDecision :: XeroTimesheetCreateProtocol -> XeroTimesheetReconciliationDecision -> Maybe XeroTimesheetWriteOperation
+xeroTimesheetOperationForDecision createProtocol CreateXeroTimesheet = Just (InitialXeroTimesheetCreate createProtocol)
+xeroTimesheetOperationForDecision _ (UpdateXeroDraft timesheetId) = Just (UpdateXeroTimesheetDraft timesheetId)
+xeroTimesheetOperationForDecision createProtocol (ReplaceMissingXeroDraft _) = Just (ReplaceMissingXeroTimesheetDraft createProtocol)
+xeroTimesheetOperationForDecision _ XeroSubmissionInProgress = Nothing
+xeroTimesheetOperationForDecision _ BlockXeroNonDraft {} = Nothing
+xeroTimesheetOperationForDecision _ BlockDistinctXeroTimesheets {} = Nothing
+xeroTimesheetOperationForDecision _ BlockUnknownXeroStatus {} = Nothing
+xeroTimesheetOperationForDecision _ BlockMissingXeroTimesheetId {} = Nothing
 
 xeroTimesheetOperationCreatesTimesheet :: XeroTimesheetWriteOperation -> Bool
-xeroTimesheetOperationCreatesTimesheet InitialXeroTimesheetCreate       = True
-xeroTimesheetOperationCreatesTimesheet UpdateXeroTimesheetDraft {}      = False
-xeroTimesheetOperationCreatesTimesheet ReplaceMissingXeroTimesheetDraft = True
+xeroTimesheetOperationCreatesTimesheet InitialXeroTimesheetCreate {}       = True
+xeroTimesheetOperationCreatesTimesheet UpdateXeroTimesheetDraft {}          = False
+xeroTimesheetOperationCreatesTimesheet ReplaceMissingXeroTimesheetDraft {} = True
 
 xeroTimesheetWriteIdempotencyKey ::
     UUID ->
@@ -65,9 +66,11 @@ xeroTimesheetWriteIdempotencyKey submissionId operationSequence operation =
         ]
 
 xeroTimesheetWriteOperationName :: XeroTimesheetWriteOperation -> Text
-xeroTimesheetWriteOperationName InitialXeroTimesheetCreate       = "create"
-xeroTimesheetWriteOperationName UpdateXeroTimesheetDraft {}      = "update"
-xeroTimesheetWriteOperationName ReplaceMissingXeroTimesheetDraft = "replace"
+xeroTimesheetWriteOperationName (InitialXeroTimesheetCreate XeroTimesheetCreateV1) = "create-v1"
+xeroTimesheetWriteOperationName (InitialXeroTimesheetCreate XeroTimesheetCreateV2) = "create-v2"
+xeroTimesheetWriteOperationName UpdateXeroTimesheetDraft {} = "replace-v1"
+xeroTimesheetWriteOperationName (ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV1) = "replace-missing-v1"
+xeroTimesheetWriteOperationName (ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV2) = "replace-missing-v2"
 
 xeroTimesheetRequestForOperation :: XeroTimesheetWriteOperation -> Aeson.Value -> Aeson.Value
 xeroTimesheetRequestForOperation operation (Aeson.Array values) =
@@ -76,9 +79,9 @@ xeroTimesheetRequestForOperation operation (Aeson.Array values) =
     updateRequestObject (Aeson.Object object) =
         Aeson.Object $
             case operation of
-                InitialXeroTimesheetCreate -> AesonKeyMap.delete timesheetIdKey object
+                InitialXeroTimesheetCreate {} -> AesonKeyMap.delete timesheetIdKey object
                 UpdateXeroTimesheetDraft timesheetId -> AesonKeyMap.insert timesheetIdKey (Aeson.String timesheetId) object
-                ReplaceMissingXeroTimesheetDraft -> AesonKeyMap.delete timesheetIdKey object
+                ReplaceMissingXeroTimesheetDraft {} -> AesonKeyMap.delete timesheetIdKey object
     updateRequestObject value = value
     timesheetIdKey = AesonKey.fromText "TimesheetID"
 xeroTimesheetRequestForOperation _ value = value
@@ -99,13 +102,22 @@ xeroTimesheetWriteOperationFromPersistence submissionId idempotencyKey requestPa
     let operation =
             case requestTimesheetId requestPayload of
                 Just timesheetId -> UpdateXeroTimesheetDraft timesheetId
-                Nothing
-                    | persistedOperationName == "replace" -> ReplaceMissingXeroTimesheetDraft
-                    | otherwise -> InitialXeroTimesheetCreate
-    if xeroTimesheetWriteOperationName operation == persistedOperationName
+                Nothing -> operationWithoutTimesheetId persistedOperationName
+    if persistedOperationMatches operation persistedOperationName
         then Right operation
         else Left invalidKeyMessage
   where
+    persistedOperationMatches (InitialXeroTimesheetCreate XeroTimesheetCreateV1) name = name `elem` ["create", "create-v1"]
+    persistedOperationMatches (UpdateXeroTimesheetDraft {}) name = name `elem` ["update", "replace-v1"]
+    persistedOperationMatches (ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV1) name = name `elem` ["replace", "replace-missing-v1"]
+    persistedOperationMatches operation name = xeroTimesheetWriteOperationName operation == name
+    operationWithoutTimesheetId "create" = InitialXeroTimesheetCreate XeroTimesheetCreateV1
+    operationWithoutTimesheetId "create-v1" = InitialXeroTimesheetCreate XeroTimesheetCreateV1
+    operationWithoutTimesheetId "create-v2" = InitialXeroTimesheetCreate XeroTimesheetCreateV2
+    operationWithoutTimesheetId "replace" = ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV1
+    operationWithoutTimesheetId "replace-missing-v1" = ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV1
+    operationWithoutTimesheetId "replace-missing-v2" = ReplaceMissingXeroTimesheetDraft XeroTimesheetCreateV2
+    operationWithoutTimesheetId _ = InitialXeroTimesheetCreate XeroTimesheetCreateV1
     invalidKeyMessage = "Persisted Xero timesheet operation does not match its idempotency key."
 
 requestTimesheetId :: Aeson.Value -> Maybe Text

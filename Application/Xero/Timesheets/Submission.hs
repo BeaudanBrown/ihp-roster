@@ -87,18 +87,21 @@ submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId reque
             Left appError -> pure (Left appError)
             Right (XeroSubmissionBlocked message) -> pure (submissionFailure message)
             Right (XeroSubmissionSucceeded plan) ->
-                persistAndSubmitPreview
-                    submittedByUserId
-                    preparationRunId
-                    xeroClient
-                    accessToken
-                    connection
-                    plan.freshPlanRequest
-                    plan.freshPlanReadiness
-                    plan.freshPlanDuplicateSnapshot
-                    plan.freshPlanPreviewRun
-                    plan.freshPlanReservations
-                    >>= \case
+                readXeroTimesheetCreateProtocol >>= \case
+                    Left message -> pure (submissionFailure message)
+                    Right createProtocol -> persistAndSubmitPreview
+                        createProtocol
+                        submittedByUserId
+                        preparationRunId
+                        xeroClient
+                        accessToken
+                        connection
+                        plan.freshPlanRequest
+                        plan.freshPlanReadiness
+                        plan.freshPlanDuplicateSnapshot
+                        plan.freshPlanPreviewRun
+                        plan.freshPlanReservations
+                        >>= \case
                         Left message -> pure (submissionFailure message)
                         Right (XeroTimesheetSubmissionPersisted run) ->
                             pure (submissionSuccess (XeroTimesheetReviewedSubmissionCompleted run))
@@ -119,7 +122,7 @@ submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId reque
 withFreshRemoteTimesheets ::
     (?modelContext :: ModelContext) =>
     XeroTimesheetReadinessRequest ->
-    (XeroClient -> Text -> XeroConnection -> [XeroTimesheetRef] -> IO (XeroSubmissionResult a)) ->
+    (XeroPayrollClient -> Text -> XeroConnection -> [XeroTimesheetRef] -> IO (XeroSubmissionResult a)) ->
     IO (XeroSubmissionResult a)
 withFreshRemoteTimesheets request action =
     withSynchronousAppErrorFallback
@@ -135,7 +138,7 @@ withFreshRemoteTimesheets request action =
                     refreshXeroConnectionAccess xeroConfig connection >>= \case
                         Left message -> pure (submissionFailure message)
                         Right (refreshedConnection, accessToken) -> do
-                            xeroClient <- currentXeroClient
+                            xeroClient <- currentXeroPayrollClient
                             fetchRemoteTimesheetsForDuplicateCheck
                                 xeroClient
                                 accessToken
@@ -185,9 +188,10 @@ buildFreshSubmissionPlan request connection remoteTimesheets = do
 
 persistAndSubmitPreview ::
     (?modelContext :: ModelContext) =>
+    XeroTimesheetCreateProtocol ->
     Id User ->
     Id XeroTimesheetPreparationRun ->
-    XeroClient ->
+    XeroPayrollClient ->
     Text ->
     XeroConnection ->
     XeroTimesheetReadinessRequest ->
@@ -196,7 +200,7 @@ persistAndSubmitPreview ::
     XeroTimesheetPreviewRun ->
     [XeroTimesheetReservation] ->
     IO (Either Text XeroTimesheetSubmissionPersistenceOutcome)
-persistAndSubmitPreview submittedByUserId preparationRunId xeroClient accessToken connection request readiness duplicateSnapshot previewRun reservations = do
+persistAndSubmitPreview createProtocol submittedByUserId preparationRunId xeroClient accessToken connection request readiness duplicateSnapshot previewRun reservations = do
     let runTemplate =
             newRecord @XeroSubmissionRun
                 |> set #venueId (unpackId request.readinessVenueId)
@@ -220,9 +224,9 @@ persistAndSubmitPreview submittedByUserId preparationRunId xeroClient accessToke
     if not readiness.xeroTimesheetReady
         then Right . XeroTimesheetSubmissionPersisted <$> createRecord runTemplate
         else do
-            reserveXeroTimesheetSubmissionRun runTemplate reservations request.readinessRemoteTimesheets >>= \case
+            reserveXeroTimesheetSubmissionRunWithProtocol createProtocol runTemplate reservations request.readinessRemoteTimesheets >>= \case
                 XeroTimesheetReservationsCreated run reservedSubmissions -> do
-                    submitted <- mapM (submitExistingSubmission xeroClient accessToken connection) reservedSubmissions
+                    submitted <- mapM (submitExistingSubmission createProtocol xeroClient accessToken connection) reservedSubmissions
                     completedAt <- getCurrentTime
                     let finalStatus = runStatusFromSubmissions submitted
                         errorSummary = submissionErrorSummary submitted
@@ -263,17 +267,18 @@ previewReservation connection reviewedEntries preview = do
 
 submitExistingSubmission ::
     (?modelContext :: ModelContext) =>
-    XeroClient ->
+    XeroTimesheetCreateProtocol ->
+    XeroPayrollClient ->
     Text ->
     XeroConnection ->
     XeroTimesheetSubmission ->
     IO XeroTimesheetSubmission
-submitExistingSubmission xeroClient accessToken connection submission =
+submitExistingSubmission createProtocol xeroClient accessToken connection submission =
     case persistedWriteOperation submission of
         Left message -> do
             now <- getCurrentTime
             markSubmissionFailed submission now message
-        Right operation -> executeXeroTimesheetWrite initialWriteRecoveries xeroClient accessToken connection submission operation
+        Right operation -> executeXeroTimesheetWrite createProtocol initialWriteRecoveries xeroClient accessToken connection submission operation
 
 persistedWriteOperation :: XeroTimesheetSubmission -> Either Text XeroTimesheetWriteOperation
 persistedWriteOperation submission =
@@ -287,14 +292,15 @@ initialWriteRecoveries = [RefetchAfterMissingUpdate, RefetchAfterCreateConflict]
 
 executeXeroTimesheetWrite ::
     (?modelContext :: ModelContext) =>
+    XeroTimesheetCreateProtocol ->
     [XeroTimesheetWriteFailureAction] ->
-    XeroClient ->
+    XeroPayrollClient ->
     Text ->
     XeroConnection ->
     XeroTimesheetSubmission ->
     XeroTimesheetWriteOperation ->
     IO XeroTimesheetSubmission
-executeXeroTimesheetWrite allowedRecoveries xeroClient accessToken connection submission operation = do
+executeXeroTimesheetWrite createProtocol allowedRecoveries xeroClient accessToken connection submission operation = do
     now <- getCurrentTime
     performXeroTimesheetWrite xeroClient accessToken connection submission operation >>= \case
         Right refs -> markSubmissionSubmitted submission now refs
@@ -311,6 +317,7 @@ executeXeroTimesheetWrite allowedRecoveries xeroClient accessToken connection su
   where
     recover recoveryAction err now =
         recoverAfterProviderResponse
+            createProtocol
             (List.delete recoveryAction allowedRecoveries)
             xeroClient
             accessToken
@@ -321,25 +328,30 @@ executeXeroTimesheetWrite allowedRecoveries xeroClient accessToken connection su
             err
 
 performXeroTimesheetWrite ::
-    XeroClient ->
+    XeroPayrollClient ->
     Text ->
     XeroConnection ->
     XeroTimesheetSubmission ->
     XeroTimesheetWriteOperation ->
     IO (Either XeroClientError [XeroTimesheetRef])
 performXeroTimesheetWrite xeroClient accessToken connection submission operation =
-    case operation of
-        InitialXeroTimesheetCreate -> create
-        UpdateXeroTimesheetDraft timesheetId ->
-            updateTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey timesheetId submission.requestPayloadJson
-        ReplaceMissingXeroTimesheetDraft -> create
+    case decodePersistedXeroTimesheetDraft submission.requestPayloadJson of
+        Left message -> pure (Left (XeroSemanticError message))
+        Right draft ->
+            case operation of
+                InitialXeroTimesheetCreate protocol -> create protocol draft
+                UpdateXeroTimesheetDraft timesheetId ->
+                    xeroClient.payrollReplaceTimesheetDraft accessToken connection.tenantId submission.idempotencyKey timesheetId draft
+                ReplaceMissingXeroTimesheetDraft protocol -> create protocol draft
   where
-    create = createTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey submission.requestPayloadJson
+    create XeroTimesheetCreateV1 = xeroClient.payrollCreateTimesheetDraftV1 accessToken connection.tenantId submission.idempotencyKey
+    create XeroTimesheetCreateV2 = xeroClient.payrollCreateTimesheetDraftV2 accessToken connection.tenantId submission.idempotencyKey
 
 recoverAfterProviderResponse ::
     (?modelContext :: ModelContext) =>
+    XeroTimesheetCreateProtocol ->
     [XeroTimesheetWriteFailureAction] ->
-    XeroClient ->
+    XeroPayrollClient ->
     Text ->
     XeroConnection ->
     XeroTimesheetSubmission ->
@@ -347,7 +359,7 @@ recoverAfterProviderResponse ::
     UTCTime ->
     XeroClientError ->
     IO XeroTimesheetSubmission
-recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connection submission operation now writeError = do
+recoverAfterProviderResponse createProtocol remainingRecoveries xeroClient accessToken connection submission operation now writeError = do
     run <- fetch (Id submission.xeroSubmissionRunId :: Id XeroSubmissionRun)
     fetchRemoteTimesheetsForDuplicateCheck
         xeroClient
@@ -363,6 +375,7 @@ recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connecti
                     (durableXeroClientErrorText writeError <> " Reconciliation fetch failed: " <> durableXeroClientErrorText fetchError)
             Right remoteTimesheets ->
                 recoverFromReconciliation
+                    createProtocol
                     remainingRecoveries
                     xeroClient
                     accessToken
@@ -375,8 +388,9 @@ recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connecti
 
 recoverFromReconciliation ::
     (?modelContext :: ModelContext) =>
+    XeroTimesheetCreateProtocol ->
     [XeroTimesheetWriteFailureAction] ->
-    XeroClient ->
+    XeroPayrollClient ->
     Text ->
     XeroConnection ->
     XeroTimesheetSubmission ->
@@ -385,23 +399,23 @@ recoverFromReconciliation ::
     XeroClientError ->
     XeroTimesheetReconciliationDecision ->
     IO XeroTimesheetSubmission
-recoverFromReconciliation remainingRecoveries xeroClient accessToken connection submission operation now writeError decision =
+recoverFromReconciliation createProtocol remainingRecoveries xeroClient accessToken connection submission operation now writeError decision =
     case (operation, decision) of
         (UpdateXeroTimesheetDraft _, CreateXeroTimesheet) ->
-            continueWith ReplaceMissingXeroTimesheetDraft
+            continueWith (ReplaceMissingXeroTimesheetDraft createProtocol)
         (_, UpdateXeroDraft timesheetId) -> continueWith (UpdateXeroTimesheetDraft timesheetId)
         (_, blocked@BlockXeroNonDraft {}) -> block blocked
         (_, blocked@BlockDistinctXeroTimesheets {}) -> block blocked
         (_, blocked@BlockUnknownXeroStatus {}) -> block blocked
         (_, blocked@BlockMissingXeroTimesheetId {}) -> block blocked
-        (InitialXeroTimesheetCreate, CreateXeroTimesheet) -> failOriginal
-        (ReplaceMissingXeroTimesheetDraft, CreateXeroTimesheet) -> failOriginal
+        (InitialXeroTimesheetCreate {}, CreateXeroTimesheet) -> failOriginal
+        (ReplaceMissingXeroTimesheetDraft {}, CreateXeroTimesheet) -> failOriginal
         (_, ReplaceMissingXeroDraft _) -> failOriginal
         (_, XeroSubmissionInProgress) -> failOriginal
   where
     continueWith nextOperation = do
         transitioned <- transitionSubmissionOperationAfterAttempt submission now writeError nextOperation
-        executeXeroTimesheetWrite remainingRecoveries xeroClient accessToken connection transitioned nextOperation
+        executeXeroTimesheetWrite createProtocol remainingRecoveries xeroClient accessToken connection transitioned nextOperation
     block blockedDecision = markSubmissionBlockedAfterAttempt submission writeError (reconciliationBlockedMessage blockedDecision)
     failOriginal = markSubmissionFailed submission now (durableXeroClientErrorText writeError)
 
@@ -521,9 +535,9 @@ blockedReadinessSummary readiness =
         |> List.nub
         |> Text.intercalate "\n"
 
-fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
+fetchRemoteTimesheetsForDuplicateCheck :: XeroPayrollClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
 fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
-    fetchTimesheetsForPeriod xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
+    xeroClient.payrollFetchTimesheetsForPeriod accessToken tenantId maybeCalendarId periodStart periodEnd
 
 duplicateCheckSnapshotJson :: [XeroTimesheetRef] -> Aeson.Value
 duplicateCheckSnapshotJson refs =

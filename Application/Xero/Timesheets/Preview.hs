@@ -40,6 +40,7 @@ data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     { previewVenueId                  :: !(Id Venue)
     , previewPeriodStart              :: !Day
     , previewPeriodEnd                :: !Day
+    , previewPayrollCalendarId        :: !(Maybe Text)
     , previewTimesheetEntries         :: ![TimesheetEntry]
     , previewStaff                    :: ![Staff]
     , previewStaffMappings            :: ![XeroStaffMapping]
@@ -255,7 +256,7 @@ fetchPreviewInput request connection = do
             calendarEligibleEntries
                 |> filter (not . (`elem` previousConnectionEntryIds) . unpackId . (.id))
     input <- fetchEarningsInputForEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd connection entries
-    pure input { previewStaffMappings = staffMappings, previewRemoteTimesheets = request.readinessRemoteTimesheets }
+    pure input { previewStaffMappings = staffMappings, previewRemoteTimesheets = request.readinessRemoteTimesheets, previewPayrollCalendarId = request.readinessPayrollCalendarId }
 
 -- Shared sealed earnings read model. Unlike submission eligibility, manual
 -- workbook quantities must not depend on employee mappings or calendar routing.
@@ -312,6 +313,7 @@ fetchEarningsInputForEntries venueId periodStart periodEnd connection entries = 
         { previewVenueId = venueId
         , previewPeriodStart = periodStart
         , previewPeriodEnd = periodEnd
+        , previewPayrollCalendarId = Nothing
         , previewTimesheetEntries = entries
         , previewStaff = staffMembers
         , previewStaffMappings = staffMappings
@@ -608,6 +610,7 @@ timesheetRequestObject :: XeroTimesheetPreviewInput -> Maybe Text -> Text -> [Xe
 timesheetRequestObject input maybeExistingTimesheetId employeeId lines =
     Aeson.object $
         maybe [] (\timesheetId -> ["TimesheetID" Aeson..= timesheetId]) maybeExistingTimesheetId
+            <> maybe [] (\calendarId -> ["PayrollCalendarID" Aeson..= calendarId]) input.previewPayrollCalendarId
             <> [ "EmployeeID" Aeson..= employeeId
                , "StartDate" Aeson..= input.previewPeriodStart
                , "EndDate" Aeson..= input.previewPeriodEnd

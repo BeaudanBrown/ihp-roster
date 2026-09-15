@@ -16,7 +16,6 @@ import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection (durableXeroClientErrorText)
 import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified)
 import Control.Monad (void)
-import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
@@ -55,7 +54,7 @@ data XeroPayItemSubmissionFailure = XeroPayItemSubmissionFailure
 
 createProposedXeroPayItems ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroClient ->
+    XeroPayrollClient ->
     XeroConnection ->
     Text ->
     UTCTime ->
@@ -64,7 +63,7 @@ createProposedXeroPayItems ::
     IO (Either Text CreatePayItemsVerificationResult)
 createProposedXeroPayItems xeroClient connection accessToken now accountCode requirements = do
     let batchKey = xeroPayItemIdempotencyBatchKey now
-    initialFetchResult <- fetchEarningsRates xeroClient accessToken connection.tenantId
+    initialFetchResult <- xeroClient.payrollFetchEarningsRates accessToken connection.tenantId
     case initialFetchResult of
         Left err -> pure (Left ("Xero pay item preflight pull failed before creating pay items: " <> durableXeroClientErrorText err))
         Right initialRates -> do
@@ -78,7 +77,7 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
             verifySubmittedCreates submittedCount submissionFailures
     where
         verifySubmittedCreates submittedCount submissionFailures = do
-            fetchResult <- fetchEarningsRates xeroClient accessToken connection.tenantId
+            fetchResult <- xeroClient.payrollFetchEarningsRates accessToken connection.tenantId
             case fetchResult of
                 Left err -> pure (Left ("Xero pay item verification failed after submitting " <> tshow submittedCount <> " pay items and receiving " <> tshow (length submissionFailures) <> " create errors: " <> durableXeroClientErrorText err))
                 Right fetchedRates -> do
@@ -103,8 +102,7 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
             let idempotencyKey = xeroPayItemIdempotencyKey batchKey itemIndex requirement
             let body = xeroPayItemRequestPayload maybeExpenseAccountId accountCode requirement
             createResult <-
-                createPayItem
-                    xeroClient
+                xeroClient.payrollCreateEarningsRate
                     accessToken
                     connection.tenantId
                     idempotencyKey
@@ -221,24 +219,21 @@ selectedXeroPayItemExpenseAccountId connection accountCode = do
             |> fetch
     pure (fmap (.xeroAccountId) (listToMaybe accounts))
 
-xeroPayItemRequestPayload :: Maybe Text -> Text -> XeroPayItemRequirement -> Aeson.Value
+xeroPayItemRequestPayload :: Maybe Text -> Text -> XeroPayItemRequirement -> XeroEarningsRateCreate
 xeroPayItemRequestPayload maybeExpenseAccountId accountCode requirement =
-    xeroEarningsRatePayload maybeExpenseAccountId accountCode requirement
-
-xeroEarningsRatePayload :: Maybe Text -> Text -> XeroPayItemRequirement -> Aeson.Value
-xeroEarningsRatePayload maybeExpenseAccountId accountCode requirement =
-    Aeson.object $
-        [ "Name" Aeson..= requirement.payItemRequirementName
-        , "TypeOfUnits" Aeson..= ("Hours" :: Text)
-        , "EarningsType" Aeson..= requirement.payItemRequirementEarningsType
-        , "RateType" Aeson..= requirement.payItemRequirementRateType
-        , "RatePerUnit" Aeson..= requirement.payItemRequirementRatePerUnit
-        , "IsSubjectToTax" Aeson..= True
-        , "IsSubjectToSuper" Aeson..= True
-        , "IsReportableAsW1" Aeson..= True
-        , "IsQualifyingEarnings" Aeson..= True
-        ]
-            <> maybe ["AccountCode" Aeson..= accountCode] (\expenseAccountId -> ["ExpenseAccountID" Aeson..= expenseAccountId]) maybeExpenseAccountId
+    XeroEarningsRateCreate
+        { xeroEarningsRateCreateName = requirement.payItemRequirementName
+        , xeroEarningsRateCreateTypeOfUnits = "Hours"
+        , xeroEarningsRateCreateEarningsType = requirement.payItemRequirementEarningsType
+        , xeroEarningsRateCreateRateType = requirement.payItemRequirementRateType
+        , xeroEarningsRateCreateRatePerUnit = requirement.payItemRequirementRatePerUnit
+        , xeroEarningsRateCreateIsSubjectToTax = True
+        , xeroEarningsRateCreateIsSubjectToSuper = True
+        , xeroEarningsRateCreateIsReportableAsW1 = True
+        , xeroEarningsRateCreateIsQualifyingEarnings = True
+        , xeroEarningsRateCreateAccountCode = if isNothing maybeExpenseAccountId then Just accountCode else Nothing
+        , xeroEarningsRateCreateExpenseAccountId = maybeExpenseAccountId
+        }
 
 persistCreatedXeroPayItem ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

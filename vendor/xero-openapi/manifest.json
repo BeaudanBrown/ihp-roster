@@ -1,38 +1,38 @@
 {
   "upstream_repo": "https://github.com/XeroAPI/Xero-OpenAPI",
-  "upstream_commit": "45ab7e8ceccbbbfb41a0487a47f9d1d00cbb4a0f",
-  "fetched_at": "2026-07-30T01:29:39Z",
+  "upstream_commit": "448060d7829cae23166a2e443be48c2f2422280f",
+  "fetched_at": "2026-09-15T03:44:29Z",
   "files": [
     {
       "path": "xero-identity.yaml",
       "upstream_path": "xero-identity.yaml",
       "classification": "official_upstream",
-      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/45ab7e8ceccbbbfb41a0487a47f9d1d00cbb4a0f/xero-identity.yaml",
-      "sha256": "d95f4204d8ec369dac2bb1ee6e6b8cfb88f845a09cbcba630475dd34c73cf2bd",
+      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/448060d7829cae23166a2e443be48c2f2422280f/xero-identity.yaml",
+      "sha256": "d50fc5cf8844126831684948b54e2f2fea08f3cfe040a7103f273f160ee7b0cb",
       "required_paths": ["/Connections", "/Connections/{id}"]
     },
     {
       "path": "xero-payroll-au.yaml",
       "upstream_path": "xero-payroll-au.yaml",
       "classification": "official_upstream",
-      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/45ab7e8ceccbbbfb41a0487a47f9d1d00cbb4a0f/xero-payroll-au.yaml",
-      "sha256": "35651d98854ef01b1757e4c10e6b171ca42860e3097e072c45183d4cb2d6f28b",
+      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/448060d7829cae23166a2e443be48c2f2422280f/xero-payroll-au.yaml",
+      "sha256": "a8cfa1754ad74bc451f588b5847fd043e21416b215545be21de666ac5d9b4bc7",
       "required_paths": ["/Employees", "/PayItems", "/PayrollCalendars", "/Timesheets", "/Timesheets/{TimesheetID}"]
     },
     {
       "path": "xero-payroll-au-v2.yaml",
       "upstream_path": "xero-payroll-au-v2.yaml",
       "classification": "official_upstream",
-      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/45ab7e8ceccbbbfb41a0487a47f9d1d00cbb4a0f/xero-payroll-au-v2.yaml",
-      "sha256": "849a5f732ef105238a3965c56725eb3ce74b6cc9ce754faf23e61b82399f1c84",
+      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/448060d7829cae23166a2e443be48c2f2422280f/xero-payroll-au-v2.yaml",
+      "sha256": "27eb1b8468e8fcd3afcff20e8349e7cd62de64a726ede3e9fec5a22abdd5faec",
       "required_paths": ["/Timesheets"]
     },
     {
       "path": "xero-accounting.yaml",
       "upstream_path": "xero_accounting.yaml",
       "classification": "official_upstream",
-      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/45ab7e8ceccbbbfb41a0487a47f9d1d00cbb4a0f/xero_accounting.yaml",
-      "sha256": "dc231cafd8de7d93a1c0c8cc26944724a8af5f1e59cc54b684187ee22df36318",
+      "source_url": "https://raw.githubusercontent.com/XeroAPI/Xero-OpenAPI/448060d7829cae23166a2e443be48c2f2422280f/xero_accounting.yaml",
+      "sha256": "0458b4ef9ed72d53fdab89a6c31422b155516115cfa8146ac451f51d778f4582",
       "required_paths": ["/Accounts"]
     }
   ],
