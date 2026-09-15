@@ -5,6 +5,7 @@ module Application.WageSourceFacts
     ) where
 
 import Application.Helper.WeekBoundaries (startOfWeekFor)
+import Application.PublicHolidays.Override
 import Application.WageSourcePolicy
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -15,6 +16,8 @@ import IHP.ControllerPrelude
 data WageSourceFacts = WageSourceFacts
     { factFwcSnapshots                         :: ![FwcSnapshot]
     , factDataVicSnapshots                     :: ![DataVicSnapshot]
+    , factPublicHolidays                       :: ![PublicHoliday]
+    , factPublicHolidayOverrides               :: ![PublicHolidayOverride]
     , factVenueConfigs                         :: !(Map.Map UUID VenueConfig)
     , factValidImportedPayItemIdsByVenue       :: !(Map.Map UUID (Set.Set UUID))
     , factUnavailableImportedPayItemIdsByVenue :: !(Map.Map UUID (Set.Set UUID))
@@ -38,9 +41,12 @@ loadWageSourceFactsFor venueIds targetYears = do
             |> filterWhere (#jurisdiction, "VIC" :: Text)
             |> filterWhere (#isRegional, False)
             |> fetch
+    overrides <- if Set.null targetYears then pure [] else fetchActivePublicHolidayOverrides
     pure WageSourceFacts
         { factFwcSnapshots = map fwcSnapshotFromRun syncRuns
         , factDataVicSnapshots = dataVicSnapshotsFromHolidays targetYears holidays
+        , factPublicHolidays = holidays
+        , factPublicHolidayOverrides = overrides
         , factVenueConfigs = Map.fromList [(config.venueId, config) | config <- venueConfigs]
         , factValidImportedPayItemIdsByVenue = importedPayItemIdsByVenue (filter (.providerAvailable) importedPayItems)
         , factUnavailableImportedPayItemIdsByVenue = importedPayItemIdsByVenue (filter (not . (.providerAvailable)) importedPayItems)
@@ -56,15 +62,22 @@ importedPayItemIdsByVenue items =
 sourceDiagnosticsForFacts :: PolicyClock -> WageSourceFacts -> UUID -> Day -> Set.Set Integer -> SourceRequirement -> [SourceDiagnostic]
 sourceDiagnosticsForFacts clock facts venueId workedOn targetYears requirement =
     case decision.finalDecision of
-        FinalSourcesReady               -> []
-        FinalSourceBlock allDiagnostics -> allDiagnostics
+        FinalSourcesReady               -> overrideDiagnostics
+        FinalSourceBlock allDiagnostics -> allDiagnostics <> overrideDiagnostics
   where
+    protectedYears = Set.intersection targetYears (overriddenYears facts.factPublicHolidayOverrides)
+    readyYears = usableOverrideYears clock.now facts.factPublicHolidays facts.factPublicHolidayOverrides
+    -- Never fall back to old imported_at values for an expired/broken override.
+    -- Provider health alerts continue to use the unmodified DataVic snapshots.
+    overrideDiagnostics
+        | requirement == ImportedXeroOverride = []
+        | otherwise = map DataVicSnapshotMissing (Set.toAscList (protectedYears `Set.difference` readyYears))
     weekStartsOnIndex = maybe 1 (.rosterWeekStartsOn) (Map.lookup venueId facts.factVenueConfigs)
     decision = evaluateWageSourcePolicy clock WageSourcePolicyInput
         { sourceRequirement = requirement
         , payWeekStart = startOfWeekFor weekStartsOnIndex workedOn
         , venueWeekStartsOn = weekdayIndexToDayOfWeek weekStartsOnIndex
-        , applicableDataVicTargetYears = targetYears
+        , applicableDataVicTargetYears = targetYears `Set.difference` protectedYears
         , fwcSnapshots = facts.factFwcSnapshots
         , dataVicSnapshots = facts.factDataVicSnapshots
         }

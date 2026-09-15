@@ -43,6 +43,12 @@ runner can deploy the revision.
 Hspec semantics checks with generated-type and application authority checks. Its
 help intentionally states that it is not a production migration runner.
 
+`Test/PublicHolidayOverrideSpec.hs` executes revision `1789440001` against a
+current-schema incident fixture to verify precise corrections, complete-calendar
+preflight, audit retention, repeatability and rollback. It also exercises the
+`1789440000` write guard installed through the fresh schema. These are focused
+SQL semantics checks, not production-clone or migration-runner evidence.
+
 ## Retained source-contract checks
 
 The following files read migration text but do not execute it:

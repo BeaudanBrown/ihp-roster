@@ -32,6 +32,11 @@ pureTests = do
             parseDataVicDate "3/11/2026" `shouldBe` Right (fromGregorian 2026 11 3)
             parseDataVicDate "25/12/2026" `shouldBe` Right (fromGregorian 2026 12 25)
 
+        it "does not reinterpret the incident's ambiguous provider timestamps" do
+            parseDataVicDate "2026-09-03T00:00:00"
+                `shouldBe` Left "Expected DataVic date in D/MM/YYYY format, got: 2026-09-03T00:00:00"
+            parseDataVicDate "2019-05-11T00:00:00" `shouldSatisfy` isLeft
+
         it "normalizes statewide DataVic public holiday records" do
             publicHolidayImportFromDataVic melbourneCupRecord
                 `shouldBe`

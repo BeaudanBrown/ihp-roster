@@ -16,6 +16,7 @@ import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.JobStatus (jobStatusLabel)
+import Application.PublicHolidays.Override (PublicHolidayOverrideStatus (..))
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
@@ -264,7 +265,7 @@ renderPublicHolidayCoverageWarning :: [PublicHolidayCoverageYear] -> Html
 renderPublicHolidayCoverageWarning publicHolidayCoverage
     | publicHolidayCoverageHasWarning publicHolidayCoverage = [hsx|
         <div class="alert alert-warning mb-0">
-            Public holiday cache has missing or stale target-year data. Payroll predictions continue to run, but refresh the cache and review the latest job status.
+            Public holiday coverage is missing, stale, or requires override review. Review the latest job and any protected calendar before payroll; refreshing DataVic cannot replace an active override.
         </div>
     |]
     | otherwise = mempty
@@ -304,6 +305,15 @@ renderPublicHolidayCoverageStatus status =
         PublicHolidayCoverageHealthy -> [hsx|<span class="badge text-bg-success">healthy</span>|]
         PublicHolidayCoverageMissing -> [hsx|<span class="badge text-bg-warning">missing</span>|]
         PublicHolidayCoverageStale -> [hsx|<span class="badge text-bg-warning">stale</span>|]
+        PublicHolidayCoverageOverride overrideState reviewDueAt ->
+            let label = case overrideState of
+                    OverrideReady -> "Verified override" :: Text
+                    OverrideExpired -> "Override review overdue"
+                    OverrideInvalid -> "Override calendar mismatch"
+             in [hsx|
+                <span class={if overrideState == OverrideReady then ("badge text-bg-info" :: Text) else "badge text-bg-warning"}>{label}</span>
+                <div class="small">DataVic writes blocked. Review by {formatTimestamp reviewDueAt}.</div>
+            |]
 
 renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
 renderPublicHolidayRefreshForm activeRefreshJob =

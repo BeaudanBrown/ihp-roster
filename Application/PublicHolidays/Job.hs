@@ -105,4 +105,5 @@ publicHolidaySyncJobError exception =
         Just PublicHolidayProviderUnavailable -> JobTransportUnavailable
         Just PublicHolidayResponseMalformed   -> JobMalformedResponse
         Just PublicHolidayImportInvalid       -> JobValidationRejected
+        Just PublicHolidayOverrideProtected   -> JobValidationRejected
         Nothing                               -> JobUnexpectedSynchronousFailure

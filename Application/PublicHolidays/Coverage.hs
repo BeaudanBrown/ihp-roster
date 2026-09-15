@@ -5,6 +5,7 @@ module Application.PublicHolidays.Coverage
     , publicHolidayCoverageHasWarning
     ) where
 
+import Application.PublicHolidays.Override
 import Application.PublicHolidays.Policy (publicHolidayFreshnessWarningAge,
                                           targetPublicHolidayYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
@@ -16,6 +17,7 @@ data PublicHolidayCoverageStatus
     = PublicHolidayCoverageHealthy
     | PublicHolidayCoverageMissing
     | PublicHolidayCoverageStale
+    | PublicHolidayCoverageOverride PublicHolidayOverrideStatus UTCTime
     deriving (Eq, Show)
 
 data PublicHolidayCoverageYear = PublicHolidayCoverageYear
@@ -36,13 +38,21 @@ fetchPublicHolidayCoverage = do
             |> filterWhere (#jurisdiction, PublicHolidayPolicy.publicHolidayJurisdiction)
             |> filterWhere (#isRegional, False)
             |> fetch
+    overrides <- fetchActivePublicHolidayOverrides
     let staleBefore = addUTCTime (negate publicHolidayFreshnessWarningAge) now
     let grouped = foldl' insertHoliday Map.empty holidays
-    pure (map (coverageYear staleBefore grouped) (targetPublicHolidayYears (utctDay now)))
+    let withOverride :: PublicHolidayCoverageYear -> PublicHolidayCoverageYear
+        withOverride entry = case find (\override -> fromIntegral override.targetYear == entry.year) overrides of
+            Nothing -> entry
+            Just override -> entry { status = PublicHolidayCoverageOverride (overrideStatus now holidays override) override.reviewDueAt }
+    pure (map (withOverride . coverageYear staleBefore grouped) (targetPublicHolidayYears (utctDay now)))
 
 publicHolidayCoverageHasWarning :: [PublicHolidayCoverageYear] -> Bool
 publicHolidayCoverageHasWarning coverage =
-    any (\entry -> entry.status /= PublicHolidayCoverageHealthy) coverage
+    any (\entry -> case entry.status of
+        PublicHolidayCoverageHealthy -> False
+        PublicHolidayCoverageOverride OverrideReady _ -> False
+        _ -> True) coverage
 
 coverageYear :: UTCTime -> Map.Map Integer [PublicHoliday] -> Integer -> PublicHolidayCoverageYear
 coverageYear staleBefore grouped year =

@@ -74,6 +74,10 @@ destructive changes:
 Do not infer production approval from a committed migration or runbook; use the
 named approval boundary in that runbook.
 
+- `public-holiday-override-runbook.md` — audited VIC 2026 calendar protection,
+  Grand Final eve addition, Easter Monday 2027 correction, review expiry and
+  separately approved return to DataVic (revisions `1789440000`/`1789440001`).
+
 ## Data-Preserving Enum Conversions
 
 GitHub #338's feedback/shift-colour enum preflight, verification, and rollback

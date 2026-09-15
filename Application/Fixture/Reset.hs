@@ -46,6 +46,7 @@ applicationTableNames =
     , "award_level_penalty_rates"
     , "award_time_penalty_allowances"
     , "public_holidays"
+    , "public_holiday_overrides"
     , "live_invalidation_event_resources"
     , "live_resource_versions"
     , "live_invalidation_events"

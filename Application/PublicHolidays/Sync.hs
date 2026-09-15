@@ -15,6 +15,7 @@ module Application.PublicHolidays.Sync
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
+import Application.PublicHolidays.Override (fetchActivePublicHolidayOverrides, overriddenYears)
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import qualified Control.Exception as Exception
@@ -48,6 +49,7 @@ data PublicHolidaySyncError
     = PublicHolidayProviderUnavailable
     | PublicHolidayResponseMalformed
     | PublicHolidayImportInvalid
+    | PublicHolidayOverrideProtected
     deriving (Eq, Show)
 
 instance Exception.Exception PublicHolidaySyncError
@@ -164,6 +166,10 @@ importDataVicPublicHolidayRecordsForYears ::
 importDataVicPublicHolidayRecordsForYears years records = do
     now <- getCurrentTime
     let targetYears = nub (sort years)
+    overrides <- fetchActivePublicHolidayOverrides
+    unless (Set.null (Set.intersection (Set.fromList targetYears) (overriddenYears overrides))) do
+        TextIO.putStrLn "public_holiday_sync_protected_year: reviewed override active; no years replaced"
+        throwExternalRuntime PublicHolidayOverrideProtected
     parsedImports <- forM records \record ->
         case publicHolidayImportFromDataVic record of
             Left reason -> do
