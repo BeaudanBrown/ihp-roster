@@ -30,6 +30,15 @@ selected host processes in samples are contention context, not command
 attribution. Raw local evidence is under `.pi/tmp/verify-profile/current/`.
 Those paths are intentionally not remote evidence or committed artifacts.
 
+Method correction from #578: the recorder starts its clock before collecting
+metadata through several wrapper entries, and finishes after sampler shutdown.
+The wall totals therefore include recorder setup/teardown, not just the named
+command; child resource totals also include metadata subprocesses. In
+particular, the environment-entry rows cannot establish wrapper-only latency.
+Stage-marker differences exclude initial setup and are the better attribution
+measure. Subsequent probes use command-only monotonic timers. Resource figures
+below are recorder observations, not clean command-attributed budgets.
+
 Each row below retains the recorder's UTC start, exact argument vector, and exit
 status. Workspace identity was epic 576, slot 1 for every row.
 
@@ -57,11 +66,12 @@ status. Workspace identity was epic 576, slot 1 for every row.
 |---|---:|---:|---:|---:|
 | `verify-fast`, first retained-cache observation | pass | 898.54s | 2,487.92s | 7,541 MiB |
 | `verify-full`, retained caches after fast | fail | 1,230.03s | 2,297.21s | 9,852 MiB |
-| `verify-fast`, immediate warm repeat | pass | 571.80s | 1,067.70s | 1,628 MiB |
+| `verify-fast`, warm repeat after full | pass | 571.80s | 1,067.70s | 1,628 MiB |
 
 The first fast run regenerated generated Haskell types and compiled a broad
-working-tree graph. The immediate repeat is the useful no-change warm
-observation; it was still 9m32s.
+working-tree graph. The second fast run followed full, not fast immediately;
+it is a retained warm observation with that intervening producer, about 9m32s
+including recorder overhead.
 
 ### Fast stage boundaries
 
@@ -131,9 +141,9 @@ include those effects. No verification-cache lock wait was reported.
 
 ## Focused observations
 
-CPU is aggregate descendant user plus system time; RSS is the maximum reported
-for a descendant. As above, neither includes pre-existing service or Nix-daemon
-work.
+CPU is the recorder's child user plus system time; RSS is its reported child
+maximum. Both include metadata subprocesses, exclude pre-existing service and
+Nix-daemon work, and are unsuitable as command-only resource measurements.
 
 | Observation | Cache definition | Wall | Child CPU | Peak child RSS |
 |---|---|---:|---:|---:|
@@ -148,11 +158,13 @@ work.
 | Focused E2E 1 | retained caches | 34.98s | 42.46s | 1,628 MiB |
 | Focused E2E 2 | immediate repeat | 30.21s | 81.93s | 1,629 MiB |
 | Isolated typecheck | output-cold | 107.21s | 518.49s | 8,120 MiB |
-| Isolated typecheck | immediate repeat | 8.73s | 536.71s | 8,120 MiB |
+| Isolated typecheck | immediate repeat | 8.73s | unavailable | unavailable |
 
-The recorder's descendant counters for the second isolated typecheck include
-inherited child accounting from the preceding cold command, so its CPU/RSS
-values are conservative upper bounds; its wall time is valid. The output-cold
+The second isolated typecheck recorded 536.71 child CPU seconds and 8,120 MiB
+RSS despite an 8.73s wall interval. Those counters appear contaminated by prior
+child accounting; the cause was not independently established. They must not
+be used as this command's resource figures. Wall remains a recorder interval,
+including setup/teardown, rather than a command-only timer. The output-cold
 run compiled 1,201 subjects from 7.66s to 105.68s without deleting shared state;
 the immediate repeat emitted no compilation rows. Warm retained typecheck
 completed generated/inventory checks by 3.10s and returned at 8.91s. Focused

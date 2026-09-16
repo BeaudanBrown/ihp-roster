@@ -26,7 +26,10 @@ git ls-files -o --exclude-standard -z | sha256sum
 Run one command at a time through that checkout's `bin/in-env`; concurrent
 wrapper entries can race on generated devenv files. Record the exact argument
 vector, UTC start, monotonic wall time, exit status, tool versions, logical CPU
-and memory totals. Timestamp stdout/stderr so the existing `verify-fast:` and
+and memory totals. Collect metadata before starting the command timer; stop it
+at process exit, before sampler teardown. Use per-command child CPU deltas and
+per-process memory evidence, not inherited/cumulative child counters from a
+multi-command shell. Timestamp stdout/stderr so the existing `verify-fast:` and
 `verify-full:` markers define stage boundaries. Retain test/example counts,
 shards, projects/devices, retries, flakes and skips.
 
