@@ -32,8 +32,10 @@ there is no stale-binary fallback or prebuilt execution mode.
   Git and initialization commands but has no GitHub or application dependency.
 - `bepis-postgres`: typed managed/external and durable/disposable PostgreSQL
   profiles, owned-root validation, lifecycle/maintenance locks, bounded startup
-  logs, E2E capacity, cleanup, and development app-recovery coordination. Schema
-  and fixture loading remain application-owned shell commands.
+  logs, E2E capacity, cleanup, development app-recovery coordination, and local
+  migration-rehearsal plans/process/database cleanup with bounded failure
+  evidence. Schema reconstruction, migration SQL, focused assertions, and schema
+  comparison remain application-owned subprocess inputs.
 - `bepis-runtime`: workspace-state-dependent owned-process evidence, concurrent
   publication, scoped process-group termination/escalation, bounded readiness,
   and optional equal-weight systemd/cgroup execution. Service launch recipes

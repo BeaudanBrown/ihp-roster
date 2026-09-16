@@ -5,6 +5,7 @@ module Bepis.Tooling.Postgres
 import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock)
 import Bepis.Tooling.Postgres.Config (ConfigError (..), Profile (..))
 import Bepis.Tooling.Postgres.Lifecycle (PostgresError (..), runProfileCommand)
+import Bepis.Tooling.Postgres.Rehearsal (runRehearsalCommand)
 import Control.Concurrent (threadDelay)
 import Control.Exception (catch)
 import Control.Monad (unless)
@@ -30,12 +31,13 @@ dispatch = do
         "profile":"dev":command:rest -> runProfileCommand Development command rest
         "profile":"e2e":command:rest -> runProfileCommand E2E command rest
         "maintenance-run":lockPath:message:"--":command:rest -> maintenanceRun lockPath message command rest
+        "rehearsal-run":rest -> runRehearsalCommand rest
         ["app-running"] -> appRunning
         ["wait-app-recovery"] -> waitForAppRecovery
         _ -> hPutStrLn stderr usage >> exitWith (ExitFailure 64)
 
 usage :: String
-usage = "Usage: bepis-postgres profile hspec|dev|e2e COMMAND [ARGS...] | maintenance-run LOCK MESSAGE -- COMMAND [ARGS...]"
+usage = "Usage: bepis-postgres profile hspec|dev|e2e COMMAND [ARGS...] | maintenance-run LOCK MESSAGE -- COMMAND [ARGS...] | rehearsal-run OPTIONS"
 
 maintenanceRun :: FilePath -> String -> FilePath -> [String] -> IO ()
 maintenanceRun lockPath busyMessage command arguments = do
