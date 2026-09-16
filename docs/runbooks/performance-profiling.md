@@ -10,6 +10,77 @@ bash ./bin/in-env <command>
 
 The profiling commands use isolated `app_profile*` databases and dedicated app servers, so they can run alongside normal dev and test servers. Generated artifacts are written under `output/profile*` and are ignored by git.
 
+## Verification Pipeline Profiling
+
+Verification timing is meaningful only when revision, inputs, cache state, host
+pressure, and selected test tier match. Before runtime E2E, confirm the checkout
+and slot:
+
+```bash
+bash ./bin/in-env dev-workspace-info --json
+git rev-parse HEAD
+git diff --binary HEAD | sha256sum
+git ls-files -o --exclude-standard -z | sha256sum
+```
+
+Run one command at a time through that checkout's `bin/in-env`; concurrent
+wrapper entries can race on generated devenv files. Record the exact argument
+vector, UTC start, monotonic wall time, exit status, tool versions, logical CPU
+and memory totals. Timestamp stdout/stderr so the existing `verify-fast:` and
+`verify-full:` markers define stage boundaries. Retain test/example counts,
+shards, projects/devices, retries, flakes and skips.
+
+Sample command descendants and host `/proc/stat`, `/proc/loadavg`, and
+`/proc/pressure/{cpu,io,memory}` at a low rate. Report descendant user/system
+CPU and peak RSS separately from host pressure. Descendant accounting excludes
+Nix-daemon and pre-existing database/application services; host samples include
+unrelated work. Record cache-lock, Nix evaluation/substitution/build, network,
+remote-builder, database setup/reset, linking, startup, test, and teardown waits
+when their owners expose them. Never infer idle time from low child CPU while a
+daemon performs the build.
+
+Use these cache-state names:
+
+- **retained-cache observation**: all useful workspace, user, Nix and OS caches
+  remain; document command order.
+- **immediate warm repeat**: unchanged revision and inputs, same command-owned
+  outputs, run immediately after the producer.
+- **output-cold**: point a supported command-owned build/output variable at a
+  new empty directory; retain package, Nix and OS caches. For example:
+
+  ```bash
+  TYPECHECK_BUILD_DIR="$PWD/.pi/tmp/verification-profile/typecheck-cold" \
+    bash ./bin/in-env typecheck
+  ```
+
+- **machine-cold**: package/Nix/OS cache eviction. Do not use this on a shared
+  development host without explicit approval; it is not required for routine
+  comparisons.
+
+Capture `verify-fast` and `verify-full` from process entry to exit. A canonical
+failure remains an end-to-end failed observation: retain its stopping stage and
+do not invoke later stages and call the result a pipeline pass. Then measure
+representative focused Haskell, frontend, and E2E commands, environment entry,
+and immediate warm repeats. Focused results are additive diagnostics and never
+inherit full-gate authority. `verify-fast` does not replace complete Hspec,
+complete Playwright, production, schema/migration, package, or deployment
+authority.
+
+Only a successful producer may publish a handoff. Static proof reuse requires
+an identity covering source, generated and dependency inputs, compiler/package
+environment, flags, inventories, and policy. Runtime results are not reusable
+merely because source hashes match. A failed or interrupted `verify-full` run
+supplies neither complete-gate evidence nor its later generated-tooling,
+architecture, production-closure, and browser handoffs.
+
+For a before/after conclusion, use the same revision class, cache definition,
+command order, host, toolchain, shard/device selection, and network/builder
+policy. Prefer at least three successful quiet-host runs per state; report
+median, tail, peak memory and every failure rather than selecting the fastest
+run. Preserve raw local logs and bounded machine-readable summaries under
+`.pi/tmp/`; retain only reviewed comparison evidence with continuing value in
+`docs/archive/`.
+
 ## Request Instrumentation
 
 Profiling is enabled only when the profiling server sets:
