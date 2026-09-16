@@ -183,8 +183,10 @@ in
         production-source-repository-check = script ../scripts/verification/production-source-repository-check;
         production-source-boundary-check = script ../scripts/verification/production-source-boundary;
         production-package-smoke = script ../scripts/verification/production-package-smoke;
+        glue-compatibility-test = script ../scripts/verification/glue-compatibility-test;
+        tooling-hls-test = script ../scripts/verification/tooling-hls-test;
         frontend-runtime-check = script ../scripts/verification/frontend-runtime-check;
-        architecture-repository-check = script ../scripts/verification/architecture-repository-check;
+        architecture-repository-check = script ../scripts/architecture/repository-check;
         documentation-repository-check = script ../scripts/verification/documentation-repository-check;
         production-build-budget-check = script ../scripts/verification/production-build-budget;
         frontend-contract-package-check = script ../scripts/verification/frontend-contract-package;

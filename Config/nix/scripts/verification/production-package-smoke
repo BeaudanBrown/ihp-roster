@@ -40,10 +40,12 @@ if [ "${#source_paths[@]}" -ne 1 ]; then
     exit 1
 fi
 production_source="${source_paths[0]}"
-if [ -e "$production_source/Test" ]; then
-    echo "production-package-smoke: Test leaked into filtered production source" >&2
-    exit 1
-fi
+for excluded_root in Test docs e2e frontend scripts bin tooling vendor; do
+    if [ -e "$production_source/$excluded_root" ]; then
+        echo "production-package-smoke: excluded root leaked into production source: $excluded_root" >&2
+        exit 1
+    fi
+done
 while IFS= read -r -d '' required_path; do
     if [ ! -e "$production_source/$required_path" ]; then
         echo "production-package-smoke: required production input omitted: $required_path" >&2

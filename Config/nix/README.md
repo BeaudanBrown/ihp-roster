@@ -196,6 +196,28 @@ once. Its temporary repositories come from tracked source and exercise the real
 wrapper entrypoints; unrelated enum/package authorities are stubbed only in
 these scanner fixtures. Real repository gates remain separately required.
 
+## Glue Compatibility And Change Footprint
+
+`glue-compatibility-test` executes the public generated-watcher alias, mobile
+screenshot matrix, and both SSH tunnel roles against isolated fake dependencies.
+It retains exact argument order, exit status, capture count, viewport, port-map,
+and destination assertions without contacting a browser, tunnel, or remote
+service. `tooling-hls-test` resolves one module from every independent package
+and repeats resolution from `tooling/`, while `hie-bios-test` retains the
+application cradle contract.
+
+For a glue-only issue, use the issue's pinned fixed point and reviewed scope as
+the deterministic physical-line report contract:
+
+```bash
+git diff --numstat <fixed-point> -- <reviewed-path>...
+```
+
+Report added lines, deleted lines, net lines, deleted forwarding files, and the
+unique assertions retained by their canonical owner. Binary entries are not a
+valid line report. This is change evidence, not a second source inventory or
+task tracker.
+
 ## Test-only Haskell dependencies
 
 `hspec`, `ihp-hspec`, and `QuickCheck` belong to `ihp.devHaskellPackages`, so

@@ -1,4 +1,54 @@
-# Used by haskell-language-server to find GHC settings
+# Used by haskell-language-server to find GHC settings.
 cradle:
-    bios:
-        shell: "/bin/sh .hie-bios"
+  multi:
+    - path: "./tooling"
+      config:
+        cradle:
+          cabal:
+            cabalProject: "./tooling.project"
+            components:
+            - path: "./tooling/core/src"
+              component: "lib:bepis-tooling-core"
+            - path: "./tooling/core/test"
+              component: "bepis-tooling-core:test:bepis-tooling-core-test"
+            - path: "./tooling/workspace-state/src"
+              component: "lib:bepis-workspace-state"
+            - path: "./tooling/workspace-state/app"
+              component: "bepis-workspace-state:exe:bepis-workspace-state"
+            - path: "./tooling/workspace-state/test"
+              component: "bepis-workspace-state:test:bepis-workspace-state-test"
+            - path: "./tooling/postgres/src"
+              component: "lib:bepis-postgres"
+            - path: "./tooling/postgres/app"
+              component: "bepis-postgres:exe:bepis-postgres"
+            - path: "./tooling/postgres/test"
+              component: "bepis-postgres:test:bepis-postgres-test"
+            - path: "./tooling/runtime/src"
+              component: "lib:bepis-runtime"
+            - path: "./tooling/runtime/app"
+              component: "bepis-runtime:exe:bepis-runtime"
+            - path: "./tooling/runtime/test"
+              component: "bepis-runtime:test:bepis-runtime-test"
+            - path: "./tooling/epic-lifecycle/src"
+              component: "lib:bepis-epic-lifecycle"
+            - path: "./tooling/epic-lifecycle/app"
+              component: "bepis-epic-lifecycle:exe:bepis-epic-lifecycle"
+            - path: "./tooling/epic-lifecycle/test"
+              component: "bepis-epic-lifecycle:test:bepis-epic-lifecycle-test"
+            - path: "./tooling/artifacts/src"
+              component: "lib:bepis-artifacts"
+            - path: "./tooling/artifacts/app"
+              component: "bepis-artifacts:exe:bepis-artifacts"
+            - path: "./tooling/artifacts/test"
+              component: "bepis-artifacts:test:bepis-artifacts-test"
+            - path: "./tooling/runners/src"
+              component: "lib:bepis-runners"
+            - path: "./tooling/runners/app"
+              component: "bepis-runners:exe:bepis-runners"
+            - path: "./tooling/runners/test"
+              component: "bepis-runners:test:bepis-runners-test"
+    - path: "."
+      config:
+        cradle:
+          bios:
+            shell: "/bin/sh .hie-bios"

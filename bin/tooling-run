@@ -48,7 +48,7 @@ case "$family" in
 esac
 
 build_dir="$repo_root/tooling/dist-newstyle"
-project_file="tooling/cabal.project"
+project_file="tooling.project"
 command -v cabal >/dev/null 2>&1 || { echo "$program: cabal is unavailable in the tooling environment" >&2; exit 69; }
 command -v flock >/dev/null 2>&1 || { echo "$program: flock is unavailable in the tooling environment" >&2; exit 69; }
 mkdir -p "$build_dir"

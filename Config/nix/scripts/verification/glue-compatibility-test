@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+program="glue-compatibility-test"
+fixture_root="$(mktemp -d)"
+cleanup() { rm -rf "$fixture_root"; }
+trap cleanup EXIT
+fail() { echo "$program: $*" >&2; exit 1; }
+mkdir -p "$fixture_root/bin"
+
+cat > "$fixture_root/bin/frontend-generated-watch" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$GLUE_CAPTURE"
+exit "${GLUE_STATUS:-0}"
+SH
+chmod +x "$fixture_root/bin/frontend-generated-watch"
+printf '%s\n' alpha 'two words' > "$fixture_root/watch.expected"
+if ! GLUE_CAPTURE="$fixture_root/watch.actual" PATH="$fixture_root/bin:$PATH" \
+    frontend-contracts-watch alpha 'two words'; then
+    fail "frontend-contracts-watch changed a successful status"
+fi
+cmp -s "$fixture_root/watch.expected" "$fixture_root/watch.actual" \
+    || fail "frontend-contracts-watch changed forwarded arguments"
+if GLUE_CAPTURE="$fixture_root/watch.failure" GLUE_STATUS=23 PATH="$fixture_root/bin:$PATH" \
+    frontend-contracts-watch failure; then
+    fail "frontend-contracts-watch hid the delegated failure status"
+else
+    [ "$?" -eq 23 ] || fail "frontend-contracts-watch changed the delegated failure status"
+fi
+
+cat > "$fixture_root/bin/screenshot-page" <<'SH'
+#!/usr/bin/env bash
+printf '%q ' "$@" >> "$GLUE_CAPTURE"
+printf '\n' >> "$GLUE_CAPTURE"
+SH
+chmod +x "$fixture_root/bin/screenshot-page"
+GLUE_CAPTURE="$fixture_root/screenshots.actual" PATH="$fixture_root/bin:$PATH" \
+    screenshot-roster-mobile "$fixture_root/screenshots" /FixtureRoster
+[ "$(wc -l < "$fixture_root/screenshots.actual")" -eq 11 ] \
+    || fail "mobile screenshot matrix did not retain eleven distinct captures"
+for expected in pixel-7-full.png iphone-13-table.png ipad-mini-shell.png galaxy-s9-plus-full.png galaxy-s9-plus-shell.png; do
+    grep -Fq "$expected" "$fixture_root/screenshots.actual" \
+        || fail "mobile screenshot matrix omitted $expected"
+done
+grep -Fq -- '--viewport 360x740' "$fixture_root/screenshots.actual" \
+    || fail "Galaxy viewport was not forwarded"
+
+mkdir -p "$fixture_root/tunnel/bin"
+cp justfile "$fixture_root/tunnel/justfile"
+cat > "$fixture_root/tunnel/bin/in-env" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' 'PORT=8100; MAILHOG_PORT=8125; SMTP_PORT=8126; IHP_ROSTER_DEV_GRAFANA_PORT=8130; IHP_ROSTER_DEV_TEMPO_PORT=8131; export PORT MAILHOG_PORT SMTP_PORT IHP_ROSTER_DEV_GRAFANA_PORT IHP_ROSTER_DEV_TEMPO_PORT'
+SH
+cat > "$fixture_root/bin/ssh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$GLUE_CAPTURE"
+SH
+chmod +x "$fixture_root/tunnel/bin/in-env" "$fixture_root/bin/ssh"
+for target in grill agent; do
+    GLUE_CAPTURE="$fixture_root/tunnel-$target.actual" PATH="$fixture_root/bin:$PATH" \
+        just --justfile "$fixture_root/tunnel/justfile" --working-directory "$fixture_root/tunnel" "tunnel-$target"
+    cat > "$fixture_root/tunnel-$target.expected" <<EOF
+-N
+-T
+-L
+8100:localhost:8100
+-L
+8101:localhost:8101
+-L
+8125:localhost:8125
+-L
+8126:localhost:8126
+-L
+8130:localhost:8130
+-L
+8131:localhost:8131
+$target
+EOF
+    cmp -s "$fixture_root/tunnel-$target.expected" "$fixture_root/tunnel-$target.actual" \
+        || fail "$target tunnel changed its exact SSH argument contract"
+done
+
+echo "$program: ok"

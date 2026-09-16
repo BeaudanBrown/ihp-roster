@@ -16,7 +16,9 @@ const frontendGuards = [
     { name: 'frontend-no-broad-switch-defaults', path: bash, args: [join(repo, 'Config/nix/scripts/frontend/no-broad-switch-defaults')] },
 ];
 // Derive fixture topology from tracked source, not a second gate inventory.
-const sources = execFileSync('git', ['ls-files', '-z'], { cwd: repo, encoding: 'utf8' }).split('\0').filter(Boolean);
+const sources = execFileSync('git', ['ls-files', '-z'], { cwd: repo, encoding: 'utf8' })
+    .split('\0')
+    .filter((path) => path && existsSync(join(repo, path)));
 
 function put(root, path, text, mode = 0o644) {
     const target = join(root, path);

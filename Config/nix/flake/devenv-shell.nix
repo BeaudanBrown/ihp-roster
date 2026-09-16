@@ -3,7 +3,26 @@
     perSystem = { pkgs, inputs', config, ... }:
         let
             scriptDefinitions = import ./scripts.nix { inherit pkgs; };
-            projectSource = import ./project-source.nix { inherit pkgs; };
+            repositoryRoot = ../../..;
+            frontendCheckSource = pkgs.lib.fileset.toSource {
+                root = repositoryRoot;
+                fileset = pkgs.lib.fileset.unions [
+                    (repositoryRoot + /tsconfig.json)
+                    (repositoryRoot + /frontend)
+                    (repositoryRoot + /static/app.js)
+                    (repositoryRoot + /static/dev-timer-tracking.js)
+                    (repositoryRoot + /scripts/frontend-test-registration.mjs)
+                    (repositoryRoot + /Config/nix/scripts/frontend/test)
+                    (repositoryRoot + /Config/nix/scripts/frontend/drift-check)
+                ];
+            };
+            haskellModuleCheckSource = pkgs.lib.fileset.toSource {
+                root = repositoryRoot;
+                fileset = pkgs.lib.fileset.unions [
+                    (pkgs.lib.fileset.fileFilter (file: file.hasExt "hs") repositoryRoot)
+                    (repositoryRoot + /Config/nix/scripts/haskell/module-name-check)
+                ];
+            };
             e2eTypeScriptDependencies = pkgs.buildNpmPackage {
                 pname = "ihp-roster-e2e-typescript-dependencies";
                 version = "1";
@@ -83,7 +102,7 @@
             };
 
             checks.frontend-drift = pkgs.runCommand "frontend-drift-check" {
-                src = projectSource;
+                src = frontendCheckSource;
                 nativeBuildInputs = [
                     pkgs.esbuild
                     pkgs.nodejs_22
@@ -100,7 +119,7 @@
             '';
 
             checks.haskell-module-names = pkgs.runCommand "haskell-module-name-check" {
-                src = projectSource;
+                src = haskellModuleCheckSource;
             } ''
                 cp -R "$src" source
                 chmod -R u+w source

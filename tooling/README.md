@@ -1,7 +1,10 @@
 # Bepis independent tooling
 
-`tooling/cabal.project` owns small developer-tool packages that build without the
-Bepis application, IHP, schema generation, or `build/Verification`.
+`tooling.project` owns small developer-tool packages that build without the
+Bepis application, IHP, schema generation, or `build/Verification`. The root
+`hie.yaml` uses that same project for tooling components from any working
+directory; `tooling/cabal.project` remains an import-only compatibility path for
+existing repository-root commands.
 
 ## Run and test
 
@@ -15,7 +18,7 @@ bin/tooling-run epic orient --json
 bin/tooling-run epic manage preflight --epic 564 --json
 bin/tooling-run artifacts snapshot --root "$PWD" --inventory-command COMMAND
 bin/tooling-run runners hspec-plan --lane pure --feedback routine --shards 1 --max-shards 6 --database app_test --run-id check
-bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=tooling/dist-newstyle all
+bash ./bin/in-env cabal test --project-file=tooling.project --builddir=tooling/dist-newstyle all
 bash ./bin/in-env tooling-foundation-test
 ```
 
