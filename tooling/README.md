@@ -14,6 +14,7 @@ bin/tooling-run runtime process observe PID OWNER LABEL WORKSPACE
 bin/tooling-run epic orient --json
 bin/tooling-run epic manage preflight --epic 564 --json
 bin/tooling-run artifacts snapshot --root "$PWD" --inventory-command COMMAND
+bin/tooling-run runners hspec-plan --lane pure --feedback routine --shards 1 --max-shards 6 --database app_test --run-id check
 bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=tooling/dist-newstyle all
 bash ./bin/in-env tooling-foundation-test
 ```
@@ -42,6 +43,11 @@ there is no stale-binary fallback or prebuilt execution mode.
   and validate-before-publish managed trees. Application-specific inventories,
   generators, validators, retention markers, and compiler option recipes remain
   thin script adapters.
+- `bepis-runners`: bounded Hspec, E2E, and profiling policy plus globally
+  coordinated workspace port blocks, owned run directories, collision-safe run
+  locks, signal-forwarded process groups, and durable failure evidence. The
+  application compiler, database reset/seed commands, Playwright, k6, and
+  telemetry processors remain subprocess owners behind thin script adapters.
 - `bepis-epic-lifecycle`: live GitHub orientation plus non-mutating Git impact,
   divergence, conflict, runtime, and remote-publication inspection. Sync requires
   `--apply`; integration and cleanup require `--approve`. Mutations revalidate

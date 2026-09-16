@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
+    workspace="$(git rev-parse --show-toplevel)"
+    workspace="$(realpath "$workspace")"
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$workspace/bin/tooling-run}"
+    export TEST_RUN_ID="${TEST_RUN_ID:-$("$launcher" runners id)}"
+    artifact_dir="$(realpath -m "$workspace/.devenv/test-failures/$TEST_RUN_ID")"
+    exec "$launcher" runners run --family hspec --workspace "$workspace" \
+        --run-id "$TEST_RUN_ID" --artifact-dir "$artifact_dir" --retain-success -- \
+        env BEPIS_RUNNER_LEASED=1 "$0" "$@"
+fi
+
 # shellcheck source=../lib/ghc.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 ihp_roster_configure_compiler_tmpdir
@@ -119,6 +131,22 @@ if [ "$TEST_SHARDS" -lt 1 ]; then
     echo "TEST_SHARDS must be at least 1" >&2
     exit 1
 fi
+runner_binary="${BEPIS_RUNNERS_BINARY:-$("${BEPIS_TOOLING_LAUNCHER:-$PWD/bin/tooling-run}" runners --print-binary)}"
+"$runner_binary" hspec-plan --lane "$TEST_LANE" --feedback "$TEST_FEEDBACK_LANE" \
+    --shards "$TEST_SHARDS" --max-shards "$TEST_DB_SHARDS_MAX" --database "$BASE_TEST_DATABASE_NAME" \
+    --run-id "$TEST_RUN_ID" >/dev/null
+
+RUN_ID="$TEST_RUN_ID"
+STATE_DIR="${BEPIS_RUNNER_STATE_DIR:?hspec-test requires the shared runner lifecycle}"
+STATE_ROOT="$PWD/.devenv/test"
+legacy_state="$STATE_ROOT/$RUN_ID"
+mkdir -p "$STATE_ROOT"
+if [ -e "$legacy_state" ] || [ -L "$legacy_state" ]; then
+    echo "hspec-test: refusing to reuse existing run id: $RUN_ID" >&2
+    exit 73
+fi
+ln -s "$STATE_DIR" "$legacy_state"
+ln -sfn "$legacy_state" "$STATE_ROOT/latest"
 
 GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
 VERIFICATION_DIR="$(ihp_roster_verification_build_dir)"
@@ -127,7 +155,7 @@ mkdir -p build/Test
 compile_started_at="$(metrics_now)"
 ghc $GHC_OPTS -main-is Test.HspecMain Test/HspecMain.hs -o build/Test/Main \
     -odir "$VERIFICATION_DIR/obj" \
-    -hidir "$VERIFICATION_DIR/hi"
+    -hidir "$VERIFICATION_DIR/hi" 2>&1 | tee "$STATE_DIR/compile.log"
 compile_finished_at="$(metrics_now)"
 record_phase "compile" 0 "$compile_started_at" "$compile_finished_at"
 
@@ -151,11 +179,10 @@ if [ "$TEST_SHARDS" -eq 1 ]; then
     fi
 
     execution_started_at="$(metrics_now)"
-    if build/Test/Main "$@"; then
-        status=0
-    else
-        status=$?
-    fi
+    set +e
+    build/Test/Main "$@" 2>&1 | tee "$STATE_DIR/shard-1.log"
+    status="${PIPESTATUS[0]}"
+    set -e
     execution_finished_at="$(metrics_now)"
     record_phase "hspec_execution" 1 "$execution_started_at" "$execution_finished_at"
     script_finished_at="$(metrics_now)"
@@ -165,12 +192,6 @@ if [ "$TEST_SHARDS" -eq 1 ]; then
     fi
     exit "$status"
 fi
-
-RUN_ID="${TEST_RUN_ID:-$(date +%s)-$$-$RANDOM}"
-STATE_ROOT="$PWD/.devenv/test"
-STATE_DIR="$STATE_ROOT/$RUN_ID"
-mkdir -p "$STATE_DIR"
-ln -sfn "$STATE_DIR" "$STATE_ROOT/latest"
 
 shard_pids=()
 shard_statuses=()

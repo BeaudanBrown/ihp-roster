@@ -34,8 +34,11 @@ case "$family" in
     artifacts)
         component="bepis-artifacts:exe:bepis-artifacts"
         ;;
+    runners)
+        component="bepis-runners:exe:bepis-runners"
+        ;;
     -h|--help|help|"")
-        echo "Usage: $program workspace|postgres|runtime|epic|artifacts [ARGS...]"
+        echo "Usage: $program workspace|postgres|runtime|epic|artifacts|runners [ARGS...]"
         exit 0
         ;;
     *)

@@ -22,5 +22,6 @@ bash ./bin/in-env cabal test --project-file=tooling/cabal.project --builddir=too
 bash ./bin/in-env tooling-foundation-test
 bash ./bin/in-env postgres-lifecycle-test
 bash ./bin/in-env runtime-lifecycle-test
-nix build .#bepis-tooling-core .#bepis-workspace-state .#bepis-postgres .#bepis-runtime
+bash ./bin/in-env runner-lifecycle-test
+nix build .#bepis-tooling-core .#bepis-workspace-state .#bepis-postgres .#bepis-runtime .#bepis-runners
 ```

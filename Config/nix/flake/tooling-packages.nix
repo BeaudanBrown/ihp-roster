@@ -9,6 +9,7 @@ let
             bepis-runtime = self.callCabal2nix "bepis-runtime" sources.runtime { };
             bepis-epic-lifecycle = self.callCabal2nix "bepis-epic-lifecycle" sources.epicLifecycle { };
             bepis-artifacts = self.callCabal2nix "bepis-artifacts" sources.artifacts { };
+            bepis-runners = self.callCabal2nix "bepis-runners" sources.runners { };
         };
     };
 in
@@ -20,5 +21,6 @@ in
     runtime = haskellPackages.bepis-runtime;
     epicLifecycle = haskellPackages.bepis-epic-lifecycle;
     artifacts = haskellPackages.bepis-artifacts;
+    runners = haskellPackages.bepis-runners;
     ghc = haskellPackages.ghcWithPackages (p: [ p.aeson p.temporary ]);
 }

@@ -106,7 +106,12 @@ Managed E2E PostgreSQL reserves 400 connections: eight shards × (two pools of
 at most 20 plus two dedicated listeners) = 336, with 64 slots for fixtures,
 administration and PostgreSQL reserves. E2E bounds `HASQL_POOL_SIZE` to 1–20
 (default 20); live capacity drift fails closed. This does not change Hspec,
-development, external or production PostgreSQL settings.
+development, external or production PostgreSQL settings. Hspec, E2E, and
+profiling entrypoints share `bepis-runners` run IDs, owned run directories,
+workspace-wide port-block leases, collision checks, process-group cancellation,
+and failure evidence. E2E still starts web and worker subprocesses separately and
+stops both before releasing its PostgreSQL lifecycle lock; Playwright, k6, and
+telemetry summary processors remain application-owned commands.
 
 `just dev` and `just ddev` start the registered AppJob worker alongside the web
 app through `dev-foreground`, with the same workspace database and environment.

@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(git rev-parse --show-toplevel)"
+launcher="$repo_root/bin/tooling-run"
+binary="$("$launcher" runners --print-binary)"
+fixture="$(mktemp -d)"
+holder=""; borrowed=""
+cleanup() {
+    [ -z "$holder" ] || { kill "$holder" 2>/dev/null || true; wait "$holder" 2>/dev/null || true; }
+    [ -z "$borrowed" ] || { kill "$borrowed" 2>/dev/null || true; wait "$borrowed" 2>/dev/null || true; }
+    rm -rf "$fixture"
+}
+trap cleanup EXIT
+fail() { echo "runner-lifecycle-test: $*" >&2; exit 1; }
+export BEPIS_RUNNER_PARENT="$fixture/state"
+workspace="$fixture/workspace"
+other_workspace="$fixture/other-workspace"
+mkdir -p "$workspace" "$other_workspace" "$fixture/artifacts"
+workspace="$(realpath "$workspace")"
+other_workspace="$(realpath "$other_workspace")"
+
+"$binary" hspec-plan --lane db --feedback routine --shards 2 --max-shards 3 --database app_test --run-id fixture >/dev/null
+"$binary" e2e-plan --run-id fixture --shards 2 --max-shards 8 --pool-size 20 --database app_e2e >/dev/null
+"$binary" profile-plan --kind load --scenario roster-wide --rate 1 --duration 5s --vus 1 >/dev/null
+if "$binary" profile-plan --kind load --scenario roster-wide --rate 1001 --duration 5s --vus 1 >/dev/null 2>&1; then
+    fail "unsafe profile rate was accepted"
+fi
+
+"$binary" run --family fixture --workspace "$workspace" --run-id success -- bash -c '
+    test -n "$BEPIS_RUNNER_STATE_DIR"
+    test "$BEPIS_RUNNER_OTLP_GRPC_PORT" -eq $((22000 + (BEPIS_RUNNER_PORT - 20000) * 2))
+    test "$BEPIS_RUNNER_OTLP_HTTP_PORT" -eq $((BEPIS_RUNNER_OTLP_GRPC_PORT + 1))
+'
+
+ready="$fixture/ready"
+holder_port="$fixture/holder-port"
+"$binary" run --family fixture --workspace "$workspace" --run-id collision -- \
+    bash -c 'printf "%s\n" "$BEPIS_RUNNER_PORT" >"$1"; touch "$2"; sleep 30' bash "$holder_port" "$ready" &
+holder="$!"
+for _ in $(seq 1 200); do [ -f "$ready" ] && break; sleep 0.02; done
+[ -f "$ready" ] || fail "lock holder did not start"
+other_port="$fixture/other-port"
+"$binary" run --family other-family --workspace "$workspace" --run-id parallel -- \
+    bash -c 'printf "%s\n" "$BEPIS_RUNNER_PORT" >"$1"' bash "$other_port"
+[ "$(cat "$holder_port")" != "$(cat "$other_port")" ] || fail "competing runner families shared a port lease"
+workspace_port="$fixture/other-workspace-port"
+"$binary" run --family fixture --workspace "$other_workspace" --run-id parallel -- \
+    bash -c 'printf "%s\n" "$BEPIS_RUNNER_PORT" >"$1"' bash "$workspace_port"
+[ "$(cat "$holder_port")" != "$(cat "$workspace_port")" ] || fail "competing workspaces shared a host port lease"
+set +e
+collision="$($binary run --family fixture --workspace "$workspace" --run-id collision -- true 2>&1)"
+collision_status=$?
+set -e
+[ "$collision_status" -eq 73 ] || [ "$collision_status" -eq 75 ] || fail "competing run returned $collision_status: $collision"
+kill -TERM "$holder"; wait "$holder" 2>/dev/null || true; holder=""
+
+failure_dir="$fixture/artifacts/failure"
+set +e
+"$binary" run --family fixture --workspace "$workspace" --run-id failure --artifact-dir "$failure_dir" -- \
+    bash -c 'printf "bounded failure log\n" >"$BEPIS_RUNNER_STATE_DIR/run.log"; exit 42'
+failure_status=$?
+set -e
+[ "$failure_status" -eq 42 ] || fail "failure status changed: $failure_status"
+[ "$(jq -r .exitCode "$failure_dir/runner-failure.json")" = 42 ] || fail "failure evidence missing"
+failure_state="$(jq -r .state "$failure_dir/runner-failure.json")"
+[ "$(cat "$failure_state/run.log")" = "bounded failure log" ] || fail "bounded failure log was not retained"
+
+startup_dir="$fixture/artifacts/startup"
+set +e
+"$binary" run --family fixture --workspace "$workspace" --run-id startup --artifact-dir "$startup_dir" -- \
+    "$fixture/missing-command"
+startup_status=$?
+set -e
+[ "$startup_status" -eq 74 ] || fail "startup failure status changed: $startup_status"
+startup_state="$(jq -r .state "$startup_dir/runner-failure.json")"
+[ -s "$startup_state/runner-startup-error.log" ] || fail "startup failure evidence missing"
+
+signal_ready="$fixture/signal-child.pid"
+signal_order="$fixture/signal-cleanup.order"
+signal_failure="$fixture/artifacts/signal"
+"$binary" run --family fixture --workspace "$workspace" --run-id signal --artifact-dir "$signal_failure" -- \
+    bash -c 'sleep 30 & child=$!; echo "$child" >"$1"; trap '\''wait "$child" 2>/dev/null || true; printf "child\ndatabase\n" >"$2"'\'' TERM INT; wait "$child"' \
+    bash "$signal_ready" "$signal_order" &
+signal_runner="$!"
+for _ in $(seq 1 200); do [ -s "$signal_ready" ] && break; sleep 0.02; done
+[ -s "$signal_ready" ] || fail "signal fixture child did not start"
+signal_child="$(cat "$signal_ready")"
+kill -TERM "$signal_runner"
+if wait "$signal_runner"; then fail "signalled runner unexpectedly succeeded"; fi
+for _ in $(seq 1 100); do ! kill -0 "$signal_child" 2>/dev/null && break; sleep 0.02; done
+kill -0 "$signal_child" 2>/dev/null && fail "signalled runner retained its child"
+[ "$(cat "$signal_order")" = $'child\ndatabase' ] || fail "child cleanup did not precede database cleanup"
+[ -f "$signal_failure/runner-failure.json" ] || fail "signal failure evidence missing"
+
+sleep 30 & borrowed="$!"
+set +e
+"$binary" run --family fixture --workspace "$workspace" --run-id borrowed -- false >/dev/null 2>&1
+set -e
+kill -0 "$borrowed" 2>/dev/null || fail "unrelated borrowed process was terminated"
+kill "$borrowed"; wait "$borrowed" 2>/dev/null || true; borrowed=""
+
+"$binary" run --family e2e --workspace "$repo_root" --run-id runtime-adapter -- true
+runtime_status="$(BEPIS_RUNNER_PARENT="$BEPIS_RUNNER_PARENT" bash "$repo_root/Config/nix/scripts/e2e/runtime" status)"
+grep -q '^state=present$' <<<"$runtime_status" || fail "e2e runtime adapter did not find runner state"
+BEPIS_RUNNER_PARENT="$BEPIS_RUNNER_PARENT" bash "$repo_root/Config/nix/scripts/e2e/runtime" runs \
+    | grep -qx runtime-adapter || fail "e2e runtime adapter omitted run"
+BEPIS_RUNNER_PARENT="$BEPIS_RUNNER_PARENT" bash "$repo_root/Config/nix/scripts/e2e/runtime" cleanup --apply \
+    | grep -q '^inactive=1$' || fail "e2e runtime adapter did not clean inactive run"
+
+unsafe="$fixture/unsafe"
+ln -s "$fixture" "$unsafe"
+set +e
+unsafe_output="$(BEPIS_RUNNER_PARENT="$unsafe/state" "$binary" run --family fixture --workspace "$workspace" --run-id unsafe -- true 2>&1)"
+unsafe_status=$?
+set -e
+[ "$unsafe_status" -eq 73 ] || fail "symlinked runner parent returned $unsafe_status: $unsafe_output"
+
+echo "runner-lifecycle-test: ok"

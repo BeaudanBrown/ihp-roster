@@ -20,6 +20,10 @@
         path = root + /tooling/artifacts;
         name = "bepis-artifacts-source";
     };
+    runners = builtins.path {
+        path = root + /tooling/runners;
+        name = "bepis-runners-source";
+    };
     postgres = builtins.path {
         path = root + /tooling/postgres;
         name = "bepis-postgres-source";

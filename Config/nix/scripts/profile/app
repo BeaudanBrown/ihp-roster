@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+PROFILE_ORIGINAL_ARGS=("$@")
 
 export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 PROFILE_RUN_ID="${PROFILE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
@@ -37,6 +38,15 @@ while [ "$#" -gt 0 ]; do
             ;;
     esac
 done
+
+if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
+    workspace="$(realpath "$(git rev-parse --show-toplevel)")"
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$workspace/bin/tooling-run}"
+    export PROFILE_RUN_ID PROFILE_OUTPUT_DIR PROFILE_DATABASE_NAME
+    exec "$launcher" runners run --family profile-app --workspace "$workspace" \
+        --run-id "$PROFILE_RUN_ID" --artifact-dir "$(realpath -m "$PROFILE_OUTPUT_DIR/failure")" -- \
+        env BEPIS_RUNNER_LEASED=1 "$0" "${PROFILE_ORIGINAL_ARGS[@]}"
+fi
 
 case "$PROFILE_DATABASE_NAME" in
     app_profile|app_profile_*)
@@ -84,18 +94,11 @@ cleanup_profile_app() {
 }
 trap cleanup_profile_app EXIT INT TERM
 
-(
-    export PROFILE_DATABASE_NAME
-    export PROFILE_DB_SOCKET
-    export IHP_ROSTER_PROFILING=1
-    export GHCRTS="${GHCRTS:+$GHCRTS }-T"
-    setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
-    echo "$!" > "$PROFILE_PID_FILE"
-    wait "$!"
-) &
-PROFILE_WRAPPER_PID="$!"
-
-PROFILE_SERVER_PID=""
+export PROFILE_DATABASE_NAME PROFILE_DB_SOCKET
+export IHP_ROSTER_PROFILING=1
+export GHCRTS="${GHCRTS:+$GHCRTS }-T"
+start_profile_server profile-server profile-test-server
+PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
 for _ in $(seq 1 120); do
     if [ -f "$PROFILE_PID_FILE" ]; then
         PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
@@ -130,5 +133,4 @@ done
 
 echo "Timed out waiting for profile app server" >&2
 tail -n 120 "$PROFILE_LOG" >&2 || true
-kill "$PROFILE_WRAPPER_PID" 2>/dev/null || true
 exit 1

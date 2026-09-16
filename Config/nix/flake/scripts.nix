@@ -160,6 +160,7 @@ in
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
         tooling-foundation-test = script ../scripts/verification/tooling-foundation-test;
+        runner-lifecycle-test = script ../scripts/verification/runner-lifecycle-test;
         verify-tooling = script ../scripts/verification/verify-tooling;
         date-native-roster-readiness-test = script ../scripts/verification/date-native-roster-readiness-test;
         verify-all = script ../scripts/verification/verify-all;

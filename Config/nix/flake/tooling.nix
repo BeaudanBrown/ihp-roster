@@ -11,6 +11,7 @@
             packages.bepis-runtime = tooling.runtime;
             packages.bepis-epic-lifecycle = tooling.epicLifecycle;
             packages.bepis-artifacts = tooling.artifacts;
+            packages.bepis-runners = tooling.runners;
 
             devShells.tooling = pkgs.mkShell {
                 packages = [
