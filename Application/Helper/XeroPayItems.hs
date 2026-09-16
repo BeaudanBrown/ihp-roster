@@ -7,6 +7,7 @@ module Application.Helper.XeroPayItems
     , syncXeroPayItemRequirementRecords
     , xeroManagedPayItemNamePrefix
     , isXeroManagedPayItemName
+    , xeroPayItemNameForComponent
     ) where
 
 import Application.Helper.Pay (venueEffectiveRateDate,
@@ -15,6 +16,7 @@ import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.XeroAdminTypes
 import Application.WageEngine (ProjectionRateSource (..), RateSourceIdentity,
                                projectionRateSourceIdentity)
+import qualified Application.WageEngine.Types as Wage
 import Application.Xero.PayrollSourceKey (sourceRateSuffix)
 import Application.Xero.WorkflowState (xeroPayItemRequirementIsIgnored,
                                        xeroPayItemRequirementIsUsable)
@@ -132,7 +134,7 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
                     permanentRow.operativeFrom
                     permanentRow.operativeTo
                     (missedMealBreakKey permanentRow missedRate)
-                    ("Missed Meal Break 50% Addition - " <> row.classification <> " - " <> xeroManagedPayItemNameBrand <> " - " <> effectiveDateLabel row.operativeFrom)
+                    (missedMealBreakName row.classification row.operativeFrom)
                     (Just "missed_meal_break_addition")
                     "ORDINARYTIMEEARNINGS"
                     "RATEPERUNIT"
@@ -278,16 +280,32 @@ isXeroManagedPayItemName name =
      in Text.isPrefixOf foldedLegacyPrefix foldedName || foldedBrandSegment `Text.isInfixOf` foldedName
 
 localPayItemLabel :: AwardPayItemRow -> Text
-localPayItemLabel row =
-    conditionLabel row.condition
-        <> " - "
-        <> row.classification
-        <> " - "
-        <> employmentBasisLabel row.employmentBasis
-        <> " - "
-        <> xeroManagedPayItemNameBrand
-        <> " - "
-        <> effectiveDateLabel row.operativeFrom
+localPayItemLabel row = managedPayItemLabel (conditionLabel row.condition) row.classification row.employmentBasis row.operativeFrom
+
+managedPayItemLabel :: Text -> Text -> StaffEmploymentBasisEnum -> Maybe Day -> Text
+managedPayItemLabel label classification basis effectiveFrom =
+    label <> " - " <> classification <> " - " <> employmentBasisLabel basis
+        <> " - " <> xeroManagedPayItemNameBrand <> " - " <> effectiveDateLabel effectiveFrom
+
+missedMealBreakName :: Text -> Maybe Day -> Text
+missedMealBreakName classification effectiveFrom =
+    "Missed Meal Break 50% Addition - " <> classification <> " - " <> xeroManagedPayItemNameBrand <> " - " <> effectiveDateLabel effectiveFrom
+
+-- Manual worksheets use the same names as managed provider items, but consume
+-- sealed component dates/conditions rather than current rates or Xero mappings.
+xeroPayItemNameForComponent :: Text -> StaffEmploymentBasisEnum -> Wage.EarningsComponent -> Either Text Text
+xeroPayItemNameForComponent classification basis component =
+    case component.sourceCondition of
+        Wage.MissedMealBreakAdditionCondition -> Right (missedMealBreakName classification component.publishedRateBoundaryDate)
+        Wage.ImportedFlatRateCondition _ -> Left "Imported pay items require their approval-pinned name."
+        Wage.OrdinaryCondition -> named OrdinaryCondition
+        Wage.SaturdayCondition -> named (PenaltyCondition SaturdayPenalty)
+        Wage.SundayCondition -> named (PenaltyCondition SundayPenalty)
+        Wage.PublicHolidayCondition -> named (PenaltyCondition PublicHolidayPenalty)
+        Wage.EveningAdditionCondition -> named (PenaltyCondition EveningAfter7Pm)
+        Wage.EarlyMorningAdditionCondition -> named (PenaltyCondition LateNightAfterMidnight)
+  where
+    named condition = Right (managedPayItemLabel (conditionLabel condition) classification basis component.publishedRateBoundaryDate)
 
 employmentBasisLabel :: StaffEmploymentBasisEnum -> Text
 employmentBasisLabel Permanent = "PERM"

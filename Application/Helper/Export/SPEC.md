@@ -29,12 +29,14 @@ cross-module safety and payroll contracts.
   refreshed checklists require review, never automatic retries. Checkbox changes
   remain local until submission; the server still validates every selected identity.
 - The optional Xero pay-items family is excluded from standard definitions.
-  Editors offer it only with an active venue Xero connection and synced pay items;
-  employee mappings and shift-specific routing completeness are not prerequisites.
-  Existing saved definitions remain intact if that setup becomes unavailable.
-  Its weekly dates follow the venue week start. Rows aggregate selected sealed
-  quantities by staff and actual provider pay-item identity, not display label.
-  Missing employee mappings do not block manual entry; unresolved pay items do.
+  Editors always offer it, including venues with no Xero connection. Manual entry
+  requires only pay-item names and approved units: no sync, employee mappings,
+  earnings routing, late bindings or previous preparation/upload is required.
+  Managed names share Bepis's pay-item naming rules and use approved pay versions
+  and sealed component rate-boundary dates; imported items retain their pinned
+  local item name. Its weekly dates follow the venue week start. Rows aggregate
+  selected sealed quantities by staff and local pay-item identity, not display
+  label. Missing or invalid approved ledger facts still fail closed.
   Ordinary sheets require no Xero setup. Nothing subtracts previously paid or
   submitted work or calculates payroll adjustments, tax, super or net pay.
 

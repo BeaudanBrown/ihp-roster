@@ -125,7 +125,7 @@ requestPayrollWorkbookForEntries entries definition rangeStart rangeEnd = do
                     Left message -> pure (Left message)
                     Right factModel -> do
                         quantities <- if PayrollWorkbookXeroPayItems `elem` definition.payrollWorkbookDefinitionSheetFamilies
-                            then fmap Just <$> fetchWorkbookXeroQuantities currentVenueId rangeStart rangeEnd includedEntries
+                            then fmap Just <$> fetchWorkbookXeroQuantities currentVenueId includedEntries
                             else pure (Right Nothing)
                         case quantities >>= (\resolved -> payrollWorkbookFromDefinitionWithXeroQuantities resolved definition venueConfig.rosterWeekStartsOn factModel) of
                             Left message -> pure (Left message)

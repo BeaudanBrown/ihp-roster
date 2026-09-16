@@ -3,6 +3,7 @@ module Test.Controller.ExportsSpec where
 import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             seedWeekDayNames)
 import Application.Helper.Export
+import Application.Helper.Export.XeroPayItems (fetchWorkbookXeroQuantities)
 import Application.Helper.TimesheetSelection
 import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
                                     TimesheetIntegrityError (TimesheetTimingInvalid))
@@ -14,7 +15,7 @@ import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
-import Data.Either (isRight)
+import Data.Either (isLeft, isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -48,6 +49,69 @@ archiveEntryText path archive =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController" do
+        it "exports manual Xero pay-item names and sealed units without any Xero setup" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Unlinked manual workbook"
+                admin <- createUserRecord "manual-workbook@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Level 1" 30 2.5 3 1 1.5 1.75
+                shift <- createShiftTypeRecord venue level "Bar"
+                staffUser <- createUserRecord "manual-workbook-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) 0
+                first <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 9 0 0), setTestEndTime (TimeOfDay 12 0 0)]
+                second <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 19 0 0), setTestEndTime (TimeOfDay 21 0 0)]
+                result <- fetchWorkbookXeroQuantities venue.id [first, second]
+                case result of
+                    Left message -> expectationFailure (cs message)
+                    Right quantities -> do
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Ordinary - Level 1 - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 5
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Evening After 7pm Loading - Level 1 - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 2
+                        map (.xeroQuantityDate) quantities `shouldSatisfy` all (== defaultWeekEpoch)
+                        map (.xeroQuantityStaffName) quantities `shouldSatisfy` all (== "Ava Worker")
+                selected <- fetchWorkbookXeroQuantities venue.id [first]
+                fmap (sum . map (.xeroQuantityUnits)) selected `shouldBe` Right 3
+                mismatchedVersion <- fetchWorkbookXeroQuantities venue.id [first |> set #staffPayVersionId Nothing]
+                mismatchedVersion `shouldSatisfy` isLeft
+                mismatchedApproval <- fetchWorkbookXeroQuantities venue.id [first |> set #approvedAt (Just (addUTCTime 1 approvedAt))]
+                mismatchedApproval `shouldSatisfy` isLeft
+                components <- query @TimesheetPayEarningsComponent |> fetch
+                map (.xeroMappingLegacyFallback) components `shouldSatisfy` all not
+                map (.xeroEarningsRateId) components `shouldSatisfy` all isNothing
+                query @XeroConnection |> fetchCount >>= (`shouldBe` 0)
+                query @TimesheetPayComponentXeroBinding |> fetchCount >>= (`shouldBe` 0)
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    created <- callActionWithParams CreatePayrollWorkbookConfigurationAction
+                        [("exportAnchorDate", "2025-01-06"), ("payrollWorkbookConfigurationName", "Manual Xero"), ("payrollWorkbookSheetFamilies", "[\"xero-pay-items\"]")]
+                    created `responseStatusShouldBe` status302
+                    configuration <- query @PayrollWorkbookConfiguration |> fetchOne
+                    generated <- withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateExportJobAction
+                            [("exportType", cs (exportJobTypeToText PayrollWorkbookXlsx)), ("rangeStart", "2025-01-06"), ("rangeEnd", "2025-01-12"), ("payrollWorkbookConfigurationId", cs (tshow configuration.id))]
+                    generated `responseStatusShouldBe` status200
+                    generated `responseBodyShouldNotContain` "toast"
+                exportJob <- query @ExportJob |> fetchOne
+                let archive = Zip.toArchive . LBS.fromStrict . Base64.decodeLenient . encodeUtf8 . fromMaybe "" $ exportJob.fileContents
+                strings <- archiveEntryText "xl/sharedStrings.xml" archive
+                strings `shouldSatisfy` Text.isInfixOf "Ordinary - Level 1 - "
+                strings `shouldSatisfy` Text.isInfixOf "Evening After 7pm Loading - Level 1 - "
+                sheet <- archiveEntryText "xl/worksheets/sheet1.xml" archive
+                sheet `shouldSatisfy` Text.isInfixOf "<v>5</v>"
+                sheet `shouldSatisfy` Text.isInfixOf "<v>2</v>"
+                let lastDay = fromGregorian 2025 1 12
+                overnight <- createAndApproveEntry venue staff lastDay admin approvedAt
+                    [set #shiftTypeId (unpackId shift.id), setTestStartTime (TimeOfDay 22 0 0), setTestEndTime (TimeOfDay 2 0 0)]
+                overnightQuantities <- fetchWorkbookXeroQuantities venue.id [overnight]
+                case overnightQuantities of
+                    Left message -> expectationFailure (cs message)
+                    Right quantities -> do
+                        quantities `shouldSatisfy` (not . null)
+                        map (.xeroQuantityDate) quantities `shouldSatisfy` all (== lastDay)
+                        sum (map (.xeroQuantityUnits) (filter (Text.isPrefixOf "Late Night After Midnight Loading - " . (.xeroQuantityPayItemName)) quantities)) `shouldBe` 2
+
         forM_ [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv, PayrollWorkbookXlsx] \exportType ->
             it (cs ("uses precisely the reviewed selection for " <> exportJobTypeToText exportType)) $ withContext do
                 withCleanDb do
@@ -273,7 +337,7 @@ tests = aroundAll withDatabaseTestContext do
                         . set #importedXeroPayItemId (Just importedItem.id)
                 staffUser <- createUserRecord "imported-payroll-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
-                _ <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch admin approvedAt
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 17 0 0)
@@ -293,6 +357,11 @@ tests = aroundAll withDatabaseTestContext do
                     Text.isInfixOf "\"Worker, Ava Xero Weekend Rate\",8.000000,0.000000,0.000000"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Worker, Ava Bar")
+                connection <- fetch (Id importedItem.xeroConnectionId :: Id XeroConnection)
+                _ <- connection |> set #connectionStatus ("disconnected" :: Text) |> updateRecord
+                manual <- fetchWorkbookXeroQuantities venue.id [entry]
+                fmap (map (\quantity -> (quantity.xeroQuantityPayItemName, quantity.xeroQuantityUnits))) manual
+                    `shouldBe` Right [("Xero Weekend Rate", 8)]
 
         it "limits staff-hours payroll exports to the requested date range" $ withContext do
             withCleanDb do

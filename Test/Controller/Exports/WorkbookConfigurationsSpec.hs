@@ -25,31 +25,31 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "ExportsController saved Workbook requests" do
-        it "offers Xero pay items only with this venue's active connection and synced rates" $ withContext do
+        it "offers Xero pay items without a connection, synced rates or employee mappings" $ withContext do
             withCleanDb do
                 (venue, admin) <- adminFixture
                 withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         let openEditor = callAction (NewPayrollWorkbookConfigurationAction "2025-01-08")
                         disconnected <- openEditor
-                        disconnected `responseBodyShouldNotContain` "Add Xero pay items"
+                        disconnected `responseBodyShouldContain` "Add Xero pay items"
                         disconnected `responseBodyShouldContain` "Add Summary"
                         initialConnection <- createActiveXeroConnection venue admin
                         connection <- initialConnection |> set #tenantId "own-tenant" |> updateRecord
                         unsynced <- openEditor
-                        unsynced `responseBodyShouldNotContain` "Add Xero pay items"
+                        unsynced `responseBodyShouldContain` "Add Xero pay items"
                         otherVenue <- createVenueWithConfig "Other export venue"
                         otherConnection <- createActiveXeroConnection otherVenue admin
                         _ <- createXeroEarningsRateRecord otherConnection "Other venue rate" "other-rate"
                         foreignRates <- openEditor
-                        foreignRates `responseBodyShouldNotContain` "Add Xero pay items"
+                        foreignRates `responseBodyShouldContain` "Add Xero pay items"
                         rate <- createXeroEarningsRateRecord connection "Ordinary hours" "own-rate"
                         synced <- openEditor
                         synced `responseBodyShouldContain` "Add Xero pay items"
                         now <- getCurrentTime
                         _ <- rate |> set #providerAvailable False |> set #providerUnavailableAt (Just now) |> updateRecord
                         retired <- openEditor
-                        retired `responseBodyShouldNotContain` "Add Xero pay items"
+                        retired `responseBodyShouldContain` "Add Xero pay items"
                         _ <- rate |> set #providerAvailable True |> set #providerUnavailableAt Nothing |> updateRecord
                         -- Neither employee mappings nor selected-shift mapping completeness
                         -- is an editor prerequisite. Existing definitions survive disconnect.
@@ -59,7 +59,7 @@ tests = aroundAll withDatabaseTestContext do
                         configuration <- query @PayrollWorkbookConfiguration |> fetchOne
                         _ <- connection |> set #connectionStatus ("disconnected" :: Text) |> updateRecord
                         unavailable <- openEditor
-                        unavailable `responseBodyShouldNotContain` "Add Xero pay items"
+                        unavailable `responseBodyShouldContain` "Add Xero pay items"
                         edited <- callAction (EditPayrollWorkbookConfigurationAction configuration.id "2025-01-08")
                         edited `responseBodyShouldContain` "Remove Xero pay items"
 

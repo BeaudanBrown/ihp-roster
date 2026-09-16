@@ -15,7 +15,6 @@ module Web.Exports.Responses
     ) where
 
 import Application.Helper.Export
-import Application.Helper.Export.XeroPayItems (fetchAvailableWorkbookSheetFamilies)
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminExportsLiveScope)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
@@ -66,9 +65,7 @@ respondWithWorkbookEditor ::
     IO ResponseReceived
 respondWithWorkbookEditor anchorDate draft =
     if isHtmxRequest
-        then do
-            availableFamilies <- fetchAvailableWorkbookSheetFamilies currentVenueId
-            respondHtml (renderPayrollWorkbookConfigurationDialog availableFamilies anchorDate draft)
+        then respondHtml (renderPayrollWorkbookConfigurationDialog availablePayrollWorkbookSheetFamilies anchorDate draft)
         else redirectToPath (adminExportsPath anchorDate)
 
 respondWithWorkbookDeleteConfirmation ::
