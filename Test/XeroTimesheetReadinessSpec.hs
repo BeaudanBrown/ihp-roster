@@ -495,6 +495,41 @@ tests = do
                 expectedEntryIds `shouldSatisfy` all (`elem` affectedEntryIds)
                 affectedEntryIds `shouldSatisfy` elem (unpackId secondEntry.id)
 
+        it "keeps unchanged matched and created pay items usable across repeated catalogue projections" $ withContext do
+            withCleanDb do
+                let start = fromGregorian 2026 4 27
+                fixture <- createReadyMappedFixture "weekly" start (fromGregorian 2026 5 3)
+                staff <- query @Staff |> fetch
+                shifts <- query @ShiftType |> fetch
+                levels <- query @AwardLevel |> fetch
+                bases <- query @AwardLevelBaseRate |> fetch
+                penalties <- query @AwardLevelPenaltyRate |> fetch
+                allowances <- query @AwardTimePenaltyAllowance |> fetch
+                let rate = newRecord @XeroEarningsRate
+                        |> set #xeroEarningsRateId "regression-rate"
+                        |> set #name "Regression rate"
+                        |> set #rateType (Just "RATEPERUNIT")
+                    rates = [rate]
+                    requirements = map (\item -> item { payItemRequirementMatch = Just rate, payItemRequirementRateType = fromMaybe "RATEPERUNIT" rate.rateType }) $
+                        deriveXeroPayItemRequirements 1 start (deriveXeroUsedAwardPayScopes staff shifts) levels bases penalties allowances rates
+                    sync = syncXeroPayItemRequirementRecords fixture.connection.id fixture.venue.id Nothing
+                _ <- sync requirements
+                matched <- sync requirements
+                let matchedItems = filter (isJust . (.payItemRequirementMatch)) matched
+                null matchedItems `shouldBe` False
+                map (.payItemRequirementStatus) matchedItems `shouldSatisfy` all (== Matched)
+                forM_ matchedItems \item -> forM_ item.payItemRequirementRecord \record -> do
+                    _ <- record |> set #requirementStatus XeroPayItemRequirementStatusEnumCreated |> updateRecord
+                    pure ()
+                created <- sync requirements
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) created) `shouldSatisfy` all (== XeroPayItemRequirementStatusEnumCreated)
+                changed <- sync (map (\item -> item { payItemRequirementRatePerUnit = Just 999999 }) requirements)
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) changed) `shouldSatisfy` all (== RateChanged)
+                recovered <- sync requirements
+                stable <- sync requirements
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) recovered) `shouldSatisfy` all (== RateChanged)
+                map (.payItemRequirementStatus) (filter (isJust . (.payItemRequirementMatch)) stable) `shouldSatisfy` all (== Matched)
+
         it "accepts matched managed pay item requirements as earnings-rate mappings" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)

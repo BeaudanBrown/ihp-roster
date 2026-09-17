@@ -483,7 +483,7 @@ hasXeroMatch requirement =
 
 existingExpectedValueChanged :: XeroPayItemRequirement -> XeroPayItemRequirementRecord -> Bool
 existingExpectedValueChanged requirement record =
-    xeroPayItemRequirementIsUsable record.requirementStatus || record.requirementStatus == RateChanged
+    (xeroPayItemRequirementIsUsable record.requirementStatus || record.requirementStatus == RateChanged)
         && ( record.rateType /= requirement.payItemRequirementRateType
             || record.multiplier /= requirement.payItemRequirementMultiplier
             || record.ratePerUnit /= requirement.payItemRequirementRatePerUnit
