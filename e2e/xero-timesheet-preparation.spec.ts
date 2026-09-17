@@ -316,7 +316,7 @@ test.describe('Xero timesheet preparation', () => {
         }), { timeout: E2E_TIMEOUT.assertion }).toBe(true);
     });
 
-    test('lets an owner confirm one problem approval refresh and rolls back while mappings remain incomplete', async ({ page }) => {
+    test('keeps unresolved approvals intact without per-entry repair buttons', async ({ page }) => {
         runSql(`
             UPDATE timesheet_entries
             SET is_approved = FALSE,
@@ -371,31 +371,21 @@ test.describe('Xero timesheet preparation', () => {
         await page.getByRole('button', { name: 'Continue' }).click();
 
         await expect(page.getByRole('heading', { name: 'Xero submission blocked' })).toBeVisible({ timeout: E2E_TIMEOUT.action });
-        const refreshButton = page.getByRole('button', { name: 'Refresh approval' });
-        await expect(refreshButton).toBeVisible();
-        page.once('dialog', async dialog => {
-            expect(dialog.message()).toBe('Refresh this problem Timesheet approval using current pay facts and Xero mappings?');
-            await dialog.accept();
-        });
-        const refreshResponsePromise = page.waitForResponse(response =>
-            response.request().method() === 'POST' && response.url().includes('/RefreshXeroProblemTimesheetApproval')
-        );
-        await refreshButton.click();
-        const refreshResponse = await refreshResponsePromise;
-        expect(refreshResponse.status()).toBe(422);
-        expect(await refreshResponse.text()).toContain('This Timesheet approval is still blocked by current pay facts or Xero mappings.');
-        await expect(page.getByRole('button', { name: 'Refresh approval' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Refresh approval' })).toHaveCount(0);
+        await expect(page.getByRole('dialog')).not.toContainText('Timesheet a1000000-0000-0000-0000-000000000091');
         expect(querySql(`SELECT active_pay_calculation_id FROM timesheet_entries WHERE id = 'a1000000-0000-0000-0000-000000000091';`)).toBe(originalCalculationId);
         expect(querySql(`SELECT COUNT(*) FROM timesheet_pay_calculations WHERE timesheet_entry_id = 'a1000000-0000-0000-0000-000000000091';`)).toBe(originalLedgerCount);
     });
 
-    test('keeps Xero shift toggles local and saves through the shared footer', async ({ page }, testInfo) => {
+    test('keeps Xero shift toggles local and confirms submission from the shared footer', async ({ page }, testInfo) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
         await openXeroPage(page);
         await page.getByRole('button', { name: 'Upload timesheets', exact: true }).click();
         await page.getByRole('button', { name: 'Continue', exact: true }).click();
-        // The preparation fixture excludes everyone as not paid. Make those
-        // staff eligible for this checklist-only test after opening preparation.
+        await expect(page.getByRole('heading', { name: 'Xero submission blocked' })).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        // This offline fixture has deliberately unusable Xero credentials, so
+        // period refresh reports a reconnect blocker. Restore local eligibility
+        // and use Back to exercise the checklist without a real provider call.
         runSql(`
             INSERT INTO xero_employees (venue_id, xero_connection_id, xero_employee_id, display_name, raw_payload, synced_at)
             SELECT venue_id, xero_connection_id, 'checklist-' || staff_id::text, 'Checklist employee',
@@ -408,13 +398,16 @@ test.describe('Xero timesheet preparation', () => {
             WHERE xero_connection_id = '${xeroConnectionId}';
         `);
         try {
-            await page.getByRole('button', { name: 'Choose shifts…', exact: true }).click();
+            await page.getByRole('button', { name: 'Back', exact: true }).click();
             const dialog = page.getByRole('dialog', { name: 'Choose shifts for Xero' });
             await expect(dialog).toBeVisible();
             await expect(dialog).not.toContainText('Only selected shifts contribute');
-            const save = dialog.getByRole('button', { name: 'Use selected shifts' });
+            await expect(page.getByRole('button', { name: 'Choose shifts…', exact: true })).toHaveCount(0);
+            const save = dialog.getByRole('button', { name: 'Confirm and submit', exact: true });
             await expect(save).toHaveAttribute('form', 'timesheet-selection-form');
-            await expect(dialog.locator('form').getByRole('button', { name: 'Use selected shifts' })).toHaveCount(0);
+            await expect(save).toHaveAttribute('type', 'submit');
+            await expect(save).not.toHaveAttribute('hx-post');
+            await expect(dialog.locator('form').getByRole('button', { name: 'Confirm and submit', exact: true })).toHaveCount(0);
             await dialog.getByRole('button', { name: 'Clear all' }).click();
             await expect(save).toBeDisabled();
             await expect(dialog.getByRole('status')).toContainText('0 shifts selected');
@@ -425,10 +418,37 @@ test.describe('Xero timesheet preparation', () => {
             await expect(save).toBeInViewport();
             expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
             await testInfo.attach('xero-selection-mobile', { body: await page.screenshot(), contentType: 'image/png' });
-            const savedResponse = page.waitForResponse(response => response.url().includes('/SaveXeroShiftSelection'));
-            await save.click();
-            expect((await savedResponse).ok()).toBe(true);
-            await expect(dialog).toHaveCount(0);
+            for (const failRequest of [true, false]) {
+                let releaseRequest!: () => void;
+                const requestGate = new Promise<void>(resolve => { releaseRequest = resolve; });
+                const submissionRoute = '**/SubmitXeroShiftSelection?**';
+                await page.route(submissionRoute, async route => {
+                    await requestGate;
+                    if (failRequest) await route.fulfill({ status: 503, body: 'Temporarily unavailable' });
+                    else await route.continue();
+                });
+                const savedResponse = page.waitForResponse(response => response.url().includes('/SubmitXeroShiftSelection'));
+                try {
+                    await save.click();
+                    await expect(dialog.getByRole('status')).toHaveText('Submitting to Xero…');
+                    await expect(save).not.toBeVisible();
+                    await page.keyboard.press('Escape');
+                    await expect(dialog).toBeVisible();
+                    await testInfo.attach('xero-submitting-mobile', { body: await page.screenshot(), contentType: 'image/png' });
+                } finally {
+                    releaseRequest();
+                }
+                expect((await savedResponse).ok()).toBe(!failRequest);
+                if (failRequest) {
+                    await expect(save).toBeVisible();
+                    await expect(save).toBeEnabled();
+                    await expect(dialog.getByRole('status')).toContainText('shifts selected');
+                } else {
+                    await expect(dialog).toHaveCount(0);
+                }
+                await page.unroute(submissionRoute);
+            }
+            await expect(page.getByRole('button', { name: 'Choose shifts…', exact: true })).toHaveCount(0);
         } finally {
             runSql(`
                 UPDATE xero_staff_mappings SET mapping_status = 'not_applicable', xero_employee_id = NULL

@@ -14,7 +14,7 @@ module Application.Xero.Timesheets.Prepare
     , refreshXeroTimesheetPreparation
     , selectXeroTimesheetPreparationPeriod
     , startXeroTimesheetPreparation
-    , submitXeroTimesheetPreparation
+    , submitSelectedXeroTimesheetPreparation
     ) where
 
 import Application.Error.Types (AppResult)
@@ -35,6 +35,7 @@ import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePre
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Application.Xero.ReferenceTrust.Service
 import Application.Xero.StaffMappings (applyXeroStaffMappingSelection)
+import Application.Xero.Timesheets.ApprovalRecovery (recoverPreparationApprovals)
 import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.ReconciliationReview (XeroTimesheetReconciliationNotice (..),
@@ -165,7 +166,8 @@ finalizePreparationRun ::
     XeroTimesheetPreparationRun ->
     [XeroTimesheetRef] ->
     IO (XeroPreparationResult XeroTimesheetPreparationView)
-finalizePreparationRun run remoteTimesheets =
+finalizePreparationRun initialRun remoteTimesheets = do
+    run <- recoverPreparationApprovals initialRun
     ensurePreparationDecisionProposals run >>= \case
         Left appError -> pure (Left appError)
         Right () ->
@@ -492,26 +494,35 @@ saveXeroPreparationAccountCode runId accountCode =
                                 markPayItemCreateDecisionsApplied run proposedRequirements
                                 reloadAfterLocalDecision run remoteTimesheetsFromRun
 
-submitXeroTimesheetPreparation ::
+submitSelectedXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id XeroTimesheetPreparationRun ->
-    Maybe Text ->
-    IO (XeroPreparationResult XeroTimesheetPreparationView)
-submitXeroTimesheetPreparation runId maybeAccountCode =
+    Id XeroTimesheetPreparationRun -> Maybe Aeson.Value -> IO (XeroPreparationResult XeroTimesheetPreparationView)
+submitSelectedXeroTimesheetPreparation runId = \case
+    Nothing -> pure (preparationFailure "Choose shifts and confirm before submitting.")
+    Just selected -> submitPreparationWithExpectedSelection selected runId
+
+submitPreparationWithExpectedSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Aeson.Value -> Id XeroTimesheetPreparationRun -> IO (XeroPreparationResult XeroTimesheetPreparationView)
+submitPreparationWithExpectedSelection expectedSelection runId =
     loadXeroTimesheetPreparationView runId >>= \case
         Left appError -> pure (Left appError)
         Right (XeroPreparationOutcomeBlocked message) -> pure (preparationFailure message)
         Right (XeroPreparationOutcomeAvailable view)
+            | view.preparationRun.selectedEntriesJson /= Just expectedSelection ->
+                pure (preparationFailure "The selected shifts changed. Review the checklist and confirm again.")
             | not view.preparationCanSubmit ->
                 pure (preparationFailure "Resolve Xero preparation blockers before submitting draft timesheets.")
             | otherwise ->
-                ensurePreparationPayItemsReady view.preparationRun maybeAccountCode >>= \case
+                ensurePreparationPayItemsReady view.preparationRun Nothing >>= \case
                     Left appError -> pure (Left appError)
                     Right (XeroPreparationOutcomeBlocked message) -> pure (preparationFailure message)
                     Right (XeroPreparationOutcomeAvailable ()) -> do
                         refreshedRun <- fetch view.preparationRun.id
                         let remoteTimesheets = remoteTimesheetsFromRun refreshedRun
                         case preparationReadinessRequest refreshedRun remoteTimesheets of
+                            _ | refreshedRun.selectedEntriesJson /= Just expectedSelection ->
+                                pure (preparationFailure "The selected shifts changed. Review the checklist and confirm again.")
                             Left _ -> pure (preparationFailure "Choose a complete Xero pay period before submitting draft timesheets.")
                             Right readinessRequest ->
                                 validateXeroTimesheetReadiness readinessRequest >>= \case
@@ -789,7 +800,7 @@ reloadAfterLocalDecision ::
     (XeroTimesheetPreparationRun -> [XeroTimesheetRef]) ->
     IO (XeroPreparationResult XeroTimesheetPreparationView)
 reloadAfterLocalDecision run remoteTimesheetReader = do
-    latestRun <- fetch run.id
+    latestRun <- fetch run.id >>= recoverPreparationApprovals
     refreshPreparationRunStatus latestRun (remoteTimesheetReader latestRun) >>= \case
         Left appError -> pure (Left appError)
         Right _       -> loadXeroTimesheetPreparationView latestRun.id

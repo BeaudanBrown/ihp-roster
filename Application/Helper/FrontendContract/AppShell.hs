@@ -14,6 +14,7 @@ module Application.Helper.FrontendContract.AppShell
     , RefreshXeroShiftSelection
     , ChangeXeroShiftSelectionGroup
     , SaveXeroShiftSelection
+    , SubmitXeroShiftSelection
     , SelectionRunUpdatedAtField
     , RefreshTimesheetSelectionDialog
     , ChangeTimesheetSelectionGroup
@@ -140,6 +141,7 @@ data OpenXeroShiftSelection
 data RefreshXeroShiftSelection
 data ChangeXeroShiftSelectionGroup
 data SaveXeroShiftSelection
+data SubmitXeroShiftSelection
 data SelectionRunUpdatedAtField
 data RefreshTimesheetSelectionDialog
 data ChangeTimesheetSelectionGroup
@@ -285,6 +287,7 @@ type AppShellContract =
               ]
          , AppShellAction ChangeXeroShiftSelectionGroup XeroShiftSelectionFields TimesheetSelectionSubmitOptions
          , AppShellAction SaveXeroShiftSelection XeroShiftSelectionFields TimesheetSelectionSubmitOptions
+         , AppShellAction SubmitXeroShiftSelection XeroShiftSelectionFields XeroShiftSelectionSubmitOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
          , AppShellAction CreatePayrollWorkbookConfigurationOverlay
             '[ Field ExportAnchorDateField 'WireDay
@@ -491,6 +494,16 @@ type TimesheetSelectionSubmitOptions =
      , AppShellHtmxTarget DialogOverlayMount
      , AppShellHtmxSwap "innerHTML"
      , AppShellHtmxSync "#timesheet-selection-form:replace"
+     , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+     ]
+
+-- Confirmation can write to Xero: never cancel and replace an in-flight submit.
+type XeroShiftSelectionSubmitOptions =
+    '[ AppShellHtmxMethod 'AppShellPost
+     , AppShellHtmxInclude "#timesheet-selection-form"
+     , AppShellHtmxTarget DialogOverlayMount
+     , AppShellHtmxSwap "innerHTML"
+     , AppShellHtmxSync "#timesheet-selection-form:drop"
      , AppShellHtmxPushUrl 'AppShellPushUrlFalse
      ]
 

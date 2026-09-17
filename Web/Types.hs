@@ -180,6 +180,7 @@ data AdminController
     | SelectXeroShiftGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text }
     | ClearXeroShiftGroupAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), selectionDay :: Maybe Text }
     | SaveXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SubmitXeroShiftSelectionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ShowXeroTimesheetPreparationSummaryAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }

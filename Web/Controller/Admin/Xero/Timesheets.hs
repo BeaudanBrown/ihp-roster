@@ -13,6 +13,7 @@ module Web.Controller.Admin.Xero.Timesheets
     , showXeroTimesheetPreparationStaffMappingsFragmentAction
     , showXeroTimesheetPreparationSummaryAction
     , submitXeroTimesheetPreparationAction
+    , respondToXeroTimesheetSubmission
     , respondWithPreparationDialog
     , resolvePreparationResult
     ) where
@@ -46,7 +47,7 @@ import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
 import Application.Helper.XeroAdminTypes (XeroTimesheetIssueView (..),
-                                          XeroTimesheetPreparationState (XeroPreparationSubmitted),
+                                          XeroTimesheetPreparationState (XeroPreparationSubmitted, XeroPreparationFailed),
                                           XeroTimesheetPreparationView (..),
                                           XeroTimesheetReadinessView (..))
 import Application.TimesheetApproval (ExpectedApprovalIdentity (..),
@@ -66,6 +67,7 @@ import Application.Xero.Timesheets.Prepare (XeroPreparationOutcome (..), XeroPre
                                             loadXeroTimesheetPreparationView)
 import qualified Data.Text as Text
 import qualified Application.Xero.Timesheets.Prepare as Prepare
+import Web.Controller.Admin.Xero.SelectionResponse (respondWithPreparationShiftSelection)
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 import Web.View.Admin.Xero.TimesheetPreparation
@@ -299,7 +301,7 @@ runXeroTimesheetPreparationSubmissionAction ::
 runXeroTimesheetPreparationSubmissionAction runId =
     case parseAppShellActionParams @RunXeroTimesheetPreparationSubmissionOverlay of
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
-        Right _ -> submitXeroTimesheetPreparation runId Nothing
+        Right _ -> resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= respondWithPreparationDialog
 
 submitXeroTimesheetPreparationAction ::
     (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -308,16 +310,12 @@ submitXeroTimesheetPreparationAction ::
 submitXeroTimesheetPreparationAction runId =
     case parseAppShellActionParams @SubmitXeroTimesheetPreparationOverlay of
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
-        Right fields ->
-            submitXeroTimesheetPreparation runId (Text.strip <$> surfaceFieldValue @AccountCodeField fields)
+        Right _ -> resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= respondWithPreparationDialog
 
-submitXeroTimesheetPreparation ::
+respondToXeroTimesheetSubmission ::
     (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id XeroTimesheetPreparationRun ->
-    Maybe Text ->
-    IO ResponseReceived
-submitXeroTimesheetPreparation runId maybeAccountCode = do
-    result <- resolvePreparationResult (Prepare.submitXeroTimesheetPreparation runId maybeAccountCode)
+    Id XeroTimesheetPreparationRun -> Either Text XeroTimesheetPreparationView -> IO ResponseReceived
+respondToXeroTimesheetSubmission runId result =
     case result of
         Right view | view.preparationState == XeroPreparationSubmitted ->
             if isHtmxRequest
@@ -382,19 +380,13 @@ parseStaffDecision fields =
         XeroEmployeeSelected employeeId -> Right (SelectXeroEmployee employeeId)
 
 respondWithPreparationPeriodSelection ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Either Text XeroTimesheetPreparationView ->
     IO ResponseReceived
-respondWithPreparationPeriodSelection result =
-    case result of
-        Right view
-            | Just blocker <- find ((== "wage_publication_failed") . (.timesheetIssueCode)) view.preparationReadiness.timesheetReadinessBlockers
-            , isHtmxRequest ->
-                respondHtml (renderXeroTimesheetPreparationBlockingDialog view blocker.timesheetIssueMessage)
-        _ -> respondWithPreparationDialog result
+respondWithPreparationPeriodSelection = respondWithPreparationDialog
 
 respondWithPreparationDialog ::
-    (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) =>
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Either Text XeroTimesheetPreparationView ->
     IO ResponseReceived
 respondWithPreparationDialog result =
@@ -402,7 +394,14 @@ respondWithPreparationDialog result =
         then do
             case result of
                 Left message -> respondWithPreparationErrorToast message
-                Right view -> respondHtml (renderXeroTimesheetPreparationDialog view)
+                Right view
+                    | needsStaffStep view -> respondHtml (renderXeroTimesheetPreparationStaffStep view)
+                    | needsPeriodStep view -> respondHtml (renderXeroTimesheetPreparationPeriodStep view)
+                    | view.preparationState == XeroPreparationSubmitted -> respondHtml (renderXeroTimesheetPreparationSubmittedDialog view)
+                    | view.preparationState == XeroPreparationFailed -> respondHtml (renderXeroTimesheetPreparationFailureDialog view)
+                    | Just message <- preparationBlockingMessage view -> respondHtml (renderXeroTimesheetPreparationBlockingDialog view message)
+                    | needsPayItemStep view -> respondHtml (renderXeroTimesheetPreparationPayItemsStep view)
+                    | otherwise -> respondWithPreparationShiftSelection view.preparationRun Nothing Nothing Nothing
         else
             case result of
                 Left message -> do

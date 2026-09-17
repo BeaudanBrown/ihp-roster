@@ -229,7 +229,18 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   selector shows every eligible past and future period, irrespective of pay-run
   status. Pay-run status is reference context, never upload authority. Selecting
   a period initializes an explicit approved-entry selection; changing periods
-  resets it. Selection drives readiness, preparation, preview and reservation,
+  resets it. Any required account setup follows the period step, then the shift
+  checklist opens directly with no separate Choose shifts launcher. The checklist
+  is the final confirmation: its Confirm and submit action validates and saves
+  the selection, then submits without another confirmation dialog. Older Continue
+  actions remain save-only; retired submission endpoints reopen preparation and
+  cannot write to Xero. Approval repairs or changed selections require fresh
+  checklist confirmation rather than authorizing changed facts implicitly.
+  No eligible shifts opens an empty checklist, not the submission-blocked dialog;
+  Confirm and submit remains disabled and empty submissions remain invalid.
+  Confirmation shows a blocking loading modal until the request completes;
+  failed requests restore the checklist so the user can retry.
+  Selection drives readiness, preparation, preview and reservation,
   and legacy preparations without a selection require review. Changed source
   identities must be reviewed again rather than silently omitted or retried.
   Selecting a period checks current Xero pay runs without downloading remote
@@ -267,14 +278,18 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   reapproval creates independently routed components. Submission source links
   retain immutable audit snapshots but do not lock Timesheet entries; corrected entries reset approval and
   enter Xero only after reapproval and a fresh preparation.
-- Entry-specific approval blockers expose one owner/super-admin `Refresh approval`
-  recovery in a real selected venue. The confirmed action carries the expected
-  active calculation and approval timestamp, waits at most five seconds for the
-  Timesheet row lock, rejects stale controls and active provider writes, and
-  transactionally recalculates against current pay facts and Xero mappings. A
-  successful refresh retains the prior sealed ledger, updates approval actor/time,
-  and records `TimesheetApprovedAudit` with prior/new calculation IDs and source
-  `xero_preparation_refresh`; incomplete replacements roll back completely. A
+- Explicit owner/super-admin preparation progression automatically attempts one
+  repair per selected entry with an approval-related blocker. Passive view and
+  live-fragment reads never trigger approval repair. No per-entry `Refresh approval`
+  cards are rendered; unresolved causes remain visible once per distinct message.
+  Recovery locks the preparation and validates its saved selection, carries the
+  expected active calculation and approval timestamp, waits at most five seconds
+  for locks, rejects stale identities and active provider writes, and recalculates
+  against current pay facts and Xero mappings. A successful refresh retains the
+  prior ledger, updates approval actor/time and the saved selection identity in
+  the same transaction, and records `TimesheetApprovedAudit` with prior/new
+  calculation IDs and source `xero_preparation_refresh`; incomplete replacements
+  roll back completely. Healthy and unselected approvals are not refreshed. A
   concurrent duplicate control that waits and then observes that first complete,
   audited refresh returns the same healthy approval as an idempotent no-op; every
   other expected-identity mismatch is stale.

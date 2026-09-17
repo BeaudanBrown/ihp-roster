@@ -362,6 +362,10 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (XeroSelection.saveXeroShiftSelectionAction xeroTimesheetPreparationRunId)
 
+    action currentAction@SubmitXeroShiftSelectionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (XeroSelection.submitXeroShiftSelectionAction xeroTimesheetPreparationRunId)
+
     action currentAction@SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (selectXeroTimesheetPreparationPeriodAction xeroTimesheetPreparationRunId)

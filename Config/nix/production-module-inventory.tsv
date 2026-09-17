@@ -436,6 +436,7 @@ Application/Xero/ReferenceTrust/Presentation.hs	production	runtime	Main	Reachabl
 Application/Xero/ReferenceTrust/ReadModel.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceTrust/Service.hs	production	runtime	Main	Reachable from Main
 Application/Xero/StaffMappings.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/ApprovalRecovery.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/BucketKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Buckets.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Diagnostic.hs	production	runtime	Main	Reachable from Main
@@ -469,6 +470,7 @@ Web/Controller/Admin/Xero/ImportedPayItems.hs	production	runtime	Main	Reachable 
 Web/Controller/Admin/Xero/ReferenceSync.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Responses.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Selection.hs	production	runtime	Main	Reachable from Main
+Web/Controller/Admin/Xero/SelectionResponse.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/StaffMappings.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Admin/Xero/Timesheets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Auth.hs	production	runtime	Main	Reachable from Main

@@ -1,4 +1,4 @@
-module Web.View.Admin.Xero.ShiftSelection (renderSelection, renderChooseXeroShiftsButton) where
+module Web.View.Admin.Xero.ShiftSelection (renderSelection, shiftSelectionBackButton) where
 
 import qualified Application.Helper.FrontendContract.AppShell as Shell
 import Application.Helper.FrontendContract.AppShell.Request
@@ -11,15 +11,15 @@ renderSelection :: XeroTimesheetPreparationRun -> [TimesheetSelectionRow] -> [Te
 renderSelection run rows selected message = renderTimesheetSelectionDialog TimesheetSelectionDialog
     { selectionDialogTitle = "Choose shifts for Xero"
     , selectionDialogBody = renderAppShellActionForm
-        (appShellActionByMarker @Shell.SaveXeroShiftSelection)
-        ((defaultAppShellActionRoute (pathTo (SaveXeroShiftSelectionAction run.id))) { appShellActionRouteExtraAttrs = timesheetSelectionFormAttributes })
+        (appShellActionByMarker @Shell.SubmitXeroShiftSelection)
+        ((defaultAppShellActionRoute (pathTo (SubmitXeroShiftSelectionAction run.id))) { appShellActionRouteExtraAttrs = timesheetSelectionFormAttributes })
         [hsx|
             {maybe mempty renderError message}
             <input type="hidden" name={surfaceFieldNameFrom @Shell.SelectionRunUpdatedAtField fields} value={tshow run.updatedAt} />
             {renderTimesheetSelectionChecklist (surfaceFieldNameFrom @Shell.SelectedTimesheetEntriesField fields) rows selected}
         |]
-    , selectionDialogSubmitLabel = "Use selected shifts"
-    , selectionDialogLoadingLabel = "Loading…"
+    , selectionDialogSubmitLabel = "Confirm and submit"
+    , selectionDialogLoadingLabel = "Submitting to Xero…"
     , selectionDialogHasSelection = not (null selected)
     }
   where
@@ -28,9 +28,12 @@ renderSelection run rows selected message = renderTimesheetSelectionDialog Times
         (surfaceField @Shell.SelectionRunUpdatedAtField (tshow run.updatedAt))
         (surfaceField @Shell.SelectedTimesheetEntriesField selected &: noSurfaceFields)
 
-renderChooseXeroShiftsButton :: Id XeroTimesheetPreparationRun -> Html
-renderChooseXeroShiftsButton runId = [hsx|<button {...attributes}>Choose shifts…</button>|]
-  where
-    attributes = appShellActionAttrs (appShellActionByMarker @Shell.OpenXeroShiftSelection)
-        ((defaultAppShellActionRoute (pathTo (OpenXeroShiftSelectionAction runId)))
-            { appShellActionRouteExtraAttrs = [("type", "button"), ("class", "btn btn-outline-primary")] })
+shiftSelectionBackButton :: Id XeroTimesheetPreparationRun -> OverlayButton
+shiftSelectionBackButton runId = OverlayButton
+    { overlayButtonLabel = "Back"
+    , overlayButtonClass = "btn btn-outline-secondary"
+    , overlayButtonAction = GeneratedDialogButtonAction
+        (appShellActionByMarker @Shell.OpenXeroShiftSelection)
+        (defaultAppShellActionRoute (pathTo (OpenXeroShiftSelectionAction runId)))
+        True
+    }
