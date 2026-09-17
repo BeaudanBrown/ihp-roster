@@ -47,9 +47,11 @@ test.describe('Payroll export downloads', () => {
         await expect(selectionDialog).toBeVisible();
         await expect(selectionDialog).not.toContainText('Review this selection');
         await expect(selectionDialog.locator('legend').first()).toHaveText(/^[A-Za-z]+ \d{2}\/\d{2}$/);
-        const selectedDownload = selectionDialog.getByRole('button', { name: 'Download selected shifts' });
+        const selectedDownload = selectionDialog.getByRole('button', { name: 'Download', exact: true });
         await expect(selectedDownload).toHaveAttribute('form', 'timesheet-selection-form');
-        await expect(selectionDialog.locator('form').getByRole('button', { name: 'Download selected shifts' })).toHaveCount(0);
+        await expect(selectedDownload).toHaveAttribute('type', 'submit');
+        await expect(selectedDownload).not.toHaveAttribute('hx-post');
+        await expect(selectionDialog.locator('form').getByRole('button', { name: 'Download', exact: true })).toHaveCount(0);
         const shifts = selectionDialog.locator(`[${checkboxListItemDomAttr}]`);
         const firstDay = selectionDialog.locator('fieldset').first();
         const dayCheckbox = firstDay.locator(`[${checkboxListGroupToggleDomAttr}]`);
@@ -85,10 +87,9 @@ test.describe('Payroll export downloads', () => {
         await selectedDownload.click();
         const filteredDownload = await filteredDownloadEvent;
         expect(filteredDownload.suggestedFilename()).toBe(fileName);
+        await expect(selectionDialog).toHaveCount(0);
         expect(await readZipEntryText(filteredDownload, 'xl/worksheets/sheet1.xml'))
             .toEqual(await readZipEntryText(standardDownload, 'xl/worksheets/sheet1.xml'));
-        await selectionDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-        await expect(selectionDialog).toHaveCount(0);
 
         await gotoExports(page);
         await page.getByRole('button', { name: 'Create new export' }).click();

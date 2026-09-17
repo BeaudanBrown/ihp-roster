@@ -126,9 +126,8 @@ renderSelection request rows selected message = renderTimesheetSelectionDialog T
             <input type="hidden" name={surfaceFieldNameFrom @Shell.PayrollWorkbookConfigurationIdField fields} value={maybe "" tshow request.configurationId} />
             {renderTimesheetSelectionChecklist (surfaceFieldNameFrom @Shell.SelectedTimesheetEntriesField fields) rows selected}
         |]
-    , selectionDialogSubmitLabel = "Download selected shifts"
-    , selectionDialogSubmitAction = appShellActionByMarker @Shell.GenerateSelectedTimesheetExport
-    , selectionDialogSubmitRoute = defaultAppShellActionRoute (pathTo GenerateSelectedTimesheetExportAction)
+    , selectionDialogSubmitLabel = "Download"
+    , selectionDialogLoadingLabel = "Preparing download…"
     , selectionDialogHasSelection = not (null selected)
     }
   where

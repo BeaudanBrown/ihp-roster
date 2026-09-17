@@ -38,7 +38,8 @@ buttonCases :: Bool -> [(Text, OverlayButtonAction, Text, [(Text, Text)], [[(Tex
 buttonCases page =
     [ ("close", OverlayCloseAction, if page then "a" else "button", if page then [("href", "/close")] else [("type", "button"), ("data-bepis-dialog-close", "true")], [], [])
     , ("submit", OverlaySubmitFormAction "edit-form", "button", submitAttrs "Working...", [], [])
-    , ("loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving", "button", submitAttrs "Saving", [], [])
+    , ("loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving" True [], "button", submitAttrs "Saving", [], [])
+    , ("disabled loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving" False [("data-bepis-checkbox-list-submit", "true")], "button", submitAttrs "Saving" <> [("disabled", "disabled"), ("data-bepis-checkbox-list-submit", "true")], [], [])
     , ("navigate", OverlayNavigateAction "/next", "a", [("href", "/next")], [], [])
     , ("native form", DialogFormAction "DELETE" "/delete" fields (Just "Really delete?"), "button", [("type", "submit")], [nativeFormAttrs], ("_method", "DELETE") : fields)
     , ("navigation loading form", DialogNavigationLoadingFormAction "DELETE" "/delete" fields (Just "Really delete?") "Opening" "Please wait", "button", [("type", "submit")], [nativeFormAttrs <> [("data-bepis-navigation-loading", "true"), ("data-bepis-navigation-loading-config", "{&quot;loadingMessage&quot;:&quot;Please wait&quot;,&quot;loadingTitle&quot;:&quot;Opening&quot;}")]], ("_method", "DELETE") : fields)

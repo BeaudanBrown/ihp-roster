@@ -48,7 +48,12 @@ data OverlayButtonContext
 data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
-    | OverlaySubmitFormLoadingAction !Text !Text
+    | OverlaySubmitFormLoadingAction
+        { overlaySubmitFormId :: !Text
+        , overlaySubmitLoadingLabel :: !Text
+        , overlaySubmitEnabled :: !Bool
+        , overlaySubmitExtraAttrs :: ![(Text, Text)]
+        }
     | OverlayNavigateAction !Text
     | DialogFormAction !Text !Text ![(Text, Text)] !(Maybe Text)
     | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !(Maybe Text) !Text !Text
@@ -188,11 +193,13 @@ renderOverlayButton context button =
                 {button.overlayButtonLabel}
             </button>
         |]
-        OverlaySubmitFormLoadingAction formId loadingLabel -> [hsx|
+        OverlaySubmitFormLoadingAction formId loadingLabel enabled extraAttrs -> [hsx|
             <button type="submit"
                     class={button.overlayButtonClass}
                     form={formId}
-                    {...dialogSubmitAttrs loadingLabel}>
+                    disabled={not enabled}
+                    {...dialogSubmitAttrs loadingLabel}
+                    {...extraAttrs}>
                 {button.overlayButtonLabel}
             </button>
         |]

@@ -462,6 +462,17 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         showDialogSubmitLoading(activeDialog, config);
     }, true);
 
+    document.addEventListener("htmx:beforeOnLoad", function (event) {
+        const activeDialog = getActiveDialog();
+        if (activeDialog === null) return;
+        const elt = detailTarget(event, "elt");
+        const xhr = detailTarget(event, "xhr");
+        if (!isHTMLElement(elt) || !activeDialog.contains(elt)) return;
+        if (!(xhr instanceof XMLHttpRequest) || xhr.status < 200 || xhr.status >= 300) return;
+        if (xhr.getResponseHeader("HX-Redirect") === null) return;
+        clearDialog(activeDialog);
+    });
+
     document.addEventListener("htmx:afterRequest", function (event) {
         const activeDialog = getActiveDialog();
         if (activeDialog === null) return;

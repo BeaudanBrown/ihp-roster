@@ -19,8 +19,7 @@ renderSelection run rows selected message = renderTimesheetSelectionDialog Times
             {renderTimesheetSelectionChecklist (surfaceFieldNameFrom @Shell.SelectedTimesheetEntriesField fields) rows selected}
         |]
     , selectionDialogSubmitLabel = "Use selected shifts"
-    , selectionDialogSubmitAction = appShellActionByMarker @Shell.SaveXeroShiftSelection
-    , selectionDialogSubmitRoute = defaultAppShellActionRoute (pathTo (SaveXeroShiftSelectionAction run.id))
+    , selectionDialogLoadingLabel = "Loading…"
     , selectionDialogHasSelection = not (null selected)
     }
   where

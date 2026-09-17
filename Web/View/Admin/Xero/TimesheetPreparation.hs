@@ -321,35 +321,35 @@ continueStaffButton :: XeroTimesheetPreparationView -> OverlayButton
 continueStaffButton _view = OverlayButton
     { overlayButtonLabel = "Continue"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-staff-continue-form" "Loading…"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-staff-continue-form" "Loading…" True []
     }
 
 selectPeriodButton :: XeroTimesheetPreparationView -> OverlayButton
 selectPeriodButton view = OverlayButton
     { overlayButtonLabel = "Continue"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-period-form" "Loading…"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-period-form" "Loading…" True []
     }
 
 approvePayItemsButton :: OverlayButton
 approvePayItemsButton = OverlayButton
     { overlayButtonLabel = "Continue"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-pay-items-form" "Loading…"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-pay-items-form" "Loading…" True []
     }
 
 backButton :: OverlayButton
 backButton = OverlayButton
     { overlayButtonLabel = "Back"
     , overlayButtonClass = "btn btn-outline-primary"
-    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-back-form" "Loading…"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-back-form" "Loading…" True []
     }
 
 reviewedSubmitButton :: OverlayButton
 reviewedSubmitButton = OverlayButton
     { overlayButtonLabel = "Confirm and submit"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-reviewed-submit-form" "Loading…"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-reviewed-submit-form" "Loading…" True []
     }
 
 needsStaffStep :: XeroTimesheetPreparationView -> Bool

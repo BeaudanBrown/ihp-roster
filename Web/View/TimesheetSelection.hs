@@ -6,10 +6,8 @@ module Web.View.TimesheetSelection
     , timesheetSelectionFormAttributes
     ) where
 
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..))
 import qualified Application.Helper.FrontendContract.Toggle as Toggle
 import Application.Helper.FrontendContract.Values (domAttrValue)
-import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.View.Overlay
 import qualified Data.List as List
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -29,8 +27,7 @@ data TimesheetSelectionDialog = TimesheetSelectionDialog
     { selectionDialogTitle :: Text
     , selectionDialogBody :: Html
     , selectionDialogSubmitLabel :: Text
-    , selectionDialogSubmitAction :: AppShellActionIR
-    , selectionDialogSubmitRoute :: AppShellActionRoute
+    , selectionDialogLoadingLabel :: Text
     , selectionDialogHasSelection :: Bool
     }
 
@@ -44,12 +41,12 @@ renderTimesheetSelectionDialog config@TimesheetSelectionDialog { selectionDialog
         , OverlayButton
             { overlayButtonLabel = config.selectionDialogSubmitLabel
             , overlayButtonClass = "btn btn-primary"
-            , overlayButtonAction = GeneratedDialogButtonAction config.selectionDialogSubmitAction
-                config.selectionDialogSubmitRoute
-                    { appShellActionRouteExtraAttrs = config.selectionDialogSubmitRoute.appShellActionRouteExtraAttrs
-                        <> [("form", "timesheet-selection-form"), (domAttrValue @Toggle.CheckboxListSubmit, "true")]
-                    }
-                config.selectionDialogHasSelection
+            , overlayButtonAction = OverlaySubmitFormLoadingAction
+                { overlaySubmitFormId = "timesheet-selection-form"
+                , overlaySubmitLoadingLabel = config.selectionDialogLoadingLabel
+                , overlaySubmitEnabled = config.selectionDialogHasSelection
+                , overlaySubmitExtraAttrs = [(domAttrValue @Toggle.CheckboxListSubmit, "true")]
+                }
             }
         ]
     , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
