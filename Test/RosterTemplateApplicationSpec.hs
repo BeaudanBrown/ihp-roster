@@ -321,7 +321,31 @@ tests = aroundAll withDatabaseTestContext do
                     , rosterTemplateLibraryResource (unpackId rosterGroup.id)
                     ]
 
-        it "rejects incomplete targets and applies a mixed Published window as entirely Draft" $ withContext do
+        it "previews a projected week without persistence and materializes only when applied" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Projected snapshot target"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "snapshot-projected-target@example.com" "staff" True
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right snapshot <- createRosterTemplate actor rosterGroup Week "Projected week" (completeWeekContent shiftType.id OpenAssignment)
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 25) False
+                let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
+
+                Right preview <- previewRosterTemplateApplication actor request
+                dayCountAfterPreview <- query @RosterDay |> filterWhere (#rosterGroupId, unpackId rosterGroup.id) |> fetchCount
+                Right _ <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                materializedDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                activeSlotCount <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetchCount
+
+                dayCountAfterPreview `shouldBe` 0
+                length materializedDays `shouldBe` 7
+                activeSlotCount `shouldBe` 1
+
+        it "applies a mixed sparse Published window as entirely Draft" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Snapshot target guards"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -331,7 +355,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right snapshot <- createRosterTemplate actor rosterGroup Week "Guarded week" (completeWeekContent shiftType.id OpenAssignment)
                 targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 15) False
                 days <- forM ([0 .. 5] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
-                incomplete <- previewRosterTemplateApplication actor (applicationRequest snapshot.snapshotTemplate.id targetWeek)
+                Right sparsePreview <- previewRosterTemplateApplication actor (applicationRequest snapshot.snapshotTemplate.id targetWeek)
                 _ <- createNativeRosterDayRecord venue rosterGroup (addDays 6 targetWeek.fixtureWindowStart) 6
                 _ <- (days !! 0) |> set #publicationState Published |> updateRecord
                 let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
@@ -342,7 +366,7 @@ tests = aroundAll withDatabaseTestContext do
                 templateCount <- query @RosterTemplateShift |> fetchCount
                 slotCount <- query @RosterSlot |> fetchCount
 
-                incomplete `shouldBe` Left RosterTemplateApplicationInvalidTargetDay
+                sparsePreview.applicationReplacementShiftCount `shouldBe` 1
                 slotCountBefore `shouldBe` 0
                 length targetDays `shouldBe` 7
                 map (.publicationState) targetDays `shouldBe` replicate 7 Draft

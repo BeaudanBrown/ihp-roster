@@ -72,7 +72,8 @@ import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (laneRowRemovalOver
                                   RosterWindowScope (..), fetchRosterWindow,
                                   previewRemoveRosterDayRowByLanes,
                                   projectedRosterDayId,
-                                  rosterWindowScopeForAnchor)
+                                  rosterWindowScopeForAnchor,
+                                  rosterWindowTarget)
 import Web.RosterWeeks.DirectReadModel (fetchRosterNotificationWindowDays)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.DropWorkflow
@@ -914,11 +915,11 @@ instance Controller RosterWeeksController where
                                                                 |> set #endsAt copiedBoundariesSlot.endsAt
                                                                 |> set #timezone copiedBoundariesSlot.timezone
                                                                 |> set #shiftTypeId sourceSlot.shiftTypeId
-                                                        mutationResult <- saveRosterSlotMutation scope targetRosterDay Nothing copiedSlot
+                                                        mutationResult <- saveRosterSlotMutation scope targetRosterDay Nothing copiedSlot False
                                                         case mutationResult of
                                                             Left message -> respondWithMoveRosterShiftFailure scope message
                                                             Right mutationResult ->
-                                                                respondToRosterSlotMutation scope targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
+                                                                respondToRosterSlotMutation scope targetRosterDay targetRowIndex False mutationResult "Roster shift duplicated."
 
     action currentAction@DropRosterStaffAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -934,13 +935,15 @@ instance Controller RosterWeeksController where
                 case result of
                     Left message -> respondWithMoveRosterShiftFailure scope message
                     Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay } -> do
-                        let updatedSlot = staffDropSlot |> applyRosterShiftAssignment (StaffAssignment staffDropStaff.id)
-                        mutationResult <- updateRosterSlotMutation scope staffDropRosterDay staffDropSlot updatedSlot False
+                        window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+                        let materializeOnSave = any (isNothing . (.persistedRosterDay)) window.rosterWindowProjectedDays
+                            updatedSlot = staffDropSlot |> applyRosterShiftAssignment (StaffAssignment staffDropStaff.id)
+                        mutationResult <- updateRosterSlotMutation scope staffDropRosterDay staffDropSlot updatedSlot False materializeOnSave
                         case mutationResult of
                             Left message -> respondWithMoveRosterShiftFailure scope message
                             Right mutationResult -> do
                                 let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
-                                respondToRosterSlotMutation scope staffDropRosterDay updatedSlot.rowIndex mutationResult $
+                                respondToRosterSlotMutation scope staffDropRosterDay updatedSlot.rowIndex materializeOnSave mutationResult $
                                     if warningToast then "Staff assigned. A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed." else "Staff assigned."
                     Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropSlotDefinition, staffDropRowIndex } -> do
                         payInvalidStaffIds <- fetchStaffPayConfigurationRequiredIds [staffDropStaff]
@@ -1007,7 +1010,7 @@ instance Controller RosterWeeksController where
         rosterDay <- fetchRosterDayForDialog rosterDayId
         scope <- rosterActionScopeForDay rosterDay
         authorizeRosterSlotCreateContext scope rosterDay rowIndex
-        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
+        slotDefinition <- fetchRosterSlotDefinitionForDialog scope rosterDay rosterWeekSlotDefinitionId
         authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
         shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
         if null shiftTypes
@@ -1029,15 +1032,15 @@ instance Controller RosterWeeksController where
     action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterDay <- fetchRosterDayForMutation rosterDayId
+        (rosterDay, materializeOnSave) <- fetchRosterDayForCreate rosterDayId
         scope <- rosterMutationScopeForDay rosterDay
         requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @CreateRosterShiftOverlay)
         authorizeRosterSlotCreateContext scope rosterDay rowIndex
-        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
+        slotDefinition <- fetchRosterSlotDefinitionForDialog scope rosterDay rosterWeekSlotDefinitionId
         authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
-        createRosterShift scope rosterDay slotDefinition rowIndex rosterShiftDialogSubmissionFromRequest >>= \case
+        createRosterShift scope rosterDay slotDefinition rowIndex materializeOnSave rosterShiftDialogSubmissionFromRequest >>= \case
             Left values -> renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex values
-            Right mutationResult -> respondToRosterSlotMutation scope rosterDay rowIndex mutationResult "Roster shift saved."
+            Right mutationResult -> respondToRosterSlotMutation scope rosterDay rowIndex materializeOnSave mutationResult "Roster shift saved."
 
     action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -1232,15 +1235,47 @@ renderNoRosterGroupPage = do
         else renderProfiled view
 
 fetchRosterDayForMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
-fetchRosterDayForMutation rosterDayId = do
+fetchRosterDayForMutation rosterDayId = fst <$> fetchRosterDayForMutationWithMaterialization rosterDayId
+
+fetchRosterDayForMutationWithMaterialization :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO (RosterDay, Bool)
+fetchRosterDayForMutationWithMaterialization rosterDayId = do
     venueConfig <- fetchVenueConfig
     requireCurrentRosterCalendarRevision venueConfig (param @Int "rosterCalendarRevision")
     fetchRosterDayForRequest rosterDayId
 
-fetchRosterDayForDialog :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
-fetchRosterDayForDialog = fetchRosterDayForRequest
+fetchRosterDayForCreate :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO (RosterDay, Bool)
+fetchRosterDayForCreate rosterDayId = do
+    venueConfig <- fetchVenueConfig
+    requireCurrentRosterCalendarRevision venueConfig (param @Int "rosterCalendarRevision")
+    rosterDay <- fetchRosterDayForDialog rosterDayId
+    scope <- rosterMutationScopeForDay rosterDay
+    window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+    pure (rosterDay, any (isNothing . (.persistedRosterDay)) window.rosterWindowProjectedDays)
 
-fetchRosterDayForRequest :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
+fetchRosterDayForDialog :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
+fetchRosterDayForDialog rosterDayId = do
+    existing <- query @RosterDay
+        |> filterWhere (#id, rosterDayId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> fetchOneOrNothing
+    case existing of
+        Just rosterDay -> rosterActionScopeForDay rosterDay >> pure rosterDay
+        Nothing -> do
+            let rosterGroupId = Id (param @UUID "rosterGroupId")
+                operationalDate = param @Calendar.Day "operationalDate"
+            rosterGroup <- query @RosterGroup
+                |> filterWhere (#id, rosterGroupId)
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#isActive, True)
+                |> fetchOne
+            scope <- rosterActionScope rosterGroup.id
+            accessDeniedUnless (operationalDate >= scope.rosterWindowStart && operationalDate < scope.rosterWindowEnd)
+            window <- fetchRosterWindow currentVenueId rosterGroup.id scope.rosterWindowStart
+            let maybeTarget = rosterWindowTarget currentVenueId rosterGroup.id window rosterDayId
+            accessDeniedUnless (maybe False ((== operationalDate) . (.operationalDate) . fst) maybeTarget)
+            pure (fst (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized projected roster day missing") maybeTarget))
+
+fetchRosterDayForRequest :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO (RosterDay, Bool)
 fetchRosterDayForRequest rosterDayId = do
     existing <- query @RosterDay
         |> filterWhere (#id, rosterDayId)
@@ -1250,9 +1285,10 @@ fetchRosterDayForRequest rosterDayId = do
         Just rosterDay
             | rosterDay.publicationState == Draft -> do
                 scope <- rosterActionScopeForDay rosterDay
-                _ <- materializeRosterWindowMutation scope
-                fetch rosterDayId
-            | otherwise -> rosterActionScopeForDay rosterDay >> pure rosterDay
+                (_, wasMaterialized) <- materializeRosterWindowMutation scope
+                refreshedDay <- fetch rosterDayId
+                pure (refreshedDay, wasMaterialized)
+            | otherwise -> rosterActionScopeForDay rosterDay >> pure (rosterDay, False)
         Nothing -> do
             let rosterGroupId = Id (param @UUID "rosterGroupId")
             let operationalDate = param @Calendar.Day "operationalDate"
@@ -1264,10 +1300,10 @@ fetchRosterDayForRequest rosterDayId = do
             scope <- rosterActionScope rosterGroup.id
             accessDeniedUnless (operationalDate >= scope.rosterWindowStart && operationalDate < scope.rosterWindowEnd)
             accessDeniedUnless (rosterDayId == projectedRosterDayId rosterGroup.id operationalDate)
-            _ <- materializeRosterWindowMutation scope
+            (_, wasMaterialized) <- materializeRosterWindowMutation scope
             rosterDay <- fetch rosterDayId
             accessDeniedUnless (rosterDay.operationalDate == operationalDate)
-            pure rosterDay
+            pure (rosterDay, wasMaterialized)
 
 rosterActionScopeForDay :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> IO RosterWindowScope
 rosterActionScopeForDay rosterDay = do

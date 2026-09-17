@@ -39,6 +39,10 @@ import qualified Data.Text.Encoding as TextEncoding
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
+import Web.RosterWeeks.DateRange (RosterWindow (..),
+                                  RosterWindowScope (..), fetchRosterWindow,
+                                  materializeRosterWindowForReplacement,
+                                  projectedRosterDay)
 import Web.RosterWeeks.Service (validateRosterSlotForPersistence)
 import Web.RosterWeeks.TemplateApplication.Persistence (applyPreparedApplication)
 import Web.RosterWeeks.TemplateApplication.Types
@@ -104,7 +108,20 @@ applyRosterTemplateApplicationInCurrentTransaction actor request expectedTargetR
                     | targetRevision prepared /= expectedTargetRevision -> pure (Left RosterTemplateApplicationTargetConflict)
                     | not (null missingMappingIds) -> pure (Left (RosterTemplateApplicationShiftTypeMappingsRequired missingMappingIds))
                     | otherwise -> do
-                        templateChanged <- applyPreparedApplication actor prepared
+                        let materializationScope = RosterWindowScope
+                                { rosterWindowVenueId = rosterTemplateActorVenueId actor
+                                , rosterWindowRosterGroupId = request.applicationTargetRosterGroupId
+                                , rosterWindowStart = request.applicationTargetWindowStart
+                                , rosterWindowEnd = request.applicationTargetWindowEnd
+                                , rosterWindowCalendarRevision = prepared.preparedCalendarRevision
+                                }
+                        (materializedDays, _) <- materializeRosterWindowForReplacement materializationScope
+                        let materializedByDate = Map.fromList [(day.operationalDate, day) | day <- materializedDays]
+                            materializedPrepared = prepared
+                                { preparedTargetDays = materializedDays
+                                , preparedShiftPlans = map (useMaterializedDay materializedByDate) prepared.preparedShiftPlans
+                                }
+                        templateChanged <- applyPreparedApplication actor materializedPrepared
                         let preview = toPreview prepared
                         pure (Right RosterTemplateApplicationResult
                             { appliedTargetWindowStart = prepared.preparedTargetWindowStart
@@ -119,6 +136,14 @@ applyRosterTemplateApplicationInCurrentTransaction actor request expectedTargetR
                         | requirement <- prepared.preparedShiftTypeRequirements
                         , isNothing requirement.applicationMappedShiftTypeId
                         ]
+
+useMaterializedDay :: Map.Map Day RosterDay -> PreparedShift -> PreparedShift
+useMaterializedDay materializedByDate plan =
+    plan
+        { preparedTargetDay = fromMaybe
+            (externalRuntimeInvariantFailure PersistedRuntimeInvariant "materialized template target day missing")
+            (Map.lookup plan.preparedTargetDay.operationalDate materializedByDate)
+        }
 
 prepareRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>
@@ -166,69 +191,64 @@ prepareStructurallyValidContent ::
     RosterGroup ->
     IO (Either RosterTemplateApplicationError PreparedApplication)
 prepareStructurallyValidContent request saved targetGroup = do
-    targetDays <- query @RosterDay
-        |> filterWhere (#venueId, targetGroup.venueId)
-        |> filterWhere (#rosterGroupId, unpackId targetGroup.id)
-        |> filterWhereGreaterThanOrEqualTo (#operationalDate, request.applicationTargetWindowStart)
-        |> filterWhereLessThan (#operationalDate, request.applicationTargetWindowEnd)
-        |> orderByAsc #operationalDate
-        |> fetch
-    if map (.operationalDate) targetDays /= map (`addDays` request.applicationTargetWindowStart) [0 .. 6]
-            then pure (Left RosterTemplateApplicationInvalidTargetDay)
-            else do
-                shiftTypeResolution <- resolveApplicationShiftTypes request saved targetGroup
-                case shiftTypeResolution of
-                    Left failure -> pure (Left failure)
-                    Right (requirements, availableShiftTypes, effectiveShiftTypeIds, shiftTypeRevision) -> do
-                        let targetDayByWeekday = Map.fromList [(weekdayIndexForDay day.operationalDate, day) | day <- targetDays]
-                            templateDayIndexById = Map.fromList
-                                [ (unpackId day.id, fromMaybe day.dayIndex day.weekdayIndex)
-                                | day <- saved.snapshotDays
-                                ]
-                            templateColumnById = Map.fromList [(unpackId column.id, column) | column <- saved.snapshotColumns]
-                        venueConfig <- query @VenueConfig |> filterWhere (#venueId, targetGroup.venueId) |> fetchOne
-                        let shiftPlans = traverse (prepareShift venueConfig targetDayByWeekday templateDayIndexById templateColumnById effectiveShiftTypeIds) saved.snapshotShifts
-                        case shiftPlans of
-                            Left failure -> pure (Left failure)
-                            Right boundaryPlans -> do
-                                (plans, staffNames, assignmentReferenceRevision) <- validateAssignments targetGroup availableShiftTypes boundaryPlans
-                                existingSlots <- query @RosterSlot
-                                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) targetDays)
-                                    |> filterWhere (#deletedAt, Nothing)
-                                    |> orderByAsc #id
-                                    |> fetch
-                                targetLanes <- query @RosterLane
-                                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) targetDays)
-                                    |> filterWhere (#deletedAt, Nothing)
-                                    |> orderByAsc #id
-                                    |> fetch
-                                timesheetEntries <- if null existingSlots then pure [] else query @TimesheetEntry
-                                    |> filterWhereIn (#sourceRosterSlotId, map (Just . unpackId . (.id)) existingSlots)
-                                    |> filterWhere (#deletedAt, Nothing)
-                                    |> orderByAsc #id
-                                    |> fetch
-                                let mappingsComplete = all (isJust . (.applicationMappedShiftTypeId)) requirements
-                                    hasDurableCleanup = any (maybe False issueIsDurable . (.preparedAssignmentIssue)) plans
-                                    cleanedContent
-                                        | mappingsComplete && (not (null requirements) || hasDurableCleanup) = Just (cleanedTemplateContent saved plans)
-                                        | otherwise = Nothing
-                                pure (Right PreparedApplication
-                                    { preparedSaved = saved
-                                    , preparedTargetGroup = targetGroup
-                                    , preparedTargetWindowStart = request.applicationTargetWindowStart
-                                    , preparedTargetWindowEnd = request.applicationTargetWindowEnd
-                                    , preparedTargetDays = targetDays
-                                    , preparedShiftPlans = plans
-                                    , preparedExistingSlots = existingSlots
-                                    , preparedTargetLanes = targetLanes
-                                    , preparedTimesheetEntries = timesheetEntries
-                                    , preparedCalendarRevision = venueConfig.rosterCalendarRevision
-                                    , preparedShiftTypeRequirements = requirements
-                                    , preparedAvailableShiftTypes = availableShiftTypes
-                                    , preparedStaffNames = staffNames
-                                    , preparedCleanedTemplateContent = cleanedContent
-                                    , preparedReferenceRevision = shiftTypeRevision <> ":" <> assignmentReferenceRevision
-                                    })
+    targetWindow <- fetchRosterWindow (Id targetGroup.venueId) targetGroup.id request.applicationTargetWindowStart
+    let targetDays =
+            [ projectedRosterDay (Id targetGroup.venueId) targetGroup.id windowDay
+            | windowDay <- targetWindow.rosterWindowProjectedDays
+            ]
+    shiftTypeResolution <- resolveApplicationShiftTypes request saved targetGroup
+    case shiftTypeResolution of
+        Left failure -> pure (Left failure)
+        Right (requirements, availableShiftTypes, effectiveShiftTypeIds, shiftTypeRevision) -> do
+            let targetDayByWeekday = Map.fromList [(weekdayIndexForDay day.operationalDate, day) | day <- targetDays]
+                templateDayIndexById = Map.fromList
+                    [ (unpackId day.id, fromMaybe day.dayIndex day.weekdayIndex)
+                    | day <- saved.snapshotDays
+                    ]
+                templateColumnById = Map.fromList [(unpackId column.id, column) | column <- saved.snapshotColumns]
+            venueConfig <- query @VenueConfig |> filterWhere (#venueId, targetGroup.venueId) |> fetchOne
+            let shiftPlans = traverse (prepareShift venueConfig targetDayByWeekday templateDayIndexById templateColumnById effectiveShiftTypeIds) saved.snapshotShifts
+            case shiftPlans of
+                Left failure -> pure (Left failure)
+                Right boundaryPlans -> do
+                    (plans, staffNames, assignmentReferenceRevision) <- validateAssignments targetGroup availableShiftTypes boundaryPlans
+                    existingSlots <- query @RosterSlot
+                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) targetDays)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> orderByAsc #id
+                        |> fetch
+                    targetLanes <- query @RosterLane
+                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) targetDays)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> orderByAsc #id
+                        |> fetch
+                    timesheetEntries <- if null existingSlots then pure [] else query @TimesheetEntry
+                        |> filterWhereIn (#sourceRosterSlotId, map (Just . unpackId . (.id)) existingSlots)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> orderByAsc #id
+                        |> fetch
+                    let mappingsComplete = all (isJust . (.applicationMappedShiftTypeId)) requirements
+                        hasDurableCleanup = any (maybe False issueIsDurable . (.preparedAssignmentIssue)) plans
+                        cleanedContent
+                            | mappingsComplete && (not (null requirements) || hasDurableCleanup) = Just (cleanedTemplateContent saved plans)
+                            | otherwise = Nothing
+                    pure (Right PreparedApplication
+                        { preparedSaved = saved
+                        , preparedTargetGroup = targetGroup
+                        , preparedTargetWindowStart = request.applicationTargetWindowStart
+                        , preparedTargetWindowEnd = request.applicationTargetWindowEnd
+                        , preparedTargetDays = targetDays
+                        , preparedShiftPlans = plans
+                        , preparedExistingSlots = existingSlots
+                        , preparedTargetLanes = targetLanes
+                        , preparedTimesheetEntries = timesheetEntries
+                        , preparedCalendarRevision = venueConfig.rosterCalendarRevision
+                        , preparedShiftTypeRequirements = requirements
+                        , preparedAvailableShiftTypes = availableShiftTypes
+                        , preparedStaffNames = staffNames
+                        , preparedCleanedTemplateContent = cleanedContent
+                        , preparedReferenceRevision = shiftTypeRevision <> ":" <> assignmentReferenceRevision
+                        })
 
 resolveApplicationShiftTypes ::
     (?modelContext :: ModelContext) =>

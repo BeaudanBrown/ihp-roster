@@ -10,8 +10,9 @@ import IHP.Prelude
 import Test.Hspec
 import Test.Support (setTestEndTime, setTestStartTime)
 import Web.RosterWeeks.DateRange (RosterWindowDay (..), laneForOperationalDate,
-                                  projectRosterWindow, rosterWindowLaneName,
-                                  rosterWindowLanes, rosterWindowProjectedDays)
+                                  projectRosterWindow, projectedRosterDay,
+                                  rosterWindowLaneName, rosterWindowLanes,
+                                  rosterWindowProjectedDays)
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
                                    rosterMutationProjectionFragments)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
@@ -111,6 +112,13 @@ tests = describe "Roster grid row grouping" do
 
         impactedRowKeysForSlotUpdate (Just staffA) editedSlot relatedSlots
             `shouldMatchList` [(day1, 0), (day2, 1), (day3, 2)]
+
+    it "projects an unmaterialized roster day with two rows" do
+        let venueId = "10000000-0000-0000-0000-000000000001" :: Id Venue
+            rosterGroupId = "20000000-0000-0000-0000-000000000001" :: Id RosterGroup
+            windowDay = RosterWindowDay (fromGregorian 2026 8 3) Nothing
+
+        (projectedRosterDay venueId rosterGroupId windowDay).rowCount `shouldBe` 2
 
     it "projects sparse roster days and a deterministic case-insensitive lane union" do
         let startDate = fromGregorian 2026 8 3

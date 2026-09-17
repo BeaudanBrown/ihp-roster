@@ -32,8 +32,9 @@ import qualified Data.Text as Text
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)
-import Web.RosterWeeks.DateRange (RosterWindowScope (..),
-                                  resolveRosterLaneReference)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
+                                  resolveRosterLaneReference,
+                                  rosterWindowTarget)
 import Web.RosterWeeks.Service (copyRosterSlotToDay,
                                 fetchActiveStaffForCurrentVenue,
                                 resolveRosterTimelineTargetBoundaries,
@@ -225,10 +226,15 @@ validateRosterStaffCreateShiftDropTarget :: (?context :: ControllerContext, ?mod
 validateRosterStaffCreateShiftDropTarget scope staffId dropTarget = do
     maybeStaff <- fetchActiveStaffForCurrentVenue staffId
     staffEligible <- staffIsEligibleForRosterGroup staffId scope.rosterWindowRosterGroupId
-    maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, dropTargetRosterDayId dropTarget))
-    case (maybeStaff, maybeTargetRosterDay) of
-        (Just staff, Just targetRosterDay) -> do
-            maybeResolvedTarget <- resolveRosterShiftDropPlacement targetRosterDay dropTarget
+    window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+    let maybeTarget = rosterWindowTarget
+            scope.rosterWindowVenueId
+            scope.rosterWindowRosterGroupId
+            window
+            (dropTargetRosterDayId dropTarget)
+    case (maybeStaff, maybeTarget) of
+        (Just staff, Just (targetRosterDay, targetSlotDefinitions)) -> do
+            maybeResolvedTarget <- resolveRosterShiftDropPlacementWithLanes targetRosterDay targetSlotDefinitions dropTarget
             pure do
                 guard (rosterDayMatchesScope scope targetRosterDay)
                 guard (rosterDayIsEditable targetRosterDay)
@@ -386,6 +392,25 @@ isDayDropTarget :: RosterShiftDropTarget -> Bool
 isDayDropTarget = \case
     DayRosterShiftDropTarget {} -> True
     _ -> False
+
+resolveRosterShiftDropPlacementWithLanes :: (?modelContext :: ModelContext) => RosterDay -> [RosterLane] -> RosterShiftDropTarget -> IO (Maybe (RosterLane, Int))
+resolveRosterShiftDropPlacementWithLanes targetRosterDay targetSlotDefinitions = \case
+    PreciseRosterShiftDropTarget _ targetSlotDefinitionId targetRowIndex -> do
+        let maybeTargetSlotDefinition = find ((== targetSlotDefinitionId) . (.id)) targetSlotDefinitions
+        targetExists <- maybe (pure False) (\lane -> rosterSlotCellExists targetRosterDay.id lane.id targetRowIndex) maybeTargetSlotDefinition
+        pure do
+            targetSlotDefinition <- maybeTargetSlotDefinition
+            guard (targetRowIndex >= 0)
+            guard (targetSlotDefinition.rosterDayId == unpackId targetRosterDay.id)
+            guard (isNothing targetSlotDefinition.deletedAt)
+            guard (not targetExists)
+            pure (targetSlotDefinition, targetRowIndex)
+    DayRosterShiftDropTarget _ -> do
+        daySlots <- query @RosterSlot
+            |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> fetch
+        pure (firstAvailableRosterDayPlacement targetRosterDay targetSlotDefinitions daySlots)
 
 resolveRosterShiftDropPlacement :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterDay -> RosterShiftDropTarget -> IO (Maybe (RosterLane, Int))
 resolveRosterShiftDropPlacement targetRosterDay = \case

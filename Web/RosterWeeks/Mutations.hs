@@ -314,8 +314,8 @@ rosterSlotStillMatches expectedSlot = do
 rosterSlotStaffUnavailableMessage :: Text
 rosterSlotStaffUnavailableMessage = "The selected staff member or roster shift is no longer available for rostering."
 
-saveRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Maybe RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
-saveRosterSlotMutation scope rosterDay existingSlot newSlot =
+saveRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> Maybe RosterSlot -> RosterSlot -> Bool -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+saveRosterSlotMutation scope rosterDay existingSlot newSlot materializeOnSave =
     withDurableRosterMutation "roster.slot.save" do
         persistenceResult <- withRosterWindowSlotStaffLocks scope RequireDraftWindow (newSlot : maybeToList existingSlot) do
             existingSlotMatches <- maybe (pure True) rosterSlotStillMatches existingSlot
@@ -325,8 +325,12 @@ saveRosterSlotMutation scope rosterDay existingSlot newSlot =
             case validationError of
                 Just message -> pure (Left message)
                 Nothing -> do
-                    when (newSlot.rowIndex >= rosterDay.rowCount) do
-                        _ <- rosterDay
+                    (_, materializedWindow) <- if materializeOnSave
+                        then materializeRosterWindow scope
+                        else pure ([], False)
+                    persistedRosterDay <- if materializedWindow then fetch rosterDay.id else pure rosterDay
+                    when (newSlot.rowIndex >= persistedRosterDay.rowCount) do
+                        _ <- persistedRosterDay
                             |> set #rowCount (newSlot.rowIndex + 1)
                             |> updateRecord
                         pure ()
@@ -334,11 +338,13 @@ saveRosterSlotMutation scope rosterDay existingSlot newSlot =
                         case existingSlot of
                             Just _  -> updateRecord newSlot
                             Nothing -> createRecord newSlot
-                    pure (Right persistedSlot)
+                    pure (Right (persistedSlot, materializedWindow))
         case persistenceResult of
             Left message -> pure (Left message)
-            Right persistedSlot -> do
-                mutationResult <- rosterMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) (rosterSlotMutationTouchedResources scope rosterDay (Just persistedSlot))
+            Right (persistedSlot, materializedWindow) -> do
+                mutationResult <- rosterMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) do
+                    slotResources <- rosterSlotMutationTouchedResources scope rosterDay (Just persistedSlot)
+                    pure (if materializedWindow then rosterWeekStructuralTouchedResources scope <> slotResources else slotResources)
                 pure (Right mutationResult)
 
 moveRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
@@ -376,8 +382,8 @@ moveRosterSlotMutation scope sourceRosterDay targetRosterDay originalSlot update
                         (nub (sourceResources <> targetResources))
                 pure (Right mutationResult)
 
-updateRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterSlot -> Bool -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
-updateRosterSlotMutation scope rosterDay originalSlot updatedSlot allowPublishedOpenFill =
+updateRosterSlotMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterSlot -> RosterSlot -> Bool -> Bool -> IO (Either Text (LiveMutationResult RosterSlotMutationResult))
+updateRosterSlotMutation scope rosterDay originalSlot updatedSlot allowPublishedOpenFill materializeOnSave =
     withDurableRosterMutation "roster.slot.update" do
         let requiredAccess = if allowPublishedOpenFill then RequirePublishedWindow else RequireDraftWindow
         persistenceResult <- withRosterWindowSlotStaffLocks scope requiredAccess [originalSlot, updatedSlot] do
@@ -388,12 +394,15 @@ updateRosterSlotMutation scope rosterDay originalSlot updatedSlot allowPublished
             case validationError of
                 Just message -> pure (Left message)
                 Nothing -> do
+                    (_, materializedWindow) <- if materializeOnSave
+                        then materializeRosterWindow scope
+                        else pure ([], False)
                     persistedSlot <- updateRecord updatedSlot
                     shouldWarnSourceTimesheetUnchanged <- rosterSlotTimesheetSourceChangeRequiresWarning originalSlot updatedSlot
-                    pure (Right (persistedSlot, shouldWarnSourceTimesheetUnchanged))
+                    pure (Right (persistedSlot, shouldWarnSourceTimesheetUnchanged, materializedWindow))
         case persistenceResult of
             Left message -> pure (Left message)
-            Right (persistedSlot, shouldWarnSourceTimesheetUnchanged) -> do
+            Right (persistedSlot, shouldWarnSourceTimesheetUnchanged, materializedWindow) -> do
                 let previousStaffId = originalSlot.staffId
                 mutationResult <- rosterMutationResult
                     RosterSlotMutationResult
@@ -401,7 +410,9 @@ updateRosterSlotMutation scope rosterDay originalSlot updatedSlot allowPublished
                         , rosterSlotMutationPreviousStaffId = previousStaffId
                         , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
                         }
-                    (rosterSlotMutationTouchedResources scope rosterDay (Just persistedSlot))
+                    do
+                        slotResources <- rosterSlotMutationTouchedResources scope rosterDay (Just persistedSlot)
+                        pure (if materializedWindow then rosterWeekStructuralTouchedResources scope <> slotResources else slotResources)
                 pure (Right mutationResult)
 
 

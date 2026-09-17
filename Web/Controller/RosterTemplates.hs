@@ -222,16 +222,7 @@ resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope submittedAn
             , applicationTargetWindowEnd = windowEnd
             , applicationShiftTypeMappings = shiftTypeMappings
             }
-    if submittedAnchorDate >= windowStart && submittedAnchorDate < windowEnd
-        then do
-            dayCount <- query @RosterDay
-                |> filterWhere (#venueId, rosterGroup.venueId)
-                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-                |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
-                |> filterWhereLessThan (#operationalDate, windowEnd)
-                |> fetchCount
-            pure (applicationRequest <$ guard (dayCount == 7))
-        else pure Nothing
+    pure (applicationRequest <$ guard (submittedAnchorDate >= windowStart && submittedAnchorDate < windowEnd))
 
 applicationShiftTypeMappingsFromValues :: Maybe [UUID] -> Maybe [UUID] -> Map.Map (Id ShiftType) (Id ShiftType)
 applicationShiftTypeMappingsFromValues maybeStaleIds maybeMappedIds =
