@@ -7,8 +7,9 @@ import Application.Xero.ReferenceTrust.ReadModel
 import Application.Xero.ReferenceTrust.Service
 import Control.Monad (replicateM_)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime,
+import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime, getCurrentTime,
                         secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -18,6 +19,7 @@ import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
 import Test.Support.XeroAdmin
+import Test.Support.Concurrency (runConcurrentActionsImmediately)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -94,6 +96,90 @@ tests = aroundAll withDatabaseTestContext do
                 state.syncProgress.progressFailedPhase `shouldBe` Just "accounts"
                 state.syncSanitizedError `shouldBe` Just "Xero reference sync is waiting to retry after the accounts phase failed."
                 state.trustDecision `shouldBe` UseTrustedXeroReferenceSnapshot
+
+        it "retries a failed workflow command once, with a durable cooldown and concurrent coalescing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Recoverable Trust Venue"
+                owner <- createUserRecord "xero-recoverable-trust@example.com" "staff" True
+                connection <- createSyncableXeroConnection venue owner
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                failedJob <- job
+                    |> set #status JobStatusFailed
+                    |> set #attemptsCount 1
+                    |> set #lastError (Just "AsyncCancelled")
+                    |> updateRecord
+                now <- getCurrentTime
+
+                -- Passive observations never restart failed work.
+                replicateM_ 3 do
+                    state <- fetchXeroReferenceTrustState now connection NoMissingPayrollReferenceDemand
+                    state.trustDecision `shouldBe` BlockStaleXeroReferenceData "Xero reference sync stopped safely."
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
+
+                results <- runConcurrentActionsImmediately 8 $
+                    requestTrustedXeroReferenceData now (Just owner.id) connection NoMissingPayrollReferenceDemand
+                lefts results `shouldSatisfy` null
+                let retryAt = addUTCTime 30 failedJob.updatedAt
+                forM_ (rights results) \state ->
+                    state.trustDecision `shouldBe` WaitForTrustedXeroReferenceSnapshot (XeroReferenceSyncRetryWaiting retryAt)
+                [retryJob] <- query @AppJob |> filterWhere (#status, JobStatusNotStarted) |> fetch
+                retryJob.runAt `shouldBe` retryAt
+                retryJob.id `shouldNotBe` failedJob.id
+                query @AppJob |> fetchCount >>= (`shouldBe` 2)
+                original <- fetch failedJob.id
+                original.status `shouldBe` JobStatusFailed
+                query @XeroTimesheetPreparationRun |> fetchCount >>= (`shouldBe` 0)
+
+        it "does not retry failed work when a snapshot is trusted or reconnection is required" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Retry Preconditions"
+                owner <- createUserRecord "xero-retry-preconditions@example.com" "staff" True
+                connection <- createSyncableXeroConnection venue owner
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                _ <- job |> set #status JobStatusFailed |> updateRecord
+                now <- getCurrentTime
+                _ <- connection |> set #lastSyncAt (Just now) |> updateRecord
+                trusted <- requestTrustedXeroReferenceData now Nothing connection NoMissingPayrollReferenceDemand
+                trusted.trustDecision `shouldBe` UseTrustedXeroReferenceSnapshot
+                _ <- connection |> set #connectionStatus "reauthorization_required" |> updateRecord
+                reconnect <- requestTrustedXeroReferenceData now Nothing connection NoMissingPayrollReferenceDemand
+                reconnect.trustDecision `shouldBe` ReconnectXeroForReferenceData
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
+
+        it "does not bypass an existing provider Retry-After continuation on repeated workflow commands" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Retry After Demand"
+                owner <- createUserRecord "xero-retry-after-demand@example.com" "staff" True
+                connection <- createSyncableXeroConnection venue owner
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                now <- getCurrentTime
+                let retryAt = addUTCTime 3600 now
+                persisted <- job |> set #runAt retryAt |> updateRecord
+                replicateM_ 3 do
+                    state <- requestTrustedXeroReferenceData now Nothing connection NoMissingPayrollReferenceDemand
+                    state.trustDecision `shouldBe` WaitForTrustedXeroReferenceSnapshot (XeroReferenceSyncRetryWaiting persisted.runAt)
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
+
+        it "retains an older failed refresh cooldown after a newer category job succeeds" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Older Retry After"
+                owner <- createUserRecord "xero-older-retry-after@example.com" "staff" True
+                connection <- createSyncableXeroConnection venue owner
+                EnqueuedAppJob failed <- enqueueXeroReferenceSyncJob Nothing connection
+                now <- getCurrentTime
+                let retryAt = addUTCTime 3600 now
+                _ <- failed
+                    |> set #status JobStatusFailed
+                    |> set #progress (Aeson.object ["retryAt" Aeson..= retryAt])
+                    |> updateRecord
+                EnqueuedAppJob newer <- enqueueXeroReferenceSyncCategories Nothing connection (Set.singleton XeroStaff)
+                _ <- newer |> set #status JobStatusSucceeded |> updateRecord
+
+                state <- requestTrustedXeroReferenceData now Nothing connection NoMissingPayrollReferenceDemand
+                [replacement] <- query @AppJob |> filterWhere (#status, JobStatusNotStarted) |> fetch
+                state.trustDecision `shouldBe` WaitForTrustedXeroReferenceSnapshot (XeroReferenceSyncRetryWaiting replacement.runAt)
+                diffUTCTime replacement.runAt now `shouldSatisfy` (\delay -> delay > 3599 && delay <= 3600)
+                query @AppJob |> fetchCount >>= (`shouldBe` 3)
 
         it "returns a sanitized terminal block for a failed stale snapshot" $ withContext do
             withCleanDb do

@@ -22,8 +22,12 @@ requestTrustedXeroReferenceData now maybeActorUserId connection requestedDemand 
         MissingPayrollEligibleStaffReference -> fetchXeroMissingReferenceDemand currentConnection
         _ -> pure requestedDemand
     initialState <- fetchXeroReferenceTrustState now currentConnection currentDemand
-    case initialState.trustDecision of
-        StartOrJoinXeroReferenceSync -> do
+    -- Observation remains terminal after a failed attempt. Only an explicit
+    -- workflow command may retry it; live fragment reads must never enqueue.
+    let requestSync = do
             _ <- requestXeroReferenceSyncJob maybeActorUserId currentConnection
             fetchXeroReferenceTrustState now currentConnection currentDemand
+    case initialState.trustDecision of
+        StartOrJoinXeroReferenceSync -> requestSync
+        BlockStaleXeroReferenceData _ -> requestSync
         _ -> pure initialState

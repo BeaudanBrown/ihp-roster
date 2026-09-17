@@ -1,6 +1,11 @@
 module Test.XeroReferenceSyncJobSpec where
 
 import Application.Async.Queue
+import Application.Job.App ()
+import Config
+import IHP.FrameworkConfig (withFrameworkConfig)
+import qualified IHP.Job.Queue as JobQueue
+import IHP.Job.Types (staleJobTimeout)
 import Application.Helper.Xero
 import Application.Xero.Admin.ReferenceData (completeXeroReferenceSyncRun,
                                              completeXeroStaffReferenceDataSync,
@@ -16,7 +21,7 @@ import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Application.Xero.ReferenceTrust.Service
 import qualified Control.Exception as Exception
 import Control.Monad (void)
-import Control.Concurrent.Async (withAsync, wait)
+import Control.Concurrent.Async (withAsync, wait, cancel)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import System.Timeout (timeout)
 import qualified Data.Aeson as Aeson
@@ -307,6 +312,72 @@ tests = aroundAll withDatabaseTestContext do
                     [ "status" Aeson..= ("skipped" :: Text)
                     , "reason" Aeson..= ("snapshot_already_current" :: Text)
                     ]
+
+        it "recovers a cancelled refresh through the ordinary workflow command without support" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Cancelled Workflow"
+                owner <- createUserRecord "xero-cancelled-workflow@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-cancelled-workflow"
+                EnqueuedAppJob queued <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+                job <- queued |> set #status JobStatusRunning |> set #attemptsCount 1 |> updateRecord
+                now <- getCurrentTime
+                started <- newEmptyMVar
+                blocked <- newEmptyMVar
+                let source = (emptyReferenceSource connection)
+                        { fetchReferenceEmployees = \_ _ -> putMVar started () >> takeMVar blocked }
+                outcome <- withAsync (Exception.try (performXeroReferenceSyncJobWith (testRuntime now) source job) :: IO (Either Exception.SomeException ())) \running -> do
+                    timeout 5000000 (takeMVar started) `shouldReturn` Just ()
+                    cancel running
+                    wait running
+                outcome `shouldSatisfy` isLeft
+                -- Use the same failure persistence as the unmodified IHP runner.
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    forM_ (lefts [outcome]) (JobQueue.jobDidFail ?modelContext.hasqlPool job)
+                failed <- fetch job.id
+                failed.status `shouldBe` JobStatusFailed
+                failed.lastError `shouldBe` Just "AsyncCancelled"
+
+                state <- requestTrustedXeroReferenceData now (Just owner.id) connection NoMissingPayrollReferenceDemand
+                state.trustDecision `shouldSatisfy` \case
+                    WaitForTrustedXeroReferenceSnapshot _ -> True
+                    _ -> False
+                [replacement] <- query @AppJob |> filterWhere (#status, JobStatusNotStarted) |> fetch
+                performXeroReferenceSyncJobWith (testRuntime replacement.runAt) (emptyReferenceSource connection) replacement
+                ready <- requestTrustedXeroReferenceData replacement.runAt (Just owner.id) connection NoMissingPayrollReferenceDemand
+                ready.trustDecision `shouldBe` UseTrustedXeroReferenceSnapshot
+                query @AppJob |> fetchCount >>= (`shouldBe` 2)
+                query @XeroSyncRun |> filterWhere (#syncStatus, Running) |> fetchCount >>= (`shouldBe` 0)
+
+        it "recovers a crashed worker with IHP stale recovery and reacquires the expired tenant lease" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Crashed Workflow"
+                owner <- createUserRecord "xero-crashed-workflow@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-crashed-workflow"
+                EnqueuedAppJob queued <- enqueueXeroReferenceSyncJob Nothing connection
+                now <- getCurrentTime
+                let crashedAt = addUTCTime (negate (xeroReferenceSyncLeaseSeconds + 60)) now
+                    workerId = "b6345411-837f-43a0-842d-d10bcb0a5673"
+                crashed <- queued
+                    |> set #status JobStatusRunning
+                    |> set #attemptsCount 1
+                    |> set #lockedAt (Just crashedAt)
+                    |> set #lockedBy (Just workerId)
+                    |> updateRecord
+                acquireXeroReferenceSyncLease crashedAt crashed connection.tenantId `shouldReturn` True
+                interruptedRun <- startXeroReferenceDataSync connection
+
+                let Just threshold = staleJobTimeout @AppJob
+                JobQueue.recoverStaleJobs @AppJob ?modelContext.hasqlPool threshold
+                Just recovered <- JobQueue.fetchNextJob @AppJob ?modelContext.hasqlPool workerId
+                recovered.id `shouldBe` crashed.id
+                recovered.attemptsCount `shouldBe` 2
+                performXeroReferenceSyncJobWith (testRuntime now) (emptyReferenceSource connection) recovered
+                terminalized <- fetch interruptedRun.id
+                terminalized.syncStatus `shouldBe` XeroSyncStatusEnumFailed
+                ready <- requestTrustedXeroReferenceData now Nothing connection NoMissingPayrollReferenceDemand
+                ready.trustDecision `shouldBe` UseTrustedXeroReferenceSnapshot
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
 
         it "terminalizes a run when an unexpected interruption escapes the worker" $ withContext do
             withCleanDb do
@@ -611,6 +682,30 @@ tests = aroundAll withDatabaseTestContext do
                 syncRun.errorMessage `shouldSatisfy` \case
                     Just message -> "repeated an earnings-rate page" `isInfixOf` message
                     Nothing -> False
+
+        it "retains Retry-After when an exhausted chain is explicitly retried" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Exhausted Rate Limit"
+                owner <- createUserRecord "xero-exhausted-rate-limit@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-exhausted-rate-limit"
+                EnqueuedAppJob queued <- enqueueXeroReferenceSyncJob Nothing connection
+                now <- getCurrentTime
+                job <- queued
+                    |> set #status JobStatusRunning
+                    |> set #attemptsCount 1
+                    |> set #payload (referenceSyncPayload connection (addUTCTime (-86400) now) 12)
+                    |> updateRecord
+                let source = (emptyReferenceSource connection)
+                        { fetchReferenceEmployees = \_ _ -> pure (Left (XeroHttpResponseError 429 (Just (XeroRetryAfterDelay 3600)) "private response")) }
+                outcome <- Exception.try (performXeroReferenceSyncJobWith (testRuntime now) source job) :: IO (Either Exception.SomeException ())
+                outcome `shouldSatisfy` isLeft
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    forM_ (lefts [outcome]) (JobQueue.jobDidFail ?modelContext.hasqlPool job)
+                _ <- requestTrustedXeroReferenceData now Nothing connection NoMissingPayrollReferenceDemand
+                [replacement] <- query @AppJob |> filterWhere (#status, JobStatusNotStarted) |> fetch
+                diffUTCTime replacement.runAt now `shouldSatisfy` (\delay -> delay > 3599 && delay <= 3600)
+                query @AppJob |> fetchCount >>= (`shouldBe` 2)
 
         it "stops creating continuations after the 24-hour retry window" $ withContext do
             withCleanDb do

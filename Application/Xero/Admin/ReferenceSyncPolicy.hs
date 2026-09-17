@@ -8,6 +8,7 @@ module Application.Xero.Admin.ReferenceSyncPolicy
     , runPacedXeroReferenceRequest
     , xeroReferenceRequestDelayMicros
     , xeroReferenceSyncRetryDecision
+    , xeroRetryAfterTime
     ) where
 
 import Application.Helper.Xero

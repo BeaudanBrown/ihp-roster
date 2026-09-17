@@ -97,7 +97,14 @@ issue and, when cross-system design remains unresolved, a new workstream.
   snapshot opens the mapping workflow rather than making preparation wait for the
   delayed background retry. Subscribed live waiting dialogs show canonical
   phase/page facts and resume from local reference rows only after typed
-  sync-state invalidation.
+  sync-state invalidation. Failed attempts remain terminal in read-only status
+  observations, but an explicit import/preparation opening may request a new
+  coalescing refresh without founder support. Fresh attempts retain failed-job
+  history, wait at least 30 seconds after the previous failure, and honor any
+  retained provider retry time even after the automatic retry budget expires.
+  Reconnection-required connections cannot retry through this path. Native IHP
+  cancellation/failure and stale-job recovery remain unchanged; recovery retries
+  reference synchronization only, never an uncertain payroll submission.
 - Missing-staff demand resolves approval-pinned pay versions through the
   canonical explicit pay-assignment resolver. Successful snapshots stamp
   unresolved staff mappings as checked. When no mapping row exists yet, or an

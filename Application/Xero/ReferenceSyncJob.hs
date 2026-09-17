@@ -142,7 +142,20 @@ enqueueXeroReferenceSyncCategories requestedByUserId connection categories
     | Set.null categories = throwExternalRuntimeMessage CheckedConfigurationInvariant "Xero reference sync categories cannot be empty."
     | otherwise = do
         requestedAt <- getCurrentTime
-        enqueueReferenceSyncAttempt requestedByUserId connection requestedAt 0 Nothing categories (categories == allXeroReferenceSyncCategories)
+        -- A deliberate retry starts a new bounded chain, but cannot hammer Xero
+        -- after repeated terminal failures. Persist the delay on the ordinary
+        -- job so the worker, not a browser timer, owns waking it up.
+        failedJobs <- query @AppJob
+            |> filterWhere (#jobKind, xeroReferenceSyncJobKind)
+            |> filterWhere (#relatedId, Just (unpackId connection.id))
+            |> filterWhere (#status, JobStatusFailed)
+            |> fetch
+        -- Category-only success must not hide a full refresh's Retry-After.
+        let retryTimes = concatMap (\job -> addUTCTime 30 job.updatedAt : maybeToList (referenceSyncRetryAt job.progress)) failedJobs
+            runAt = case retryTimes of
+                [] -> Nothing
+                _ -> Just (maximum (requestedAt : retryTimes))
+        enqueueReferenceSyncAttempt requestedByUserId connection requestedAt 0 runAt categories (categories == allXeroReferenceSyncCategories)
 
 requestXeroReferenceSyncJob ::
     (?modelContext :: ModelContext) =>
@@ -332,7 +345,8 @@ terminalizeInterruptedReferenceSyncRun runtime appJob syncRun connection = do
     when (latestRun.syncStatus == Running) do
         let interruption = XeroReferencePhaseFailure "worker" (XeroHttpError "Xero reference sync worker interrupted.")
             message = "Xero worker sync failed."
-        updateReferenceSyncFailureProgress appJob interruption
+        now <- runtime.currentReferenceSyncTime
+        updateReferenceSyncFailureProgress now appJob interruption
         void (failXeroReferenceDataSync appJob.requestedByUserId (XeroReferenceSyncAttempt appJob latestRun runtime.currentReferenceSyncTime) connection message :: IO (Either Text ()))
 
 runRequestedReferenceCategories ::
@@ -425,9 +439,9 @@ handleReferenceSyncFailure ::
     IO ()
 handleReferenceSyncFailure runtime appJob payload connection maybeSyncRun failure = do
     let message = durableXeroReferenceSyncFailureMessage failure
-    updateReferenceSyncFailureProgress appJob failure
-    forM_ maybeSyncRun \syncRun -> void (failXeroReferenceDataSync appJob.requestedByUserId (XeroReferenceSyncAttempt appJob syncRun runtime.currentReferenceSyncTime) connection message)
     now <- runtime.currentReferenceSyncTime
+    updateReferenceSyncFailureProgress now appJob failure
+    forM_ maybeSyncRun \syncRun -> void (failXeroReferenceDataSync appJob.requestedByUserId (XeroReferenceSyncAttempt appJob syncRun runtime.currentReferenceSyncTime) connection message)
     jitterSeconds <- runtime.referenceSyncJitterSeconds
     case xeroReferenceSyncRetryDecision payload.requestedAt now payload.retryNumber jitterSeconds failure.cause of
         RetryXeroReferenceSyncAt retryAt
@@ -470,8 +484,8 @@ durableXeroReferenceSyncFailureMessage failure =
         XeroDecodeError _ -> "provider response could not be read."
         XeroNoTenantsError -> "no connected tenant was available."
 
-updateReferenceSyncFailureProgress :: (?modelContext :: ModelContext) => AppJob -> XeroReferencePhaseFailure -> IO ()
-updateReferenceSyncFailureProgress appJob failure = do
+updateReferenceSyncFailureProgress :: (?modelContext :: ModelContext) => UTCTime -> AppJob -> XeroReferencePhaseFailure -> IO ()
+updateReferenceSyncFailureProgress now appJob failure = do
     forM_ appJob.venueId \venueId ->
         withReferenceSyncMutation "xero.reference_sync.progress" venueId do
             latestJob <- fetch appJob.id
@@ -485,6 +499,7 @@ updateReferenceSyncFailureProgress appJob failure = do
                               , "failureCode" Aeson..= xeroReferenceSyncFailureCode failure.cause
                               ]
                                 <> completedPageFields
+                                <> maybe [] (\retryAt -> ["retryAt" Aeson..= retryAt]) (xeroRetryAfterTime now failure.cause)
                             )
                         )
                     |> updateRecord
@@ -530,6 +545,11 @@ scheduleReferenceSyncRetry appJob connection payload retryAt failedPhase message
                 (Just retryAt)
                 payload.requestedCategories
                 payload.completesFullSnapshot
+
+-- Retain provider cooldowns even when the automatic retry budget is exhausted.
+referenceSyncRetryAt :: Aeson.Value -> Maybe UTCTime
+referenceSyncRetryAt value =
+    join (AesonTypes.parseMaybe (Aeson.withObject "Xero reference sync progress" (\object -> object Aeson..:? "retryAt")) value)
 
 completedPayItemsPageFromProgress :: Aeson.Value -> Maybe Int
 completedPayItemsPageFromProgress value =
