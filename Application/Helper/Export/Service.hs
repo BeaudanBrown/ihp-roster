@@ -52,7 +52,7 @@ requestFixedExportWithSelection selection exportType rangeStart rangeEnd =
                 HourlyBreakdownZip -> requestHourlyZipExport entries StaffHoursZip rangeStart rangeEnd
                 HourlyWageTotalsZip -> requestHourlyZipExport entries WageTotalsZip rangeStart rangeEnd
                 PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport entries rangeStart rangeEnd
-                PayrollWorkbookXlsx -> requestPayrollWorkbookForEntries entries defaultPayrollWorkbookDefinition rangeStart rangeEnd
+                PayrollWorkbookXlsx -> requestPayrollWorkbookForEntries entries "Payroll workbook" defaultPayrollWorkbookDefinition rangeStart rangeEnd
 
 fetchExportSelectionCandidates ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -89,6 +89,7 @@ withExportSelection selection exportType rangeStart rangeEnd consume =
 
 requestPayrollWorkbookXlsxExportWithDefinition ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Text ->
     PayrollWorkbookDefinition ->
     Day ->
     Day ->
@@ -97,15 +98,15 @@ requestPayrollWorkbookXlsxExportWithDefinition = requestPayrollWorkbookXlsxExpor
 
 requestPayrollWorkbookXlsxExportWithSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    TimesheetSelection -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text ExportJob)
-requestPayrollWorkbookXlsxExportWithSelection selection definition rangeStart rangeEnd =
+    TimesheetSelection -> Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text ExportJob)
+requestPayrollWorkbookXlsxExportWithSelection selection exportName definition rangeStart rangeEnd =
     withExportSelection selection PayrollWorkbookXlsx rangeStart rangeEnd \entries ->
-        requestPayrollWorkbookForEntries entries definition rangeStart rangeEnd
+        requestPayrollWorkbookForEntries entries exportName definition rangeStart rangeEnd
 
 requestPayrollWorkbookForEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [TimesheetEntry] -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text ExportJob)
-requestPayrollWorkbookForEntries entries definition rangeStart rangeEnd = do
+    [TimesheetEntry] -> Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text ExportJob)
+requestPayrollWorkbookForEntries entries exportName definition rangeStart rangeEnd = do
     staffById <- fetchStaffMap entries
     let includedEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
     if null includedEntries
@@ -134,7 +135,7 @@ requestPayrollWorkbookForEntries entries definition rangeStart rangeEnd = do
     persistModel definition includedEntries versionManifestsByEntryId factModel workbook = do
         expiresAt <- newExportExpiry
         let exportType = exportJobTypeToText PayrollWorkbookXlsx
-        let fileName = "payroll_workbook-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".xlsx"
+        let fileName = payrollWorkbookFileName exportName rangeStart rangeEnd
         let hourlyModel = payrollWorkbookHourlyModelFromFacts factModel
         let workbookContents = renderPayrollWorkbookBase64 workbook
         let definitionSnapshot = map payrollWorkbookSheetFamilyKey definition.payrollWorkbookDefinitionSheetFamilies

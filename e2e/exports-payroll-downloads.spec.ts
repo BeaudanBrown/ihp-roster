@@ -36,7 +36,7 @@ test.describe('Payroll export downloads', () => {
         await shiftExportWeek(page, 'Previous');
         const resetWeek = await shiftExportWeek(page, 'Current');
         expect(resetWeek).toEqual(currentWeek);
-        const fileName = `payroll_workbook-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`;
+        const fileName = `payroll-workbook-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`;
 
         const standardDownload = await generatePayrollReport(page, 'Payroll Workbook', 'Download');
         expect(standardDownload.suggestedFilename()).toBe(fileName);
@@ -113,7 +113,7 @@ test.describe('Payroll export downloads', () => {
 
         const configuredRefresh = page.waitForResponse((response) => response.url().includes('/ShowadminExportsLiveFragment'), { timeout: E2E_TIMEOUT.assertion });
         const configuredDownload = await generatePayrollReport(page, 'Wages then Summary', 'Download');
-        expect(configuredDownload.suggestedFilename()).toBe(fileName);
+        expect(configuredDownload.suggestedFilename()).toBe(`wages-then-summary-${currentWeek.weekStart}-to-${currentWeek.weekEnd}.xlsx`);
         await configuredRefresh;
         const workbookXml = await readZipEntryText(configuredDownload, 'xl/workbook.xml');
         expect(workbookXml).toContain('Shift Type Wages Mon');

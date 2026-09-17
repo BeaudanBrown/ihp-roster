@@ -917,7 +917,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob <- query @ExportJob |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText PayrollWorkbookXlsx
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
-                exportJob.fileName `shouldBe` Just "payroll_workbook-2025-01-06-to-2025-01-12.xlsx"
+                exportJob.fileName `shouldBe` Just "payroll-workbook-2025-01-06-to-2025-01-12.xlsx"
                 exportJob.contentType `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.fileContents `shouldSatisfy` maybe False (not . Text.null)
@@ -939,7 +939,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 lookup hContentType (responseHeaders response) `shouldBe` Just "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll_workbook-2025-01-06-to-2025-01-12.xlsx\""
+                lookup hContentDisposition (responseHeaders response) `shouldBe` Just "attachment; filename=\"payroll-workbook-2025-01-06-to-2025-01-12.xlsx\""
                 workbookBytes <- responseBody response
                 LBS.take 2 workbookBytes `shouldBe` "PK"
                 let workbookArchive = Zip.toArchive workbookBytes
@@ -1048,6 +1048,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                 generateResponse `responseStatusShouldBe` status302
                 exportJob <- query @ExportJob |> fetchOne
+                exportJob.fileName `shouldBe` Just "summary-then-wages-2025-01-06-to-2025-01-12.xlsx"
                 auditEventsAfterGeneration <- query @AuditEvent |> fetch
                 map (.eventType) auditEventsAfterGeneration `shouldBe` ["export_generated"]
                 let encodedScope = decodeUtf8 (LBS.toStrict (Aeson.encode exportJob.scope))

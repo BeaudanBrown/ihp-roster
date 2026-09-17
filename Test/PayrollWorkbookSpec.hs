@@ -1,6 +1,7 @@
 module Test.PayrollWorkbookSpec where
 
 import Application.Helper.Export.PayrollWorkbook
+import Application.Helper.Export.Render (payrollWorkbookFileName)
 import Application.Helper.Export.PayrollWorkbookModel
 import Application.Helper.Export.Types
 import qualified "zip-archive" Codec.Archive.Zip as Zip
@@ -90,6 +91,13 @@ tests = do
             workbookXml `shouldSatisfy` Text.isInfixOf "state=\"hidden\""
 
     describe "Payroll Workbook composable definitions" do
+        it "uses a safe lowercase kebab-case configured name in spreadsheet filenames" do
+            let start = fromGregorian 2025 1 6
+                end = fromGregorian 2025 1 12
+            payrollWorkbookFileName "  Wages & Payroll__Export!  " start end `shouldBe` "wages-payroll-export-2025-01-06-to-2025-01-12.xlsx"
+            payrollWorkbookFileName "../PAYROLL/\"\r\nReport" start end `shouldBe` "payroll-report-2025-01-06-to-2025-01-12.xlsx"
+            payrollWorkbookFileName "---" start end `shouldBe` "payroll-workbook-2025-01-06-to-2025-01-12.xlsx"
+
         it "keeps Xero pay-item identities separate and aggregates exact daily quantities" do
             let (day, factModel) = oneHourFactModel
                 definition = PayrollWorkbookDefinition "manual-xero" 1 [PayrollWorkbookXeroPayItems]
@@ -99,9 +107,50 @@ tests = do
             let sheet = fromMaybe (error "missing sheet") (head workbook.sheets)
                 values = [cell.value | cell <- sheet.cells, cell.column == 3, cell.row > 1]
             values `shouldBe` [PayrollWorkbookNumber 1, PayrollWorkbookNumber (1 / 7)]
-            textValues sheet `shouldSatisfy` elem "2025-01-12"
+            [cell.value | cell <- sheet.cells, cell.row == 1, cell.column >= 3, cell.column <= 9] `shouldBe`
+                map PayrollWorkbookText ["Monday 06/01", "Tuesday 07/01", "Wednesday 08/01", "Thursday 09/01", "Friday 10/01", "Saturday 11/01", "Sunday 12/01"]
+            sheet.frozenColumns `shouldBe` 0
+            sheet.columnWidths `shouldBe`
+                [(1, 79 / 7), (2, 18), (3, 21), (4, 15), (5, 17), (6, 16), (7, 14), (8, 16), (9, 14), (10, 21)]
+            xeroSheetXml <- archiveText "xl/worksheets/sheet1.xml" (Zip.toArchive (renderPayrollWorkbook workbook))
+            Text.isInfixOf "xSplit=" xeroSheetXml `shouldBe` False
+            xeroSheetXml `shouldSatisfy` Text.isInfixOf "ySplit=\"1\""
+            xeroSheetXml `shouldSatisfy` Text.isInfixOf "width=\"18\""
             payrollWorkbookFromDefinition definition 1 factModel `shouldBe` Left "Xero pay-items sheet requires resolved selected earnings quantities."
             defaultPayrollWorkbookDefinition.payrollWorkbookDefinitionSheetFamilies `shouldSatisfy` notElem PayrollWorkbookXeroPayItems
+
+        it "bands all pay-item rows for each staff identity together in alternating white and light grey" do
+            let (day, factModel) = oneHourFactModel
+                definition = PayrollWorkbookDefinition "banded-xero" 1 [PayrollWorkbookXeroPayItems]
+                quantity staffId rate = PayrollWorkbookXeroQuantity staffId "Same staff name that is deliberately long" rate "A long descriptive pay item name that should remain fully visible on one single line" day 1
+                quantities =
+                    [ quantity "00000000-0000-0000-0000-000000000001" "rate-a"
+                    , quantity "00000000-0000-0000-0000-000000000001" "rate-b"
+                    , quantity "00000000-0000-0000-0000-000000000002" "rate-a"
+                    , quantity "00000000-0000-0000-0000-000000000002" "rate-b"
+                    , quantity "00000000-0000-0000-0000-000000000003" "rate-a"
+                    ]
+            workbook <- expectRight (payrollWorkbookFromDefinitionWithXeroQuantities (Just quantities) definition 1 factModel)
+            white <- expectRight (payrollWorkbookColor "FFFFFF")
+            grey <- expectRight (payrollWorkbookColor "D9D9D9")
+            border <- expectRight (payrollWorkbookColor "B7B7B7")
+            let sheet = fromMaybe (error "missing sheet") (head workbook.sheets)
+            forM_ (zip [2 ..] [white, white, grey, grey, white]) \(row, expectedFill) ->
+                [cell.style.fillColor | cell <- sheet.cells, cell.row == row] `shouldBe` replicate 10 (Just expectedFill)
+            [cell.style.fillColor | cell <- sheet.cells, cell.row == 1] `shouldBe` replicate 10 Nothing
+            map ((.borderColor) . (.style)) sheet.cells `shouldBe` replicate 60 (Just border)
+            -- Full labels exceed the former caps, measured by glyph width rather
+            -- than raw character count. No wrapping or truncation is needed.
+            lookup 1 sheet.columnWidths `shouldBe` Just (260 / 7)
+            lookup 2 sheet.columnWidths `shouldBe` Just (521 / 7)
+            stylesXml <- archiveText "xl/styles.xml" (Zip.toArchive (renderPayrollWorkbook workbook))
+            stylesXml `shouldSatisfy` Text.isInfixOf "FFFFFFFF"
+            stylesXml `shouldSatisfy` Text.isInfixOf "FFD9D9D9"
+            stylesXml `shouldSatisfy` Text.isInfixOf "FFB7B7B7"
+            stylesXml `shouldNotSatisfy` Text.isInfixOf "wrapText=\"1\""
+            stylesXml `shouldSatisfy` Text.isInfixOf "Calibri"
+            forM_ ["left", "right", "top", "bottom"] \edge ->
+                stylesXml `shouldSatisfy` Text.isInfixOf ("<" <> edge <> " style=\"thin\"")
 
         it "expands valid presentation families in declared order and always appends hidden Data" do
             let (_, factModel) = oneHourFactModel

@@ -24,9 +24,9 @@ requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: M
 requestFixedExportMutation exportType rangeStart rangeEnd =
     requestExportMutation (requestFixedExport exportType rangeStart rangeEnd)
 
-requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
-requestFixedExportWithPayrollWorkbookDefinitionMutation definition rangeStart rangeEnd =
-    requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition definition rangeStart rangeEnd)
+requestFixedExportWithPayrollWorkbookDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> PayrollWorkbookDefinition -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
+requestFixedExportWithPayrollWorkbookDefinitionMutation exportName definition rangeStart rangeEnd =
+    requestExportMutation (requestPayrollWorkbookXlsxExportWithDefinition exportName definition rangeStart rangeEnd)
 
 requestSelectedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSelection -> ExportJobType -> Maybe (Id PayrollWorkbookConfiguration) -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
 requestSelectedExportMutation selection exportType configurationId rangeStart rangeEnd =
@@ -34,7 +34,7 @@ requestSelectedExportMutation selection exportType configurationId rangeStart ra
         (PayrollWorkbookXlsx, Just configurationId) ->
             fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
                 Left _ -> pure (Left "That Payroll Workbook configuration is unavailable. Close the dialog and choose an existing export.")
-                Right configuration -> requestExportMutation (requestPayrollWorkbookXlsxExportWithSelection selection configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd)
+                Right configuration -> requestExportMutation (requestPayrollWorkbookXlsxExportWithSelection selection configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd)
         (_, Just _) -> pure (Left "This configuration can only generate Payroll Workbooks.")
         (_, Nothing) -> requestExportMutation (requestFixedExportWithSelection selection exportType rangeStart rangeEnd)
 

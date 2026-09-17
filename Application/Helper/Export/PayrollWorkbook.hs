@@ -57,7 +57,9 @@ data PayrollWorkbookCellValue
 
 data PayrollWorkbookCellStyle = PayrollWorkbookCellStyle
     { bold         :: !Bool
+    , fontName     :: !(Maybe Text)
     , fillColor    :: !(Maybe PayrollWorkbookColor)
+    , borderColor  :: !(Maybe PayrollWorkbookColor)
     , numberFormat :: !(Maybe Text)
     }
     deriving (Eq, Show)
@@ -169,7 +171,9 @@ defaultPayrollWorkbookCellStyle :: PayrollWorkbookCellStyle
 defaultPayrollWorkbookCellStyle =
     PayrollWorkbookCellStyle
         { bold = False
+        , fontName = Nothing
         , fillColor = Nothing
+        , borderColor = Nothing
         , numberFormat = Nothing
         }
 
@@ -234,14 +238,13 @@ xeroPayItemsSheet :: [PayrollWorkbookXeroQuantity] -> Day -> PayrollWorkbookShee
 xeroPayItemsSheet quantities weekStart = PayrollWorkbookSheet
     { name = "Xero " <> tshow weekStart
     , hidden = False
-    , cells = zipWith (cell 1) [1 ..] (map PayrollWorkbookText (["Employee", "Pay item"] <> map tshow days <> ["Total"]))
-        <> concat (zipWith rowCells [2 ..] (Map.toAscList grouped))
-    , columnWidths = [(1, 32), (2, 36)] <> [(column, 16) | column <- [3 .. 10]]
+    , cells = sheetCells
+    , columnWidths = contentSizedColumnWidths sheetCells
     , hiddenColumns = []
     , tabColor = Nothing
     , autoFilter = Nothing
     , frozenRows = 1
-    , frozenColumns = 2
+    , frozenColumns = 0
     }
   where
     days = [weekStart .. addDays 6 weekStart]
@@ -249,12 +252,52 @@ xeroPayItemsSheet quantities weekStart = PayrollWorkbookSheet
     grouped = Map.fromListWith (Map.unionWith (+))
         [ ((quantity.xeroQuantityStaffId, quantity.xeroQuantityPayItemId, quantity.xeroQuantityStaffName, quantity.xeroQuantityPayItemName), Map.singleton quantity.xeroQuantityDate quantity.xeroQuantityUnits)
         | quantity <- inWeek ]
-    cell row column value = PayrollWorkbookCell row column value defaultPayrollWorkbookCellStyle
-    rowCells row ((_, _, staffName, itemName), byDate) =
-        zipWith (cell row) [1 ..]
+    staffFills = Map.fromList $ zip
+        (List.nub [staffId | ((staffId, _, _, _), _) <- Map.toAscList grouped])
+        (cycle [color "FFFFFF", color "D9D9D9"])
+    sheetCells = zipWith (cell 1) [1 ..] (map PayrollWorkbookText (["Employee", "Pay item"] <> map (Text.pack . formatTime defaultTimeLocale "%A %d/%m") days <> ["Total"]))
+        <> concat (zipWith rowCells [2 ..] (Map.toAscList grouped))
+    tableStyle = defaultPayrollWorkbookCellStyle { fontName = Just "Calibri", borderColor = Just (color "B7B7B7") }
+    cell row column value = PayrollWorkbookCell row column value tableStyle
+    rowCells row ((staffId, _, staffName, itemName), byDate) =
+        let rowStyle = tableStyle { fillColor = Map.lookup staffId staffFills }
+         in zipWith (\column value -> PayrollWorkbookCell row column value rowStyle) [1 ..]
             (map PayrollWorkbookText [staffName, itemName]
                 <> map (PayrollWorkbookNumber . fromRational . (\day -> Map.findWithDefault 0 day byDate)) days
                 <> [PayrollWorkbookNumber (fromRational (sum (Map.elems byDate)))])
+
+contentSizedColumnWidths :: [PayrollWorkbookCell] -> [(Int, Double)]
+contentSizedColumnWidths cells =
+    [ (columnNumber, maximum (map cellContentWidth columnCells))
+    | columnNumber <- [1 .. maximum (map (.column) cells)]
+    , let columnCells = filter ((== columnNumber) . (.column)) cells
+    ]
+  where
+    cellContentWidth cell = case cell.value of
+        PayrollWorkbookText value | cell.column <= 2 -> singleLineLabelWidth value
+        PayrollWorkbookText value -> fromIntegral (Text.length value) + 2
+        PayrollWorkbookNumber value -> fromIntegral (Text.length (tshow value)) + 2
+        PayrollWorkbookFormula value -> fromIntegral (Text.length value) + 2
+
+-- Calibri 11 pixel advances, rather than treating every letter as a full digit
+-- width. Seven pixels of padding keep labels clear of the retained cell borders.
+-- Width data: https://github.com/jmcnamara/XlsxWriter/blob/main/xlsxwriter/utility.py
+-- Excel column widths are measured in seven-pixel digit units at this size.
+singleLineLabelWidth :: Text -> Double
+singleLineLabelWidth label = (Text.foldl' (\width char -> width + glyphWidth char) 0 label + 7) / 7
+  where
+    glyphWidth char
+        | char `elem` (" '" :: String) = 3
+        | char `elem` (",.:;I`ijl" :: String) = 4
+        | char `elem` ("!()-J[]frt{}" :: String) = 5
+        | char `elem` ("\"/\\Lcsz" :: String) = 6
+        | char `elem` ("#$*+0123456789<=>?EFSTYZ^_agkvxy|~" :: String) = 7
+        | char `elem` ("ADGHUV" :: String) = 9
+        | char `elem` ("&NOQ" :: String) = 10
+        | char `elem` ("%w" :: String) = 11
+        | char `elem` ("Mm" :: String) = 12
+        | char `elem` ("@W" :: String) = 13
+        | otherwise = 8
 
 validatePayrollWorkbookDefinition :: PayrollWorkbookDefinition -> Either Text ()
 validatePayrollWorkbookDefinition definition
@@ -798,13 +841,26 @@ renderCell cell =
 renderFormat :: PayrollWorkbookCellStyle -> Format
 renderFormat style =
     def
-        { _formatFont =
-            if style.bold
-                then Just def { _fontBold = Just True }
-                else Nothing
+        { _formatFont = case style.fontName of
+            Just name -> Just def { _fontName = Just name, _fontSize = Just 11, _fontBold = Just style.bold }
+            Nothing -> if style.bold then Just def { _fontBold = Just True } else Nothing
         , _formatFill = renderFill <$> style.fillColor
+        , _formatBorder = renderBorder <$> style.borderColor
         , _formatNumberFormat = UserNumberFormat <$> style.numberFormat
         }
+
+renderBorder :: PayrollWorkbookColor -> Border
+renderBorder (PayrollWorkbookColor argb) =
+    let edge = Just def
+            { _borderStyleColor = Just def { _colorARGB = Just argb }
+            , _borderStyleLine = Just LineStyleThin
+            }
+     in def
+            { _borderLeft = edge
+            , _borderRight = edge
+            , _borderTop = edge
+            , _borderBottom = edge
+            }
 
 renderFill :: PayrollWorkbookColor -> Fill
 renderFill (PayrollWorkbookColor argb) =

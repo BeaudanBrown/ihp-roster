@@ -172,7 +172,7 @@ instance Controller ExportsController where
                         fetchSavedPayrollWorkbookConfiguration configurationId >>= \case
                             Left configurationError -> respondWithExportGenerationError (payrollWorkbookConfigurationErrorMessage configurationError)
                             Right configuration ->
-                                requestFixedExportWithPayrollWorkbookDefinitionMutation configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd >>= \case
+                                requestFixedExportWithPayrollWorkbookDefinitionMutation configuration.savedPayrollWorkbookConfigurationRecord.name configuration.savedPayrollWorkbookConfigurationDefinition rangeStart rangeEnd >>= \case
                                     Left message -> respondWithExportGenerationError message
                                     Right result -> respondWithGeneratedExportDownload result.liveMutationValue
                     (PayrollWorkbookXlsx, Nothing) ->
