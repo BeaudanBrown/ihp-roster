@@ -781,7 +781,7 @@ CREATE FUNCTION protect_public_holiday_override() RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP <> 'INSERT' THEN
         IF NOT OLD.is_regional AND EXISTS (
-            SELECT 1 FROM public_holiday_overrides
+            SELECT 1 FROM public.public_holiday_overrides
             WHERE retired_at IS NULL AND jurisdiction = OLD.jurisdiction
               AND target_year = EXTRACT(YEAR FROM OLD.holiday_date)::INT
         ) THEN
@@ -790,7 +790,7 @@ BEGIN
     END IF;
     IF TG_OP <> 'DELETE' THEN
         IF NOT NEW.is_regional AND EXISTS (
-            SELECT 1 FROM public_holiday_overrides
+            SELECT 1 FROM public.public_holiday_overrides
             WHERE retired_at IS NULL AND jurisdiction = NEW.jurisdiction
               AND target_year = EXTRACT(YEAR FROM NEW.holiday_date)::INT
         ) THEN
