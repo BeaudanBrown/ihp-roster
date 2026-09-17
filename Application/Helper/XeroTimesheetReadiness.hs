@@ -136,13 +136,20 @@ validateXeroTimesheetReadiness request =
                 let bucketKeys = map (.localBucketKey) buckets
                     payItemRequirements = filter (\requirement -> requirement.requirementKey `elem` bucketKeys) allPayItemRequirements
                 maybeCalendar <- fetchRequestPayrollCalendar request maybeConnection
+                maybePayRun <- case (maybeConnection, request.readinessXeroPayRunId) of
+                    (Just connection, Just payRunId) -> query @XeroPayRun
+                        |> filterWhere (#venueId, unpackId request.readinessVenueId)
+                        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                        |> filterWhere (#xeroPayRunId, payRunId)
+                        |> fetchOneOrNothing
+                    _ -> pure Nothing
                 maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
                 let blockers =
                         concat
                             [ selectionBlockers
                             , connectionBlockers maybeConnection
                             , referenceSyncBlockers now maybeConnection
-                            , calendarBlockers request maybeCalendar
+                            , calendarBlockers request maybeCalendar maybePayRun
                             , entryBlockers entries
                             , xeroWageFailureBlockers wageSourceResult
                             , publicationBucketBlockers bucketProblems
@@ -290,15 +297,15 @@ referenceSyncBlockers now (Just connection) =
             | diffUTCTime now lastSyncAt < xeroReferenceSnapshotMaxAge -> []
             | otherwise -> [blocker "stale_reference_snapshot" "Xero reference data is out of date and could not be refreshed. Contact support before preparing timesheets."]
 
-calendarBlockers :: XeroTimesheetReadinessRequest -> Maybe XeroPayrollCalendar -> [XeroReadinessBlocker]
-calendarBlockers request maybeCalendar =
+calendarBlockers :: XeroTimesheetReadinessRequest -> Maybe XeroPayrollCalendar -> Maybe XeroPayRun -> [XeroReadinessBlocker]
+calendarBlockers request maybeCalendar maybePayRun =
     case (request.readinessPayrollCalendarId, maybeCalendar) of
         (Nothing, _) -> [blocker "missing_payroll_calendar_selection" "Select a Xero payroll calendar period."]
         (_, Nothing) -> [blocker "missing_selected_payroll_calendar" "The selected Xero payroll calendar has not been synced."]
-        (_, Just calendar) -> selectedCalendarBlockers request calendar
+        (_, Just calendar) -> selectedCalendarBlockers request calendar maybePayRun
 
-selectedCalendarBlockers :: XeroTimesheetReadinessRequest -> XeroPayrollCalendar -> [XeroReadinessBlocker]
-selectedCalendarBlockers request calendar =
+selectedCalendarBlockers :: XeroTimesheetReadinessRequest -> XeroPayrollCalendar -> Maybe XeroPayRun -> [XeroReadinessBlocker]
+selectedCalendarBlockers request calendar maybePayRun =
     let expectedKey = calendar.xeroPayrollCalendarId <> ":" <> tshow request.readinessPeriodStart <> ":" <> tshow request.readinessPeriodEnd
         keyBlockers =
             case request.readinessSelectedPeriodKey of
@@ -310,18 +317,14 @@ selectedCalendarBlockers request calendar =
                         { xeroBlockerXeroObjectId = Just calendar.xeroPayrollCalendarId }
                     ]
                 _ -> []
-     in keyBlockers <> case deriveXeroPayrollCalendarPeriod calendar request.readinessPeriodStart of
-            Nothing ->
-                [blocker "unsupported_payroll_calendar_period" "The selected Xero payroll calendar period cannot be derived."]
-            Just (expectedStart, expectedEnd)
-                | expectedStart == request.readinessPeriodStart && expectedEnd == request.readinessPeriodEnd -> []
-                | otherwise ->
-                    [ (blockerWith
-                        "payroll_calendar_period_mismatch"
-                        ("The selected Xero period must exactly match payroll calendar " <> calendar.xeroPayrollCalendarId <> " for " <> tshow expectedStart <> " to " <> tshow expectedEnd <> ".")
-                      )
-                        { xeroBlockerXeroObjectId = Just calendar.xeroPayrollCalendarId }
-                    ]
+     in keyBlockers <> case maybePayRun of
+            Just payRun
+                | fmap Text.toUpper payRun.payRunStatus == Just "DRAFT"
+                , payRun.xeroPayrollCalendarId == calendar.xeroPayrollCalendarId
+                , payRun.payPeriodStart == request.readinessPeriodStart
+                , payRun.payPeriodEnd == request.readinessPeriodEnd
+                , payRun.payPeriodStart <= payRun.payPeriodEnd -> []
+            _ -> [blocker "missing_draft_pay_run" "Choose a current draft pay run in Xero before submitting timesheets."]
 
 employeePayrollCalendarSkippedStaffIds :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroEmployee] -> [UUID]
 employeePayrollCalendarSkippedStaffIds request approvedEntries mappings xeroEmployees =

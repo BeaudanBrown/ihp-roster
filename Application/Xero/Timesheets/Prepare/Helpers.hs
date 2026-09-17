@@ -3,7 +3,8 @@ module Application.Xero.Timesheets.Prepare.Helpers
     , SelectedPreparationPeriodError (..)
     , activePayItemRequirement
     , fetchPreparationDecisions
-    , fetchXeroPayRunsForPreparation
+    , fetchXeroDraftPayRuns
+    , draftPayRunsFromPreparation
     , findSelectedPayRun
     , isPendingStaffAutoMatch
     , markPreparationFailed
@@ -123,15 +124,15 @@ markPreparationFailed run message =
         |> set #errorSummary (Just message)
         |> updateRecord
 
-fetchXeroPayRunsForPreparation :: XeroClient -> Text -> Text -> XeroTimesheetPreparationRun -> IO (Either Text [XeroPayRunRef])
-fetchXeroPayRunsForPreparation xeroClient accessToken tenantId run =
+fetchXeroDraftPayRuns :: XeroClient -> Text -> Text -> IO (Either Text [XeroPayRunRef])
+fetchXeroDraftPayRuns xeroClient accessToken tenantId =
     fetchPage 1 []
     where
         fetchPage page acc = do
             let query =
                     XeroPayRunQuery
                         { xeroPayRunIfModifiedSince = Nothing
-                        , xeroPayRunWhere = Just ("PayrollCalendarID==Guid(\"" <> fromMaybe "" run.selectedPayrollCalendarId <> "\")")
+                        , xeroPayRunWhere = Just "PayRunStatus==DRAFT"
                         , xeroPayRunOrder = Just "PayRunPeriodStartDate DESC"
                         , xeroPayRunPage = Just page
                         }
@@ -139,19 +140,24 @@ fetchXeroPayRunsForPreparation xeroClient accessToken tenantId run =
                 Left err -> pure (Left ("Xero pay-run check failed: " <> durableXeroClientErrorText err))
                 Right refs ->
                     let nextAcc = acc <> refs
-                        selectedFound = isJust (findSelectedPayRun run refs)
-                        passedSelectedPeriod =
-                            case (run.payPeriodStart, listToMaybe (reverse refs)) of
-                                (Just selectedStart, Just oldestOnPage) -> oldestOnPage.xeroPayRunPeriodStart < selectedStart
-                                _                                      -> False
-                     in if selectedFound || passedSelectedPeriod || length refs < 100
-                            then pure (Right nextAcc)
+                     in if length refs < 100
+                            then pure (Right (filter (\payRun -> fmap Text.toUpper payRun.xeroPayRunStatus == Just "DRAFT") nextAcc))
                             else fetchPage (page + 1) nextAcc
 
+-- Only this preparation's successful live response is eligible. Historical
+-- cached pay runs may have been posted or deleted since their last upsert.
+draftPayRunsFromPreparation :: XeroTimesheetPreparationRun -> [XeroPayRunRef]
+draftPayRunsFromPreparation run =
+    fromMaybe [] (AesonTypes.parseMaybe (Aeson.withObject "pay runs" (Aeson..: "remotePayRuns")) run.remotePayRunsJson)
+        |> filter (\payRun -> fmap Text.toUpper payRun.xeroPayRunStatus == Just "DRAFT")
+
 findSelectedPayRun :: XeroTimesheetPreparationRun -> [XeroPayRunRef] -> Maybe XeroPayRunRef
-findSelectedPayRun run =
-    List.find \payRun ->
-        payRun.xeroPayRunCalendarId == fromMaybe "" run.selectedPayrollCalendarId
+findSelectedPayRun run refs =
+    List.find matches (List.sortOn (.xeroPayRunId) refs)
+  where
+    matches payRun =
+        fmap Text.toUpper payRun.xeroPayRunStatus == Just "DRAFT"
+            && payRun.xeroPayRunCalendarId == fromMaybe "" run.selectedPayrollCalendarId
             && Just payRun.xeroPayRunPeriodStart == run.payPeriodStart
             && Just payRun.xeroPayRunPeriodEnd == run.payPeriodEnd
 

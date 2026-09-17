@@ -226,8 +226,17 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 
 - Each preparation run explicitly selects one synced calendar and period. Only
   mapped employees assigned by Xero to that calendar are eligible. The period
-  selector shows every eligible past and future period, irrespective of pay-run
-  status. Pay-run status is reference context, never upload authority. Selecting
+  selector is populated from a fresh, fully paginated Xero draft-pay-run query.
+  Only runs on available synced calendars are offered, newest period first, with
+  one option per calendar/date range even when multiple draft runs match. No
+  approved local shifts are required for a period to appear. Historical cached
+  pay runs are not a fallback when the live query fails or returns no drafts.
+  Actual pay-run dates are authoritative, including nonstandard periods; they
+  are not inferred from calendar frequency. Opening preparation, selecting a
+  period and confirming submission refresh the draft list. Submission requires
+  a matching draft run to remain available; posting/deletion blocks progression.
+  This is a Bepis workflow gate, not authority to edit a processed timesheet or
+  a way to target an individual same-period run. Selecting
   a period initializes an explicit approved-entry selection; changing periods
   resets it. Any required account setup follows the period step, then the shift
   checklist opens directly with no separate Choose shifts launcher. The checklist

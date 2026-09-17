@@ -102,7 +102,7 @@ startXeroTimesheetPreparation = do
                             |> set #eventsJson (preparationInitialEventsJson now "staff-first")
                             |> set #startedAt now
                             |> createRecord
-                    finalizePreparationRun run []
+                    refreshXeroTimesheetPreparation run.id
 
 refreshCurrentVenueXeroReferenceDataForPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -126,9 +126,7 @@ refreshXeroTimesheetPreparation runId = do
         Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
-            if not (preparationRunHasPeriod run)
-                then finalizePreparationRun run []
-                else if connection.connectionStatus /= "active"
+            if connection.connectionStatus /= "active"
                 then do
                     _ <-
                         run
@@ -153,13 +151,15 @@ refreshXeroTimesheetPreparation runId = do
                                     loadXeroTimesheetPreparationView runId
                                 Right (refreshedConnection, accessToken) -> do
                                     xeroClient <- currentXeroClient
-                                    fetchXeroPayRunsForPreparation xeroClient accessToken refreshedConnection.tenantId run >>= \case
+                                    fetchXeroDraftPayRuns xeroClient accessToken refreshedConnection.tenantId >>= \case
                                         Left message -> do
                                             _ <- markPreparationFailed run message
                                             loadXeroTimesheetPreparationView runId
                                         Right payRuns -> do
                                             refreshedRun <- persistRemotePreparationState refreshedConnection run payRuns []
-                                            finalizePreparationRun refreshedRun []
+                                            if preparationRunHasPeriod refreshedRun && isNothing (findSelectedPayRun refreshedRun (draftPayRunsFromPreparation refreshedRun))
+                                                then pure (preparationFailure "This period no longer has a draft pay run in Xero. Close preparation and choose a current draft pay run.")
+                                                else finalizePreparationRun refreshedRun []
 
 finalizePreparationRun ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -222,7 +222,7 @@ loadPreparationView run connection decisions readiness = do
             , timesheetReadinessWarnings = map enrichIssue baseReadinessView.timesheetReadinessWarnings
             }
     staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
-    periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
+    periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) (draftPayRunsFromPreparation run)
     xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
     fetchPreparationPayItemRequirements run connection xeroEarningsRates >>= \case
@@ -250,7 +250,8 @@ loadPreparationView run connection decisions readiness = do
                 pendingPayItemDecisionCount = length (filter pendingPayItemCreateDecision decisions)
                 staffStepApproved = any staffStepApprovalApplied decisions
                 canSubmit =
-                    preparationRunHasPeriod run
+                    run.status `notElem` [XeroTimesheetPreparationRunStatusEnumFailed, XeroTimesheetPreparationRunStatusEnumSubmitted, NeedsReconnect]
+                        && preparationRunHasPeriod run
                         && not requirementsBlocked
                         && connection.connectionStatus == "active"
                         && pendingDecisionCount == 0
@@ -433,7 +434,7 @@ selectXeroTimesheetPreparationPeriod runId selectedPeriodKey =
         Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
-            options <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
+            options <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) (draftPayRunsFromPreparation run)
             case List.find (\option -> option.periodOptionKey == Text.strip selectedPeriodKey) options of
                 Nothing -> pure (preparationFailure "Choose a Xero pay period before preparing draft timesheets.")
                 Just option | option.periodOptionBlocked ->
@@ -505,7 +506,7 @@ submitPreparationWithExpectedSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Aeson.Value -> Id XeroTimesheetPreparationRun -> IO (XeroPreparationResult XeroTimesheetPreparationView)
 submitPreparationWithExpectedSelection expectedSelection runId =
-    loadXeroTimesheetPreparationView runId >>= \case
+    refreshXeroTimesheetPreparation runId >>= \case
         Left appError -> pure (Left appError)
         Right (XeroPreparationOutcomeBlocked message) -> pure (preparationFailure message)
         Right (XeroPreparationOutcomeAvailable view)
@@ -578,7 +579,7 @@ fetchPreparationPayItemRequirements run connection xeroEarningsRates =
     case selectedPreparationPeriod run of
         Left periodError -> pure (Right (PayItemRequirementsBlocked (PayItemRequirementsPeriodBlocked periodError)))
         Right period -> do
-            periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
+            periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) (draftPayRunsFromPreparation run)
             if not (any (matchesSelectedPeriod period) periodOptions)
                 then pure (Right (PayItemRequirementsBlocked (PayItemRequirementsPeriodBlocked PreparationPeriodNotAvailable)))
                 else fetchForPeriod period

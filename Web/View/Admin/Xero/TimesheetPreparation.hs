@@ -335,14 +335,14 @@ renderPeriodSelection :: XeroTimesheetPreparationView -> Html
 renderPeriodSelection view
     | null view.preparationPeriodOptions = [hsx|
         <div class="alert alert-secondary mb-0">
-            No eligible Xero pay periods are available yet. Check that staff are matched to synced Xero employees and approved shifts exist for a synced Xero payroll calendar.
+            No draft pay runs are available. Create a draft pay run in Xero, then reopen Upload timesheets.
         </div>
     |]
     | otherwise = mempty
 
 renderEmptyPreparationPeriodOption :: XeroTimesheetPreparationView -> Html
 renderEmptyPreparationPeriodOption view
-    | null view.preparationPeriodOptions = [hsx|<option value="">No eligible Xero pay periods available</option>|]
+    | null view.preparationPeriodOptions = [hsx|<option value="">No draft Xero pay runs available</option>|]
     | otherwise = mempty
 
 firstSelectablePeriodKey :: XeroTimesheetPreparationView -> Maybe Text

@@ -20,6 +20,7 @@ module Application.Xero.Admin.ReadModel
 import Application.Helper.Controller
 import Application.Helper.Profiling
 import Application.Helper.VenueScopedQueries
+import Application.Helper.Xero (XeroPayRunRef (..))
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
@@ -29,6 +30,7 @@ import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
 import Application.Xero.WorkflowState (xeroStaffMappingIsUnmapped,
                                        xeroStaffMappingIsVerified)
+import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Char as Char
@@ -247,95 +249,30 @@ fetchXeroReferenceSyncDiagnostics diagnosticsAllowed maybeConnection
 fetchCurrentVenueXeroTimesheetPeriodOptions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Maybe XeroConnection ->
+    [XeroPayRunRef] ->
     IO [XeroTimesheetPeriodOption]
-fetchCurrentVenueXeroTimesheetPeriodOptions Nothing =
+fetchCurrentVenueXeroTimesheetPeriodOptions Nothing _ =
     pure []
-fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
+fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) payRuns = do
     calendars <- fetchCurrentVenueXeroPayrollCalendars (Just connection)
-    payRuns <-
-        query @XeroPayRun
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> orderByDesc #payPeriodStart
-            |> fetch
-    approvedEntries <-
-        query @TimesheetEntry
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#isApproved, True)
-            |> filterWhere (#deletedAt, Nothing)
-            |> orderByDesc #operationalDate
-            |> orderByDesc #startsAt
-            |> fetch
     today <- utctDay <$> getCurrentTime
-    verifiedMappings <-
-        query @XeroStaffMapping
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
-            |> filterWhereIn (#staffId, List.nub (map (.staffId) approvedEntries))
-            |> fetch
-    mappedEmployees <-
-        query @XeroEmployee
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) verifiedMappings))
-            |> filterWhere (#providerAvailable, True)
-            |> fetch
     submissionRuns <-
         query @XeroSubmissionRun
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> orderByDesc #updatedAt
             |> fetch
-    let approvedOperationalDates = List.nub (map (.operationalDate) approvedEntries)
-        staffCalendarAssignments = staffPayrollCalendarAssignments verifiedMappings mappedEmployees
-        calendarPeriodOptions = concatMap (derivedPeriodOptions today payRuns approvedOperationalDates) calendars
+    let options = do
+            payRun <- List.sortOn (.xeroPayRunId) payRuns
+            guard (fmap Text.toUpper payRun.xeroPayRunStatus == Just "DRAFT")
+            guard (payRun.xeroPayRunPeriodStart <= payRun.xeroPayRunPeriodEnd)
+            calendar <- filter ((== payRun.xeroPayRunCalendarId) . (.xeroPayrollCalendarId)) calendars
+            pure (periodOptionFrom today calendar payRun)
     pure $
-        calendarPeriodOptions
-            |> filter (periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments)
+        options
             |> List.nubBy samePeriodOption
             |> map (attachLatestSubmissionRun submissionRuns)
             |> List.sortOn (Down . (.periodOptionStart))
-
-derivedPeriodOptions :: Day -> [XeroPayRun] -> [Day] -> XeroPayrollCalendar -> [XeroTimesheetPeriodOption]
-derivedPeriodOptions today payRuns approvedOperationalDates calendar =
-    mapMaybe optionForOperationalDate approvedOperationalDates
-    where
-        optionForOperationalDate operationalDate = do
-            (currentStart, currentEnd) <- deriveXeroPayrollCalendarPeriod calendar today
-            let periodLength = max 1 (diffDays currentEnd currentStart + 1)
-                offset = diffDays operationalDate currentStart `div` periodLength
-                periodStart = addDays (offset * periodLength) currentStart
-                periodEnd = addDays (periodLength - 1) periodStart
-                maybePayRun = findPayRun calendar periodStart periodEnd payRuns
-            pure (periodOptionFrom today calendar periodStart periodEnd maybePayRun True)
-
-staffPayrollCalendarAssignments :: [XeroStaffMapping] -> [XeroEmployee] -> Map.Map UUID Text
-staffPayrollCalendarAssignments mappings employees =
-    Map.fromList do
-        mapping <- mappings
-        employeeId <- maybeToList mapping.xeroEmployeeId
-        employee <- maybeToList (List.find (\candidate -> candidate.xeroEmployeeId == employeeId) employees)
-        calendarId <- maybeToList (xeroEmployeePayrollCalendarId employee)
-        pure (mapping.staffId, calendarId)
-
-periodOptionHasRelevantApprovedEmployee :: [TimesheetEntry] -> Map.Map UUID Text -> XeroTimesheetPeriodOption -> Bool
-periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments option =
-    any entryMatches (periodEntries approvedEntries)
-    where
-        periodEntries =
-            filter \entry ->
-                entry.operationalDate >= option.periodOptionStart
-                    && entry.operationalDate <= option.periodOptionEnd
-        entryMatches entry =
-            case Map.lookup entry.staffId staffCalendarAssignments of
-                Nothing -> True
-                Just employeeCalendarId -> employeeCalendarId == option.periodOptionPayrollCalendarId
-
-xeroEmployeePayrollCalendarId :: XeroEmployee -> Maybe Text
-xeroEmployeePayrollCalendarId employee =
-    join $ AesonTypes.parseMaybe parser employee.rawPayload
-    where
-        parser = AesonTypes.withObject "Xero employee" \object ->
-            (object AesonTypes..:? "PayrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarId")
 
 attachLatestSubmissionRun :: [XeroSubmissionRun] -> XeroTimesheetPeriodOption -> XeroTimesheetPeriodOption
 attachLatestSubmissionRun submissionRuns option =
@@ -355,35 +292,32 @@ submissionRunMatchesPeriod option run =
                 && run.payPeriodEnd == option.periodOptionEnd
            )
 
-periodOptionFrom :: Day -> XeroPayrollCalendar -> Day -> Day -> Maybe XeroPayRun -> Bool -> XeroTimesheetPeriodOption
-periodOptionFrom today calendar periodStart periodEnd maybePayRun derivedFromSyncedXero =
+periodOptionFrom :: Day -> XeroPayrollCalendar -> XeroPayRunRef -> XeroTimesheetPeriodOption
+periodOptionFrom today calendar payRun =
     XeroTimesheetPeriodOption
         { periodOptionKey = xeroPeriodOptionKey calendar.xeroPayrollCalendarId periodStart periodEnd
         , periodOptionPayrollCalendarId = calendar.xeroPayrollCalendarId
         , periodOptionPayrollCalendarName = calendar.name
         , periodOptionStart = periodStart
         , periodOptionEnd = periodEnd
-        , periodOptionPaymentDate = (maybePayRun >>= (.paymentDate)) <|> calendar.paymentDate
-        , periodOptionXeroPayRunId = (.xeroPayRunId) <$> maybePayRun
-        , periodOptionXeroPayRunStatus = maybePayRun >>= (.payRunStatus)
+        , periodOptionPaymentDate = payRun.xeroPayRunPaymentDate
+        , periodOptionXeroPayRunId = Just payRun.xeroPayRunId
+        , periodOptionXeroPayRunStatus = payRun.xeroPayRunStatus
         , periodOptionBlocked = False
         , periodOptionBlockReason = Nothing
-        , periodOptionDerivedFromSyncedXero = derivedFromSyncedXero || isJust maybePayRun
+        , periodOptionDerivedFromSyncedXero = True
         , periodOptionWithinDefaultWindow = xeroPeriodOverlapsDefaultWindow today periodStart periodEnd
         , periodOptionLatestSubmissionStatus = Nothing
         , periodOptionLatestSubmissionRunId = Nothing
         }
 
+  where
+    periodStart = payRun.xeroPayRunPeriodStart
+    periodEnd = payRun.xeroPayRunPeriodEnd
+
 xeroPeriodOverlapsDefaultWindow :: Day -> Day -> Day -> Bool
 xeroPeriodOverlapsDefaultWindow today periodStart periodEnd =
     periodEnd >= addDays (-7) today && periodStart <= addDays 7 today
-
-findPayRun :: XeroPayrollCalendar -> Day -> Day -> [XeroPayRun] -> Maybe XeroPayRun
-findPayRun calendar periodStart periodEnd payRuns =
-    listToMaybe (List.sortOn (.xeroPayRunId) (filter matches payRuns))
-  where
-    matches payRun = payRun.xeroPayrollCalendarId == calendar.xeroPayrollCalendarId
-        && payRun.payPeriodStart == periodStart && payRun.payPeriodEnd == periodEnd
 
 samePeriodOption :: XeroTimesheetPeriodOption -> XeroTimesheetPeriodOption -> Bool
 samePeriodOption left right =

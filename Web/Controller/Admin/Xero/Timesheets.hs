@@ -395,10 +395,10 @@ respondWithPreparationDialog result =
             case result of
                 Left message -> respondWithPreparationErrorToast message
                 Right view
+                    | view.preparationState == XeroPreparationFailed -> respondHtml (renderXeroTimesheetPreparationFailureDialog view)
                     | needsStaffStep view -> respondHtml (renderXeroTimesheetPreparationStaffStep view)
                     | needsPeriodStep view -> respondHtml (renderXeroTimesheetPreparationPeriodStep view)
                     | view.preparationState == XeroPreparationSubmitted -> respondHtml (renderXeroTimesheetPreparationSubmittedDialog view)
-                    | view.preparationState == XeroPreparationFailed -> respondHtml (renderXeroTimesheetPreparationFailureDialog view)
                     | Just message <- preparationBlockingMessage view -> respondHtml (renderXeroTimesheetPreparationBlockingDialog view message)
                     | needsPayItemStep view -> respondHtml (renderXeroTimesheetPreparationPayItemsStep view)
                     | otherwise -> respondWithPreparationShiftSelection view.preparationRun Nothing Nothing Nothing
