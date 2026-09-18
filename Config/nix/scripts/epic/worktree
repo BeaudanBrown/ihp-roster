@@ -89,9 +89,12 @@ record_with_status() {
     uncontained="$(bepis_workspace_uncontained_processes_in_path "$path" "$(jq -r '.slice' <<<"$resources")")"
     uncontained_work="$(jq -c '
         [.[] | select(
-            .cpuPercent >= 1
-            or .rssKiB >= 262144
-            or (.command | test("haskell-language-server|(^|[/ ])ghc([ -]|$)|cabal|playwright|RunE2EApp")))]
+            (.command | test("bepis-artifacts cache exec") | not)
+            and (
+                .cpuPercent >= 1
+                or .rssKiB >= 262144
+                or (.command | test("haskell-language-server|(^|[/ ])ghc([ -]|$)|cabal|playwright|RunE2EApp"))
+            ))]
     ' <<<"$uncontained")"
     hls="$(bepis_workspace_hls_status "$path")"
     resources="$(jq -c \

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
@@ -10,6 +10,13 @@ const contract = JSON.parse(readFileSync(join(repo, 'Config/nix/tooling-footprin
 function physicalLines(text) {
     if (text.length === 0) return 0;
     return text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+}
+
+function workingLines(paths) {
+    return paths.reduce(
+        (total, path) => total + physicalLines(readFileSync(join(repo, path), 'utf8')),
+        0,
+    );
 }
 
 function baselineLines(commit, paths) {
@@ -69,4 +76,26 @@ test('foundation overhead remains separated from migration deletion targets', ()
     assert.equal(wiringLines, wiring.added, 'foundation wiring count drifted');
     assert.equal(ownedLines + wiringLines, foundation.totalAddedIncludingWiring);
     assert.ok(foundation.totalAddedIncludingWiring < foundation.deletionTargetImplementationLines);
+});
+
+test('final acceptance accounting reports implementation, support, and focused tests without hiding growth', () => {
+    const accounting = contract.acceptanceAccounting;
+    assert.equal(accounting.strictNetReductionRequired, false);
+    assert.equal(baselineLines(accounting.baselineCommit, accounting.candidatePaths), accounting.reproducibleCandidateLines);
+    const removedCandidates = new Set(accounting.removedCandidatePaths);
+    for (const path of removedCandidates) {
+        assert.ok(accounting.candidatePaths.includes(path), `removed candidate was not in the baseline: ${path}`);
+        assert.equal(existsSync(join(repo, path)), false, `removed candidate exists again: ${path}`);
+    }
+    const retainedCandidates = accounting.candidatePaths.filter(path => !removedCandidates.has(path));
+    assert.equal(workingLines(retainedCandidates), accounting.finalCandidateLines);
+    assert.equal(workingLines(accounting.ownerImplementationPaths), accounting.newOwnerImplementationLines);
+    assert.equal(workingLines(accounting.supportPaths), accounting.newNixLauncherSupportLines);
+    assert.equal(workingLines(accounting.focusedTestPaths), accounting.newFocusedTestLines);
+    assert.ok(accounting.finalCandidateLines < accounting.reproducibleCandidateLines, 'migration candidates did not shrink');
+    const finalImplementationAndSupport = accounting.finalCandidateLines
+        + accounting.newOwnerImplementationLines
+        + accounting.newNixLauncherSupportLines;
+    assert.ok(finalImplementationAndSupport > accounting.reproducibleCandidateLines,
+        'accounting must explicitly retain the approved non-strict footprint increase');
 });

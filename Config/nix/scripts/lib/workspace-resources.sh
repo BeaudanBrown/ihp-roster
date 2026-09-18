@@ -173,17 +173,14 @@ bepis_workspace_hls_status() {
     local workspace_cache
     workspace_processes="$(bepis_workspace_processes_in_path "$path")"
     now="$(date +%s)"
-    if declare -F bepis_hls_cache_identity_for_path >/dev/null \
-        && declare -F bepis_hls_cache_status_json_for_identity >/dev/null; then
-        bepis_hls_cache_identity_for_path "$path"
-        workspace_cache="$(bepis_hls_cache_status_json_for_identity)"
-    else
-        workspace_cache='{"state":"unavailable","root":null,"bytes":0,"active":false}'
-    fi
+    workspace_cache="$("$(bepis_runtime_launcher)" artifacts cache status \
+        --workspace "$path" --parent "${BEPIS_HLS_CACHE_PARENT:-/var/tmp/bepis-hls-$(id -u)}" 2>/dev/null \
+        || printf '%s\n' '{"state":"unavailable","root":null,"bytes":0,"active":false}')"
 
     while IFS= read -r row; do
         command="$(jq -r '.command' <<<"$row")"
         [[ "$command" == *haskell-language-server* ]] || continue
+        [[ "$command" != *"bepis-artifacts cache exec"* ]] || continue
         pid="$(jq -r '.pid' <<<"$row")"
         [ -r "/proc/$pid/status" ] || continue
 

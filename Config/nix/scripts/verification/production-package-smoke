@@ -140,9 +140,16 @@ if [ "$static_library_count" -ne 1 ] || [ "$interface_count" -eq 0 ]; then
     echo "production-package-smoke: static app-lib must retain one archive and its interfaces; found $static_library_count archives and $interface_count interfaces" >&2
     exit 1
 fi
-if runtime_app_lib_paths="$(nix-store --query --requisites "$output" | grep -- '-app-lib-' || true)" && [ -n "$runtime_app_lib_paths" ]; then
+runtime_requisites="$(nix-store --query --requisites "$output")"
+if runtime_app_lib_paths="$(printf '%s\n' "$runtime_requisites" | grep -- '-app-lib-' || true)" && [ -n "$runtime_app_lib_paths" ]; then
     echo "production-package-smoke: packaged runtime closure retains app-lib" >&2
     printf '%s\n' "$runtime_app_lib_paths" >&2
+    exit 1
+fi
+tooling_pattern='-(bepis-tooling-core|bepis-workspace-state|bepis-postgres|bepis-runtime|bepis-epic-lifecycle|bepis-artifacts|bepis-runners)-'
+if tooling_paths="$(printf '%s\n%s\n' "$requisites" "$runtime_requisites" | grep -E -- "$tooling_pattern" || true)" && [ -n "$tooling_paths" ]; then
+    echo "production-package-smoke: production derivation or runtime closure retains independent tooling" >&2
+    printf '%s\n' "$tooling_paths" >&2
     exit 1
 fi
 

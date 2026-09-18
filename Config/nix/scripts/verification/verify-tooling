@@ -15,6 +15,10 @@ echo "verify-tooling: independent Haskell tooling foundation"
 tooling-foundation-test
 tooling-hls-test
 
+echo "verify-tooling: workspace and Git lifecycle compatibility"
+dev-workspace-test
+epic-worktree-workflow-acceptance-test
+
 echo "verify-tooling: checker parser and publication fixtures"
 glue-compatibility-test
 weeder-policy-test

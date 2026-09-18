@@ -4,9 +4,9 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 manage_source="$repo_root/Config/nix/scripts/epic/manage"
 registry_command="$repo_root/Config/nix/scripts/epic/worktree"
-hls_cache_command="$repo_root/Config/nix/scripts/haskell/hls-cache"
 fixture_root="$(mktemp -d)"
 export BEPIS_HLS_CACHE_PARENT="$fixture_root/hls-cache-parent"
+export BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run"
 manage_command="$fixture_root/manage"
 scripts_root_replacement="$(printf '%s' "$repo_root/Config/nix/scripts" | sed 's/[\&|]/\\&/g')"
 scripts_root_token="@scripts""Root@"
@@ -244,14 +244,11 @@ kill -0 "$runtime_pid" 2>/dev/null || fail "configured cleanup dry-run terminate
 "$repo_root/bin/tooling-run" runtime process stop "$explicit_epic_state/devenv.pid" "$explicit_epic_state/devenv.owner.json" devenv "$epic_path" 1000 >/dev/null
 runtime_pid=""
 
-epic_cache_status="$(cd "$epic_path" && bash "$hls_cache_command" status --json)"
+epic_cache_status="$("$BEPIS_TOOLING_LAUNCHER" artifacts cache prepare \
+    --workspace "$epic_path" --parent "$BEPIS_HLS_CACHE_PARENT")"
 epic_cache_root="$(jq -r .root <<<"$epic_cache_status")"
-epic_cache_workspace_id="$(jq -r .workspaceId <<<"$epic_cache_status")"
-mkdir -p "$epic_cache_root" "$(dirname "$epic_cache_root")/locks"
-chmod 700 "$epic_cache_root" "$(dirname "$epic_cache_root")" "$(dirname "$epic_cache_root")/locks"
-jq -cn --argjson uid "$(id -u)" --arg workspace "$epic_path" --arg workspaceId "$epic_cache_workspace_id" \
-    '{version: 1, uid: $uid, workspace: $workspace, workspaceId: $workspaceId}' >"$epic_cache_root/.bepis-hls-cache"
-printf 'fixture cache\n' >"$epic_cache_root/fixture.hiedb"
+mkdir -p "$epic_cache_root/xdg/ghcide"
+printf 'fixture cache\n' >"$epic_cache_root/xdg/ghcide/fixture.hiedb"
 [ -d "$epic_cache_root" ] || fail "fixture did not create the epic HLS cache"
 cleanup_plan="$(run_manage cleanup --epic 270 --json)"
 [ "$(jq -r '.action' <<<"$cleanup_plan")" = cleanup ] || fail "cleanup plan action missing"
@@ -315,14 +312,11 @@ git -C "$primary_repo" worktree add --quiet "$stale_path" epic-272
     cd "$stale_path"
     bash "$registry_command" register --epic 272 --target roster >/dev/null
 )
-stale_cache_status="$(cd "$stale_path" && bash "$hls_cache_command" status --json)"
+stale_cache_status="$("$BEPIS_TOOLING_LAUNCHER" artifacts cache prepare \
+    --workspace "$stale_path" --parent "$BEPIS_HLS_CACHE_PARENT")"
 stale_cache_root="$(jq -r .root <<<"$stale_cache_status")"
-stale_cache_workspace_id="$(jq -r .workspaceId <<<"$stale_cache_status")"
-mkdir -p "$stale_cache_root" "$(dirname "$stale_cache_root")/locks"
-chmod 700 "$stale_cache_root" "$(dirname "$stale_cache_root")" "$(dirname "$stale_cache_root")/locks"
-jq -cn --argjson uid "$(id -u)" --arg workspace "$stale_path" --arg workspaceId "$stale_cache_workspace_id" \
-    '{version: 1, uid: $uid, workspace: $workspace, workspaceId: $workspaceId}' >"$stale_cache_root/.bepis-hls-cache"
-printf 'stale fixture\n' >"$stale_cache_root/fixture.hiedb"
+mkdir -p "$stale_cache_root/xdg/ghcide"
+printf 'stale fixture\n' >"$stale_cache_root/xdg/ghcide/fixture.hiedb"
 git -C "$primary_repo" worktree remove "$stale_path"
 run_manage cleanup --epic 272 --approve --json >/dev/null
 [ ! -e "$stale_cache_root" ] || fail "stale cleanup left HLS cache behind"

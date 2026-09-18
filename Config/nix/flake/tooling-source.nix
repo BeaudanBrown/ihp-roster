@@ -1,31 +1,31 @@
 { root ? ../../.. }:
+let
+    packageSource = relative: name:
+        let
+            packageRoot = root + "/${relative}";
+            rootText = toString packageRoot;
+            hasPrefix = prefix: value:
+                builtins.substring 0 (builtins.stringLength prefix) value == prefix;
+        in
+        builtins.path {
+            path = packageRoot;
+            inherit name;
+            filter = path: _type:
+                let
+                    pathText = toString path;
+                    relativePath = if pathText == rootText then "" else builtins.substring (builtins.stringLength rootText + 1) (builtins.stringLength pathText) pathText;
+                in
+                relativePath != "test"
+                && !hasPrefix "test/" relativePath
+                && relativePath != "README.md";
+        };
+in
 {
-    core = builtins.path {
-        path = root + /tooling/core;
-        name = "bepis-tooling-core-source";
-    };
-    workspaceState = builtins.path {
-        path = root + /tooling/workspace-state;
-        name = "bepis-workspace-state-source";
-    };
-    runtime = builtins.path {
-        path = root + /tooling/runtime;
-        name = "bepis-runtime-source";
-    };
-    epicLifecycle = builtins.path {
-        path = root + /tooling/epic-lifecycle;
-        name = "bepis-epic-lifecycle-source";
-    };
-    artifacts = builtins.path {
-        path = root + /tooling/artifacts;
-        name = "bepis-artifacts-source";
-    };
-    runners = builtins.path {
-        path = root + /tooling/runners;
-        name = "bepis-runners-source";
-    };
-    postgres = builtins.path {
-        path = root + /tooling/postgres;
-        name = "bepis-postgres-source";
-    };
+    core = packageSource "tooling/core" "bepis-tooling-core-source";
+    workspaceState = packageSource "tooling/workspace-state" "bepis-workspace-state-source";
+    runtime = packageSource "tooling/runtime" "bepis-runtime-source";
+    epicLifecycle = packageSource "tooling/epic-lifecycle" "bepis-epic-lifecycle-source";
+    artifacts = packageSource "tooling/artifacts" "bepis-artifacts-source";
+    runners = packageSource "tooling/runners" "bepis-runners-source";
+    postgres = packageSource "tooling/postgres" "bepis-postgres-source";
 }
