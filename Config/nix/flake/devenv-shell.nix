@@ -62,7 +62,7 @@
                     # flock protects workspace, database, and generated-state operations.
                     pkgs.util-linux
                     # Verification roots, offline API contracts and workbook checks invoke python3.
-                    pkgs.python3
+                    (pkgs.python3.withPackages (python: [ python.pyyaml ]))
                     # Browser export checks inspect downloaded XLSX archives.
                     pkgs.unzip
                     # Repository authority checks invoke rg directly.
