@@ -127,9 +127,14 @@ bepis_workspace_pid_is_caller_ancestor() {
 bepis_workspace_pid_in_path() {
     local pid="$1"
     local path="$2"
-    local proc="/proc/$pid" cwd
+    local proc="/proc/$pid" cwd field value process_uid=""
     [ -r "$proc/status" ] || return 1
-    [ "$(awk '/^Uid:/ {print $2; exit}' "$proc/status" 2>/dev/null)" = "$(id -u)" ] || return 1
+    # This runs for every PID, including fresh revalidation before signalling.
+    # Shell reads avoid two external processes per entry; missing UID fails shut.
+    while read -r field value _; do
+        if [ "$field" = Uid: ]; then process_uid="$value"; break; fi
+    done <"$proc/status" 2>/dev/null || return 1
+    [ "$process_uid" = "$EUID" ] || return 1
     cwd="$(readlink "$proc/cwd" 2>/dev/null || true)"
     [ "$cwd" = "$path" ] || [[ "$cwd" == "$path/"* ]]
 }

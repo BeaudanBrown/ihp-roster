@@ -5,6 +5,9 @@ unset DEVENV_AGENT_STATE_DIR BEPIS_WORKSPACE_STATE_CONFIGURED BEPIS_WORKSPACE_ST
     DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 source_repo="$(git rev-parse --show-toplevel)"
+# Foundation owns fresh-checkout bootstrap. This fixture exercises concurrent
+# runtime ownership, not another cold Cabal build in each disposable checkout.
+export BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run"
 fixture_root="$(mktemp -d)"
 primary_repo="$fixture_root/repo"
 epic_one="$fixture_root/repo-concurrency-one"
