@@ -274,18 +274,14 @@ renderLeaveStaffPanelEntry staffMembers entry =
         |]
 
 renderUnavailabilityBlackoutsLiveFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Html
-renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMembers =
-    renderUnavailabilityBlackoutsValidationFragment today blackouts leaveRequests staffMembers Nothing
-
-renderUnavailabilityBlackoutsValidationFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Maybe UnavailabilityBlackout -> Html
-renderUnavailabilityBlackoutsValidationFragment today persistedBlackouts leaveRequests staffMembers submittedBlackout = [hsx|
+renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMembers = [hsx|
     <section id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts noSurfaceFields} class="leave-blackout-settings">
         <div class="mb-3">
             <h2 class="h5 mb-1">Submission blackout periods</h2>
             <p class="small app-muted mb-0">Staff cannot add unavailable time that overlaps these inclusive dates.</p>
         </div>
-        {if currentUserCanManageBlackouts then renderCreateBlackoutForm today createFormBlackout else mempty}
-        {renderBlackoutPeriods leaveRequests staffMembers renderedBlackouts}
+        {if currentUserCanManageBlackouts then renderCreateBlackoutForm today defaultBlackout else mempty}
+        {renderBlackoutPeriods leaveRequests staffMembers blackouts}
     </section>
 |]
   where
@@ -294,11 +290,6 @@ renderUnavailabilityBlackoutsValidationFragment today persistedBlackouts leaveRe
             |> set #startDate today
             |> set #endDate today
             |> set #reason ""
-    createFormBlackout = fromMaybe defaultBlackout (submittedBlackout >>= \blackout -> if isNew blackout then Just blackout else Nothing)
-    renderedBlackouts =
-        case submittedBlackout >>= \blackout -> if isNew blackout then Nothing else Just blackout of
-            Nothing -> persistedBlackouts
-            Just invalidUpdate -> map (\blackout -> if blackout.id == invalidUpdate.id then invalidUpdate else blackout) persistedBlackouts
 
 renderBlackoutPeriods :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> [UnavailabilityBlackout] -> Html
 renderBlackoutPeriods _ _ [] = [hsx|<p class="small app-muted mb-0">No current or upcoming blackout periods.</p>|]
@@ -391,13 +382,13 @@ renderUpdateBlackoutForm blackout = [hsx|
     <details class="mt-3" open={not (isValid blackout)}>
         <summary>Edit period</summary>
         <div class="mt-2">
-            {updateForm}
+            {renderBlackoutUpdateForm blackout}
         </div>
     </details>
 |]
-  where
-    fields = LeaveRequestsAction.updateUnavailabilityBlackoutActionFields blackout.startDate blackout.endDate blackout.reason
-    updateForm =
+
+renderBlackoutUpdateForm :: (?context :: ControllerContext) => UnavailabilityBlackout -> Html
+renderBlackoutUpdateForm blackout =
         renderFrontendSurfaceActionForm
             (LeaveRequestsAction.updateUnavailabilityBlackoutAction fields)
             (leaveRequestsActionRouteWithStandard (pathTo (UpdateUnavailabilityBlackoutAction blackout.id)))
@@ -409,6 +400,8 @@ renderUpdateBlackoutForm blackout = [hsx|
                     <div class="col-12 d-grid"><button class="btn btn-outline-primary" type="submit">Save blackout</button></div>
                 </div>
             |]
+  where
+    fields = LeaveRequestsAction.updateUnavailabilityBlackoutActionFields blackout.startDate blackout.endDate blackout.reason
 
 renderDeleteBlackoutForm :: (?context :: ControllerContext) => UnavailabilityBlackout -> Html
 renderDeleteBlackoutForm blackout =

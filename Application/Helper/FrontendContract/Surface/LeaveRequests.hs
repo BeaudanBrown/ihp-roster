@@ -227,14 +227,14 @@ type LeaveRequestsSurface =
          , Action CreateUnavailabilityBlackout
             '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxTarget 'HtmxThis
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , Action UpdateUnavailabilityBlackout
             '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxTarget 'HtmxThis
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]

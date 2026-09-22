@@ -37,7 +37,9 @@
 - Admins, owners, and founder support may manage venue-wide blackout periods;
   managers may only view them. Blackout dates are inclusive, venue-local,
   non-overlapping, and at most 366 days. Their normalized reason is visible to
-  staff.
+  staff. Blackout validation replaces only the submitted form, retaining its
+  surrounding open editor and other unfinished forms. A successful save returns
+  the saved period to its collapsed summary.
 - Any new unavailable range overlapping a blackout is rejected in full, with no
   role override. Existing requests remain valid when a later blackout is added.
 - The optional unavailable-staff warning threshold is 1–100; `NULL` disables it.
