@@ -325,6 +325,13 @@ instance Controller RosterWeeksController where
         fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionSlotsGrid
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
+    action currentAction@ShowRosterSettingsFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionSettings
+        respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+
     action currentAction@ShowRosterWeekStaffPanelFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
@@ -393,14 +400,14 @@ instance Controller RosterWeeksController where
                 markStaleRosterCalendarResponseForRefresh >> respondRosterNotificationBadRequest "The roster calendar changed. Review the refreshed window and try again."
             Notification.RosterNotificationRunAlreadyActive ->
                 if isHtmxRequest
-                    then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
+                    then respondWithRosterFragments scope [RosterProjectionSettings] [hsx|
                         {renderDialogOverlayClearOob}
                         {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
                     |]
                     else setErrorMessage "Roster email delivery is already in progress." >> redirectToRosterWindow scope
             Notification.RosterNotificationRunHasNoEligibleRecipients ->
                 if isHtmxRequest
-                    then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
+                    then respondWithRosterFragments scope [RosterProjectionSettings] [hsx|
                         {renderDialogOverlayClearOob}
                         {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
                     |]
@@ -413,7 +420,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterResourceInvalidation
                         scope
                         (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) run.weekStart run.windowEnd))
-                        [RosterProjectionStaffPanel]
+                        [RosterProjectionSettings]
                         [hsx|
                             {renderDialogOverlayClearOob}
                             {renderToastOob ToastBottomCenter (successToast successMessage)}
@@ -982,7 +989,7 @@ instance Controller RosterWeeksController where
             Right fields -> do
                 _ <- upsertCurrentUserShowRosterWarnings (surfaceFieldValue @Surface.ShowRosterWarnings fields)
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate scope rosterGridStructuralAndStaffPanelFragments (successToast "Roster warning preference saved.")
+                    then respondWithRosterFragmentsUpdate scope (rosterGridStructuralFragments <> [RosterProjectionSettings]) (successToast "Roster warning preference saved.")
                     else do
                         setSuccessMessage "Roster warning preference saved."
                         redirectToRosterWindow scope
@@ -1000,7 +1007,7 @@ instance Controller RosterWeeksController where
             Right fields -> do
                 _ <- upsertCurrentUserShowWageEstimates (surfaceFieldValue @Surface.ShowWageEstimates fields)
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate scope rosterGridStructuralAndStaffPanelFragments (successToast "Roster wage estimate preference saved.")
+                    then respondWithRosterFragmentsUpdate scope (rosterGridStructuralFragments <> [RosterProjectionSettings]) (successToast "Roster wage estimate preference saved.")
                     else do
                         setSuccessMessage "Roster wage estimate preference saved."
                         redirectToRosterWindow scope

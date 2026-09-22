@@ -49,6 +49,11 @@ scroll-locked, while navigation and overlaid workflow dialogs remain usable.
 Closing preserves mounted forms and tabs; same-feature HTMX replacement preserves
 open state, while changing feature or returning from desktop starts closed.
 Activating a linked-highlight pin closes the shelf to reveal the main content.
+Settings and business invalidations replace typed content fragments inside the
+shelf, not its launcher, tabs, or settings scroll container. Actor and passive
+updates use those same boundaries; do not compensate for oversized fragments
+with feature-specific scroll-restoration code. Navigation to another scope is a
+separate shell-lifecycle operation, not an ordinary settings refresh.
 Haskell owns values, routes, workflow/error copy, and server validation; adapters
 keep browser/platform mechanics local and leave malformed boundaries untouched.
 Capabilities compose through generated roles/native state rather than importing

@@ -100,6 +100,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
     '[ SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetSidePanelContent
+     , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetStaffContent
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterContent
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterGridToolbar
@@ -109,6 +110,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterWageRail
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSlotsGrid
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffPanel
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSettingsContent
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterTemplateLibraryFragment
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow

@@ -20,6 +20,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterRow
     , RosterSlotsGrid
     , RosterStaffPanel
+    , RosterSettingsContent
     , RosterSurface
     , RosterDayTimelineSurface
     , RosterWeekShell
@@ -269,6 +270,7 @@ data RosterDayRail
 data RosterWageRail
 data RosterSlotsGrid
 data RosterStaffPanel
+data RosterSettingsContent
 data RosterDaySection
 data RosterRow
 data RosterDayTimelineContent
@@ -513,6 +515,8 @@ type RosterFragmentBundle =
          , 'Eager
          , 'Contains RosterContent
          , 'Contains RosterStaffPanel
+         , 'Contains RosterSettingsContent
+         , 'Contains RosterTemplateLibraryFragment
          , ContainsSurface SelfServiceLeave.SelfServiceLeave
          ]
      , Fragment RosterContent
@@ -552,7 +556,16 @@ type RosterFragmentBundle =
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ], 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ] ]
+     , Fragment RosterSettingsContent '[]
+        '[ 'MountTarget RosterSettingsContent '[]
+         , 'Eager, 'Live
+         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ]
+         , 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
      , Fragment RosterTemplateLibraryFragment
         '[]

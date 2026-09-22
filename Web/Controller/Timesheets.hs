@@ -117,6 +117,15 @@ instance Controller TimesheetsController where
         let requestKey = timesheetProjectionRequestForWindow windowStart selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionSidePanel
 
+    action currentAction@ShowTimesheetStaffContentFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        ensureManagerRole
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        windowStart <- timesheetWindowStartForAnchor anchorDate
+        filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
+        let requestKey = (timesheetProjectionRequestForWindow windowStart filters.filterStaffId)
+                { projectionRosterGroupFilterId = filters.filterRosterGroupId }
+        respondWithTimesheetFragment requestKey TimesheetProjectionStaffContent
+
     action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         windowStart <- timesheetWindowStartForAnchor anchorDate

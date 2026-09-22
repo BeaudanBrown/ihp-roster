@@ -165,6 +165,17 @@
     min-height: 0;
 }
 
+/* Replaceable contents live inside the persistent pane, never own its scroll. */
+.app-side-panel-pane-content {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+}
+
+.app-side-panel-settings-pane > * {
+    flex-shrink: 0;
+}
+
 .app-side-panel-table {
     border-collapse: separate;
     border-spacing: 0;
@@ -394,6 +405,11 @@
 
     .app-side-panel-card .app-panel-body {
         flex: 1 1 auto;
+    }
+
+    .app-side-panel-pane-content {
+        flex: 1 1 auto;
+        min-height: 0;
     }
 
     .app-side-panel-table-list,

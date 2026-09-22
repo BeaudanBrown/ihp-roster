@@ -77,6 +77,7 @@ data TimesheetsController
     | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Text }
+    | ShowTimesheetStaffContentFragmentAction { anchorDate :: !Text }
     | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Text, operationalDate :: !Text }
     | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction
@@ -295,6 +296,7 @@ data RosterWeeksController
     | ShowRosterWeekWageRailFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekSlotsGridFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekStaffPanelFragmentAction { anchorDate :: !Text }
+    | ShowRosterSettingsFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekDaySectionFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | UpdateRosterAssignmentFiltersAction

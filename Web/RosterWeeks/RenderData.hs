@@ -50,6 +50,8 @@ import Web.RosterWeeks.WageFilter (filterRosterWageSlots,
                                    pinnedRosterWageStaffId)
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
+import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterSelfServiceSettings)
 
 shouldShowRosterWageEstimates :: (?context :: ControllerContext) => Bool -> Bool
 shouldShowRosterWageEstimates userShowWageEstimates =
@@ -108,6 +110,11 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
             renderSlotsGridFragment rosterData
         RosterProjectionStaffPanel ->
             Just (renderRosterStaffPanelFromProjectionWithMode renderMode rosterData)
+        RosterProjectionSettings ->
+            rosterData >>= \projection ->
+                if hasRole Manager
+                    then Just (renderRosterSettingsPanel (rosterStaffPanelRenderModelFromProjection RosterStaffPanelCurrentGroup projection))
+                    else renderRosterSelfServiceSettings <$> projection.staffSelfServicePanel
         RosterProjectionDaySection rosterDayId ->
             rosterData >>= \projection ->
                 if isHiddenDraftForCurrentUser projection.rosterWeek
@@ -478,6 +485,9 @@ renderVisibleRosterFragment scope fragment = do
             pure (renderRosterProjectionFragment rosterData fragment)
         Just rosterWeek ->
             case fragment of
+                RosterProjectionSettings -> do
+                    rosterData <- fetchVisibleRosterReadModel scope
+                    pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionStaffPanel -> do
                     panelModel <- fetchVisibleRosterStaffPanelRenderModel RosterStaffPanelCurrentGroup scope
                     pure (Just (renderrosterStaffPanelLiveFragment panelModel))

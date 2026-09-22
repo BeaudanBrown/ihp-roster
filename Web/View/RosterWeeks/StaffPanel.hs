@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Web.View.RosterWeeks.StaffPanel
-    ( renderrosterStaffPanelLiveFragment
+    ( renderRosterSidePanel
+    , renderrosterStaffPanelLiveFragment
     , renderrosterStaffPanelLiveFragmentWithSwap
     ) where
 
@@ -57,32 +58,38 @@ renderrosterStaffPanelLiveFragment =
 
 
 renderrosterStaffPanelLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterStaffPanelRenderModel -> Html
-renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel =
+renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries }
+    | not currentUserIsManager = mempty
+    | otherwise = [hsx|
+        <div id={rosterStaffPanelFragmentId} class="app-side-panel-pane-content" hx-swap-oob={maybeSwapOob}>
+            {renderRosterStaffPanelHeader panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id (length staffPanelRosterGroups > 1) staffPanelScope}
+            {renderRosterStaffPanelTable panelStaffMembers panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id (sortRosterStaffPanelEntries panelStaffMembers staffPanelEntries)}
+        </div>
+    |]
+  where
+    panelStaffMembers = map (.staff) staffPanelEntries
+
+renderRosterSidePanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
+renderRosterSidePanel panelModel =
     if currentUserIsManager
         then profileHtmlComponent "render.roster.staff_panel_fragment" $
             renderSidePanelPanelRegion rosterSidePanelRenderAttrs SidePanelRegionConfig
-                { sidePanelRegionId = Just rosterStaffPanelFragmentId
+                { sidePanelRegionId = Nothing
                 , sidePanelRegionClass = Text.unwords rosterStaffPanelFragmentClasses
-                , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+                , sidePanelRegionExtraAttrs = []
                 }
                 (renderRosterStaffPanel panelModel)
         else mempty
 
 renderRosterStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries } = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
+renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelEntries } = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
     {profileRenderCounter "render.roster.staff_panel" 1}
     {profileRenderCounter "render.roster.staff_panel_entry" (length staffPanelEntries)}
     {renderRosterStaffPanelShell
         (renderRosterStaffPanelTabs (isJust templatePanelContent) staffPanelContent (fromMaybe mempty templatePanelContent) settingsPanelContent)}
 |]
     where
-        hasMultipleRosterGroups = length staffPanelRosterGroups > 1
-        panelStaffMembers = map (.staff) staffPanelEntries
-        renderedPanelStaff = sortRosterStaffPanelEntries panelStaffMembers staffPanelEntries
-        staffPanelContent = [hsx|
-            {renderRosterStaffPanelHeader panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id hasMultipleRosterGroups staffPanelScope}
-            {renderRosterStaffPanelTable panelStaffMembers panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id renderedPanelStaff}
-        |]
+        staffPanelContent = renderrosterStaffPanelLiveFragment panelModel
         templatePanelContent = do
             templateLibrary <- panelModel.staffPanelTemplateLibrary
             pure (renderRosterTemplateLibraryFragment panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)

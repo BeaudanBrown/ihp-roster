@@ -47,7 +47,7 @@ rosterWeekShellSyncRoute actionUrl =
 
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekStartDate, staffPanelCalendarRevision, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelHighlightOwnLiveShifts, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
-    <div class="roster-settings-panel">
+    <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel">
         {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekStartDate staffPanelRosterGroups staffPanelCurrentRosterGroup)}
         {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
         {when (staffPanelViewCapabilities.canManageRosterWarnings || staffPanelViewCapabilities.canViewWageEstimates) $

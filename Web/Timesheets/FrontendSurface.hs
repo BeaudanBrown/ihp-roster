@@ -8,6 +8,7 @@ module Web.Timesheets.FrontendSurface
     , timesheetWeekScopeMatchesConfig
     , TimesheetsMountStateValue (..)
     , timesheetsCandidateMountedFragments
+    , timesheetsViewerMountedFragments
     , timesheetsMountStateForFilters
     , timesheetsSurfaceScope
     , timesheetsDaySurfaceImpl
@@ -30,6 +31,7 @@ import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
+                             timesheetStaffContentFragmentUrl,
                              timesheetToolbarFragmentUrl)
 
 -- | Logical live invalidation scope. Filter/query state intentionally lives in
@@ -71,9 +73,9 @@ timesheetsMountStateForFilters :: TimesheetViewFilters -> TimesheetsMountStateVa
 timesheetsMountStateForFilters filters =
     TimesheetsMountStateValue filters.filterStaffId filters.filterRosterGroupId
 
-timesheetsSurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
+timesheetsSurfaceImpl :: (?context :: ControllerContext) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsSurfaceImpl scope mountState =
-    timesheetsSurfaceImplWithFragments scope mountState (timesheetsCandidateMountedFragments scope mountState)
+    timesheetsSurfaceImplWithFragments scope mountState (timesheetsViewerMountedFragments scope mountState)
 
 timesheetsDaySurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Int -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsDaySurfaceImpl scope mountState dayOffset =
@@ -111,7 +113,17 @@ timesheetsCandidateMountedFragments scope mountState =
         [ timesheetToolbarMountedFragment mountState scope.timesheetWindowStart
         , timesheetDayColumnsMountedFragment mountState scope.timesheetWindowStart
         , timesheetSidePanelMountedFragment mountState scope.timesheetWindowStart
+        , timesheetStaffContentMountedFragment mountState scope.timesheetWindowStart
         ] <> map (\dayOffset -> timesheetDaySectionMountedFragment mountState scope.timesheetWindowStart (addDays dayOffset scope.timesheetWindowStart)) [0 .. 6]
+
+-- Candidate identity stays pure for dependency planning; mounted/actor fragments
+-- must also match the viewer's rendered controls and fragment-route authority.
+timesheetsViewerMountedFragments :: (?context :: ControllerContext) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment]
+timesheetsViewerMountedFragments scope mountState =
+    filter authorizedForViewer (timesheetsCandidateMountedFragments scope mountState)
+  where
+    authorizedForViewer fragment =
+        hasRole Manager || isNothing (SurfaceLive.matchTimesheetStaffContentLiveFragment fragment.mountedFragmentKey)
 
 withTimesheetCalendarRevision :: Int -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
 withTimesheetCalendarRevision calendarRevision fragment =
@@ -158,6 +170,15 @@ timesheetSidePanelMountedFragment mountState scopeStart =
             noSurfaceFields
             noSurfaceFields
             (timesheetSidePanelFragmentUrl scopeStart mountState.timesheetsMountStaffFilterId)
+            FrontendSurfaceReplace
+
+timesheetStaffContentMountedFragment :: TimesheetsMountStateValue -> Day -> FrontendSurfaceMountedFragment
+timesheetStaffContentMountedFragment mountState scopeStart =
+    withRosterGroupFilter mountState $
+        frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetStaffContent
+            noSurfaceFields
+            noSurfaceFields
+            (timesheetStaffContentFragmentUrl scopeStart mountState.timesheetsMountStaffFilterId)
             FrontendSurfaceReplace
 
 timesheetDaySectionMountedFragment :: TimesheetsMountStateValue -> Day -> Day -> FrontendSurfaceMountedFragment

@@ -6,11 +6,13 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live
     ( matchTimesheetDayColumnsLiveFragment
     , matchTimesheetDaySectionLiveFragment
     , matchTimesheetSidePanelContentLiveFragment
+    , matchTimesheetStaffContentLiveFragment
     , matchTimesheetToolbarLiveFragment
     , matchTimesheetWeekLiveScope
     , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
     , timesheetSidePanelContentLiveFragment
+    , timesheetStaffContentLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     ) where
@@ -72,6 +74,19 @@ matchTimesheetSidePanelContentLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetSidePanelContent
+
+timesheetStaffContentLiveFragment :: SurfaceFragmentKey
+timesheetStaffContentLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.TimesheetStaffContent
+        noSurfaceFields
+
+matchTimesheetStaffContentLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchTimesheetStaffContentLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.TimesheetStaffContent
 
 timesheetToolbarLiveFragment :: SurfaceFragmentKey
 timesheetToolbarLiveFragment =

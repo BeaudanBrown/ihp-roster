@@ -282,14 +282,11 @@ renderTimesheetWageSourceWarning summary
     |]
 
 renderTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSidePanel = renderTimesheetSidePanelWithSwap Nothing
-
-renderTimesheetSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
-renderTimesheetSidePanelWithSwap maybeSwapOob view =
+renderTimesheetSidePanel view =
     renderSidePanelPanelRegion timesheetSidePanelRenderAttrs SidePanelRegionConfig
-        { sidePanelRegionId = Just "timesheet-side-panel-content"
+        { sidePanelRegionId = Nothing
         , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 timesheet-side-panel"
-        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        , sidePanelRegionExtraAttrs = []
         }
         ( renderSidePanelCard
             SidePanelCardConfig
@@ -309,7 +306,7 @@ renderManagerTimesheetSidePanel view = [hsx|
             {renderTimesheetStaffPanel view.staffMembers view.staffPanelEntries}
         </div>
         <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane" id="timesheet-settings-pane" role="tabpanel" aria-labelledby="timesheet-settings-tab" tabindex="0">
-            {renderTimesheetSettings view}
+            {renderTimesheetSettingsFragment Nothing view}
         </div>
     </div>
 |]
@@ -322,7 +319,14 @@ renderManagerTimesheetSidePanel view = [hsx|
 renderWorkerTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
 renderWorkerTimesheetSettings view = [hsx|
     <h2 class="h5">Settings</h2>
-    {renderTimesheetSettings view}
+    {renderTimesheetSettingsFragment Nothing view}
+|]
+
+renderTimesheetSettingsFragment :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
+renderTimesheetSettingsFragment maybeSwapOob view = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetSidePanelContent noSurfaceFields} hx-swap-oob={maybeSwapOob}>
+        {renderTimesheetSettings view}
+    </div>
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
@@ -338,7 +342,14 @@ renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApprove
 renderTimesheetStaffPanel :: (?context :: ControllerContext) => [Staff] -> [TimesheetStaffPanelEntry] -> Html
 renderTimesheetStaffPanel staffMembers entries = [hsx|
     <div class="app-side-panel-table-list">
-        <table class="app-side-panel-table timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
+        {renderTimesheetStaffContent Nothing staffMembers entries}
+    </div>
+|]
+
+renderTimesheetStaffContent :: (?context :: ControllerContext) => Maybe Text -> [Staff] -> [TimesheetStaffPanelEntry] -> Html
+renderTimesheetStaffContent maybeSwapOob staffMembers entries = [hsx|
+        <table id={surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetStaffContent noSurfaceFields}
+               hx-swap-oob={maybeSwapOob} class="app-side-panel-table timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
             <thead class="app-side-panel-table-head"><tr>
                 <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByName}>Name</button></th>
                 <th scope="col" class="app-side-panel-role-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByRole}>Role</button></th>
@@ -347,7 +358,6 @@ renderTimesheetStaffPanel staffMembers entries = [hsx|
             </tr></thead>
             <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderTimesheetStaffPanelEntry staffMembers)}</tbody>
         </table>
-    </div>
 |]
 
 renderTimesheetStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> TimesheetStaffPanelEntry -> Html

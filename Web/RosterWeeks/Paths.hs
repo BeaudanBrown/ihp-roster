@@ -30,6 +30,7 @@ module Web.RosterWeeks.Paths
     , rosterWeekDaySectionFragmentUrl
     , rosterWeekRowFragmentUrl
     , rosterWeekStaffPanelFragmentUrl
+    , rosterSettingsFragmentUrl
     , rosterWindowBaseUrl
     , rosterWindowUrl
     , rosterWeekWithDateUrl
@@ -135,6 +136,10 @@ rosterWeekWageRailFragmentUrl anchorDate rosterGroupId =
 rosterWeekSlotsGridFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekSlotsGridFragmentUrl anchorDate rosterGroupId =
     replaceQueryParams (pathTo ShowRosterWeekSlotsGridFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+
+rosterSettingsFragmentUrl :: Day -> Id RosterGroup -> Maybe Day -> Text
+rosterSettingsFragmentUrl anchorDate rosterGroupId maybeTimelineDate =
+    replaceQueryParams (pathTo ShowRosterSettingsFragmentAction { anchorDate = tshow anchorDate }) (("anchorDate", formatDayParam anchorDate) : rosterViewQueryParams rosterGroupId maybeTimelineDate)
 
 rosterWeekStaffPanelFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekStaffPanelFragmentUrl anchorDate rosterGroupId =

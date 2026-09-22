@@ -46,7 +46,7 @@ import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue,
                                        timesheetWeekScopeForAnchor,
-                                       timesheetsCandidateMountedFragments,
+                                       timesheetsViewerMountedFragments,
                                        timesheetsMountStateForFilters,
                                        timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
@@ -219,13 +219,13 @@ respondWithTimesheetFragment requestKey fragment =
 
 respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [TimesheetProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithTimesheetActorFragments scope mountState fragments extraHtml = do
-    let selectedMountedFragments = selectTimesheetMountedFragments scope (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
+    let selectedMountedFragments = selectTimesheetMountedFragments scope (normalizeTimesheetFragments fragments) (timesheetsViewerMountedFragments scope mountState)
     setActorLocalFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
     respondHtmlProfiled extraHtml
 
 respondWithTimesheetResourceInvalidation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Markup.Html -> IO ResponseReceived
 respondWithTimesheetResourceInvalidation scope mountState touchedResources extraHtml = do
-    setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsCandidateMountedFragments scope mountState)
+    setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsViewerMountedFragments scope mountState)
     respondHtmlProfiled extraHtml
 
 selectTimesheetMountedFragments :: TimesheetWeekScopeValue -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
@@ -239,6 +239,8 @@ selectTimesheetMountedFragments scope fragments mountedFragments =
             isJust (SurfaceLive.matchTimesheetDayColumnsLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionSidePanel ->
             isJust (SurfaceLive.matchTimesheetSidePanelContentLiveFragment mountedFragment.mountedFragmentKey)
+        TimesheetProjectionStaffContent ->
+            isJust (SurfaceLive.matchTimesheetStaffContentLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDaySection dayOffset ->
             SurfaceLive.matchTimesheetDaySectionLiveFragment mountedFragment.mountedFragmentKey
                 == Just (addDays (toInteger dayOffset) scope.timesheetWindowStart, ())
@@ -259,7 +261,7 @@ respondWithTimesheetPreferenceUpdate scope mountState =
     respondWithTimesheetActorFragments
         scope
         mountState
-        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
+        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel, TimesheetProjectionStaffContent]
         mempty
 
 respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ResponseReceived

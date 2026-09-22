@@ -8,6 +8,7 @@ module Web.Timesheets.Paths
     , timesheetDayColumnsFragmentUrl
     , timesheetDaySectionFragmentUrl
     , timesheetSidePanelFragmentUrl
+    , timesheetStaffContentFragmentUrl
     , timesheetToolbarFragmentUrl
     , timesheetWindowStateQueryParams
     , timesheetWindowStateQueryParamsWithFilters
@@ -45,6 +46,12 @@ timesheetSidePanelFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetSidePanelFragmentUrl anchorDate staffFilterId =
     replaceQueryParams
         (pathTo ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = tshow anchorDate })
+        (timesheetWindowStateQueryParams anchorDate staffFilterId)
+
+timesheetStaffContentFragmentUrl :: Day -> Maybe UUID -> Text
+timesheetStaffContentFragmentUrl anchorDate staffFilterId =
+    replaceQueryParams
+        (pathTo ShowTimesheetStaffContentFragmentAction { anchorDate = tshow anchorDate })
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 timesheetDayColumnsFragmentUrl :: Day -> Maybe UUID -> Text

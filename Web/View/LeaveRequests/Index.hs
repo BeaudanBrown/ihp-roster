@@ -136,7 +136,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 }
                 [hsx|
                     {mainRegion}
-                    {renderLeaveSidePanelWithSwap Nothing venueToday blackouts leaveRequests staffMembers staffPanelEntries}
+                    {renderLeaveSidePanel venueToday blackouts leaveRequests staffMembers staffPanelEntries}
                 |]
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Unavailability"
@@ -194,12 +194,12 @@ leaveRequestTabAttrs archiveIsOpen section = case (archiveIsOpen, section) of
     (True, LeaveDeniedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.DeniedTabKey
     (True, LeaveArchiveSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.ArchiveTabKey
 
-renderLeaveSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> [LeaveStaffPanelEntry] -> Html
-renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests staffMembers staffPanelEntries =
+renderLeaveSidePanel :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> [LeaveStaffPanelEntry] -> Html
+renderLeaveSidePanel venueToday blackouts leaveRequests staffMembers staffPanelEntries =
     renderSidePanelPanelRegion leaveSidePanelRenderAttrs SidePanelRegionConfig
-        { sidePanelRegionId = Just (surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSidePanelContent noSurfaceFields)
+        { sidePanelRegionId = Nothing
         , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 leave-side-panel"
-        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        , sidePanelRegionExtraAttrs = []
         }
         ( renderSidePanelCard
             SidePanelCardConfig
@@ -229,7 +229,14 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
 renderLeaveStaffPanel :: (?context :: ControllerContext) => [Staff] -> [LeaveStaffPanelEntry] -> Html
 renderLeaveStaffPanel staffMembers entries = [hsx|
     <div class="app-side-panel-table-list">
-        <table class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
+        {renderLeaveStaffContent Nothing staffMembers entries}
+    </div>
+|]
+
+renderLeaveStaffContent :: (?context :: ControllerContext) => Maybe Text -> [Staff] -> [LeaveStaffPanelEntry] -> Html
+renderLeaveStaffContent maybeSwapOob staffMembers entries = [hsx|
+        <table id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSidePanelContent noSurfaceFields}
+               hx-swap-oob={maybeSwapOob} class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
             <thead class="app-side-panel-table-head"><tr>
                 <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByName}>Name</button></th>
                 <th scope="col" class="app-side-panel-role-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByRole}>Role</button></th>
@@ -238,7 +245,6 @@ renderLeaveStaffPanel staffMembers entries = [hsx|
             </tr></thead>
             <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderLeaveStaffPanelEntry staffMembers)}</tbody>
         </table>
-    </div>
 |]
 
 renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> LeaveStaffPanelEntry -> Html
