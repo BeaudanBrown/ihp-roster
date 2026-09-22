@@ -65,7 +65,8 @@ data RosterRenderIndexes = RosterRenderIndexes
     { rosterDayById              :: Map UUID RosterDay
     , rosterDayRowsByDayId       :: Map UUID [(Int, [RosterSlot])]
     , rosterSlotByDayRowSlotName :: Map (UUID, Int, UUID) RosterSlot
-    , rosterStaffById            :: Map UUID Staff
+    , rosterStaffLabelById       :: Map UUID Text
+    , rosterShiftTypeById        :: Map UUID ShiftType
     , rosterConflictsBySlotId    :: Map UUID [RosterConflict]
     , rosterTimingBySlotId       :: Map UUID (Either RosterShiftIntegrityError ValidatedRosterShiftTiming)
     }

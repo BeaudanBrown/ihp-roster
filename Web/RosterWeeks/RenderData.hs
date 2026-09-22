@@ -28,6 +28,9 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences
+import Application.Helper.View.Staff (normalizedStaffDisplayBaseName,
+                                      renderStaffLastInitial,
+                                      staffDisplayBaseName)
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import qualified Application.RosterNotification as Notification
 import Application.RosterPublication (rosterDaysArePublished)
@@ -381,7 +384,7 @@ fetchVisibleRosterReadModelFromSnapshot snapshot = do
     rosterData <- fetchRosterRenderDataFromSnapshot snapshot
     pure $ case visibleRosterWeek of
         Nothing ->
-            let hiddenRenderIndexes = buildRosterRenderIndexes rosterData.rosterDays [] [] []
+            let hiddenRenderIndexes = buildRosterRenderIndexes rosterData.rosterDays [] [] [] []
              in Just
                     rosterData
                         { assignmentFilters = defaultRosterAssignmentFilters
@@ -475,7 +478,7 @@ fetchRosterRenderDataForPlan renderPlan snapshot = do
         if maybe False (.windowIsPublished) rosterWeek || not (renderPlanNeedsConflicts renderPlan)
             then pure []
             else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsDirect venueConfig.lateToEarlyMinStartGapMinutes visibleSlots)
-    let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
+    let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers shiftTypes slotConflicts
     rosterWagePrediction <-
         if showWageEstimates && renderPlanNeedsWages renderPlan
             then do
@@ -547,14 +550,22 @@ visibleRosterWeekFromSnapshot snapshot =
         Just rosterWeek | rosterWeek.windowIsPublished || hasRole Manager -> Just rosterWeek
         _ -> Nothing
 
-buildRosterRenderIndexes :: [RosterDay] -> [RosterSlot] -> [Staff] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes
-buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts =
+buildRosterRenderIndexes :: [RosterDay] -> [RosterSlot] -> [Staff] -> [ShiftType] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes
+buildRosterRenderIndexes rosterDays visibleSlots staffMembers shiftTypes slotConflicts =
     let slotsByRosterDayId =
             Map.fromListWith
                 (<>)
                 [ (slot.rosterDayId, [slot])
                 | slot <- visibleSlots
                 ]
+        normalizedStaffNameCounts =
+            Map.fromListWith (+)
+                [(normalizedStaffDisplayBaseName staff, 1 :: Int) | staff <- staffMembers]
+        displayLabel staff =
+            staffDisplayBaseName staff
+                <> if Map.findWithDefault 0 (normalizedStaffDisplayBaseName staff) normalizedStaffNameCounts > 1
+                    then renderStaffLastInitial staff
+                    else ""
      in RosterRenderIndexes
         { rosterDayById = Map.fromList [(coerce (get #id rosterDay), rosterDay) | rosterDay <- rosterDays]
         , rosterDayRowsByDayId =
@@ -567,7 +578,8 @@ buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts =
                 [ ((slot.rosterDayId, slot.rowIndex, slot.rosterLaneId), slot)
                 | slot <- visibleSlots
                 ]
-        , rosterStaffById = Map.fromList [(coerce (get #id staff), staff) | staff <- staffMembers]
+        , rosterStaffLabelById = Map.fromList [(coerce (get #id staff), displayLabel staff) | staff <- staffMembers]
+        , rosterShiftTypeById = Map.fromList [(coerce (get #id shiftType), shiftType) | shiftType <- shiftTypes]
         , rosterConflictsBySlotId = Map.fromList [(coerce slotId, conflicts) | (slotId, conflicts) <- slotConflicts]
         , rosterTimingBySlotId = Map.fromList [(unpackId slot.id, decodeRosterShiftTiming slot) | slot <- visibleSlots]
         }
@@ -613,7 +625,7 @@ renderVisibleRosterFragment snapshot fragment = do
                         if rosterWeek.windowIsPublished
                             then pure []
                             else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsForSlotsDirect venueConfig.lateToEarlyMinStartGapMinutes visibleSlots targetSlots)
-                    let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
+                    let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers facts.baseShiftTypes slotConflicts
                     pure (renderRequestedRowFragment (hasRole Manager && not rosterWeek.windowIsPublished) weekStartDate scope.rosterWindowCalendarRevision facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled (rosterDayUuid, rowIndex))
                 RosterProjectionDaySection rosterDayUuid -> do
                     facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers, basePanelStaff = panelStaffMembers } <-
@@ -633,7 +645,7 @@ renderVisibleRosterFragment snapshot fragment = do
                         if rosterWeek.windowIsPublished
                             then pure []
                             else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsForSlotsDirect venueConfig.lateToEarlyMinStartGapMinutes visibleSlots targetSlots)
-                    let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
+                    let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers facts.baseShiftTypes slotConflicts
                     let wageSlots = filterRosterWageSlots (pinnedRosterWageStaffId showWageEstimates panelStaffMembers) visibleSlots
                     rosterWagePrediction <-
                         if showWageEstimates
@@ -684,7 +696,7 @@ renderFullProjectionFragment snapshot fragment = do
                     , staffMembers = []
                     , allSlots = []
                     , slotConflicts = []
-                    , renderIndexes = buildRosterRenderIndexes rosterData.rosterDays [] [] []
+                    , renderIndexes = buildRosterRenderIndexes rosterData.rosterDays [] [] [] []
                     , rosterWagePrediction = Nothing
                     , currentViewerStaffKey = Nothing
                     }

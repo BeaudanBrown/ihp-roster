@@ -35,12 +35,12 @@ only ASCII letters, digits, `-`, `_`, `.`, `:`, and `/`. Invalid values are
 discarded. They remain trusted-local correlation inputs, not customer-facing or
 production metadata.
 
-Profiling counters remain available for high-volume render paths via
-`profileRenderCounter`. They are attached to the enclosing diagnostic render
-span and `bepis.render.counters` event. The legacy `X-Profile-Counters` header
-and its request-global accumulation are retired. Use counters sparingly for
-repeated structures such as roster rows, slot blocks, grid cells, launchers,
-hidden inputs, picker options, and panel entries.
+Profiling counters remain available through the component-local counter list on
+`profileHtmlComponentWithCounters`. They are attached to that component's
+diagnostic render span and `bepis.render.counters` event. The legacy
+`X-Profile-Counters` header and request-global accumulation are retired. Prefer
+one aggregate count per rendered component (for example, emitted days, rows,
+slots, or panel entries); never put counter IO in per-item render loops.
 
 Manual spans are added with helpers from `Application.Helper.Profiling`, for example:
 

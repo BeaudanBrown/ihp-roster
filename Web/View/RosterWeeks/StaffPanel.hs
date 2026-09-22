@@ -29,7 +29,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
+import Application.Helper.Profiling (profileHtmlComponent, profileHtmlComponentWithCounters)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.VenueRole (parseVenueRole, venueRoleLabel)
 import qualified Data.Text as Text
@@ -69,9 +69,12 @@ renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel =
         else mempty
 
 renderRosterStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries } = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
-    {profileRenderCounter "render.roster.staff_panel" 1}
-    {profileRenderCounter "render.roster.staff_panel_entry" (length staffPanelEntries)}
+renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries } =
+    profileHtmlComponentWithCounters "render.roster.staff_panel_component"
+        [ ("render.roster.staff_panel", 1)
+        , ("render.roster.staff_panel_entry", length staffPanelEntries)
+        , ("render.roster.staff_panel_entry_render", length staffPanelEntries)
+        ] [hsx|
     {renderRosterStaffPanelShell
         (renderRosterStaffPanelTabs (isJust templatePanelContent) staffPanelContent (fromMaybe mempty templatePanelContent) settingsPanelContent)}
 |]
@@ -270,10 +273,7 @@ renderRosterStaffPanelEntry panelStaffMembers anchorDate currentRosterGroupId en
     let
         staffDisplayLabel = staffDisplayName panelStaffMembers entry.staff
         staffRoleLabel = humanizeStaffRole entry.userRole
-     in [hsx|
-        {profileRenderCounter "render.roster.staff_panel_entry_render" 1}
-        {renderRosterStaffPanelEntryRow anchorDate currentRosterGroupId staffDisplayLabel staffRoleLabel entry}
-    |]
+     in renderRosterStaffPanelEntryRow anchorDate currentRosterGroupId staffDisplayLabel staffRoleLabel entry
 
 renderRosterStaffPanelEntryRow :: Day -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow anchorDate currentRosterGroupId staffDisplayLabel staffRoleLabel entry =

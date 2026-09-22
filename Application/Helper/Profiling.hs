@@ -3,7 +3,7 @@ module Application.Helper.Profiling
     , profileActionSpan
     , profileActionSpanWithDetail
     , profileHtmlComponent
-    , profileRenderCounter
+    , profileHtmlComponentWithCounters
     , profilingMiddleware
     , renderProfiled
     , respondHtmlProfiled
@@ -13,8 +13,7 @@ import Application.Bepis.Response (bepisHtmlResponse, bepisHtmxFragmentResponse)
 import Application.Helper.Telemetry (addTelemetryAttributes, addTelemetryEvent,
                                      withTelemetrySpan,
                                      withTelemetrySpanAttributes)
-import Control.Concurrent (ThreadId, myThreadId)
-import Control.Exception (bracket_, evaluate)
+import Control.Exception (evaluate)
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
 import Data.IORef
@@ -58,13 +57,10 @@ requestProfileVaultKey :: Vault.Key (IORef (Maybe RequestProfile))
 requestProfileVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE requestProfileVaultKey #-}
 
-activeRenderCounterRefs :: IORef (Map ThreadId [IORef (Map Text Int)])
-activeRenderCounterRefs = unsafePerformIO (newIORef Map.empty)
-{-# NOINLINE activeRenderCounterRefs #-}
-
 profilingMiddleware :: Middleware
 profilingMiddleware app request respond = do
-    maybeProfile <- newRequestProfileIfEnabled
+    profilingEnabled <- isRequestProfilingEnabled
+    maybeProfile <- if profilingEnabled then Just <$> newRequestProfile else pure Nothing
     profileRef <- newIORef maybeProfile
     let request' = request { Wai.vault = Vault.insert requestProfileVaultKey profileRef request.vault }
     app request' \response -> do
@@ -75,47 +71,37 @@ profileActionSpan :: (?context :: ControllerContext) => Text -> IO a -> IO a
 profileActionSpan name action =
     profileActionSpanWithDetail name (fmap (, Nothing) action)
 
-profileCounter :: (?context :: ControllerContext) => Text -> Int -> IO ()
-profileCounter name amount = do
-    maybeProfile <- currentRequestProfileFromVault ?context
-    forEach maybeProfile \_ ->
-        appendActiveRenderCounter name amount
-
-profileRenderCounter :: (?context :: ControllerContext) => Text -> Int -> Markup.Html
-profileRenderCounter name amount =
-    unsafePerformIO do
-        profileCounter name amount
-        pure mempty
-{-# NOINLINE profileRenderCounter #-}
-
 profileHtmlComponent :: (?context :: ControllerContext) => Text -> Markup.Html -> Markup.Html
-profileHtmlComponent name html =
+profileHtmlComponent name = profileHtmlComponentWithCounters name []
+
+profileHtmlComponentWithCounters :: (?context :: ControllerContext) => Text -> [(Text, Int)] -> Markup.Html -> Markup.Html
+profileHtmlComponentWithCounters name componentCounters html =
     unsafePerformIO do
         maybeProfile <- currentRequestProfileFromVault ?context
         case maybeProfile of
             Nothing -> pure html
             Just profile ->
                 withTelemetrySpanAttributes name [("bepis.profile.diagnostic", toAttribute True)] do
-                    withRenderCounterScope \counterRef -> do
-                        startedAtNs <- getMonotonicTimeNSec
-                        let !htmlBytes = Markup.renderMarkup html
-                        byteCount <- evaluate (LByteString.length htmlBytes)
-                        completedAtNs <- getMonotonicTimeNSec
-                        counters <- readIORef counterRef
-                        addTelemetryAttributes $
-                            [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
-                                <> telemetryCounterAttributes counters
-                        unless (Map.null counters) $
-                            addTelemetryEvent "bepis.render.counters" (telemetryCounterAttributes counters)
-                        appendRequestProfileSpan profile
-                            RequestProfileSpan
-                                { spanOrder = 0
-                                , spanName = name
-                                , durationMs = durationBetweenMs startedAtNs completedAtNs
-                                , detail = Nothing
-                                }
-                        pure (mconcat (map Markup.rawByteString (LByteString.toChunks htmlBytes)))
+                    let counters = Map.fromListWith (+) [(counterName, amount) | (counterName, amount) <- componentCounters, amount /= 0]
+                    startedAtNs <- getMonotonicTimeNSec
+                    let !htmlBytes = Markup.renderMarkup html
+                    byteCount <- evaluate (LByteString.length htmlBytes)
+                    completedAtNs <- getMonotonicTimeNSec
+                    addTelemetryAttributes $
+                        [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
+                            <> telemetryCounterAttributes counters
+                    unless (Map.null counters) $
+                        addTelemetryEvent "bepis.render.counters" (telemetryCounterAttributes counters)
+                    appendRequestProfileSpan profile
+                        RequestProfileSpan
+                            { spanOrder = 0
+                            , spanName = name
+                            , durationMs = durationBetweenMs startedAtNs completedAtNs
+                            , detail = Nothing
+                            }
+                    pure (mconcat (map Markup.rawByteString (LByteString.toChunks htmlBytes)))
 {-# NOINLINE profileHtmlComponent #-}
+{-# NOINLINE profileHtmlComponentWithCounters #-}
 
 renderProfiled :: (View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 renderProfiled view = do
@@ -193,43 +179,12 @@ appendRequestProfileSpan profile span = do
     atomicModifyIORef' profile.spansRef \spans ->
         (span { spanOrder } : spans, ())
 
-appendActiveRenderCounter :: Text -> Int -> IO ()
-appendActiveRenderCounter name amount =
-    when (amount /= 0) do
-        threadId <- myThreadId
-        counterRefsByThread <- readIORef activeRenderCounterRefs
-        forEach (Map.findWithDefault [] threadId counterRefsByThread) \counterRef ->
-            atomicModifyIORef' counterRef \counters ->
-                (Map.insertWith (+) name amount counters, ())
-
-withRenderCounterScope :: (IORef (Map Text Int) -> IO a) -> IO a
-withRenderCounterScope action = do
-    threadId <- myThreadId
-    counterRef <- newIORef Map.empty
-    bracket_
-        (atomicModifyIORef' activeRenderCounterRefs \refsByThread -> (Map.insertWith (<>) threadId [counterRef] refsByThread, ()))
-        (atomicModifyIORef' activeRenderCounterRefs \refsByThread -> (removeRenderCounterRef threadId counterRef refsByThread, ()))
-        (action counterRef)
-
-removeRenderCounterRef :: ThreadId -> IORef (Map Text Int) -> Map ThreadId [IORef (Map Text Int)] -> Map ThreadId [IORef (Map Text Int)]
-removeRenderCounterRef threadId counterRef refsByThread =
-    case List.delete counterRef (Map.findWithDefault [] threadId refsByThread) of
-        []   -> Map.delete threadId refsByThread
-        refs -> Map.insert threadId refs refsByThread
-
 telemetryCounterAttributes :: Map Text Int -> [(Text, Attribute)]
 telemetryCounterAttributes counters =
     [ (name, toAttribute amount)
     | (name, amount) <- Map.toAscList counters
     , amount /= 0
     ]
-
-newRequestProfileIfEnabled :: IO (Maybe RequestProfile)
-newRequestProfileIfEnabled = do
-    profilingEnabled <- isRequestProfilingEnabled
-    if profilingEnabled
-        then Just <$> newRequestProfile
-        else pure Nothing
 
 newRequestProfile :: IO RequestProfile
 newRequestProfile = do

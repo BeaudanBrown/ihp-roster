@@ -46,7 +46,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
-import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
+import Application.Helper.Profiling (profileHtmlComponent, profileHtmlComponentWithCounters)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
                                            rosterLayoutModeValue)
@@ -231,9 +231,14 @@ renderrosterGridFrameLiveFragment =
     renderrosterGridFrameLiveFragmentWithSwap Nothing
 
 renderrosterGridFrameLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekStartDate, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates, gridShowRosterWarnings, gridViewMode } =
+renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekStartDate, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates, gridShowRosterWarnings, gridViewMode, gridAllSlots } =
     let slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         rosterIsHiddenDraft = isNothing gridRosterWeek
+        timelineRosterDay = case gridViewMode of
+            RosterDayTimelineGridView dayOffset ->
+                let selectedDate = Calendar.addDays (toInteger dayOffset) gridWeekStartDate
+                 in find ((== selectedDate) . (.operationalDate)) gridRosterDays
+            RosterWeekGridView -> Nothing
         isTimelineLayout = case gridViewMode of
             RosterDayTimelineGridView _ -> True
             RosterWeekGridView          -> False
@@ -242,13 +247,18 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
             RosterDayTimelineGridView _ -> "timeline"
             RosterWeekGridView -> if rosterIsHiddenDraft then ("hidden_draft" :: Text) else rosterLayoutModeValue gridRosterLayoutMode
         gridBody = case gridViewMode of
-            RosterDayTimelineGridView dayOffset ->
-                let selectedDate = Calendar.addDays (toInteger dayOffset) gridWeekStartDate
-                 in case find ((== selectedDate) . (.operationalDate)) gridRosterDays of
+            RosterDayTimelineGridView _ ->
+                case timelineRosterDay of
                         Nothing -> [hsx|<div class="alert alert-warning mb-0">Selected timeline day is not available.</div>|]
                         Just rosterDay -> renderRosterDayTimelinePanel gridModel rosterDay
             RosterWeekGridView -> renderRosterGridInnerFragments gridModel
-        frameHtml = profileHtmlComponent "render.roster.grid_frame" [hsx|
+        frameHtml = profileHtmlComponentWithCounters "render.roster.grid_frame"
+            [ ("render.roster.slots_grid", if isTimelineLayout || rosterIsHiddenDraft then 0 else 1)
+            , ("render.roster.day", renderedDayCount)
+            , ("render.roster.row", renderedRowCount)
+            , ("render.roster.slot_definition", if isTimelineLayout || rosterIsHiddenDraft then 0 else length gridSlotNames)
+            , ("render.roster.existing_slot", renderedExistingSlotCount)
+            ] [hsx|
         <div id={rosterGridFrameFragmentId}
              class={classes [("roster-grid-frame", True), ("roster-grid-frame-timeline", isTimelineLayout), ("app-horizontal-frame", isDayColumnsLayout)]}
              hx-swap-oob={maybeSwapOob}
@@ -266,6 +276,23 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
             {gridBody}
         </div>
 |]
+        renderedDayCount
+            | rosterIsHiddenDraft = 0
+            | isTimelineLayout = fromEnum (isJust timelineRosterDay)
+            | otherwise = length gridRosterDays
+        renderedRowCount
+            | rosterIsHiddenDraft || isTimelineLayout || isDayColumnsLayout = 0
+            | otherwise = sum (map length (Map.elems gridModel.gridRenderIndexes.rosterDayRowsByDayId))
+        renderedExistingSlotCount
+            | rosterIsHiddenDraft = 0
+            | isTimelineLayout = maybe 0 (length . renderedSlotsForDay) timelineRosterDay
+            | otherwise = sum (map (length . renderedSlotsForDay) gridRosterDays)
+        renderedSlotsForDay rosterDay
+            | rosterDay.isClosed = []
+            | otherwise =
+                filter
+                    (\slot -> slot.rosterDayId == unpackId rosterDay.id && rosterSlotHasVisibleData slot)
+                    gridAllSlots
      in frameHtml
 
 rosterDayRenderModelFromGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDayRenderModel
@@ -414,10 +441,12 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
             </div>
         |]
         gridBody = profileHtmlComponent "render.roster.slots_grid_body" [hsx|{forEach rosterDays (renderRosterDay dayModel)}|]
-     in profileHtmlComponent "render.roster.slots_grid_component" [hsx|
-        {profileRenderCounter "render.roster.slots_grid" 1}
-        {profileRenderCounter "render.roster.day" (length rosterDays)}
-        {profileRenderCounter "render.roster.slot_definition" (length slotNames)}
+     in profileHtmlComponentWithCounters "render.roster.slots_grid_component"
+        [ ("render.roster.slots_grid", 1)
+        , ("render.roster.day", length rosterDays)
+        , ("render.roster.slot_definition", length slotNames)
+        , ("render.roster.existing_slot", sum (map renderedSlotsForDay rosterDays))
+        ] [hsx|
         <div id={rosterSlotsGridFragmentId}
              class="roster-slots-scroller"
              style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}
@@ -429,6 +458,14 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
             </div>
         </div>
     |]
+  where
+    renderedSlotsForDay rosterDay
+        | rosterDay.isClosed = 0
+        | otherwise =
+            length
+                (filter
+                    (\slot -> slot.rosterDayId == unpackId rosterDay.id && rosterSlotHasVisibleData slot)
+                    dayModel.dayAllSlots)
 
 rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWindowState -> Bool
 rosterWeekIsEditable maybeRosterWeek =
@@ -560,9 +597,11 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderMode
     | rosterLayoutModeIsDayColumns dayRosterLayoutMode =
         renderRosterDayColumnWithSwap maybeSwapOob dayModel rosterDay
 renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayAllSlots, dayRenderIndexes } rosterDay =
-    profileHtmlComponent "render.roster.day_section_component" [hsx|
-    {profileRenderCounter "render.roster.day_section" 1}
-    {profileRenderCounter "render.roster.row" (length dayRows)}
+    profileHtmlComponentWithCounters "render.roster.day_section_component"
+        [ ("render.roster.day_section", 1)
+        , ("render.roster.row", length dayRows)
+        , ("render.roster.existing_slot", if rosterDay.isClosed then 0 else length (filter rosterSlotHasVisibleData daySlots))
+        ] [hsx|
     <div id={rosterDaySectionDomId rosterDay.id}
          class="roster-grid-day-section"
          role="rowgroup"
@@ -704,7 +743,12 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                 </div>
             </section>
         |]
-     in columnHtml
+     in profileHtmlComponentWithCounters "render.roster.day_section_component"
+            [ ("render.roster.day_section", 1)
+            , ("render.roster.row", rowCount)
+            , ("render.roster.existing_slot", length compactSlots)
+            ]
+            columnHtml
 
 compactDayColumnSlots :: [RosterWindowLane] -> [(RosterSlot, Either RosterShiftIntegrityError ValidatedRosterShiftTiming)] -> [RosterSlot]
 compactDayColumnSlots slotNames slotsWithTiming =
@@ -818,8 +862,10 @@ renderRowWithAttrs rowModel@RosterRowRenderModel { rowRosterLayoutMode } rowData
     | rosterLayoutModeIsDayColumns rowRosterLayoutMode =
         renderDayColumnRow rowModel rowData maybeSwapOob
 renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowDayIndex, rowRosterDay, rowCalendarRevision, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob =
-    profileHtmlComponent "render.roster.row_component" [hsx|
-    {profileRenderCounter "render.roster.row_render" 1}
+    profileHtmlComponentWithCounters "render.roster.row_component"
+        [ ("render.roster.row_render", 1)
+        , ("render.roster.existing_slot", if rowRosterDay.isClosed then 0 else length (filter rosterSlotHasVisibleData rowSlots))
+        ] [hsx|
     <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
          role="row"
          data-roster-row="true"

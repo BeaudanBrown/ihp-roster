@@ -26,7 +26,6 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
                                                                        rosterImageExportEllipsizedCellAttrs)
-import Application.Helper.Profiling (profileRenderCounter)
 import Application.Helper.ShiftTypeColours (shiftTypeColourKeyCssValue,
                                             shiftTypeColourPaletteKeys)
 import Application.RosterShiftAssignment (rosterShiftIsOpen)
@@ -77,12 +76,9 @@ data ReadOnlyExistingSlotCell = ReadOnlyExistingSlotCell
     }
 renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWindowLane) -> Html
 renderBlockCells isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex _rowSlots renderIndexes (blockIndex, slotName) =
-    mconcat
-        [ profileRenderCounter "render.roster.slot_block" 1
-        , if isEditable
-            then renderEditableBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
-            else renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
-        ]
+    if isEditable
+        then renderEditableBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
+        else renderReadOnlyBlockCells shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
 
 renderEditableBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> Int -> RosterRenderIndexes -> Int -> RosterWindowLane -> Html
 renderEditableBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay calendarRevision rowIndex renderIndexes blockIndex slotName
@@ -125,14 +121,9 @@ renderEditableExistingSlotBlockCells _assignmentFilters _staffMembers shiftTypes
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
         target = ExistingRosterSlotTarget slot.id anchorDate calendarRevision
         groupKey = rosterShiftGroupKey target
-        cellCount = if endTimesEnabled then 4 else 3
-     in mconcat
-        [ profileExistingSlotCounters display endTimesEnabled cellCount
-        , profileEditableLauncherCounters 1 (isJust slot.staffId)
-        , if endTimesEnabled
+     in if endTimesEnabled
             then renderEditableEndTimeSlotCells display target groupKey blockIndex slot
             else renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot
-        ]
 
 renderEditableEndTimeSlotCells :: (?context :: ControllerContext) => ExistingSlotDisplay -> RosterSlotCellTarget -> Text -> Int -> RosterSlot -> Html
 renderEditableEndTimeSlotCells display target groupKey blockIndex slot =
@@ -223,23 +214,17 @@ renderReadOnlyExistingSlotBlockCells :: (?context :: ControllerContext) => [Shif
 renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
     let display = buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot
         cells = readOnlyExistingSlotCells display endTimesEnabled blockIndex
-        cellCount = length cells
         groupKey = "existing:" <> tshow slot.id
         renderHighlightedCell cell =
             renderReadOnlyExistingSlotCell (rosterStaffHighlightAttrs slot.staffId groupKey) cell
-     in mconcat
-        [ profileExistingSlotCounters display endTimesEnabled cellCount
-        , profileRenderCounter "render.roster.readonly_cell" cellCount
-        , profileRenderCounter "render.roster.readonly_slim_cell" cellCount
-        , forEach cells renderHighlightedCell
-        ]
+     in forEach cells renderHighlightedCell
 
 buildExistingSlotDisplay :: [ShiftType] -> Bool -> RosterRenderIndexes -> RosterSlot -> ExistingSlotDisplay
-buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot =
+buildExistingSlotDisplay _shiftTypes publishAttempted renderIndexes slot =
     let (startTime, endTime, timingInvalid) = rosterTimingDisplay renderIndexes slot
         currentStartTime = optionalTimeOfDayToStorageValue startTime
         currentEndTime = optionalTimeOfDayToStorageValue endTime
-        currentShiftType = findShiftTypeForSlot shiftTypes slot.shiftTypeId
+        currentShiftType = slot.shiftTypeId >>= (`Map.lookup` renderIndexes.rosterShiftTypeById)
      in ExistingSlotDisplay
         { displayStartLabel = renderTimePickerDisplayLabel "Start" currentStartTime
         , displayEndLabel = renderTimePickerDisplayLabel "End" currentEndTime
@@ -255,29 +240,6 @@ buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot =
         , displayIsOpen = rosterShiftIsOpen slot
         , displayTimingInvalid = timingInvalid
         }
-
-profileExistingSlotCounters :: ExistingSlotDisplay -> Bool -> Int -> Html
-profileExistingSlotCounters display endTimesEnabled cellCount = mconcat
-    [ profileRenderCounter "render.roster.existing_slot" 1
-    , profileRenderCounter (if endTimesEnabled then "render.roster.existing_slot.end_times_enabled" else "render.roster.existing_slot.no_end_times") 1
-    , profileRenderCounter "render.roster.grid_cell" cellCount
-    , profileRenderCounter "render.roster.time_label" (if endTimesEnabled then 2 else 1)
-    , profileRenderCounter "render.roster.staff_label" 1
-    , profileRenderCounter "render.roster.shift_type_label" 1
-    , profileRenderCounter "render.roster.conflict_cell" (if isJust display.displayPrimaryConflict then 1 else 0)
-    , profileRenderCounter "render.roster.conflict_attr" (if isJust display.displayPrimaryConflict then 1 else 0)
-    , profileRenderCounter "render.roster.publish_required_marker" (sum (map fromEnum [display.displayMissingStartTime, display.displayMissingEndTime, display.displayMissingShiftType]))
-    ]
-
-profileEditableLauncherCounters :: Int -> Bool -> Html
-profileEditableLauncherCounters launcherCount hasStaffHighlight = mconcat
-    [ profileRenderCounter "render.roster.shift_launcher" launcherCount
-    , profileRenderCounter "render.roster.launcher_attr_bundle" launcherCount
-    , profileRenderCounter "render.roster.launcher_hx_attr" (launcherCount * 4)
-    , profileRenderCounter "render.roster.launcher_data_attr" (launcherCount * dataAttributeCount)
-    ]
-  where
-    dataAttributeCount = 4 + if hasStaffHighlight then 2 else 0
 
 readOnlyExistingSlotCells :: ExistingSlotDisplay -> Bool -> Int -> [ReadOnlyExistingSlotCell]
 readOnlyExistingSlotCells display True blockIndex =
@@ -362,11 +324,11 @@ renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes end
             Nothing -> [hsx|<div class="roster-shift-card roster-shift-card-empty"></div>|]
 
 renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Bool -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Bool -> Html
-renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes target isOpen staffId startTime endTime shiftTypeId currentPrimaryConflict timingInvalid =
+renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers _shiftTypes endTimesEnabled publishAttempted renderIndexes target isOpen staffId startTime endTime shiftTypeId currentPrimaryConflict timingInvalid =
     let currentStartTime = optionalTimeOfDayToStorageValue startTime
         currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentStaffLabel = if isOpen then "OPEN" else fromMaybe "" (renderAssignedStaffLabel staffId renderIndexes)
-        currentShiftType = findShiftTypeForSlot shiftTypes shiftTypeId
+        currentShiftType = shiftTypeId >>= (`Map.lookup` renderIndexes.rosterShiftTypeById)
         currentShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
         missingStartTime = publishAttempted && isJust staffId && isNothing startTime
         missingEndTime = publishAttempted && isJust staffId && isNothing endTime
@@ -439,23 +401,7 @@ renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes endTimesEnab
           groupKey = rosterShiftGroupKey target
           gridSpan = slotColumnCount endTimesEnabled
           visualCellClasses = createShiftUnitVisualCellClasses endTimesEnabled blockIndex
-          visualCellCount = length visualCellClasses
-       in mconcat
-        [ profileCreateSlotCounters endTimesEnabled visualCellCount
-        , renderCreateShiftUnit target groupKey visualCellClasses gridSpan
-        ]
-
-profileCreateSlotCounters :: Bool -> Int -> Html
-profileCreateSlotCounters endTimesEnabled cellCount = mconcat
-    [ profileRenderCounter "render.roster.create_slot" 1
-    , profileRenderCounter (if endTimesEnabled then "render.roster.create_slot.end_times_enabled" else "render.roster.create_slot.no_end_times") 1
-    , profileRenderCounter "render.roster.grid_cell" cellCount
-    , profileRenderCounter "render.roster.readonly_cell" cellCount
-    , profileRenderCounter "render.roster.shift_launcher" 1
-    , profileRenderCounter "render.roster.launcher_attr_bundle" 1
-    , profileRenderCounter "render.roster.launcher_hx_attr" 4
-    , profileRenderCounter "render.roster.launcher_data_attr" 3
-    ]
+       in renderCreateShiftUnit target groupKey visualCellClasses gridSpan
 
 createShiftUnitVisualCellClasses :: Bool -> Int -> [Text]
 createShiftUnitVisualCellClasses True blockIndex =
@@ -513,12 +459,8 @@ renderClosedBlockCells =
     renderBlankBlockCells "render.roster.closed_block" "slot-closed-cell"
 
 renderBlankBlockCells :: (?context :: ControllerContext) => Text -> Text -> Bool -> Int -> Html
-renderBlankBlockCells counterName baseClass endTimesEnabled blockIndex =
-    mconcat
-        [ profileRenderCounter counterName 1
-        , profileRenderCounter "render.roster.grid_cell" cellCount
-        , forEach cellClasses renderBlankGridCell
-        ]
+renderBlankBlockCells _counterName baseClass endTimesEnabled blockIndex =
+    forEach cellClasses renderBlankGridCell
     where
         cellCount = if endTimesEnabled then 4 else 3
         cellClasses =
@@ -605,8 +547,7 @@ renderReadOnlyCell value = [hsx|
 renderAssignedStaffLabel :: Maybe UUID -> RosterRenderIndexes -> Maybe Text
 renderAssignedStaffLabel Nothing _ = Nothing
 renderAssignedStaffLabel (Just assignedStaffId) renderIndexes =
-    staffDisplayName (Map.elems renderIndexes.rosterStaffById)
-        <$> Map.lookup assignedStaffId renderIndexes.rosterStaffById
+    Map.lookup assignedStaffId renderIndexes.rosterStaffLabelById
 
 lookupConflicts :: Id RosterSlot -> RosterRenderIndexes -> [RosterConflict]
 lookupConflicts slotId renderIndexes = Map.findWithDefault [] (coerce slotId) renderIndexes.rosterConflictsBySlotId
