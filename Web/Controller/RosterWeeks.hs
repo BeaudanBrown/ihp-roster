@@ -1499,24 +1499,18 @@ renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelCo
 renderRosterWeekPage requestedScope =
     profileActionSpan "roster.page.render" do
         setTitle "Roster"
-        rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
-        currentRosterGroup <- profileActionSpan "roster.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just requestedScope.rosterWindowRosterGroupId))
-        accessDeniedUnless (currentRosterGroup.id == requestedScope.rosterWindowRosterGroupId)
         rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel requestedScope)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
         passkeyStrongAuthenticationRequired <- profileActionSpan "roster.page.passkey_policy" currentUserRequiresMandatoryPasskey
-        timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just rosterData ->
+            Just rosterData -> do
+                timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl rosterData.currentRosterGroup.id)
                 let rosterPageGridModel =
                         (rosterGridRenderModelFromProjection rosterData)
-                            { gridRosterGroups = rosterGroups
-                            , gridCurrentRosterGroup = currentRosterGroup
-                            , gridTimelineTodayUrl = Just timelineTodayUrl
-                            }
-                 in profileActionSpan "roster.page.respond" $
-                        respondWithRosterWeekView ShowView { rosterPageGridModel, passkeySetupPrompt, passkeyStrongAuthenticationRequired }
+                            { gridTimelineTodayUrl = Just timelineTodayUrl }
+                profileActionSpan "roster.page.respond" $
+                    respondWithRosterWeekView ShowView { rosterPageGridModel, passkeySetupPrompt, passkeyStrongAuthenticationRequired }
             Nothing ->
                 externalRuntimeInvariantFailure PersistedRuntimeInvariant "Roster date range could not be projected for the selected roster group"
 

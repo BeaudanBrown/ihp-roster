@@ -1,6 +1,7 @@
 module Test.Controller.RosterWeeks.BaselineSpec where
 
-import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
+import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
+                                        syncStaffRosterGroupAssignments)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Maybe (fromJust)
@@ -39,6 +40,18 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                     contentFragment <- withUserAndCurrentVenue brManager brVenue.id do
                         callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
+                    toolbarFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
+                    frameFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekGridFrameFragmentAction (tshow (testAnchorForOffset 0)))
+                    dayColumnsFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekDayColumnsFragmentAction (tshow (testAnchorForOffset 0)))
+                    dayRailFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekDayRailFragmentAction (tshow (testAnchorForOffset 0)))
+                    wageRailFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekWageRailFragmentAction (tshow (testAnchorForOffset 0)))
+                    slotsGridFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekSlotsGridFragmentAction (tshow (testAnchorForOffset 0)))
                     rowFragment <- withUserAndCurrentVenue brManager brVenue.id do
                         callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id 0)
                     dayFragment <- withUserAndCurrentVenue brManager brVenue.id do
@@ -49,11 +62,19 @@ tests = aroundAll withDatabaseTestContext do
                     coldPage `responseStatusShouldBe` status200
                     warmPage `responseStatusShouldBe` status200
                     contentFragment `responseStatusShouldBe` status200
+                    toolbarFragment `responseStatusShouldBe` status200
+                    frameFragment `responseStatusShouldBe` status200
+                    dayColumnsFragment `responseStatusShouldBe` status200
+                    dayRailFragment `responseStatusShouldBe` status200
+                    wageRailFragment `responseStatusShouldBe` status200
+                    slotsGridFragment `responseStatusShouldBe` status200
                     rowFragment `responseStatusShouldBe` status200
                     dayFragment `responseStatusShouldBe` status200
                     staffPanel `responseStatusShouldBe` status200
 
                     serverTiming coldPage `shouldContainBS` "roster_direct_fetch_dated_slots;dur="
+                    forM_ [coldPage, warmPage, contentFragment, toolbarFragment, frameFragment, dayColumnsFragment, dayRailFragment, wageRailFragment, slotsGridFragment, rowFragment, dayFragment, staffPanel] \response ->
+                        countTimingSpan "roster_direct_base_facts" response `shouldBe` 1
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_staff_option_states;dur="
@@ -63,6 +84,12 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("cold-page", coldPage)
                         , ("warm-page", warmPage)
                         , ("content-fragment", contentFragment)
+                        , ("toolbar-fragment", toolbarFragment)
+                        , ("frame-fragment", frameFragment)
+                        , ("day-columns-fragment", dayColumnsFragment)
+                        , ("day-rail-fragment", dayRailFragment)
+                        , ("wage-rail-fragment", wageRailFragment)
+                        , ("slots-grid-fragment", slotsGridFragment)
                         , ("row-fragment", rowFragment)
                         , ("day-fragment", dayFragment)
                         , ("staff-panel", staffPanel)
@@ -70,6 +97,42 @@ tests = aroundAll withDatabaseTestContext do
 
                     bodyText <- cs . LByteString.unpack <$> responseBody contentFragment
                     bodyText `shouldContain` "data-roster-row"
+
+        it "preserves worker Draft visibility and founder support through one authorized snapshot" $ withContext do
+            withEnvironmentVariable "IHP_ROSTER_PROFILING" (Just "1") do
+                withCleanDb do
+                    BaselineRoster { brVenue, brRosterDay } <- createBaselineRoster
+                    worker <- createUserRecord "roster-snapshot-worker@example.com" "staff" True
+                    _ <- createVenueMembershipRecord brVenue worker Worker
+                    workerStaff <- createStaffRecord brVenue (Just worker) "Snapshot" "Worker"
+                    syncStaffRosterGroupAssignments workerStaff [Id brRosterDay.rosterGroupId]
+                    supportAdmin <- createUserRecordWithPlatformRole "roster-snapshot-support@example.com" "staff" (Just SuperAdmin) True
+
+                    hiddenPage <- withUserAndCurrentVenue worker brVenue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    hiddenRow <- withUserAndCurrentVenue worker brVenue.id do
+                        callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id 0)
+                    supportPage <- withUserAndCurrentVenue supportAdmin brVenue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    supportToolbar <- withUserAndCurrentVenue supportAdmin brVenue.id do
+                        callAction (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
+
+                    forM_ [hiddenPage, hiddenRow, supportPage, supportToolbar] \response -> do
+                        response `responseStatusShouldBe` status200
+                        countTimingSpan "roster_direct_base_facts" response `shouldBe` 1
+                    hiddenPage `responseBodyShouldNotContain` "Staff1"
+                    hiddenRow `responseBodyShouldNotContain` "Staff1"
+                    supportPage `responseBodyShouldContain` "Staff1"
+
+                    draftDays <- query @RosterDay
+                        |> filterWhere (#rosterGroupId, brRosterDay.rosterGroupId)
+                        |> fetch
+                    _ <- mapM (updateRecord . set #publicationState Published) draftDays
+                    publishedPage <- withUserAndCurrentVenue worker brVenue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    publishedPage `responseStatusShouldBe` status200
+                    countTimingSpan "roster_direct_base_facts" publishedPage `shouldBe` 1
+                    publishedPage `responseBodyShouldContain` "Staff1"
 
         it "keeps reads and lane mutations on the anchor-date window" $ withContext do
             withCleanDb do
@@ -209,6 +272,10 @@ shouldContainBS haystack needle =
 shouldNotContainBS :: HasCallStack => ByteString.ByteString -> ByteString.ByteString -> Expectation
 shouldNotContainBS haystack needle =
     haystack `shouldNotSatisfy` ByteString.isInfixOf needle
+
+countTimingSpan :: ByteString.ByteString -> Response -> Int
+countTimingSpan spanName response =
+    length (filter (ByteString.isPrefixOf (spanName <> ";")) (ByteString.split ',' (serverTiming response) |> map ByteString.strip))
 
 dumpBaselineTimings :: [(String, Response)] -> IO ()
 callRosterSlotActionWithParams action params =

@@ -12,6 +12,7 @@ module Web.RosterWeeks.DirectReadModel
     , decodeRosterConflictType
     , unavailableRosterConflict
     , fetchRosterBaseFactsDirect
+    , fetchRosterBaseFactsForAuthorizedScopeDirect
     , fetchRosterNotificationWindowDays
     ) where
 
@@ -28,6 +29,8 @@ import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import GHC.Generics (Generic)
 import Web.Controller.Prelude
+import Web.RosterWeeks.AuthorizedScope (AuthorizedRosterScope,
+                                        authorizedRosterWindowScope)
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
@@ -58,20 +61,24 @@ data RosterBaseFacts = RosterBaseFacts
     }
 
 fetchRosterBaseFactsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO (Maybe RosterBaseFacts)
-fetchRosterBaseFactsDirect scope =
-    profileActionSpan "roster.direct.base_facts" do
-        let rosterGroupId = scope.rosterWindowRosterGroupId
-        venueConfig <- query @VenueConfig
+fetchRosterBaseFactsDirect scope = do
+    let rosterGroupId = scope.rosterWindowRosterGroupId
+    venueConfig <- query @VenueConfig
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> fetchOne
+    rosterGroupInVenue <- profileActionSpan "roster.direct.validate_group_scope" do
+        query @RosterGroup
+            |> filterWhere (#id, rosterGroupId)
             |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchOne
-        rosterGroupInVenue <- profileActionSpan "roster.direct.validate_group_scope" do
-            query @RosterGroup
-                |> filterWhere (#id, rosterGroupId)
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> fetchExists
-        if not (rosterWindowScopeMatchesConfig venueConfig scope) || not rosterGroupInVenue
-            then pure Nothing
-            else Just <$> fetchRosterBaseFactsForScopeDirect scope
+            |> fetchExists
+    if not (rosterWindowScopeMatchesConfig venueConfig scope) || not rosterGroupInVenue
+        then pure Nothing
+        else Just <$> profileActionSpan "roster.direct.base_facts" (fetchRosterBaseFactsForScopeDirect scope)
+
+-- Only the authorization seam can construct the nominal scope accepted here.
+fetchRosterBaseFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO RosterBaseFacts
+fetchRosterBaseFactsForAuthorizedScopeDirect authorizedScope =
+    profileActionSpan "roster.direct.base_facts" (fetchRosterBaseFactsForScopeDirect authorizedScope.authorizedRosterWindowScope)
 
 fetchRosterBaseFactsForScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO RosterBaseFacts
 fetchRosterBaseFactsForScopeDirect scope =

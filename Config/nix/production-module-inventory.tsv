@@ -507,6 +507,7 @@ Web/Mail/WageSourceDrift.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/RosterTemplates/Mutations.hs	production	runtime	Main	Reachable from Main
+Web/RosterWeeks/AuthorizedScope.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/AvailabilityInputs.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Capabilities.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DateRange.hs	production	runtime	Main	Reachable from Main
