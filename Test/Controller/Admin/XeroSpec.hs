@@ -16,6 +16,7 @@ import Application.Helper.TimesheetSelection (TimesheetSelectionIdentity, encode
 import Application.Xero.Timesheets.ApprovalRecovery (recoverPreparationApprovals)
 import Application.Xero.Timesheets.Prepare (loadXeroTimesheetPreparationView)
 import Application.Helper.Xero
+import qualified Application.Helper.Xero as Xero
 import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                   validateXeroTimesheetReadiness)
@@ -33,6 +34,7 @@ import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
+import Data.Either (isRight)
 import qualified Data.IORef as IORef
 import qualified Data.List as List
 import Data.Scientific (Scientific)
@@ -1283,141 +1285,52 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "refresh-token"
 
-        it "shows synced Xero payroll-calendar periods that contain approved local entries without requiring a pay run" $ withContext do
+        it "offers paginated live draft periods without local shifts, deduplicated and using provider dates" $ withContext do
             withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                fixture <- Preview.createPreviewFixtureAtPeriod "weekly" (fromGregorian 2026 1 5) []
+                unavailable <- createXeroPayrollCalendarRecord fixture.connection "Unavailable calendar" "calendar-unavailable"
+                unavailableAt <- getCurrentTime
+                _ <- unavailable |> set #providerAvailable False |> set #providerUnavailableAt (Just unavailableAt) |> updateRecord
                 payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
-                _ <-
-                    payRun
-                        |> set #payPeriodStart (addDays 7 fixture.periodStart)
-                        |> set #payPeriodEnd (addDays 7 fixture.periodEnd)
-                        |> updateRecord
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
+                let draft :: XeroPayRunRef
+                    draft = xeroPayRunRefFromRecord payRun
+                    irregular :: XeroPayRunRef
+                    irregular = draft { xeroPayRunId = "irregular-draft", xeroPayRunPeriodStart = fromGregorian 2026 2 3, xeroPayRunPeriodEnd = fromGregorian 2026 2 12 }
+                    irregularKey = "calendar-preview:2026-02-03:2026-02-12"
+                    secondPage =
+                        [ irregular
+                        , draft { xeroPayRunId = "unavailable-calendar-draft", xeroPayRunCalendarId = "calendar-unavailable" }
+                        , draft { xeroPayRunId = "unknown-calendar-draft", xeroPayRunCalendarId = "calendar-unknown" }
+                        , irregular { Xero.xeroPayRunId = "posted-run", Xero.xeroPayRunStatus = Just "POSTED" }
+                        ]
+                encryptedToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <- fixture.connection |> set #encryptedRefreshToken encryptedToken |> updateRecord
+                baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                pages <- IORef.newIORef []
+                let client = baseClient
+                        { fetchPayRuns = \_ _ query -> do
+                            query.xeroPayRunWhere `shouldBe` Just "PayRunStatus==DRAFT"
+                            IORef.modifyIORef' pages (<> [query.xeroPayRunPage])
+                            pure $ Right $ case query.xeroPayRunPage of
+                                Just 1 -> [draft { Xero.xeroPayRunId = "same-period-draft-" <> tshow index } | index <- [1 .. 100 :: Int]]
+                                Just 2 -> secondPage
+                                _ -> []
+                        }
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest client do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction OpenXeroTimesheetPreparationAction
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldContain` "Upload timesheets"
-                response `responseBodyShouldNotContain` "DRAFT"
-                response `responseBodyShouldNotContain` "submitted already"
-
-        it "marks Xero pay periods that already have a local submitted run" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                _ <- createSubmissionRunForFixture fixture XeroSubmissionRunStatusEnumSubmitted
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldNotContain` "submitted already"
-
-        it "uses the latest local Xero submission run status for a pay period" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                older <- createSubmissionRunForFixture fixture XeroSubmissionRunStatusEnumFailed
-                newer <- createSubmissionRunForFixture fixture XeroSubmissionRunStatusEnumSubmitted
-                now <- getCurrentTime
-                _ <- older |> set #updatedAt (addUTCTime (-60) now) |> updateRecord
-                _ <- newer |> set #updatedAt now |> updateRecord
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "submitted already"
-                response `responseBodyShouldNotContain` "failed previously"
-
-        it "does not mark other Xero pay periods from local submission history" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                _ <-
-                    newRecord @XeroSubmissionRun
-                        |> set #venueId (unpackId fixture.venue.id)
-                        |> set #xeroConnectionId (unpackId fixture.connection.id)
-                        |> set #submittedByUserId (unpackId fixture.owner.id)
-                        |> set #payPeriodStart (addDays 7 fixture.periodStart)
-                        |> set #payPeriodEnd (addDays 7 fixture.periodEnd)
-                        |> set #selectedPayrollCalendarId (Just ("calendar-preview" :: Text))
-                        |> set #selectedPayrollCalendarName (Just ("Preview Calendar" :: Text))
-                        |> set #selectedPeriodKey (Just ("calendar-preview:" <> tshow (addDays 7 fixture.periodStart) <> ":" <> tshow (addDays 7 fixture.periodEnd) :: Text))
-                        |> set #status XeroSubmissionRunStatusEnumSubmitted
-                        |> createRecord
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldNotContain` "submitted already"
-
-        it "only offers payroll-calendar periods that match the approved employees' Xero calendars" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                _ <- createXeroPayrollCalendarRecord fixture.connection "Other Weekly Calendar" "calendar-other"
-                employees <- query @XeroEmployee |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
-                forM_ employees \employee ->
-                    employee
-                        |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employee.xeroEmployeeId, "PayrollCalendarID" Aeson..= ("calendar-other" :: Text)])
-                        |> updateRecord
-                        >>= const (pure ())
-                let otherPeriodKey = "calendar-other:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
-
-        it "does not show Xero pay periods that only have unapproved local entries" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                forM_ fixture.entries \entry ->
-                    entry
-                        |> set #isApproved False
-                        |> set #activePayCalculationId Nothing
-                        |> set #legacyPayBackfillPending False
-                        |> set #approvedAt Nothing
-                        |> set #approvedByUserId Nothing
-                        |> set #staffPayVersionId Nothing
-                        |> set #shiftTypePayVersionId Nothing
-                        |> updateRecord
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
-
-        it "does not show posted Xero pay-run periods in the draft-timesheet dropdown" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
-                _ <- payRun |> set #payRunStatus (Just ("POSTED" :: Text)) |> updateRecord
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
-
-        it "shows historical unposted Xero periods when they contain approved local entries" $ withContext do
-            withCleanDb do
-                let historicalStart = fromGregorian 2025 1 6
-                fixture <- Preview.createPreviewFixtureAtPeriod "weekly" historicalStart [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                _ <- createXeroPayRunForFixture fixture "DRAFT"
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowadminXeroShellLiveFragmentAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldNotContain` "DRAFT"
+                IORef.readIORef pages `shouldReturn` [Just 1, Just 2]
+                html <- cs . LByteString.unpack <$> responseBody response
+                let option key = "value=\"" <> key <> "\""
+                Text.count (option (fixturePeriodKey fixture)) html `shouldBe` 1
+                Text.count (option irregularKey) html `shouldBe` 1
+                html `shouldSatisfy` (not . Text.isInfixOf "value=\"calendar-unavailable:")
+                html `shouldSatisfy` (not . Text.isInfixOf "value=\"calendar-unknown:")
+                snd (Text.breakOn (option irregularKey) html) `shouldSatisfy` Text.isInfixOf (option (fixturePeriodKey fixture))
+                query @TimesheetEntry |> fetchCount `shouldReturn` 0
 
         it "queues missing-mapping refresh only for approval-pinned payroll-eligible work" $ withContext do
             withCleanDb do
@@ -1463,30 +1376,30 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 _ <- fixture.connection |> set #lastSyncAt (Just (addUTCTime (-1) now)) |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
 
-                response <- withXeroConfigForTest (Left "Roster-only work must not call Xero") do
+                response <- withFreshPreparationClient fixture do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction OpenXeroTimesheetPreparationAction
 
                 response `responseBodyShouldNotContain` "Refreshing Xero reference data"
-                response `responseBodyShouldNotContain` "Roster-only work must not call Xero"
+                response `responseBodyShouldContain` "name=\"periodKey\""
                 jobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 jobCount `shouldBe` 0
 
-        it "opens preparation from a fresh snapshot without requesting Xero" $ withContext do
+        it "opens preparation with a live draft query but no reference refresh for a fresh snapshot" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 now <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
 
-                response <- withXeroConfigForTest (Left "Xero must not be called for fresh preparation") do
+                response <- withFreshPreparationClient fixture do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction OpenXeroTimesheetPreparationAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
-                response `responseBodyShouldNotContain` "Xero must not be called"
+                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
                 appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 appJobCount `shouldBe` 0
 
@@ -1500,7 +1413,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 now <- getCurrentTime
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
 
-                response <- withXeroConfigForTest (Left "Xero must not be called after a successful fresh snapshot") do
+                response <- withFreshPreparationClient fixture do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction OpenXeroTimesheetPreparationAction
@@ -1520,7 +1433,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 placeholder <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 _ <- placeholder |> set #updatedAt (addUTCTime 1 now) |> updateRecord
 
-                response <- withXeroConfigForTest (Left "Xero must not be called for a placeholder already covered by the snapshot") do
+                response <- withFreshPreparationClient fixture do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction OpenXeroTimesheetPreparationAction
@@ -1545,7 +1458,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     |> set #payload (Aeson.object ["xeroConnectionId" Aeson..= tshow fixture.connection.id, "tenantId" Aeson..= fixture.connection.tenantId, "requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
                     |> updateRecord
 
-                response <- withXeroConfigForTest (Left "Xero must not be called while using a fresh snapshot") do
+                response <- withFreshPreparationClient fixture do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction OpenXeroTimesheetPreparationAction
@@ -1612,12 +1525,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 readyResponse `responseBodyShouldNotContain` "Xero must not be called"
                 query @XeroTimesheetPreparationRun |> fetchCount >>= (`shouldBe` 0)
 
-                resumedResponse <- withXeroConfigForTest (Left "Xero must not be called after preparation resumes") do
+                resumedResponse <- withFreshPreparationClient fixture do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction RunXeroTimesheetPreparationAction
                 resumedResponse `responseBodyShouldContain` "Prepare Xero draft timesheets"
-                resumedResponse `responseBodyShouldNotContain` "Xero must not be called"
+                resumedResponse `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
                 query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount >>= (`shouldBe` 1)
 
         it "opens the guided Xero preparation modal for a selected pay period" $ withContext do
@@ -1664,17 +1577,27 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldContain` "name=\"periodKey\""
                 response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\" selected=\"selected\"")
                 let oldPeriodKey = "calendar-preview:" <> tshow (addDays (-63) fixture.periodStart) <> ":" <> tshow (addDays (-57) fixture.periodStart)
-                response `responseBodyShouldContain` ("value=\"" <> oldPeriodKey <> "\"")
+                response `responseBodyShouldNotContain` ("value=\"" <> oldPeriodKey <> "\"")
                 response `responseBodyShouldNotContain` "hidden=\"hidden\""
                 response `responseBodyShouldNotContain` "Step "
                 response `responseBodyShouldNotContain` "Staff mappings"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
 
-                let summaryClient =
-                        (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] [])
-                            { fetchTimesheets = \_ _ _ -> pure (Left (XeroHttpError "period selection must not fetch Xero timesheets"))
-                            , fetchTimesheetsForPeriod = \_ _ _ _ _ -> pure (Left (XeroHttpError "period selection must not fetch scoped Xero timesheets"))
-                            }
+                selectionReads <- IORef.newIORef ([] :: [Text])
+                let unexpectedPayrollCall :: Text -> IO (Either XeroClientError result)
+                    unexpectedPayrollCall name = do
+                        IORef.modifyIORef' selectionReads (<> [name])
+                        pure (Left (XeroHttpError "selection must not read or write payroll timesheets"))
+                    summaryClient = xeroClient
+                        { fetchPayRuns = \token tenant query -> do
+                            IORef.modifyIORef' selectionReads (<> ["drafts"])
+                            fetchPayRuns xeroClient token tenant query
+                        , fetchTimesheets = \_ _ _ -> unexpectedPayrollCall "unscoped timesheets"
+                        , fetchTimesheetsForPeriod = \_ _ _ _ _ -> unexpectedPayrollCall "timesheets"
+                        , createPayItem = \_ _ _ _ -> unexpectedPayrollCall "pay items"
+                        , createTimesheet = \_ _ _ _ -> unexpectedPayrollCall "create"
+                        , updateTimesheet = \_ _ _ _ _ -> unexpectedPayrollCall "update"
+                        }
                 summaryResponse <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest summaryClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1683,6 +1606,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 summaryResponse `responseStatusShouldBe` status200
+                IORef.readIORef selectionReads `shouldReturn` ["drafts"]
                 summaryResponse `responseBodyShouldContain` "Choose shifts for Xero"
                 summaryResponse `responseBodyShouldContain` "timesheet-selection-form"
                 summaryResponse `responseBodyShouldContain` "Confirm and submit"
@@ -1708,6 +1632,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 confirmation `responseBodyShouldContain` "Choose shifts for Xero"
                 confirmation `responseBodyShouldNotContain` "Choose shifts…"
                 confirmation `responseBodyShouldNotContain` "Unselected existing content for those employees is removed."
+                -- Saving may recheck draft availability; only confirmation may
+                -- reconcile remote timesheets or write provider payroll data.
+                IORef.readIORef selectionReads >>= (`shouldSatisfy` all (== "drafts"))
                 backResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction (OpenXeroShiftSelectionAction preparationRun.id)
@@ -1772,14 +1699,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                             withRequestHeaders [("HX-Request", "true")] do
                                 callAction OpenXeroTimesheetPreparationAction
                 run <- query @XeroTimesheetPreparationRun |> fetchOne
-                let selectionClient =
-                        referenceSyncXeroClient
-                            (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText))
-                            []
-                            []
-                            []
                 response <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest selectionClient do
+                    withXeroClientForTest openClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 checklist <- callActionWithParams (SelectXeroTimesheetPreparationPeriodAction run.id)
@@ -2061,6 +1982,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         , fetchPayrollCalendars = fetchPayrollCalendars baseClient
                         , fetchAccounts = fetchAccounts baseClient
                         , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
+                        , fetchPayRuns = fetchPayRuns baseClient
                         , fetchTimesheetsForPeriod = \_ _ _ _ _ -> do
                             IORef.modifyIORef' timesheetFetchCountRef (+ 1)
                             IORef.readIORef remoteTimesheetsResultRef
@@ -2204,6 +2126,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         , fetchPayrollCalendars = fetchPayrollCalendars baseClient
                         , fetchAccounts = fetchAccounts baseClient
                         , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
+                        , fetchPayRuns = fetchPayRuns baseClient
                         }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
@@ -2280,56 +2203,71 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
                 preparationRun.status `shouldBe` ReadyForPreview
 
-        it "allows guided Xero preparation when the selected Xero pay run is posted" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                markOtherFixtureStaffNotPaid fixture
-                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
-                _ <-
-                    fixture.connection
-                        |> set #encryptedRefreshToken encryptedRefreshToken
-                        |> updateRecord
-                let postedPayRun =
-                        XeroPayRunRef
-                            { xeroPayRunId = "payrun-posted"
-                            , xeroPayRunCalendarId = "calendar-preview"
-                            , xeroPayRunPeriodStart = fixture.periodStart
-                            , xeroPayRunPeriodEnd = fixture.periodEnd
-                            , xeroPayRunPaymentDate = Nothing
-                            , xeroPayRunStatus = Just "POSTED"
-                            , xeroPayRunRaw = Aeson.object []
-                            }
-                baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
-                let client =
-                        baseClient
-                            { fetchPayRuns = \_ _ query ->
-                                pure case query.xeroPayRunPage of
-                                    Just 1 -> Right (replicate 100 postedPayRun)
-                                    _      -> Left (XeroHttpError "must stop after finding the selected pay run")
-                            }
+        forM_
+            [ ("empty", const (Right []), "This period no longer has a draft pay run in Xero.")
+            , ("posted", \draft -> Right [draft { Xero.xeroPayRunStatus = Just "POSTED" }], "This period no longer has a draft pay run in Xero.")
+            , ("unavailable", const (Left (XeroHttpError "draft query unavailable")), "Xero pay-run check failed: provider request could not be completed.")
+            ] \(label, liveResult, expectedMessage) -> do
+            it ("does not fall back to cached drafts when the live draft query is " <> label) $ withContext do
+                withCleanDb do
+                    fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
+                    encryptedToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                    _ <- fixture.connection |> set #encryptedRefreshToken encryptedToken |> updateRecord
+                    baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                    let client = baseClient { fetchPayRuns = \_ _ _ -> pure (liveResult (xeroPayRunRefFromRecord payRun)) }
+                    response <- withXeroConfigForTest (Right testXeroConfig) do
+                        withXeroClientForTest client do
+                            withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                                withRequestHeaders [("HX-Request", "true")] do
+                                    callAction OpenXeroTimesheetPreparationAction
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                    run <- query @XeroTimesheetPreparationRun |> fetchOne
+                    rejected <- withXeroConfigForTest (Right testXeroConfig) do
+                        withXeroClientForTest client do
+                            withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                                withRequestHeaders [("HX-Request", "true")] do
+                                    callActionWithParams (SelectXeroTimesheetPreparationPeriodAction run.id) [("periodKey", fixturePeriodKey fixture)]
+                    rejected `responseBodyShouldContain` "Choose a Xero pay period"
+                    unchanged <- fetch run.id
+                    unchanged.selectedPeriodKey `shouldBe` Nothing
+                    unchanged.selectedEntriesJson `shouldBe` Nothing
+                    query @XeroSubmissionRun |> fetchCount `shouldReturn` 0
 
-                _ <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest client do
-                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                            withRequestHeaders [("HX-Request", "true")] do
-                                callAction RunXeroTimesheetPreparationAction
-                preparationRunBeforeSelect <- query @XeroTimesheetPreparationRun |> fetchOne
-                response <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest client do
-                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                            withRequestHeaders [("HX-Request", "true")] do
-                                callActionWithParams (SelectXeroTimesheetPreparationPeriodAction preparationRunBeforeSelect.id)
-                                    [("periodKey", fixturePeriodKey fixture)]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "Readiness validation"
-                response `responseBodyShouldContain` "Choose shifts for Xero"
-                response `responseBodyShouldContain` "Confirm and submit"
-                response `responseBodyShouldNotContain` "Draft timesheet creation is blocked"
-                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                preparationRun.status `shouldBe` ReadyForPreview
-                preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
-                preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
+            it ("blocks confirmation before remote timesheet reads or writes when the draft query becomes " <> label) $ withContext do
+                withCleanDb do
+                    fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    run <- createPreparationRunForFixture fixture ReadyForPreview
+                    payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
+                    encryptedToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                    _ <- fixture.connection |> set #encryptedRefreshToken encryptedToken |> updateRecord
+                    baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                    calls <- IORef.newIORef ([] :: [Text])
+                    let unexpected :: Text -> IO (Either XeroClientError result)
+                        unexpected name = IORef.modifyIORef' calls (<> [name]) >> pure (Left (XeroHttpError "unexpected payroll operation"))
+                        client = baseClient
+                            { fetchPayRuns = \_ _ _ -> do
+                                IORef.modifyIORef' calls (<> ["drafts"])
+                                pure (liveResult (xeroPayRunRefFromRecord payRun))
+                            , fetchTimesheetsForPeriod = \_ _ _ _ _ -> unexpected "timesheets"
+                            , createPayItem = \_ _ _ _ -> unexpected "pay items"
+                            , createTimesheet = \_ _ _ _ -> unexpected "create"
+                            , updateTimesheet = \_ _ _ _ _ -> unexpected "update"
+                            }
+                    response <- withXeroConfigForTest (Right testXeroConfig) do
+                        withXeroClientForTest client do
+                            withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                                withRequestHeaders [("HX-Request", "true")] do
+                                    submitSelectedShifts run.id
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` expectedMessage
+                    response `responseBodyShouldNotContain` "draft query unavailable"
+                    IORef.readIORef calls `shouldReturn` ["drafts"]
+                    query @XeroSubmissionRun |> fetchCount `shouldReturn` 0
+                    unchanged <- fetch run.id
+                    unchanged.status `shouldNotBe` XeroTimesheetPreparationRunStatusEnumSubmitted
+                    unchanged.selectedEntriesJson `shouldBe` run.selectedEntriesJson
 
         it "checks the selected calendar and period for remote timesheets only after final confirmation" $ withContext do
             withCleanDb do
@@ -2591,6 +2529,41 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` countBefore
                 reloaded <- fetch calculation.id
                 reloaded.sealedAt `shouldBe` Nothing
+
+        forM_
+            [ ("tolerates a lock timeout during approval recovery without partial writes",
+               "CREATE TRIGGER test_reject_preparation_recovery BEFORE UPDATE ON xero_timesheet_preparation_runs FOR EACH ROW EXECUTE FUNCTION test_reject_preparation_recovery('55P03')",
+               \result -> result `shouldSatisfy` isRight)
+            , ("propagates non-lock database errors during approval recovery without partial writes",
+               "CREATE TRIGGER test_reject_preparation_recovery BEFORE UPDATE ON xero_timesheet_preparation_runs FOR EACH ROW EXECUTE FUNCTION test_reject_preparation_recovery('23514')",
+               \result -> result `shouldSatisfy` either (Text.isInfixOf "forced preparation recovery failure" . tshow) (const False))
+            ] \(description, triggerSql, assertOutcome) ->
+                it description $ withContext do
+                    withCleanDb do
+                        fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                        run <- createPreparationRunForFixture fixture NeedsApproval
+                        calculation <- query @TimesheetPayCalculation |> fetchOne
+                        Exception.bracket_
+                            (unsafeSqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations DISABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                            (unsafeSqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations ENABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                            (calculation |> set #sealedAt Nothing |> updateRecord >>= const (pure ()))
+                        countBefore <- query @TimesheetPayCalculation |> fetchCount
+                        Exception.bracket_
+                            (do
+                                unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_preparation_recovery() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'forced preparation recovery failure' USING ERRCODE = TG_ARGV[0]; END $$ LANGUAGE plpgsql" ()
+                                unsafeSqlExecDiscardResult triggerSql ())
+                            (do
+                                unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_preparation_recovery ON xero_timesheet_preparation_runs" ()
+                                unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_preparation_recovery()" ()) do
+                                result <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id $ withCurrentControllerContext do
+                                    Exception.try @HasqlSessionError (recoverPreparationApprovals run)
+                                assertOutcome result
+                        query @TimesheetPayCalculation |> fetchCount `shouldReturn` countBefore
+                        unchanged <- fetch run.id
+                        unchanged.selectedEntriesJson `shouldBe` run.selectedEntriesJson
+                        unchanged.updatedAt `shouldBe` run.updatedAt
+                        reloaded <- fetch calculation.id
+                        reloaded.sealedAt `shouldBe` Nothing
 
         it "performs no pay-item decision or account-code writes when ledger requirements are blocked" $ withContext do
             withCleanDb do

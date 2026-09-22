@@ -31,7 +31,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Test.Support.XeroTimesheet (currentVenueBuckets)
+import Test.Support.XeroTimesheet (createDraftPayRun, currentVenueBuckets)
 
 validateXeroTimesheetReadiness :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO XeroTimesheetReadiness
 validateXeroTimesheetReadiness request =
@@ -853,6 +853,27 @@ tests = do
                 fortnightlyReadiness <- validateXeroTimesheetReadiness fortnightly.request
                 fortnightlyReadiness.xeroTimesheetReady `shouldBe` True
 
+        it "requires a persisted matching draft, not a claimed request status" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
+                let expectMissingDraft request = do
+                        readiness <- validateXeroTimesheetReadiness request
+                        readiness.xeroTimesheetReady `shouldBe` False
+                        readinessBlockerCodes readiness `shouldBe` ["missing_draft_pay_run"]
+                expectMissingDraft fixture.request { readinessXeroPayRunId = Nothing }
+                expectMissingDraft fixture.request { readinessXeroPayRunId = Just "unknown-pay-run" }
+                forM_ [Just "POSTED", Just "FUTURE_STATUS", Nothing] \status -> do
+                    _ <- payRun |> set #payRunStatus status |> updateRecord
+                    expectMissingDraft fixture.request
+                _ <- payRun |> set #payRunStatus (Just ("DRAFT" :: Text)) |> set #payPeriodEnd (addDays 1 payRun.payPeriodEnd) |> updateRecord
+                expectMissingDraft fixture.request
+                _ <- payRun |> set #payRunStatus (Just ("DRAFT" :: Text)) |> set #payPeriodEnd payRun.payPeriodEnd |> set #xeroPayrollCalendarId ("another-calendar" :: Text) |> updateRecord
+                expectMissingDraft fixture.request
+                _ <- payRun |> set #payRunStatus (Just ("DRAFT" :: Text)) |> set #payPeriodEnd payRun.payPeriodEnd |> set #xeroPayrollCalendarId payRun.xeroPayrollCalendarId |> updateRecord
+                readiness <- validateXeroTimesheetReadiness fixture.request
+                readinessBlockerCodes readiness `shouldBe` []
+
         it "blocks tampered selected period keys" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
@@ -889,6 +910,7 @@ createReadinessFixtureWithMappings readyMapped calendarType periodStart periodEn
     connection <- createReadinessXeroConnection venue owner
     _ <- createSucceededXeroSyncRun venue connection
     _ <- createReadinessPayrollCalendar venue connection calendarType periodStart
+    payRun <- createDraftPayRun venue connection "calendar-ready" periodStart periodEnd
     buckets <- currentVenueBuckets venue periodStart
     requirements <- forM buckets \bucket ->
         newRecord @XeroPayItemRequirementRecord
@@ -915,8 +937,8 @@ createReadinessFixtureWithMappings readyMapped calendarType periodStart periodEn
                     , readinessPeriodStart = periodStart
                     , readinessPeriodEnd = periodEnd
                     , readinessPaymentDate = Nothing
-                    , readinessXeroPayRunId = Nothing
-                    , readinessXeroPayRunStatus = Nothing
+                    , readinessXeroPayRunId = Just payRun.xeroPayRunId
+                    , readinessXeroPayRunStatus = payRun.payRunStatus
                     , readinessRemoteTimesheets = []
                     , readinessSkippedStaffIds = []
                     , readinessSelection = AllEligible
