@@ -57,7 +57,7 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   suggestions from that group; ad-hoc entries have no group and appear only
   under All roster groups.
 - Timesheets uses the shared transient SidePanel and the same main-card header,
-  desktop focus/Escape behavior, and phone stacking as Roster and manager
+  desktop focus/Escape behavior, and responsive tools shelf as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
   contains every active Timesheet-eligible staff member independently of card
   filters. Its counts exclude transient suggestions, ignore the staff card

@@ -41,6 +41,14 @@ Focused global capabilities (overlay, toggle, picker, ordered range, horizontal
 scroll, SidePanel, passkey, PWA install, filters) own reusable exact contracts
 only. SidePanel owns nearest-root visibility, ARIA/icon/focus/Escape mechanics,
 and replacement reconciliation; features own panel content and authorization.
+Below the desktop split breakpoint, the same panel becomes a full-height tools
+shelf below sticky navigation. Its bottom launcher moves with the shelf to become
+its top close bar; the bar and tabs remain visible while content scrolls. Shelf
+visibility is independent of desktop expansion. Covered page content is inert and
+scroll-locked, while navigation and overlaid workflow dialogs remain usable.
+Closing preserves mounted forms and tabs; same-feature HTMX replacement preserves
+open state, while changing feature or returning from desktop starts closed.
+Activating a linked-highlight pin closes the shelf to reveal the main content.
 Haskell owns values, routes, workflow/error copy, and server validation; adapters
 keep browser/platform mechanics local and leave malformed boundaries untouched.
 Capabilities compose through generated roles/native state rather than importing

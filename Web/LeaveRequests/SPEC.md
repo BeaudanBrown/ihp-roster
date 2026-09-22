@@ -26,7 +26,7 @@
   entry points through the existing generic runtime; only one is rendered per page.
   Availability warnings stay outside the panes, and Archive retains pagination.
 - The manager page uses the shared transient Staff/Settings SidePanel with the
-  same main-card header, desktop focus/Escape behavior, and phone stacking as
+  same main-card header, desktop focus/Escape behavior, and responsive tools shelf as
   Roster and Timesheets. Its Staff
   inventory remains complete regardless of main-list filters; hover/focus and
   pinning only highlight matching server-rendered requests and never alter query
