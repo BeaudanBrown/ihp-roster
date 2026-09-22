@@ -7,15 +7,19 @@ module Application.Helper.View.ToggleButton
     , defaultAppToggleButtonConfig
     , defaultAppToggleStateButtonConfig
     , namedBooleanToggleField
+    , namedCheckboxToggleField
     , renderAppToggleBreakRegion
     , renderAppToggleButton
     , renderAppToggleHiddenField
+    , renderAppToggleNavigationButton
     , surfaceToggleListItemField
     , surfaceToggleScalarField
     , toggleBreakRegion
     ) where
 
 import Application.Helper.FrontendContract.Toggle.Runtime
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..), renderFrontendSurfaceActionNavigationButton)
 import qualified Data.Text as Text
 import IHP.ViewPrelude
 
@@ -59,10 +63,43 @@ defaultAppToggleStateButtonConfig inputId fieldBinding checked checkedLabel unch
 
 renderAppToggleButton :: AppToggleButtonConfig -> Html
 renderAppToggleButton config@AppToggleButtonConfig { .. } =
-    [hsx|<label class={appToggleButtonClasses config} for={appToggleInputId} {...[(toggleDom.toggleRootAttribute, transportKey)]} aria-pressed={boolAttr appToggleChecked}>{renderAppToggleTransport config}{renderAppToggleInput config}{renderAppToggleLabel appToggleChecked appToggleLabel}</label>|]
+    [hsx|<label class={appToggleButtonClasses config} for={appToggleInputId} {...[(toggleDom.toggleRootAttribute, transportKey)]}>{renderAppToggleTransport config}{renderAppToggleInput config}{renderAppToggleContent (appToggleUsesSwitch config) (renderAppToggleLabel appToggleChecked appToggleLabel)}</label>|]
   where
     toggleDom = canonicalToggleDomAttributes
     transportKey = toggleTransportKey appToggleInputId
+
+-- | Navigation uses a native button for Space/Enter activation while retaining
+-- the Surface-owned GET, query fields, swap and target. It shares presentation,
+-- not the form toggle's transport or optimistic local state.
+renderAppToggleNavigationButton :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Bool -> Html -> Html
+renderAppToggleNavigationButton action route checked label =
+    renderFrontendSurfaceActionNavigationButton action routeWithToggleAttrs (renderAppToggleContent True label)
+  where
+    routeWithToggleAttrs = route
+        { actionRouteExtraAttrs =
+            [ ("class", "btn app-toggle-button btn-sm")
+            , ("role", "switch")
+            , ("aria-checked", boolAttr checked)
+            ] <> route.actionRouteExtraAttrs
+        }
+
+-- | The same presentation is used by form controls and navigation. Indicators
+-- are decorative; the native input/button owns the accessible state.
+renderAppToggleContent :: Bool -> Html -> Html
+renderAppToggleContent isSwitch label = [hsx|
+    <span class="app-toggle-button-content">
+        {unless isSwitch checkboxIndicator}
+        <span class="app-toggle-button-label">{label}</span>
+        {when isSwitch switchIndicator}
+    </span>
+|]
+  where
+    checkboxIndicator = [hsx|<span class="app-toggle-indicator app-toggle-indicator--checkbox" aria-hidden="true"></span>|]
+    switchIndicator = [hsx|<span class="app-toggle-indicator app-toggle-indicator--switch" aria-hidden="true"></span>|]
+
+appToggleUsesSwitch :: AppToggleButtonConfig -> Bool
+appToggleUsesSwitch AppToggleButtonConfig { appToggleRoleSwitch, appToggleSubmitPolicy } =
+    appToggleRoleSwitch || appToggleSubmitPolicy == ToggleSubmitImmediate
 
 renderAppToggleLabel :: Bool -> AppToggleButtonLabel -> Html
 renderAppToggleLabel _ (AppToggleStaticLabel label) = label
@@ -102,8 +139,8 @@ renderAppToggleInput :: AppToggleButtonConfig -> Html
 renderAppToggleInput config@AppToggleButtonConfig { .. } =
     [hsx|<input id={appToggleInputId} class={appToggleInputClasses config} type="checkbox" {...attributes}/>|]
   where
-    attributes = maybeAttr "role" (switchRoleAttr appToggleRoleSwitch)
-        <> maybeAttr "aria-checked" (switchAriaCheckedAttr appToggleRoleSwitch appToggleChecked)
+    attributes = maybeAttr "role" (switchRoleAttr (appToggleUsesSwitch config))
+        <> maybeAttr "aria-checked" (switchAriaCheckedAttr (appToggleUsesSwitch config) appToggleChecked)
         <> maybeAttr "aria-controls" (toggleBreakRegionId <$> appToggleBreakRegion)
         <> checkedAttr appToggleChecked
         <> [ (canonicalToggleDomAttributes.toggleInputAttribute, toggleTransportKey appToggleInputId)
@@ -140,7 +177,6 @@ appToggleButtonClasses :: AppToggleButtonConfig -> Text
 appToggleButtonClasses AppToggleButtonConfig { appToggleButtonClass } =
     classes
         [ ("btn", True)
-        , ("btn-outline-success", True)
         , ("app-toggle-button", True)
         , (appToggleButtonClass, not (Text.null appToggleButtonClass))
         ]

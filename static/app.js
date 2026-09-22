@@ -7467,7 +7467,6 @@
 
   // frontend/ts/app-toggle-buttons.ts
   var initializedControls = /* @__PURE__ */ new WeakMap();
-  var checkedClass = "is-toggle-checked";
   function targetsEqual(left, right) {
     if (left.tag !== right.tag) return false;
     if (left.tag === "omitted" || right.tag === "omitted") return true;
@@ -7579,16 +7578,14 @@
       }
       breakRegion = regions[0];
     }
-    return { input, root, form, transport, breakRegion, labels, config };
+    return { input, form, transport, breakRegion, labels, config };
   }
   function synchronizeToggle(control) {
-    const { input, root, transport, breakRegion, labels, config } = control;
+    const { input, transport, breakRegion, labels, config } = control;
     const checked = input.checked;
     const transportState = toggleTransportState(toggleTargetForChecked(config, checked));
     transport.value = transportState.value;
     transport.disabled = transportState.disabled;
-    root.classList.toggle(checkedClass, checked);
-    root.setAttribute("aria-pressed", String(checked));
     if (input.getAttribute("role") === "switch") {
       input.setAttribute("aria-checked", String(checked));
     }

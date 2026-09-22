@@ -35,6 +35,11 @@
     flex: 0 0 auto;
 }
 
+/* Let Bootstrap's wrapping rows reflow before a status control is squeezed. */
+.admin-toggle-column {
+    min-width: max-content;
+}
+
 .admin-shift-colour-select {
     --roster-shift-type-palette-1: var(--roster-shift-type-palette-1-soft);
     --roster-shift-type-palette-2: var(--roster-shift-type-palette-2-soft);

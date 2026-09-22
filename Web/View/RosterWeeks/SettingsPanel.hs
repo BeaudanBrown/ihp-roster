@@ -178,12 +178,11 @@ renderRosterWageEstimatePreferenceForm anchorDate rosterGroupId viewCapabilities
 renderRosterOwnLiveShiftHighlightToggle :: ActionFields RosterAction.ToggleRosterOwnLiveShiftHighlightActionOperation -> Bool -> Html
 renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             "highlight-own-live-shifts"
             (surfaceToggleScalarField @Surface.HighlightOwnLiveShifts fields True False)
             highlightOwnLiveShifts
-            [hsx|<span class="small">Own shifts highlighted</span>|]
-            [hsx|<span class="small">Own shifts not highlighted</span>|]
+            [hsx|<span class="small">Highlight my shifts</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100 justify-content-start"
             , appToggleSubmitPolicy = ToggleSubmitImmediate
@@ -192,12 +191,11 @@ renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
 renderRosterWarningToggle :: ActionFields RosterAction.ToggleRosterWarningsActionOperation -> Bool -> Html
 renderRosterWarningToggle fields showRosterWarnings =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             "show-roster-warnings"
             (surfaceToggleScalarField @Surface.ShowRosterWarnings fields True False)
             showRosterWarnings
-            [hsx|<span class="small">Warnings enabled</span>|]
-            [hsx|<span class="small">Warnings disabled</span>|]
+            [hsx|<span class="small">Show roster warnings</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100 justify-content-start"
             , appToggleSubmitPolicy = ToggleSubmitImmediate
@@ -206,12 +204,11 @@ renderRosterWarningToggle fields showRosterWarnings =
 renderRosterWageEstimateToggle :: ActionFields RosterAction.ToggleRosterWageEstimatesActionOperation -> Bool -> Html
 renderRosterWageEstimateToggle fields showWageEstimates =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             "show-wage-estimates"
             (surfaceToggleScalarField @Surface.ShowWageEstimates fields True False)
             showWageEstimates
-            [hsx|<span class="small">Wages enabled</span>|]
-            [hsx|<span class="small">Wages disabled</span>|]
+            [hsx|<span class="small">Show wage estimates</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100 justify-content-start"
             , appToggleSubmitPolicy = ToggleSubmitImmediate

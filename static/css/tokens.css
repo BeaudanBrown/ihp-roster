@@ -37,6 +37,7 @@
     --app-accent-border-soft: rgba(139, 181, 255, 0.22);
     --app-accent-border-strong: rgba(139, 181, 255, 0.55);
     --app-focus-ring: rgba(139, 181, 255, 0.28);
+    --app-focus-outline: var(--app-accent);
 
     --app-success: #42b883;
     --app-success-soft: rgba(66, 184, 131, 0.16);

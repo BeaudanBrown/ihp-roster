@@ -54,6 +54,14 @@ keep browser/platform mechanics local and leave malformed boundaries untouched.
 Capabilities compose through generated roles/native state rather than importing
 one another's feature meaning.
 
+Binary settings that apply immediately use switches; selections saved with a
+form use checkboxes. Both share neutral, whole-control click/touch containers,
+with checked colour confined to the indicator. Labels remain stable and
+single-line; narrow layouts reduce columns rather than wrap labels or shrink
+indicators. Native checked state and keyboard focus remain accessible. Navigation
+switches retain Surface-owned GET/query semantics, while form controls retain
+their declared immediate/deferred submission and value-or-omission mappings.
+
 Concrete mount keys participate in IDs, targets, layer/form IDs, and runtime
 lookup. All discovery stays within the nearest owning mount and must not cross a
 nested Surface. Reconciliation from an inner HTMX replacement still resolves its
