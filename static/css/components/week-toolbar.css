@@ -71,10 +71,29 @@
     }
 
     .app-week-toolbar-roster {
+        grid-template-columns: minmax(0, 1fr) auto;
         grid-template-areas:
-            "primary top-spacer settings"
-            "navigation navigation navigation"
-            "auxiliary auxiliary auxiliary";
+            "quick settings"
+            "navigation navigation"
+            "auxiliary auxiliary";
+    }
+
+    /* Keep Published and This week in normal flow; wrap controls, not labels. */
+    .app-week-toolbar-roster .app-week-toolbar-quick {
+        display: flex;
+    }
+
+    .app-week-toolbar-roster .app-week-toolbar-primary {
+        flex: 0 0 auto;
+    }
+
+    .app-week-toolbar-roster .app-week-toolbar-reset {
+        grid-column: auto;
+        grid-row: auto;
+        flex: 0 0 auto;
+        width: auto;
+        margin-inline-start: auto;
+        pointer-events: auto;
     }
 
     .app-week-toolbar-timesheets {
