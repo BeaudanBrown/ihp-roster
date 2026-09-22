@@ -1,5 +1,7 @@
 module Test.PublicHolidaySyncSpec where
 
+import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
+import Application.Helper.LiveUpdate.DurableCodec (decodeDurableResource, encodeDurableResource)
 import Application.PublicHolidays.Coverage
 import Application.PublicHolidays.Job (performPublicHolidayRefreshJobWith,
                                        publicHolidayRefreshJobKind)
@@ -79,10 +81,17 @@ databaseTests = do
                     let summary = PublicHolidaySyncSummary [] 0 0 0 0 0 0 0
                     performPublicHolidayRefreshJobWith (pure summary) appJob
                     [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "support.public_holidays.refresh" :: Text) |> fetch
-                    query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
-                    [freshnessCheck] <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
-                    freshnessCheck.relatedId `shouldBe` Just (unpackId appJob.id)
-                    freshnessCheck.runAt `shouldSatisfy` (> addUTCTime dataVicMaximumAge appJob.createdAt)
+                    resources <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetch
+                    map (\resource -> decodeDurableResource resource.resourceKey resource.resourcePayload) resources
+                        `shouldBe` [encodeDurableResource supportPublicHolidaysResource]
+                    completedJob <- fetch appJob.id
+                    completedJob.status `shouldBe` JobStatusSucceeded
+                    now <- getCurrentTime
+                    healthChecks <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
+                    map (\check -> (check.relatedId, check.runAt <= now)) healthChecks
+                        `shouldMatchList` [(Nothing, True), (Just (unpackId appJob.id), False)]
+                    forM_ (filter (isJust . (.relatedId)) healthChecks) \freshnessCheck ->
+                        freshnessCheck.runAt `shouldSatisfy` (> addUTCTime dataVicMaximumAge appJob.createdAt)
 
             it "rejects malformed and wrong-jurisdiction persisted refresh payloads" $ withContext do
                 withCleanDb do
