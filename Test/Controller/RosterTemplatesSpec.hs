@@ -343,7 +343,7 @@ tests = aroundAll withDatabaseTestContext do
     describe "RosterTemplatesController date-native application" do
         it "previews and applies a Week template through typed button transport" $ withContext do
             withCleanDb do
-                fixture <- controllerCaptureFixture "Controller application"
+                fixture <- controllerProjectedFixture "Controller application"
                 let actor = rosterTemplateActor fixture.manager fixture.venue True
                     content = RosterTemplateContent
                         { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
@@ -367,6 +367,7 @@ tests = aroundAll withDatabaseTestContext do
                         , (applicationAnchorDateParam, cs (tshow fixture.windowStart))
                         , (rosterCalendarRevisionParam, cs (tshow venueConfig.rosterCalendarRevision))
                         ]
+                dayCountAfterPreview <- query @RosterDay |> filterWhere (#rosterGroupId, unpackId fixture.rosterGroup.id) |> fetchCount
                 renderedAnchorDate <- hiddenInputValue (surfaceFieldNameFrom @Surface.AnchorDate applicationApplyTransportFields) preview
                 expectedTargetRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedTargetRevision applicationApplyTransportFields) preview
                 expectedCalendarRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.RosterCalendarRevision applicationApplyTransportFields) preview
@@ -382,6 +383,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 preview `responseStatusShouldBe` status200
                 preview `responseBodyShouldContain` "Apply Controller week"
+                dayCountAfterPreview `shouldBe` 0
                 renderedAnchorDate `shouldBe` cs (tshow fixture.windowStart)
                 applied `responseStatusShouldBe` status302
                 activeSlotCount `shouldBe` 1
@@ -413,6 +415,11 @@ data ControllerCaptureFixture = ControllerCaptureFixture
     }
 
 controllerCaptureFixture :: (?modelContext :: ModelContext) => Text -> IO ControllerCaptureFixture
+controllerCaptureFixture label = controllerFixture label True
+
+controllerProjectedFixture :: (?modelContext :: ModelContext) => Text -> IO ControllerCaptureFixture
+controllerProjectedFixture label = controllerFixture label False
+
 hiddenInputValue :: Text -> Response -> IO ByteString
 hiddenInputValue name response = do
     bodyBytes <- responseBody response
@@ -421,14 +428,17 @@ hiddenInputValue name response = do
         suffix = Text.drop (Text.length marker) (snd (Text.breakOn marker body))
     pure (cs (Text.takeWhile (/= '\"') suffix))
 
-controllerCaptureFixture label = do
+controllerFixture :: (?modelContext :: ModelContext) => Text -> Bool -> IO ControllerCaptureFixture
+controllerFixture label materializeDays = do
     venue <- createVenueWithConfig label
     rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
     manager <- createUserRecord ("controller-capture-" <> tshow venue.id <> "@example.com") "staff" True
     _ <- createVenueMembershipRecord venue manager Manager
     shiftType <- ensureVenueDefaultShiftType venue
     let windowStart = testAnchorForOffset 24
-    days <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) windowStart) dayIndex)
+    days <- if materializeDays
+        then forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) windowStart) dayIndex)
+        else pure []
     pure ControllerCaptureFixture { .. }
 
 createControllerCaptureSlot :: (?modelContext :: ModelContext) => RosterDay -> ShiftType -> IO RosterSlot

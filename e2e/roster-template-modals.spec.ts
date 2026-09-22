@@ -55,6 +55,46 @@ async function ensureCompleteDraftWindow(page: Page) {
     return windowStart;
 }
 
+async function findEmptyFutureWeekOffset(page: Page, firstOffset: number) {
+    const anchorDate = new URL(page.url()).searchParams.get('anchorDate');
+    if (anchorDate === null) throw new Error('Expected canonical roster anchor date');
+    for (let offset = firstOffset; offset < firstOffset + 80; offset += 1) {
+        const count = Number(querySql(`
+            WITH boundary AS (
+                SELECT DATE '${anchorDate}'
+                    - ((EXTRACT(DOW FROM DATE '${anchorDate}')::INT - roster_week_starts_on + 7) % 7) AS window_start
+                FROM venue_config
+                WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+            )
+            SELECT COUNT(*)
+            FROM roster_days, boundary
+            WHERE roster_group_id = '${defaultE2ERosterGroupId}'
+              AND operational_date >= window_start + (${offset} * 7)
+              AND operational_date < window_start + ((${offset} + 1) * 7);
+        `).trim());
+        if (count === 0) return offset;
+    }
+    throw new Error('No empty future roster week available for template E2E');
+}
+
+function currentWindowDayCount(page: Page) {
+    const anchorDate = new URL(page.url()).searchParams.get('anchorDate');
+    if (anchorDate === null) throw new Error('Expected selected roster anchor date');
+    return Number(querySql(`
+        WITH boundary AS (
+            SELECT DATE '${anchorDate}'
+                - ((EXTRACT(DOW FROM DATE '${anchorDate}')::INT - roster_week_starts_on + 7) % 7) AS window_start
+            FROM venue_config
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+        )
+        SELECT COUNT(*)
+        FROM roster_days, boundary
+        WHERE roster_group_id = '${defaultE2ERosterGroupId}'
+          AND operational_date >= window_start
+          AND operational_date < window_start + 7;
+    `).trim());
+}
+
 async function openTemplatesTab(page: Page) {
     const tab = page.getByRole('tab', { name: 'Templates', exact: true }).first();
     await expect(tab).toBeVisible();
@@ -112,6 +152,73 @@ test.describe('Roster Week-template modals', () => {
     test.beforeEach(async ({ page }) => {
         await openRoster(page, { weekOffset: 40, ensureDraft: true, ensureEditable: true });
         await expect(page.locator('#roster-week-shell')).toBeVisible();
+    });
+
+    test('previews a template on a projected week without persistence and materializes on approval', async ({ page }) => {
+        test.slow();
+        const templateName = uniqueE2EValue('Projected apply');
+        try {
+            runSql(`
+                DELETE FROM roster_templates
+                WHERE name = '${templateName.replaceAll("'", "''")}';
+                BEGIN;
+                SET CONSTRAINTS roster_templates_complete_content_fk DEFERRED;
+                INSERT INTO roster_templates (id, roster_group_id, name, scale, completion_id, created_by_user_id)
+                VALUES (
+                    md5('${templateName.replaceAll("'", "''")}-template')::uuid,
+                    '${defaultE2ERosterGroupId}',
+                    '${templateName.replaceAll("'", "''")}',
+                    'week',
+                    md5('${templateName.replaceAll("'", "''")}-completion')::uuid,
+                    (SELECT id FROM users WHERE email = 'e2e-test@example.com' LIMIT 1)
+                );
+                INSERT INTO roster_template_days (id, roster_template_id, day_index, weekday_index, is_closed, row_count)
+                SELECT
+                    md5('${templateName.replaceAll("'", "''")}-day-' || day_index)::uuid,
+                    md5('${templateName.replaceAll("'", "''")}-template')::uuid,
+                    day_index,
+                    day_index,
+                    FALSE,
+                    2
+                FROM generate_series(0, 6) AS day_index;
+                INSERT INTO roster_template_columns (roster_template_id, name, sort_order)
+                VALUES (md5('${templateName.replaceAll("'", "''")}-template')::uuid, 'Only', 0);
+                INSERT INTO roster_template_completions (id, roster_template_id)
+                VALUES (
+                    md5('${templateName.replaceAll("'", "''")}-completion')::uuid,
+                    md5('${templateName.replaceAll("'", "''")}-template')::uuid
+                );
+                COMMIT;
+            `);
+            const emptyOffset = await findEmptyFutureWeekOffset(page, 180);
+            await openRoster(page, { weekOffset: emptyOffset, ensureEditable: false, useCurrentSession: true });
+            expect(currentWindowDayCount(page)).toBe(0);
+            await openTemplatesTab(page);
+            const card = page.locator('.roster-template-card').filter({ hasText: templateName });
+
+            await submitTemplateCardAction(card.getByRole('button', { name: `Apply ${templateName}` }), '/PreviewRosterTemplateApplication');
+            let dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
+            await expect(dialog).toBeVisible();
+            expect(currentWindowDayCount(page)).toBe(0);
+            await dialog.getByRole('button', { name: 'Cancel' }).click();
+            expect(currentWindowDayCount(page)).toBe(0);
+
+            await submitTemplateCardAction(card.getByRole('button', { name: `Apply ${templateName}` }), '/PreviewRosterTemplateApplication');
+            dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
+            const applyResponse = page.waitForResponse((response) =>
+                response.request().method() === 'POST' && response.url().includes('/ApplyRosterTemplate'),
+            );
+            await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
+            expect((await applyResponse).status()).toBe(200);
+            await expect(dialog).toBeHidden();
+            expect(currentWindowDayCount(page)).toBe(7);
+        } finally {
+            runSql(`
+                UPDATE roster_templates
+                SET deleted_at = COALESCE(deleted_at, NOW())
+                WHERE name = '${templateName.replaceAll("'", "''")}';
+            `);
+        }
     });
 
     test('uses the same accessible Save modal on desktop and canonical mobile @canonical-mobile', async ({ page }) => {
