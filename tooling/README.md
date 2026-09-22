@@ -25,7 +25,11 @@ bash ./bin/in-env tooling-foundation-test
 `bin/tooling-run` enters the focused `.#tooling` Nix shell when necessary, builds
 only the selected Cabal component in this worktree's `tooling/dist-newstyle`, and
 executes only the path reported by the successful build. Build failure stops;
-there is no stale-binary fallback or prebuilt execution mode.
+there is no stale-binary fallback or prebuilt execution mode. Project commands
+capture their compiler PATH before fixture/runtime shims change PATH; only the
+Cabal subprocess uses it. The executed tool still receives the caller's PATH.
+Git filters Nix environment inputs, while Cabal reads live dirty/untracked
+Haskell sources. Build/output/log directories do not enter shell resolution.
 
 ## Packages
 

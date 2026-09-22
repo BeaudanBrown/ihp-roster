@@ -12,11 +12,12 @@ if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
         1) e2e-runtime cleanup --apply >/dev/null 2>&1 || true ;;
         *) echo "e2e: E2E_RUNTIME_AUTO_CLEANUP must be 0 or 1" >&2; exit 64 ;;
     esac
-    export E2E_RUN_ID="${E2E_RUN_ID:-$("$launcher" runners id)}"
+    export BEPIS_RUNNERS_BINARY="$("$launcher" runners --print-binary)"
+    export E2E_RUN_ID="${E2E_RUN_ID:-$("$BEPIS_RUNNERS_BINARY" id)}"
     runner_args=(run --family e2e --workspace "$workspace" --run-id "$E2E_RUN_ID" \
         --artifact-dir "$(realpath -m "$workspace/.devenv/e2e/$E2E_RUN_ID/failure")")
     [ "${E2E_KEEP_RUNTIME:-0}" != 1 ] || runner_args+=(--retain-success)
-    exec "$launcher" runners "${runner_args[@]}" -- env BEPIS_RUNNER_LEASED=1 "$0" "$@"
+    exec "$BEPIS_RUNNERS_BINARY" "${runner_args[@]}" -- env BEPIS_RUNNER_LEASED=1 "$0" "$@"
 fi
 
 # shellcheck source=../lib/ghc.sh

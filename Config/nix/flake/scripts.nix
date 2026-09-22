@@ -32,6 +32,8 @@ let
             echo "devenv project command: no project checkout found; using packaged snapshot for $relative_path" >&2
         fi
 
+        # Preserve compiler discovery while nested runtime/test commands change PATH.
+        export BEPIS_TOOLING_BUILD_PATH="''${BEPIS_TOOLING_BUILD_PATH:-$PATH}"
         export BEPIS_SCRIPTS_ROOT="$scripts_root"
         export BEPIS_MAILHOG_ROOT=${pkgs.mailhog}
         export BEPIS_RIPGREP_ROOT=${pkgs.ripgrep}

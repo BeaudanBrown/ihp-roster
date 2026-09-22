@@ -6,17 +6,13 @@ ihp_roster_ghc_opts() {
         | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g'
 }
 
-ihp_roster_artifacts_binary() {
-    if [ -n "${IHP_ROSTER_ARTIFACTS_BINARY:-}" ]; then
-        printf '%s\n' "$IHP_ROSTER_ARTIFACTS_BINARY"
-        return
-    fi
+ihp_roster_prepare_artifacts() {
+    [ -z "${IHP_ROSTER_ARTIFACTS_BINARY:-}" ] || return 0
     local launcher scripts_repo
     scripts_repo="$(cd "${BEPIS_SCRIPTS_ROOT:?}/../../.." && pwd)"
     launcher="${BEPIS_TOOLING_LAUNCHER:-$scripts_repo/bin/tooling-run}"
     IHP_ROSTER_ARTIFACTS_BINARY="$("$launcher" artifacts --print-binary)"
     export IHP_ROSTER_ARTIFACTS_BINARY
-    printf '%s\n' "$IHP_ROSTER_ARTIFACTS_BINARY"
 }
 
 ihp_roster_verification_build_dir() {
@@ -82,7 +78,8 @@ ihp_roster_configure_compiler_tmpdir() {
     fi
     chmod 700 "$parent"
 
-    artifacts="$(ihp_roster_artifacts_binary)"
+    ihp_roster_prepare_artifacts
+    artifacts="$IHP_ROSTER_ARTIFACTS_BINARY"
     workspace_id="$("$artifacts" digest --truncate 12 "$workspace")"
     root="$parent/$workspace_id"
     marker="$root/.bepis-compiler-tmp"
@@ -109,7 +106,8 @@ ihp_roster_prepare_verification_cache() {
     local purpose="$1" ghc_opts="$2" format="$3" workspace parent root source_hash option_hash stamp artifacts scripts_root inventory
     workspace="$(git rev-parse --show-toplevel)"
     parent="${BEPIS_GHC_CACHE_PARENT:-/var/tmp/bepis-ghc-cache-$(id -u)}"
-    artifacts="$(ihp_roster_artifacts_binary)"
+    ihp_roster_prepare_artifacts
+    artifacts="$IHP_ROSTER_ARTIFACTS_BINARY"
     root="$parent/$("$artifacts" digest --truncate 12 "$workspace")/$purpose"
     mkdir -p "$root"
     chmod 700 "$parent" "${root%/$purpose}" "$root"
@@ -138,7 +136,8 @@ ihp_roster_prepare_ghc_build_dir() {
     local build_dir="$1"
     local ghc_opts="$2"
     local option_hash stamp_file artifacts
-    artifacts="$(ihp_roster_artifacts_binary)"
+    ihp_roster_prepare_artifacts
+    artifacts="$IHP_ROSTER_ARTIFACTS_BINARY"
     option_hash="$("$artifacts" digest "$(ghc --numeric-version)" "$ghc_opts")"
     # Keep the published evidence filename: reachability snapshots hash it.
     stamp_file="$build_dir/ghc-options.sha256"

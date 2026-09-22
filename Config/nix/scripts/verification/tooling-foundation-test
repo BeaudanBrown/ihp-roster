@@ -60,7 +60,12 @@ for forbidden in App.cabal Application build/Generated tooling/dist-newstyle; do
     [ ! -e "$bootstrap_repo/$forbidden" ] || fail "cold bootstrap retained $forbidden"
 done
 BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/cold.out"
-BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/warm.out"
+configuration_before="$(find "$bootstrap_repo/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+mkdir "$fixture_root/runtime-bin"
+BEPIS_TOOLING_ENV=1 BEPIS_TOOLING_BUILD_PATH="$PATH" PATH="$fixture_root/runtime-bin:$PATH" \
+    "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/warm.out"
+configuration_after="$(find "$bootstrap_repo/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+[ "$configuration_before" = "$configuration_after" ] || fail "runtime PATH change reconfigured the compiler"
 grep -q '"identityVersion":1' "$fixture_root/cold.out" || fail "cold bootstrap omitted workspace contract"
 cmp -s "$fixture_root/cold.out" "$fixture_root/warm.out" || fail "warm bootstrap changed output"
 
@@ -83,10 +88,12 @@ fi
 [ ! -s "$fixture_root/untracked.out" ] || fail "untracked compile failure executed stale output"
 printf 'module Fixture.Untracked where\nmessage :: String\nmessage = "fresh-untracked"\n' \
     >"$bootstrap_repo/tooling/workspace-state/app/Fixture/Untracked.hs"
-printf 'module Main (main) where\nimport Fixture.Untracked (message)\nmain :: IO ()\nmain = putStrLn message\n' \
+printf 'module Main (main) where\nimport Fixture.Untracked (message)\nimport System.Environment (getEnv)\nmain :: IO ()\nmain = do\n    path <- getEnv "PATH"\n    putStrLn (message <> ":" <> path)\n' \
     >"$bootstrap_repo/tooling/workspace-state/app/Main.hs"
-BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/recovered.out"
-grep -Fxq fresh-untracked "$fixture_root/recovered.out" || fail "dirty/untracked edits did not execute"
+BEPIS_TOOLING_ENV=1 BEPIS_TOOLING_BUILD_PATH="$PATH" PATH="$fixture_root/runtime-bin:$PATH" \
+    "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/recovered.out"
+grep -Fxq "fresh-untracked:$fixture_root/runtime-bin:$PATH" "$fixture_root/recovered.out" \
+    || fail "dirty/untracked edits or the caller's runtime PATH were lost"
 
 # Resolve the locked input once through Git, not 82 raw path-flake snapshots of
 # a checkout containing growing build/output/log directories. Package sources

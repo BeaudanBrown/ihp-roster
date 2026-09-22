@@ -5,9 +5,10 @@ if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
     workspace="$(git rev-parse --show-toplevel)"
     workspace="$(realpath "$workspace")"
     launcher="${BEPIS_TOOLING_LAUNCHER:-$workspace/bin/tooling-run}"
-    export TEST_RUN_ID="${TEST_RUN_ID:-$("$launcher" runners id)}"
+    export BEPIS_RUNNERS_BINARY="$("$launcher" runners --print-binary)"
+    export TEST_RUN_ID="${TEST_RUN_ID:-$("$BEPIS_RUNNERS_BINARY" id)}"
     artifact_dir="$(realpath -m "$workspace/.devenv/test-failures/$TEST_RUN_ID")"
-    exec "$launcher" runners run --family hspec --workspace "$workspace" \
+    exec "$BEPIS_RUNNERS_BINARY" run --family hspec --workspace "$workspace" \
         --run-id "$TEST_RUN_ID" --artifact-dir "$artifact_dir" --retain-success -- \
         env BEPIS_RUNNER_LEASED=1 "$0" "$@"
 fi
