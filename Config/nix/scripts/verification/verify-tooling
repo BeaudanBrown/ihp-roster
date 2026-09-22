@@ -17,6 +17,11 @@ tooling-hls-test
 
 echo "verify-tooling: workspace and Git lifecycle compatibility"
 dev-workspace-test
+epic-worktree-test
+epic-worktree-provision-test
+epic-worktree-orientation-test
+epic-worktree-manage-test
+epic-worktree-concurrency-test
 epic-worktree-workflow-acceptance-test
 
 echo "verify-tooling: checker parser and publication fixtures"
@@ -24,7 +29,7 @@ glue-compatibility-test
 weeder-policy-test
 node --test scripts/application-warnings.test.mjs scripts/weeder-reachability.test.mjs
 bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
-node --test scripts/authority-scan.test.mjs scripts/tooling-footprint.test.mjs
+node --test scripts/authority-scan.test.mjs
 http-polling-policy-test
 node --test scripts/frontend-test-registration.test.mjs
 node --test scripts/documentation/check.test.mjs

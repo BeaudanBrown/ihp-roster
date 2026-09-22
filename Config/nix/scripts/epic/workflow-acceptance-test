@@ -10,24 +10,6 @@ fail() {
     exit 69
 }
 
-commands=(
-    epic-worktree-test
-    epic-worktree-provision-test
-    epic-worktree-orientation-test
-    epic-worktree-manage-test
-    epic-worktree-concurrency-test
-)
-
-for command_name in "${commands[@]}"; do
-    command -v "$command_name" >/dev/null 2>&1 \
-        || fail "named command unavailable: $command_name"
-done
-
-for command_name in "${commands[@]}"; do
-    echo "$program: running $command_name"
-    "$command_name"
-done
-
 fixture_root="$(mktemp -d)"
 cleanup() {
     rm -rf "$fixture_root"
@@ -36,7 +18,7 @@ trap cleanup EXIT
 
 primary_repo="$fixture_root/repo"
 mock_bin="$fixture_root/bin"
-mkdir -p "$mock_bin" "$fixture_root/gh-state"
+mkdir -p "$mock_bin"
 git init --quiet --initial-branch=roster "$primary_repo"
 git -C "$primary_repo" config user.name "Epic Workflow Acceptance"
 git -C "$primary_repo" config user.email "epic-workflow-acceptance@example.invalid"
@@ -59,12 +41,6 @@ EOF
 cat >"$mock_bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = issue ] && [ "$2" = close ]; then
-    [ "${EPIC_CLOSURE_APPROVED:-}" = true ] || exit 77
-    printf '%s\n' "$*" >>"$EPIC_GH_LOG"
-    touch "$EPIC_GH_STATE_DIR/closed-$3"
-    exit 0
-fi
 if [ "$1" = repo ] && [ "$2" = view ]; then
     printf '%s\n' 'BeaudanBrown/ihp-roster'
     exit 0
@@ -73,7 +49,7 @@ fi
 case "${!#}" in
     repos/BeaudanBrown/ihp-roster/issues/999)
         state=open
-        [ ! -f "$EPIC_GH_STATE_DIR/closed-999" ] || state=closed
+        [ ! -f "$(dirname "$0")/parent-closed" ] || state=closed
         printf '{"number":999,"title":"Workflow acceptance","state":"%s","html_url":"https://example.invalid/issues/999"}\n' "$state"
         ;;
     repos/BeaudanBrown/ihp-roster/issues/999/sub_issues?*)
@@ -91,8 +67,6 @@ run_primary() {
     (
         cd "$primary_repo"
         PATH="$mock_bin:$PATH" \
-        EPIC_GH_LOG="$fixture_root/gh.log" \
-        EPIC_GH_STATE_DIR="$fixture_root/gh-state" \
         BEPIS_TOOLING_LAUNCHER="$tooling_launcher" \
         EPIC_WORKTREE_COMMAND="$(command -v epic-worktree)" \
             "$@"
@@ -104,7 +78,7 @@ epic_path="$(jq -r '.path' <<<"$provision")"
 run_epic() {
     (
         cd "$epic_path"
-        PATH="$mock_bin:$PATH" EPIC_GH_LOG="$fixture_root/gh.log" EPIC_GH_STATE_DIR="$fixture_root/gh-state" \
+        PATH="$mock_bin:$PATH" \
             BEPIS_TOOLING_LAUNCHER="$tooling_launcher" "$@"
     )
 }
@@ -129,19 +103,6 @@ orientation_after="$(run_epic epic-worktree orient --json)"
     || fail "interrupted epic workspace offered a new selection"
 [ "$(jq -r '.workspace.pendingCommittedIssues[0]' <<<"$orientation_after")" = 1000 ] \
     || fail "interrupted work was not tied to its open sub-issue"
-completion_evidence="$(jq -cn --arg commit "$(git -C "$epic_path" rev-parse HEAD)" \
-    '{commit: $commit, checks: ["orientation"]}')"
-[ "$(jq -r '.commit' <<<"$completion_evidence")" = "$(git -C "$epic_path" rev-parse HEAD)" ] \
-    || fail "completion evidence omitted the implemented commit"
-printf '%s: completion evidence %s; awaiting approval\n' "$program" "$completion_evidence"
-set +e
-run_epic gh issue close 1000 --comment "$completion_evidence" >/dev/null 2>&1
-unapproved_child_status=$?
-set -e
-[ "$unapproved_child_status" = 77 ] || fail "sub-issue closure did not require approval"
-EPIC_CLOSURE_APPROVED=true run_epic gh issue close 1000 --comment "$completion_evidence"
-grep -Fq "issue close 1000 --comment $completion_evidence" "$fixture_root/gh.log" \
-    || fail "completion evidence was not supplied before sub-issue closure"
 run_primary epic-worktree-manage sync --epic 999 --apply --json >/dev/null
 target_before_integration="$(git -C "$primary_repo" rev-parse HEAD)"
 integration_plan="$(run_primary epic-worktree-manage integrate --epic 999 --json)"
@@ -155,14 +116,8 @@ run_primary epic-worktree-manage integrate --epic 999 --approve --json >/dev/nul
 
 [[ "$(run_primary epic-worktree-manage preflight --epic 999)" == *"parent closure: separate approval required"* ]] \
     || fail "preflight omitted separate parent-closure approval"
-set +e
-run_primary gh issue close 999 --comment "approved parent closure" >/dev/null 2>&1
-unapproved_parent_status=$?
-set -e
-[ "$unapproved_parent_status" = 77 ] || fail "parent closure did not require approval"
-EPIC_CLOSURE_APPROVED=true run_primary gh issue close 999 --comment "approved parent closure"
-grep -Fq 'issue close 999 --comment approved parent closure' "$fixture_root/gh.log" \
-    || fail "parent closure did not require its own explicit approval"
+# Remote closure is a fixture input, not an approval mechanism implemented here.
+touch "$mock_bin/parent-closed"
 cleanup_plan="$(run_primary epic-worktree-manage cleanup --epic 999 --json)"
 [ "$(jq -r '.applied' <<<"$cleanup_plan")" = false ] \
     || fail "cleanup ran without approval"

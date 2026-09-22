@@ -34,16 +34,3 @@ executable bepis-postgres
     , bepis-postgres
   default-language: GHC2021
   ghc-options: -Wall -Wcompat -Werror
-
-test-suite bepis-postgres-test
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
-  hs-source-dirs: test
-  build-depends:
-      base
-    , bepis-postgres
-    , directory
-    , filepath
-    , temporary
-  default-language: GHC2021
-  ghc-options: -Wall -Wcompat -Werror

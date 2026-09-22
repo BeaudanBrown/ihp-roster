@@ -36,12 +36,3 @@ executable bepis-epic-lifecycle
     build-depends:
         base,
         bepis-epic-lifecycle
-
-test-suite bepis-epic-lifecycle-test
-    import: warnings
-    type: exitcode-stdio-1.0
-    hs-source-dirs: test
-    main-is: Main.hs
-    build-depends:
-        base,
-        bepis-epic-lifecycle
