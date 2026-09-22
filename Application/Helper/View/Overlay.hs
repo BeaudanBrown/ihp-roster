@@ -142,7 +142,7 @@ renderConfirmationDialog ConfirmationDialogConfig
         , confirmationDialogRejectButton
         , confirmationDialogClass
         } =
-    renderDialogOverlayWithOptions dialogConfirmationAttrs False DialogOverlayConfig
+    renderDialogOverlayWithOptions dialogConfirmationAttrs [] False DialogOverlayConfig
         { dialogOverlayTitle = confirmationDialogTitle
         , dialogOverlayBody = confirmationDialogBody <> confirmationDialogForm
         , dialogOverlayStartButtons = []
@@ -163,22 +163,22 @@ confirmationToneButtonClass ConfirmationDanger  = "btn btn-danger"
 confirmationToneButtonClass ConfirmationWarning = "btn btn-warning"
 
 renderDialogOverlay :: DialogOverlayConfig -> Html
-renderDialogOverlay = renderDialogOverlayWithOptions [] False
+renderDialogOverlay = renderDialogOverlayWithOptions [] [] False
 
 renderDialogOverlayClearOob :: Html
 renderDialogOverlayClearOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
 
 renderKeyboardDialogOverlay :: DialogOverlayConfig -> Html
-renderKeyboardDialogOverlay = renderDialogOverlayWithOptions [] True
+renderKeyboardDialogOverlay = renderDialogOverlayWithOptions [] [] True
 
 renderDialogOverlayWithCloseRole :: forall (marker :: Type). (Typeable marker, RegisteredDomAttr marker) => DialogOverlayConfig -> Html
 renderDialogOverlayWithCloseRole =
-    renderDialogOverlayWithOptions [(domAttrValue @marker, "true")] False
+    renderDialogOverlayWithOptions [] [(domAttrValue @marker, "true")] False
 
-renderDialogOverlayWithOptions :: [(Text, Text)] -> Bool -> DialogOverlayConfig -> Html
-renderDialogOverlayWithOptions closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderDialogOverlayWithOptions :: [(Text, Text)] -> [(Text, Text)] -> Bool -> DialogOverlayConfig -> Html
+renderDialogOverlayWithOptions mountAttrs closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
     <div class="modal fade show d-block"
-         {...dialogMountAttrs <> if keyboardEnabled then dialogKeyboardAttrs else []}
+         {...dialogMountAttrs <> mountAttrs <> if keyboardEnabled then dialogKeyboardAttrs else []}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
