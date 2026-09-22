@@ -1,5 +1,9 @@
 /* Shared dialog footer, toast, and picker overlay styles. */
 
+.modal {
+    overscroll-behavior: contain;
+}
+
 .modal.show > .modal-dialog > .modal-content {
     display: flex;
     max-height: calc(100dvh - (var(--bs-modal-margin) * 2));
@@ -15,6 +19,7 @@
 .modal.show > .modal-dialog > .modal-content > .modal-body {
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior-y: contain;
 }
 
 .modal.show > .modal-dialog > .modal-content > .modal-body .app-modal-sticky-actions {

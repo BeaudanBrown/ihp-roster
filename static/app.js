@@ -4165,6 +4165,65 @@
     return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelectorAll === "function";
   }
 
+  // frontend/ts/shared/page-overlay.ts
+  var layers = /* @__PURE__ */ new Map();
+  var previousInert = /* @__PURE__ */ new Map();
+  var scrollPosition = null;
+  var observer = null;
+  function reconcilePageOverlays() {
+    if (document.body === null) return;
+    for (const [owner, layer] of layers) {
+      if (!layer.element.isConnected || !layer.boundary.isConnected) layers.delete(owner);
+    }
+    const active = [...layers.values()].sort((a, b) => b.priority - a.priority)[0];
+    const blocked = /* @__PURE__ */ new Set();
+    if (active !== void 0) {
+      const allowed = [active.element, ...active.companions ?? []].filter((element) => element.isConnected);
+      const visit = (parent) => {
+        for (const child of parent.children) {
+          if (!(child instanceof HTMLElement) || allowed.includes(child)) continue;
+          if (allowed.some((element) => child.contains(element))) visit(child);
+          else blocked.add(child);
+        }
+      };
+      visit(active.boundary);
+    }
+    for (const [element, wasInert] of previousInert) {
+      if (!blocked.has(element)) {
+        element.inert = wasInert;
+        previousInert.delete(element);
+      }
+    }
+    for (const element of blocked) {
+      if (!previousInert.has(element)) previousInert.set(element, element.inert);
+      element.inert = true;
+    }
+    if (active !== void 0 && scrollPosition === null) {
+      scrollPosition = { left: window.scrollX, top: window.scrollY };
+      document.documentElement.classList.add("app-page-scroll-locked");
+      observer = new MutationObserver(reconcilePageOverlays);
+      observer.observe(document.body, { childList: true, subtree: true });
+    } else if (active === void 0 && scrollPosition !== null) {
+      const position = scrollPosition;
+      scrollPosition = null;
+      observer?.disconnect();
+      observer = null;
+      document.documentElement.classList.remove("app-page-scroll-locked");
+      window.scrollTo({ ...position, behavior: "instant" });
+    }
+  }
+  function setPageOverlay(owner, layer) {
+    if (layer === null) layers.delete(owner);
+    else layers.set(owner, layer);
+    reconcilePageOverlays();
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => {
+      layers.clear();
+      reconcilePageOverlays();
+    });
+  }
+
   // frontend/ts/side-panel/runtime.ts
   function defaultDiagnosticReporter3(diagnostic11) {
     console.error?.("Invalid generated Surface side-panel boundary", diagnostic11);
@@ -4355,10 +4414,9 @@
     const mobile = window.matchMedia("(max-width: 1199.98px)");
     const pending = /* @__PURE__ */ new WeakMap();
     const pendingOob = /* @__PURE__ */ new Map();
-    const inertBefore = /* @__PURE__ */ new Map();
+    const overlayOwner = {};
     let active = null;
     let shelfFocus = null;
-    let lockedScroll = null;
     let header = null;
     let headerObserver = null;
     let shelfAnimation = null;
@@ -4396,39 +4454,14 @@
       const definition = shelf.resolved.definition;
       shelf.root.setAttribute(definition.shelfStateAttribute, open ? definition.shelfOpenValue : definition.shelfClosedValue);
     }
-    function restoreInert() {
-      inertBefore.forEach((previous, element) => {
-        element.inert = previous;
-      });
-      inertBefore.clear();
-    }
-    function block(element) {
-      if (!inertBefore.has(element)) inertBefore.set(element, element.inert);
-      element.inert = true;
-    }
     function lockBackground(shelf) {
       const page = shelf.panel.closest(`[${appPageContentDomAttr}]`);
-      let child = shelf.panel;
-      while (page && child !== page && child.parentElement) {
-        for (const sibling of child.parentElement.children) {
-          if (sibling !== child && sibling instanceof HTMLElement) block(sibling);
-        }
-        child = child.parentElement;
-      }
-      if (!lockedScroll) {
-        lockedScroll = { x: window.scrollX, y: window.scrollY };
-        document.body.style.setProperty("--app-shelf-scroll-offset", `${-lockedScroll.y}px`);
-        document.body.classList.add("app-shelf-scroll-locked");
-      }
+      setPageOverlay(overlayOwner, page ? { element: shelf.panel, boundary: page, priority: 0 } : null);
+      document.body.classList.add("app-shelf-scroll-locked");
     }
     function unlockBackground() {
-      restoreInert();
-      if (!lockedScroll) return;
-      const position = lockedScroll;
-      lockedScroll = null;
-      document.body.classList.remove("app-shelf-scroll-locked");
-      document.body.style.removeProperty("--app-shelf-scroll-offset");
-      window.scrollTo({ left: position.x, top: position.y, behavior: "instant" });
+      setPageOverlay(overlayOwner, null);
+      document.body?.classList.remove("app-shelf-scroll-locked");
     }
     function updateGeometry() {
       const top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
@@ -4444,6 +4477,7 @@
       style.setProperty("--app-shelf-bottom", bottomInset);
     }
     function reconcile() {
+      if (document.body === null) return;
       const all = shelves();
       const enabled = mobile.matches && all.length > 0;
       document.body.classList.toggle("app-has-mobile-shelf", enabled);
@@ -4454,7 +4488,6 @@
         headerObserver = header ? new ResizeObserver(updateGeometry) : null;
         if (header) headerObserver?.observe(header);
       }
-      restoreInert();
       active = null;
       for (const shelf of all) {
         if (!mobile.matches) setOpen(shelf, false);
@@ -4637,7 +4670,7 @@
       unlockBackground();
     });
     window.addEventListener("pageshow", reconcile);
-    reconcile();
+    if (document.readyState !== "loading") reconcile();
   }
 
   // frontend/ts/surface-tab-set/runtime.ts
@@ -4933,8 +4966,10 @@
     const mountId = dialogOverlayMountDomId;
     const dismissalLifecycle = createDialogDismissalLifecycle(dialogDismissedEvent);
     installPointerDismissFocusCleanup(document);
-    const blockingBackgroundInertStates = /* @__PURE__ */ new Map();
-    let blockingDialogReturnFocus = null;
+    const overlayOwner = {};
+    const bootstrapDialogs = /* @__PURE__ */ new Set();
+    const returnFocus = /* @__PURE__ */ new WeakMap();
+    let previousModal = null;
     function getMount() {
       const mountEl = document.getElementById(mountId);
       return isHTMLElement(mountEl) ? mountEl : null;
@@ -4967,32 +5002,59 @@
       ].join(",");
       return Array.from(region.querySelectorAll(selector)).filter((element) => {
         if (!(element instanceof HTMLElement)) return false;
-        if (element.hidden || element.closest("[hidden], [inert]") !== null) return false;
+        if (element.hidden || element.closest("[hidden], [inert]") !== null || element.getClientRects().length === 0) return false;
         return element.tabIndex >= 0;
       });
     }
     function focusKeyboardDialog(dialog) {
+      if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
       const region = keyboardFocusRegion(dialog);
-      if (region === null) return;
-      const controls2 = focusableDialogControls(region);
+      const controls2 = focusableDialogControls(region ?? dialog);
       const firstInvalid = controls2.find((control) => control.getAttribute("aria-invalid") === "true");
       const autofocus = controls2.find((control) => control.hasAttribute("autofocus"));
-      (firstInvalid ?? autofocus ?? controls2[0] ?? dialog).focus({ preventScroll: true });
+      (firstInvalid ?? autofocus ?? (region ? controls2[0] : null) ?? dialog).focus({ preventScroll: true });
     }
     function initializeKeyboardDialogs(root) {
-      if (root instanceof HTMLElement && root.matches(dialogKeyboardSelector)) focusKeyboardDialog(root);
-      root.querySelectorAll(dialogKeyboardSelector).forEach((dialog) => {
+      if (root instanceof HTMLElement && root.matches(dialogMountSelector)) focusKeyboardDialog(root);
+      root.querySelectorAll(dialogMountSelector).forEach((dialog) => {
         if (dialog instanceof HTMLElement) focusKeyboardDialog(dialog);
       });
     }
-    function hasVisibleBootstrapModal() {
-      return Boolean(document.querySelector(`.modal.show:not(${dialogMountSelector})`));
+    function getTopModal() {
+      for (const dialog of bootstrapDialogs) {
+        if (!dialog.isConnected) bootstrapDialogs.delete(dialog);
+      }
+      const native = [...bootstrapDialogs];
+      const visible = Array.from(document.querySelectorAll(`.modal.show:not(${dialogMountSelector})`)).filter(isHTMLElement);
+      return native[native.length - 1] ?? visible[visible.length - 1] ?? getActiveDialog();
     }
     function syncDialogState() {
-      const hasDialog = getActiveDialog() !== null;
-      const shouldLockBody = hasDialog || hasVisibleBootstrapModal();
-      document.body.classList.toggle("modal-open", shouldLockBody);
-      document.body.style.overflow = shouldLockBody ? "hidden" : "";
+      if (document.body === null) return;
+      const dialog = getTopModal();
+      const returningToExistingDialog = dialog !== null && returnFocus.has(dialog);
+      if (dialog !== null && dialog !== previousModal && !returningToExistingDialog) {
+        const opener = previousModal !== null && !previousModal.isConnected ? returnFocus.get(previousModal) ?? null : isHTMLElement(document.activeElement) ? document.activeElement : null;
+        returnFocus.set(dialog, opener);
+      }
+      const backdropSelector = dialog?.matches(dialogMountSelector) ? dialogBackdropSelector : `.modal-backdrop:not(${dialogBackdropSelector})`;
+      const backdrops = dialog?.matches(dialogMountSelector) ? Array.from(dialog.parentElement?.children ?? []).filter((element) => element.matches(backdropSelector)).filter(isHTMLElement) : Array.from(document.querySelectorAll(backdropSelector)).filter(isHTMLElement).slice(-1);
+      setPageOverlay(overlayOwner, dialog === null ? null : {
+        element: dialog,
+        boundary: document.body,
+        priority: 1,
+        companions: backdrops
+      });
+      document.body.classList.toggle("modal-open", dialog !== null);
+      if (previousModal !== null && previousModal !== dialog && (dialog === null || returningToExistingDialog)) {
+        const opener = returnFocus.get(previousModal);
+        if (opener?.isConnected && !opener.closest("[inert]") && (dialog === null || dialog.contains(opener))) {
+          opener.focus({ preventScroll: true });
+        }
+      }
+      if (previousModal !== null && previousModal !== dialog && (!previousModal.isConnected || !previousModal.matches(dialogMountSelector) && !bootstrapDialogs.has(previousModal) && !previousModal.classList.contains("show"))) {
+        returnFocus.delete(previousModal);
+      }
+      previousModal = dialog;
     }
     function showNavigationLoadingDialog(config) {
       const mountEl = getMount();
@@ -5032,44 +5094,21 @@
       const backdrop = document.createElement("div");
       backdrop.className = "modal-backdrop fade show";
       backdrop.setAttribute(dialogBackdropDomAttr, "true");
-      blockingDialogReturnFocus = isHTMLElement(document.activeElement) ? document.activeElement : null;
       const replacedDialog = getMountedDialog(mountEl);
       if (replacedDialog !== null) dismissalLifecycle.dismiss(replacedDialog, mountEl, dialogEl);
       mountEl.replaceChildren(dialogEl, backdrop);
       reconcileDialogDismissal(mountEl);
-      setBlockingBackgroundInert(mountEl, true);
       syncDialogState();
-      dialogEl.focus();
-    }
-    function setBlockingBackgroundInert(mountEl, inert) {
-      Array.from(document.body.children).forEach((element) => {
-        if (!(element instanceof HTMLElement) || element === mountEl) return;
-        if (inert) {
-          if (!blockingBackgroundInertStates.has(element)) {
-            blockingBackgroundInertStates.set(element, element.inert);
-          }
-          element.inert = true;
-          return;
-        }
-        const previous = blockingBackgroundInertStates.get(element);
-        if (previous !== void 0) element.inert = previous;
-        blockingBackgroundInertStates.delete(element);
-      });
+      dialogEl.focus({ preventScroll: true });
     }
     function clearDialog(dialogEl) {
       const mountEl = getMount();
       const eventOwner = mountEl !== null && mountEl.contains(dialogEl) ? mountEl : dialogEl;
       dismissalLifecycle.dismiss(dialogEl, eventOwner);
-      const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
-      const inheritedBlockingState = blockingBackgroundInertStates.size > 0;
-      if ((wasBlocking || inheritedBlockingState) && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
-      const returnFocus = wasBlocking || inheritedBlockingState ? blockingDialogReturnFocus : null;
-      if (wasBlocking || inheritedBlockingState) blockingDialogReturnFocus = null;
       if (mountEl !== null && mountEl.contains(dialogEl)) {
         mountEl.innerHTML = "";
         reconcileDialogDismissal(mountEl);
         syncDialogState();
-        if (returnFocus?.isConnected) returnFocus.focus();
         return;
       }
       const localOwner = dialogEl.parentElement;
@@ -5080,16 +5119,9 @@
         });
       }
       syncDialogState();
-      if (returnFocus?.isConnected) returnFocus.focus();
-    }
-    function releaseInheritedBlockingStateWhenDialogAbsent(mountEl) {
-      if (getActiveDialog() !== null || blockingBackgroundInertStates.size === 0) return;
-      setBlockingBackgroundInert(mountEl, false);
-      const returnFocus = blockingDialogReturnFocus;
-      blockingDialogReturnFocus = null;
-      if (returnFocus?.isConnected) returnFocus.focus();
     }
     document.addEventListener("click", function(event) {
+      if (getTopModal() !== getActiveDialog()) return;
       const closeEl = closestHTMLElement(event.target, dialogCloseSelector);
       const closeDialog = closeEl?.closest(dialogMountSelector);
       if (closeEl !== null && isHTMLElement(closeDialog)) {
@@ -5114,15 +5146,15 @@
     });
     document.addEventListener("keydown", function(event) {
       const activeDialog = getActiveDialog();
-      if (activeDialog === null) return;
+      if (activeDialog === null || activeDialog !== getTopModal()) return;
       if (event.key === "Tab" && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
         event.preventDefault();
         activeDialog.focus();
         return;
       }
       const focusRegion = keyboardFocusRegion(activeDialog);
-      if (event.key === "Tab" && focusRegion !== null) {
-        const controls2 = focusableDialogControls(focusRegion);
+      if (event.key === "Tab") {
+        const controls2 = focusableDialogControls(focusRegion ?? activeDialog);
         event.preventDefault();
         if (controls2.length === 0) {
           activeDialog.focus();
@@ -5210,29 +5242,38 @@
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      initializeKeyboardDialogs(target);
       reconcileDialogDismissal(target);
-      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
+      initializeKeyboardDialogs(target);
     });
     document.addEventListener("htmx:oobAfterSwap", function(event) {
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      initializeKeyboardDialogs(target);
       reconcileDialogDismissal(target);
-      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
+      initializeKeyboardDialogs(target);
     });
     window.addEventListener("pageshow", function(event) {
-      if (!event.persisted) return;
       const activeDialog = getActiveDialog();
-      if (activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
+      if (event.persisted && activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
         clearDialog(activeDialog);
       }
+      syncDialogState();
+    });
+    document.addEventListener("show.bs.modal", (event) => {
+      const dialog = event.target;
+      queueMicrotask(() => {
+        if (event.defaultPrevented || !(dialog instanceof HTMLElement) || !dialog.isConnected) return;
+        bootstrapDialogs.add(dialog);
+        syncDialogState();
+      });
     });
     document.addEventListener("shown.bs.modal", syncDialogState);
-    document.addEventListener("hidden.bs.modal", syncDialogState);
+    document.addEventListener("hidden.bs.modal", (event) => {
+      if (event.target instanceof HTMLElement) bootstrapDialogs.delete(event.target);
+      syncDialogState();
+    });
     document.addEventListener(pageReadyEvent, (event) => {
       const mountEl = getMount();
       if (mountEl !== null) reconcileDialogDismissal(mountEl);
@@ -5428,6 +5469,8 @@
   var digitBuffers = /* @__PURE__ */ new WeakMap();
   var digitBufferResetMs = 2e3;
   var activeField = null;
+  var pickerBackdrop = null;
+  var backdropsBeforeShow = /* @__PURE__ */ new Set();
   function defaultDiagnosticReporter5(diagnostic11) {
     console.error?.("Invalid generated time picker configuration", diagnostic11);
   }
@@ -5622,9 +5665,8 @@
     modal.modal.style.display = "none";
     modal.modal.setAttribute("aria-hidden", "true");
     modal.modal.removeAttribute("aria-modal");
-    document.body.classList.remove("modal-open");
-    document.body.style.removeProperty("padding-right");
-    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => backdrop.remove());
+    pickerBackdrop?.remove();
+    pickerBackdrop = null;
     restoreModalOptions(modal);
     activeField = null;
   }
@@ -5782,6 +5824,7 @@
       activeField = field;
       renderFieldOptions(modal, field);
       highlightSelectedOption(modal, field.input.value);
+      backdropsBeforeShow = new Set(document.querySelectorAll(".modal-backdrop"));
       bootstrapModal.show();
     });
     document.addEventListener("click", (event) => {
@@ -5833,8 +5876,15 @@
       synchronizeField(activeField);
       hideTimePickerModal(modal);
     });
+    document.addEventListener("shown.bs.modal", (event) => {
+      if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+      pickerBackdrop = Array.from(document.querySelectorAll(".modal-backdrop")).find((element) => !backdropsBeforeShow.has(element)) ?? null;
+      backdropsBeforeShow.clear();
+    });
     document.addEventListener("hidden.bs.modal", (event) => {
       if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+      pickerBackdrop = null;
+      backdropsBeforeShow.clear();
       const modal = modalControls.get(event.target);
       if (modal !== void 0) restoreModalOptions(modal);
       activeField = null;

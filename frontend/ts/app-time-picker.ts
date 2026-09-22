@@ -74,6 +74,8 @@ const fieldControls = new WeakMap<HTMLElement, TimePickerFieldControl>();
 const digitBuffers = new WeakMap<HTMLInputElement, TimePickerDigitBuffer>();
 const digitBufferResetMs = 2000;
 let activeField: TimePickerFieldControl | null = null;
+let pickerBackdrop: Element | null = null;
+let backdropsBeforeShow = new Set<Element>();
 
 function defaultDiagnosticReporter(diagnostic: TimePickerDiagnostic): void {
     console.error?.("Invalid generated time picker configuration", diagnostic);
@@ -315,9 +317,10 @@ function forceHideModal(modal: TimePickerModalControl): void {
     modal.modal.style.display = "none";
     modal.modal.setAttribute("aria-hidden", "true");
     modal.modal.removeAttribute("aria-modal");
-    document.body.classList.remove("modal-open");
-    document.body.style.removeProperty("padding-right");
-    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => backdrop.remove());
+    // Never remove the workflow dialog's backdrop or release its page lock.
+    // hidden.bs.modal lets the shared overlay owner reconcile the remaining lane.
+    pickerBackdrop?.remove();
+    pickerBackdrop = null;
     restoreModalOptions(modal);
     activeField = null;
 }
@@ -522,6 +525,7 @@ function enableQuarterHourTimePicker(): void {
         activeField = field;
         renderFieldOptions(modal, field);
         highlightSelectedOption(modal, field.input.value);
+        backdropsBeforeShow = new Set(document.querySelectorAll(".modal-backdrop"));
         bootstrapModal.show();
     });
 
@@ -581,8 +585,16 @@ function enableQuarterHourTimePicker(): void {
         hideTimePickerModal(modal);
     });
 
+    document.addEventListener("shown.bs.modal", (event) => {
+        if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+        pickerBackdrop = Array.from(document.querySelectorAll(".modal-backdrop")).find((element) => !backdropsBeforeShow.has(element)) ?? null;
+        backdropsBeforeShow.clear();
+    });
+
     document.addEventListener("hidden.bs.modal", (event) => {
         if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+        pickerBackdrop = null;
+        backdropsBeforeShow.clear();
         const modal = modalControls.get(event.target);
         if (modal !== undefined) restoreModalOptions(modal);
         activeField = null;

@@ -54,6 +54,16 @@ keep browser/platform mechanics local and leave malformed boundaries untouched.
 Capabilities compose through generated roles/native state rather than importing
 one another's feature meaning.
 
+DOM-dependent initialization waits for page readiness; a head-loaded script must
+not access an absent body. Shelves, workflow dialogs, and utility modals share
+page-scroll and background-isolation ownership. The document root remains locked
+until the last overlay releases it, and only the top overlay's interaction region
+is available. Closing a picker restores its underlying dialog; closing that dialog
+restores any open shelf without unlocking the page. Restore prior inert state,
+inline styles, focus, and page scroll position rather than clearing another
+owner's state. Dialog bodies scroll natively with contained overscroll; do not
+suppress touch gestures globally or disable pinch zoom.
+
 Binary settings that apply immediately use switches; selections saved with a
 form use checkboxes. Both share neutral, whole-control click/touch containers,
 with checked colour confined to the indicator. Labels remain stable and
