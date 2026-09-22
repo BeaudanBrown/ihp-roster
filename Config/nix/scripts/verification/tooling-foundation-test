@@ -4,23 +4,19 @@ set -euo pipefail
 program="tooling-foundation-test"
 repo_root="$(git rev-parse --show-toplevel)"
 fixture_root="$(mktemp -d)"
-cleanup() {
-    rm -rf "$fixture_root"
-}
-trap cleanup EXIT
+trap 'rm -rf "$fixture_root"' EXIT
+fail() { echo "$program: $*" >&2; exit 1; }
 
-fail() {
-    echo "$program: $*" >&2
-    exit 1
-}
-
-cabal test --project-dir="$repo_root" --project-file=tooling.project \
+cabal test --offline --project-dir="$repo_root" --project-file=tooling.project \
     --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null
 cabal build --offline --dry-run --project-dir="$repo_root" --project-file=tooling/cabal.project \
     --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null \
     || fail "compatibility Cabal project did not resolve the canonical tooling project"
-nix develop --ignore-environment "path:$repo_root#tooling" --command sh -c 'command -v direnv >/dev/null' \
-    || fail "independent tooling shell omitted provisioning dependency direnv"
+nix develop --ignore-environment "$repo_root#tooling" --command sh -c '
+    command -v direnv >/dev/null && cabal build --offline --dry-run \
+        --project-dir="$1" --project-file=tooling.project --builddir="$2" all >/dev/null
+' sh "$repo_root" "$fixture_root/shell-build" \
+    || fail "independent tooling shell omitted provisioning or compiler dependencies"
 core_test="$(cabal list-bin --project-dir="$repo_root" --project-file=tooling.project \
     --builddir="$repo_root/tooling/dist-newstyle" bepis-tooling-core:test:bepis-tooling-core-test)"
 
@@ -33,37 +29,26 @@ for _ in $(seq 1 100); do
     sleep 0.01
 done
 [ -f "$ready" ] || fail "Haskell lock holder did not become ready"
-if flock -n "$lock" true; then
-    fail "Bash flock entered while Haskell held the lock"
-fi
+if flock -n "$lock" true; then fail "Bash flock entered while Haskell held the lock"; fi
 kill -TERM "$holder"
 wait "$holder" 2>/dev/null || true
 flock -n "$lock" true || fail "terminated Haskell holder retained the lock"
-
 rm -f "$ready"
 "$core_test" --spawn-child "$lock" "$ready"
 [ -f "$ready" ] || fail "close-on-exec lock probe did not run"
 flock -w 0.5 "$lock" true || fail "executed child inherited the Haskell lock descriptor"
 
+# One source-only fixture for the real package/source-filter checks. Never copy
+# build outputs into the cold bootstrap or mutate the operator's checkout.
 fixture_repo="$fixture_root/repo"
 mkdir -p "$fixture_repo"
 (
     cd "$repo_root"
     while IFS= read -r -d '' path; do
-        if [ -e "$path" ] || [ -L "$path" ]; then
-            printf '%s\0' "$path"
-        fi
+        if [ -e "$path" ] || [ -L "$path" ]; then printf '%s\0' "$path"; fi
     done < <(git ls-files --cached --others --exclude-standard -z) \
         | tar --null --files-from=- --create
 ) | tar --extract --directory="$fixture_repo"
-chmod +x "$fixture_repo/bin/tooling-run"
-
-cold="$fixture_root/cold.out"
-warm="$fixture_root/warm.out"
-BEPIS_TOOLING_ENV=1 "$fixture_repo/bin/tooling-run" workspace contract >"$cold"
-BEPIS_TOOLING_ENV=1 "$fixture_repo/bin/tooling-run" workspace contract >"$warm"
-grep -q '"identityVersion":1' "$cold" || fail "cold launcher omitted workspace contract"
-cmp -s "$cold" "$warm" || fail "warm launcher changed command output"
 
 bootstrap_repo="$fixture_root/bootstrap"
 mkdir -p "$bootstrap_repo/bin"
@@ -71,180 +56,102 @@ cp "$fixture_repo/bin/tooling-run" "$bootstrap_repo/bin/tooling-run"
 cp "$fixture_repo/tooling.project" "$bootstrap_repo/tooling.project"
 cp -a "$fixture_repo/tooling" "$bootstrap_repo/tooling"
 git -C "$bootstrap_repo" init -q
-BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/bootstrap-cold.out"
-BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/bootstrap-warm.out"
-grep -q '"identityVersion":1' "$fixture_root/bootstrap-cold.out" \
-    || fail "app-independent bootstrap omitted workspace contract"
-cmp -s "$fixture_root/bootstrap-cold.out" "$fixture_root/bootstrap-warm.out" \
-    || fail "warm app-independent bootstrap changed command output"
-for forbidden in App.cabal Application build/Generated; do
-    [ ! -e "$bootstrap_repo/$forbidden" ] || fail "minimal tooling bootstrap retained $forbidden"
+for forbidden in App.cabal Application build/Generated tooling/dist-newstyle; do
+    [ ! -e "$bootstrap_repo/$forbidden" ] || fail "cold bootstrap retained $forbidden"
 done
+BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/cold.out"
+BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/warm.out"
+grep -q '"identityVersion":1' "$fixture_root/cold.out" || fail "cold bootstrap omitted workspace contract"
+cmp -s "$fixture_root/cold.out" "$fixture_root/warm.out" || fail "warm bootstrap changed output"
 
 printf '\nthis is not Haskell\n' >>"$bootstrap_repo/tooling/workspace-state/app/Main.hs"
-if BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/bootstrap-dirty.out" 2>"$fixture_root/bootstrap-dirty.err"; then
-    fail "dirty app-independent compile failure executed successfully"
+if BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/dirty.out" 2>"$fixture_root/dirty.err"; then
+    fail "dirty compile failure executed successfully"
 fi
-if grep -q '"identityVersion":1' "$fixture_root/bootstrap-dirty.out"; then
-    fail "dirty app-independent compile failure fell back to the old executable"
-fi
-
+[ ! -s "$fixture_root/dirty.out" ] || fail "dirty compile failure executed stale output"
 cp "$repo_root/tooling/workspace-state/app/Main.hs" "$bootstrap_repo/tooling/workspace-state/app/Main.hs"
 mkdir -p "$bootstrap_repo/tooling/workspace-state/app/Fixture"
+sed -i '/^executable bepis-workspace-state$/a\  other-modules: Fixture.Untracked' \
+    "$bootstrap_repo/tooling/workspace-state/bepis-workspace-state.cabal"
 printf 'module Fixture.Untracked where\ninvalid =\n' >"$bootstrap_repo/tooling/workspace-state/app/Fixture/Untracked.hs"
 awk '{ print; if ($0 == "module Main (main) where") print "\nimport Fixture.Untracked ()" }' \
     "$bootstrap_repo/tooling/workspace-state/app/Main.hs" >"$fixture_root/Main.hs"
 mv "$fixture_root/Main.hs" "$bootstrap_repo/tooling/workspace-state/app/Main.hs"
-if BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/bootstrap-untracked.out" 2>"$fixture_root/bootstrap-untracked.err"; then
-    fail "untracked app-independent compile failure executed successfully"
+if BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/untracked.out" 2>"$fixture_root/untracked.err"; then
+    fail "untracked compile failure executed successfully"
 fi
-if grep -q '"identityVersion":1' "$fixture_root/bootstrap-untracked.out"; then
-    fail "untracked app-independent compile failure fell back to the old executable"
-fi
+[ ! -s "$fixture_root/untracked.out" ] || fail "untracked compile failure executed stale output"
+printf 'module Fixture.Untracked where\nmessage :: String\nmessage = "fresh-untracked"\n' \
+    >"$bootstrap_repo/tooling/workspace-state/app/Fixture/Untracked.hs"
+printf 'module Main (main) where\nimport Fixture.Untracked (message)\nmain :: IO ()\nmain = putStrLn message\n' \
+    >"$bootstrap_repo/tooling/workspace-state/app/Main.hs"
+BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/recovered.out"
+grep -Fxq fresh-untracked "$fixture_root/recovered.out" || fail "dirty/untracked edits did not execute"
 
-nix_value() {
-    nix eval --raw --impure --expr "$1"
+# Resolve the locked input once through Git, not 82 raw path-flake snapshots of
+# a checkout containing growing build/output/log directories. Package sources
+# still come from the live fixture, including dirty and untracked files.
+nixpkgs="$(nix eval --raw --impure --no-write-lock-file --expr "(builtins.getFlake \"git+file://$repo_root\").inputs.nixpkgs.outPath")"
+snapshot() {
+    nix eval --json --impure --expr "
+        let
+            pkgs = import $nixpkgs { system = builtins.currentSystem; };
+            tools = import $repo_root/Config/nix/flake/tooling-packages.nix { inherit pkgs; root = $fixture_repo; };
+        in builtins.mapAttrs (_: package: package.drvPath)
+            (builtins.removeAttrs tools [ \"ghc\" \"sources\" ]) // {
+                production = toString (import $repo_root/Config/nix/flake/project-source.nix { inherit pkgs; root = $fixture_repo; });
+                runnersSource = toString tools.sources.runners;
+            }"
 }
-flake_ref="path:$repo_root"
-packages_expr="let f = builtins.getFlake \"$flake_ref\"; p = f.inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}; in import $repo_root/Config/nix/flake/tooling-packages.nix { pkgs = p; root = $fixture_repo; }"
-core_before="$(nix_value "((${packages_expr}).core).drvPath")"
-workspace_before="$(nix_value "((${packages_expr}).workspaceState).drvPath")"
-postgres_before="$(nix_value "((${packages_expr}).postgres).drvPath")"
-runtime_before="$(nix_value "((${packages_expr}).runtime).drvPath")"
-epic_before="$(nix_value "((${packages_expr}).epicLifecycle).drvPath")"
-artifacts_before="$(nix_value "((${packages_expr}).artifacts).drvPath")"
-runners_before="$(nix_value "((${packages_expr}).runners).drvPath")"
-production_before="$(nix_value "let f = builtins.getFlake \"$flake_ref\"; p = f.inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}; in toString (import $repo_root/Config/nix/flake/project-source.nix { pkgs = p; root = $fixture_repo; })")"
-runners_source="$(nix_value "toString ((${packages_expr}).sources.runners)")"
-[ ! -e "$runners_source/test" ] || fail "runner package source retained test implementation"
-[ ! -e "$runners_source/README.md" ] || fail "runner package source retained package documentation"
+baseline="$(snapshot)"
+runners_source="$(jq -r .runnersSource <<<"$baseline")"
+[ ! -e "$runners_source/test" ] || fail "runner package retained tests"
+[ ! -e "$runners_source/README.md" ] || fail "runner package retained documentation"
+assert_effects() {
+    local description="$1" expected="$2" actual
+    actual="$(snapshot)"
+    if ! jq -en --argjson before "$baseline" --argjson after "$actual" --arg expected "$expected" '
+        ([$before | keys[] | select(. != "runnersSource") as $key |
+            select($before[$key] != $after[$key]) | $key] | sort) ==
+        ($expected | split(",") | map(select(length > 0)) | sort)
+    ' >/dev/null; then
+        diff -u <(jq -S . <<<"$baseline") <(jq -S . <<<"$actual") >&2 || true
+        fail "$description: expected changed owners [$expected]"
+    fi
+}
 
 for path in Main.hs Application/Schema.sql static/manifest.json Config/nix/modules/ihp-roster.nix; do
-    mkdir -p "$fixture_root/application-backup/$(dirname "$path")"
-    cp "$fixture_repo/$path" "$fixture_root/application-backup/$path"
+    printf '\n ' >>"$fixture_repo/$path"
 done
-printf '\n-- application isolation probe\n' >>"$fixture_repo/Main.hs"
-printf '\n-- schema isolation probe\n' >>"$fixture_repo/Application/Schema.sql"
-printf '\n ' >>"$fixture_repo/static/manifest.json"
-printf '\n# deployment isolation probe\n' >>"$fixture_repo/Config/nix/modules/ihp-roster.nix"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "application inputs invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_before" ] || fail "application inputs invalidated workspace"
-[ "$(nix_value "((${packages_expr}).postgres).drvPath")" = "$postgres_before" ] || fail "application inputs invalidated postgres"
-[ "$(nix_value "((${packages_expr}).runtime).drvPath")" = "$runtime_before" ] || fail "application inputs invalidated runtime"
-[ "$(nix_value "((${packages_expr}).epicLifecycle).drvPath")" = "$epic_before" ] || fail "application inputs invalidated epic lifecycle"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "application inputs invalidated artifacts"
-[ "$(nix_value "((${packages_expr}).runners).drvPath")" = "$runners_before" ] || fail "application inputs invalidated runners"
-[ "$(nix_value "let f = builtins.getFlake \"$flake_ref\"; p = f.inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}; in toString (import $repo_root/Config/nix/flake/project-source.nix { pkgs = p; root = $fixture_repo; })")" != "$production_before" ] \
-    || fail "application inputs did not invalidate production source"
+assert_effects 'application edit' production
 for path in Main.hs Application/Schema.sql static/manifest.json Config/nix/modules/ihp-roster.nix; do
-    cp "$fixture_root/application-backup/$path" "$fixture_repo/$path"
+    cp "$repo_root/$path" "$fixture_repo/$path"
 done
-
-printf '\n-- tooling test isolation probe\n' >>"$fixture_repo/tooling/runners/test/Main.hs"
-printf '\nTooling test documentation probe.\n' >>"$fixture_repo/tooling/README.md"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "tooling tests or docs invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_before" ] || fail "tooling tests or docs invalidated workspace"
-[ "$(nix_value "((${packages_expr}).postgres).drvPath")" = "$postgres_before" ] || fail "tooling tests or docs invalidated postgres"
-[ "$(nix_value "((${packages_expr}).runtime).drvPath")" = "$runtime_before" ] || fail "tooling tests or docs invalidated runtime"
-[ "$(nix_value "((${packages_expr}).epicLifecycle).drvPath")" = "$epic_before" ] || fail "tooling tests or docs invalidated epic lifecycle"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "tooling tests or docs invalidated artifacts"
-[ "$(nix_value "((${packages_expr}).runners).drvPath")" = "$runners_before" ] || fail "tooling tests or docs invalidated runner binary"
-
-cp "$fixture_repo/tooling/runners/bepis-runners.cabal" "$fixture_root/bepis-runners.cabal"
+printf '\n-- test isolation probe\n' >>"$fixture_repo/tooling/runners/test/Main.hs"
+printf '\nDocumentation probe.\n' >>"$fixture_repo/tooling/README.md"
+assert_effects 'tests and documentation' ''
 printf '\n-- Cabal invalidation probe\n' >>"$fixture_repo/tooling/runners/bepis-runners.cabal"
-[ "$(nix_value "((${packages_expr}).runners).drvPath")" != "$runners_before" ] || fail "runner Cabal edit did not invalidate runner package"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "runner Cabal edit invalidated core"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "runner Cabal edit invalidated artifacts"
-cp "$fixture_root/bepis-runners.cabal" "$fixture_repo/tooling/runners/bepis-runners.cabal"
-[ "$(nix_value "((${packages_expr}).runners).drvPath")" = "$runners_before" ] || fail "restored runner Cabal manifest did not restore derivation"
-
+assert_effects 'Cabal manifest' runners
+cp "$repo_root/tooling/runners/bepis-runners.cabal" "$fixture_repo/tooling/runners/bepis-runners.cabal"
+assert_effects 'restored Cabal manifest' ''
 mkdir -p "$fixture_repo/tooling/unrelated-family"
 printf 'unrelated\n' >"$fixture_repo/tooling/unrelated-family/source"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "unrelated family invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_before" ] || fail "unrelated family invalidated workspace"
-[ "$(nix_value "((${packages_expr}).postgres).drvPath")" = "$postgres_before" ] || fail "unrelated family invalidated postgres"
-[ "$(nix_value "((${packages_expr}).runtime).drvPath")" = "$runtime_before" ] || fail "unrelated family invalidated runtime"
-[ "$(nix_value "((${packages_expr}).epicLifecycle).drvPath")" = "$epic_before" ] || fail "unrelated family invalidated epic lifecycle"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "unrelated family invalidated artifacts"
-[ "$(nix_value "((${packages_expr}).runners).drvPath")" = "$runners_before" ] || fail "unrelated family invalidated runners"
-[ "$(nix_value "let f = builtins.getFlake \"$flake_ref\"; p = f.inputs.nixpkgs.legacyPackages.\${builtins.currentSystem}; in toString (import $repo_root/Config/nix/flake/project-source.nix { pkgs = p; root = $fixture_repo; })")" = "$production_before" ] \
-    || fail "tooling-only input changed production source"
+assert_effects 'new unrelated family' ''
 
-printf '\n-- workspace-only invalidation probe\n' >>"$fixture_repo/tooling/workspace-state/src/Bepis/Tooling/Workspace/State.hs"
-workspace_edited="$(nix_value "((${packages_expr}).workspaceState).drvPath")"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "workspace edit invalidated core"
-[ "$workspace_edited" != "$workspace_before" ] || fail "workspace source edit did not invalidate workspace"
-workspace_dependent_postgres="$(nix_value "((${packages_expr}).postgres).drvPath")"
-workspace_dependent_runtime="$(nix_value "((${packages_expr}).runtime).drvPath")"
-workspace_dependent_epic="$(nix_value "((${packages_expr}).epicLifecycle).drvPath")"
-[ "$workspace_dependent_postgres" != "$postgres_before" ] || fail "workspace source edit did not invalidate postgres dependent"
-[ "$workspace_dependent_runtime" != "$runtime_before" ] || fail "workspace source edit did not invalidate runtime dependent"
-[ "$workspace_dependent_epic" != "$epic_before" ] || fail "workspace source edit did not invalidate epic dependent"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "workspace edit invalidated artifacts"
-[ "$(nix_value "((${packages_expr}).runners).drvPath")" = "$runners_before" ] || fail "workspace edit invalidated runners"
-
-printf '\n-- postgres-only invalidation probe\n' >>"$fixture_repo/tooling/postgres/src/Bepis/Tooling/Postgres.hs"
-postgres_edited="$(nix_value "((${packages_expr}).postgres).drvPath")"
-[ "$postgres_edited" != "$workspace_dependent_postgres" ] || fail "postgres source edit did not invalidate postgres"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "postgres edit invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_edited" ] || fail "postgres edit invalidated workspace"
-[ "$(nix_value "((${packages_expr}).runtime).drvPath")" = "$workspace_dependent_runtime" ] || fail "postgres edit invalidated runtime"
-[ "$(nix_value "((${packages_expr}).epicLifecycle).drvPath")" = "$workspace_dependent_epic" ] || fail "postgres edit invalidated epic lifecycle"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "postgres edit invalidated artifacts"
-
-printf '\n-- runtime-only invalidation probe\n' >>"$fixture_repo/tooling/runtime/src/Bepis/Tooling/Runtime.hs"
-runtime_edited="$(nix_value "((${packages_expr}).runtime).drvPath")"
-runtime_dependent_epic="$(nix_value "((${packages_expr}).epicLifecycle).drvPath")"
-[ "$runtime_edited" != "$workspace_dependent_runtime" ] || fail "runtime source edit did not invalidate runtime"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "runtime edit invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_edited" ] || fail "runtime edit invalidated workspace"
-[ "$(nix_value "((${packages_expr}).postgres).drvPath")" = "$postgres_edited" ] || fail "runtime edit invalidated postgres"
-[ "$runtime_dependent_epic" != "$workspace_dependent_epic" ] || fail "runtime source edit did not invalidate epic dependent"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "runtime edit invalidated artifacts"
-
-printf '\n-- epic-only invalidation probe\n' >>"$fixture_repo/tooling/epic-lifecycle/src/Bepis/Tooling/Epic.hs"
-epic_edited="$(nix_value "((${packages_expr}).epicLifecycle).drvPath")"
-[ "$epic_edited" != "$runtime_dependent_epic" ] || fail "epic source edit did not invalidate epic lifecycle"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "epic edit invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_edited" ] || fail "epic edit invalidated workspace"
-[ "$(nix_value "((${packages_expr}).runtime).drvPath")" = "$runtime_edited" ] || fail "epic edit invalidated runtime"
-[ "$(nix_value "((${packages_expr}).postgres).drvPath")" = "$postgres_edited" ] || fail "epic edit invalidated postgres"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_before" ] || fail "epic edit invalidated artifacts"
-
-printf '\n-- artifacts-only invalidation probe\n' >>"$fixture_repo/tooling/artifacts/src/Bepis/Tooling/Artifacts.hs"
-artifacts_edited="$(nix_value "((${packages_expr}).artifacts).drvPath")"
-[ "$artifacts_edited" != "$artifacts_before" ] || fail "artifacts source edit did not invalidate artifacts"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "artifacts edit invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_edited" ] || fail "artifacts edit invalidated workspace"
-[ "$(nix_value "((${packages_expr}).runtime).drvPath")" = "$runtime_edited" ] || fail "artifacts edit invalidated runtime"
-[ "$(nix_value "((${packages_expr}).postgres).drvPath")" = "$postgres_edited" ] || fail "artifacts edit invalidated postgres"
-[ "$(nix_value "((${packages_expr}).epicLifecycle).drvPath")" = "$epic_edited" ] || fail "artifacts edit invalidated epic lifecycle"
-[ "$(nix_value "((${packages_expr}).runners).drvPath")" = "$runners_before" ] || fail "artifacts edit invalidated runners"
-
-printf '\n-- runners-only invalidation probe\n' >>"$fixture_repo/tooling/runners/src/Bepis/Tooling/Runners.hs"
-runners_edited="$(nix_value "((${packages_expr}).runners).drvPath")"
-[ "$runners_edited" != "$runners_before" ] || fail "runners source edit did not invalidate runners"
-[ "$(nix_value "((${packages_expr}).core).drvPath")" = "$core_before" ] || fail "runners edit invalidated core"
-[ "$(nix_value "((${packages_expr}).workspaceState).drvPath")" = "$workspace_edited" ] || fail "runners edit invalidated workspace"
-[ "$(nix_value "((${packages_expr}).postgres).drvPath")" = "$postgres_edited" ] || fail "runners edit invalidated postgres"
-[ "$(nix_value "((${packages_expr}).runtime).drvPath")" = "$runtime_edited" ] || fail "runners edit invalidated runtime"
-[ "$(nix_value "((${packages_expr}).epicLifecycle).drvPath")" = "$epic_edited" ] || fail "runners edit invalidated epic lifecycle"
-[ "$(nix_value "((${packages_expr}).artifacts).drvPath")" = "$artifacts_edited" ] || fail "runners edit invalidated artifacts"
-
-printf '\n-- dependency invalidation probe\n' >>"$fixture_repo/tooling/core/src/Bepis/Tooling/Core/OwnedFile.hs"
-core_after="$(nix_value "((${packages_expr}).core).drvPath")"
-workspace_after="$(nix_value "((${packages_expr}).workspaceState).drvPath")"
-postgres_after="$(nix_value "((${packages_expr}).postgres).drvPath")"
-runtime_after="$(nix_value "((${packages_expr}).runtime).drvPath")"
-epic_after="$(nix_value "((${packages_expr}).epicLifecycle).drvPath")"
-artifacts_after="$(nix_value "((${packages_expr}).artifacts).drvPath")"
-runners_after="$(nix_value "((${packages_expr}).runners).drvPath")"
-[ "$core_after" != "$core_before" ] || fail "core source edit did not invalidate core"
-[ "$workspace_after" != "$workspace_edited" ] || fail "core source edit did not invalidate its workspace dependent"
-[ "$postgres_after" != "$postgres_edited" ] || fail "core source edit did not invalidate its postgres dependent"
-[ "$runtime_after" != "$runtime_edited" ] || fail "core source edit did not invalidate its runtime dependent"
-[ "$epic_after" != "$epic_edited" ] || fail "core source edit did not invalidate its epic dependent"
-[ "$artifacts_after" != "$artifacts_edited" ] || fail "core source edit did not invalidate its artifacts dependent"
-[ "$runners_after" != "$runners_edited" ] || fail "core source edit did not invalidate its runners dependent"
+# Each mutation starts from the same implementation baseline. Compare every
+# owner, including production, instead of hand-repeating pairwise assertions.
+while read -r path owners; do
+    printf '\n-- source invalidation probe\n' >>"$fixture_repo/$path"
+    assert_effects "$path" "$owners"
+    cp "$repo_root/$path" "$fixture_repo/$path"
+done <<'CASES'
+tooling/workspace-state/src/Bepis/Tooling/Workspace/State.hs workspaceState,postgres,runtime,epicLifecycle
+tooling/postgres/src/Bepis/Tooling/Postgres.hs postgres
+tooling/runtime/src/Bepis/Tooling/Runtime.hs runtime,epicLifecycle
+tooling/epic-lifecycle/src/Bepis/Tooling/Epic.hs epicLifecycle
+tooling/artifacts/src/Bepis/Tooling/Artifacts.hs artifacts
+tooling/runners/src/Bepis/Tooling/Runners.hs runners
+tooling/core/src/Bepis/Tooling/Core/OwnedFile.hs core,workspaceState,postgres,runtime,epicLifecycle,artifacts,runners
+CASES
 
 echo "$program: ok"

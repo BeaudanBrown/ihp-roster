@@ -22,5 +22,5 @@ in
     epicLifecycle = haskellPackages.bepis-epic-lifecycle;
     artifacts = haskellPackages.bepis-artifacts;
     runners = haskellPackages.bepis-runners;
-    ghc = haskellPackages.ghcWithPackages (p: [ p.aeson p.temporary ]);
+    ghc = haskellPackages.ghcWithPackages (p: [ p.aeson p.cryptohash p.network p.temporary ]);
 }

@@ -12,7 +12,9 @@ fi
 
 if [ "${BEPIS_TOOLING_ENV:-0}" != 1 ]; then
     command -v nix >/dev/null 2>&1 || { echo "$program: nix is required" >&2; exit 69; }
-    exec nix develop "path:$repo_root#tooling" --no-write-lock-file -c \
+    # Git filters environment inputs; Cabal below still compiles the live tree,
+    # including dirty and untracked Haskell. Do not snapshot build/log directories.
+    exec nix develop "$repo_root#tooling" --no-write-lock-file -c \
         env BEPIS_TOOLING_ENV=1 "$script_path" "$@"
 fi
 
