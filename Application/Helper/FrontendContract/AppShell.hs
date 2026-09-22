@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.AppShell
     , OpenPageHelpDialog
     , OpenPayrollWorkbookConfigurationDialog
     , OpenPayrollWorkbookConfigurationDeleteDialog
+    , DeletePayrollWorkbookConfigurationOverlay
     , CreatePayrollWorkbookConfigurationOverlay
     , UpdatePayrollWorkbookConfigurationOverlay
     , AddPayrollWorkbookConfigurationSheetOverlay
@@ -122,6 +123,7 @@ data OpenFeedbackDialog
 data OpenPageHelpDialog
 data OpenPayrollWorkbookConfigurationDialog
 data OpenPayrollWorkbookConfigurationDeleteDialog
+data DeletePayrollWorkbookConfigurationOverlay
 data CreatePayrollWorkbookConfigurationOverlay
 data UpdatePayrollWorkbookConfigurationOverlay
 data AddPayrollWorkbookConfigurationSheetOverlay
@@ -237,6 +239,13 @@ type AppShellContract =
             DialogLauncherOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDialog '[] DialogLauncherOptions
          , AppShellAction OpenPayrollWorkbookConfigurationDeleteDialog '[] DialogLauncherOptions
+         , AppShellAction DeletePayrollWorkbookConfigurationOverlay
+            '[]
+            '[ AppShellHtmxMethod 'AppShellDelete
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction CreatePayrollWorkbookConfigurationOverlay
             '[ Field ExportAnchorDateField 'WireDay
              , Field PayrollWorkbookConfigurationNameField 'WireText

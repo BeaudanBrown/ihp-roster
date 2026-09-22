@@ -254,7 +254,12 @@ instance Controller ExportsController where
     action currentAction@DeletePayrollWorkbookConfigurationAction { payrollWorkbookConfigurationId, anchorDate = anchorDateParam } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        deletePayrollWorkbookConfigurationMutation payrollWorkbookConfigurationId >>= respondWithWorkbookDeletion anchorDate
+        case parseAppShellActionParams @AppShell.DeletePayrollWorkbookConfigurationOverlay of
+            Left errors -> do
+                setErrorMessage (surfaceRequestFieldErrorsMessage errors)
+                redirectToPath (adminExportsPath anchorDate)
+            Right _ ->
+                deletePayrollWorkbookConfigurationMutation payrollWorkbookConfigurationId >>= respondWithWorkbookDeletion anchorDate
 
     action currentAction@DownloadExportJobAction { exportJobId } = runBepis currentAction BepisExportAction do
         let downloadToken = param @UUID "token"

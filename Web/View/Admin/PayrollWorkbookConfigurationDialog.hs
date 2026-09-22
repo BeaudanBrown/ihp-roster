@@ -17,6 +17,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              RegisteredAppShellAction,
                                                              appShellActionByMarker,
                                                              appShellActionAttrs,
+                                                             defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
@@ -236,23 +237,27 @@ encodedFamilies families =
 
 renderPayrollWorkbookConfigurationDeleteDialog :: Day -> SavedPayrollWorkbookConfiguration -> Html
 renderPayrollWorkbookConfigurationDeleteDialog anchorDate configuration =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Delete export"
-        , dialogOverlayBody = [hsx|
-            <p class="mb-0">Delete <strong>{configurationRecord.name}</strong>? Existing generated exports will remain available until their normal expiry.</p>
-        |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton "Cancel" "btn btn-outline-secondary" OverlayCloseAction
-            , OverlayButton
-                "Delete"
-                "btn btn-danger"
-                (DialogFormAction "DELETE" (pathTo (DeletePayrollWorkbookConfigurationAction configurationRecord.id (tshow anchorDate))) [] Nothing)
-            ]
-        , dialogOverlayDialogClass = ""
-        }
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Delete export"
+            [hsx|<p class="mb-0">Delete <strong>{configurationRecord.name}</strong>? Existing generated exports will remain available until their normal expiry.</p>|]
+            formId
+            deleteForm)
+            { confirmationDialogApproveLabel = "Delete"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Deleting…"
+            }
   where
     configurationRecord = configuration.savedPayrollWorkbookConfigurationRecord
+    formId = "delete-payroll-workbook-configuration-confirmation-form"
+    actionUrl = pathTo (DeletePayrollWorkbookConfigurationAction configurationRecord.id (tshow anchorDate))
+    deleteForm =
+        renderAppShellActionForm
+            (appShellActionByMarker @AppShell.DeletePayrollWorkbookConfigurationOverlay)
+            ((defaultAppShellActionRoute actionUrl)
+                { appShellActionRouteExtraAttrs = [("id", formId)]
+                })
+            [hsx|<input type="hidden" name="_method" value="DELETE"/>|]
 
 editorFormId :: Text
 editorFormId = "payroll-workbook-configuration-editor-form"

@@ -451,6 +451,8 @@ export const dialogDismissedEvent = "bepis:dialog-dismissed" as const;
 
 export const dialogMountDomAttr = "data-bepis-dialog-mount" as const;
 
+export const dialogConfirmationDomAttr = "data-bepis-dialog-confirmation" as const;
+
 export const dialogBackdropDomAttr = "data-bepis-dialog-backdrop" as const;
 
 export const dialogCloseDomAttr = "data-bepis-dialog-close" as const;

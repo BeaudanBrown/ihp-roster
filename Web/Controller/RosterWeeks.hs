@@ -38,12 +38,15 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (liveMutationTouchedResources, liveMutationValue))
 import Application.Helper.UserPreferences
-import Application.Helper.View (OverlayButton (OverlayButton, overlayButtonAction, overlayButtonClass, overlayButtonLabel),
-                                OverlayButtonAction (GeneratedDialogFormAction, OverlaySubmitFormAction),
+import Application.Helper.View (ConfirmationDialogConfig (..),
+                                ConfirmationDialogTone (ConfirmationDanger),
+                                OverlayButton (OverlayButton, overlayButtonAction, overlayButtonClass, overlayButtonLabel),
+                                OverlayButtonAction (GeneratedDialogFormAction),
                                 ToastOverlayPosition (ToastBottomCenter),
+                                defaultConfirmationDialogConfig,
                                 defaultDialogOverlayConfig,
-                                dialogOverlayCloseButton, dialogOverlayMountId,
-                                errorToast, renderDialogOverlay,
+                                dialogOverlayMountId,
+                                errorToast, renderConfirmationDialog, renderDialogOverlay,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import qualified Application.RosterNotification as Notification
@@ -1350,20 +1353,25 @@ respondWithDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
     |]
 renderDeleteRosterSlotConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> Markup.Html
 renderDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
-    renderDialogOverlay (defaultDialogOverlayConfig
-        "Delete roster shift?"
-        [hsx|<p class="mb-0">Delete this shift?</p>|]
-        [ dialogOverlayCloseButton "Cancel"
-        , OverlayButton
-            { overlayButtonLabel = "Delete shift"
-            , overlayButtonClass = "btn btn-danger"
-            , overlayButtonAction = GeneratedDialogFormAction
-                (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
-                (rosterDeleteSlotActionRoute rosterSlot.id anchorDate calendarRevision)
-                []
-                Nothing
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Delete roster shift?"
+            [hsx|<p class="mb-0">Delete this shift?</p>|]
+            formId
+            deleteForm)
+            { confirmationDialogApproveLabel = "Delete shift"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Deleting…"
             }
-        ])
+  where
+    formId = "delete-roster-slot-confirmation-form"
+    deleteForm =
+        renderAppShellActionForm
+            (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
+            ((rosterDeleteSlotActionRoute rosterSlot.id anchorDate calendarRevision)
+                { appShellActionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
 
 rosterDeleteSlotActionRoute :: Id RosterSlot -> Calendar.Day -> Int -> AppShellActionRoute
 rosterDeleteSlotActionRoute rosterSlotId anchorDate calendarRevision =
@@ -1380,7 +1388,6 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
         then respondHtmlProfiled [hsx|
             <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
                 {confirmationDialog}
-                {confirmForm}
             </div>
         |]
         else do
@@ -1406,23 +1413,23 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                     })
                 [hsx|<input type="hidden" name="confirmDeletePopulatedRow" value="true" />|]
         confirmationDialog =
-            renderDialogOverlay (defaultDialogOverlayConfig
-            "Delete roster row?"
-            [hsx|
-                    <p class="mb-2">
-                        {overflowCopy} cannot be packed into another column and will be deleted.
-                    </p>
-                    <p class="mb-0 app-muted">
-                        Shifts that fit will be moved into the bottom of the remaining columns from left to right.
-                    </p>
-                |]
-            [ dialogOverlayCloseButton "Cancel"
-                    , OverlayButton
-                        { overlayButtonLabel = "Delete row"
-                        , overlayButtonClass = "btn btn-danger"
-                        , overlayButtonAction = OverlaySubmitFormAction confirmFormId
-                        }
-                    ])
+            renderConfirmationDialog
+                (defaultConfirmationDialogConfig
+                    "Delete roster row?"
+                    [hsx|
+                        <p class="mb-2">
+                            {overflowCopy} cannot be packed into another column and will be deleted.
+                        </p>
+                        <p class="mb-0 app-muted">
+                            Shifts that fit will be moved into the bottom of the remaining columns from left to right.
+                        </p>
+                    |]
+                    confirmFormId
+                    confirmForm)
+                    { confirmationDialogApproveLabel = "Delete row"
+                    , confirmationDialogApproveTone = ConfirmationDanger
+                    , confirmationDialogLoadingLabel = "Deleting…"
+                    }
 
 
 markStaleRosterCalendarResponseForRefresh :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()

@@ -4,15 +4,19 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.View.Overlay
-    ( DialogOverlayConfig (..)
+    ( ConfirmationDialogConfig (..)
+    , ConfirmationDialogTone (..)
+    , DialogOverlayConfig (..)
     , OverlayButton (..)
     , OverlayButtonAction (..)
     , OverlayFormMode (..)
+    , defaultConfirmationDialogConfig
     , defaultDialogOverlayConfig
     , defaultOverlayButtons
     , dialogOverlayCloseButton
     , dialogOverlayMountId
     , dialogOverlaySubmitButton
+    , renderConfirmationDialog
     , renderDialogOverlay
     , renderDialogOverlayClearOob
     , renderKeyboardDialogOverlay
@@ -67,6 +71,37 @@ data DialogOverlayConfig = DialogOverlayConfig
     , dialogOverlayDialogClass  :: !Text
     }
 
+data ConfirmationDialogTone
+    = ConfirmationPrimary
+    | ConfirmationDanger
+    | ConfirmationWarning
+    deriving (Eq, Show)
+
+data ConfirmationDialogConfig = ConfirmationDialogConfig
+    { confirmationDialogTitle        :: !Text
+    , confirmationDialogBody         :: !Html
+    , confirmationDialogFormId       :: !Text
+    , confirmationDialogForm         :: !Html
+    , confirmationDialogApproveLabel :: !Text
+    , confirmationDialogApproveTone  :: !ConfirmationDialogTone
+    , confirmationDialogLoadingLabel :: !Text
+    , confirmationDialogRejectButton :: !OverlayButton
+    , confirmationDialogClass        :: !Text
+    }
+
+defaultConfirmationDialogConfig :: Text -> Html -> Text -> Html -> ConfirmationDialogConfig
+defaultConfirmationDialogConfig title body formId form = ConfirmationDialogConfig
+    { confirmationDialogTitle = title
+    , confirmationDialogBody = body
+    , confirmationDialogFormId = formId
+    , confirmationDialogForm = form
+    , confirmationDialogApproveLabel = "Confirm"
+    , confirmationDialogApproveTone = ConfirmationPrimary
+    , confirmationDialogLoadingLabel = "Working…"
+    , confirmationDialogRejectButton = dialogOverlayCloseButton "Cancel"
+    , confirmationDialogClass = ""
+    }
+
 defaultDialogOverlayConfig :: Text -> Html -> [OverlayButton] -> DialogOverlayConfig
 defaultDialogOverlayConfig title body buttons = DialogOverlayConfig
     { dialogOverlayTitle = title
@@ -95,6 +130,38 @@ defaultOverlayButtons formId =
     [ dialogOverlayCloseButton "Cancel"
     , dialogOverlaySubmitButton "Save" formId
     ]
+
+renderConfirmationDialog :: ConfirmationDialogConfig -> Html
+renderConfirmationDialog ConfirmationDialogConfig
+        { confirmationDialogTitle
+        , confirmationDialogBody
+        , confirmationDialogFormId
+        , confirmationDialogForm
+        , confirmationDialogApproveLabel
+        , confirmationDialogApproveTone
+        , confirmationDialogLoadingLabel
+        , confirmationDialogRejectButton
+        , confirmationDialogClass
+        } =
+    renderDialogOverlayWithOptions dialogConfirmationAttrs False DialogOverlayConfig
+        { dialogOverlayTitle = confirmationDialogTitle
+        , dialogOverlayBody = confirmationDialogBody <> confirmationDialogForm
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ confirmationDialogRejectButton
+            , OverlayButton
+                { overlayButtonLabel = confirmationDialogApproveLabel
+                , overlayButtonClass = confirmationToneButtonClass confirmationDialogApproveTone
+                , overlayButtonAction = OverlaySubmitFormLoadingAction confirmationDialogFormId confirmationDialogLoadingLabel
+                }
+            ]
+        , dialogOverlayDialogClass = confirmationDialogClass
+        }
+
+confirmationToneButtonClass :: ConfirmationDialogTone -> Text
+confirmationToneButtonClass ConfirmationPrimary = "btn btn-primary"
+confirmationToneButtonClass ConfirmationDanger  = "btn btn-danger"
+confirmationToneButtonClass ConfirmationWarning = "btn btn-warning"
 
 renderDialogOverlay :: DialogOverlayConfig -> Html
 renderDialogOverlay = renderDialogOverlayWithOptions [] False

@@ -230,19 +230,36 @@ renderXeroTimesheetPreparationPayItemsStep view =
             noSurfaceFields
 
 renderXeroTimesheetPreparationSubmittingDialog :: XeroTimesheetPreparationView -> Html
-renderXeroTimesheetPreparationSubmittingDialog view =
-    renderDialogOverlay (defaultDialogOverlayConfig
-            "Confirm Xero draft timesheets"
-            [hsx|
-            <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
-                {renderExclusionWarnings view}
-                <div>Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced.</div>
-                {renderXeroPreparationOverlayForm (noAppShellActionFields @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-reviewed-submit-form")] mempty}
-            </div>
-        |]
-            (closeButton : [reviewedSubmitButton | view.preparationCanSubmit]))
-            { dialogOverlayDialogClass = "modal-lg"
-            }
+renderXeroTimesheetPreparationSubmittingDialog view
+    | view.preparationCanSubmit =
+        renderConfirmationDialog
+            (defaultConfirmationDialogConfig
+                "Confirm Xero draft timesheets"
+                [hsx|
+                    <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
+                        {renderExclusionWarnings view}
+                        <div>Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced.</div>
+                    </div>
+                |]
+                formId
+                submissionForm)
+                { confirmationDialogApproveLabel = "Confirm and submit"
+                , confirmationDialogLoadingLabel = "Submitting…"
+                , confirmationDialogClass = "modal-lg"
+                }
+    | otherwise =
+        renderDialogOverlay (defaultDialogOverlayConfig
+            "Xero submission blocked"
+            [hsx|<div class="d-flex flex-column gap-3">{renderExclusionWarnings view}</div>|]
+            [closeButton])
+            { dialogOverlayDialogClass = "modal-lg" }
+  where
+    formId = "xero-preparation-reviewed-submit-form"
+    submissionForm = renderXeroPreparationOverlayForm
+        (noAppShellActionFields @RunXeroTimesheetPreparationSubmissionOverlay)
+        (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id))
+        [("id", formId)]
+        mempty
 
 renderXeroTimesheetPreparationBlockingDialog :: XeroTimesheetPreparationView -> Text -> Html
 renderXeroTimesheetPreparationBlockingDialog view message =
@@ -337,13 +354,6 @@ backButton = OverlayButton
     { overlayButtonLabel = "Back"
     , overlayButtonClass = "btn btn-outline-primary"
     , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-back-form" "Loading…"
-    }
-
-reviewedSubmitButton :: OverlayButton
-reviewedSubmitButton = OverlayButton
-    { overlayButtonLabel = "Confirm and submit"
-    , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-reviewed-submit-form" "Loading…"
     }
 
 needsStaffStep :: XeroTimesheetPreparationView -> Bool
