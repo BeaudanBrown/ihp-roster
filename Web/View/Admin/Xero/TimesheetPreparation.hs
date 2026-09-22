@@ -7,6 +7,7 @@ module Web.View.Admin.Xero.TimesheetPreparation
     , renderXeroTimesheetPreparationPayItemsStep
     , renderXeroTimesheetPreparationSubmittedDialog
     , renderXeroTimesheetPreparationFailureDialog
+    , renderXeroTimesheetPreparationReconnectDialog
     , needsStaffStep
     , needsPeriodStep
     , needsPayItemStep
@@ -168,6 +169,7 @@ renderXeroTimesheetPreparationPeriodStep view =
             [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
                 {renderStepNotice "Pay period" "Choose the Xero payroll period to upload."}
+                {renderConnectionNotice view}
                 {renderPeriodSelection view}
                 {renderXeroPreparationPeriodForm view}
             </div>
@@ -187,7 +189,7 @@ renderXeroPreparationPeriodForm view =
                     id="xero-preparation-period-select"
                     class="form-select"
                     aria-label="Xero pay period"
-                    disabled={null view.preparationPeriodOptions}>
+                    disabled={not (canSelectPeriod view)}>
                 {renderEmptyPreparationPeriodOption view}
                 {forEach view.preparationPeriodOptions (renderPreparationPeriodOption (firstSelectablePeriodKey view))}
             </select>
@@ -235,6 +237,13 @@ renderXeroTimesheetPreparationBlockingDialog view message =
 
 renderXeroTimesheetPreparationPeriodSelectionDialog :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationPeriodSelectionDialog = renderXeroTimesheetPreparationPeriodStep
+
+renderXeroTimesheetPreparationReconnectDialog :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationReconnectDialog view =
+    renderDialogOverlay (defaultDialogOverlayConfig
+        "Reconnect Xero"
+        (renderConnectionNotice view)
+        [closeButton])
 
 renderXeroTimesheetPreparationFailureDialog :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationFailureDialog view =
@@ -297,8 +306,12 @@ selectPeriodButton :: XeroTimesheetPreparationView -> OverlayButton
 selectPeriodButton view = OverlayButton
     { overlayButtonLabel = "Continue"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-period-form" "Loading…" True []
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-period-form" "Loading…" (canSelectPeriod view) []
     }
+
+canSelectPeriod :: XeroTimesheetPreparationView -> Bool
+canSelectPeriod view =
+    view.preparationConnection.connectionStatus == "active" && isJust (firstSelectablePeriodKey view)
 
 approvePayItemsButton :: OverlayButton
 approvePayItemsButton = OverlayButton
@@ -376,7 +389,7 @@ preparationPeriodSubmissionStatusLabel = maybe "" xeroSubmissionRunPeriodLabel
 
 renderConnectionNotice :: XeroTimesheetPreparationView -> Html
 renderConnectionNotice view
-    | view.preparationConnection.connectionStatus == "active" = mempty
+    | view.preparationConnection.connectionStatus == "active" && view.preparationState /= XeroPreparationNeedsReconnect = mempty
     | otherwise = [hsx|
         <div class="alert alert-warning mb-0 d-flex flex-column flex-md-row justify-content-between gap-2 align-items-md-center">
             <div>Reconnect Xero before continuing this preparation run.</div>

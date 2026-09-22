@@ -47,7 +47,7 @@ import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
 import Application.Helper.XeroAdminTypes (XeroTimesheetIssueView (..),
-                                          XeroTimesheetPreparationState (XeroPreparationSubmitted, XeroPreparationFailed),
+                                          XeroTimesheetPreparationState (XeroPreparationSubmitted, XeroPreparationFailed, XeroPreparationNeedsReconnect),
                                           XeroTimesheetPreparationView (..),
                                           XeroTimesheetReadinessView (..))
 import Application.TimesheetApproval (ExpectedApprovalIdentity (..),
@@ -395,6 +395,7 @@ respondWithPreparationDialog result =
             case result of
                 Left message -> respondWithPreparationErrorToast message
                 Right view
+                    | view.preparationState == XeroPreparationNeedsReconnect -> respondHtml (renderXeroTimesheetPreparationReconnectDialog view)
                     | view.preparationState == XeroPreparationFailed -> respondHtml (renderXeroTimesheetPreparationFailureDialog view)
                     | needsStaffStep view -> respondHtml (renderXeroTimesheetPreparationStaffStep view)
                     | needsPeriodStep view -> respondHtml (renderXeroTimesheetPreparationPeriodStep view)

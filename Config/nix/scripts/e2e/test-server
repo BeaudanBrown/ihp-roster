@@ -7,4 +7,8 @@ export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
 export IHP_BROWSER="echo"
 export IHP_ROSTER_E2E=1
 echo "E2E test server PostgreSQL: mode=$E2E_POSTGRES_MODE socket=$TEST_DB_SOCKET" >&2
-exec RunDevServer
+# Use the same closed provider boundary as compiled E2E. Loading ordinary Main
+# through RunDevServer would silently restore the real Xero client.
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
+GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
+exec ghci $GHC_OPTS -ignore-dot-ghci Test/E2EAppMain.hs -e Test.E2EAppMain.main

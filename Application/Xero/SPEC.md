@@ -231,6 +231,8 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   one option per calendar/date range even when multiple draft runs match. No
   approved local shifts are required for a period to appear. Historical cached
   pay runs are not a fallback when the live query fails or returns no drafts.
+  Continue is disabled without a selectable period. Reconnect-required runs
+  offer native reconnection instead of progressing to staff or period selection.
   Actual pay-run dates are authoritative, including nonstandard periods; they
   are not inferred from calendar frequency. Opening preparation, selecting a
   period and confirming submission refresh the draft list. Submission requires
@@ -351,7 +353,8 @@ their focused/golden tests.
   request sync once, while every later wait-fragment read remains side-effect-free.
   Progress, retry, failure, and trusted completion replace the mounted dialog
   fragment only after sync-state invalidation. Trusted preparation completion
-  performs one separate preparation mutation; trusted import completion renders
+  performs one separate preparation mutation, synchronized across replacements
+  of the waiting fragment; trusted import completion renders
   candidates directly from local reference rows.
 
 ## Provider Contracts

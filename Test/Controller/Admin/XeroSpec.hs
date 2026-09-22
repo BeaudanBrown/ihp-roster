@@ -2203,6 +2203,23 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
                 preparationRun.status `shouldBe` ReadyForPreview
 
+        it "offers native reconnection instead of period progression when credentials cannot be refreshed" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" []
+                _ <- fixture.connection |> set #encryptedRefreshToken ("invalid-fixture-token" :: Text) |> updateRecord
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction OpenXeroTimesheetPreparationAction
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "href=\"/StartXeroConnection\""
+                response `responseBodyShouldNotContain` "xero-preparation-period-form"
+                response `responseBodyShouldNotContain` ">Continue<"
+                run <- query @XeroTimesheetPreparationRun |> fetchOne
+                run.status `shouldBe` NeedsReconnect
+                run.selectedPeriodKey `shouldBe` Nothing
+                query @XeroSubmissionRun |> fetchCount `shouldReturn` 0
+
         forM_
             [ ("empty", const (Right []), "This period no longer has a draft pay run in Xero.")
             , ("posted", \draft -> Right [draft { Xero.xeroPayRunStatus = Just "POSTED" }], "This period no longer has a draft pay run in Xero.")
@@ -2223,6 +2240,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     callAction OpenXeroTimesheetPreparationAction
                     response `responseStatusShouldBe` status200
                     response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                    when (label /= "unavailable") do
+                        response `responseBodyShouldContain` "form=\"xero-preparation-period-form\" disabled=\"disabled\""
                     run <- query @XeroTimesheetPreparationRun |> fetchOne
                     rejected <- withXeroConfigForTest (Right testXeroConfig) do
                         withXeroClientForTest client do
@@ -2523,10 +2542,18 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     _ <- requirement |> set #requirementStatus XeroPayItemRequirementStatusEnumProposed |> set #xeroEarningsRateId Nothing |> updateRecord
                     pure ()
                 countBefore <- query @TimesheetPayCalculation |> fetchCount
-                withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id $ withCurrentControllerContext do
-                    repairedRun <- recoverPreparationApprovals run
-                    repairedRun.selectedEntriesJson `shouldBe` run.selectedEntriesJson
+                response <- withFreshPreparationClient fixture do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams (SelectXeroTimesheetPreparationPeriodAction run.id)
+                                [("periodKey", fixturePeriodKey fixture)]
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Xero submission blocked"
+                response `responseBodyShouldNotContain` "Refresh approval"
+                repairedRun <- fetch run.id
+                repairedRun.selectedEntriesJson `shouldBe` run.selectedEntriesJson
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` countBefore
+                query @XeroSubmissionRun |> fetchCount `shouldReturn` 0
                 reloaded <- fetch calculation.id
                 reloaded.sealedAt `shouldBe` Nothing
 

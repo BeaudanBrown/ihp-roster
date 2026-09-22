@@ -61,13 +61,8 @@ if ! [[ "$E2E_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,27}$ ]]; then
 fi
 export IHP_ROSTER_E2E=1
 export E2E_TEST_TOKEN="${E2E_TEST_TOKEN:-e2e-$E2E_RUN_ID-$RANDOM}"
-# Keep Xero error-path fixtures deterministic in isolated shells without
-# loading developer or operator secrets. Fixture tokens are intentionally not
-# encrypted with this local-only key.
-export XERO_CLIENT_ID="${XERO_CLIENT_ID:-e2e-client}"
-export XERO_CLIENT_SECRET="${XERO_CLIENT_SECRET:-e2e-secret}"
-export XERO_REDIRECT_URI="${XERO_REDIRECT_URI:-http://127.0.0.1/xero/callback}"
-export XERO_TOKEN_ENCRYPTION_KEY="${XERO_TOKEN_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}"
+# Test-only app/worker entrypoints install the closed local Xero client and
+# configuration; neither inherited credentials nor provider URLs are consumed.
 E2E_SHARDS_MAX="${E2E_SHARDS_MAX:-8}"
 case "$E2E_SHARDS_MAX" in
     ""|*[!0-9]*)
@@ -264,14 +259,14 @@ mkdir -p "$STATE_DIR/build" "$E2E_BUILD_DIR/bin"
     # GHC remains the freshness authority. Stable outputs avoid unchanged links;
     # each run receives a snapshot so concurrent runs cannot replace its image.
     if [ "$E2E_SERVER_MODE" = compiled ]; then
-        ghc $GHC_OPTS Main.hs -o "$E2E_BUILD_DIR/bin/RunE2EApp" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
+        ghc $GHC_OPTS -main-is Test.E2EAppMain Test/E2EAppMain.hs -o "$E2E_BUILD_DIR/bin/RunE2EApp" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
             7>&- 2>&1 | tee "$STATE_DIR/app-build.log"
         cp --reflink=auto "$E2E_BUILD_DIR/bin/RunE2EApp" "$E2E_SERVER_BIN"
     elif [ "$E2E_SERVER_MODE" != dev ]; then
         echo "E2E_SERVER_MODE must be compiled or dev, got: $E2E_SERVER_MODE" >&2
         exit 1
     fi
-    # Keep real worker and local Stripe boundaries, including for non-billing
+    # Keep the real worker with local Stripe/Xero boundaries even in non-billing
     # tests: app jobs must never fall through to an external provider.
     ghc $GHC_OPTS -main-is Test.E2EWorkerMain Test/E2EWorkerMain.hs \
         -o "$E2E_BUILD_DIR/bin/RunE2EWorker" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
@@ -316,6 +311,8 @@ run_e2e_shard() {
         export PLAYWRIGHT_BLOB_REPORT_DIR="$shard_blob_dir"
         export PLAYWRIGHT_WORKERS=1
         export PLAYWRIGHT_FULLY_PARALLEL=0
+        export E2E_XERO_FIXTURE="$shard_dir/xero-fixture.json"
+        export E2E_XERO_SEED_BIN="$E2E_WORKER_BIN"
 
         cleanup() {
             trap '' INT TERM
