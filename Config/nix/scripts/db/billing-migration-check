@@ -30,6 +30,8 @@ source_repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
     exit 66
 }
 source_repo="$(readlink -f "$source_repo")"
+# This minimal historical fixture owns SQL/history, not cold tooling bootstrap.
+export BEPIS_TOOLING_LAUNCHER="$source_repo/bin/tooling-run"
 billing_introduction="d4e57a2d57dcadd7364bcd57166fe96ba7645bff"
 billing_predecessor="f568e0036d1bce54c61b37fda3a3e59516a7d7fc"
 

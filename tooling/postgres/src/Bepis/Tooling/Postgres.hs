@@ -2,7 +2,7 @@ module Bepis.Tooling.Postgres
     ( runPostgresCommand
     ) where
 
-import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock)
+import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock, withExclusiveLock)
 import Bepis.Tooling.Postgres.Config (ConfigError (..), Profile (..))
 import Bepis.Tooling.Postgres.Lifecycle (PostgresError (..), runProfileCommand)
 import Bepis.Tooling.Postgres.Rehearsal (runRehearsalCommand)
@@ -30,6 +30,8 @@ dispatch = do
         "profile":"hspec":command:rest -> runProfileCommand Hspec command rest
         "profile":"dev":command:rest -> runProfileCommand Development command rest
         "profile":"e2e":command:rest -> runProfileCommand E2E command rest
+        "maintenance-run":"--wait":lockPath:"--":command:rest ->
+            withExclusiveLock lockPath (runMaintenanceCommand command rest) >>= exitWith
         "maintenance-run":lockPath:message:"--":command:rest -> maintenanceRun lockPath message command rest
         "rehearsal-run":rest -> runRehearsalCommand rest
         ["app-running"] -> appRunning
@@ -37,16 +39,19 @@ dispatch = do
         _ -> hPutStrLn stderr usage >> exitWith (ExitFailure 64)
 
 usage :: String
-usage = "Usage: bepis-postgres profile hspec|dev|e2e COMMAND [ARGS...] | maintenance-run LOCK MESSAGE -- COMMAND [ARGS...] | rehearsal-run OPTIONS"
+usage = "Usage: bepis-postgres profile hspec|dev|e2e COMMAND [ARGS...] | maintenance-run LOCK MESSAGE -- COMMAND [ARGS...] | maintenance-run --wait LOCK -- COMMAND [ARGS...] | rehearsal-run OPTIONS"
 
 maintenanceRun :: FilePath -> String -> FilePath -> [String] -> IO ()
 maintenanceRun lockPath busyMessage command arguments = do
-    result <- tryWithExclusiveLock lockPath $ do
-        (_, _, _, handle) <- createProcess (proc command arguments) {std_in = Inherit, std_out = Inherit, std_err = Inherit}
-        waitForProcess handle
+    result <- tryWithExclusiveLock lockPath (runMaintenanceCommand command arguments)
     case result of
         Nothing -> hPutStrLn stderr busyMessage >> exitWith (ExitFailure 75)
         Just status -> exitWith status
+
+runMaintenanceCommand :: FilePath -> [String] -> IO ExitCode
+runMaintenanceCommand command arguments = do
+    (_, _, _, handle) <- createProcess (proc command arguments) {std_in = Inherit, std_out = Inherit, std_err = Inherit}
+    waitForProcess handle
 
 appRunning :: IO ()
 appRunning = do

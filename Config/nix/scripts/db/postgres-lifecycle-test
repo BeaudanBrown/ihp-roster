@@ -38,6 +38,69 @@ TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$disposable_root" test-
 disposable_socket="$(TEST_POSTGRES_REPO_ROOT="$repo_root" TEST_POSTGRES_ROOT="$disposable_root" test-postgres ensure)"
 [ "$(cat "$disposable_root/instance-id")" != "$first_instance" ] || fail "disposable ensure reused removed instance"
 
+# Real shard resets must wait for template publication, then clone independent
+# databases. Hold the published flock path to make contention deterministic.
+postgres_binary="$("$repo_root/bin/tooling-run" postgres --print-binary)"
+python3 - "$repo_root" "$fixture_root/template" "$disposable_socket" "$postgres_binary" <<'PY'
+import fcntl
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+
+repo, root, socket, binary = sys.argv[1:]
+root = Path(root)
+for directory in ["Application", "ihp/ihp-ide/data", ".devenv"]:
+    (root / directory).mkdir(parents=True, exist_ok=True)
+(root / "ihp/ihp-ide/data/IHPSchema.sql").write_text("SELECT 1;\n")
+(root / "Application/Schema.sql").write_text("CREATE TABLE clone_probe (value text NOT NULL);\n")
+(root / "Application/Fixtures.sql").write_text("INSERT INTO clone_probe VALUES ('seeded');\n")
+launcher = root / "launcher"
+# Resolve the fresh executable once; build latency must not hide contention.
+launcher.write_text('#!/usr/bin/env bash\nshift\ntouch "$TEST_DATABASE_NAME.entered"\nexec "$TEMPLATE_TEST_POSTGRES_BINARY" "$@"\n')
+launcher.chmod(0o700)
+env = dict(os.environ, IHP_DEV_CHECKOUT=str(root / "ihp"), TEST_DB_SOCKET=socket,
+           TEST_DB_RESET_MODE="template", TEST_DB_LOAD_E2E_FIXTURES="0",
+           BEPIS_TEST_DB_TEMPLATE_HELD="0", BEPIS_TOOLING_LAUNCHER=str(launcher),
+           TEMPLATE_TEST_POSTGRES_BINARY=binary)
+processes = []
+with (root / ".devenv/test-db-template.lock").open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        for index in range(3):
+            database = f"reset_probe_{index}"
+            process = subprocess.Popen(["bash", f"{repo}/Config/nix/scripts/db/test-db-reset"],
+                cwd=root, env=dict(env, TEST_DATABASE_NAME=database),
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+            processes.append((database, process))
+        deadline = time.monotonic() + 5
+        while not all((root / f"{database}.entered").exists() for database, _ in processes):
+            assert time.monotonic() < deadline, "shard resets did not reach template lock"
+            time.sleep(0.01)
+        # Give an incorrectly non-blocking owner time to exit while held.
+        time.sleep(0.2)
+        assert all(process.poll() is None for _, process in processes), "shard reset failed instead of waiting for template publication"
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        for database, process in processes:
+            output, _ = process.communicate(timeout=15)
+            assert process.returncode == 0, f"{database}: {output}"
+            value = subprocess.check_output(["psql", "-X", "-At", "-h", socket, "-d", database,
+                "-v", "ON_ERROR_STOP=1", "-c", "SELECT value FROM clone_probe"], text=True)
+            assert value.strip() == "seeded", f"{database}: incomplete schema clone"
+        count = subprocess.check_output(["psql", "-X", "-At", "-h", socket, "-d", "postgres",
+            "-c", "SELECT count(*) FROM pg_database WHERE datname LIKE 'ihp_roster_test_template_%'"], text=True)
+        assert count.strip() == "1", "template published more than once or staging database leaked"
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        for _, process in processes:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
+            process.communicate(timeout=5)
+print("postgres-lifecycle-test: concurrent schema-template resets passed")
+PY
+
 # External mode never owns, recreates, stops, or cleans the supplied server.
 external_sentinel="$fixture_root/external-sentinel"
 printf 'keep\n' >"$external_sentinel"

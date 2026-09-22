@@ -74,13 +74,17 @@ state_root="$PWD/.devenv"
 lock_file="$state_root/test-db-template.lock"
 mkdir -p "$state_root"
 
-# All local Hspec shards share one immutable schema template. The Haskell lock
-# owner serializes publication and cannot leak its descriptor into PostgreSQL.
+# Shards wait for immutable template publication, then clone independently.
+# The Haskell owner cannot leak its lock descriptor into PostgreSQL children.
 if [ "${BEPIS_TEST_DB_TEMPLATE_HELD:-0}" != 1 ]; then
     launcher="${BEPIS_TOOLING_LAUNCHER:-$(realpath "$(dirname "$0")/../../../../bin/tooling-run")}"
-    exec "$launcher" postgres maintenance-run "$lock_file" \
-        "test-db-reset: another schema template build is already running" -- \
+    "$launcher" postgres maintenance-run --wait "$lock_file" -- \
         env BEPIS_TEST_DB_TEMPLATE_HELD=1 bash "$0" "$@"
+    psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
+CREATE DATABASE "$DB_NAME" TEMPLATE "$template_name";
+SQL
+    exit 0
 fi
 
 template_exists="$(psql -h "$DB_SOCKET" -d postgres -Atv ON_ERROR_STOP=1 \
@@ -102,8 +106,3 @@ ALTER DATABASE "$template_name" WITH IS_TEMPLATE true ALLOW_CONNECTIONS false;
 SQL
     trap - EXIT
 fi
-
-psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
-DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
-CREATE DATABASE "$DB_NAME" TEMPLATE "$template_name";
-SQL

@@ -80,3 +80,7 @@ runs GitHub, process, resource, or HLS diagnostics. Provisioning locks its short
 Git creation/check and registry publication phases separately; initialization
 runs unlocked. Publication rechecks conflicts and retained identities so retries
 and concurrent identical requests cannot claim competing slots.
+
+PostgreSQL maintenance fails fast on operator reset/seed contention. Hspec uses
+`maintenance-run --wait` for shared schema-template publication only; each shard
+clones its independent database after that lock is released.
