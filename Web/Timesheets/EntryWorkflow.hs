@@ -21,6 +21,7 @@ module Web.Timesheets.EntryWorkflow
 import Application.Error.Types (AppError)
 import Application.Helper.SurfaceResource (LiveMutationResult)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
+import Application.PayAssignment (StaffPayAssignment (..), staffAssignmentSuppressesTimesheets)
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
@@ -41,7 +42,14 @@ data TimesheetRequestContext = TimesheetRequestContext
     , timesheetFilters :: TimesheetViewFilters
     }
 
-data TimesheetCreationBlocker = NoTimesheetStaff | NoTimesheetShiftTypes | NoTimesheetDay | TimesheetTimingUnavailable
+data TimesheetCreationBlocker
+    = NoTimesheetStaff
+    | NoEnabledTimesheetStaff
+    | ViewerTimesheetsDisabled
+    | TimesheetStaffConfigurationRequired
+    | NoTimesheetShiftTypes
+    | NoTimesheetDay
+    | TimesheetTimingUnavailable
 
 data TimesheetCreateOutcome
     = TimesheetCreateBlocked TimesheetCreationBlocker
@@ -72,7 +80,7 @@ prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn = do
     formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
     let venueConfig = formContext.formVenueConfig
     case (formContext.formStaffMembers, formContext.formShiftTypes, maybeWorkedOn) of
-        ([], _, _) -> pure (Left NoTimesheetStaff)
+        ([], _, _) -> Left <$> unavailableTimesheetStaffBlocker formContext
         (_, [], _) -> pure (Left NoTimesheetShiftTypes)
         (_, _, Nothing) -> pure (Left NoTimesheetDay)
         (_, defaultShiftType : _, Just workedOn) ->
@@ -87,15 +95,27 @@ prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn = do
                     let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                     pure (Right NewTimesheetRenderModel { .. })
 
+-- An empty authorized option list is not necessarily a missing staff record.
+-- Managers may create for colleagues even when their own profile is roster-only.
+unavailableTimesheetStaffBlocker :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetFormContext -> IO TimesheetCreationBlocker
+unavailableTimesheetStaffBlocker formContext
+    | formContext.formViewerIsManager = pure NoEnabledTimesheetStaff
+    | otherwise = fetchCurrentUserStaff >>= \case
+        Nothing -> pure NoTimesheetStaff
+        Just staff
+            | staffAssignmentSuppressesTimesheets (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId) -> pure ViewerTimesheetsDisabled
+            | otherwise -> pure TimesheetStaffConfigurationRequired
+
 createOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> IO TimesheetCreateOutcome
 createOrdinaryTimesheetEntry context = do
     let selectedStaffFilterId = context.timesheetFilters.filterStaffId
     formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
     let venueConfig = formContext.formVenueConfig
     let submittedWorkedOn = fromMaybe context.timesheetScope.timesheetWindowStart (paramOrNothing @Day "workedOn")
-    case defaultTimesheetEntry venueConfig submittedWorkedOn of
-        Left _ -> pure (TimesheetCreateBlocked TimesheetTimingUnavailable)
-        Right entry -> do
+    case (formContext.formStaffMembers, defaultTimesheetEntry venueConfig submittedWorkedOn) of
+        ([], _) -> TimesheetCreateBlocked <$> unavailableTimesheetStaffBlocker formContext
+        (_, Left _) -> pure (TimesheetCreateBlocked TimesheetTimingUnavailable)
+        (_, Right entry) -> do
             let timesheetEntryRecord = entry
                     |> set #venueId (unpackId currentVenueId)
                     |> buildTimesheetEntry venueConfig formContext.formCurrentViewerStaffId

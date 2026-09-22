@@ -33,6 +33,7 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..),
 import Application.Helper.View (ToastOverlayPosition (..),
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
+import Application.Helper.View.Toast (errorToast)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
@@ -156,12 +157,21 @@ respondWithTimesheetReviewOutcome context = \case
 respondWithNewTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> Either TimesheetCreationBlocker NewTimesheetRenderModel -> IO ResponseReceived
 respondWithNewTimesheetForm windowStart selectedStaffFilterId = \case
     Left blocker -> do
-        setErrorMessage case blocker of
-            NoTimesheetStaff -> "No staff record found. Contact an administrator."
-            NoTimesheetShiftTypes -> "Add at least one shift type before creating a timesheet entry."
-            NoTimesheetDay -> "Please choose a day before creating a timesheet entry."
-            TimesheetTimingUnavailable -> "Timesheet creation is unavailable until the venue timezone configuration is repaired."
-        redirectToPath (timesheetWindowUrl windowStart selectedStaffFilterId)
+        let message = case blocker of
+                NoTimesheetStaff -> "No staff record found. Contact an administrator."
+                NoEnabledTimesheetStaff -> "No staff at this venue have timesheets enabled. Enable timesheets in a staff member's profile before creating a timesheet."
+                ViewerTimesheetsDisabled -> "Your profile is set to 'No timesheets'. If you think this is wrong please ask a manager"
+                TimesheetStaffConfigurationRequired -> "Your timesheet pay configuration needs attention. Please ask a manager."
+                NoTimesheetShiftTypes -> "Add at least one shift type before creating a timesheet entry."
+                NoTimesheetDay -> "Please choose a day before creating a timesheet entry."
+                TimesheetTimingUnavailable -> "Timesheet creation is unavailable until the venue timezone configuration is repaired."
+        if isHtmxRequest
+            then do
+                setHeader ("HX-Reswap", "none")
+                respondHtml (renderToastOob ToastBottomCenter (errorToast message))
+            else do
+                setErrorMessage message
+                redirectToPath (timesheetWindowUrl windowStart selectedStaffFilterId)
     Right newTimesheetRenderModel ->
         if isHtmxRequest
             then respondHtml (renderNewTimesheetDialog newTimesheetRenderModel)

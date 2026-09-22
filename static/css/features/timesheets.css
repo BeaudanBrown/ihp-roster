@@ -20,6 +20,28 @@
     min-width: 0;
 }
 
+.timesheet-staff-filter-controls {
+    display: flex;
+    gap: var(--app-space-2);
+}
+
+.timesheet-staff-filter-controls > select {
+    flex: 1;
+    min-width: 0;
+}
+
+.timesheet-staff-filter-controls > button {
+    flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+    .timesheet-staff-filter-controls > select,
+    .timesheet-staff-filter-controls > button {
+        min-height: 2.75rem;
+        min-width: 2.75rem;
+    }
+}
+
 .timesheet-day-columns {
     grid-template-columns: repeat(var(--timesheet-day-count), minmax(17.5rem, 1fr));
     min-width: min(88rem, calc(var(--timesheet-day-count) * 18.5rem));
