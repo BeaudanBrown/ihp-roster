@@ -9,10 +9,13 @@
 module Application.Helper.FrontendContract.Surface.SelfServiceLeave.Generated.Action
     ( CreateSelfServiceLeaveRequestActionOperation
     , DeleteSelfServiceLeaveRequestActionOperation
+    , OpenSelfServiceLeaveDeleteConfirmationActionOperation
     , createSelfServiceLeaveRequestAction
     , createSelfServiceLeaveRequestActionFields
     , deleteSelfServiceLeaveRequestAction
     , deleteSelfServiceLeaveRequestActionFields
+    , openSelfServiceLeaveDeleteConfirmationAction
+    , openSelfServiceLeaveDeleteConfirmationActionFields
     , parseCreateSelfServiceLeaveRequestActionParams
     ) where
 
@@ -97,3 +100,22 @@ deleteSelfServiceLeaveRequestActionEvidence =
 deleteSelfServiceLeaveRequestAction :: ActionFields DeleteSelfServiceLeaveRequestActionOperation -> FrontendSurfaceAction
 deleteSelfServiceLeaveRequestAction =
     frontendSurfaceActionFromEvidence deleteSelfServiceLeaveRequestActionEvidence
+
+data OpenSelfServiceLeaveDeleteConfirmationActionOperation
+
+type instance ActionSurface OpenSelfServiceLeaveDeleteConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.SelfServiceLeaveAdapterFamily)
+type instance ActionMarker OpenSelfServiceLeaveDeleteConfirmationActionOperation = Types1.OpenSelfServiceLeaveDeleteConfirmation
+type instance ActionFieldSpecs OpenSelfServiceLeaveDeleteConfirmationActionOperation =
+    '[]
+
+openSelfServiceLeaveDeleteConfirmationActionFields :: ActionFields OpenSelfServiceLeaveDeleteConfirmationActionOperation
+openSelfServiceLeaveDeleteConfirmationActionFields =
+    noActionFields
+
+openSelfServiceLeaveDeleteConfirmationActionEvidence :: ActionEvidence OpenSelfServiceLeaveDeleteConfirmationActionOperation
+openSelfServiceLeaveDeleteConfirmationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenSelfServiceLeaveDeleteConfirmation" "open-self-service-leave-delete-confirmation" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a SelfServiceLeave DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+openSelfServiceLeaveDeleteConfirmationAction :: ActionFields OpenSelfServiceLeaveDeleteConfirmationActionOperation -> FrontendSurfaceAction
+openSelfServiceLeaveDeleteConfirmationAction =
+    frontendSurfaceActionFromEvidence openSelfServiceLeaveDeleteConfirmationActionEvidence

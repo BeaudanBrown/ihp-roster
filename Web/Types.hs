@@ -52,6 +52,7 @@ data PasskeysController
     | DismissMandatoryPasskeySetupAction
     | ShowPasskeySetupDialogAction
     | ShowPasskeyRecoveryCodeDialogAction
+    | ShowPasskeyDeleteConfirmationAction { passkeyId :: !(Id Passkey) }
     | UsePasskeyRecoveryCodeAction
     | SendNewDevicePasskeySetupEmailAction
     | DeletePasskeyAction { passkeyId :: !(Id Passkey) }
@@ -98,6 +99,7 @@ data LeaveRequestsController
     | ShowVisibleUnavailabilityBlackoutsFragmentAction
     | NewLeaveRequestAction
     | CreateLeaveRequestAction
+    | ShowSelfServiceLeaveDeleteConfirmationAction { leaveRequestId :: !(Id LeaveRequest) }
     | DeleteSelfServiceLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | DenyLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }

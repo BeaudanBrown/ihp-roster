@@ -46,6 +46,8 @@ module Application.Helper.FrontendContract.AppShell
     , ManagerNoteField
     , OpenPasskeySetupDialog
     , OpenPasskeyRecoveryCodeDialog
+    , OpenPasskeyDeleteConfirmationDialog
+    , DeletePasskeyOverlay
     , SubmitPasskeyProtectedAction
     , CreateLeaveRequestOverlay
     , OpenXeroStaffMappingsOverlay
@@ -160,6 +162,8 @@ data ManagerNoteField
 
 data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
+data OpenPasskeyDeleteConfirmationDialog
+data DeletePasskeyOverlay
 data SubmitPasskeyProtectedAction
 data CreateLeaveRequestOverlay
 data OpenXeroStaffMappingsOverlay
@@ -302,6 +306,14 @@ type AppShellContract =
              ]
          , AppShellAction OpenPasskeySetupDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenPasskeyRecoveryCodeDialog DialogLauncherFields DialogLauncherOptions
+         , AppShellAction OpenPasskeyDeleteConfirmationDialog DialogLauncherFields DialogLauncherOptions
+         , AppShellAction DeletePasskeyOverlay
+            '[]
+            '[ AppShellHtmxMethod 'AppShellDelete
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction SubmitPasskeyProtectedAction
             '[]
             '[ AppShellHtmxMethod 'AppShellPost

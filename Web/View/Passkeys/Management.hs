@@ -2,18 +2,22 @@
 
 module Web.View.Passkeys.Management
     ( formatRelativeLastUsed
+    , renderPasskeyDeleteConfirmation
     , renderPasskeyManagement
     , renderPasskeyManagementWithAddButton
     )
 where
 
-import Application.Helper.FrontendContract.AppShell (OpenPasskeySetupDialog,
+import Application.Helper.FrontendContract.AppShell (DeletePasskeyOverlay,
+                                                     OpenPasskeyDeleteConfirmationDialog,
+                                                     OpenPasskeySetupDialog,
                                                      SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm,
                                                              renderAppShellActionLink)
+import Application.Helper.View.Overlay
 import Web.View.Prelude
 
 renderPasskeyManagement :: UTCTime -> [Passkey] -> Text -> Html
@@ -91,21 +95,43 @@ renderPasskeyRow now passkey = [hsx|
     <tr>
         <td>{passkey.name}</td>
         <td class="app-muted small">{formatRelativeLastUsed now passkey.lastUsedAt}</td>
-        <td class="text-end">
-            <form method="POST"
-                  action={pathTo (DeletePasskeyAction passkey.id)}
-                  class="d-inline"
-                  onsubmit={passkeyDeleteConfirmationAttribute}>
-                <input type="hidden" name="_method" value="DELETE"/>
-                <button type="submit" class="btn btn-sm btn-outline-danger">{canonicalPasskeyManagementCopy.passkeyManagementDeleteLabel}</button>
-            </form>
-        </td>
+        <td class="text-end">{deleteLauncher}</td>
     </tr>
 |]
+  where
+    deleteLauncher =
+        renderAppShellActionForm
+            (appShellActionByMarker @OpenPasskeyDeleteConfirmationDialog)
+            ((defaultAppShellActionRoute (pathTo (ShowPasskeyDeleteConfirmationAction passkey.id)))
+                { appShellActionRouteExtraAttrs = [("class", "d-inline")]
+                })
+            [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">{canonicalPasskeyManagementCopy.passkeyManagementDeleteLabel}</button>|]
 
-passkeyDeleteConfirmationAttribute :: Text
-passkeyDeleteConfirmationAttribute =
-    "return window.confirm(" <> show canonicalPasskeyManagementCopy.passkeyManagementDeleteConfirmation <> ");"
+renderPasskeyDeleteConfirmation :: (?context :: ControllerContext) => Passkey -> Html
+renderPasskeyDeleteConfirmation passkey =
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Delete passkey?"
+            [hsx|
+                <p class="mb-2">Delete <strong>{passkey.name}</strong>?</p>
+                <p class="app-muted mb-0">You may need to verify with a passkey before it is removed.</p>
+            |]
+            formId
+            deleteForm)
+            { confirmationDialogApproveLabel = canonicalPasskeyManagementCopy.passkeyManagementDeleteLabel
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Deleting…"
+            }
+  where
+    formId = "delete-passkey-confirmation-form"
+    deleteUrl = pathTo (DeletePasskeyAction passkey.id)
+    deleteForm =
+        renderAppShellActionForm
+            (appShellActionByMarker @DeletePasskeyOverlay)
+            ((defaultAppShellActionRoute deleteUrl)
+                { appShellActionRouteExtraAttrs = [("id", formId)]
+                })
+            [hsx|<input type="hidden" name="_method" value="DELETE"/>|]
 
 formatRelativeLastUsed :: UTCTime -> Maybe UTCTime -> Text
 formatRelativeLastUsed _ Nothing = "Never"

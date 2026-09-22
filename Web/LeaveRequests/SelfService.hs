@@ -3,6 +3,7 @@
 module Web.LeaveRequests.SelfService
     ( renderSelfServiceLeaveFormFragment
     , renderSelfServiceLeaveFormMount
+    , renderSelfServiceLeaveDeleteConfirmation
     , renderSelfServiceLeaveHistory
     , renderSelfServiceLeaveHistoryFragment
     , selfServiceLeaveFormFragmentId
@@ -20,6 +21,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as Surface
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action as SurfaceAction
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.View.Overlay
 import Web.LeaveRequests.FrontendSurface (SelfServiceLeaveScopeValue (..),
                                           selfServiceLeaveSurfaceImpl)
 import Web.View.LeaveRequests.Index (renderStatusBadge)
@@ -186,14 +188,34 @@ renderPendingLeaveRequestDelete leaveRequest
     | leaveRequest.status /= LeaveRequestStatusEnumPending = mempty
     | otherwise =
         renderFrontendSurfaceActionForm
-            (SurfaceAction.deleteSelfServiceLeaveRequestAction SurfaceAction.deleteSelfServiceLeaveRequestActionFields)
-            ((defaultFrontendSurfaceActionRoute deletePath)
-                { actionRouteStandardUrl = Just deletePath
-                , actionRouteExtraAttrs = [("onsubmit", "return window.confirm('Delete this pending unavailable period?');")]
-                })
+            (SurfaceAction.openSelfServiceLeaveDeleteConfirmationAction SurfaceAction.openSelfServiceLeaveDeleteConfirmationActionFields)
+            (defaultFrontendSurfaceActionRoute confirmationPath)
             [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>|]
   where
+    confirmationPath = pathTo (ShowSelfServiceLeaveDeleteConfirmationAction leaveRequest.id)
+
+renderSelfServiceLeaveDeleteConfirmation :: (?context :: ControllerContext) => LeaveRequest -> Html
+renderSelfServiceLeaveDeleteConfirmation leaveRequest =
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Delete unavailable period?"
+            [hsx|<p class="mb-0">Delete the pending unavailable period {renderDateRangeText leaveRequest}?</p>|]
+            formId
+            deleteForm)
+            { confirmationDialogApproveLabel = "Delete"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Deleting…"
+            }
+  where
+    formId = "delete-self-service-leave-request-confirmation-form"
     deletePath = pathTo (DeleteSelfServiceLeaveRequestAction leaveRequest.id)
+    deleteForm =
+        renderFrontendSurfaceActionForm
+            (SurfaceAction.deleteSelfServiceLeaveRequestAction SurfaceAction.deleteSelfServiceLeaveRequestActionFields)
+            ((defaultFrontendSurfaceActionRoute deletePath)
+                { actionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
 
 createSelfServiceLeaveRequestPath :: Text
 createSelfServiceLeaveRequestPath =

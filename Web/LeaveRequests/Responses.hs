@@ -54,7 +54,17 @@ respondWithSelfServiceLeaveDeletionResult staff deletionResult =
     case deletionResult of
         Just result ->
             if isHtmxRequest
-                then respondWithLeaveMutationSuccess LeaveSelfServiceResponseContext result.liveMutationTouchedResources "Unavailable period deleted"
+                then do
+                    let scope = SelfServiceLeaveScopeValue (unpackId currentVenueId) (unpackId staff.id)
+                    setHeader ("HX-Reswap", "none")
+                    setActorLiveResourcesRefreshIncluding
+                        [SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment]
+                        (selfServiceLeaveSurfaceScope scope)
+                        result.liveMutationTouchedResources
+                        [selfServiceLeaveFormMountedFragment, selfServiceLeaveHistoryMountedFragment]
+                    respondHtmlProfiled $
+                        renderDialogOverlayClearOob
+                            <> renderToastOob ToastBottomCenter (successToast "Unavailable period deleted")
                 else do
                     setSuccessMessage "Unavailable period deleted"
                     redirectToPath (leaveFallbackPath LeaveSelfServiceResponseContext)
@@ -68,7 +78,9 @@ respondWithSelfServiceLeaveDeletionResult staff deletionResult =
                         (selfServiceLeaveSurfaceScope scope)
                         Set.empty
                         [selfServiceLeaveHistoryMountedFragment]
-                    respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted."))
+                    respondHtmlProfiled $
+                        renderDialogOverlayClearOob
+                            <> renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted.")
                 else do
                     setErrorMessage "Only pending unavailable periods can be deleted."
                     redirectToPath (leaveFallbackPath LeaveSelfServiceResponseContext)

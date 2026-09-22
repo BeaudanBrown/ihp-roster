@@ -118,6 +118,27 @@ instance Controller LeaveRequestsController where
         ensureLeaveProfileAccess responseContext
         submitRequestedLeave responseContext >>= respondWithLeaveSubmissionResult responseContext
 
+    action currentAction@ShowSelfServiceLeaveDeleteConfirmationAction { leaveRequestId } = runBepis currentAction BepisFormAction do
+        ensureStaffSelfServiceAccess
+        ensureVenueWritable
+        ensureLeaveProfileAccess LeaveSelfServiceResponseContext
+        fetchCurrentUserStaff >>= \case
+            Nothing -> respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast "No staff record found. Contact an administrator."))
+            Just staff -> do
+                requestedLeave <-
+                    query @LeaveRequest
+                        |> filterWhere (#id, leaveRequestId)
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> filterWhere (#staffId, unpackId staff.id)
+                        |> filterWhere (#status, LeaveRequestStatusEnumPending)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetchOneOrNothing
+                respondHtmlProfiled $
+                    maybe
+                        (renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted."))
+                        renderSelfServiceLeaveDeleteConfirmation
+                        requestedLeave
+
     action currentAction@DeleteSelfServiceLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureStaffSelfServiceAccess
         ensureVenueWritable

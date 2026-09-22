@@ -251,6 +251,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DeleteUnavailabilityBlackout
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.OpenSelfServiceLeaveDeleteConfirmation
+        (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.DeleteSelfServiceLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.VoteFeedback
