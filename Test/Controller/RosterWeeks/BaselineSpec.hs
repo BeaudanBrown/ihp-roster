@@ -1,5 +1,7 @@
 module Test.Controller.RosterWeeks.BaselineSpec where
 
+import Application.Helper.Impersonation (effectiveUserSessionKey,
+                                         impersonationSessionIdSessionKey)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         syncStaffRosterGroupAssignments)
 import qualified Data.ByteString.Char8 as ByteString
@@ -7,6 +9,7 @@ import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
+import qualified Data.UUID as UUID
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -73,6 +76,10 @@ tests = aroundAll withDatabaseTestContext do
                     staffPanel `responseStatusShouldBe` status200
 
                     serverTiming coldPage `shouldContainBS` "roster_direct_fetch_dated_slots;dur="
+                    forM_ [coldPage, warmPage] \response ->
+                        countTimingSpan "context_navigation_init" response `shouldBe` 1
+                    forM_ [contentFragment, toolbarFragment, frameFragment, dayColumnsFragment, dayRailFragment, wageRailFragment, slotsGridFragment, rowFragment, dayFragment, staffPanel] \response ->
+                        countTimingSpan "context_navigation_init" response `shouldBe` 0
                     forM_ [coldPage, warmPage, contentFragment, toolbarFragment, frameFragment, dayColumnsFragment, dayRailFragment, wageRailFragment, slotsGridFragment, rowFragment, dayFragment, staffPanel] \response -> do
                         countTimingSpan "roster_snapshot_fetch_venue_config" response `shouldBe` 1
                         countTimingSpan "roster_snapshot_fetch_current_staff" response `shouldBe` 1
@@ -153,6 +160,79 @@ tests = aroundAll withDatabaseTestContext do
 
                     bodyText <- cs . LByteString.unpack <$> responseBody contentFragment
                     bodyText `shouldContain` "data-roster-row"
+
+        it "defers layout navigation context for worker, manager, owner, founder, and impersonated founder fragments" $ withContext do
+            withEnvironmentVariable "IHP_ROSTER_PROFILING" (Just "1") do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Navigation Context Venue"
+                    otherVenue <- createVenueWithConfig "Navigation Context Other Venue"
+                    rosterGroup <- ensureVenueDefaultRosterGroup venue
+                    worker <- createUserRecord "navigation-context-worker@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue worker Worker
+                    workerStaff <- createStaffRecord venue (Just worker) "Context" "Worker"
+                    syncStaffRosterGroupAssignments workerStaff [rosterGroup.id]
+                    manager <- createUserRecord "navigation-context-manager@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue manager Manager
+                    managerStaff <- createStaffRecord venue (Just manager) "Context" "Manager"
+                    syncStaffRosterGroupAssignments managerStaff [rosterGroup.id]
+                    owner <- createUserRecord "navigation-context-owner@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue owner VenueOwner
+                    founder <- createUserRecordWithPlatformRole "navigation-context-founder@example.com" "staff" (Just SuperAdmin) True
+
+                    workerPage <- withUserAndCurrentVenue worker venue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    workerFragment <- withUserAndCurrentVenue worker venue.id do
+                        callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
+                    managerPage <- withUserAndCurrentVenue manager venue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    managerFragment <- withUserAndCurrentVenue manager venue.id do
+                        callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
+                    ownerPage <- withUserAndCurrentVenue owner venue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    ownerFragment <- withUserAndCurrentVenue owner venue.id do
+                        callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
+                    founderPage <- withUserAndCurrentVenue founder venue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    founderFragment <- withUserAndCurrentVenue founder venue.id do
+                        callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
+                    impersonatedFounderPage <- withUserAndCurrentVenue founder venue.id do
+                        setSession effectiveUserSessionKey worker.id
+                        setSession impersonationSessionIdSessionKey (UUID.toText UUID.nil)
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    impersonatedFounderFragment <- withUserAndCurrentVenue founder venue.id do
+                        setSession effectiveUserSessionKey worker.id
+                        setSession impersonationSessionIdSessionKey (UUID.toText UUID.nil)
+                        callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
+
+                    let pages = [workerPage, managerPage, ownerPage, founderPage, impersonatedFounderPage]
+                    let fragments = [workerFragment, managerFragment, ownerFragment, founderFragment, impersonatedFounderFragment]
+                    dumpBaselineTimings
+                        [ ("context-worker-page", workerPage)
+                        , ("context-manager-page", managerPage)
+                        , ("context-owner-page", ownerPage)
+                        , ("context-founder-page", founderPage)
+                        , ("context-impersonated-founder-page", impersonatedFounderPage)
+                        ]
+                    forM_ (pages <> fragments) (`responseStatusShouldBe` status200)
+                    forM_ pages \response -> do
+                        countTimingSpan "context_navigation_init" response `shouldBe` 1
+                        countTimingSpan "context_support_options_init" response `shouldBe` 1
+                        countTimingSpan "context_billing_navigation_init" response `shouldBe` 1
+                        countTimingSpan "context_feedback_init" response `shouldBe` 1
+                    forM_ fragments \response -> do
+                        countTimingSpan "context_navigation_init" response `shouldBe` 0
+                        countTimingSpan "context_support_options_init" response `shouldBe` 0
+                        countTimingSpan "context_billing_navigation_init" response `shouldBe` 0
+                        countTimingSpan "context_feedback_init" response `shouldBe` 0
+                    workerPage `responseBodyShouldNotContain` otherVenue.name
+                    managerPage `responseBodyShouldNotContain` otherVenue.name
+                    ownerPage `responseBodyShouldNotContain` otherVenue.name
+                    founderPage `responseBodyShouldContain` otherVenue.name
+                    founderPage `responseBodyShouldContain` "id=\"support-venue-switch\""
+                    founderPage `responseBodyShouldContain` "id=\"support-impersonation-user\""
+                    founderFragment `responseBodyShouldNotContain` "support-venue-switch"
+                    founderFragment `responseBodyShouldNotContain` "support-impersonation-user"
+                    impersonatedFounderPage `responseBodyShouldContain` otherVenue.name
 
         it "preserves worker Draft visibility and founder support through one authorized snapshot" $ withContext do
             withEnvironmentVariable "IHP_ROSTER_PROFILING" (Just "1") do

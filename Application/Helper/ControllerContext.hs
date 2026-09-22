@@ -14,6 +14,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Web.Routes ()
 import Web.Types ()
 
+import Application.Helper.NavigationContextInitialization (navigationContextInitializationMiddleware)
 import Application.Helper.Profiling (profileActionSpan)
 import Application.Helper.Telemetry (withTelemetrySpan)
 
@@ -47,7 +48,7 @@ requestVenueStateKey = unsafePerformIO Vault.newKey
 {-# NOINLINE requestVenueStateKey #-}
 
 venueRequestStateMiddleware :: Middleware
-venueRequestStateMiddleware = insertNewIORefVaultMiddleware requestVenueStateKey RequestVenueState
+venueRequestStateMiddleware = navigationContextInitializationMiddleware . insertNewIORefVaultMiddleware requestVenueStateKey RequestVenueState
     { venue = Nothing
     , membership = Nothing
     , role = Nothing
@@ -226,24 +227,18 @@ selectCurrentVenueMembership sessionVenueId memberships =
 initCurrentVenueContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initCurrentVenueContext =
     profileActionSpan "context.current_venue.init" do
-        supportVenues <-
-            profileActionSpan "context.current_venue.fetch_support_options" do
-                query @Venue
-                    |> filterWhere (#status, Active)
-                    |> orderByAsc #createdAt
-                    |> fetch
-
         modifyRequestVenueState \state -> state
             { venue = Nothing
             , membership = Nothing
             , role = Nothing
-            , supportVenues = SupportVenueOptions supportVenues
+            , supportVenues = SupportVenueOptions []
             , selection = CurrentVenueSelection Nothing Nothing
             }
 
         forM_ (withRequestContext (currentUserOrNothing @User)) \user -> do
             sessionVenueId <- withRequestContext (getSession @(Id Venue) currentVenueSessionKey)
-            maybeVenueContext <- profileActionSpan "context.current_venue.resolve_for_user" (resolveVenueContextForUser sessionVenueId user)
+            (maybeVenueContext, supportVenues) <- profileActionSpan "context.current_venue.resolve_for_user" (resolveVenueContextForRequest sessionVenueId user)
+            modifyRequestVenueState \state -> state { supportVenues = SupportVenueOptions supportVenues }
             case maybeVenueContext of
                 Nothing -> do
                     modifyRequestVenueState \state -> state { selection = CurrentVenueSelection sessionVenueId Nothing }
@@ -258,7 +253,11 @@ initCurrentVenueContext =
                     withRequestContext (setSession currentVenueSessionKey (get #id venue))
 
 resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRoleEnum))
-resolveVenueContextForUser sessionVenueId user = do
+resolveVenueContextForUser sessionVenueId user =
+    fst <$> resolveVenueContextForRequest sessionVenueId user
+
+resolveVenueContextForRequest :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRoleEnum), [Venue])
+resolveVenueContextForRequest sessionVenueId user = do
     memberships <- withTelemetrySpan "context.current_venue.fetch_memberships" do
         query @VenueMembership
             |> filterWhere (#userId, unpackId (get #id user))
@@ -266,45 +265,46 @@ resolveVenueContextForUser sessionVenueId user = do
             |> orderByAsc #createdAt
             |> fetch
 
-    let venueIds = map (Id . (.venueId)) memberships
-    venues <-
-        withTelemetrySpan "context.current_venue.fetch_member_venues" do
-            if null venueIds
-                then pure []
-                else query @Venue
-                    |> filterWhereIn (#id, venueIds)
-                    |> filterWhere (#status, Active)
-                    |> fetch
-
-    let activeVenueIds = map (coerce . (.id)) venues
-    let activeMemberships = filter (\membership -> membership.venueId `elem` activeVenueIds) memberships
-
-    let selectedMembership =
-            selectCurrentVenueMembership sessionVenueId activeMemberships
-    let selectedMembershipVenue =
-            selectedMembership >>= \membership ->
-                find (\candidate -> coerce (get #id candidate) == membership.venueId) venues
-
-    if user.platformRole == Just (SuperAdmin)
+    if user.platformRole == Just SuperAdmin
         then do
             activeVenues <- withTelemetrySpan "context.current_venue.fetch_super_admin_venues" do
                 query @Venue
                     |> filterWhere (#status, Active)
                     |> orderByAsc #createdAt
                     |> fetch
+            pure (resolveSuperAdminVenueContext sessionVenueId memberships activeVenues, activeVenues)
+        else do
+            let venueIds = map (Id . (.venueId)) memberships
+            venues <- withTelemetrySpan "context.current_venue.fetch_member_venues" do
+                if null venueIds
+                    then pure []
+                    else query @Venue
+                        |> filterWhereIn (#id, venueIds)
+                        |> filterWhere (#status, Active)
+                        |> fetch
+            pure (resolveMemberVenueContext sessionVenueId memberships venues, [])
 
-            let selectedVenue =
-                    (sessionVenueId >>= \venueId -> find (\candidate -> get #id candidate == venueId) activeVenues)
-                        <|> selectedMembershipVenue
-                        <|> listToMaybe activeVenues
+resolveMemberVenueContext :: Maybe (Id Venue) -> [VenueMembership] -> [Venue] -> Maybe (Maybe VenueMembership, Venue, Maybe VenueRoleEnum)
+resolveMemberVenueContext sessionVenueId memberships venues = do
+    let activeMemberships = membershipsForActiveVenues memberships venues
+    membership <- selectCurrentVenueMembership sessionVenueId activeMemberships
+    venue <- find (\candidate -> unpackId candidate.id == membership.venueId) venues
+    pure (Just membership, venue, Just membership.venueRole)
 
-            pure do
-                venue <- selectedVenue
-                let membership = find (\candidate -> candidate.venueId == unpackId (get #id venue)) activeMemberships
-                let role = (.venueRole) <$> membership
-                pure (membership, venue, role)
-        else
-            pure do
-                membership <- selectedMembership
-                venue <- selectedMembershipVenue
-                pure (Just membership, venue, Just membership.venueRole)
+resolveSuperAdminVenueContext :: Maybe (Id Venue) -> [VenueMembership] -> [Venue] -> Maybe (Maybe VenueMembership, Venue, Maybe VenueRoleEnum)
+resolveSuperAdminVenueContext sessionVenueId memberships activeVenues = do
+    let activeMemberships = membershipsForActiveVenues memberships activeVenues
+    let selectedMembership = selectCurrentVenueMembership sessionVenueId activeMemberships
+    let selectedMembershipVenue = selectedMembership >>= \membership ->
+            find (\candidate -> unpackId candidate.id == membership.venueId) activeVenues
+    venue <-
+        (sessionVenueId >>= \venueId -> find ((== venueId) . (.id)) activeVenues)
+            <|> selectedMembershipVenue
+            <|> listToMaybe activeVenues
+    let membership = find ((== unpackId venue.id) . (.venueId)) activeMemberships
+    pure (membership, venue, (.venueRole) <$> membership)
+
+membershipsForActiveVenues :: [VenueMembership] -> [Venue] -> [VenueMembership]
+membershipsForActiveVenues memberships venues =
+    let activeVenueIds = map (unpackId . (.id)) venues
+     in filter ((`elem` activeVenueIds) . (.venueId)) memberships

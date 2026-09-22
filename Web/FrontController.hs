@@ -5,6 +5,7 @@ import Application.Billing.Stripe (StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
 import Application.Helper.BrowserFailure (isBrowserPageRequest)
 import Application.Helper.Feedback (PrivateFeedbackCount (..), fetchPrivateFeedbackCount)
+import Application.Helper.NavigationContextInitialization (deferNavigationContextInitialization)
 import Application.Helper.Profiling (profileActionSpan)
 import IHP.RouterPrelude
 import Web.Controller.Prelude
@@ -71,9 +72,12 @@ instance InitControllerContext WebApplication where
         -- only validated identity may populate venue and impersonation authority.
         initCurrentVenueContext
         initImpersonationContext
-        initSupportImpersonationOptions
-        initBillingNavigationContext
-        initFeedbackContext
+        when (isJust (currentUserOrNothing @User)) $
+            deferNavigationContextInitialization ?request $
+                profileActionSpan "context.navigation.init" do
+                    profileActionSpan "context.support-options.init" initSupportImpersonationOptions
+                    initBillingNavigationContext
+                    initFeedbackContext
 
 initBillingNavigationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initBillingNavigationContext =

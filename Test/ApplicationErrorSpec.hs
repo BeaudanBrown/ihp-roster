@@ -13,6 +13,8 @@ import Application.Error.Boundary
 import Application.Error.Domain
 import Application.Error.Types
 import Application.Error.Wire
+import Application.Helper.NavigationContextInitialization (deferNavigationContextInitialization,
+                                                           navigationContextInitializationMiddleware)
 import Application.Helper.Telemetry (withTelemetrySpan)
 import Application.Helper.FrontendContract.Contracts (frontendContractsTypeScript)
 import Application.Helper.FrontendContract.IR
@@ -33,6 +35,7 @@ import IHP.Prelude
 import Network.HTTP.Types (status200, status422, status500)
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
+import Network.Wai.Internal (ResponseReceived (..))
 import Network.Wai.Test
 import Test.Hspec
 
@@ -230,6 +233,30 @@ tests = describe "typed application errors" do
                 LBS.toStrict (simpleBody rendered) `shouldNotSatisfy` ByteString.isInfixOf "private action detail"
             _ -> expectationFailure "expected exactly one safe fallback response"
 
+    it "converts deferred navigation initialization failures at the action boundary" do
+        request <- applyMiddlewareToRequest navigationContextInitializationMiddleware Wai.defaultRequest
+        deferNavigationContextInitialization request (Exception.throwIO (userError "private navigation context detail"))
+        continued <- newIORef False
+        (result, responses) <- captureStoppedResponses request $
+            runBepis BoundaryFixtureAction BepisPageAction $
+                modifyIORef' continued (const True)
+        result `shouldSatisfy` isLeft
+        readIORef continued `shouldReturn` False
+        case responses of
+            [response] -> do
+                rendered <- runErrorResponse response
+                simpleStatus rendered `shouldBe` status500
+                LBS.toStrict (simpleBody rendered) `shouldNotSatisfy` ByteString.isInfixOf "private navigation context detail"
+            _ -> expectationFailure "expected one safe navigation initialization failure response"
+
+    it "initializes navigation context only for operation kinds that declare full HTML" do
+        let htmlOperations = [BepisPageAction, BepisFormAction, BepisIntegrationAction, BepisExportAction]
+        let nonHtmlOperations = [BepisFragmentAction, BepisDialogAction, BepisMutationAction, BepisPreferenceAction]
+        forM_ [(operationKind, 1 :: Int) | operationKind <- htmlOperations] \(operationKind, expectedCount) ->
+            navigationInitializationCount operationKind `shouldReturn` expectedCount
+        forM_ [(operationKind, 0 :: Int) | operationKind <- nonHtmlOperations] \(operationKind, expectedCount) ->
+            navigationInitializationCount operationKind `shouldReturn` expectedCount
+
     it "sends a terminal helper once without executing its continuation" do
         continued <- newIORef False
         (result, responses) <- captureStoppedResponses Wai.defaultRequest $ withTelemetrySpan "test.early-response" do
@@ -289,6 +316,26 @@ tests = describe "typed application errors" do
             Exception.throwIO (userError "private failure") :: IO ()
         result `shouldSatisfy` isLeft
         readIORef attempts `shouldReturn` 1
+
+navigationInitializationCount :: BepisOperationKind -> IO Int
+navigationInitializationCount operationKind = do
+    request <- applyMiddlewareToRequest navigationContextInitializationMiddleware Wai.defaultRequest
+    initialized <- newIORef (0 :: Int)
+    deferNavigationContextInitialization request (modifyIORef' initialized (+ 1))
+    (result, _) <- captureStoppedResponses request (runBepis BoundaryFixtureAction operationKind (pure ()))
+    result `shouldSatisfy` isRight
+    readIORef initialized
+
+applyMiddlewareToRequest :: Wai.Middleware -> Wai.Request -> IO Wai.Request
+applyMiddlewareToRequest middleware request = do
+    captured <- newIORef request
+    _ <- middleware
+        (\request' respond -> do
+            modifyIORef' captured (const request')
+            respond (Wai.responseLBS status200 [] ""))
+        request
+        (\_ -> pure ResponseReceived)
+    readIORef captured
 
 runErrorResponse :: Wai.Response -> IO SResponse
 runErrorResponse response = runSession (request defaultRequest) app

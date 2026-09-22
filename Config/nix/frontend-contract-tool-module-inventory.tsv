@@ -81,6 +81,7 @@ Application/Helper/FrontendContract/UiRegion.hs	shared-authority	Application.Scr
 Application/Helper/FrontendContract/Wire/Carrier.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Wire/Json.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/XeroCandidateFilter.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Helper/NavigationContextInitialization.hs	shared-authority	Application.Script.GenerateBepisArchitectureContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/NominalText.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/ShiftTypeColours.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/Telemetry.hs	shared-authority	Application.Script.GenerateBepisArchitectureContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling

@@ -16,6 +16,7 @@ import Application.Bepis.Fact (BepisActionFact (..), BepisFact (..),
 import Application.Error.Boundary (appErrorRequestKind,
                                    respondWithAppErrorAndStop,
                                    withSynchronousAppErrorFallback)
+import Application.Helper.NavigationContextInitialization (ensureNavigationContextInitialized)
 import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withTelemetrySpanAttributes)
 import Data.Data (Data (toConstr), showConstr)
@@ -37,13 +38,19 @@ data BepisActionInfo = BepisActionInfo
     deriving (Eq, Show, Generic)
 
 runBepis :: (Data action, ?request :: Request, ?respond :: Respond) => action -> BepisOperationKind -> IO a -> IO a
-runBepis action operationKind =
-    bepisActionSpan BepisActionInfo
-        { actionName = bepisActionName action
-        , actionKind = operationKind
-        , responseKinds = defaultResponseKinds operationKind
-        , sourceNote = Nothing
-        }
+runBepis action operationKind body =
+    bepisActionSpan
+        BepisActionInfo
+            { actionName = bepisActionName action
+            , actionKind = operationKind
+            , responseKinds = responseKinds
+            , sourceNote = Nothing
+            }
+        do
+            when (BepisHtmlResponse `elem` responseKinds) (ensureNavigationContextInitialized ?request)
+            body
+  where
+    responseKinds = defaultResponseKinds operationKind
 
 bepisActionSpan :: (?request :: Request, ?respond :: Respond) => BepisActionInfo -> IO a -> IO a
 bepisActionSpan info action =
