@@ -13,7 +13,7 @@
   },
   "baselineSlice": {
     "commit": "5b0f68c6171b5cca0ce29b49966634c3a8cf6903",
-    "snapshotCommit": "008241bc",
+    "snapshotCommit": "5ca7d553",
     "categories": {
       "implementation": {
         "before": 580,
@@ -39,7 +39,7 @@
       },
       "support": {
         "before": 546,
-        "after": 551,
+        "after": 572,
         "paths": [
           ".pi/skills/maintenance-audit/references/scan-process.md",
           "AGENTS.md",
@@ -51,10 +51,10 @@
   },
   "foundationSlice": {
     "issue": 566,
-    "snapshotCommit": "4f7a55e4",
+    "snapshotCommit": "4688b20c",
     "deletionTargetImplementationLines": 7375,
     "integrationWiring": {
-      "baselineCommit": "008241bc",
+      "baselineCommit": "5ca7d553",
       "added": 10,
       "paths": [
         "Config/nix/flake/scripts.nix",
@@ -100,7 +100,7 @@
     "totalAddedIncludingWiring": 595
   },
   "acceptanceAccounting": {
-    "baselineCommit": "008241bc",
+    "baselineCommit": "5ca7d553",
     "auditCandidateLines": 7375,
     "reproducibleCandidateLines": 7326,
     "finalCandidateLines": 4159,
