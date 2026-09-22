@@ -35,6 +35,7 @@ check glue-compatibility-test
 check weeder-policy-test
 check node --test scripts/application-warnings.test.mjs scripts/typed-error-boundary.test.mjs scripts/weeder-reachability.test.mjs
 check bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
+check node --test scripts/surface-adapter-check.test.mjs
 check node --test scripts/authority-scan.test.mjs
 check http-polling-policy-test
 check node --test scripts/frontend-test-registration.test.mjs

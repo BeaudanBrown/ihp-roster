@@ -166,9 +166,12 @@ require constructor-local labels, not unsafe getters. Exhaustive constructor
 patterns remain valid; no route/JSON metadata or application ADTs change.
 
 `weeder-check` retains its complete source sweep, canonical `weeder.toml`,
-`unused-types=false` and baseline gate. It also emits
+`unused-types=false` and baseline gate. For optional root-set diagnostics, run
+`bash ./bin/in-env weeder-check --advisory`. This emits
 `build/Verification/weeder/reachability-advisory.json` (under `WEEDER_BUILD_DIR`
 when overridden), reusing the same HIE rather than compiling another graph.
+The extra advisory analyses are not part of `verify-full`; default runs remove
+previous advisory evidence rather than leave an apparently current report.
 Root-set comparisons distinguish production from test/development retention.
 Script ownership comes from the existing module/script/executable inventories;
 canonical roots are narrowed, never supplemented with blanket handwritten roots.
@@ -288,7 +291,11 @@ so uncommitted authoring remains usable; CI and `verify-full` set
 `frontend-contract-package-check` is blocking in both paths. It checks the
 exact binary set, retains interface/build-resource metrics, and reruns generated
 TypeScript, all generated Haskell adapters plus private proofs, and architecture
-emission through packaged binaries. In `verify-full`, the later single
+emission through packaged binaries. Adapter validation reuses the locked
+compiler dependency cache, not generated results: each invocation renders and
+compiles fresh modules/private proofs and compares the exact managed output.
+Temporary staging paths must not invalidate unchanged dependency configuration.
+In `verify-full`, the later single
 `production-package-smoke` traversal proves the optimized production closure
 does not reference this tooling output. Generated repository artifacts are
 accepted only when those package-backed freshness checks pass.
