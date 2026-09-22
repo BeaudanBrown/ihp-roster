@@ -33,7 +33,7 @@ check epic-worktree-concurrency-test
 check epic-worktree-workflow-acceptance-test
 check glue-compatibility-test
 check weeder-policy-test
-check node --test scripts/application-warnings.test.mjs scripts/weeder-reachability.test.mjs
+check node --test scripts/application-warnings.test.mjs scripts/typed-error-boundary.test.mjs scripts/weeder-reachability.test.mjs
 check bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
 check node --test scripts/authority-scan.test.mjs
 check http-polling-policy-test

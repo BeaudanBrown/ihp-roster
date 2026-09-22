@@ -154,6 +154,13 @@ multi-file `-c`. Real compiler fixtures retain cold/warm, generated-dependency
 and instance-import regressions. No separate warning cache or per-module GHC
 processes are needed.
 
+`typed-error-boundary-check` scans the same owned inventory with HLint's
+unchanged project restriction policy, disabling only shipped rewrite hints
+that this primitive/category gate does not report. Structured restriction and
+parse-error diagnostics fail the gate; ordinary `lint` retains all its hints.
+Real compiler/scanner fixtures compare restricted-function diagnostics and
+approved category owners with default HLint, including policy/parse failures.
+
 Unused imports are errors. Required controller/AutoRoute instance imports say
 `()` explicitly; marker/type imports remain normal compiler-checked uses.
 Totality rejects incomplete patterns, single-pattern bindings, record updates
