@@ -34,3 +34,6 @@ Use `docs/templates/adr.md` for new ADRs.
   versions are authoritative; process-local hubs only route listener delivery.
 - `0010-typed-application-outcome-boundaries.md` - operation failures use typed,
   payload-free application outcomes while known trustworthy state stays in `Right`.
+- `0011-structural-production-checks-not-footprint-budgets.md` - packaging and
+  isolation remain blocking; historical count and size ceilings give way to
+  opt-in comparative profiling.

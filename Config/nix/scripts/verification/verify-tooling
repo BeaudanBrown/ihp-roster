@@ -21,7 +21,7 @@ check() {
 check devenv-script-freshness-check
 check production-source-boundary-check
 check production-build-profile-test
-check production-build-budget-test
+check node --test scripts/production-artifacts.test.mjs
 check tooling-foundation-test
 check tooling-hls-test
 check dev-workspace-test

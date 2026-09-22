@@ -52,25 +52,20 @@ or `.so` output. `production-package-smoke` enforces those artifacts, rejects
 app-lib in the packaged runtime closure or binary dynamic-link tables, and then
 launches every allowlisted executable.
 
-`baselines/production-build/final-regression-budget.json` owns stable ceilings
-for app-lib self-size, module count, artifact kinds/counts (including symlinked
-artifacts), production module, direct-package, and executable inventories, and
-a 600 MiB aggregate installed `.hi` limit. Its `measurement_profile` retains the
-complete build baseline; `module_count_inspection_profile` is supplementary
-realized-output evidence for count-only reconciliation, not a build-time or
-memory baseline.
-`production-build-budget-check` applies them to an explicit profile, or to the
-current realized app-lib after `production-package-smoke`. The default interface
-ceiling is 16 MiB. Exact, reason-bearing Roster paths have explicit per-file
-exception ceilings because GHC 9.10 serializes canonical promoted/runtime surface
-authority into those interfaces; new paths do not inherit an exception.
+Artifact checks compare installed interfaces with the current generated
+`app-lib.cabal` module declarations, not historical counts. They require the
+static archive and package metadata and reject missing/unexpected interfaces,
+extra build ways, unknown artifacts, and broken links. Focused fixtures run with
+`bash ./bin/in-env node --test scripts/production-artifacts.test.mjs`.
 
-Machine memory is deliberately evidence, not a blocking budget: process RSS is
-sampled, builder-specific, and showed substantial run-to-run variance on NAS.
-The profiler retains clean revision, builder, effective core, RSS, cgroup, swap,
-and timing evidence, but `production-build-budget-check` enforces only stable
-app-owned output and inventory properties. It does not cap GHC memory or fail a
-release from a machine-global memory reading.
+Module/package counts and interface/output sizes are diagnostic evidence, not
+release ceilings. Splitting a module or adding reviewed functionality must not
+require a numeric baseline reconciliation. `production-build-profile` remains
+an opt-in investigation with bounded sizes, counts, timing, memory, and
+same-builder comparison evidence; it is not part of `verify-full`. See
+[the profiling runbook](../../docs/runbooks/production-build-profiling.md) and
+[ADR 0011](../../docs/adr/0011-structural-production-checks-not-footprint-budgets.md).
+No profiler value caps GHC or substitutes for a successful production build.
 
 After intentionally adding or changing a module or script:
 
