@@ -68,7 +68,7 @@ frontend_js_input_hash() {
 frontend_js_output_paths() {
     printf '%s\n' \
         static/app.js \
-        static/dev-timer-tracking.js
+        static/dev-live-reload.js
 }
 
 frontend_js_output_hash() {

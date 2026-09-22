@@ -408,8 +408,7 @@ scripts = [hsx|
 
 devScripts :: Html
 devScripts = [hsx|
-        <script src={assetPath "/dev-timer-tracking.js"}></script>
-        <script id="livereload-script" src={assetPath "/livereload.js"} data-ws={developmentLiveReloadWebsocketUrl}></script>
+        <script id="livereload-script" src={assetPath "/dev-live-reload.js"} data-ws={developmentLiveReloadWebsocketUrl}></script>
     |]
 
 developmentLiveReloadWebsocketUrl :: (?request :: Request) => Text
