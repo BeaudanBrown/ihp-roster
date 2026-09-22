@@ -32,6 +32,7 @@ module Application.Helper.FrontendContract.AppShell
     , EditTimesheetEntryDialog
     , CreateTimesheetEntryOverlay
     , UpdateTimesheetEntryOverlay
+    , OpenTimesheetDeleteConfirmationDialog
     , DeleteTimesheetEntryOverlay
     , StaffFilterIdField
     , StaffIdField
@@ -60,6 +61,7 @@ module Application.Helper.FrontendContract.AppShell
     , ConfirmXeroTimesheetPreparationSubmissionOverlay
     , RunXeroTimesheetPreparationSubmissionOverlay
     , ApplyXeroTimesheetPreparationStaffDecisionOverlay
+    , OpenXeroProblemTimesheetApprovalConfirmationDialog
     , RefreshXeroProblemTimesheetApprovalOverlay
     , RefreshXeroTimesheetPreparationOverlay
     , SubmitXeroTimesheetPreparationOverlay
@@ -147,6 +149,7 @@ data OpenTimesheetEntryDialog
 data EditTimesheetEntryDialog
 data CreateTimesheetEntryOverlay
 data UpdateTimesheetEntryOverlay
+data OpenTimesheetDeleteConfirmationDialog
 data DeleteTimesheetEntryOverlay
 data StaffFilterIdField
 data StaffIdField
@@ -176,6 +179,7 @@ data ApproveXeroTimesheetPreparationPayItemsOverlay
 data ConfirmXeroTimesheetPreparationSubmissionOverlay
 data RunXeroTimesheetPreparationSubmissionOverlay
 data ApplyXeroTimesheetPreparationStaffDecisionOverlay
+data OpenXeroProblemTimesheetApprovalConfirmationDialog
 data RefreshXeroTimesheetPreparationOverlay
 data RefreshXeroProblemTimesheetApprovalOverlay
 data SubmitXeroTimesheetPreparationOverlay
@@ -293,6 +297,16 @@ type AppShellContract =
              ]
          , AppShellAction CreateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          , AppShellAction UpdateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
+         , AppShellAction OpenTimesheetDeleteConfirmationDialog
+            '[ Field AnchorDateField 'WireText
+             , Field RosterCalendarRevisionField 'WireText
+             , Field StaffFilterIdField 'WireText
+             ]
+            '[ AppShellHtmxMethod 'AppShellGet
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction DeleteTimesheetEntryOverlay
             '[ Field AnchorDateField 'WireText
              , Field RosterCalendarRevisionField 'WireText
@@ -302,7 +316,6 @@ type AppShellContract =
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxConfirm "Delete this timesheet entry? This cannot be undone."
              ]
          , AppShellAction OpenPasskeySetupDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenPasskeyRecoveryCodeDialog DialogLauncherFields DialogLauncherOptions
@@ -372,6 +385,15 @@ type AppShellContract =
              , AppShellHtmxSync "#xero-preparation-staff-mappings:queue all"
              ]
          , AppShellAction RefreshXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
+         , AppShellAction OpenXeroProblemTimesheetApprovalConfirmationDialog
+            '[ Field ExpectedActiveCalculationIdField 'WireUUID
+             , Field ExpectedApprovalTimestampField 'WireText
+             ]
+            '[ AppShellHtmxMethod 'AppShellGet
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction RefreshXeroProblemTimesheetApprovalOverlay
             '[ Field ExpectedActiveCalculationIdField 'WireUUID
              , Field ExpectedApprovalTimestampField 'WireText
@@ -380,7 +402,6 @@ type AppShellContract =
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxConfirm "Refresh this problem Timesheet approval using current pay facts and Xero mappings?"
              ]
          , AppShellAction SubmitXeroTimesheetPreparationOverlay
             '[ OptionalField AccountCodeField 'WireText
@@ -389,7 +410,6 @@ type AppShellContract =
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxConfirm "Submit draft timesheets to Xero?"
              ]
          , AppShellAction OpenXeroPayItemImportOverlay DialogLauncherFields DialogLauncherOptions
          , AppShellAction ImportXeroPayItemsOverlay

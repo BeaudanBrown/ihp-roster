@@ -188,6 +188,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ShowRosterNotificationConfirmation
     , CreateRosterNotificationRun
     , ToggleRosterAssignmentFilters
+    , OpenCopyRosterWeekConfirmation
     , CopyRosterWeek
     , CreateRosterWeekSlotDefinition
     , DeleteRosterWeekSlotDefinition
@@ -446,6 +447,7 @@ data ToggleRosterWeekLiveStatus
 data ShowRosterNotificationConfirmation
 data CreateRosterNotificationRun
 data ToggleRosterAssignmentFilters
+data OpenCopyRosterWeekConfirmation
 data CopyRosterWeek
 data CreateRosterWeekSlotDefinition
 data DeleteRosterWeekSlotDefinition
@@ -468,7 +470,6 @@ data HideStaffUnavailable
 data HideStaffOnApprovedLeave
 data HideStaffAlreadyAssignedToday
 data StaffScope
-data CopyRosterWeekCustomHtmx
 
 data RosterDay
 data RosterWeekOverview
@@ -669,6 +670,13 @@ type RosterActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
+     , Action OpenCopyRosterWeekConfirmation
+        '[ Field RosterCalendarRevision 'WireInt ]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
      , Action CopyRosterWeek
         RosterCopyOccurrenceFields
         '[ 'HtmxMethod 'HtmxPost
@@ -676,7 +684,6 @@ type RosterActionBundle =
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
-         , 'CustomHtmx CopyRosterWeekCustomHtmx "copy previous week requires a destructive overwrite confirmation"
          ]
      , Action CreateRosterWeekSlotDefinition
         '[ Field RosterCalendarRevision 'WireInt ]

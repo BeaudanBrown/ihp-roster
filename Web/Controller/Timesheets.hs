@@ -1,5 +1,7 @@
 module Web.Controller.Timesheets where
 
+import Application.Helper.FrontendContract.AppShell (OpenTimesheetDeleteConfirmationDialog)
+import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -23,6 +25,7 @@ import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
 import Web.Timesheets.WageEstimates (canViewTimesheetWageEstimates)
+import Web.View.Timesheets.Edit (renderTimesheetDeleteConfirmation)
 
 reportTimesheetSurfaceRequestErrors ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -224,6 +227,21 @@ instance Controller TimesheetsController where
         existingEntry <- fetchEditableTimesheetEntry timesheetEntryId
         context <- requireTimesheetMutationContext
         editOrdinaryTimesheetEntry context existingEntry >>= respondWithTimesheetEditOutcome context
+
+    action currentAction@ShowTimesheetEntryDeleteConfirmationAction { timesheetEntryId } = runBepis currentAction BepisFormAction do
+        ensureVenueWritable
+        case parseAppShellActionParams @OpenTimesheetDeleteConfirmationDialog of
+            Left errors -> do
+                reportTimesheetSurfaceRequestErrors errors
+                redirectToPath (timesheetWindowUrl (param @Day "anchorDate") timesheetFiltersFromRequest.filterStaffId)
+            Right _ -> do
+                timesheetEntry <- fetchEditableTimesheetEntry timesheetEntryId
+                context <- requireTimesheetMutationContext
+                respondHtml $
+                    renderTimesheetDeleteConfirmation
+                        timesheetEntry
+                        (param @Int "rosterCalendarRevision")
+                        context.timesheetFilters.filterStaffId
 
     action currentAction@DeleteTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

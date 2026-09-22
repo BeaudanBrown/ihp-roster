@@ -86,6 +86,7 @@ data TimesheetsController
     | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
     | CreateTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
     | EditTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
+    | ShowTimesheetEntryDeleteConfirmationAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | UpdateTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | DeleteTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | ApproveTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
@@ -164,6 +165,7 @@ data AdminController
     | OpenXeroTimesheetPreparationAction
     | RunXeroTimesheetPreparationAction
     | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | ShowXeroProblemTimesheetApprovalRefreshConfirmationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), timesheetEntryId :: !(Id TimesheetEntry) }
     | RefreshXeroProblemTimesheetApprovalAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), timesheetEntryId :: !(Id TimesheetEntry) }
     | ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
@@ -294,6 +296,7 @@ data RosterWeeksController
     | ShowRosterWeekRowFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | UpdateRosterAssignmentFiltersAction
     | CreateRosterWeekAction
+    | ShowCopyRosterWeekConfirmationAction
     | CopyRosterWeekAction
     | ToggleRosterWeekLiveStatusAction
     | ShowRosterNotificationConfirmationAction

@@ -7,6 +7,7 @@ module Web.RosterWeeks.Paths
     , rosterDeleteSlotUrl
     , rosterExistingSlotDialogUrl
     , rosterNewSlotDialogUrl
+    , rosterCopyWeekConfirmationUrl
     , rosterCopyWeekUrl
     , rosterLayoutPreferenceUrl
     , rosterMoveShiftUrl
@@ -245,6 +246,15 @@ rosterOwnLiveShiftHighlightPreferenceUrl anchorDate rosterGroupId =
 rosterTemplateApplicationUrl :: Day -> Id RosterTemplate -> Id RosterGroup -> Text
 rosterTemplateApplicationUrl _anchorDate rosterTemplateId rosterGroupId =
     pathTo (ApplyRosterTemplateAction rosterTemplateId rosterGroupId)
+
+rosterCopyWeekConfirmationUrl :: Day -> Day -> Id RosterGroup -> Text
+rosterCopyWeekConfirmationUrl sourceAnchorDate targetAnchorDate rosterGroupId =
+    appendQueryParams
+        (pathTo ShowCopyRosterWeekConfirmationAction)
+        [ ("sourceAnchorDate", formatDayParam sourceAnchorDate)
+        , ("targetAnchorDate", formatDayParam targetAnchorDate)
+        , ("rosterGroupId", tshow rosterGroupId)
+        ]
 
 rosterCopyWeekUrl :: Day -> Day -> Id RosterGroup -> Text
 rosterCopyWeekUrl sourceAnchorDate targetAnchorDate rosterGroupId =

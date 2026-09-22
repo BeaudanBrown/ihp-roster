@@ -109,6 +109,7 @@ import Web.RosterWeeks.ShiftWorkflow
 import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.VenueSettings (setVenueRosterLayoutMode)
+import Web.View.RosterWeeks.CopyConfirmation (renderCopyRosterWeekConfirmation)
 import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirmation)
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
@@ -475,6 +476,21 @@ instance Controller RosterWeeksController where
                     else do
                         setSuccessMessage successMessage
                         redirectToPath targetPath
+
+    action currentAction@ShowCopyRosterWeekConfirmationAction = runBepis currentAction BepisFormAction do
+        ensureManagerRole
+        ensureVenueWritable
+        rosterGroup <- resolveRequestedRosterGroup
+        case RosterAction.parseOpenCopyRosterWeekConfirmationActionParams of
+            Left errors -> respondWithRosterToast (rosterSurfaceRequestErrorMessage errors) "app-toast-error"
+            Right fields -> do
+                (sourceWindowStart, targetWindowStart) <- rosterCopyActionDates
+                renderCopyRosterWeekConfirmation
+                    sourceWindowStart
+                    targetWindowStart
+                    rosterGroup.id
+                    (surfaceFieldValue @Surface.RosterCalendarRevision fields)
+                    |> respondHtmlProfiled
 
     action currentAction@CopyRosterWeekAction = runBepis currentAction BepisMutationAction do
         (sourceWindowStart, targetWindowStart) <- rosterCopyActionDates

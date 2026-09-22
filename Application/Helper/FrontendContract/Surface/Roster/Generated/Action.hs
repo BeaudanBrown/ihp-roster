@@ -16,6 +16,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , DeleteRosterTemplateActionOperation
     , DeleteRosterWeekSlotDefinitionActionOperation
     , NavigateRosterWeekActionOperation
+    , OpenCopyRosterWeekConfirmationActionOperation
     , OpenRosterTemplateCaptureActionOperation
     , OpenRosterTemplateDeleteActionOperation
     , PreviewRosterTemplateApplicationActionOperation
@@ -49,6 +50,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , openCopyRosterWeekConfirmationAction
+    , openCopyRosterWeekConfirmationActionFields
     , openRosterTemplateCaptureAction
     , openRosterTemplateCaptureActionFields
     , openRosterTemplateDeleteAction
@@ -57,6 +60,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
     , parseCreateRosterTemplateCaptureActionParams
+    , parseOpenCopyRosterWeekConfirmationActionParams
     , parsePreviewRosterTemplateApplicationActionParams
     , parsePreviewRosterTemplateCaptureActionParams
     , parseShowRosterNotificationConfirmationActionParams
@@ -218,7 +222,7 @@ copyRosterWeekActionFields rosterCalendarRevision copyStartOccurrence copyEndOcc
 
 copyRosterWeekActionEvidence :: ActionEvidence CopyRosterWeekActionOperation
 copyRosterWeekActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CopyRosterWeek" "copy-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CopyStartOccurrence" "copyStartOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CopyEndOccurrence" "copyEndOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "copy-roster-week-custom-htmx" "copy previous week requires a destructive overwrite confirmation")])
+    actionEvidence (SurfaceIR.HtmxActionIR "CopyRosterWeek" "copy-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CopyStartOccurrence" "copyStartOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CopyEndOccurrence" "copyEndOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 copyRosterWeekAction :: ActionFields CopyRosterWeekActionOperation -> FrontendSurfaceAction
 copyRosterWeekAction =
@@ -423,6 +427,37 @@ navigateRosterWeekActionParamsPresent ::
 navigateRosterWeekActionParamsPresent =
     actionParamsPresent
         @NavigateRosterWeekActionOperation
+
+data OpenCopyRosterWeekConfirmationActionOperation
+
+type instance ActionSurface OpenCopyRosterWeekConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker OpenCopyRosterWeekConfirmationActionOperation = Types1.OpenCopyRosterWeekConfirmation
+type instance ActionFieldSpecs OpenCopyRosterWeekConfirmationActionOperation =
+    '[ 'Field Types1.RosterCalendarRevision 'WireInt
+     ]
+
+openCopyRosterWeekConfirmationActionFields ::
+    Int ->
+    ActionFields OpenCopyRosterWeekConfirmationActionOperation
+openCopyRosterWeekConfirmationActionFields rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision)
+        noSurfaceFields
+
+openCopyRosterWeekConfirmationActionEvidence :: ActionEvidence OpenCopyRosterWeekConfirmationActionOperation
+openCopyRosterWeekConfirmationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenCopyRosterWeekConfirmation" "open-copy-roster-week-confirmation" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+openCopyRosterWeekConfirmationAction :: ActionFields OpenCopyRosterWeekConfirmationActionOperation -> FrontendSurfaceAction
+openCopyRosterWeekConfirmationAction =
+    frontendSurfaceActionFromEvidence openCopyRosterWeekConfirmationActionEvidence
+
+parseOpenCopyRosterWeekConfirmationActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields OpenCopyRosterWeekConfirmationActionOperation)
+parseOpenCopyRosterWeekConfirmationActionParams =
+    parseActionParams
+        @OpenCopyRosterWeekConfirmationActionOperation
 
 data OpenRosterTemplateCaptureActionOperation
 

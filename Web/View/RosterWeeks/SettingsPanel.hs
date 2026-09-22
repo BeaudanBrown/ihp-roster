@@ -16,7 +16,6 @@ import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterIma
                                                                        rosterPngImageExportTriggerAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceCustomHtmxAttrs (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
@@ -295,21 +294,20 @@ renderRosterSortForm _ _ _ _ _ = mempty
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Day -> Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm anchorDate calendarRevision rosterGroupId =
     renderFrontendSurfaceActionForm
-        (RosterAction.copyRosterWeekAction (RosterAction.copyRosterWeekActionFields calendarRevision Nothing Nothing))
-        (rosterWeekShellSyncRoute (rosterCopyWeekUrl (addDays (-7) anchorDate) anchorDate rosterGroupId))
-            { actionRouteCustomHtmx =
-                [ FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]
-                ]
-            , actionRouteStandardUrl = Just (rosterCopyWeekUrl (addDays (-7) anchorDate) anchorDate rosterGroupId)
-            , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
-            }
+        (RosterAction.openCopyRosterWeekConfirmationAction fields)
+        ((defaultFrontendSurfaceActionRoute confirmationUrl)
+            { actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
+            })
         [hsx|
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.copyRosterWeekActionFields calendarRevision Nothing Nothing)} value={tshow calendarRevision} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow calendarRevision} />
             <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center roster-week-action-button">
                 <i class="bi bi-copy me-1" aria-hidden="true"></i>
                 Copy Previous Week
             </button>
         |]
+  where
+    fields = RosterAction.openCopyRosterWeekConfirmationActionFields calendarRevision
+    confirmationUrl = rosterCopyWeekConfirmationUrl (addDays (-7) anchorDate) anchorDate rosterGroupId
 
 shouldShowRosterExport :: Maybe RosterWindowState -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Bool
 shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMode =

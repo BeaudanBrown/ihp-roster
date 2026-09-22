@@ -21,6 +21,10 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , OpenCopyRosterWeekConfirmationActionOperation
+    , openCopyRosterWeekConfirmationAction
+    , openCopyRosterWeekConfirmationActionFields
+    , parseOpenCopyRosterWeekConfirmationActionParams
     , openRosterTemplateCaptureAction
     , openRosterTemplateCaptureActionFields
     , openRosterTemplateDeleteAction
@@ -101,6 +105,10 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             navigateRosterWeekAction,
                                                                             navigateRosterWeekActionFields,
                                                                             navigateRosterWeekActionParamsPresent,
+                                                                            OpenCopyRosterWeekConfirmationActionOperation,
+                                                                            openCopyRosterWeekConfirmationAction,
+                                                                            openCopyRosterWeekConfirmationActionFields,
+                                                                            parseOpenCopyRosterWeekConfirmationActionParams,
                                                                             openRosterTemplateCaptureAction,
                                                                             openRosterTemplateCaptureActionFields,
                                                                             openRosterTemplateDeleteAction,

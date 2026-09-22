@@ -3,9 +3,14 @@
 module Web.View.Timesheets.Edit where
 
 import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay,
+                                                     EditTimesheetEntryDialog,
+                                                     OpenTimesheetDeleteConfirmationDialog,
                                                      UpdateTimesheetEntryOverlay)
-import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker,
-                                                             defaultAppShellActionRoute)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
+                                                             appShellActionByMarker,
+                                                             defaultAppShellActionRoute,
+                                                             renderAppShellActionForm)
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowStateQueryParams,
                              timesheetWindowUrl)
@@ -63,12 +68,48 @@ deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
         , overlayButtonClass = "btn btn-outline-danger"
         , overlayButtonAction =
             GeneratedDialogFormAction
-                (appShellActionByMarker @DeleteTimesheetEntryOverlay)
-                (defaultAppShellActionRoute (deleteUrl))
-                (("_method", "DELETE") : requestParams)
-                (Just "Delete this timesheet entry? This cannot be undone.")
+                (appShellActionByMarker @OpenTimesheetDeleteConfirmationDialog)
+                (defaultAppShellActionRoute confirmationUrl)
+                requestParams
+                Nothing
         }
     ]
     where
         requestParams = timesheetWindowStateQueryParams (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId <> [("rosterCalendarRevision", tshow calendarRevision)]
-        deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) requestParams
+        confirmationUrl = appendQueryParams (pathTo (ShowTimesheetEntryDeleteConfirmationAction (get #id timesheetEntry))) requestParams
+
+renderTimesheetDeleteConfirmation :: (?context :: ControllerContext) => TimesheetEntry -> Int -> Maybe UUID -> Html
+renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffFilterId =
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Delete timesheet entry?"
+            [hsx|<p class="mb-0">Delete this timesheet entry? This cannot be undone.</p>|]
+            formId
+            deleteForm)
+            { confirmationDialogApproveLabel = "Delete"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Deleting…"
+            , confirmationDialogRejectButton = reopenEditButton
+            }
+  where
+    formId = "delete-timesheet-entry-confirmation-form"
+    requestParams = timesheetWindowStateQueryParams (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId <> [("rosterCalendarRevision", tshow calendarRevision)]
+    deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) requestParams
+    editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id timesheetEntry))) requestParams
+    deleteForm =
+        renderAppShellActionForm
+            (appShellActionByMarker @DeleteTimesheetEntryOverlay)
+            ((defaultAppShellActionRoute deleteUrl)
+                { appShellActionRouteFields = AppShellFieldValue ("_method", "DELETE") : fmap AppShellFieldValue requestParams
+                , appShellActionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
+    reopenEditButton = OverlayButton
+        { overlayButtonLabel = "Cancel"
+        , overlayButtonClass = "btn btn-outline-secondary"
+        , overlayButtonAction = GeneratedDialogFormAction
+            (appShellActionByMarker @EditTimesheetEntryDialog)
+            (defaultAppShellActionRoute editUrl)
+            requestParams
+            Nothing
+        }
