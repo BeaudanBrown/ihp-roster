@@ -111,18 +111,21 @@ Use the repo wrapper unless you are already inside the devenv shell. Run
 infrastructure failures separately from code failures instead of broadening an
 implementation task into runtime repair.
 
-During delegated epic implementation, keep each intermediate commit mechanically
-sound. After code edits, inspect language-server diagnostics and run:
+Keep each intermediate commit mechanically sound. Inspect language-server
+diagnostics, then use the cheapest affected authority:
 
-```bash
-bash ./bin/in-env typecheck
-```
+- Independent tooling: affected Cabal suite/CLI fixture; `tooling-foundation-test`
+  for launcher, package-source, or dependency changes. No application typecheck.
+- Application Haskell: `typecheck`, then focused Hspec for changed behavior.
+- Frontend: relevant TypeScript/unit checks; focused E2E for browser behavior.
+- Schema/migrations: `regen-types`, typecheck, and real migration/schema checks;
+  preserve customer data in the same commit.
+- Nix/packaging: affected evaluation and package/source-boundary checks.
 
-Run additional per-commit checks only when required to keep generated artifacts,
-schema contracts, migrations, or other hard build boundaries valid, or when a
-change is unusually risky. Schema changes must still include their
-customer-data-preserving migration in the same commit; run `regen-types` and the
-minimum migration/schema checks needed to establish that hard boundary.
+`verify-fast` is additive application feedback: cheap policies, typecheck and
+pure Hspec. It starts no browser/database runtime and omits whole-application
+warning, lint and reachability sweeps. Use a focused owner command
+while iterating; do not run the entire gate after every small edit.
 
 Defer broad Hspec, frontend, E2E, lint, formatting, coverage, weeder,
 documentation-drift, and full verification gates until the epic implementation
@@ -133,6 +136,7 @@ include:
 ```bash
 bash ./bin/in-env verify-fast
 bash ./bin/in-env verify-full
+bash ./bin/in-env verify-tooling
 bash ./bin/in-env hspec-test
 bash ./bin/in-env hspec-coverage
 bash ./bin/in-env frontend-check
@@ -142,6 +146,10 @@ bash ./bin/in-env format
 bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env ./bin/doc-drift-check
 ```
+
+`verify-tooling` owns synthetic checker/lifecycle fixtures; `verify-full` owns
+repository/application authority. Complete `hspec-test` remains protected merge
+and CI evidence; pure/focused tests are never a substitute.
 
 Before runtime E2E, validate worktree identity. Do not defer safety-critical
 migration correctness merely to reduce verification time.

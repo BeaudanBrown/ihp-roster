@@ -1,74 +1,69 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# This tier is intentionally independent of verify-full. It owns synthetic
-# checker and harness fixtures; repository authority stays in verify-full.
-echo "verify-tooling: working-tree devenv script freshness"
-devenv-script-freshness-check
+# Synthetic checker/lifecycle fixtures; repository authority stays in verify-full.
+# Keep stage timing and focused reruns here, not in another verification layer.
+check() {
+    local started="$SECONDS" status
+    printf 'verify-tooling: start %s\n' "$*"
+    if "$@"; then
+        printf 'verify-tooling: passed (%ss) %s\n' "$((SECONDS - started))" "$*"
+    else
+        status="$?"
+        printf 'verify-tooling: FAILED status=%s elapsed=%ss\n' "$status" "$((SECONDS - started))" >&2
+        printf 'Focused rerun: bash ./bin/in-env' >&2
+        printf ' %q' "$@" >&2
+        printf '\n' >&2
+        return "$status"
+    fi
+}
 
-echo "verify-tooling: production checker fixtures"
-production-source-boundary-check
-production-build-profile-test
-production-build-budget-test
-
-echo "verify-tooling: independent Haskell tooling foundation"
-tooling-foundation-test
-tooling-hls-test
-
-echo "verify-tooling: workspace and Git lifecycle compatibility"
-dev-workspace-test
-epic-worktree-test
-epic-worktree-provision-test
-epic-worktree-orientation-test
-epic-worktree-manage-test
-epic-worktree-concurrency-test
-epic-worktree-workflow-acceptance-test
-
-echo "verify-tooling: checker parser and publication fixtures"
-glue-compatibility-test
-weeder-policy-test
-node --test scripts/application-warnings.test.mjs scripts/weeder-reachability.test.mjs
-bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
-node --test scripts/authority-scan.test.mjs
-http-polling-policy-test
-node --test scripts/frontend-test-registration.test.mjs
-node --test scripts/documentation/check.test.mjs
-node --test scripts/migration-enum-commit-boundary.test.mjs
-node --test scripts/migration-rehearsal-ci.test.mjs
-node --test scripts/profiling/diagnostic-profile-report.test.mjs
-node --test scripts/profiling/otel-artifact.test.mjs
-node --test scripts/observability/query.test.mjs
-esbuild .pi/extensions/observability.ts --bundle --platform=node --format=esm \
+check devenv-script-freshness-check
+check production-source-boundary-check
+check production-build-profile-test
+check production-build-budget-test
+check tooling-foundation-test
+check tooling-hls-test
+check dev-workspace-test
+check epic-worktree-test
+check epic-worktree-provision-test
+check epic-worktree-orientation-test
+check epic-worktree-manage-test
+check epic-worktree-concurrency-test
+check epic-worktree-workflow-acceptance-test
+check glue-compatibility-test
+check weeder-policy-test
+check node --test scripts/application-warnings.test.mjs scripts/weeder-reachability.test.mjs
+check bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
+check node --test scripts/authority-scan.test.mjs
+check http-polling-policy-test
+check node --test scripts/frontend-test-registration.test.mjs
+check node --test scripts/documentation/check.test.mjs
+check node --test scripts/migration-enum-commit-boundary.test.mjs
+check node --test scripts/migration-rehearsal-ci.test.mjs
+check node --test scripts/profiling/diagnostic-profile-report.test.mjs
+check node --test scripts/profiling/otel-artifact.test.mjs
+check node --test scripts/observability/query.test.mjs
+check esbuild .pi/extensions/observability.ts --bundle --platform=node --format=esm \
     --external:@earendil-works/pi-coding-agent --external:typebox \
-    --outfile=/tmp/bepis-observability-extension-check.mjs >/dev/null
-migration-enum-commit-boundary-real-runner-test
-migration-rehearsal-test
-bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/wiring-registry-test"
-node --test scripts/architecture/workflow-boundaries.test.mjs
-node --test scripts/architecture/enum-authority.test.mjs
-node --test scripts/architecture/facts-currency.test.mjs
-node --test scripts/architecture/layout-policy.test.mjs
-node --test scripts/architecture/query.test.mjs
-node --test scripts/architecture/whole-graph.test.mjs
-e2e-typecheck-test
-
-# These two mixed standalone checkers retain their real repository scans below;
-# their fixture halves live here.
-node --test scripts/architecture/email-transport.test.mjs
-node --test scripts/architecture/fixture-reset-manifest.test.mjs
-stripe-sandbox-contract-parity --self-test
-
-echo "verify-tooling: generated-code provenance and watcher ownership"
-bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure-test"
-bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-test"
-
-echo "verify-tooling: owned runtime and runner lifecycle harnesses"
-runtime-lifecycle-test
-runner-lifecycle-test
-
-echo "verify-tooling: managed PostgreSQL lifecycle and maintenance harnesses"
-dev-db-maintenance-test
-postgres-lifecycle-test
-
-echo "verify-tooling: E2E PostgreSQL lifecycle harness"
-e2e-postgres-lifecycle-test
+    --outfile=/dev/null
+check migration-enum-commit-boundary-real-runner-test
+check migration-rehearsal-test
+check bash "${BEPIS_SCRIPTS_ROOT:?}/architecture/wiring-registry-test"
+check node --test scripts/architecture/workflow-boundaries.test.mjs
+check node --test scripts/architecture/enum-authority.test.mjs
+check node --test scripts/architecture/facts-currency.test.mjs
+check node --test scripts/architecture/layout-policy.test.mjs
+check node --test scripts/architecture/query.test.mjs
+check node --test scripts/architecture/whole-graph.test.mjs
+check e2e-typecheck-test
+check node --test scripts/architecture/email-transport.test.mjs
+check node --test scripts/architecture/fixture-reset-manifest.test.mjs
+check stripe-sandbox-contract-parity --self-test
+check bash "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-ensure-test"
+check bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-test"
+check runtime-lifecycle-test
+check runner-lifecycle-test
+check dev-db-maintenance-test
+check postgres-lifecycle-test
+check e2e-postgres-lifecycle-test
