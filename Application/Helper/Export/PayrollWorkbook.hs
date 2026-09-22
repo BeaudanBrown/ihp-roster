@@ -268,10 +268,7 @@ xeroPayItemsSheet quantities weekStart = PayrollWorkbookSheet
 
 contentSizedColumnWidths :: [PayrollWorkbookCell] -> [(Int, Double)]
 contentSizedColumnWidths cells =
-    [ (columnNumber, maximum (map cellContentWidth columnCells))
-    | columnNumber <- [1 .. maximum (map (.column) cells)]
-    , let columnCells = filter ((== columnNumber) . (.column)) cells
-    ]
+    Map.toAscList (Map.fromListWith max [(cell.column, cellContentWidth cell) | cell <- cells])
   where
     cellContentWidth cell = case cell.value of
         PayrollWorkbookText value | cell.column <= 2 -> singleLineLabelWidth value

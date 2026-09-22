@@ -104,7 +104,7 @@ validateXeroTimesheetReadiness request =
         let selectedResult = case request.readinessSelection of
                 AllEligible -> Right allPeriodEntries
                 selection -> validateTimesheetSelection (unpackId request.readinessVenueId) request.readinessPeriodStart request.readinessPeriodEnd selection allPeriodEntries
-            periodEntries = either (const []) (\value -> value) selectedResult
+            periodEntries = either (const []) IHP.ControllerPrelude.id selectedResult
             selectionBlockers = either (\failure -> [blockerWith "selection_changed" (renderTimesheetSelectionFailure failure)]) (const []) selectedResult
         notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
         let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
