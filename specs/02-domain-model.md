@@ -35,6 +35,36 @@ state machines.
 Civil-time interpretation uses venue rules and explicit timezone snapshots.
 Cross-boundary calculations must not infer business dates from host or UTC dates.
 
+## Daysheets (Agreed Product Intent; Not Yet Implemented)
+
+- **Daysheet** — the venue's operational and financial record for one Operational
+  day, entered directly in Bepis rather than Google Sheets. Initial scope is one
+  shared Daysheet per venue per Operational day; multiple daily records or
+  versions are future possibilities, not a current requirement.
+- **Draft daysheet** — a Daysheet not yet explicitly submitted as complete.
+- **Submitted daysheet** — a Daysheet explicitly declared complete by a manager;
+  reaching a scheduled reporting cutoff does not itself constitute submission.
+  Submission does not lock editing in the initial scope. Reopening, correction
+  approval, and more elaborate correction safeguards are deferred.
+- **Daily daysheet email** — scheduled for 6am venue-local time for the previous
+  Operational day. If the Daysheet is unsubmitted at the cutoff, silently skip
+  sending. Overdue notifications and handling of missed submissions are deferred;
+  automatic catch-up delivery is not part of the initial scope. Submission is
+  the sole business eligibility condition for sending: submitted Daysheets send
+  regardless of revenue, with no additional content or completeness checks.
+- **Daysheet email report configuration** — a venue-managed named selection of
+  ordered, predefined content sections, its own recipient list, and an optional
+  Daysheet PDF attachment. Initial sections cover financial summary, financial
+  comments, kitchen comments, general comments, bands, dB readings, and security
+  knockoff times. Existing manager and financial emails provide the starting
+  configurations; arbitrary layouts and field-level selection are outside the
+  initial scope. Only venue admins and owners may manage these configurations
+  and recipient lists; managers may not. Recipients may be external email
+  addresses and need not have a Bepis account.
+- **Daysheet area** — a configurable part of a venue, such as Inside, Beer Garden,
+  or Amelia, whose figures belong to the shared Daysheet rather than a separate
+  daily record.
+
 ## Pay And Publication
 
 - **Pay assignment** explicitly selects Award, imported Xero, roster-only, or a
