@@ -133,7 +133,7 @@ renderSelfServiceLeaveForm leaveRequest =
             , leaveRequestNotesFieldName = surfaceFieldNameFrom @Surface.Notes fields
             }
 
-renderSelfServiceLeaveHistoryFragment :: Maybe Text -> [LeaveRequest] -> Html
+renderSelfServiceLeaveHistoryFragment :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> Html
 renderSelfServiceLeaveHistoryFragment maybeSwapOob leaveRequests = [hsx|
     <div id={selfServiceLeaveHistoryFragmentId} hx-swap-oob={maybeSwapOob}>
         <h5 class="mb-3">Unavailable periods</h5>
@@ -141,7 +141,7 @@ renderSelfServiceLeaveHistoryFragment maybeSwapOob leaveRequests = [hsx|
     </div>
 |]
 
-renderSelfServiceLeaveHistory :: [LeaveRequest] -> Html
+renderSelfServiceLeaveHistory :: (?context :: ControllerContext) => [LeaveRequest] -> Html
 renderSelfServiceLeaveHistory leaveRequests
     | null leaveRequests =
         renderAppPanel AppPanelConfig
@@ -161,6 +161,7 @@ renderSelfServiceLeaveHistory leaveRequests
                 <div>Dates</div>
                 <div>Status</div>
                 <div>Notes</div>
+                <div>Actions</div>
             </div>
             <div class="leave-request-list-body">
                 {forEach sortedLeaveRequests renderLeaveRequestRow}
@@ -170,14 +171,29 @@ renderSelfServiceLeaveHistory leaveRequests
   where
     sortedLeaveRequests = sortOn (Down . (.startDate)) leaveRequests
 
-renderLeaveRequestRow :: LeaveRequest -> Html
+renderLeaveRequestRow :: (?context :: ControllerContext) => LeaveRequest -> Html
 renderLeaveRequestRow leaveRequest = [hsx|
     <article class="leave-request-row">
         <div class="leave-request-row-dates">{renderDateRangeText leaveRequest}</div>
         <div class="leave-request-row-status">{renderStatusBadge leaveRequest.status}</div>
         <div class="leave-request-row-notes">{fromMaybe "No notes" (leaveRequest.notes >>= nonEmptyText)}</div>
+        <div class="leave-request-row-actions">{renderPendingLeaveRequestDelete leaveRequest}</div>
     </article>
 |]
+
+renderPendingLeaveRequestDelete :: (?context :: ControllerContext) => LeaveRequest -> Html
+renderPendingLeaveRequestDelete leaveRequest
+    | leaveRequest.status /= LeaveRequestStatusEnumPending = mempty
+    | otherwise =
+        renderFrontendSurfaceActionForm
+            (SurfaceAction.deleteSelfServiceLeaveRequestAction SurfaceAction.deleteSelfServiceLeaveRequestActionFields)
+            ((defaultFrontendSurfaceActionRoute deletePath)
+                { actionRouteStandardUrl = Just deletePath
+                , actionRouteExtraAttrs = [("onsubmit", "return window.confirm('Delete this pending unavailable period?');")]
+                })
+            [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>|]
+  where
+    deletePath = pathTo (DeleteSelfServiceLeaveRequestAction leaveRequest.id)
 
 createSelfServiceLeaveRequestPath :: Text
 createSelfServiceLeaveRequestPath =

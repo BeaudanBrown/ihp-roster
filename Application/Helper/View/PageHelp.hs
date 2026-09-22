@@ -246,6 +246,7 @@ pageHelpTopics =
             , iconItem HelpEveryone "bi-calendar2-range" "Date range" "Read the date range" "Unavailable From is the first day away. Available Again is the day the staff member returns. Dates display as day/month/year."
             , iconItem HelpEveryone "bi-slash-circle" "Submission blackouts" "Check blocked dates" "Current and upcoming blackout periods appear beside Unavailability forms. New unavailable time cannot overlap their inclusive dates; the visible reason explains why."
             , iconItem HelpEveryone "bi-hourglass-split" "Status" "Track approval status" "Check the Status column to see whether each request is pending, approved, or denied."
+            , buttonItem HelpEveryone "bi-trash" "Delete pending request" "Remove a request before review" "In Profile, open Unavailability and use Delete beside a pending unavailable period. Approved and denied periods cannot be deleted." "btn btn-sm btn-outline-danger" Nothing "Delete"
             ]
         , section HelpManagerPlus "Manager tasks"
             [ buttonItem HelpManagerPlus "bi-fullscreen" "Side panel" "Expand the Unavailability workspace" "On desktop, use the SidePanel button at the top right to hide the panel temporarily. Use it again or press Escape while working in the expanded main card to restore the panel. On phones the panel stays stacked below the requests." "btn btn-outline-secondary" (Just "bi-fullscreen") ""

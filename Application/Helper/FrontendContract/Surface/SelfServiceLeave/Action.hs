@@ -1,7 +1,10 @@
 module Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action
     ( CreateSelfServiceLeaveRequestActionOperation
+    , DeleteSelfServiceLeaveRequestActionOperation
     , createSelfServiceLeaveRequestAction
     , createSelfServiceLeaveRequestActionFields
+    , deleteSelfServiceLeaveRequestAction
+    , deleteSelfServiceLeaveRequestActionFields
     , parseCreateSelfServiceLeaveRequestActionParams
     ) where
 

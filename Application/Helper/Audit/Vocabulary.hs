@@ -13,7 +13,7 @@ data AuditEventType
     | TimesheetApprovalResetAudit
     | LeaveApprovedAudit
     | LeaveDeniedAudit
-    | LeaveDeletedAudit -- Retained persisted vocabulary; currently has no emitter.
+    | LeaveDeletedAudit
     | VenueRoleAssignedAudit
     | VenueRoleChangedAudit
     | VenueBootstrappedAudit

@@ -3,6 +3,7 @@
 
 module Application.Helper.FrontendContract.Surface.SelfServiceLeave
     ( CreateSelfServiceLeaveRequest
+    , DeleteSelfServiceLeaveRequest
     , EndDate
     , Notes
     , SelfServiceLeave
@@ -32,6 +33,7 @@ data SelfServiceLeaveHistoryFragment
 data VisibleUnavailabilityBlackoutsFragment
 data StaffLeaveRequests
 data CreateSelfServiceLeaveRequest
+data DeleteSelfServiceLeaveRequest
 data StartDate
 data EndDate
 data Notes
@@ -75,6 +77,13 @@ type SelfServiceLeaveSurface =
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId SelfServiceLeaveFormFragment)
              , 'HtmxSwap 'HtmxOuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action DeleteSelfServiceLeaveRequest
+            '[]
+            '[ 'HtmxMethod 'HtmxDelete
+             , 'HtmxTarget ('HtmxId SelfServiceLeaveHistoryFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          ]

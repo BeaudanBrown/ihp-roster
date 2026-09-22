@@ -118,6 +118,23 @@ instance Controller LeaveRequestsController where
         ensureLeaveProfileAccess responseContext
         submitRequestedLeave responseContext >>= respondWithLeaveSubmissionResult responseContext
 
+    action currentAction@DeleteSelfServiceLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
+        ensureStaffSelfServiceAccess
+        ensureVenueWritable
+        ensureLeaveProfileAccess LeaveSelfServiceResponseContext
+        fetchCurrentUserStaff >>= \case
+            Nothing -> respondWithLeaveContextError LeaveSelfServiceResponseContext "No staff record found. Contact an administrator."
+            Just staff -> do
+                requestedLeave <-
+                    query @LeaveRequest
+                        |> filterWhere (#id, leaveRequestId)
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> filterWhere (#staffId, unpackId staff.id)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetchOneOrNothing
+                deletionResult <- maybe (pure Nothing) deletePendingLeaveRequest requestedLeave
+                respondWithSelfServiceLeaveDeletionResult staff deletionResult
+
     action currentAction@CreateUnavailabilityBlackoutAction = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
         ensureUnavailabilityBlackoutManager

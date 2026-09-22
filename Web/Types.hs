@@ -98,6 +98,7 @@ data LeaveRequestsController
     | ShowVisibleUnavailabilityBlackoutsFragmentAction
     | NewLeaveRequestAction
     | CreateLeaveRequestAction
+    | DeleteSelfServiceLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | DenyLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | CreateUnavailabilityBlackoutAction

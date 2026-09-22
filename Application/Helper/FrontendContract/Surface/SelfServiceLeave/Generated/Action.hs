@@ -8,8 +8,11 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.SelfServiceLeave.Generated.Action
     ( CreateSelfServiceLeaveRequestActionOperation
+    , DeleteSelfServiceLeaveRequestActionOperation
     , createSelfServiceLeaveRequestAction
     , createSelfServiceLeaveRequestActionFields
+    , deleteSelfServiceLeaveRequestAction
+    , deleteSelfServiceLeaveRequestActionFields
     , parseCreateSelfServiceLeaveRequestActionParams
     ) where
 
@@ -31,6 +34,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            ActionMarker,
                                                            ActionSurface,
                                                            actionFields,
+                                                           noActionFields,
                                                            noSurfaceFields,
                                                            surfaceField, (&:))
 import Data.Time (Day)
@@ -74,3 +78,22 @@ parseCreateSelfServiceLeaveRequestActionParams ::
 parseCreateSelfServiceLeaveRequestActionParams =
     parseActionParams
         @CreateSelfServiceLeaveRequestActionOperation
+
+data DeleteSelfServiceLeaveRequestActionOperation
+
+type instance ActionSurface DeleteSelfServiceLeaveRequestActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.SelfServiceLeaveAdapterFamily)
+type instance ActionMarker DeleteSelfServiceLeaveRequestActionOperation = Types1.DeleteSelfServiceLeaveRequest
+type instance ActionFieldSpecs DeleteSelfServiceLeaveRequestActionOperation =
+    '[]
+
+deleteSelfServiceLeaveRequestActionFields :: ActionFields DeleteSelfServiceLeaveRequestActionOperation
+deleteSelfServiceLeaveRequestActionFields =
+    noActionFields
+
+deleteSelfServiceLeaveRequestActionEvidence :: ActionEvidence DeleteSelfServiceLeaveRequestActionOperation
+deleteSelfServiceLeaveRequestActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "DeleteSelfServiceLeaveRequest" "delete-self-service-leave-request" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxDeleteIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#self-service-leave-history-fragment" ["self-service-leave-history-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+deleteSelfServiceLeaveRequestAction :: ActionFields DeleteSelfServiceLeaveRequestActionOperation -> FrontendSurfaceAction
+deleteSelfServiceLeaveRequestAction =
+    frontendSurfaceActionFromEvidence deleteSelfServiceLeaveRequestActionEvidence
