@@ -195,24 +195,36 @@ renderRosterMainPanel gridModel =
         <div class="app-panel mb-5 mb-xl-0 roster-main-panel">
             <span hidden
                   {...rosterWageFilterConfigAttrs (currentUserIsAdmin && gridModel.gridShowWageEstimates) gridModel.gridRosterDays gridModel.gridRosterLayoutMode gridModel.gridViewMode}></span>
-            {renderrosterGridToolbarLiveFragment gridModel}
+            {renderrosterGridToolbarLiveFragment (rosterToolbarRenderModelFromGrid gridModel)}
             {renderrosterGridFrameLiveFragment gridModel}
         </div>
     |]
 
-renderrosterGridToolbarLiveFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
+rosterToolbarRenderModelFromGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterToolbarRenderModel
+rosterToolbarRenderModelFromGrid gridModel =
+    RosterToolbarRenderModel
+        { toolbarRosterWeek = gridModel.gridRosterWeek
+        , toolbarCurrentRosterGroup = gridModel.gridCurrentRosterGroup
+        , toolbarWeekStartDate = gridModel.gridWeekStartDate
+        , toolbarCalendarRevision = gridModel.gridRosterCalendarRevision
+        , toolbarViewCapabilities = gridModel.gridViewCapabilities
+        , toolbarWagePrediction = gridModel.gridRosterWagePrediction
+        , toolbarHasSidePanel = currentUserIsManager || isJust gridModel.gridStaffSelfServicePanel
+        , toolbarViewMode = gridModel.gridViewMode
+        , toolbarTimelineTodayUrl = gridModel.gridTimelineTodayUrl
+        }
+
+renderrosterGridToolbarLiveFragment :: (?context :: ControllerContext) => RosterToolbarRenderModel -> Html
 renderrosterGridToolbarLiveFragment =
     renderrosterGridToolbarLiveFragmentWithSwap Nothing
 
-renderrosterGridToolbarLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderrosterGridToolbarLiveFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridViewCapabilities, gridRosterWagePrediction, gridStaffSelfServicePanel, gridViewMode, gridTimelineTodayUrl } =
+renderrosterGridToolbarLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterToolbarRenderModel -> Html
+renderrosterGridToolbarLiveFragmentWithSwap maybeSwapOob toolbarModel =
     profileHtmlComponent "render.roster.toolbar" [hsx|
         <div id={rosterGridToolbarFragmentId} hx-swap-oob={maybeSwapOob}>
-            {renderRosterGridHeader gridRosterWeek gridRosterCalendarRevision gridCurrentRosterGroup gridWeekStartDate gridViewCapabilities gridRosterWagePrediction hasSidePanel gridViewMode gridTimelineTodayUrl}
+            {renderRosterGridHeader toolbarModel.toolbarRosterWeek toolbarModel.toolbarCalendarRevision toolbarModel.toolbarCurrentRosterGroup toolbarModel.toolbarWeekStartDate toolbarModel.toolbarViewCapabilities toolbarModel.toolbarWagePrediction toolbarModel.toolbarHasSidePanel toolbarModel.toolbarViewMode toolbarModel.toolbarTimelineTodayUrl}
         </div>
     |]
-    where
-        hasSidePanel = currentUserIsManager || isJust gridStaffSelfServicePanel
 
 renderrosterGridFrameLiveFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderrosterGridFrameLiveFragment =

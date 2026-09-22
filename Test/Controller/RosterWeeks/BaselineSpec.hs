@@ -74,19 +74,67 @@ tests = aroundAll withDatabaseTestContext do
 
                     serverTiming coldPage `shouldContainBS` "roster_direct_fetch_dated_slots;dur="
                     forM_ [coldPage, warmPage, contentFragment, toolbarFragment, frameFragment, dayColumnsFragment, dayRailFragment, wageRailFragment, slotsGridFragment, rowFragment, dayFragment, staffPanel] \response -> do
-                        countTimingSpan "roster_direct_base_facts" response `shouldBe` 1
                         countTimingSpan "roster_snapshot_fetch_venue_config" response `shouldBe` 1
                         countTimingSpan "roster_snapshot_fetch_current_staff" response `shouldBe` 1
                         countTimingSpan "roster_snapshot_fetch_viewable_groups" response `shouldBe` 1
                         countTimingSpan "roster_snapshot_fetch_user_preferences" response `shouldBe` 1
-                        countTimingSpan "roster_direct_fetch_group_staff" response `shouldBe` 1
-                        countTimingSpan "roster_direct_fetch_staff_pay_remediation" response `shouldBe` 1
                         serverTiming response `shouldNotContainBS` "roster_direct_fetch_eligible_staff;dur="
                         serverTiming response `shouldNotContainBS` "roster_direct_fetch_panel_staff;dur="
+                    forM_ [coldPage, warmPage, contentFragment, rowFragment, dayFragment] \response -> do
+                        countTimingSpan "roster_direct_base_facts" response `shouldBe` 1
+                        countTimingSpan "roster_direct_fetch_group_staff" response `shouldBe` 1
+                        countTimingSpan "roster_direct_fetch_staff_pay_remediation" response `shouldBe` 1
+                    forM_ [frameFragment, dayColumnsFragment, dayRailFragment, wageRailFragment, slotsGridFragment] \response -> do
+                        countTimingSpan "roster_direct_base_facts" response `shouldBe` 0
+                        countTimingSpan "roster_direct_display_facts" response `shouldBe` 1
+                        countTimingSpan "roster_direct_fetch_group_staff" response `shouldBe` 0
+                        countTimingSpan "roster_direct_fetch_staff_pay_remediation" response `shouldBe` 0
+                    countTimingSpan "roster_direct_base_facts" toolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_dated_slots" toolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_window_lanes" toolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_template_fetch_library" toolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_build_staff_panel" toolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_base_facts" staffPanel `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_dated_slots" staffPanel `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_window_lanes" staffPanel `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_shift_types" staffPanel `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_assigned_shift_counts" staffPanel `shouldBe` 1
+                    countTimingSpan "roster_template_fetch_library" frameFragment `shouldBe` 0
+                    countTimingSpan "roster_build_staff_panel" frameFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_build_slot_conflicts" dayRailFragment `shouldBe` 0
+                    countTimingSpan "roster_predict_wages" dayRailFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_build_slot_conflicts" wageRailFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_public_holidays" wageRailFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_public_holidays" slotsGridFragment `shouldBe` 0
+                    countTimingSpan "roster_predict_wages" slotsGridFragment `shouldBe` 0
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_staff_option_states;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_slot_conflicts;dur="
+
+                    managerMembership <- query @VenueMembership
+                        |> filterWhere (#venueId, unpackId brVenue.id)
+                        |> filterWhere (#userId, unpackId brManager.id)
+                        |> fetchOne
+                    _ <- managerMembership |> set #venueRole VenueAdmin |> updateRecord
+                    maybePreference <- query @UserPreference
+                        |> filterWhere (#userId, unpackId brManager.id)
+                        |> fetchOneOrNothing
+                    _ <- case maybePreference of
+                        Just preference -> preference |> set #showWageEstimates True |> updateRecord
+                        Nothing -> newRecord @UserPreference
+                            |> set #userId (unpackId brManager.id)
+                            |> set #showWageEstimates True
+                            |> createRecord
+                    wageToolbarFragment <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
+                    wageToolbarFragment `responseStatusShouldBe` status200
+                    countTimingSpan "roster_direct_fetch_wage_slots" wageToolbarFragment `shouldBe` 1
+                    countTimingSpan "roster_direct_fetch_window_lanes" wageToolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_referenced_staff" wageToolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_referenced_shift_types" wageToolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_staff_pay_remediation" wageToolbarFragment `shouldBe` 0
+                    countTimingSpan "roster_predict_wages" wageToolbarFragment `shouldBe` 1
 
                     dumpBaselineTimings
                         [ ("cold-page", coldPage)
@@ -125,9 +173,11 @@ tests = aroundAll withDatabaseTestContext do
                     supportToolbar <- withUserAndCurrentVenue supportAdmin brVenue.id do
                         callAction (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
 
-                    forM_ [hiddenPage, hiddenRow, supportPage, supportToolbar] \response -> do
+                    forM_ [hiddenPage, hiddenRow, supportPage, supportToolbar] \response ->
                         response `responseStatusShouldBe` status200
+                    forM_ [hiddenPage, hiddenRow, supportPage] \response ->
                         countTimingSpan "roster_direct_base_facts" response `shouldBe` 1
+                    countTimingSpan "roster_direct_base_facts" supportToolbar `shouldBe` 0
                     hiddenPage `responseBodyShouldNotContain` "Staff1"
                     hiddenRow `responseBodyShouldNotContain` "Staff1"
                     supportPage `responseBodyShouldContain` "Staff1"
@@ -138,9 +188,42 @@ tests = aroundAll withDatabaseTestContext do
                     _ <- mapM (updateRecord . set #publicationState Published) draftDays
                     publishedPage <- withUserAndCurrentVenue worker brVenue.id do
                         callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    publishedRow <- withUserAndCurrentVenue worker brVenue.id do
+                        callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id 0)
+                    publishedDay <- withUserAndCurrentVenue worker brVenue.id do
+                        callAction (ShowRosterWeekDaySectionFragmentAction (tshow (testAnchorForOffset 0)) brRosterDay.id)
                     publishedPage `responseStatusShouldBe` status200
                     countTimingSpan "roster_direct_base_facts" publishedPage `shouldBe` 1
                     publishedPage `responseBodyShouldContain` "Staff1"
+                    forM_ [publishedRow, publishedDay] \response -> do
+                        response `responseStatusShouldBe` status200
+                        countTimingSpan "roster_direct_base_facts" response `shouldBe` 0
+                        countTimingSpan "roster_direct_published_day_facts" response `shouldBe` 1
+                        countTimingSpan "roster_direct_fetch_target_day_slots" response `shouldBe` 1
+                        countTimingSpan "roster_direct_fetch_group_staff" response `shouldBe` 0
+                        countTimingSpan "roster_direct_fetch_shift_types" response `shouldBe` 0
+                        countTimingSpan "roster_direct_build_slot_conflicts" response `shouldBe` 0
+                        response `responseBodyShouldContain` "Staff1"
+
+        it "loads only the initial notification summary for the published Staff panel" $ withContext do
+            withEnvironmentVariable "IHP_ROSTER_PROFILING" (Just "1") do
+                withCleanDb do
+                    BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
+                    rosterDays <- query @RosterDay
+                        |> filterWhere (#rosterGroupId, brRosterDay.rosterGroupId)
+                        |> fetch
+                    _ <- mapM (updateRecord . set #publicationState Published) rosterDays
+
+                    staffPanel <- withUserAndCurrentVenue brManager brVenue.id do
+                        callAction (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
+
+                    staffPanel `responseStatusShouldBe` status200
+                    countTimingSpan "roster_notification_fetch_panel_summary" staffPanel `shouldBe` 1
+                    countTimingSpan "roster_direct_fetch_assigned_shift_counts" staffPanel `shouldBe` 1
+                    countTimingSpan "roster_direct_fetch_dated_slots" staffPanel `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_window_lanes" staffPanel `shouldBe` 0
+                    countTimingSpan "roster_direct_fetch_shift_types" staffPanel `shouldBe` 0
+                    staffPanel `responseBodyShouldContain` "Email roster"
 
         it "keeps reads and lane mutations on the anchor-date window" $ withContext do
             withCleanDb do

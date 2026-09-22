@@ -5,7 +5,8 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Web.RosterWeeks.DirectReadModel
-    ( RosterBaseFacts (..)
+    ( RosterWindowFacts (..)
+    , RosterBaseFacts (..)
     , buildSlotConflictsDirect
     , buildSlotConflictsForSlotsDirect
     , RosterConflictDecodeError (..)
@@ -13,10 +14,22 @@ module Web.RosterWeeks.DirectReadModel
     , unavailableRosterConflict
     , fetchRosterBaseFactsDirect
     , fetchRosterBaseFactsForAuthorizedScopeDirect
+    , fetchRosterBaseFactsForAuthorizedWindowDirect
+    , fetchPublishedRosterDayFactsForAuthorizedScopeDirect
+    , fetchRosterDisplayFactsForAuthorizedWindowDirect
+    , fetchRosterNotificationPanelDataDirect
+    , fetchRosterStaffPanelFactsForAuthorizedScopeDirect
+    , fetchRosterTemplateLibraryDirect
+    , fetchRosterWageFilterStaffForAuthorizedScopeDirect
+    , fetchRosterWageSlotsForAuthorizedWindowDirect
+    , fetchRosterWindowFactsForAuthorizedScopeDirect
     , fetchRosterNotificationWindowDays
     ) where
 
+import Application.Async.Queue (activeAppJobStatuses)
 import Application.Error.Domain
+import Application.Error.Runtime (ExternalRuntimeCategory (AuthorizedFrameworkInvariant),
+                                  externalRuntimeInvariantFailure)
 import Application.Error.Telemetry (recordAppError)
 import Application.Helper.Conflict
 import Application.Helper.Profiling
@@ -24,7 +37,12 @@ import Application.Helper.Staff (sortStaffForDisplay)
 import Application.PayAssignment (PayAssignmentScope (..),
                                   PayReferenceRequirement (..),
                                   payAssignmentModesRequiring)
+import Application.RosterNotification (RosterNotificationPanelData (..))
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
+import Application.RosterTemplates (RosterTemplateActor,
+                                    RosterTemplateLibrary (..),
+                                    rosterTemplateActorCanEditRosters,
+                                    rosterTemplateActorVenueId)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -50,7 +68,15 @@ fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =
         |> orderByAsc #operationalDate
         |> fetch
 
--- Database-near base facts for roster read-model rendering. These reads are
+-- Window identity and publication facts are cheap enough for every projection.
+-- Slot, Staff, Shift type, conflict, and panel supplements remain demand-driven.
+data RosterWindowFacts = RosterWindowFacts
+    { windowFactsState         :: !(Maybe RosterWindowState)
+    , windowFactsDays          :: ![RosterDay]
+    , windowFactsPersistedDays :: ![RosterDay]
+    }
+
+-- Database-near grid facts for roster read-model rendering. These reads are
 -- request-local and do not use a cross-request HTML/read-model cache.
 data RosterBaseFacts = RosterBaseFacts
     { baseRosterWeek                       :: !(Maybe RosterWindowState)
@@ -79,29 +105,51 @@ fetchRosterBaseFactsDirect scope = do
             |> fetchExists
     if not (rosterWindowScopeMatchesConfig venueConfig scope) || not rosterGroupInVenue
         then pure Nothing
-        else Just <$> profileActionSpan "roster.direct.base_facts" (fetchRosterBaseFactsForScopeDirect scope)
+        else do
+            windowFacts <- fetchRosterWindowFactsForScopeDirect scope
+            Just <$> fetchRosterBaseFactsForWindowDirect scope windowFacts
 
 -- Only the authorization seam can construct the nominal scope accepted here.
 fetchRosterBaseFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO RosterBaseFacts
-fetchRosterBaseFactsForAuthorizedScopeDirect authorizedScope =
-    profileActionSpan "roster.direct.base_facts" (fetchRosterBaseFactsForScopeDirect authorizedScope.authorizedRosterWindowScope)
+fetchRosterBaseFactsForAuthorizedScopeDirect authorizedScope = do
+    windowFacts <- fetchRosterWindowFactsForAuthorizedScopeDirect authorizedScope
+    fetchRosterBaseFactsForAuthorizedWindowDirect authorizedScope windowFacts
 
-fetchRosterBaseFactsForScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO RosterBaseFacts
-fetchRosterBaseFactsForScopeDirect scope =
-    profileActionSpan "roster.direct.base_facts_for_date_range" do
+fetchRosterWindowFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO RosterWindowFacts
+fetchRosterWindowFactsForAuthorizedScopeDirect authorizedScope =
+    fetchRosterWindowFactsForScopeDirect authorizedScope.authorizedRosterWindowScope
+
+fetchRosterWindowFactsForScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO RosterWindowFacts
+fetchRosterWindowFactsForScopeDirect scope =
+    profileActionSpan "roster.direct.window_facts" do
         let rosterGroupId = scope.rosterWindowRosterGroupId
-        let windowStartDate = scope.rosterWindowStart
-        let windowEndDate = scope.rosterWindowEnd
-        window <- profileActionSpan "roster.direct.fetch_dated_window" (fetchRosterWindow scope.rosterWindowVenueId rosterGroupId windowStartDate)
-        let rosterDays =
+        windowFactsPersistedDays <- profileActionSpan "roster.direct.fetch_dated_window_days"
+            (fetchRosterNotificationWindowDays scope.rosterWindowVenueId rosterGroupId scope.rosterWindowStart scope.rosterWindowEnd)
+        let window = projectRosterWindow scope.rosterWindowStart windowFactsPersistedDays []
+        let windowFactsDays =
                 map
                     (projectedRosterDay scope.rosterWindowVenueId rosterGroupId)
                     window.rosterWindowProjectedDays
-        let windowState = RosterWindowState
+        let windowFactsState = Just RosterWindowState
                 { windowRosterGroupId = unpackId rosterGroupId
                 , windowIsPublished = rosterWindowIsPublished window
-                , windowHasPublishedDays = any ((== Published) . (.publicationState)) rosterDays
+                , windowHasPublishedDays = any ((== Published) . (.publicationState)) windowFactsDays
                 }
+        pure RosterWindowFacts { .. }
+
+fetchRosterBaseFactsForAuthorizedWindowDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> RosterWindowFacts -> IO RosterBaseFacts
+fetchRosterBaseFactsForAuthorizedWindowDirect authorizedScope =
+    fetchRosterBaseFactsForWindowDirect authorizedScope.authorizedRosterWindowScope
+
+fetchRosterBaseFactsForWindowDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> RosterWindowFacts -> IO RosterBaseFacts
+fetchRosterBaseFactsForWindowDirect scope windowFacts =
+    profileActionSpan "roster.direct.base_facts" $
+        profileActionSpan "roster.direct.base_facts_for_date_range" do
+        let rosterGroupId = scope.rosterWindowRosterGroupId
+        let windowStartDate = scope.rosterWindowStart
+        let windowEndDate = scope.rosterWindowEnd
+        let rosterDays = windowFacts.windowFactsDays
+        orderedSlotDefinitions <- fetchRosterWindowLanesForFacts scope windowFacts
         allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" $
             unsafeSqlQuery
                 ("SELECT " <> fromString (cs (Text.intercalate ", " (map ("roster_slots." <>) (columnNames @RosterSlot)))) <> " \
@@ -114,7 +162,6 @@ fetchRosterBaseFactsForScopeDirect scope =
                 \AND roster_slots.deleted_at IS NULL \
                 \ORDER BY roster_days.operational_date, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at")
                 (unpackId currentVenueId, unpackId rosterGroupId, windowStartDate, windowEndDate)
-        let orderedSlotDefinitions = window.rosterWindowLanes
         let visibleSlots = filterVisibleRosterSlots rosterDays allSlots
         groupStaffMembers <- profileActionSpan "roster.direct.fetch_group_staff" (fetchRosterGroupStaffForPanelDirect rosterGroupId)
         let panelStaffMembers = sortStaffForDisplay groupStaffMembers
@@ -124,7 +171,7 @@ fetchRosterBaseFactsForScopeDirect scope =
         shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
         let staffMembers = uniqueStaffById (eligibleStaffMembers <> assignedStaffMembers)
         pure RosterBaseFacts
-            { baseRosterWeek = Just windowState
+            { baseRosterWeek = windowFacts.windowFactsState
             , baseRosterDays = rosterDays
             , baseAllSlots = allSlots
             , baseVisibleSlots = visibleSlots
@@ -166,6 +213,244 @@ fetchRosterGroupStaffForPanelDirect rosterGroupId =
     unsafeSqlQuery
         (rosterGroupStaffSelect <> " ORDER BY staff.last_name")
         (unpackId rosterGroupId, unpackId currentVenueId)
+
+fetchRosterDisplayFactsForAuthorizedWindowDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> RosterWindowFacts -> IO RosterBaseFacts
+fetchRosterDisplayFactsForAuthorizedWindowDirect authorizedScope windowFacts =
+    profileActionSpan "roster.direct.display_facts" do
+        let scope = authorizedScope.authorizedRosterWindowScope
+        allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" $
+            unsafeSqlQuery
+                ("SELECT " <> fromString (cs (Text.intercalate ", " (map ("roster_slots." <>) (columnNames @RosterSlot)))) <> " \
+                \FROM roster_slots \
+                \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
+                \WHERE roster_days.venue_id = ? \
+                \AND roster_days.roster_group_id = ? \
+                \AND roster_days.operational_date >= ? \
+                \AND roster_days.operational_date < ? \
+                \AND roster_slots.deleted_at IS NULL \
+                \ORDER BY roster_days.operational_date, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at")
+                ( unpackId scope.rosterWindowVenueId
+                , unpackId scope.rosterWindowRosterGroupId
+                , scope.rosterWindowStart
+                , scope.rosterWindowEnd
+                )
+        let visibleSlots = filterVisibleRosterSlots windowFacts.windowFactsDays allSlots
+        orderedSlotDefinitions <- fetchRosterWindowLanesForFacts scope windowFacts
+        assignedStaffMembers <- profileActionSpan "roster.direct.fetch_referenced_staff" (fetchAssignedRosterWeekStaff visibleSlots)
+        shiftTypes <- profileActionSpan "roster.direct.fetch_referenced_shift_types" (fetchReferencedShiftTypes scope (mapMaybe (.shiftTypeId) visibleSlots))
+        pure RosterBaseFacts
+            { baseRosterWeek = windowFacts.windowFactsState
+            , baseRosterDays = windowFacts.windowFactsDays
+            , baseAllSlots = allSlots
+            , baseVisibleSlots = visibleSlots
+            , baseOrderedSlotDefinitions = orderedSlotDefinitions
+            , baseShiftTypes = shiftTypes
+            , baseEligibleStaff = []
+            , basePanelStaff = []
+            , baseAssignedStaff = assignedStaffMembers
+            , basePanelPayConfigurationRequiredIds = Set.empty
+            , baseStaffMembers = assignedStaffMembers
+            }
+
+fetchPublishedRosterDayFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> RosterWindowFacts -> UUID.UUID -> IO RosterBaseFacts
+fetchPublishedRosterDayFactsForAuthorizedScopeDirect authorizedScope windowFacts rosterDayId =
+    profileActionSpan "roster.direct.published_day_facts" do
+        let scope = authorizedScope.authorizedRosterWindowScope
+        let rosterDays = windowFacts.windowFactsDays
+        targetSlots <- profileActionSpan "roster.direct.fetch_target_day_slots" $
+            unsafeSqlQuery
+                ("SELECT " <> fromString (cs (Text.intercalate ", " (map ("roster_slots." <>) (columnNames @RosterSlot)))) <> " \
+                \FROM roster_slots \
+                \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
+                \WHERE roster_days.id = ? \
+                \AND roster_days.venue_id = ? \
+                \AND roster_days.roster_group_id = ? \
+                \AND roster_days.operational_date >= ? \
+                \AND roster_days.operational_date < ? \
+                \AND roster_days.is_closed = FALSE \
+                \AND roster_slots.deleted_at IS NULL \
+                \ORDER BY roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at")
+                ( rosterDayId
+                , unpackId scope.rosterWindowVenueId
+                , unpackId scope.rosterWindowRosterGroupId
+                , scope.rosterWindowStart
+                , scope.rosterWindowEnd
+                )
+        orderedSlotDefinitions <- fetchRosterWindowLanesForFacts scope windowFacts
+        assignedStaffMembers <- profileActionSpan "roster.direct.fetch_referenced_staff" (fetchAssignedRosterWeekStaff targetSlots)
+        shiftTypes <- profileActionSpan "roster.direct.fetch_referenced_shift_types" (fetchReferencedShiftTypes scope (mapMaybe (.shiftTypeId) targetSlots))
+        pure RosterBaseFacts
+            { baseRosterWeek = windowFacts.windowFactsState
+            , baseRosterDays = rosterDays
+            , baseAllSlots = targetSlots
+            , baseVisibleSlots = targetSlots
+            , baseOrderedSlotDefinitions = orderedSlotDefinitions
+            , baseShiftTypes = shiftTypes
+            , baseEligibleStaff = []
+            , basePanelStaff = []
+            , baseAssignedStaff = assignedStaffMembers
+            , basePanelPayConfigurationRequiredIds = Set.empty
+            , baseStaffMembers = assignedStaffMembers
+            }
+
+fetchRosterWindowLanesForFacts :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> RosterWindowFacts -> IO [RosterWindowLane]
+fetchRosterWindowLanesForFacts scope windowFacts =
+    profileActionSpan "roster.direct.fetch_window_lanes" do
+        window <- fetchRosterWindowFromDays scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart windowFacts.windowFactsPersistedDays
+        pure window.rosterWindowLanes
+
+fetchReferencedShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> [UUID.UUID] -> IO [ShiftType]
+fetchReferencedShiftTypes scope referencedShiftTypeIds
+    | null shiftTypeIds = pure []
+    | otherwise = query @ShiftType
+        |> queryOr
+            (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope NoPayReference))
+            (queryOr
+                (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope ActiveAwardReference)
+                    . filterWhereSql (#overrideAwardLevelId, "IS NOT NULL AND EXISTS (SELECT 1 FROM award_levels WHERE id = shift_types.override_award_level_id AND is_active = TRUE)"))
+                (filterWhereIn (#payAssignmentMode, payAssignmentModesRequiring ShiftTypePayScope AvailableXeroReference)
+                    . filterWhereSql (#importedXeroPayItemId, "IS NOT NULL AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE id = shift_types.imported_xero_pay_item_id AND venue_id = shift_types.venue_id AND archived_at IS NULL AND provider_available = TRUE)")))
+        |> filterWhere (#venueId, unpackId scope.rosterWindowVenueId)
+        |> filterWhereIn (#id, map Id shiftTypeIds)
+        |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+        |> orderByAsc #sortOrder
+        |> orderByAsc #createdAt
+        |> fetch
+  where
+    shiftTypeIds = Set.toList (Set.fromList referencedShiftTypeIds)
+
+fetchRosterTemplateLibraryDirect :: (?modelContext :: ModelContext) => RosterTemplateActor -> RosterGroup -> IO (Maybe RosterTemplateLibrary)
+fetchRosterTemplateLibraryDirect actor rosterGroup
+    | not (rosterTemplateActorCanEditRosters actor) = pure Nothing
+    | rosterGroup.venueId /= unpackId (rosterTemplateActorVenueId actor) = pure Nothing
+    | otherwise = do
+        templates <- query @RosterTemplate
+            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> filterWhere (#scale, Week)
+            |> orderByAsc #name
+            |> fetch
+        shiftCounts :: [(UUID.UUID, Int)] <- if null templates
+            then pure []
+            else unsafeSqlQuery
+                "SELECT roster_template_id, COUNT(*)::int \
+                \FROM roster_template_shifts \
+                \WHERE roster_template_id = ANY(?) \
+                \GROUP BY roster_template_id"
+                (Only (map (unpackId . (.id)) templates))
+        pure (Just RosterTemplateLibrary
+            { libraryTemplates = sortOn (Text.toCaseFold . (.name)) templates
+            , libraryShiftCounts = Map.fromList [(Id rosterTemplateId, shiftCount) | (rosterTemplateId, shiftCount) <- shiftCounts]
+            })
+
+fetchRosterNotificationPanelDataDirect :: (?modelContext :: ModelContext) => AuthorizedRosterScope -> IO RosterNotificationPanelData
+fetchRosterNotificationPanelDataDirect authorizedScope = do
+    let scope = authorizedScope.authorizedRosterWindowScope
+    summaryRows :: [(Int, Bool)] <- unsafeSqlQuery
+        "SELECT \
+        \    (SELECT COUNT(DISTINCT staff.id)::int \
+        \     FROM staff_roster_groups \
+        \     JOIN staff ON staff.id = staff_roster_groups.staff_id \
+        \     JOIN users ON users.id = staff.user_id \
+        \     JOIN venue_memberships ON venue_memberships.user_id = users.id AND venue_memberships.venue_id = ? \
+        \     WHERE staff_roster_groups.roster_group_id = ? \
+        \     AND staff_roster_groups.deleted_at IS NULL \
+        \     AND staff.venue_id = ? \
+        \     AND staff.is_active = TRUE \
+        \     AND staff.archived_at IS NULL \
+        \     AND users.deactivated_at IS NULL \
+        \     AND NULLIF(REGEXP_REPLACE(users.email, '[[:space:]]', '', 'g'), '') IS NOT NULL \
+        \     AND venue_memberships.is_active = TRUE \
+        \     AND venue_memberships.archived_at IS NULL), \
+        \    EXISTS ( \
+        \        SELECT 1 FROM app_jobs \
+        \        WHERE app_jobs.related_table = 'roster_notification_runs' \
+        \        AND app_jobs.related_id = ( \
+        \            SELECT roster_notification_runs.id \
+        \            FROM roster_notification_runs \
+        \            WHERE roster_notification_runs.venue_id = ? \
+        \            AND roster_notification_runs.roster_group_id = ? \
+        \            AND roster_notification_runs.week_start = ? \
+        \            AND roster_notification_runs.window_end = ? \
+        \            ORDER BY roster_notification_runs.created_at DESC \
+        \            LIMIT 1 \
+        \        ) \
+        \        AND app_jobs.status = ANY(?::job_status[]) \
+        \    )"
+        ( unpackId scope.rosterWindowVenueId
+        , unpackId scope.rosterWindowRosterGroupId
+        , unpackId scope.rosterWindowVenueId
+        , unpackId scope.rosterWindowVenueId
+        , unpackId scope.rosterWindowRosterGroupId
+        , scope.rosterWindowStart
+        , scope.rosterWindowEnd
+        , activeAppJobStatuses
+        )
+    let (eligibleRecipientCount, notificationInProgress) =
+            case summaryRows of
+                [summary] -> summary
+                _ -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "roster notification panel aggregate returned an unexpected row count"
+    pure $ if notificationInProgress
+        then RosterNotificationInProgress
+        else if eligibleRecipientCount == 0
+            then RosterNotificationNoEligibleRecipients
+            else RosterNotificationReady eligibleRecipientCount
+
+fetchRosterWageSlotsForAuthorizedWindowDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> RosterWindowFacts -> IO [RosterSlot]
+fetchRosterWageSlotsForAuthorizedWindowDirect authorizedScope windowFacts =
+    profileActionSpan "roster.direct.fetch_wage_slots" do
+        let scope = authorizedScope.authorizedRosterWindowScope
+        allSlots <- unsafeSqlQuery
+            ("SELECT " <> fromString (cs (Text.intercalate ", " (map ("roster_slots." <>) (columnNames @RosterSlot)))) <> " \
+            \FROM roster_slots \
+            \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
+            \WHERE roster_days.venue_id = ? \
+            \AND roster_days.roster_group_id = ? \
+            \AND roster_days.operational_date >= ? \
+            \AND roster_days.operational_date < ? \
+            \AND roster_slots.deleted_at IS NULL \
+            \ORDER BY roster_days.operational_date, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at")
+            ( unpackId scope.rosterWindowVenueId
+            , unpackId scope.rosterWindowRosterGroupId
+            , scope.rosterWindowStart
+            , scope.rosterWindowEnd
+            )
+        pure (filterVisibleRosterSlots windowFacts.windowFactsDays allSlots)
+
+fetchRosterWageFilterStaffForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO [Staff]
+fetchRosterWageFilterStaffForAuthorizedScopeDirect authorizedScope =
+    profileActionSpan "roster.direct.fetch_wage_filter_staff" $
+        sortStaffForDisplay <$> fetchRosterGroupStaffForPanelDirect authorizedScope.authorizedRosterWindowScope.rosterWindowRosterGroupId
+
+fetchRosterStaffPanelFactsForAuthorizedScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => AuthorizedRosterScope -> IO ([Staff], Set.Set UUID.UUID, Map.Map UUID.UUID Int)
+fetchRosterStaffPanelFactsForAuthorizedScopeDirect authorizedScope = do
+    let scope = authorizedScope.authorizedRosterWindowScope
+    groupStaff <- profileActionSpan "roster.direct.fetch_group_staff" (sortStaffForDisplay <$> fetchRosterGroupStaffForPanelDirect scope.rosterWindowRosterGroupId)
+    payConfigurationRequiredIds <- profileActionSpan "roster.direct.fetch_staff_pay_remediation" (fetchStaffPayConfigurationRequiredIds groupStaff)
+    assignedShiftCounts <- profileActionSpan "roster.direct.fetch_assigned_shift_counts" (fetchRosterAssignedShiftCountsDirect scope)
+    pure (groupStaff, payConfigurationRequiredIds, assignedShiftCounts)
+
+fetchRosterAssignedShiftCountsDirect :: (?modelContext :: ModelContext) => RosterWindowScope -> IO (Map.Map UUID.UUID Int)
+fetchRosterAssignedShiftCountsDirect scope =
+    Map.fromList <$> unsafeSqlQuery
+        "SELECT roster_slots.staff_id, COUNT(*)::int \
+        \FROM roster_slots \
+        \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
+        \WHERE roster_days.venue_id = ? \
+        \AND roster_days.roster_group_id = ? \
+        \AND roster_days.operational_date >= ? \
+        \AND roster_days.operational_date < ? \
+        \AND roster_days.is_closed = FALSE \
+        \AND roster_slots.deleted_at IS NULL \
+        \AND roster_slots.assignment_state = 'staff' \
+        \AND roster_slots.staff_id IS NOT NULL \
+        \GROUP BY roster_slots.staff_id"
+        ( unpackId scope.rosterWindowVenueId
+        , unpackId scope.rosterWindowRosterGroupId
+        , scope.rosterWindowStart
+        , scope.rosterWindowEnd
+        )
 
 fetchCurrentVenueRosterShiftTypesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueRosterShiftTypesDirect =

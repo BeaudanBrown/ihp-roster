@@ -29,7 +29,8 @@ import Application.RosterNotification (RosterNotificationAudience (..),
                                        RosterNotificationRunSummary (..))
 import Web.RosterWeeks.Dom (rosterEmailButtonId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
-import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekConfirmationUrl,
+import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl,
+                              rosterCopyWeekConfirmationUrl,
                               rosterOwnLiveShiftHighlightPreferenceUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWindowBaseUrl,
@@ -325,38 +326,37 @@ renderRosterShareSection maybeRosterWeek rosterGroup weekStartDate calendarRevis
 |]
 
 renderRosterEmailAction :: (?context :: ControllerContext) => Id RosterGroup -> Day -> Int -> Maybe RosterNotificationPanelData -> Html
-renderRosterEmailAction rosterGroupId windowStart calendarRevision (Just RosterNotificationPanelData { panelNotificationAudience = audience, panelLatestNotificationRun = latestRun })
-    | maybe False ((> 0) . (.summaryInProgressCount)) latestRun = [hsx|
+renderRosterEmailAction _ _ _ (Just RosterNotificationInProgress) = [hsx|
         <button id={rosterEmailButtonId} type="button" class="btn btn-outline-primary btn-sm w-100" disabled="disabled" title="Roster email delivery is in progress">
             <i class="bi bi-envelope me-1" aria-hidden="true"></i>
             Email roster
         </button>
         <p class="small app-muted mb-0">Roster email delivery is in progress.</p>
     |]
-    | null audience.audienceRecipients = [hsx|
+renderRosterEmailAction _ _ _ (Just RosterNotificationNoEligibleRecipients) = [hsx|
         <button id={rosterEmailButtonId} type="button" class="btn btn-outline-primary btn-sm w-100" disabled="disabled" title="No eligible recipients">
             <i class="bi bi-envelope me-1" aria-hidden="true"></i>
             Email roster
         </button>
         <p class="small app-muted mb-0">No eligible recipients are assigned to this roster group.</p>
     |]
-    | otherwise =
-        renderFrontendSurfaceActionLink
-            (RosterAction.showRosterNotificationConfirmationAction (RosterAction.showRosterNotificationConfirmationActionFields (unpackId rosterGroupId) windowStart windowEnd calendarRevision))
-            (rosterWeekShellSyncRoute actionUrl)
-                { actionRouteStandardUrl = Just actionUrl
-                , actionRouteExtraAttrs =
-                    [ ("id", rosterEmailButtonId)
-                    , ("class", "btn btn-outline-primary btn-sm w-100")
-                    ]
-                }
-            [hsx|
-                <i class="bi bi-envelope me-1" aria-hidden="true"></i>
-                Email roster
-            |]
-      where
-        actionUrl = pathTo ShowRosterNotificationConfirmationAction
-        windowEnd = addDays 7 windowStart
+renderRosterEmailAction rosterGroupId windowStart calendarRevision (Just (RosterNotificationReady _eligibleRecipientCount)) =
+    renderFrontendSurfaceActionLink
+        (RosterAction.showRosterNotificationConfirmationAction (RosterAction.showRosterNotificationConfirmationActionFields (unpackId rosterGroupId) windowStart windowEnd calendarRevision))
+        (rosterWeekShellSyncRoute actionUrl)
+            { actionRouteStandardUrl = Just actionUrl
+            , actionRouteExtraAttrs =
+                [ ("id", rosterEmailButtonId)
+                , ("class", "btn btn-outline-primary btn-sm w-100")
+                ]
+            }
+        [hsx|
+            <i class="bi bi-envelope me-1" aria-hidden="true"></i>
+            Email roster
+        |]
+  where
+    actionUrl = pathTo ShowRosterNotificationConfirmationAction
+    windowEnd = addDays 7 windowStart
 renderRosterEmailAction _ _ _ _ = mempty
 
 renderRosterExportSection :: Text -> Day -> Html

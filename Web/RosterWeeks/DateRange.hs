@@ -24,6 +24,7 @@ module Web.RosterWeeks.DateRange
     , rosterWindowScopeMatchesConfig
     , rosterWindowTarget
     , fetchRosterWindow
+    , fetchRosterWindowFromDays
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
@@ -212,6 +213,10 @@ fetchRosterWindow venueId rosterGroupId startDate = do
         |> filterWhereGreaterThanOrEqualTo (#operationalDate, startDate)
         |> filterWhereLessThanOrEqualTo (#operationalDate, endDate)
         |> fetch
+    fetchRosterWindowFromDays venueId rosterGroupId startDate days
+
+fetchRosterWindowFromDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> [RosterDay] -> IO RosterWindow
+fetchRosterWindowFromDays venueId rosterGroupId startDate days = do
     lanes <- if null days
         then pure []
         else query @RosterLane

@@ -107,10 +107,10 @@ data RosterNotificationRunSummary = RosterNotificationRunSummary
     }
     deriving (Eq, Show)
 
-data RosterNotificationPanelData = RosterNotificationPanelData
-    { panelNotificationAudience  :: !RosterNotificationAudience
-    , panelLatestNotificationRun :: !(Maybe RosterNotificationRunSummary)
-    }
+data RosterNotificationPanelData
+    = RosterNotificationInProgress
+    | RosterNotificationNoEligibleRecipients
+    | RosterNotificationReady !Int
     deriving (Eq, Show)
 
 data CreateRosterNotificationRunResult

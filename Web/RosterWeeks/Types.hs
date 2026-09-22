@@ -12,6 +12,7 @@ module Web.RosterWeeks.Types
     , RosterStaffPanelRenderModel (..)
     , RosterStaffSelfServicePanel (..)
     , RosterStaffPanelEntry (..)
+    , RosterToolbarRenderModel (..)
     , RosterViewCapabilities (..)
     , RosterWeekOverviewDay (..)
     , RosterWindowState (..)
@@ -172,6 +173,19 @@ data RosterRenderData = RosterRenderData
     , currentViewerStaffKey :: Maybe Text
     , rosterPublicHolidays  :: Map Day Text
 }
+
+data RosterToolbarRenderModel = RosterToolbarRenderModel
+    { toolbarRosterWeek         :: Maybe RosterWindowState
+    , toolbarCurrentRosterGroup :: RosterGroup
+    , toolbarWeekStartDate      :: Day
+    , toolbarCalendarRevision   :: Int
+    , toolbarViewCapabilities   :: RosterViewCapabilities
+    , toolbarWagePrediction     :: Maybe RosterWagePrediction
+    , toolbarHasSidePanel       :: Bool
+    , toolbarViewMode           :: RosterGridViewMode
+    , toolbarTimelineTodayUrl   :: Maybe Text
+    }
+
 
 data RosterGridRenderModel = RosterGridRenderModel
     { gridRosterWeek            :: Maybe RosterWindowState

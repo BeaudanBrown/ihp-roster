@@ -4,6 +4,7 @@ module Web.RosterWeeks.StaffOptions
     , fetchRosterStaffPanelEntries
     , fetchRosterShiftDialogStaff
     , fetchRosterStaffPanelEntriesForScope
+    , fetchRosterStaffPanelEntriesWithAssignedCounts
     , fetchRosterStaffPanelEntriesWithPayState
     , fetchStaffPayConfigurationRequiredIds
     , hasNoPreferredShiftsOnDay
@@ -28,6 +29,7 @@ import qualified Database.PostgreSQL.Simple as PG
 import Web.Controller.Prelude
 import Web.RosterWeeks.AvailabilityInputs (fetchApprovedLeaveRequestsForRosterWindow,
                                            fetchRosterShiftPreferencesForWindow)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.Types
 
 fetchRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
@@ -40,12 +42,17 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
     fetchRosterStaffPanelEntriesWithPayState panelScope payConfigurationRequiredIds staffMembers allSlots
 
 fetchRosterStaffPanelEntriesWithPayState :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> Set.Set UUID.UUID -> [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntriesWithPayState panelScope payConfigurationRequiredIds staffMembers allSlots = do
+fetchRosterStaffPanelEntriesWithPayState panelScope payConfigurationRequiredIds staffMembers allSlots =
+    fetchRosterStaffPanelEntriesWithAssignedCounts panelScope payConfigurationRequiredIds assignedShiftCountByStaffId staffMembers
+  where
+    assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- filter rosterShiftIsStaffAssigned allSlots, staffId <- maybeToList slot.staffId ]
+
+fetchRosterStaffPanelEntriesWithAssignedCounts :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> Set.Set UUID.UUID -> Map.Map UUID.UUID Int -> [Staff] -> IO [RosterStaffPanelEntry]
+fetchRosterStaffPanelEntriesWithAssignedCounts panelScope payConfigurationRequiredIds assignedShiftCountByStaffId staffMembers = do
     let panelStaff = staffForPanelScope panelScope staffMembers
     let linkedUserIds = mapMaybe (.userId) panelStaff
     memberships <- fetchActiveVenueMembershipsByUserIds currentVenueId linkedUserIds
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]
-    let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- filter rosterShiftIsStaffAssigned allSlots, staffId <- maybeToList slot.staffId ]
     pure (map (buildPanelEntry payConfigurationRequiredIds membershipsByUserId assignedShiftCountByStaffId) panelStaff)
     where
         buildPanelEntry payConfigurationRequiredIds membershipsByUserId assignedShiftCountByStaffId staff =

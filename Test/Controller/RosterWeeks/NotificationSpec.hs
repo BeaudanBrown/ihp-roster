@@ -132,6 +132,28 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "id=\"roster-email-button\""
                 response `responseBodyShouldContain` "No eligible recipients"
 
+        it "treats tab and newline-only email addresses as ineligible in the notification panel" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Whitespace Recipient Venue"
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOne
+                manager <- createUserRecord "whitespace-recipient-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                managerStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId manager.id))
+                    |> fetchOne
+                syncStaffRosterGroupAssignments managerStaff [rosterGroup.id]
+                _ <- manager |> set #email "\t\n " |> updateRecord
+                _ <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "No eligible recipients"
+
         it "rejects a direct send when no eligible recipients remain" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "No Audience Send Venue"
