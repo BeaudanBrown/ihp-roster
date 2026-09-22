@@ -78,11 +78,14 @@ fi
 
 # shellcheck source=../lib/profile-server.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/profile-server.sh"
+configure_profile_run_isolation
 cleanup_profile_app() {
     stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
     cleanup_profile_server
 }
 trap cleanup_profile_app EXIT INT TERM
+build_profile_server
+export NODE_PATH="${E2E_PLAYWRIGHT_NODE_MODULES:?profile-app requires the pinned Playwright package}${NODE_PATH:+:$NODE_PATH}"
 
 (
     export PROFILE_DATABASE_NAME

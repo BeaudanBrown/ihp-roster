@@ -5,7 +5,19 @@ export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 export DATABASE_URL="postgresql:///$PROFILE_DATABASE_NAME?host=$PROFILE_DB_SOCKET"
 export IHP_BROWSER="echo"
 export IHP_ROSTER_PROFILING="${IHP_ROSTER_PROFILING:-1}"
+: "${PROFILE_APP_PORT:?profile-test-server requires an isolated PROFILE_APP_PORT}"
+: "${PROFILE_PRIMARY_APP_PORT:?profile-test-server requires primary-port evidence}"
+: "${PROFILE_SERVER_EXECUTABLE:?profile-test-server requires a compiled server executable}"
+[ "${PORT:-}" = "$PROFILE_APP_PORT" ] || {
+    echo "Profile server PORT must equal isolated PROFILE_APP_PORT ($PROFILE_APP_PORT), got ${PORT:-unset}" >&2
+    exit 64
+}
+[ "$PROFILE_APP_PORT" != "$PROFILE_PRIMARY_APP_PORT" ] || {
+    echo "Profile server must not inherit primary app port $PROFILE_PRIMARY_APP_PORT" >&2
+    exit 64
+}
+export APP_BASE_URL="http://127.0.0.1:$PROFILE_APP_PORT"
 # IHP 1.6 gates query timings on ModelContext.queryLoggingEnabled, read from
 # DEBUG at startup. Scope this to the synthetic profile server, not deployment.
 export DEBUG="$IHP_ROSTER_PROFILING"
-exec RunDevServer
+exec "$PROFILE_SERVER_EXECUTABLE"

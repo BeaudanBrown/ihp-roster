@@ -428,6 +428,32 @@ function formatBytes(bytes) {
     return `${round(bytes)} B`;
 }
 
+function safeWaterfallPath(url) {
+    return new URL(url).pathname
+        .split('/')
+        .map((segment) => {
+            if (/^[0-9]+$/.test(segment)) return ':number';
+            if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment)) return ':id';
+            if (/^[A-Za-z0-9_-]{24,}$/.test(segment)) return ':token';
+            return segment;
+        })
+        .join('/');
+}
+
+function renderWaterfallMarkdown(waterfall) {
+    const measured = waterfall.filter((record) => !record.warmup).slice(0, 1000);
+    return `${[
+        '# Browser Roster Waterfall',
+        '',
+        'Browser navigation and HTMX/resource timing captured separately from request-load evidence.',
+        '',
+        '| Start ms | Duration ms | Scenario | Resource | Method | Status | Bytes | Path |',
+        '| ---: | ---: | --- | --- | --- | ---: | ---: | --- |',
+        ...measured.map((record) => `| ${record.startOffsetMs} | ${record.durationMs} | ${record.scenario} | ${record.resourceType} | ${record.method} | ${record.status} | ${record.responseBytes ?? '?'} | \`${record.path}\` |`),
+        '',
+    ].join('\n')}\n`;
+}
+
 function renderMarkdown(options, manifest, summary) {
     const lines = [
         '# Profile Report',
@@ -559,6 +585,9 @@ async function main() {
     if (!account) throw new Error(`Profile seed manifest is missing a login account for scenario: ${options.scenario}`);
 
     const records = [];
+    const waterfall = [];
+    const pendingResponses = new Set();
+    const browserStartedAt = Date.now();
     let activeScenario = null;
     let activeIteration = null;
     let activeWarmup = false;
@@ -570,24 +599,42 @@ async function main() {
         await enableVirtualPasskeyAuthenticator(page);
     }
 
-    page.on('response', async (response) => {
+    page.on('response', (response) => {
         const request = response.request();
         const url = response.url();
         if (!activeScenario) return;
         if (new URL(url).origin !== new URL(options.baseUrl).origin) return;
-        const responseHeaders = response.headers();
-        const serverTimingHeader = responseHeaders['server-timing'];
-        records.push({
-            scenario: activeScenario,
-            iteration: activeIteration,
-            warmup: activeWarmup,
-            url,
-            method: request.method(),
-            status: response.status(),
-            serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
-            responseBytes: responseBytesFromHeaders(responseHeaders),
-            wallMs: 0,
-        });
+        const responseContext = { scenario: activeScenario, iteration: activeIteration, warmup: activeWarmup };
+        const capture = (async () => {
+            await response.finished().catch(() => null);
+            const responseHeaders = response.headers();
+            const serverTimingHeader = responseHeaders['server-timing'];
+            const timing = request.timing();
+            const responseBytes = responseBytesFromHeaders(responseHeaders);
+            records.push({
+                ...responseContext,
+                url,
+                method: request.method(),
+                status: response.status(),
+                serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
+                responseBytes,
+                wallMs: 0,
+            });
+            if (waterfall.length < 1000) {
+                waterfall.push({
+                    ...responseContext,
+                    startOffsetMs: round(Math.max(0, timing.startTime - browserStartedAt)),
+                    durationMs: round(Math.max(0, timing.responseEnd)),
+                    resourceType: request.resourceType(),
+                    method: request.method(),
+                    status: response.status(),
+                    responseBytes,
+                    path: safeWaterfallPath(url),
+                });
+            }
+        })();
+        pendingResponses.add(capture);
+        capture.finally(() => pendingResponses.delete(capture));
     });
 
     try {
@@ -627,6 +674,7 @@ async function main() {
                 }
             }
         }
+        await Promise.all([...pendingResponses]);
     } finally {
         activeScenario = null;
         await browser.close();
@@ -637,10 +685,13 @@ async function main() {
     fs.mkdirSync(outputDir, { recursive: true });
     fs.writeFileSync(path.join(outputDir, 'profile.json'), JSON.stringify({ options, manifest, records, summary }, null, 2));
     fs.writeFileSync(path.join(outputDir, 'profile.md'), renderMarkdown(options, manifest, summary));
+    fs.writeFileSync(path.join(outputDir, 'browser-waterfall.json'), `${JSON.stringify({ scenario: options.scenario, records: waterfall }, null, 2)}\n`);
+    fs.writeFileSync(path.join(outputDir, 'browser-waterfall.md'), renderWaterfallMarkdown(waterfall));
 
     console.log(`Profile records: ${summary.requestCount}`);
     console.log(`Profile JSON: ${path.join(outputDir, 'profile.json')}`);
     console.log(`Profile report: ${path.join(outputDir, 'profile.md')}`);
+    console.log(`Browser waterfall: ${path.join(outputDir, 'browser-waterfall.md')}`);
 }
 
 main().catch((error) => {

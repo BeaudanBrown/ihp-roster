@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+# shellcheck source=../lib/profile-server.sh
+. "$repo_root/Config/nix/scripts/lib/profile-server.sh"
+
+fail() {
+    echo "profile-isolation-test: $*" >&2
+    exit 1
+}
+
+primary_port=8000
+PORT="$primary_port"
+APP_BASE_URL="http://127.0.0.1:$primary_port"
+export PORT APP_BASE_URL
+
+configure_profile_run_isolation
+
+[ "$PROFILE_PRIMARY_APP_PORT" = "$primary_port" ] || fail "primary app port was not retained as evidence"
+[ "$PROFILE_APP_PORT" != "$primary_port" ] || fail "profile inherited the primary app port"
+[ "$PROFILE_IDE_PORT" != "$((primary_port + 1))" ] || fail "profile inherited the primary IDE port"
+[ "$PORT" = "$PROFILE_APP_PORT" ] || fail "profile app port was not exported to the server"
+[ "$APP_BASE_URL" = "http://127.0.0.1:$PROFILE_APP_PORT" ] || fail "profile app URL does not match its isolated port"
+[ "$PROFILE_OTEL_GRPC_PORT" = "$((PROFILE_APP_PORT + 2))" ] || fail "collector gRPC port is outside the isolated allocation"
+[ "$PROFILE_OTEL_HTTP_PORT" = "$((PROFILE_APP_PORT + 3))" ] || fail "collector HTTP port is outside the isolated allocation"
+
+release_profile_run_isolation
+
+set +e
+inherited_output="$({
+    PORT=8000 PROFILE_APP_PORT=8000 configure_profile_run_isolation
+} 2>&1)"
+inherited_status=$?
+set -e
+[ "$inherited_status" -ne 0 ] || fail "explicit inherited primary app port was accepted"
+[[ "$inherited_output" == *"primary app port"* ]] || fail "inherited port failure was not diagnosed"
+
+for overlapping_port in 7997 7998 7999 8001; do
+    set +e
+    overlap_output="$({
+        PORT=8000 PROFILE_APP_PORT="$overlapping_port" configure_profile_run_isolation
+    } 2>&1)"
+    overlap_status=$?
+    set -e
+    [ "$overlap_status" -ne 0 ] || fail "overlapping allocation beginning at $overlapping_port was accepted"
+    [[ "$overlap_output" == *"overlap the primary app port pair"* ]] || fail "overlap at $overlapping_port was not diagnosed"
+done
+
+echo "profile-isolation-test: ok"

@@ -8,7 +8,7 @@ commands through the project wrapper:
 bash ./bin/in-env <command>
 ```
 
-The profiling commands use isolated `app_profile*` databases and dedicated app servers, so they can run alongside normal dev and test servers. Generated artifacts are written under `output/profile*` and are ignored by git.
+The profiling commands use isolated `app_profile*` databases, dedicated compiled app processes, and a locked four-port allocation for the app, IHP IDE reservation, and Collector gRPC/HTTP endpoints. They do not inherit the primary development app's port pair, so they can run alongside `just ddev` without changing or restarting it. Generated artifacts are written under `output/profile*` and are ignored by git.
 
 ## Request Instrumentation
 
@@ -80,6 +80,8 @@ Outputs:
 ```text
 output/profile/<run-id>/profile.json
 output/profile/<run-id>/profile.md
+output/profile/<run-id>/browser-waterfall.json
+output/profile/<run-id>/browser-waterfall.md
 ```
 
 Scenarios:
@@ -97,7 +99,7 @@ Scenarios:
 - `auth`
 - `writes`
 
-This is the right tool when checking browser navigation, HTMX follow-up requests, and route-level app spans for realistic user journeys.
+This is the right tool when checking browser navigation, HTMX follow-up requests, and route-level app spans for realistic user journeys. The Markdown waterfall omits query strings and normalizes identifier-like path segments; the JSON waterfall is still a local diagnostic artifact.
 
 Use `xero` when checking the owner-only Xero connection shell and its server-rendered shell fragment. Guided timesheet preparation and pay-item import remain focused browser flows rather than synthetic autosave profiling targets.
 
@@ -149,7 +151,7 @@ and live-update pressure. It includes sample counts, aggregate query timing,
 bounded normalized query fingerprints, pool saturation/wait proxies, GHC
 allocation/GC/heap/CPU, and process CPU/RSS. It never includes SQL text,
 parameters, or customer identifiers. `server.log` is a local diagnostic input
-and can contain framework debug SQL structure; do not publish it.
+and can contain framework debug SQL structure; do not publish it. Treat all JSON, NDJSON, TSV, logs, dumps, seed manifests, and raw trace files under `output/profile*` as local-only. For issue comments, quote only bounded, inspected sections from `load-profile.md`, `otel-summary.md`, `diagnostic-profile.md`, or `browser-waterfall.md`; never attach an artifact directory wholesale.
 
 Additional OTel outputs:
 
@@ -310,6 +312,12 @@ Useful fields:
   counts, overlap-safe exclusive time, repeated spans, categories, sizes,
   counters, safe trace views, load pressure when available, and separate real
   failures from IHP response exits.
+
+## Comparison Contract
+
+For roster performance work, collect at least three identical low-rate runs on the same idle host with the same commit, seed manifest options, scenario, rate, duration, VUs, profiling mode, and sampler. Record route latency, query count/time, pool evidence, response bytes, render counters, CPU/RSS, allocation/GC, dropped iterations, VU saturation, and failures from the bounded JSON/Markdown summaries. Capture the browser `roster` journey separately; browser navigation and HTMX waterfalls are not interchangeable with k6 request-load evidence.
+
+Treat a comparison as directional only when either side has fewer than 30 matched route samples or fewer than three clean repeated runs. For optimization decisions, require all three repeats to agree on the direction of median and P95 movement, no correctness-budget failures, and no material regression in dropped work or saturation. Use medians across repeats for the headline delta and retain each run's range; do not claim statistical significance or create a hard latency budget from a single run. Stable budgets belong in `e2e/profile-regression-budgets.json` only after repeatable before/after evidence.
 
 ## Before And After Workflow
 

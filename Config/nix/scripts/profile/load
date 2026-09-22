@@ -199,6 +199,7 @@ fi
 
 # shellcheck source=../lib/profile-server.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/profile-server.sh"
+configure_profile_run_isolation
 
 cleanup_profile_load() {
     stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
@@ -213,6 +214,7 @@ cleanup_profile_load() {
 }
 
 trap cleanup_profile_load EXIT INT TERM
+build_profile_server
 
 if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     if ! command -v otelcol-contrib >/dev/null 2>&1; then
@@ -224,6 +226,7 @@ if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     rm -f "$PROFILE_OTEL_TRACE_FILE"
     (
         export OTEL_FILE_EXPORTER_PATH="$PROFILE_OTEL_TRACE_FILE"
+        export PROFILE_OTEL_GRPC_PORT PROFILE_OTEL_HTTP_PORT
         exec otelcol-contrib --config ./Config/otel/profile-file-collector.yaml
     ) >>"$PROFILE_OTEL_LOG" 2>&1 &
     echo "$!" > "$PROFILE_OTEL_PID_FILE"
@@ -267,8 +270,8 @@ if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     otel_env=(
         IHP_ROSTER_OTEL=1
         OTEL_SERVICE_NAME=ihp-roster-profile
-        OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:24318
-        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:24318/v1/traces
+        OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:$PROFILE_OTEL_HTTP_PORT"
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://127.0.0.1:$PROFILE_OTEL_HTTP_PORT/v1/traces"
         OTEL_TRACES_SAMPLER="$PROFILE_LOAD_OTEL_SAMPLER"
         IHP_ROSTER_OTEL_SHUTDOWN_TIMEOUT_MS=2000
         OTEL_BSP_MAX_QUEUE_SIZE=512
@@ -330,12 +333,17 @@ for _ in $(seq 1 "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS"); do
             --arg maxVus "${PROFILE_LOAD_MAX_VUS:-}" \
             --arg database "$PROFILE_DATABASE_NAME" \
             --arg baseUrl "$PROFILE_BASE_URL" \
+            --arg primaryAppPort "$PROFILE_PRIMARY_APP_PORT" \
+            --arg profileAppPort "$PROFILE_APP_PORT" \
+            --arg profileIdePort "$PROFILE_IDE_PORT" \
+            --arg otelGrpcPort "$PROFILE_OTEL_GRPC_PORT" \
+            --arg otelHttpPort "$PROFILE_OTEL_HTTP_PORT" \
             --arg otel "$PROFILE_LOAD_OTEL" \
             --arg profiling "$PROFILE_LOAD_PROFILING" \
             --arg otelSampler "$PROFILE_LOAD_OTEL_SAMPLER" \
             --arg otelSamplerArg "$PROFILE_LOAD_OTEL_SAMPLER_ARG" \
             --slurpfile manifest "$PROFILE_SEED_OUTPUT_DIR/manifest.json" \
-            '{runId:$runId, scenario:$scenario, rate:$rate, duration:$duration, vus:$vus, maxVus:$maxVus, database:$database, baseUrl:$baseUrl, telemetry:{otel:($otel == "1"), profiling:($profiling == "1"), sampler:$otelSampler, samplerArg:$otelSamplerArg}, seed:$manifest[0].options}' \
+            '{runId:$runId, scenario:$scenario, rate:$rate, duration:$duration, vus:$vus, maxVus:$maxVus, database:$database, baseUrl:$baseUrl, isolation:{primaryAppPort:($primaryAppPort|tonumber),appPort:($profileAppPort|tonumber),idePort:($profileIdePort|tonumber),otelGrpcPort:($otelGrpcPort|tonumber),otelHttpPort:($otelHttpPort|tonumber)}, telemetry:{otel:($otel == "1"), profiling:($profiling == "1"), sampler:$otelSampler, samplerArg:$otelSamplerArg}, seed:$manifest[0].options}' \
             > "$PROFILE_LOAD_METADATA"
 
         echo "Profile load server ready at $PROFILE_BASE_URL"

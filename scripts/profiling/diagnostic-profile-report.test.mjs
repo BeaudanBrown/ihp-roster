@@ -7,20 +7,34 @@ import test from 'node:test';
 
 const repoRoot = path.resolve(import.meta.dirname, '../..');
 
-test('profile server opts into IHP query logging only for diagnostic runs', () => {
+test('profile server enforces isolation and opts into query logging only for diagnostic runs', () => {
   const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bepis-profile-query-logging-'));
   try {
-    const server = path.join(binDir, 'RunDevServer');
-    fs.writeFileSync(server, '#!/usr/bin/env bash\nprintf "%s/%s" "$IHP_ROSTER_PROFILING" "${DEBUG:-unset}"\n');
+    const server = path.join(binDir, 'RunProfileServer');
+    fs.writeFileSync(server, '#!/usr/bin/env bash\nprintf "%s/%s/%s" "$IHP_ROSTER_PROFILING" "${DEBUG:-unset}" "$PORT"\n');
     fs.chmodSync(server, 0o755);
-    for (const [profiling, inheritedDebug, expected] of [[undefined, '0', '1/1'], ['1', '0', '1/1'], ['0', '1', '0/0']]) {
-      const env = { ...process.env, PATH: `${binDir}:${process.env.PATH}`, DEBUG: inheritedDebug };
+    for (const [profiling, inheritedDebug, expected] of [[undefined, '0', '1/1/20000'], ['1', '0', '1/1/20000'], ['0', '1', '0/0/20000']]) {
+      const env = {
+        ...process.env,
+        DEBUG: inheritedDebug,
+        PORT: '20000',
+        PROFILE_APP_PORT: '20000',
+        PROFILE_PRIMARY_APP_PORT: '8000',
+        PROFILE_SERVER_EXECUTABLE: server,
+      };
       delete env.IHP_ROSTER_PROFILING;
       if (profiling !== undefined) env.IHP_ROSTER_PROFILING = profiling;
       const result = spawnSync('bash', ['Config/nix/scripts/profile/test-server'], { cwd: repoRoot, env, encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(result.stdout, expected);
     }
+    const inherited = spawnSync('bash', ['Config/nix/scripts/profile/test-server'], {
+      cwd: repoRoot,
+      env: { ...process.env, PORT: '8000', PROFILE_APP_PORT: '8000', PROFILE_PRIMARY_APP_PORT: '8000', PROFILE_SERVER_EXECUTABLE: server },
+      encoding: 'utf8',
+    });
+    assert.equal(inherited.status, 64);
+    assert.match(inherited.stderr, /must not inherit primary app port/);
   } finally {
     fs.rmSync(binDir, { recursive: true, force: true });
   }
@@ -31,6 +45,14 @@ test('primary profile reporters do not consume retired X-Profile headers', () =>
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     assert.doesNotMatch(source, /x-profile-(?:counters|response-bytes)|profile_counter_value/i, relativePath);
   }
+});
+
+test('publishable browser waterfall paths omit query strings and normalize identifiers', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'e2e/profile-app.mjs'), 'utf8');
+  assert.match(source, /path: safeWaterfallPath\(url\)/);
+  assert.doesNotMatch(source, /path:\s*parsedUrl\.pathname\s*\+\s*parsedUrl\.search/);
+  assert.match(source, /return ':id'/);
+  assert.match(source, /return ':token'/);
 });
 
 test('profile scenario catalog covers diagnostic roles and operations', () => {

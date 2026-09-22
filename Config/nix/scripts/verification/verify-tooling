@@ -21,6 +21,7 @@ node --test scripts/frontend-test-registration.test.mjs
 node --test scripts/documentation/check.test.mjs
 node --test scripts/migration-enum-commit-boundary.test.mjs
 node --test scripts/migration-rehearsal-ci.test.mjs
+bash "${BEPIS_SCRIPTS_ROOT:?}/profile/isolation-test"
 node --test scripts/profiling/diagnostic-profile-report.test.mjs
 node --test scripts/profiling/otel-artifact.test.mjs
 node --test scripts/observability/query.test.mjs
