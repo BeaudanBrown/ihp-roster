@@ -12,6 +12,8 @@ module Application.Helper.FrontendContract.Surface.SidePanel
     , surfaceSidePanelPanelAttrs
     , surfaceSidePanelToggleAttrs
     , surfaceSidePanelLabelAttrs
+    , surfaceSidePanelShelfAttrs
+    , surfaceSidePanelShelfToggleAttrs
     ) where
 
 import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
@@ -26,7 +28,9 @@ import IHP.Prelude
 surfaceSidePanelRootAttrs :: forall spec marker. SidePanelConstraints spec marker => [(Text, Text)]
 surfaceSidePanelRootAttrs =
     roleAttrs sidePanel.sidePanelRootRole
-        <> [(sidePanel.sidePanelState.browserClosedStateAttribute.browserAttributeDomAttribute, sidePanel.sidePanelCollapsedValue)]
+        <> [(sidePanel.sidePanelState.browserClosedStateAttribute.browserAttributeDomAttribute, sidePanel.sidePanelCollapsedValue)
+           , (sidePanel.sidePanelShelfState.browserClosedStateAttribute.browserAttributeDomAttribute, sidePanel.sidePanelShelfClosedValue)
+           ]
   where
     sidePanel = surfaceSidePanelValue @spec @marker
 
@@ -41,6 +45,12 @@ surfaceSidePanelToggleAttrs = roleAttrs (surfaceSidePanelValue @spec @marker).si
 
 surfaceSidePanelLabelAttrs :: forall spec marker. SidePanelConstraints spec marker => [(Text, Text)]
 surfaceSidePanelLabelAttrs = roleAttrs (surfaceSidePanelValue @spec @marker).sidePanelLabelRole
+
+surfaceSidePanelShelfAttrs :: forall spec marker. SidePanelConstraints spec marker => [(Text, Text)]
+surfaceSidePanelShelfAttrs = roleAttrs (surfaceSidePanelValue @spec @marker).sidePanelShelfRole
+
+surfaceSidePanelShelfToggleAttrs :: forall spec marker. SidePanelConstraints spec marker => [(Text, Text)]
+surfaceSidePanelShelfToggleAttrs = roleAttrs (surfaceSidePanelValue @spec @marker).sidePanelShelfToggleRole
 
 type SidePanelConstraints spec marker =
     ( ReflectSurfaceSpec spec

@@ -344,6 +344,15 @@ instance
             }
         , sidePanelCollapsedValue = protocolName @collapsed BrowserStateValueName
         , sidePanelExpandedValue = protocolName @expanded BrowserStateValueName
+        , sidePanelShelfRole = reflectedBrowserAttribute @SidePanelShelfRole BrowserRoleName
+        , sidePanelShelfToggleRole = reflectedBrowserAttribute @SidePanelShelfToggleRole BrowserRoleName
+        , sidePanelShelfState = BrowserClosedStateIR
+            { browserClosedStateMarker = typeMarker @SidePanelShelfState
+            , browserClosedStateAttribute = reflectedBrowserAttribute @SidePanelShelfState BrowserStateName
+            , browserClosedStateValues = [protocolName @ShelfClosed BrowserStateValueName, protocolName @ShelfOpen BrowserStateValueName]
+            }
+        , sidePanelShelfClosedValue = protocolName @ShelfClosed BrowserStateValueName
+        , sidePanelShelfOpenValue = protocolName @ShelfOpen BrowserStateValueName
         }
 
 instance ReflectSidePanelPrimitive ('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) => ReflectPrimitive ('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) where
@@ -884,6 +893,9 @@ addPrimitives primitives surface =
                 }
             ReflectedSidePanel sidePanel -> current
                 { surfaceSidePanels = current.surfaceSidePanels <> [qualifySidePanel current.surfaceName sidePanel]
+                , surfaceBrowserRoles = current.surfaceBrowserRoles <> map (qualifyBrowserAttribute current.surfaceName)
+                    [sidePanel.sidePanelShelfRole, sidePanel.sidePanelShelfToggleRole]
+                , surfaceBrowserClosedStates = current.surfaceBrowserClosedStates <> [qualifyBrowserClosedState current.surfaceName sidePanel.sidePanelShelfState]
                 }
             ReflectedLayer name -> current { surfaceLayers = current.surfaceLayers <> [name] }
             ReflectedPolicy policy -> current { surfacePolicies = current.surfacePolicies <> [policy] }
@@ -946,6 +958,9 @@ qualifySidePanel surfaceName sidePanel =
         , sidePanelToggleRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelToggleRole
         , sidePanelLabelRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelLabelRole
         , sidePanelState = qualifyBrowserClosedState surfaceName sidePanel.sidePanelState
+        , sidePanelShelfRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelShelfRole
+        , sidePanelShelfToggleRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelShelfToggleRole
+        , sidePanelShelfState = qualifyBrowserClosedState surfaceName sidePanel.sidePanelShelfState
         }
 
 qualifyCompleteSetSort :: Text -> CompleteSetSortIR -> CompleteSetSortIR

@@ -250,6 +250,11 @@ data SidePanelIR = SidePanelIR
     , sidePanelState          :: !BrowserClosedStateIR
     , sidePanelCollapsedValue :: !Text
     , sidePanelExpandedValue  :: !Text
+    , sidePanelShelfRole :: !BrowserAttributeIR
+    , sidePanelShelfToggleRole :: !BrowserAttributeIR
+    , sidePanelShelfState :: !BrowserClosedStateIR
+    , sidePanelShelfClosedValue :: !Text
+    , sidePanelShelfOpenValue :: !Text
     }
     deriving (Eq, Show)
 
@@ -715,6 +720,8 @@ validateSidePanels surface = concatMap validateSidePanel surface.surfaceSidePane
             , ("panel", sidePanel.sidePanelPanelRole)
             , ("toggle", sidePanel.sidePanelToggleRole)
             , ("label", sidePanel.sidePanelLabelRole)
+            , ("shelf", sidePanel.sidePanelShelfRole)
+            , ("shelf toggle", sidePanel.sidePanelShelfToggleRole)
             ]
             <> requireDistinctRoles sidePanel
             <> requireState sidePanel
@@ -734,10 +741,16 @@ validateSidePanels surface = concatMap validateSidePanel surface.surfaceSidePane
             , sidePanel.sidePanelPanelRole
             , sidePanel.sidePanelToggleRole
             , sidePanel.sidePanelLabelRole
+            , sidePanel.sidePanelShelfRole
+            , sidePanel.sidePanelShelfToggleRole
             ]
 
     requireState sidePanel
-        | sidePanel.sidePanelState `elem` declaredStates
+        | sidePanel.sidePanelShelfState `elem` declaredStates
+            && sidePanel.sidePanelShelfClosedValue /= sidePanel.sidePanelShelfOpenValue
+            && all (`elem` sidePanel.sidePanelShelfState.browserClosedStateValues)
+                [sidePanel.sidePanelShelfClosedValue, sidePanel.sidePanelShelfOpenValue]
+            && sidePanel.sidePanelState `elem` declaredStates
             && all (`elem` sidePanel.sidePanelState.browserClosedStateValues)
                 [sidePanel.sidePanelCollapsedValue, sidePanel.sidePanelExpandedValue] = []
         | otherwise = [diagnostic "invalid-side-panel-state" (sidePanelLabel sidePanel <> " references a missing state or undeclared collapsed/expanded value")]

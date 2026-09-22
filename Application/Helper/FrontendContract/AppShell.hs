@@ -4,6 +4,8 @@
 module Application.Helper.FrontendContract.AppShell
     ( AppShellContract
     , AppShell
+    , AppNavigationHeader
+    , AppPageContent
     , PartialNavigate
     , PartialNavigationHtmxAttrs
     , OpenFeedbackDialog
@@ -120,6 +122,8 @@ import Generated.Types (FeedbackTypeEnum, StaffEmploymentBasisEnum,
                         VenueRoleEnum)
 
 data AppShell
+data AppNavigationHeader
+data AppPageContent
 data PartialNavigate
 data PartialNavigationHtmxAttrs
 
@@ -230,7 +234,9 @@ data InvitationEmailField
 
 type AppShellContract =
     Global AppShell
-        '[ AppShellAction PartialNavigate
+        '[ DomAttr AppNavigationHeader
+         , DomAttr AppPageContent
+         , AppShellAction PartialNavigate
             '[]
             '[ AppShellHtmxMethod 'AppShellGet
              , AppShellCustomHtmx PartialNavigationHtmxAttrs "partial navigation supplies route-specific target, swap, select, push-url, and sync attrs"
