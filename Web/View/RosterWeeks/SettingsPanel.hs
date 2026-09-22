@@ -73,24 +73,24 @@ renderRosterSettingsSection iconClass title body = [hsx|
 |]
 
 renderRosterGroupSwitcher :: Day -> [RosterGroup] -> RosterGroup -> Html
-renderRosterGroupSwitcher anchorDate rosterGroups currentRosterGroup = [hsx|
-    <form class="mb-0" method="GET" action={rosterWindowBaseUrl anchorDate}>
-        <label class="visually-hidden" for="roster-group-switch">Roster group</label>
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate}/>
-        <select id="roster-group-switch"
-                class="form-select form-select-sm"
-                name={surfaceFieldNameFrom @Surface.RosterGroupId fields}
-                onchange="this.form.submit()">
-            {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
-        </select>
-    </form>
-|]
+renderRosterGroupSwitcher anchorDate rosterGroups currentRosterGroup =
+    renderFrontendSurfaceActionForm
+        (RosterAction.switchRosterGroupAction fields)
+        ((defaultFrontendSurfaceActionRoute (rosterWindowBaseUrl anchorDate))
+            { actionRouteStandardUrl = Just (rosterWindowBaseUrl anchorDate)
+            , actionRouteExtraAttrs = [("class", "mb-0")]
+            })
+        [hsx|
+            <label class="visually-hidden" for="roster-group-switch">Roster group</label>
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate}/>
+            <select id="roster-group-switch"
+                    class="form-select form-select-sm"
+                    name={surfaceFieldNameFrom @Surface.RosterGroupId fields}>
+                {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
+            </select>
+        |]
   where
-    fields :: ActionFields RosterAction.NavigateRosterWeekActionOperation
-    fields =
-        RosterAction.navigateRosterWeekActionFields
-            anchorDate
-            (unpackId currentRosterGroup.id)
+    fields = RosterAction.switchRosterGroupActionFields anchorDate (unpackId currentRosterGroup.id)
 
 renderRosterGroupSwitchOption :: Id RosterGroup -> RosterGroup -> Html
 renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|

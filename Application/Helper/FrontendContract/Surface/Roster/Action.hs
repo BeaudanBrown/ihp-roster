@@ -21,6 +21,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , switchRosterGroupAction
+    , switchRosterGroupActionFields
     , OpenCopyRosterWeekConfirmationActionOperation
     , openCopyRosterWeekConfirmationAction
     , openCopyRosterWeekConfirmationActionFields
@@ -76,7 +78,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , toggleRosterWeekLiveStatusActionFields
     ) where
 
-import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddRosterRowActionOperation,
+import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (switchRosterGroupAction,
+                                                                            switchRosterGroupActionFields,
+                                                                            AddRosterRowActionOperation,
                                                                             CreateRosterTemplateCaptureActionOperation,
                                                                             NavigateRosterWeekActionOperation,
                                                                             PreviewRosterTemplateCaptureActionOperation,

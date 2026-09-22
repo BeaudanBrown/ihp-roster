@@ -158,7 +158,9 @@ visibility, and responsive tools shelf used by Timesheets and manager Unavailabi
 may highlight the effective viewer's own assigned shifts from a global user
 preference. A manager's transient hover or pinned staff highlight takes
 precedence; draft rosters never apply the own-shift default. Highlight and panel
-visibility do not alter URLs or business projections.
+visibility do not alter URLs or business projections. Roster-group selection uses
+typed HTMX navigation, updating the canonical URL and mounted scope together;
+the shared same-feature shelf lifecycle retains an open Settings shelf.
 
 ## Live Updates
 

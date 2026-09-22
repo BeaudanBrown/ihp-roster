@@ -207,6 +207,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek requestAdapterOperationsWithParamsPresentWithoutParser
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SwitchRosterGroup
+        (requestAdapterOperationsWithoutParser "Group selection uses the existing authorized roster navigation endpoint and canonical route/query context")
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations

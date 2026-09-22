@@ -181,6 +181,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , DuplicateRosterShiftToDay
     , DropRosterStaff
     , NavigateRosterWeek
+    , SwitchRosterGroup
     , ToggleRosterWarnings
     , ToggleRosterWageEstimates
     , ToggleRosterOwnLiveShiftHighlight
@@ -441,6 +442,7 @@ data ShiftGroupHighlightSourceRole
 data ShiftGroupHighlightMemberRole
 
 data NavigateRosterWeek
+data SwitchRosterGroup
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
 data ToggleRosterOwnLiveShiftHighlight
@@ -608,6 +610,17 @@ type RosterActionBundle =
          , Field RosterGroupId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTarget ('HtmxId RosterWeekShell)
+         , 'HtmxSwap 'HtmxOuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlTrue
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         ]
+     , Action SwitchRosterGroup
+        '[ Field AnchorDate 'WireDay
+         , Field RosterGroupId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTrigger 'HtmxChange
          , 'HtmxTarget ('HtmxId RosterWeekShell)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlTrue
