@@ -196,6 +196,8 @@
   var toastMountDomAttr = "data-bepis-toast-mount";
   var toastCloseDomAttr = "data-bepis-toast-close";
   var toastConfigDomAttr = "data-bepis-toast-config";
+  var appNavigationHeaderDomAttr = "data-bepis-app-navigation-header";
+  var appPageContentDomAttr = "data-bepis-app-page-content";
   function isUiRegionTransitionProfile(value) {
     return typeof value === "string" && ["none", "fade", "fade-slide", "panel"].includes(value);
   }
@@ -588,6 +590,8 @@
   var timesheetsTimesheetSidePanelPanelDomAttr = "data-bepis-timesheets-timesheet-side-panel-panel";
   var timesheetsTimesheetSidePanelToggleDomAttr = "data-bepis-timesheets-timesheet-side-panel-toggle";
   var timesheetsTimesheetSidePanelLabelDomAttr = "data-bepis-timesheets-timesheet-side-panel-label";
+  var timesheetsSidePanelShelfDomAttr = "data-bepis-timesheets-side-panel-shelf";
+  var timesheetsSidePanelShelfToggleDomAttr = "data-bepis-timesheets-side-panel-shelf-toggle";
   var timesheetsTimesheetStaffHighlightSourceDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-source";
   var timesheetsTimesheetStaffHighlightMemberDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-member";
   var timesheetsTimesheetStaffHighlightPinDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-pin";
@@ -602,6 +606,8 @@
   var rosterSidePanelPanelDomAttr = "data-bepis-roster-side-panel-panel";
   var rosterSidePanelToggleDomAttr = "data-bepis-roster-side-panel-toggle";
   var rosterSidePanelLabelDomAttr = "data-bepis-roster-side-panel-label";
+  var rosterSidePanelShelfDomAttr = "data-bepis-roster-side-panel-shelf";
+  var rosterSidePanelShelfToggleDomAttr = "data-bepis-roster-side-panel-shelf-toggle";
   var rosterColumnEditorDomAttr = "data-bepis-roster-column-editor";
   var rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start";
   var rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done";
@@ -648,6 +654,8 @@
   var leaveRequestsLeaveSidePanelPanelDomAttr = "data-bepis-leave-requests-leave-side-panel-panel";
   var leaveRequestsLeaveSidePanelToggleDomAttr = "data-bepis-leave-requests-leave-side-panel-toggle";
   var leaveRequestsLeaveSidePanelLabelDomAttr = "data-bepis-leave-requests-leave-side-panel-label";
+  var leaveRequestsSidePanelShelfDomAttr = "data-bepis-leave-requests-side-panel-shelf";
+  var leaveRequestsSidePanelShelfToggleDomAttr = "data-bepis-leave-requests-side-panel-shelf-toggle";
   var leaveRequestsLeaveStaffHighlightSourceDomAttr = "data-bepis-leave-requests-leave-staff-highlight-source";
   var leaveRequestsLeaveStaffHighlightMemberDomAttr = "data-bepis-leave-requests-leave-staff-highlight-member";
   var leaveRequestsLeaveStaffHighlightPinDomAttr = "data-bepis-leave-requests-leave-staff-highlight-pin";
@@ -655,8 +663,14 @@
   function isTimesheetsTimesheetSidePanelState(value) {
     return typeof value === "string" && ["collapsed", "expanded"].includes(value);
   }
+  function isTimesheetsSidePanelShelfState(value) {
+    return typeof value === "string" && ["shelf-closed", "shelf-open"].includes(value);
+  }
   function isRosterSidePanelState(value) {
     return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  function isRosterSidePanelShelfState(value) {
+    return typeof value === "string" && ["shelf-closed", "shelf-open"].includes(value);
   }
   var rosterColumnEditingStates = { "inactive": "inactive", "active": "active" };
   function isRosterColumnEditingState(value) {
@@ -680,6 +694,9 @@
   }
   function isLeaveRequestsLeaveSidePanelState(value) {
     return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  function isLeaveRequestsSidePanelShelfState(value) {
+    return typeof value === "string" && ["shelf-closed", "shelf-open"].includes(value);
   }
   function isTimesheetStaffPanelSortKey(value) {
     return typeof value === "string" && ["name", "role", "count"].includes(value);
@@ -711,7 +728,7 @@
   var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [{ "name": "timesheet-staff-cards-highlight", "sourceRoleAttribute": timesheetsTimesheetStaffHighlightSourceDomAttr, "memberRoleAttribute": timesheetsTimesheetStaffHighlightMemberDomAttr, "pinRoleAttribute": timesheetsTimesheetStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "defaultRoleAttribute": rosterStaffHighlightDefaultDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin", "default"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "leave-requests": [{ "name": "leave-staff-periods-highlight", "sourceRoleAttribute": leaveRequestsLeaveStaffHighlightSourceDomAttr, "memberRoleAttribute": leaveRequestsLeaveStaffHighlightMemberDomAttr, "pinRoleAttribute": leaveRequestsLeaveStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [{ "name": "timesheet-staff-panel-sort", "rootRoleAttribute": timesheetsTimesheetStaffPanelSortRootDomAttr, "rowRoleAttribute": timesheetsTimesheetStaffPanelSortRowDomAttr, "controlRoleAttribute": timesheetsTimesheetStaffPanelSortControlDomAttr, "parseRow": parseTimesheetStaffPanelSortRow, "isKey": isTimesheetStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "entryCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).entryCount }, { "field": "approvedCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).approvedCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-staff-panel-sort", "rootRoleAttribute": leaveRequestsLeaveStaffPanelSortRootDomAttr, "rowRoleAttribute": leaveRequestsLeaveStaffPanelSortRowDomAttr, "controlRoleAttribute": leaveRequestsLeaveStaffPanelSortControlDomAttr, "parseRow": parseLeaveStaffPanelSortRow, "isKey": isLeaveStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "periodCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).periodCount }, { "field": "pendingCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).pendingCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceTabSetRegistry = { "timesheets": [{ "name": "timesheet-side-panel-tabs", "tabRoleAttribute": timesheetsTimesheetSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isTimesheetSidePanelTabsKey }], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }, { "name": "roster-self-service-panel-tabs", "tabRoleAttribute": rosterSelfServicePanelTabDomAttr, "keys": ["quick-tools", "settings"], "defaultKey": "quick-tools", "isKey": isRosterSelfServicePanelTabsKey }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-request-tabs", "tabRoleAttribute": leaveRequestsLeaveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "pending", "isKey": isLeaveRequestTabsKey }, { "name": "leave-archive-request-tabs", "tabRoleAttribute": leaveRequestsLeaveArchiveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "archive", "isKey": isLeaveArchiveRequestTabsKey }, { "name": "leave-side-panel-tabs", "tabRoleAttribute": leaveRequestsLeaveSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isLeaveSidePanelTabsKey }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isRosterSidePanelState }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": timesheetsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": timesheetsSidePanelShelfToggleDomAttr, "shelfStateAttribute": timesheetsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isTimesheetsSidePanelShelfState, "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": rosterSidePanelShelfDomAttr, "shelfToggleRoleAttribute": rosterSidePanelShelfToggleDomAttr, "shelfStateAttribute": rosterSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isRosterSidePanelShelfState, "isState": isRosterSidePanelState }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": leaveRequestsSidePanelShelfToggleDomAttr, "shelfStateAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isLeaveRequestsSidePanelShelfState, "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
@@ -4307,7 +4324,8 @@
       if (isSurfaceElementLike(event.target)) controller.toggle(event.target);
     });
     source.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || !isSurfaceElementLike(source.activeElement)) return;
+      if (event.key !== "Escape" || event.defaultPrevented || !isSurfaceElementLike(source.activeElement)) return;
+      if (typeof window !== "undefined" && window.matchMedia("(max-width: 1199.98px)").matches) return;
       const focused = expandedSidePanelRootForEscape(source.activeElement);
       if (focused) controller.collapse(focused);
     });
@@ -4329,8 +4347,297 @@
     const controller = createSidePanelController();
     const reconcileWithin = (root) => rootsWithin(root).forEach((panelRoot) => controller.reconcile(panelRoot));
     installSidePanelEventListeners(document, controller, reconcileWithin);
+    installResponsiveShelves();
     onAppPageReady((event) => reconcileWithin(detailRoot(event, "target")));
     if (document.readyState !== "loading") reconcileWithin(document);
+  }
+  function installResponsiveShelves() {
+    const mobile = window.matchMedia("(max-width: 1199.98px)");
+    const pending = /* @__PURE__ */ new WeakMap();
+    const pendingOob = /* @__PURE__ */ new Map();
+    const inertBefore = /* @__PURE__ */ new Map();
+    let active = null;
+    let shelfFocus = null;
+    let lockedScroll = null;
+    let header = null;
+    let headerObserver = null;
+    let shelfAnimation = null;
+    function cancelSlide() {
+      shelfAnimation?.cancel();
+      shelfAnimation = null;
+    }
+    function shelves() {
+      return rootsWithin(document).flatMap((candidate) => {
+        if (!(candidate instanceof HTMLElement)) return [];
+        const resolved = resolveRoot(candidate);
+        if (!resolved || !stateFor(resolved, defaultDiagnosticReporter3)) return [];
+        const definition = resolved.definition;
+        if (!definition.isShelfState(candidate.getAttribute(definition.shelfStateAttribute))) {
+          defaultDiagnosticReporter3(diagnostic3(candidate, "invalid-shelf-state", "Shelf state is not declared by the Surface contract"));
+          return [];
+        }
+        const panels = ownedElements2(resolved, definition.panelRoleAttribute);
+        const contents = ownedElements2(resolved, definition.shelfRoleAttribute);
+        const bars = ownedElements2(resolved, definition.shelfToggleRoleAttribute);
+        const panel = panels[0];
+        const content = contents[0];
+        const bar = bars[0];
+        if (panels.length !== 1 || contents.length !== 1 || bars.length !== 1 || !(panel instanceof HTMLElement) || !(content instanceof HTMLElement) || !(bar instanceof HTMLButtonElement) || content.getAttribute(definition.shelfRoleAttribute) !== "true" || bar.getAttribute(definition.shelfToggleRoleAttribute) !== "true" || !panel.contains(content) || !panel.contains(bar)) {
+          defaultDiagnosticReporter3(diagnostic3(candidate, "invalid-shelf-role", "SidePanel must own one shelf content region and one toggle inside its panel"));
+          return [];
+        }
+        return [{ resolved, root: candidate, panel, content, bar }];
+      });
+    }
+    function isOpen(shelf) {
+      return mobile.matches && shelf.root.getAttribute(shelf.resolved.definition.shelfStateAttribute) === shelf.resolved.definition.shelfOpenValue;
+    }
+    function setOpen(shelf, open) {
+      const definition = shelf.resolved.definition;
+      shelf.root.setAttribute(definition.shelfStateAttribute, open ? definition.shelfOpenValue : definition.shelfClosedValue);
+    }
+    function restoreInert() {
+      inertBefore.forEach((previous, element) => {
+        element.inert = previous;
+      });
+      inertBefore.clear();
+    }
+    function block(element) {
+      if (!inertBefore.has(element)) inertBefore.set(element, element.inert);
+      element.inert = true;
+    }
+    function lockBackground(shelf) {
+      const page = shelf.panel.closest(`[${appPageContentDomAttr}]`);
+      let child = shelf.panel;
+      while (page && child !== page && child.parentElement) {
+        for (const sibling of child.parentElement.children) {
+          if (sibling !== child && sibling instanceof HTMLElement) block(sibling);
+        }
+        child = child.parentElement;
+      }
+      if (!lockedScroll) {
+        lockedScroll = { x: window.scrollX, y: window.scrollY };
+        document.body.style.setProperty("--app-shelf-scroll-offset", `${-lockedScroll.y}px`);
+        document.body.classList.add("app-shelf-scroll-locked");
+      }
+    }
+    function unlockBackground() {
+      restoreInert();
+      if (!lockedScroll) return;
+      const position = lockedScroll;
+      lockedScroll = null;
+      document.body.classList.remove("app-shelf-scroll-locked");
+      document.body.style.removeProperty("--app-shelf-scroll-offset");
+      window.scrollTo({ left: position.x, top: position.y, behavior: "instant" });
+    }
+    function updateGeometry() {
+      const top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+      const viewport = window.visualViewport;
+      const bottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      const style = document.documentElement.style;
+      const height = `${Math.max(0, bottom - top)}px`;
+      const bottomInset = `${Math.max(0, window.innerHeight - bottom)}px`;
+      if (style.getPropertyValue("--app-shelf-height") !== height || style.getPropertyValue("--app-shelf-bottom") !== bottomInset) {
+        cancelSlide();
+      }
+      style.setProperty("--app-shelf-height", height);
+      style.setProperty("--app-shelf-bottom", bottomInset);
+    }
+    function reconcile() {
+      const all = shelves();
+      const enabled = mobile.matches && all.length > 0;
+      document.body.classList.toggle("app-has-mobile-shelf", enabled);
+      const nextHeader = document.querySelector(`[${appNavigationHeaderDomAttr}]`);
+      if (nextHeader !== header) {
+        headerObserver?.disconnect();
+        header = nextHeader;
+        headerObserver = header ? new ResizeObserver(updateGeometry) : null;
+        if (header) headerObserver?.observe(header);
+      }
+      restoreInert();
+      active = null;
+      for (const shelf of all) {
+        if (!mobile.matches) setOpen(shelf, false);
+        if (active && isOpen(shelf)) setOpen(shelf, false);
+        const open = isOpen(shelf);
+        shelf.root.classList.toggle("is-shelf-open", open);
+        shelf.bar.setAttribute("aria-expanded", String(open));
+        shelf.content.inert = mobile.matches && !open;
+        if (open) active = shelf;
+      }
+      if (active) lockBackground(active);
+      else unlockBackground();
+      updateGeometry();
+    }
+    function changeVisibility(shelf, open) {
+      const before = shelf.panel.getBoundingClientRect().height;
+      const beforeBottom = getComputedStyle(shelf.panel).bottom;
+      cancelSlide();
+      setOpen(shelf, open);
+      reconcile();
+      if (!mobile.matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const after = shelf.panel.getBoundingClientRect().height;
+      const afterBottom = getComputedStyle(shelf.panel).bottom;
+      if (before === after && beforeBottom === afterBottom) return;
+      const animation = shelf.panel.animate([
+        { height: `${before}px`, bottom: beforeBottom },
+        { height: `${after}px`, bottom: afterBottom }
+      ], {
+        duration: 220,
+        easing: "ease"
+      });
+      shelfAnimation = animation;
+      void animation.finished.then(() => {
+        if (shelfAnimation === animation) shelfAnimation = null;
+      }, () => {
+      });
+    }
+    function close(shelf, returnFocus = true) {
+      changeVisibility(shelf, false);
+      if (returnFocus && shelf.bar.isConnected) shelf.bar.focus({ preventScroll: true });
+    }
+    function hasDialog() {
+      return document.querySelector(`[${dialogMountDomAttr}], .modal.show, .offcanvas.show, .offcanvas.showing`) !== null;
+    }
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const shelf = shelves().find((item) => item.bar.contains(target));
+      if (shelf && mobile.matches) {
+        if (isOpen(shelf)) close(shelf);
+        else {
+          changeVisibility(shelf, true);
+          const tab = shelf.content.querySelector('[role="tab"][aria-selected="true"]');
+          (tab ?? shelf.bar).focus({ preventScroll: true });
+        }
+      }
+    });
+    document.addEventListener("focusin", (event) => {
+      if (active && event.target instanceof HTMLElement && active.panel.contains(event.target)) shelfFocus = event.target;
+    });
+    document.addEventListener(dialogDismissedEvent, (event) => {
+      const detail = dialogDismissedDetail(event);
+      if (!detail || detail.replacement !== null) return;
+      requestAnimationFrame(() => {
+        if (!active || hasDialog()) return;
+        if (document.activeElement !== document.body && document.activeElement?.isConnected) return;
+        const target = shelfFocus?.isConnected && active.panel.contains(shelfFocus) ? shelfFocus : active.bar;
+        target.focus({ preventScroll: true });
+      });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !active || hasDialog()) return;
+      event.preventDefault();
+      close(active);
+    });
+    document.addEventListener("click", (event) => {
+      if (!active || !(event.target instanceof Element) || !active.content.contains(event.target)) return;
+      const mount = closestSurfaceMount(event.target);
+      if (!mount) return;
+      for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceLinkedHighlightRegistry)) {
+        if (!definition.pinRoleAttribute) continue;
+        const pin = event.target.closest(`[${definition.pinRoleAttribute}]`);
+        if (!pin) continue;
+        const shelf = active;
+        queueMicrotask(() => {
+          if (pin.getAttribute("aria-pressed") === "true" && active?.root === shelf.root) close(shelf);
+        });
+      }
+    }, true);
+    function capture(target) {
+      if (!active || !target.contains(active.root) && !active.panel.contains(target)) return null;
+      const content = active.content;
+      const scrolls = [];
+      content.querySelectorAll("*").forEach((element) => {
+        if (!element.scrollTop && !element.scrollLeft) return;
+        const path = [];
+        let child = element;
+        while (child !== content && child.parentElement) {
+          path.unshift(Array.from(child.parentElement.children).indexOf(child));
+          child = child.parentElement;
+        }
+        scrolls.push({ id: element.id, path, tag: element.tagName, top: element.scrollTop, left: element.scrollLeft });
+      });
+      return { root: active.root, surface: active.resolved.mount.getAttribute(surfaceDomAttr) ?? "", name: active.resolved.definition.name, scrolls };
+    }
+    function restore(snapshot) {
+      const target = snapshot.root.isConnected ? snapshot.root : snapshot.root.id ? document.getElementById(snapshot.root.id) : null;
+      const replacement = shelves().find((item) => item.root === target && item.resolved.definition.name === snapshot.name && item.resolved.mount.getAttribute(surfaceDomAttr) === snapshot.surface);
+      if (!replacement || !mobile.matches) return;
+      setOpen(replacement, true);
+      reconcile();
+      requestAnimationFrame(() => snapshot.scrolls.forEach((position) => {
+        let element = replacement.content;
+        if (position.id) element = document.getElementById(position.id);
+        else for (const index of position.path) element = element?.children[index] ?? null;
+        if (element instanceof HTMLElement && element.tagName === position.tag && replacement.content.contains(element)) {
+          element.scrollTop = position.top;
+          element.scrollLeft = position.left;
+        }
+      }));
+    }
+    document.addEventListener("htmx:beforeSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      if (request === null || typeof request !== "object") return;
+      const snapshot = capture(detailRoot(event, "target"));
+      if (snapshot) pending.set(request, snapshot);
+    });
+    document.addEventListener("htmx:afterSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      const snapshot = request !== null && typeof request === "object" ? pending.get(request) : void 0;
+      if (snapshot) {
+        restore(snapshot);
+        pending.delete(request);
+      }
+      reconcile();
+    });
+    document.addEventListener("htmx:oobBeforeSwap", (event) => {
+      const target = detailTarget(event, "target");
+      if (!(target instanceof Element) || !target.id) return;
+      const snapshot = capture(target);
+      if (snapshot) pendingOob.set(target.id, snapshot);
+    });
+    document.addEventListener("htmx:oobAfterSwap", (event) => {
+      const target = detailTarget(event, "target");
+      if (target instanceof Element) {
+        const snapshot = pendingOob.get(target.id);
+        if (snapshot) restore(snapshot);
+        pendingOob.delete(target.id);
+      }
+      reconcile();
+    });
+    document.addEventListener("htmx:beforeCleanupElement", (event) => {
+      const target = detailTarget(event, "elt") ?? detailTarget(event, "target") ?? event.target;
+      if (shelfFocus && target instanceof Element && target.contains(shelfFocus)) shelfFocus = null;
+      if (active && target instanceof Element && target.contains(active.root)) {
+        active = null;
+        unlockBackground();
+      }
+    });
+    document.addEventListener("htmx:afterSettle", () => {
+      pendingOob.clear();
+      reconcile();
+    });
+    onAppPageReady(reconcile);
+    mobile.addEventListener("change", () => {
+      cancelSlide();
+      const previous = active;
+      reconcile();
+      if (previous && !mobile.matches && previous.bar === document.activeElement) {
+        previous.content.querySelector('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+      }
+    });
+    window.addEventListener("resize", updateGeometry);
+    window.visualViewport?.addEventListener("resize", updateGeometry);
+    window.visualViewport?.addEventListener("scroll", updateGeometry);
+    window.addEventListener("pagehide", () => {
+      cancelSlide();
+      active = null;
+      shelfFocus = null;
+      unlockBackground();
+    });
+    window.addEventListener("pageshow", reconcile);
+    reconcile();
   }
 
   // frontend/ts/surface-tab-set/runtime.ts

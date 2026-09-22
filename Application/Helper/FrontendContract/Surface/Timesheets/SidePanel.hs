@@ -9,4 +9,5 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Times
 import Application.Helper.View.SidePanel
 
 timesheetSidePanelRenderAttrs :: SidePanelRenderAttrs
-timesheetSidePanelRenderAttrs = sidePanelRenderAttrs @Timesheets.TimesheetsSurface @Timesheets.TimesheetSidePanel
+timesheetSidePanelRenderAttrs = (sidePanelRenderAttrs @Timesheets.TimesheetsSurface @Timesheets.TimesheetSidePanel)
+    { sidePanelShelfTitle = "Timesheet tools" }

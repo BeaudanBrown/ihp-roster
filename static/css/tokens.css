@@ -4,6 +4,9 @@
     --app-density-space-scale: 1;
     --app-density-control-scale: 1;
     color-scheme: dark;
+    --app-shelf-bar-height: max(3rem, var(--app-control-height-lg));
+    --app-shelf-z-index: 1030;
+    --app-shelf-header-z-index: 1031;
 
     --app-bg: #0d1119;
     --app-bg-elevated: #172033;

@@ -355,11 +355,21 @@
     max-width: 100%;
 }
 
-.app-side-panel-layout.is-side-panel-expanded > .app-side-panel-region {
-    display: none !important;
+.app-side-panel-shelf-bar {
+    display: none;
+}
+
+.app-side-panel-shelf-content {
+    display: flex;
+    width: 100%;
+    min-height: 0;
 }
 
 @media (min-width: 1200px) {
+    .app-side-panel-layout.is-side-panel-expanded > .app-side-panel-region {
+        display: none !important;
+    }
+
     .app-side-panel-region {
         position: sticky;
         top: 1.5rem;
@@ -406,10 +416,108 @@
         display: none !important;
     }
 
+    .app-side-panel-layout {
+        padding-bottom: calc(var(--app-shelf-bar-height) + env(safe-area-inset-bottom));
+    }
+
     .app-side-panel-region {
-        display: block;
-        position: static;
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        z-index: var(--app-shelf-z-index);
+        inset-inline: 0;
+        bottom: 0;
+        height: calc(var(--app-shelf-bar-height) + env(safe-area-inset-bottom));
+        width: 100%;
         max-height: none;
+        margin: 0;
+        padding: 0;
+        background: var(--app-surface);
+        border-top: 1px solid var(--app-border-strong);
+        border-radius: var(--app-radius-md) var(--app-radius-md) 0 0;
+        box-shadow: 0 -0.5rem 1.5rem var(--app-shadow-xl-raw);
+        /* Viewport changes must never animate the closed footer's position. */
+    }
+
+    .app-side-panel-layout.is-shelf-open > .app-side-panel-region {
+        bottom: var(--app-shelf-bottom, 0px);
+        height: var(--app-shelf-height, 100dvh);
+    }
+
+    .app-side-panel-shelf-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex: 0 0 var(--app-shelf-bar-height);
+        width: 100%;
+        padding-inline: max(var(--app-space-4), env(safe-area-inset-left)) max(var(--app-space-4), env(safe-area-inset-right));
+        border: 0;
+        border-radius: inherit;
+        background: var(--app-surface);
+        color: var(--app-text);
+        font: inherit;
+        font-weight: 700;
+    }
+
+    .app-side-panel-shelf-close-label,
+    .is-shelf-open > .app-side-panel-region .app-side-panel-shelf-open-label {
+        display: none;
+    }
+
+    .is-shelf-open > .app-side-panel-region .app-side-panel-shelf-close-label {
+        display: inline;
+    }
+
+    .app-side-panel-shelf-bar:focus-visible {
+        outline: 2px solid var(--app-accent);
+        outline-offset: -3px;
+    }
+
+    .app-side-panel-shelf-bar i {
+        transition: transform 220ms ease;
+    }
+
+    .is-shelf-open > .app-side-panel-region > .app-side-panel-shelf-bar i {
+        transform: rotate(180deg);
+    }
+
+    .app-side-panel-shelf-content {
+        flex: 1 1 auto;
+        overflow: hidden;
+        padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        visibility: hidden;
+        transition: visibility 220ms;
+    }
+
+    .is-shelf-open > .app-side-panel-region > .app-side-panel-shelf-content {
+        visibility: visible;
+    }
+
+    .app-side-panel-shelf-content .app-side-panel-card {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        overflow: hidden;
+    }
+
+    .app-side-panel-shelf-content .app-side-panel-card > .app-panel-body {
+        flex: 1 1 auto;
+        overflow: hidden;
+    }
+
+    .app-side-panel-shelf-content .app-side-panel-tab-content {
+        overflow: hidden;
+    }
+
+    .app-side-panel-shelf-content .app-side-panel-pane.active,
+    .app-side-panel-shelf-content .app-side-panel-card > .app-panel-body:not(:has(.app-side-panel-tabs)) {
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        scrollbar-gutter: stable;
     }
 
     .app-side-panel-role-head {
@@ -422,5 +530,13 @@
 
     .app-side-panel-action-head {
         width: 3.35rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-side-panel-region,
+    .app-side-panel-shelf-bar i,
+    .app-side-panel-shelf-content {
+        transition: none;
     }
 }

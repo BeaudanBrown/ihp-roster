@@ -173,6 +173,16 @@
     pointer-events: none;
 }
 
+@media (max-width: 1199.98px) {
+    .app-has-mobile-shelf .app-toast-host {
+        bottom: calc(var(--app-shelf-bottom, 0px) + var(--app-shelf-bar-height) + env(safe-area-inset-bottom) + var(--app-space-4));
+    }
+
+    .app-shelf-scroll-locked .app-toast-host {
+        bottom: calc(var(--app-shelf-bottom, 0px) + env(safe-area-inset-bottom) + var(--app-space-4));
+    }
+}
+
 .app-toast-host-left {
     left: 1rem;
     right: auto;

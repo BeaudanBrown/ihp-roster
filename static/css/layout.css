@@ -214,6 +214,25 @@ a:not(.btn):hover {
 }
 
 @media (max-width: 1199.98px) {
+    .app-has-mobile-shelf .app-header {
+        position: sticky;
+        top: 0;
+        z-index: var(--app-shelf-header-z-index);
+        padding-top: env(safe-area-inset-top);
+    }
+
+    body.app-shelf-scroll-locked {
+        position: fixed;
+        top: var(--app-shelf-scroll-offset);
+        inset-inline: 0;
+        overflow-y: hidden;
+    }
+
+    .app-shelf-scroll-locked .app-header {
+        position: fixed;
+        inset-inline: 0;
+    }
+
     html,
     body,
     .app-shell {

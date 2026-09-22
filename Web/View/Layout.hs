@@ -16,7 +16,8 @@ import Application.Helper.Controller (EffectiveUser (..),
                                       currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
-import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction)
+import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction, AppNavigationHeader, AppPageContent)
+import Application.Helper.FrontendContract.Values (domAttrValue)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              defaultAppShellActionRoute,
@@ -47,7 +48,7 @@ defaultLayout inner = [hsx|
     <body class="theme-dark">
         <div class="app-shell">
             {renderAppHeader}
-            <main class="app-content container py-4">
+            <main class="app-content container py-4" {...[(domAttrValue @AppPageContent, "true" :: Text)]}>
                 {inner}
             </main>
         </div>
@@ -62,7 +63,7 @@ renderAppHeader :: (?context :: ControllerContext, ?request :: Request) => Html
 renderAppHeader =
     case currentUserOrNothing of
         Just _ -> [hsx|
-            <header class="app-header border-bottom">
+            <header class="app-header border-bottom" {...[(domAttrValue @AppNavigationHeader, "true" :: Text)]}>
                 <nav class="navbar container py-2 app-header-navbar">
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
                     <div class="app-header-desktop-actions d-none d-xl-flex align-items-center gap-2 ms-auto">
@@ -450,7 +451,7 @@ appInstallMetadata = [hsx|
 metaTags :: Html
 metaTags = [hsx|
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"/>
     <meta property="og:title" content="Bepis"/>
     <meta property="og:type" content="website"/>
     <meta property="og:url" content="TODO"/>

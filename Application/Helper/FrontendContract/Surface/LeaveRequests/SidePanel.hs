@@ -8,4 +8,5 @@ import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Le
 import Application.Helper.View.SidePanel
 
 leaveSidePanelRenderAttrs :: SidePanelRenderAttrs
-leaveSidePanelRenderAttrs = sidePanelRenderAttrs @LeaveRequests.LeaveRequestsSurface @LeaveRequests.LeaveSidePanel
+leaveSidePanelRenderAttrs = (sidePanelRenderAttrs @LeaveRequests.LeaveRequestsSurface @LeaveRequests.LeaveSidePanel)
+    { sidePanelShelfTitle = "Unavailability tools" }
