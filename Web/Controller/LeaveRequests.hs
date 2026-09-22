@@ -15,7 +15,7 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue,
                                            liveMutationResult)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
-                                renderToastOob)
+                                renderDialogOverlayClearOob, renderToastOob)
 import qualified Application.UnavailabilityBlackout.Mutations as BlackoutMutations
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -156,6 +156,33 @@ instance Controller LeaveRequestsController where
                 deletionResult <- maybe (pure Nothing) deletePendingLeaveRequest requestedLeave
                 respondWithSelfServiceLeaveDeletionResult staff deletionResult
 
+    action currentAction@ShowStaffLeaveDeleteConfirmationAction { leaveRequestId } = runBepis currentAction BepisFormAction do
+        ensureProfileCompleted
+        ensureManagerRole
+        ensureVenueWritable
+        fetchPendingVenueLeaveRequest leaveRequestId >>= \case
+            Nothing -> respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted."))
+            Just leaveRequest -> respondHtmlProfiled (renderStaffLeaveDeleteConfirmation leaveRequest)
+
+    action currentAction@DeleteStaffLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
+        ensureProfileCompleted
+        ensureManagerRole
+        ensureVenueWritable
+        fetchPendingVenueLeaveRequest leaveRequestId >>= \case
+            Nothing -> do
+                setHeader ("HX-Reswap", "none")
+                respondHtmlProfiled $
+                    renderDialogOverlayClearOob
+                        <> renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted.")
+            Just leaveRequest -> do
+                staff <-
+                    query @Staff
+                        |> filterWhere (#id, Id leaveRequest.staffId)
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> fetchOne
+                deletionResult <- deletePendingLeaveRequest leaveRequest
+                respondWithStaffLeaveDeletionResult staff deletionResult
+
     action currentAction@CreateUnavailabilityBlackoutAction = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
         ensureUnavailabilityBlackoutManager
@@ -255,6 +282,15 @@ instance Controller LeaveRequestsController where
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
         reviewLeaveRequest DenyLeave leaveRequest >>= respondWithLeaveReviewResult DenyLeave
+
+fetchPendingVenueLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id LeaveRequest -> IO (Maybe LeaveRequest)
+fetchPendingVenueLeaveRequest leaveRequestId =
+    query @LeaveRequest
+        |> filterWhere (#id, leaveRequestId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#status, LeaveRequestStatusEnumPending)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchOneOrNothing
 
 reportLeaveArchivePageErrors :: (?context :: ControllerContext, ?request :: Request) => IO ()
 reportLeaveArchivePageErrors =

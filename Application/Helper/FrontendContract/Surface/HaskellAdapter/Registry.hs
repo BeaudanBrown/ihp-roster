@@ -280,6 +280,10 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.OpenStaffLeaveDeleteConfirmation
+        (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id")
+    , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.DeleteStaffLeaveRequest
+        (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id")
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterEndTimesEnabled allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateDefaultStaffPayRate allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations

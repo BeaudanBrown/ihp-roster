@@ -23,7 +23,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
-import Web.LeaveRequests.SelfService (renderSelfServiceLeaveHistory,
+import Web.LeaveRequests.SelfService (renderStaffLeaveHistory,
                                       renderVisibleUnavailabilityBlackouts)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
 import Web.View.LeaveRequests.New (LeaveRequestFieldNames (..),
@@ -358,7 +358,7 @@ renderStaffLeaveRequestsListFragment :: [LeaveRequest] -> Html
 renderStaffLeaveRequestsListFragment leaveRequests = [hsx|
     <div id={staffLeaveRequestsListFragmentId}>
         <h5 class="mb-3">Unavailable periods</h5>
-        {renderSelfServiceLeaveHistory leaveRequests}
+        {renderStaffLeaveHistory leaveRequests}
     </div>
 |]
 

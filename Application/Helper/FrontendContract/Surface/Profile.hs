@@ -22,6 +22,8 @@ module Application.Helper.FrontendContract.Surface.Profile
     , UpdateStaffProfile
     , UpdateStaffShiftPreferences
     , CreateStaffLeaveRequest
+    , OpenStaffLeaveDeleteConfirmation
+    , DeleteStaffLeaveRequest
     , StaffId
     , VenueId
     , FirstNameField
@@ -95,6 +97,8 @@ data UpdateProfileShiftPreferences
 data UpdateStaffProfile
 data UpdateStaffShiftPreferences
 data CreateStaffLeaveRequest
+data OpenStaffLeaveDeleteConfirmation
+data DeleteStaffLeaveRequest
 
 data FirstNameField
 data LastNameField
@@ -219,6 +223,20 @@ type StaffSurface =
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId StaffLeaveRequestFormFragment)
              , 'HtmxSwap 'HtmxOuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action OpenStaffLeaveDeleteConfirmation
+            '[]
+            '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Staff DOM token")
+             , 'HtmxSwap 'HtmxInnerHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action DeleteStaffLeaveRequest
+            '[]
+            '[ 'HtmxMethod 'HtmxDelete
+             , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Staff DOM token")
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken StaffLeaveRequestFormFragment

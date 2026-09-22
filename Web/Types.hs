@@ -102,6 +102,8 @@ data LeaveRequestsController
     | CreateLeaveRequestAction
     | ShowSelfServiceLeaveDeleteConfirmationAction { leaveRequestId :: !(Id LeaveRequest) }
     | DeleteSelfServiceLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
+    | ShowStaffLeaveDeleteConfirmationAction { leaveRequestId :: !(Id LeaveRequest) }
+    | DeleteStaffLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | DenyLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | CreateUnavailabilityBlackoutAction

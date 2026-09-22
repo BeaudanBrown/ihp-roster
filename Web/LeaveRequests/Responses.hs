@@ -1,6 +1,7 @@
 module Web.LeaveRequests.Responses
     ( respondWithLeaveSubmissionResult
     , respondWithSelfServiceLeaveDeletionResult
+    , respondWithStaffLeaveDeletionResult
     , respondWithLeaveReviewResult
     , respondWithLeaveContextError
     , respondWithLeaveRequestsContent
@@ -84,6 +85,19 @@ respondWithSelfServiceLeaveDeletionResult staff deletionResult =
                 else do
                     setErrorMessage "Only pending unavailable periods can be deleted."
                     redirectToPath (leaveFallbackPath LeaveSelfServiceResponseContext)
+
+respondWithStaffLeaveDeletionResult :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> Maybe (LiveMutationResult LeaveRequest) -> IO ResponseReceived
+respondWithStaffLeaveDeletionResult staff deletionResult = do
+    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
+        touchedResources = maybe Set.empty (.liveMutationTouchedResources) deletionResult
+        toast = case deletionResult of
+            Just _  -> successToast "Unavailable period deleted"
+            Nothing -> errorToast "Only pending unavailable periods can be deleted."
+    setHeader ("HX-Reswap", "none")
+    setActorLiveResourcesRefresh (staffSurfaceScope scope) touchedResources (staffCandidateMountedFragments scope)
+    respondHtmlProfiled $
+        renderDialogOverlayClearOob
+            <> renderToastOob ToastBottomCenter toast
 
 respondWithLeaveReviewResult :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveReviewDecision -> Maybe (LiveMutationResult ReviewedLeaveRequest) -> IO ResponseReceived
 respondWithLeaveReviewResult decision = \case

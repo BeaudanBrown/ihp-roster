@@ -5,6 +5,8 @@ module Web.LeaveRequests.SelfService
     , renderSelfServiceLeaveFormMount
     , renderSelfServiceLeaveDeleteConfirmation
     , renderSelfServiceLeaveHistory
+    , renderStaffLeaveDeleteConfirmation
+    , renderStaffLeaveHistory
     , renderSelfServiceLeaveHistoryFragment
     , selfServiceLeaveFormFragmentId
     , selfServiceLeaveFormId
@@ -18,6 +20,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as Surface
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action as SurfaceAction
 import Application.Helper.FrontendContract.Surface.Values
@@ -143,8 +146,18 @@ renderSelfServiceLeaveHistoryFragment maybeSwapOob leaveRequests = [hsx|
     </div>
 |]
 
+data LeaveDeleteMode
+    = SelfServiceLeaveDelete
+    | StaffLeaveDelete
+
 renderSelfServiceLeaveHistory :: (?context :: ControllerContext) => [LeaveRequest] -> Html
-renderSelfServiceLeaveHistory leaveRequests
+renderSelfServiceLeaveHistory = renderLeaveHistory SelfServiceLeaveDelete
+
+renderStaffLeaveHistory :: (?context :: ControllerContext) => [LeaveRequest] -> Html
+renderStaffLeaveHistory = renderLeaveHistory StaffLeaveDelete
+
+renderLeaveHistory :: (?context :: ControllerContext) => LeaveDeleteMode -> [LeaveRequest] -> Html
+renderLeaveHistory deleteMode leaveRequests
     | null leaveRequests =
         renderAppPanel AppPanelConfig
             { appPanelTitle = Nothing
@@ -166,36 +179,68 @@ renderSelfServiceLeaveHistory leaveRequests
                 <div>Actions</div>
             </div>
             <div class="leave-request-list-body">
-                {forEach sortedLeaveRequests renderLeaveRequestRow}
+                {forEach sortedLeaveRequests (renderLeaveRequestRow deleteMode)}
             </div>
         </div>
     |]
   where
     sortedLeaveRequests = sortOn (Down . (.startDate)) leaveRequests
 
-renderLeaveRequestRow :: (?context :: ControllerContext) => LeaveRequest -> Html
-renderLeaveRequestRow leaveRequest = [hsx|
+renderLeaveRequestRow :: (?context :: ControllerContext) => LeaveDeleteMode -> LeaveRequest -> Html
+renderLeaveRequestRow deleteMode leaveRequest = [hsx|
     <article class="leave-request-row">
         <div class="leave-request-row-dates">{renderDateRangeText leaveRequest}</div>
         <div class="leave-request-row-status">{renderStatusBadge leaveRequest.status}</div>
         <div class="leave-request-row-notes">{fromMaybe "No notes" (leaveRequest.notes >>= nonEmptyText)}</div>
-        <div class="leave-request-row-actions">{renderPendingLeaveRequestDelete leaveRequest}</div>
+        <div class="leave-request-row-actions">{renderPendingLeaveRequestDelete deleteMode leaveRequest}</div>
     </article>
 |]
 
-renderPendingLeaveRequestDelete :: (?context :: ControllerContext) => LeaveRequest -> Html
-renderPendingLeaveRequestDelete leaveRequest
+renderPendingLeaveRequestDelete :: (?context :: ControllerContext) => LeaveDeleteMode -> LeaveRequest -> Html
+renderPendingLeaveRequestDelete deleteMode leaveRequest
     | leaveRequest.status /= LeaveRequestStatusEnumPending = mempty
-    | otherwise =
-        renderFrontendSurfaceActionForm
-            (SurfaceAction.openSelfServiceLeaveDeleteConfirmationAction SurfaceAction.openSelfServiceLeaveDeleteConfirmationActionFields)
-            (defaultFrontendSurfaceActionRoute confirmationPath)
-            [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>|]
+    | otherwise = case deleteMode of
+        SelfServiceLeaveDelete ->
+            renderFrontendSurfaceActionForm
+                (SurfaceAction.openSelfServiceLeaveDeleteConfirmationAction SurfaceAction.openSelfServiceLeaveDeleteConfirmationActionFields)
+                (defaultFrontendSurfaceActionRoute (pathTo (ShowSelfServiceLeaveDeleteConfirmationAction leaveRequest.id)))
+                deleteButton
+        StaffLeaveDelete ->
+            renderFrontendSurfaceActionForm
+                (ProfileAction.openStaffLeaveDeleteConfirmationAction ProfileAction.openStaffLeaveDeleteConfirmationActionFields)
+                (defaultFrontendSurfaceActionRoute (pathTo (ShowStaffLeaveDeleteConfirmationAction leaveRequest.id)))
+                deleteButton
   where
-    confirmationPath = pathTo (ShowSelfServiceLeaveDeleteConfirmationAction leaveRequest.id)
+    deleteButton = [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>|]
 
 renderSelfServiceLeaveDeleteConfirmation :: (?context :: ControllerContext) => LeaveRequest -> Html
 renderSelfServiceLeaveDeleteConfirmation leaveRequest =
+    renderLeaveDeleteConfirmation leaveRequest formId deleteForm
+  where
+    formId = "delete-self-service-leave-request-confirmation-form"
+    deleteForm =
+        renderFrontendSurfaceActionForm
+            (SurfaceAction.deleteSelfServiceLeaveRequestAction SurfaceAction.deleteSelfServiceLeaveRequestActionFields)
+            ((defaultFrontendSurfaceActionRoute (pathTo (DeleteSelfServiceLeaveRequestAction leaveRequest.id)))
+                { actionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
+
+renderStaffLeaveDeleteConfirmation :: (?context :: ControllerContext) => LeaveRequest -> Html
+renderStaffLeaveDeleteConfirmation leaveRequest =
+    renderLeaveDeleteConfirmation leaveRequest formId deleteForm
+  where
+    formId = "delete-staff-leave-request-confirmation-form"
+    deleteForm =
+        renderFrontendSurfaceActionForm
+            (ProfileAction.deleteStaffLeaveRequestAction ProfileAction.deleteStaffLeaveRequestActionFields)
+            ((defaultFrontendSurfaceActionRoute (pathTo (DeleteStaffLeaveRequestAction leaveRequest.id)))
+                { actionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
+
+renderLeaveDeleteConfirmation :: LeaveRequest -> Text -> Html -> Html
+renderLeaveDeleteConfirmation leaveRequest formId deleteForm =
     renderConfirmationDialog
         (defaultConfirmationDialogConfig
             "Delete unavailable period?"
@@ -206,16 +251,6 @@ renderSelfServiceLeaveDeleteConfirmation leaveRequest =
             , confirmationDialogApproveTone = ConfirmationDanger
             , confirmationDialogLoadingLabel = "Deleting…"
             }
-  where
-    formId = "delete-self-service-leave-request-confirmation-form"
-    deletePath = pathTo (DeleteSelfServiceLeaveRequestAction leaveRequest.id)
-    deleteForm =
-        renderFrontendSurfaceActionForm
-            (SurfaceAction.deleteSelfServiceLeaveRequestAction SurfaceAction.deleteSelfServiceLeaveRequestActionFields)
-            ((defaultFrontendSurfaceActionRoute deletePath)
-                { actionRouteExtraAttrs = [("id", formId)]
-                })
-            mempty
 
 createSelfServiceLeaveRequestPath :: Text
 createSelfServiceLeaveRequestPath =
