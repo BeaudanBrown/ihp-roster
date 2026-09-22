@@ -14,11 +14,12 @@ module Web.Timesheets.Paths
     , timesheetWindowStateQueryParamsWithFilters
     , timesheetWindowUrl
     , timesheetWindowUrlWithFilters
+    , withTimesheetRosterGroupFilter
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
-import Application.Helper.Url (replaceQueryParams)
+import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Generated.Types
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
@@ -35,6 +36,10 @@ timesheetWindowUrlWithFilters anchorDate filters =
     replaceQueryParams
         (pathTo (ShowTimesheetWindowAction (tshow anchorDate)))
         (timesheetWindowStateQueryParamsWithFilters anchorDate filters)
+
+withTimesheetRosterGroupFilter :: Maybe UUID -> Text -> Text
+withTimesheetRosterGroupFilter rosterGroupFilterId url =
+    appendQueryParams url [("rosterGroupFilterId", tshow groupId) | groupId <- maybeToList rosterGroupFilterId]
 
 timesheetToolbarFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl anchorDate staffFilterId =

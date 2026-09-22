@@ -141,6 +141,11 @@ fragments and publish typed touched resources for passive viewers. Roster
 publication, relevant slot changes, pay-mode changes, and trial adoption touch
 the affected Timesheet week resources. Date moves refresh old and new visible
 scopes. Week/filter requests use the Surface-declared shell synchronization.
+Filter navigation replaces the scope-bearing shell so fragment URLs, hidden action
+fields, and canonical URL state move together. The shared same-feature HTMX
+lifecycle keeps an open tools shelf on its selected tab and restores its scroll
+position. Fragment GETs and their canonical redirects retain both authorized
+staff and roster-group filters; a refresh must not silently return All groups.
 
 Legacy automatic roster-to-Timesheet jobs remain retired: publication creates no
 entry, the compatibility toggle stays false, and historical jobs remain audit

@@ -32,7 +32,8 @@ import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
                              timesheetStaffContentFragmentUrl,
-                             timesheetToolbarFragmentUrl)
+                             timesheetToolbarFragmentUrl,
+                             withTimesheetRosterGroupFilter)
 
 -- | Logical live invalidation scope. Filter/query state intentionally lives in
 -- 'TimesheetsMountStateValue' instead of the scope so a future mount-state store
@@ -193,6 +194,5 @@ timesheetDaySectionMountedFragment mountState windowStart operationalDate =
 withRosterGroupFilter :: TimesheetsMountStateValue -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
 withRosterGroupFilter mountState fragment =
     fragment
-        { mountedFragmentUrl = appendQueryParams fragment.mountedFragmentUrl
-            [("rosterGroupFilterId", tshow rosterGroupId) | rosterGroupId <- maybeToList mountState.timesheetsMountRosterGroupFilterId]
+        { mountedFragmentUrl = withTimesheetRosterGroupFilter mountState.timesheetsMountRosterGroupFilterId fragment.mountedFragmentUrl
         }
