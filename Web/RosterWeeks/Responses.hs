@@ -63,16 +63,20 @@ import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragmentOob)
 
-respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ResponseReceived
-respondToRosterSlotMutation scope rosterDay rowIndex mutationResult successMessage = do
-    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation [(unpackId rosterDay.id, rowIndex)])
+respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> RosterDay -> Int -> Bool -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ResponseReceived
+respondToRosterSlotMutation scope rosterDay rowIndex materializedWindow mutationResult successMessage = do
     if isHtmxRequest
-        then
-            respondWithRosterResourceInvalidation
-                scope
-                mutationResult.liveMutationTouchedResources
-                mountedProjections
-                (renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast successMessage))
+        then do
+            let extraHtml = renderDialogOverlayClearOob <> renderToastOob ToastBottomCenter (successToast successMessage)
+            if materializedWindow
+                then respondWithRosterCompleteResourceInvalidation scope mutationResult.liveMutationTouchedResources extraHtml
+                else do
+                    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation [(unpackId rosterDay.id, rowIndex)])
+                    respondWithRosterResourceInvalidation
+                        scope
+                        mutationResult.liveMutationTouchedResources
+                        mountedProjections
+                        extraHtml
         else do
             setSuccessMessage successMessage
             redirectToPath (rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId)

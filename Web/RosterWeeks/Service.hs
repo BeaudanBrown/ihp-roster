@@ -42,6 +42,7 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Traversable (traverse)
 import GHC.Generics (Generic)
 import Web.Controller.Prelude
+import Web.RosterWeeks.Dom (minimumOpenRosterRows)
 
 fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
 fetchActiveStaffForCurrentVenue staffId =
@@ -465,7 +466,7 @@ materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDa
             Just targetDay -> targetDay
                 |> set #publicationState Draft
                 |> set #isClosed (maybe False (.isClosed) sourceDay)
-                |> set #rowCount (maybe 4 (.rowCount) sourceDay)
+                |> set #rowCount (maybe minimumOpenRosterRows (.rowCount) sourceDay)
                 |> updateRecord
             Nothing -> newRecord @RosterDay
                 |> set #venueId (unpackId venueId)
@@ -473,7 +474,7 @@ materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDa
                 |> set #operationalDate targetDate
                 |> set #publicationState Draft
                 |> set #isClosed (maybe False (.isClosed) sourceDay)
-                |> set #rowCount (maybe 4 (.rowCount) sourceDay)
+                |> set #rowCount (maybe minimumOpenRosterRows (.rowCount) sourceDay)
                 |> createRecord
     pure (Map.fromList [(day.operationalDate, day) | day <- existingOrCreated])
 

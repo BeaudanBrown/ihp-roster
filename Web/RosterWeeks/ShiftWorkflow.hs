@@ -13,7 +13,7 @@ module Web.RosterWeeks.ShiftWorkflow
     , applyValidatedRosterShift
     , defaultRosterShiftDialogValuesForVenue
     , fetchCurrentVenueRosterShiftTypesForDialog
-    , fetchRosterSlotDefinitionForCreate
+    , fetchRosterSlotDefinitionForDialog
     , fetchRosterSlotEditContext
     , fetchRosterSlotForEdit
     , rosterShiftDialogForCreateHtml
@@ -38,8 +38,8 @@ import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
-import Web.RosterWeeks.DateRange (RosterWindowScope (..),
-                                  resolveRosterLaneReference)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
+                                  rosterWindowTarget)
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Mutations (RosterSlotMutationResult (..),
                                   saveRosterSlotMutation, updateRosterSlotMutation)
@@ -74,8 +74,8 @@ data RosterShiftEditCompletion = RosterShiftEditCompletion
     , rosterShiftEditWarnSourceTimesheetUnchanged :: !Bool
     }
 
-createRosterShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues (LiveMutationResult RosterSlotMutationResult))
-createRosterShift scope rosterDay slotDefinition rowIndex submission = do
+createRosterShift :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterDay -> RosterLane -> Int -> Bool -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues (LiveMutationResult RosterSlotMutationResult))
+createRosterShift scope rosterDay slotDefinition rowIndex materializedWindow submission = do
     existingSlot <- query @RosterSlot
         |> filterWhere (#rosterDayId, unpackId rosterDay.id)
         |> filterWhere (#rosterLaneId, unpackId slotDefinition.id)
@@ -96,7 +96,7 @@ createRosterShift scope rosterDay slotDefinition rowIndex submission = do
                         )
                         existingSlot
                         |> applyValidatedRosterShift valid
-            mutation <- saveRosterSlotMutation scope rosterDay existingSlot newSlot
+            mutation <- saveRosterSlotMutation scope rosterDay existingSlot newSlot materializedWindow
             pure $ case mutation of
                 Left message -> Left (rosterShiftDialogValuesFromSlot newSlot) { rosterShiftFormError = Just message }
                 Right result -> Right result
@@ -114,7 +114,7 @@ editRosterShift scope rosterDay rosterSlot submission = do
         Left values -> pure (Left values)
         Right updatedSlot -> do
             let publishedFill = rosterDay.publicationState == Published
-            mutation <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot publishedFill
+            mutation <- updateRosterSlotMutation scope rosterDay rosterSlot updatedSlot publishedFill False
             case mutation of
                 Left message -> pure $ Left
                     (rosterShiftDialogValuesFromSlot (if publishedFill then rosterSlot else updatedSlot))
@@ -147,10 +147,13 @@ fetchRelatedSlotsForStaffIdsInRosterWeek scope staffIds =
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
 
-fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterLane -> IO RosterLane
-fetchRosterSlotDefinitionForCreate rosterDayId requestedId =
-    resolveRosterLaneReference (Just rosterDayId) requestedId
-        >>= maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Roster lane does not exist for the selected Operational date") pure
+fetchRosterSlotDefinitionForDialog :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> RosterDay -> Id RosterLane -> IO RosterLane
+fetchRosterSlotDefinitionForDialog scope rosterDay rosterLaneId = do
+    window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+    let maybeTarget = rosterWindowTarget scope.rosterWindowVenueId scope.rosterWindowRosterGroupId window rosterDay.id
+        maybeLane = maybeTarget >>= find ((== rosterLaneId) . (.id)) . snd
+    accessDeniedUnless (isJust maybeLane)
+    pure (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized projected roster lane missing") maybeLane)
 
 fetchRosterSlotForEdit :: (?modelContext :: ModelContext) => Id RosterSlot -> IO RosterSlot
 fetchRosterSlotForEdit = fetch
@@ -172,7 +175,7 @@ rosterShiftDialogForCreateHtml scope rosterDay slotDefinition rowIndex values = 
                 |> set #rowIndex rowIndex
     staffOptionStates <- buildRosterShiftDialogStaffOptionStates scope.rosterWindowRosterGroupId rosterDay targetSlot staffMembers
     pure $ renderRosterShiftDialog RosterShiftDialogData
-        { rosterShiftDialogMode = NewRosterShiftDialog rosterDay.id slotDefinition.id rowIndex
+        { rosterShiftDialogMode = NewRosterShiftDialog rosterDay.id slotDefinition.id scope.rosterWindowRosterGroupId rosterDay.operationalDate rowIndex
         , rosterShiftDialogTitle = "Add shift"
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates

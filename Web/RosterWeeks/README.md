@@ -59,11 +59,16 @@ post-commit row impact. A rejection is dialog values; success is the committed
 mutation result, with edit impact and warning policy ready for `Responses`.
 
 The input records are snapshots, not new authorization or freshness evidence.
-Controllers retain the ordered access and calendar/placement checks and sparse
-materialization because those precede field validation. Do not merge that
-materialization into the save transaction or eagerly move request parsing ahead
-of an earlier denial. `Mutations` still owns locks, revalidation and durable
-publication; post-save impact reads must stay outside its transaction.
+Controllers retain ordered access and calendar/placement checks. Shift dialogs
+resolve missing days and lanes as server-side projections without persistence;
+invalid or cancelled creates leave the window unchanged. Successful creates and
+staff-drop assignments materialize missing dates only after validation, inside
+the locked durable save transaction. Materialization, shift persistence, and
+structural invalidation commit together or roll back on failure. Do not eagerly
+move request parsing ahead of an earlier denial. Other mutation entrypoints may
+still materialize at their existing controller seam. `Mutations` owns locks,
+revalidation and durable publication; post-save impact reads stay outside its
+transaction.
 
 This deliberately small interface removes attempted-record assembly and
 Published permission flags from callers without imposing a universal workflow

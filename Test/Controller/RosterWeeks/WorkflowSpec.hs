@@ -38,7 +38,9 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.RosterWeeks.DateRange (RosterWindowScope (..), rosterWindowScopeForAnchor)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
+                                  projectedRosterDayId, rosterWindowScopeForAnchor,
+                                  rosterWindowTarget)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
                             rosterDaySectionDomId, rosterGridFrameFragmentId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
@@ -66,6 +68,135 @@ import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..), rosterShi
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController" do
+        it "resolves a projected staff drop without materializing the week" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Projected staff drop"
+                manager <- createUserRecord "projected-staff-drop@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue Nothing "Projected" "Worker"
+                shiftType <- ensureVenueDefaultShiftType venue
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let scope = rosterWindowScopeForAnchor venueConfig rosterGroup.id (testAnchorForOffset 26)
+                window <- fetchRosterWindow venue.id rosterGroup.id scope.rosterWindowStart
+                let requestedDayId = projectedRosterDayId rosterGroup.id scope.rosterWindowStart
+                    Just (_, lanes) = rosterWindowTarget venue.id rosterGroup.id window requestedDayId
+                    targetLane = fromMaybe (error "projected roster lane missing") (listToMaybe lanes)
+                    sourceToken = "staff:" <> tshow staff.id
+                    targetToken = "new:" <> tshow requestedDayId <> ":" <> tshow targetLane.id <> ":0"
+
+                dropResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 26
+                                <> [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                                   , ("sourceItemKey", cs sourceToken)
+                                   , ("targetDropzoneKey", cs targetToken)
+                                   ]
+                dialogResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (NewRosterSlotDialogAction requestedDayId (coerce targetLane.id) 0)
+                        [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                        , ("operationalDate", cs (tshow scope.rosterWindowStart))
+                        , ("anchorDate", cs (tshow scope.rosterWindowStart))
+                        , ("rosterCalendarRevision", cs (tshow venueConfig.rosterCalendarRevision))
+                        ]
+                dayCountAfterDialogs <- query @RosterDay |> filterWhere (#rosterGroupId, unpackId rosterGroup.id) |> fetchCount
+                invalidCreateResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction requestedDayId (coerce targetLane.id) 0)
+                            [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                            , ("operationalDate", cs (tshow scope.rosterWindowStart))
+                            , ("anchorDate", cs (tshow scope.rosterWindowStart))
+                            , ("rosterCalendarRevision", cs (tshow venueConfig.rosterCalendarRevision))
+                            , ("staffId", "open")
+                            , ("startTime", "09:00")
+                            , ("endTime", "")
+                            , ("shiftTypeId", cs (tshow shiftType.id))
+                            ]
+                dayCountAfterInvalidSave <- query @RosterDay |> filterWhere (#rosterGroupId, unpackId rosterGroup.id) |> fetchCount
+                createResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction requestedDayId (coerce targetLane.id) 0)
+                            [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                            , ("operationalDate", cs (tshow scope.rosterWindowStart))
+                            , ("anchorDate", cs (tshow scope.rosterWindowStart))
+                            , ("rosterCalendarRevision", cs (tshow venueConfig.rosterCalendarRevision))
+                            , ("staffId", "open")
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            , ("shiftTypeId", cs (tshow shiftType.id))
+                            ]
+                materializedDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+
+                dropResponse `responseStatusShouldBe` status200
+                dropResponse `responseBodyShouldContain` ">Save<"
+                dialogResponse `responseStatusShouldBe` status200
+                dayCountAfterDialogs `shouldBe` 0
+                invalidCreateResponse `responseStatusShouldBe` status200
+                invalidCreateResponse `responseBodyShouldContain` "Choose an end time."
+                dayCountAfterInvalidSave `shouldBe` 0
+                createResponse `responseStatusShouldBe` status200
+                let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createResponse)
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
+                length materializedDays `shouldBe` 7
+                map (.rowCount) materializedDays `shouldBe` replicate 7 2
+
+        forM_ [False, True] \create ->
+            forM_ ["missing group", "malformed group", "missing date", "malformed date", "foreign group", "wrong group", "wrong date"] \invalidContext ->
+                it ("rejects projected-day " <> invalidContext <> ", create=" <> cs (show create) <> " without writes") $ withContext do
+                    withCleanDb do
+                        venue <- createVenueWithConfig "Projected rejection"
+                        foreignVenue <- createVenueWithConfig "Foreign projected rejection"
+                        manager <- createUserRecord "projected-rejection@example.com" "staff" True
+                        _ <- createVenueMembershipRecord venue manager Manager
+                        shiftType <- ensureVenueDefaultShiftType venue
+                        group <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                        foreignGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId foreignVenue.id) |> fetchOne
+                        otherGroup <- newRecord @RosterGroup
+                            |> set #venueId (unpackId venue.id)
+                            |> set #name "Other group"
+                            |> createRecord
+                        config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                        let scope = rosterWindowScopeForAnchor config group.id (testAnchorForOffset 26)
+                            dayId = projectedRosterDayId group.id scope.rosterWindowStart
+                        window <- fetchRosterWindow venue.id group.id scope.rosterWindowStart
+                        let Just (_, lanes) = rosterWindowTarget venue.id group.id window dayId
+                            lane = fromMaybe (error "projected lane missing") (listToMaybe lanes)
+                            groupParams = case invalidContext of
+                                "missing group" -> []
+                                "malformed group" -> [("rosterGroupId", "not-a-uuid")]
+                                "foreign group" -> [("rosterGroupId", cs (tshow foreignGroup.id))]
+                                "wrong group" -> [("rosterGroupId", cs (tshow otherGroup.id))]
+                                _ -> [("rosterGroupId", cs (tshow group.id))]
+                            dateParams = case invalidContext of
+                                "missing date" -> []
+                                "malformed date" -> [("operationalDate", "not-a-date")]
+                                "wrong date" -> [("operationalDate", cs (tshow (addDays 1 scope.rosterWindowStart)))]
+                                _ -> [("operationalDate", cs (tshow scope.rosterWindowStart))]
+                            action = if create
+                                then CreateRosterSlotAction dayId (coerce lane.id) 0
+                                else NewRosterSlotDialogAction dayId (coerce lane.id) 0
+                        response <- withUserAndCurrentVenue manager venue.id do
+                            callActionWithParams action $
+                                groupParams <> dateParams <>
+                                    [ ("anchorDate", cs (tshow scope.rosterWindowStart))
+                                    , ("rosterCalendarRevision", cs (tshow config.rosterCalendarRevision))
+                                    , ("staffId", "open")
+                                    , ("startTime", "09:00")
+                                    , ("endTime", "17:00")
+                                    , ("shiftTypeId", cs (tshow shiftType.id))
+                                    ]
+                        responseStatus response `shouldSatisfy` (`elem` [status400, status403, status404])
+                        query @RosterDay |> fetchCount >>= (`shouldBe` 0)
+                        query @RosterLane |> fetchCount >>= (`shouldBe` 0)
+                        query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
         it "records touched resources for roster mutations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Touched Venue"
@@ -284,6 +415,7 @@ tests = aroundAll withDatabaseTestContext do
                 length datedDays `shouldBe` 7
                 map (.operationalDate) datedDays `shouldBe` map (`addDays` testAnchorForOffset 0) [0 .. 6]
                 datedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
+                map (.rowCount) datedDays `shouldBe` replicate 7 2
                 activeLanes <- query @RosterLane
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) datedDays)
                     |> filterWhere (#deletedAt, Nothing)
@@ -342,7 +474,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 slotsForDay `shouldBe` []
                 updatedDay <- fetch rosterDay.id
-                updatedDay.rowCount `shouldBe` 5
+                updatedDay.rowCount `shouldBe` 3
 
         it "manager can remove the last roster row via a day-section refresh" $ withContext do
             withCleanDb do
@@ -387,6 +519,7 @@ tests = aroundAll withDatabaseTestContext do
                 early <- fetchSlotNameRecord venue "Early"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- updateRecord (rosterDay |> set #rowCount 4)
                 row0 <- createRosterSlotRecord rosterDay early Nothing 0
                 row2 <- createRosterSlotRecord rosterDay early Nothing 2
                 row3 <- createRosterSlotRecord rosterDay early Nothing 3
@@ -2709,6 +2842,7 @@ tests = aroundAll withDatabaseTestContext do
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 sourceWeek <- createRosterWeekRecord venue 0 True
                 sourceDay <- createRosterDayRecord sourceWeek 0
+                _ <- updateRecord (sourceDay |> set #rowCount 5)
                 sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staffMember 0
                 let sourceSlotWithFields =
                         sourceSlot
@@ -2731,6 +2865,7 @@ tests = aroundAll withDatabaseTestContext do
                 length copiedDays `shouldBe` 7
                 map (.operationalDate) copiedDays `shouldBe` map (`addDays` targetStart) [0 .. 6]
                 map (.publicationState) copiedDays `shouldSatisfy` all (== Draft)
+                map (.rowCount) copiedDays `shouldBe` 5 : replicate 6 2
 
                 let copiedDay = fromJust (head copiedDays)
                 copiedSlots <- query @RosterSlot

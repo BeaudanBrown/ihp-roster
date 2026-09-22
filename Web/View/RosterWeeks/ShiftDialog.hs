@@ -36,6 +36,8 @@ data RosterShiftDialogMode
     = NewRosterShiftDialog
         { dialogRosterDayId                :: !(Id RosterDay)
         , dialogRosterWeekSlotDefinitionId :: !(Id RosterLane)
+        , dialogRosterGroupId              :: !(Id RosterGroup)
+        , dialogOperationalDate            :: !Day
         , dialogRowIndex                   :: !Int
         }
     | EditRosterShiftDialog
@@ -152,7 +154,7 @@ renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogDat
 renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues, rosterShiftDialogAssignmentOnly, rosterShiftDialogAnchorDate, rosterShiftDialogCalendarRevision } =
     renderAppShellActionForm
         (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
-        (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)) rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision)
+        (rosterAppShellActionRoute (rosterShiftFormUrl rosterShiftDialogMode) rosterShiftDialogAnchorDate rosterShiftDialogCalendarRevision)
             { appShellActionRouteExtraAttrs =
                 [ ("id", rosterShiftFormId rosterShiftDialogMode)
                 , ("data-roster-live-open-fill", if rosterShiftDialogAssignmentOnly then "true" else "false")
@@ -274,3 +276,11 @@ rosterShiftFormAction NewRosterShiftDialog { dialogRosterDayId, dialogRosterWeek
     CreateRosterSlotAction dialogRosterDayId dialogRosterWeekSlotDefinitionId dialogRowIndex
 rosterShiftFormAction EditRosterShiftDialog { dialogRosterSlotId } =
     UpdateRosterSlotAction dialogRosterSlotId
+
+rosterShiftFormUrl :: RosterShiftDialogMode -> Text
+rosterShiftFormUrl mode@NewRosterShiftDialog { dialogRosterGroupId, dialogOperationalDate } =
+    appendQueryParams (pathTo (rosterShiftFormAction mode))
+        [ ("rosterGroupId", tshow dialogRosterGroupId)
+        , ("operationalDate", tshow dialogOperationalDate)
+        ]
+rosterShiftFormUrl mode = pathTo (rosterShiftFormAction mode)

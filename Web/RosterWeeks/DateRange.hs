@@ -21,6 +21,7 @@ module Web.RosterWeeks.DateRange
     , rosterWindowLaneRepresentative
     , rosterWindowScopeForAnchor
     , rosterWindowScopeMatchesConfig
+    , rosterWindowTarget
     , fetchRosterWindow
     ) where
 
@@ -35,6 +36,7 @@ import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.UUID as UUID
 import Generated.Types
 import Web.Controller.Prelude
+import Web.RosterWeeks.Dom (minimumOpenRosterRows)
 
 -- | Seven explicit Operational dates and their sparse persisted roster facts.
 -- Missing days remain projections; mutation code decides when to materialize.
@@ -172,6 +174,18 @@ projectedRosterDay venueId rosterGroupId windowDay =
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate windowDay.operationalDate
                 |> set #publicationState Draft
+                |> set #rowCount minimumOpenRosterRows
+
+-- | Resolve either a persisted or deterministic projected day together with
+-- that date's persisted/projected lanes from an already-authorized window.
+rosterWindowTarget :: Id Venue -> Id RosterGroup -> RosterWindow -> Id RosterDay -> Maybe (RosterDay, [RosterLane])
+rosterWindowTarget venueId rosterGroupId window requestedDayId = do
+    windowDay <- find ((== requestedDayId) . projectedId) window.rosterWindowProjectedDays
+    let rosterDay = projectedRosterDay venueId rosterGroupId windowDay
+        lanes = mapMaybe (laneForOperationalDate windowDay.operationalDate) window.rosterWindowLanes
+    pure (rosterDay, lanes)
+  where
+    projectedId windowDay = (projectedRosterDay venueId rosterGroupId windowDay).id
 
 projectedRosterDayId :: Id RosterGroup -> Day -> Id RosterDay
 projectedRosterDayId rosterGroupId operationalDate =

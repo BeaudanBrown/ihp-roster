@@ -54,8 +54,8 @@ import Test.Support
 import qualified Text.Read as TextRead
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
-                            rosterGridFrameFragmentId, rosterRowDomIdText,
+import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
+                            rosterDaySectionDomId, rosterGridFrameFragmentId, rosterRowDomIdText,
                             rosterStaffPanelFragmentId)
 import Web.RosterWeeks.DropWorkflow (MoveRosterTimelineShiftIntent (..),
                                      RosterTimelineDropBoundaryResolution (..),
@@ -932,7 +932,7 @@ tests = aroundAll withDatabaseTestContext do
                 testStartTime createdSlot `shouldBe` Just (timeOfDay 9 0)
                 createdSlot.shiftTypeId `shouldBe` Just (unpackId shiftType.id)
                 updatedDay <- fetch rosterDay.id
-                updatedDay.rowCount `shouldBe` 4
+                updatedDay.rowCount `shouldBe` 3
 
         forM_ [False, True] \htmx ->
             it ("preserves create reuse and update completion without a native redirect, HTMX=" <> cs (show htmx)) $ withContext do
@@ -1798,8 +1798,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 updatedSlot <- fetch targetSlot.id
+                materializedDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
+                    |> fetch
                 updatedSlot.staffId `shouldBe` Just (unpackId replacementStaff.id)
+                length materializedDays `shouldBe` 7
+                map (.rowCount) materializedDays `shouldSatisfy` all (== 2)
                 response `responseBodyShouldContain` "Staff assigned."
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
 
         it "rejects a tampered staff drop onto a corrupt roster shift" $ withContext do
             withCleanDb do

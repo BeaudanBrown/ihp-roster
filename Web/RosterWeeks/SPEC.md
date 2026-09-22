@@ -13,7 +13,13 @@ This document retains cross-module scheduling and state-transition rules.
   do not add compatibility redirects or persist a last-viewed window.
 - Roster data is venue-scoped and may be roster-group-scoped. Missing weeks may
   be materialized only through authorized server behavior; reference browsing
-  for templates never materializes a week.
+  for templates never materializes a week. Opening or cancelling a shift dialog,
+  including staff-drop create dialogs, and rejected shift creates do not persist
+  projected dates or lanes. Successful creates materialize missing dates in the
+  same locked transaction as the shift and durable structural invalidation.
+- New roster days, projected days, and omitted template-day row counts default
+  to two rows. Existing stored row counts are preserved; copying an existing
+  source day preserves its row count, while missing source days use two.
 - Managers, venue admins, owners, and unimpersonated founder support receive
   capabilities only through server-side checks. During founder impersonation,
   visibility, controls, self-service, profile gates, and private preferences use
