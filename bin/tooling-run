@@ -14,8 +14,8 @@ if [ "${BEPIS_TOOLING_ENV:-0}" != 1 ]; then
     command -v nix >/dev/null 2>&1 || { echo "$program: nix is required" >&2; exit 69; }
     # Git filters environment inputs; Cabal below still compiles the live tree,
     # including dirty and untracked Haskell. Do not snapshot build/log directories.
-    exec nix develop "$repo_root#tooling" --no-write-lock-file -c \
-        env -u BEPIS_TOOLING_BUILD_PATH BEPIS_TOOLING_ENV=1 "$script_path" "$@"
+    exec env -u BEPIS_TOOLING_BUILD_PATH nix develop "$repo_root#tooling" --no-write-lock-file -c \
+        env BEPIS_TOOLING_ENV=1 "$script_path" "$@"
 fi
 
 family="${1:-}"
@@ -57,8 +57,8 @@ mkdir -p "$build_dir"
 exec 9>>"$build_dir/.launcher-build.lock"
 flock 9
 cd "$repo_root"
-# Runtime PATH shims (Git, PostgreSQL, fixtures) must not reconfigure Cabal's
-# compiler toolchain. The project command owner captures this before dispatch.
+# The selected Nix shell owns a stable compiler path. Runtime PATH changes
+# (direnv layouts, script profiles, Git/PostgreSQL fixtures) do not invalidate it.
 PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal build -v0 --offline \
     --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component" >&2
 binary="$(PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal list-bin \

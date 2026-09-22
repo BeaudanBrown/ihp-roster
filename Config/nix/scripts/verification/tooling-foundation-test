@@ -7,17 +7,12 @@ fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT
 fail() { echo "$program: $*" >&2; exit 1; }
 
-cabal test --offline --project-dir="$repo_root" --project-file=tooling.project \
+PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal test --offline --project-dir="$repo_root" --project-file=tooling.project \
     --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null
-cabal build --offline --dry-run --project-dir="$repo_root" --project-file=tooling/cabal.project \
+PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal build --offline --dry-run --project-dir="$repo_root" --project-file=tooling/cabal.project \
     --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null \
     || fail "compatibility Cabal project did not resolve the canonical tooling project"
-nix develop --ignore-environment "$repo_root#tooling" --command sh -c '
-    command -v direnv >/dev/null && cabal build --offline --dry-run \
-        --project-dir="$1" --project-file=tooling.project --builddir="$2" all >/dev/null
-' sh "$repo_root" "$fixture_root/shell-build" \
-    || fail "independent tooling shell omitted provisioning or compiler dependencies"
-core_test="$(cabal list-bin --project-dir="$repo_root" --project-file=tooling.project \
+core_test="$(PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal list-bin --project-dir="$repo_root" --project-file=tooling.project \
     --builddir="$repo_root/tooling/dist-newstyle" bepis-tooling-core:test:bepis-tooling-core-test)"
 
 lock="$fixture_root/interop.lock"
@@ -59,10 +54,29 @@ git -C "$bootstrap_repo" init -q
 for forbidden in App.cabal Application build/Generated tooling/dist-newstyle; do
     [ ! -e "$bootstrap_repo/$forbidden" ] || fail "cold bootstrap retained $forbidden"
 done
-BEPIS_TOOLING_ENV=1 "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/cold.out"
+# A shell reload can change PATH without changing the compiler (for example,
+# direnv's layout or the devenv script profile). Exercise real discovery in the
+# isolated shell; do not manually provide the stable path we are testing.
+nix develop --ignore-environment "$repo_root#tooling" --command bash -c '
+    set -euo pipefail
+    command -v direnv >/dev/null
+    PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal build --offline --dry-run \
+        --project-dir="$2" --project-file=tooling.project --builddir="$3/shell-build" all >/dev/null
+    "$1/bin/tooling-run" workspace contract >"$3/cold.out"
+    before="$(find "$1/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+    mkdir "$3/reloaded-shell-bin"
+    PATH="$3/reloaded-shell-bin:$PATH" "$1/bin/tooling-run" workspace contract >"$3/reloaded.out"
+    after="$(find "$1/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
+    if [ "$before" != "$after" ]; then
+        echo "tooling-foundation-test: shell PATH change reconfigured an unchanged compiler" >&2
+        exit 1
+    fi
+    cmp "$3/cold.out" "$3/reloaded.out"
+' bash "$bootstrap_repo" "$repo_root" "$fixture_root" \
+    || fail "independent shell bootstrap or stable compiler discovery failed"
 configuration_before="$(find "$bootstrap_repo/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
 mkdir "$fixture_root/runtime-bin"
-BEPIS_TOOLING_ENV=1 BEPIS_TOOLING_BUILD_PATH="$PATH" PATH="$fixture_root/runtime-bin:$PATH" \
+BEPIS_TOOLING_ENV=1 PATH="$fixture_root/runtime-bin:$PATH" \
     "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/warm.out"
 configuration_after="$(find "$bootstrap_repo/tooling/dist-newstyle" -name setup-config -exec sha256sum {} + | sort)"
 [ "$configuration_before" = "$configuration_after" ] || fail "runtime PATH change reconfigured the compiler"
@@ -90,7 +104,7 @@ printf 'module Fixture.Untracked where\nmessage :: String\nmessage = "fresh-untr
     >"$bootstrap_repo/tooling/workspace-state/app/Fixture/Untracked.hs"
 printf 'module Main (main) where\nimport Fixture.Untracked (message)\nimport System.Environment (getEnv)\nmain :: IO ()\nmain = do\n    path <- getEnv "PATH"\n    putStrLn (message <> ":" <> path)\n' \
     >"$bootstrap_repo/tooling/workspace-state/app/Main.hs"
-BEPIS_TOOLING_ENV=1 BEPIS_TOOLING_BUILD_PATH="$PATH" PATH="$fixture_root/runtime-bin:$PATH" \
+BEPIS_TOOLING_ENV=1 PATH="$fixture_root/runtime-bin:$PATH" \
     "$bootstrap_repo/bin/tooling-run" workspace contract >"$fixture_root/recovered.out"
 grep -Fxq "fresh-untracked:$fixture_root/runtime-bin:$PATH" "$fixture_root/recovered.out" \
     || fail "dirty/untracked edits or the caller's runtime PATH were lost"
@@ -105,7 +119,7 @@ snapshot() {
             pkgs = import $nixpkgs { system = builtins.currentSystem; };
             tools = import $repo_root/Config/nix/flake/tooling-packages.nix { inherit pkgs; root = $fixture_repo; };
         in builtins.mapAttrs (_: package: package.drvPath)
-            (builtins.removeAttrs tools [ \"ghc\" \"sources\" ]) // {
+            (builtins.removeAttrs tools [ \"ghc\" \"sources\" \"buildPath\" ]) // {
                 production = toString (import $repo_root/Config/nix/flake/project-source.nix { inherit pkgs; root = $fixture_repo; });
                 runnersSource = toString tools.sources.runners;
             }"

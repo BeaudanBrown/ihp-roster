@@ -18,7 +18,7 @@ atomic replacement; never imply rollback removed durable or user-created state.
 Focused verification:
 
 ```bash
-bash ./bin/in-env cabal test --project-file=tooling.project --builddir=tooling/dist-newstyle all
+bash ./bin/in-env bash -c 'PATH="$BEPIS_TOOLING_BUILD_PATH" cabal test --project-file=tooling.project --builddir=tooling/dist-newstyle all'
 bash ./bin/in-env tooling-foundation-test
 bash ./bin/in-env postgres-lifecycle-test
 bash ./bin/in-env runtime-lifecycle-test

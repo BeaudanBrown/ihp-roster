@@ -3,6 +3,7 @@
     perSystem = { pkgs, inputs', config, ... }:
         let
             scriptDefinitions = import ./scripts.nix { inherit pkgs; };
+            tooling = import ./tooling-packages.nix { inherit pkgs; };
             repositoryRoot = ../../..;
             frontendCheckSource = pkgs.lib.fileset.toSource {
                 root = repositoryRoot;
@@ -82,6 +83,7 @@
                 env = {
                     # Project script adapters use the current-worktree Cabal launcher directly.
                     BEPIS_TOOLING_ENV = "1";
+                    BEPIS_TOOLING_BUILD_PATH = tooling.buildPath;
                     IHP_TELEMETRY_DISABLED = "1";
                     IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH = "false";
                     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";

@@ -18,16 +18,18 @@ bin/tooling-run epic orient --json
 bin/tooling-run epic manage preflight --epic 564 --json
 bin/tooling-run artifacts snapshot --root "$PWD" --inventory-command COMMAND
 bin/tooling-run runners hspec-plan --lane pure --feedback routine --shards 1 --max-shards 6 --database app_test --run-id check
-bash ./bin/in-env cabal test --project-file=tooling.project --builddir=tooling/dist-newstyle all
+bash ./bin/in-env bash -c 'PATH="$BEPIS_TOOLING_BUILD_PATH" cabal test --project-file=tooling.project --builddir=tooling/dist-newstyle all'
 bash ./bin/in-env tooling-foundation-test
 ```
 
 `bin/tooling-run` enters the focused `.#tooling` Nix shell when necessary, builds
 only the selected Cabal component in this worktree's `tooling/dist-newstyle`, and
 executes only the path reported by the successful build. Build failure stops;
-there is no stale-binary fallback or prebuilt execution mode. Project commands
-capture their compiler PATH before fixture/runtime shims change PATH; only the
-Cabal subprocess uses it. The executed tool still receives the caller's PATH.
+there is no stale-binary fallback or prebuilt execution mode. Both Nix shells
+declare the same minimal compiler/tool path in `BEPIS_TOOLING_BUILD_PATH`.
+Direnv layouts, script profiles, and runtime shims therefore do not reconfigure
+Cabal's unchanged compiler. Only Cabal uses this path; the executed tool still
+receives the caller's PATH. Raw Cabal checks should use it too, as above.
 Git filters Nix environment inputs, while Cabal reads live dirty/untracked
 Haskell sources. Build/output/log directories do not enter shell resolution.
 

@@ -12,9 +12,10 @@ let
             bepis-runners = self.callCabal2nix "bepis-runners" sources.runners { };
         };
     };
+    ghc = haskellPackages.ghcWithPackages (p: [ p.aeson p.cryptohash p.network p.temporary ]);
 in
 {
-    inherit sources;
+    inherit sources ghc;
     core = haskellPackages.bepis-tooling-core;
     workspaceState = haskellPackages.bepis-workspace-state;
     postgres = haskellPackages.bepis-postgres;
@@ -22,5 +23,9 @@ in
     epicLifecycle = haskellPackages.bepis-epic-lifecycle;
     artifacts = haskellPackages.bepis-artifacts;
     runners = haskellPackages.bepis-runners;
-    ghc = haskellPackages.ghcWithPackages (p: [ p.aeson p.cryptohash p.network p.temporary ]);
+    # Cabal records its program search path. direnv layouts and script-profile
+    # changes are runtime concerns, not changes to the compiler toolchain.
+    buildPath = pkgs.lib.makeBinPath [
+        ghc pkgs.cabal-install pkgs.stdenv.cc pkgs.binutils pkgs.coreutils pkgs.pkg-config
+    ];
 }

@@ -19,9 +19,11 @@
                     pkgs.direnv
                     pkgs.git
                     pkgs.gh
+                    pkgs.util-linux
                     tooling.ghc
                 ];
                 BEPIS_TOOLING_ENV = "1";
+                BEPIS_TOOLING_BUILD_PATH = tooling.buildPath;
             };
         };
 }
