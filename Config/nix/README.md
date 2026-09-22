@@ -145,12 +145,14 @@ type for observability checks; it must never enter deployment host imports.
 
 ## Compiler Warning And Reachability Evidence
 
-`application-warnings` first builds dependency interfaces, then forces each
-inventoried, non-generated production subject in an isolated one-shot GHC
-session. Warning flags alone do not invalidate those interfaces; a multi-file
-forced `-c` session can load a subject's cached instances before compiling it
-and report duplicate instances. Generated/dependency code remains interface-only
-in the strict pass. Real compiler fixtures cover both cold and warm caches.
+`application-warnings` forces one GHC `--make` graph and filters structured
+compiler diagnostics against inventoried, non-generated production subjects.
+It rejects owned warnings, compiler failures and malformed diagnostics; generated
+warnings stay outside application authority. Forcing the graph prevents warm
+interfaces from hiding warnings, while `--make` avoids duplicate instances from
+multi-file `-c`. Real compiler fixtures retain cold/warm, generated-dependency
+and instance-import regressions. No separate warning cache or per-module GHC
+processes are needed.
 
 Unused imports are errors. Required controller/AutoRoute instance imports say
 `()` explicitly; marker/type imports remain normal compiler-checked uses.

@@ -59,36 +59,42 @@ function passes(result) {
     assert.match(result.stdout, /application-warnings: ok \(3 app-owned production modules\)/);
 }
 
-function rejects(result, flag) {
+function rejects(result, diagnostic) {
     assert.notEqual(result.status, 0, result.stdout);
-    assert.match(result.stderr, new RegExp(flag));
+    assert.match(result.stderr, new RegExp(diagnostic));
     assert.doesNotMatch(result.stdout, /application-warnings: ok/);
 }
 
 test('real gate accepts marker/type and instance-only imports, constructor patterns and generated dependencies, cold and warm', (t) => {
     const root = fixture(t);
+    put(root, 'Makefile', 'print-ghc-options:\n\t@echo "-i. -ibuild -XOverloadedRecordDot -j4"\n');
+    const inventory = 'Config/nix/production-module-inventory.tsv';
+    for (let n = 0; n < 8; n++) {
+        put(root, `build/Generated/Unused${n}.hs`, `module Generated.Unused${n} where\nimport Data.List (sort)\n`);
+        put(root, inventory, readFileSync(join(root, inventory), 'utf8') + `build/Generated/Unused${n}.hs\tproduction\n`);
+    }
     passes(run(root));
     passes(run(root));
 });
 
 test('unused app imports fail both cold and after a successful cached run', (t) => {
     const root = fixture(t, good.replace('import Data.Proxy', 'import Data.List (sort)\nimport Data.Proxy'));
-    rejects(run(root), 'unused-imports');
+    rejects(run(root), 'GHC-66111');
     put(root, 'Application/Subject.hs', good);
     passes(run(root));
     put(root, 'Application/Subject.hs', good.replace('import Data.Proxy', 'import Data.List (sort)\nimport Data.Proxy'));
-    rejects(run(root), 'unused-imports');
+    rejects(run(root), 'GHC-66111');
 });
 
-for (const [name, expression, flag] of [
-    ['named partial selector', 'unsafe :: Choice -> Int\nunsafe = value\n', 'incomplete-record-selectors'],
-    ['record-dot partial selector', 'unsafe :: Choice -> Int\nunsafe x = x.value\n', 'incomplete-record-selectors'],
-    ['partial record update', 'unsafe :: Choice -> Choice\nunsafe x = x { value = 1 }\n', 'incomplete-record-updates'],
-    ['incomplete function pattern', 'unsafe :: Choice -> Int\nunsafe (Present n) = n\n', 'incomplete-patterns'],
-    ['incomplete let pattern', 'unsafe :: Choice -> Int\nunsafe x = let Present n = x in n\n', 'incomplete-uni-patterns'],
+for (const [name, expression, diagnostic] of [
+    ['named partial selector', 'unsafe :: Choice -> Int\nunsafe = value\n', 'GHC-17335'],
+    ['record-dot partial selector', 'unsafe :: Choice -> Int\nunsafe x = x.value\n', 'GHC-86894'],
+    ['partial record update', 'unsafe :: Choice -> Choice\nunsafe x = x { value = 1 }\n', 'GHC-62161'],
+    ['incomplete function pattern', 'unsafe :: Choice -> Int\nunsafe (Present n) = n\n', 'GHC-62161'],
+    ['incomplete let pattern', 'unsafe :: Choice -> Int\nunsafe x = let Present n = x in n\n', 'GHC-62161'],
 ]) {
     test(`${name} fails the real owned warning pass`, (t) => {
-        rejects(run(fixture(t, good + expression)), flag);
+        rejects(run(fixture(t, good + expression)), diagnostic);
     });
 }
 
@@ -103,5 +109,5 @@ test('the original dependency-first multi-file skip cannot conceal an unused imp
     passes(run(root));
     const path = join(root, 'Application/Model.hs');
     put(root, 'Application/Model.hs', readFileSync(path, 'utf8').replace('data Marker', 'import Data.List (sort)\ndata Marker'));
-    rejects(run(root), 'unused-imports');
+    rejects(run(root), 'GHC-66111');
 });

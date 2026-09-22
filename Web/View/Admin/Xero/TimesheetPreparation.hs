@@ -32,7 +32,6 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              appShellActionFor,
                                                              noAppShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             AppShellFieldValue (..),
                                                              RegisteredAppShellAction,
                                                              appShellActionByMarker,
                                                              defaultAppShellActionRoute,
