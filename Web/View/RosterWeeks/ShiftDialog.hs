@@ -133,7 +133,6 @@ deleteButton False anchorDate calendarRevision (EditRosterShiftDialog rosterSlot
                 { appShellActionRouteFields = []
                 }
             []
-            Nothing
         }
     ]
 

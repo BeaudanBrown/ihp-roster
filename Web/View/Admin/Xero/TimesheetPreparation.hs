@@ -567,7 +567,6 @@ renderXeroProblemTimesheetApprovalRefreshConfirmation runId entryId calculationI
             (appShellActionByMarker @RefreshXeroTimesheetPreparationOverlay)
             (defaultAppShellActionRoute (pathTo (RefreshXeroTimesheetPreparationAction runId)))
             []
-            Nothing
         }
 
 renderPreparationBlockingIssueHint :: Maybe Text -> Html

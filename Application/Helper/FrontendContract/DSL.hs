@@ -56,7 +56,6 @@ module Application.Helper.FrontendContract.DSL
     , AppShellHtmxInclude
     , AppShellHtmxSync
     , AppShellHtmxIndicator
-    , AppShellHtmxConfirm
     , AppShellHtmxSelect
     , AppShellHtmxTarget
     , AppShellHtmxSwap
@@ -110,7 +109,6 @@ data AppShellActionOption
     | AppShellHtmxInclude Symbol
     | AppShellHtmxSync Symbol
     | AppShellHtmxIndicator Symbol
-    | AppShellHtmxConfirm Symbol
     | AppShellHtmxSelect Symbol
     | AppShellHtmxTarget Type
     | AppShellHtmxSwap Symbol
@@ -216,7 +214,6 @@ type AppShellHtmxTrigger value = 'AppShellHtmxTrigger value
 type AppShellHtmxInclude value = 'AppShellHtmxInclude value
 type AppShellHtmxSync value = 'AppShellHtmxSync value
 type AppShellHtmxIndicator value = 'AppShellHtmxIndicator value
-type AppShellHtmxConfirm value = 'AppShellHtmxConfirm value
 type AppShellHtmxSelect value = 'AppShellHtmxSelect value
 type AppShellHtmxTarget target = 'AppShellHtmxTarget target
 type AppShellHtmxSwap value = 'AppShellHtmxSwap value

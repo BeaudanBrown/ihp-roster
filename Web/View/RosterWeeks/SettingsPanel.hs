@@ -29,7 +29,7 @@ import Application.RosterNotification (RosterNotificationAudience (..),
                                        RosterNotificationRunSummary (..))
 import Web.RosterWeeks.Dom (rosterEmailButtonId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
-import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
+import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekConfirmationUrl,
                               rosterOwnLiveShiftHighlightPreferenceUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWindowBaseUrl,

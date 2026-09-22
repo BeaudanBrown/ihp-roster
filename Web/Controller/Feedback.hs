@@ -35,7 +35,8 @@ import Web.Controller.Prelude
 import Web.View.Feedback.Card (renderPublicFeedbackCards)
 import Web.View.Feedback.Edit
 import Web.View.Feedback.Index
-import Web.View.Feedback.Management (renderFeedbackManagement)
+import Web.View.Feedback.Management (renderFeedbackArchiveConfirmation,
+                                     renderFeedbackManagement)
 import Web.View.Feedback.New
 import Web.View.Layout (renderFeedbackDesktopCount, renderFeedbackMobileCount)
 
@@ -100,6 +101,11 @@ instance Controller FeedbackController where
     action currentAction@PublishFeedbackAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
         ensureFeedbackModeration
         Mutations.publishFeedback feedbackItemId >>= respondModerationResult
+
+    action currentAction@ShowFeedbackArchiveConfirmationAction { feedbackItemId } = runBepis currentAction BepisFormAction do
+        ensureFeedbackModeration
+        feedbackItem <- fetch feedbackItemId
+        respondHtml (renderFeedbackArchiveConfirmation feedbackItem)
 
     action currentAction@ArchiveFeedbackAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
         ensureFeedbackModeration

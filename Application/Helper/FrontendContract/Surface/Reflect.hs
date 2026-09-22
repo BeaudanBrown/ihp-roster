@@ -705,7 +705,6 @@ instance ReflectHtmxTrigger trigger => ReflectOption ('HtmxTrigger trigger) wher
 instance ReflectHtmxSelector selector => ReflectOption ('HtmxInclude selector) where reflectOption = HtmxOption (HtmxActionIncludeIR (reflectHtmxSelector @selector))
 instance ReflectHtmxSync sync => ReflectOption ('HtmxSync sync) where reflectOption = HtmxOption (HtmxActionSyncIR (reflectHtmxSync @sync))
 instance ReflectHtmxSelector selector => ReflectOption ('HtmxIndicator selector) where reflectOption = HtmxOption (HtmxActionIndicatorIR (reflectHtmxSelector @selector))
-instance Typeable marker => ReflectOption ('HtmxConfirm marker) where reflectOption = HtmxOption (HtmxActionConfirmIR (protocolName @marker DomTokenName))
 instance ReflectHtmxSelector selector => ReflectOption ('HtmxSelect selector) where reflectOption = HtmxOption (HtmxActionSelectIR (reflectHtmxSelector @selector))
 instance ReflectHtmxSelector selector => ReflectOption ('HtmxTarget selector) where reflectOption = HtmxOption (HtmxActionTargetIR (reflectHtmxSelector @selector))
 instance ReflectHtmxSwap swap => ReflectOption ('HtmxSwap swap) where reflectOption = HtmxOption (HtmxActionSwapIR (reflectHtmxSwap @swap))

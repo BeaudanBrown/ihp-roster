@@ -227,6 +227,7 @@ data FeedbackController
     | EditFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | UpdateFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | PublishFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | ShowFeedbackArchiveConfirmationAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | ArchiveFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | RestoreFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     deriving (Eq, Show, Data)

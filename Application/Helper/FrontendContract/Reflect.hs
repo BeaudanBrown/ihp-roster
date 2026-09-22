@@ -168,9 +168,6 @@ instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSync val
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxIndicator value) where
     reflectAppShellActionOption = HtmxActionIndicatorIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 
-instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxConfirm value) where
-    reflectAppShellActionOption = HtmxActionConfirmIR (cs (symbolVal (Proxy @value)))
-
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSelect value) where
     reflectAppShellActionOption = HtmxActionSelectIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 

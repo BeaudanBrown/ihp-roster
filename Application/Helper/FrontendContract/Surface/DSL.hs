@@ -248,7 +248,6 @@ data PrimitiveOption
     | HtmxInclude HtmxSelectorSpec
     | HtmxSync HtmxSyncSpec
     | HtmxIndicator HtmxSelectorSpec
-    | HtmxConfirm Type
     | HtmxSelect HtmxSelectorSpec
     | HtmxTarget HtmxSelectorSpec
     | HtmxSwap HtmxSwapSpec

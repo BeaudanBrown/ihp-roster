@@ -71,7 +71,6 @@ deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
                 (appShellActionByMarker @OpenTimesheetDeleteConfirmationDialog)
                 (defaultAppShellActionRoute confirmationUrl)
                 requestParams
-                Nothing
         }
     ]
     where
@@ -111,5 +110,4 @@ renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffF
             (appShellActionByMarker @EditTimesheetEntryDialog)
             (defaultAppShellActionRoute editUrl)
             requestParams
-            Nothing
         }

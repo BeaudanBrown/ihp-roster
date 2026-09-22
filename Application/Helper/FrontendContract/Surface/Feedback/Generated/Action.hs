@@ -9,6 +9,7 @@
 module Application.Helper.FrontendContract.Surface.Feedback.Generated.Action
     ( ArchiveFeedbackActionOperation
     , EditFeedbackActionOperation
+    , OpenFeedbackArchiveConfirmationActionOperation
     , PublishFeedbackActionOperation
     , RestoreFeedbackActionOperation
     , UnvoteFeedbackActionOperation
@@ -18,6 +19,8 @@ module Application.Helper.FrontendContract.Surface.Feedback.Generated.Action
     , archiveFeedbackActionFields
     , editFeedbackAction
     , editFeedbackActionFields
+    , openFeedbackArchiveConfirmationAction
+    , openFeedbackArchiveConfirmationActionFields
     , parseUpdateFeedbackActionParams
     , publishFeedbackAction
     , publishFeedbackActionFields
@@ -93,6 +96,25 @@ editFeedbackActionEvidence =
 editFeedbackAction :: ActionFields EditFeedbackActionOperation -> FrontendSurfaceAction
 editFeedbackAction =
     frontendSurfaceActionFromEvidence editFeedbackActionEvidence
+
+data OpenFeedbackArchiveConfirmationActionOperation
+
+type instance ActionSurface OpenFeedbackArchiveConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.FeedbackModerationAdapterFamily)
+type instance ActionMarker OpenFeedbackArchiveConfirmationActionOperation = Types1.OpenFeedbackArchiveConfirmation
+type instance ActionFieldSpecs OpenFeedbackArchiveConfirmationActionOperation =
+    '[]
+
+openFeedbackArchiveConfirmationActionFields :: ActionFields OpenFeedbackArchiveConfirmationActionOperation
+openFeedbackArchiveConfirmationActionFields =
+    noActionFields
+
+openFeedbackArchiveConfirmationActionEvidence :: ActionEvidence OpenFeedbackArchiveConfirmationActionOperation
+openFeedbackArchiveConfirmationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenFeedbackArchiveConfirmation" "open-feedback-archive-confirmation" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#dialog-overlay-mount" ["dialog-overlay-mount"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+openFeedbackArchiveConfirmationAction :: ActionFields OpenFeedbackArchiveConfirmationActionOperation -> FrontendSurfaceAction
+openFeedbackArchiveConfirmationAction =
+    frontendSurfaceActionFromEvidence openFeedbackArchiveConfirmationActionEvidence
 
 data PublishFeedbackActionOperation
 

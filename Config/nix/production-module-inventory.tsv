@@ -585,6 +585,7 @@ Web/View/Profiles/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterTemplates/ApplicationConfirmation.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterTemplates/CaptureConfirmation.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterTemplates/DeleteConfirmation.hs	production	runtime	Main	Reachable from Main
+Web/View/RosterWeeks/CopyConfirmation.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterWeeks/Grid.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterWeeks/Grid/Cells.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterWeeks/Header.hs	production	runtime	Main	Reachable from Main

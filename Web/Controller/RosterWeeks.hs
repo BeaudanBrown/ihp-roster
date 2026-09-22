@@ -41,7 +41,6 @@ import Application.Helper.UserPreferences
 import Application.Helper.View (ConfirmationDialogConfig (..),
                                 ConfirmationDialogTone (ConfirmationDanger),
                                 OverlayButton (OverlayButton, overlayButtonAction, overlayButtonClass, overlayButtonLabel),
-                                OverlayButtonAction (GeneratedDialogFormAction),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 defaultConfirmationDialogConfig,
                                 defaultDialogOverlayConfig,

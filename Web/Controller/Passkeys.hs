@@ -128,7 +128,7 @@ instance Controller PasskeysController where
         case parseAppShellActionParams @DeletePasskeyOverlay of
             Left errors -> do
                 setErrorMessage (surfaceRequestFieldErrorsMessage errors)
-                redirectToPath passkeyManagementPath
+                earlyReturn (redirectToPath passkeyManagementPath)
             Right _ -> pure ()
         passkey <- fetch passkeyId
         accessDeniedUnless (passkey.userId == unpackId currentUser.id)

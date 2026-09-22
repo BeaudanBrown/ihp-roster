@@ -265,6 +265,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.UpdateFeedback allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.PublishFeedback
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
+    , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.OpenFeedbackArchiveConfirmation
+        (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.ArchiveFeedback
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.RestoreFeedback
