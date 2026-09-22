@@ -99,6 +99,7 @@ run options = do
              ("TEST_POSTGRES_REPO_ROOT", canonicalWorkspace)]
             <> filter ((`notElem` ["TEST_POSTGRES_MODE", "TEST_POSTGRES_PROFILE", "TEST_POSTGRES_REPO_ROOT"]) . fst) inherited
     socket <- managerEnsure canonicalWorkspace postgresEnvironment (postgresManager options)
+        `onException` unless (keepFailureArtifacts options) (removePathForcibly runDirectory)
     user <- getLoginName
     let additions =
             [ ("MIGRATION_REHEARSAL_WORKSPACE", canonicalWorkspace)

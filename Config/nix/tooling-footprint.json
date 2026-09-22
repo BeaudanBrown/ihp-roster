@@ -104,9 +104,9 @@
     "auditCandidateLines": 7375,
     "reproducibleCandidateLines": 7326,
     "finalCandidateLines": 4159,
-    "newOwnerImplementationLines": 4802,
-    "newNixLauncherSupportLines": 591,
-    "newFocusedTestLines": 983,
+    "newOwnerImplementationLines": 4803,
+    "newNixLauncherSupportLines": 592,
+    "newFocusedTestLines": 985,
     "strictNetReductionRequired": false,
     "candidatePaths": [
       "Config/nix/scripts/db/dev-postgres",

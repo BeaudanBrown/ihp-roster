@@ -19,6 +19,8 @@ cabal test --project-dir="$repo_root" --project-file=tooling.project \
 cabal build --offline --dry-run --project-dir="$repo_root" --project-file=tooling/cabal.project \
     --builddir="$repo_root/tooling/dist-newstyle" all >/dev/null \
     || fail "compatibility Cabal project did not resolve the canonical tooling project"
+nix develop --ignore-environment "path:$repo_root#tooling" --command sh -c 'command -v direnv >/dev/null' \
+    || fail "independent tooling shell omitted provisioning dependency direnv"
 core_test="$(cabal list-bin --project-dir="$repo_root" --project-file=tooling.project \
     --builddir="$repo_root/tooling/dist-newstyle" bepis-tooling-core:test:bepis-tooling-core-test)"
 

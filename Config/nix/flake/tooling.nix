@@ -16,6 +16,7 @@
             devShells.tooling = pkgs.mkShell {
                 packages = [
                     pkgs.cabal-install
+                    pkgs.direnv
                     pkgs.git
                     pkgs.gh
                     tooling.ghc

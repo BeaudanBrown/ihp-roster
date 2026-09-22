@@ -68,9 +68,9 @@ source allowlist excludes the complete `tooling/` tree.
 
 `Config/nix/tooling-footprint.json` records the final authored-line accounting.
 The 41 migration candidates fell from 7,326 reproducible lines at the frozen
-contract commit to 4,159 lines. The independent owners add 4,802 implementation
-lines, focused Nix/launcher/documentation support adds 591, and the listed new
-focused tests add 983. This is intentionally not a strict net-reduction claim:
+contract commit to 4,159 lines. The independent owners add 4,803 implementation
+lines, focused Nix/launcher/documentation support adds 592, and the listed new
+focused tests add 985. This is intentionally not a strict net-reduction claim:
 the increase buys typed ownership validation, atomic publication, lock/process
 safety, bounded evidence, cancellation, hostile-environment filtering, and
 cross-worktree tests that the former scripts did not provide. The accounting is

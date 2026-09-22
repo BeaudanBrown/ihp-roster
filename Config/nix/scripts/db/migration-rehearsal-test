@@ -100,6 +100,33 @@ if (
 fi
 grep -F 'active migrate does not match the candidate-pinned IHP runner' "$fixture_root/unpinned.err" >/dev/null
 
+cat >"$fixture_root/failing-postgres-manager" <<'EOF'
+#!/usr/bin/env bash
+echo 'fixture manager ensure failure' >&2
+exit 42
+EOF
+chmod +x "$fixture_root/failing-postgres-manager"
+postgres_binary="$("$source_repo/bin/tooling-run" postgres --print-binary)"
+migrate_runner="$(readlink -f "$(command -v migrate)")"
+if "$postgres_binary" rehearsal-run \
+    --workspace "$fixture_repo" \
+    --from-ref "$predecessor_commit" \
+    --runner "$migrate_runner" \
+    --expected-runner "$migrate_runner" \
+    --candidate-ihp-source "$fixture_root" \
+    --postgres-manager "$fixture_root/failing-postgres-manager" \
+    --recipe "$source_repo/Config/nix/scripts/db/migration-rehearsal-recipe" \
+    >"$fixture_root/manager-failure.out" 2>"$fixture_root/manager-failure.err"; then
+    echo "migration-rehearsal-test: expected PostgreSQL manager ensure failure" >&2
+    exit 1
+fi
+grep -F 'fixture manager ensure failure' "$fixture_root/manager-failure.err" >/dev/null
+run_root="$fixture_repo/.pi/tmp/migration-rehearsal"
+if [ -d "$run_root" ] && find "$run_root" -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .; then
+    echo "migration-rehearsal-test: manager ensure failure retained an unrequested run directory" >&2
+    exit 1
+fi
+
 noop_started_at="$(date +%s)"
 if ! run_harness --from-ref "$predecessor_commit" >"$fixture_root/noop.out" 2>"$fixture_root/noop.err"; then
     cat "$fixture_root/noop.err" >&2
