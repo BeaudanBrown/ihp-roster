@@ -7,6 +7,7 @@ module Web.LeaveRequests.Responses
     , respondWithLeaveRequestsContent
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.Profile.Live as ProfileLive
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live as SelfServiceLeaveLive
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLiveResourcesRefreshIncluding)
@@ -94,7 +95,11 @@ respondWithStaffLeaveDeletionResult staff deletionResult = do
             Just _  -> successToast "Unavailable period deleted"
             Nothing -> errorToast "Only pending unavailable periods can be deleted."
     setHeader ("HX-Reswap", "none")
-    setActorLiveResourcesRefresh (staffSurfaceScope scope) touchedResources (staffCandidateMountedFragments scope)
+    setActorLiveResourcesRefreshIncluding
+        [ProfileLive.staffLeaveSectionLiveFragment]
+        (staffSurfaceScope scope)
+        touchedResources
+        (staffCandidateMountedFragments scope)
     respondHtmlProfiled $
         renderDialogOverlayClearOob
             <> renderToastOob ToastBottomCenter toast
