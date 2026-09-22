@@ -28,6 +28,18 @@ else
     [ "$?" -eq 23 ] || fail "frontend-contracts-watch changed the delegated failure status"
 fi
 
+# Discovery delegates without runtime leases, cleanup, PostgreSQL or compilation.
+cp "$fixture_root/bin/frontend-generated-watch" "$fixture_root/bin/playwright"
+for flag in --help --list; do
+    status=0
+    GLUE_CAPTURE="$fixture_root/discovery.actual" GLUE_STATUS=23 PATH="$fixture_root/bin:$PATH" \
+        E2E_RUNTIME_AUTO_CLEANUP=invalid BEPIS_TOOLING_LAUNCHER=/missing \
+        e2e "$flag" 'a spec.ts' || status=$?
+    [ "$status" = 23 ] || fail "E2E discovery started runtime or hid Playwright status"
+    printf '%s\n' test "$flag" 'a spec.ts' >"$fixture_root/discovery.expected"
+    cmp -s "$fixture_root/discovery.expected" "$fixture_root/discovery.actual" || fail "E2E discovery arguments changed"
+done
+
 cat > "$fixture_root/bin/screenshot-page" <<'SH'
 #!/usr/bin/env bash
 printf '%q ' "$@" >> "$GLUE_CAPTURE"

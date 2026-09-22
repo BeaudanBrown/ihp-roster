@@ -8,7 +8,7 @@ export default function globalSetup() {
     const dbName = process.env.TEST_DATABASE_NAME ?? 'app_e2e';
 
     console.log('E2E setup: seeding test data...');
-    execFileSync('psql', ['-h', dbSocket, dbName, '-v', 'ON_ERROR_STOP=1', '-f', seedFile], {
+    execFileSync('psql', ['-q', '-h', dbSocket, dbName, '-v', 'ON_ERROR_STOP=1', '-f', seedFile], {
         stdio: 'inherit',
     });
     console.log('E2E setup: done.');

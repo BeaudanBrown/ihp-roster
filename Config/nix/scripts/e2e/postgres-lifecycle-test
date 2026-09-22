@@ -43,10 +43,4 @@ e2e-postgres ensure >"$tmp_parent/ensure.log" 2>&1 || status=$?
 grep -q 'refusing reconfiguration' "$tmp_parent/ensure.log"
 [ "$(psql -X -h "$socket" -d postgres -Atc 'SHOW max_connections')" = 100 ]
 
-for invalid_pool in 0 21 invalid; do
-    status=0
-    HASQL_POOL_SIZE="$invalid_pool" e2e --list >"$tmp_parent/pool.log" 2>&1 || status=$?
-    [ "$status" = 64 ]
-    grep -q 'HASQL_POOL_SIZE must be between 1 and 20' "$tmp_parent/pool.log"
-done
-echo "E2E connection capacity rejects live drift and oversized pool overrides."
+echo "E2E connection capacity rejects live drift."

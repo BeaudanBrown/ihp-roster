@@ -21,6 +21,12 @@ other_workspace="$(realpath "$other_workspace")"
 
 "$binary" hspec-plan --lane db --feedback routine --shards 2 --max-shards 3 --database app_test --run-id fixture >/dev/null
 "$binary" e2e-plan --run-id fixture --shards 2 --max-shards 8 --pool-size 20 --database app_e2e >/dev/null
+for invalid_pool in 0 21 invalid; do
+    status=0
+    "$binary" e2e-plan --run-id fixture --shards 2 --max-shards 8 --pool-size "$invalid_pool" --database app_e2e \
+        >"$fixture/pool.log" 2>&1 || status=$?
+    [ "$status" = 64 ] || fail "unsafe E2E pool was accepted: $invalid_pool"
+done
 "$binary" profile-plan --kind load --scenario roster-wide --rate 1 --duration 5s --vus 1 >/dev/null
 if "$binary" profile-plan --kind load --scenario roster-wide --rate 1001 --duration 5s --vus 1 >/dev/null 2>&1; then
     fail "unsafe profile rate was accepted"
