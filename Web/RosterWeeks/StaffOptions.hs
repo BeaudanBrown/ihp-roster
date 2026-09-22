@@ -4,6 +4,7 @@ module Web.RosterWeeks.StaffOptions
     , fetchRosterStaffPanelEntries
     , fetchRosterShiftDialogStaff
     , fetchRosterStaffPanelEntriesForScope
+    , fetchRosterStaffPanelEntriesWithPayState
     , fetchStaffPayConfigurationRequiredIds
     , hasNoPreferredShiftsOnDay
     , rosterAssignmentOptionStateFor
@@ -14,14 +15,16 @@ import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.Helper.Staff (isTrialStaff, sortStaffForDisplay)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Application.Helper.View (rosterableStaffForRosterPanel)
-import Application.PayAssignment (StaffPayAssignment (..),
-                                  staffPayAssignmentRequiresRemediation)
+import Application.PayAssignment (PayAssignmentScope (StaffPayScope),
+                                  PayReferenceRequirement (..),
+                                  payAssignmentModesRequiring)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
+import qualified Database.PostgreSQL.Simple as PG
 import Web.Controller.Prelude
 import Web.RosterWeeks.AvailabilityInputs (fetchApprovedLeaveRequestsForRosterWindow,
                                            fetchRosterShiftPreferencesForWindow)
@@ -33,12 +36,14 @@ fetchRosterStaffPanelEntries =
 
 fetchRosterStaffPanelEntriesForScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
 fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
+    payConfigurationRequiredIds <- fetchStaffPayConfigurationRequiredIds (staffForPanelScope panelScope staffMembers)
+    fetchRosterStaffPanelEntriesWithPayState panelScope payConfigurationRequiredIds staffMembers allSlots
+
+fetchRosterStaffPanelEntriesWithPayState :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> Set.Set UUID.UUID -> [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
+fetchRosterStaffPanelEntriesWithPayState panelScope payConfigurationRequiredIds staffMembers allSlots = do
     let panelStaff = staffForPanelScope panelScope staffMembers
     let linkedUserIds = mapMaybe (.userId) panelStaff
-
     memberships <- fetchActiveVenueMembershipsByUserIds currentVenueId linkedUserIds
-
-    payConfigurationRequiredIds <- fetchStaffPayConfigurationRequiredIds panelStaff
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]
     let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- filter rosterShiftIsStaffAssigned allSlots, staffId <- maybeToList slot.staffId ]
     pure (map (buildPanelEntry payConfigurationRequiredIds membershipsByUserId assignedShiftCountByStaffId) panelStaff)
@@ -80,17 +85,26 @@ fetchRosterShiftDialogStaff rosterGroupId currentStaffId = do
     pure (sortStaffForDisplay (validStaff <> currentInvalidStaff), Set.fromList (map (coerce . (.id)) currentInvalidStaff))
 
 fetchStaffPayConfigurationRequiredIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> IO (Set.Set UUID.UUID)
-fetchStaffPayConfigurationRequiredIds staffMembers = do
-    activeAwardLevels <- query @AwardLevel |> filterWhere (#isActive, True) |> fetch
-    activeImportedPayItems <- query @XeroImportedPayItem |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime) |> filterWhere (#providerAvailable, True) |> fetch
-    let activeAwardLevelIds = map (.id) activeAwardLevels
-    let activeImportedPayItemIds = map (.id) activeImportedPayItems
-    pure $ Set.fromList
-        [ coerce staff.id
-        | staff <- staffMembers
-        , staffPayAssignmentRequiresRemediation activeAwardLevelIds activeImportedPayItemIds
-            (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
-        ]
+fetchStaffPayConfigurationRequiredIds staffMembers
+    | null staffIds = pure Set.empty
+    | otherwise = Set.fromList . map PG.fromOnly <$> unsafeSqlQuery
+        "SELECT staff.id \
+        \FROM staff \
+        \WHERE staff.venue_id = ? \
+        \AND staff.id = ANY(?) \
+        \AND ( \
+        \    staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) \
+        \    OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND NOT EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
+        \    OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND NOT EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
+        \)"
+        ( unpackId currentVenueId
+        , staffIds
+        , payAssignmentModesRequiring StaffPayScope UnselectableAssignment
+        , payAssignmentModesRequiring StaffPayScope ActiveAwardReference
+        , payAssignmentModesRequiring StaffPayScope AvailableXeroReference
+        )
+  where
+    staffIds = map (coerce . (.id)) staffMembers :: [UUID.UUID]
 
 staffForPanelScope :: RosterStaffPanelScope -> [Staff] -> [Staff]
 staffForPanelScope RosterStaffPanelCurrentGroup = rosterableStaffForRosterPanel
@@ -100,7 +114,7 @@ staffForPanelScope RosterStaffPanelAllVenue =
 
 fetchAssignedRosterWeekStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [RosterSlot] -> IO [Staff]
 fetchAssignedRosterWeekStaff allSlots = do
-    let assignedStaffIds = nub (mapMaybe (.staffId) (filter rosterShiftIsStaffAssigned allSlots))
+    let assignedStaffIds = Set.toList (Set.fromList (mapMaybe (.staffId) (filter rosterShiftIsStaffAssigned allSlots)))
     if null assignedStaffIds
         then pure []
         else

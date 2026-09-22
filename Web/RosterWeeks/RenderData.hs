@@ -8,9 +8,12 @@ module Web.RosterWeeks.RenderData
     ( currentRosterGridViewMode
     , currentRosterTimelineDate
     , fetchVisibleRosterReadModel
+    , fetchVisibleRosterReadModelForAuthorizedScope
     , fetchVisibleRosterStaffPanelRenderModel
+    , fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope
     , renderRosterProjectionFragmentWithMode
     , renderVisibleRosterReadModelFragment
+    , renderVisibleRosterReadModelFragmentForAuthorizedScope
     , rosterGridRenderModelFromProjection
     )
 where
@@ -53,21 +56,29 @@ import Web.View.RosterWeeks.StaffPanel
 -- remains private so downstream projections cannot accidentally skip scope,
 -- calendar, group-visibility, or current-venue checks.
 data AuthorizedRosterSnapshot = AuthorizedRosterSnapshot
-    { snapshotScope        :: !RosterWindowScope
-    , snapshotVenueConfig  :: !VenueConfig
-    , snapshotRosterGroups :: ![RosterGroup]
-    , snapshotRosterGroup  :: !RosterGroup
-    , snapshotBaseFacts    :: !RosterBaseFacts
+    { snapshotScope             :: !RosterWindowScope
+    , snapshotVenueConfig       :: !VenueConfig
+    , snapshotRosterGroups      :: ![RosterGroup]
+    , snapshotRosterGroup       :: !RosterGroup
+    , snapshotCurrentStaff      :: !(Maybe Staff)
+    , snapshotRosterPreferences :: !UserRosterPreferences
+    , snapshotBaseFacts         :: !RosterBaseFacts
     }
 
 fetchAuthorizedRosterSnapshot :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO AuthorizedRosterSnapshot
-fetchAuthorizedRosterSnapshot requestedScope =
+fetchAuthorizedRosterSnapshot requestedScope = do
+    authorizedScope <- authorizeRosterScope requestedScope
+    fetchAuthorizedRosterSnapshotForAuthorizedScope authorizedScope
+
+fetchAuthorizedRosterSnapshotForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => AuthorizedRosterScope -> IO AuthorizedRosterSnapshot
+fetchAuthorizedRosterSnapshotForAuthorizedScope authorizedScope =
     profileActionSpan "roster.snapshot.fetch_authorized" do
-        authorizedScope <- authorizeRosterScope requestedScope
         let snapshotScope = authorizedScope.authorizedRosterWindowScope
         let snapshotVenueConfig = authorizedScope.authorizedVenueConfig
         let snapshotRosterGroups = authorizedScope.authorizedRosterGroups
         let snapshotRosterGroup = authorizedScope.authorizedRosterGroup
+        let snapshotCurrentStaff = authorizedScope.authorizedCurrentStaff
+        snapshotRosterPreferences <- profileActionSpan "roster.snapshot.fetch_user_preferences" fetchCurrentUserRosterPreferences
         snapshotBaseFacts <- fetchRosterBaseFactsForAuthorizedScopeDirect authorizedScope
         pure AuthorizedRosterSnapshot { .. }
 
@@ -94,9 +105,14 @@ fetchRosterPublicHolidayMap venueConfig weekStartDate = do
             ]
 
 renderVisibleRosterReadModelFragment :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Markup.Html)
-renderVisibleRosterReadModelFragment scope fragment =
+renderVisibleRosterReadModelFragment scope fragment = do
+    authorizedScope <- authorizeRosterScope scope
+    renderVisibleRosterReadModelFragmentForAuthorizedScope authorizedScope fragment
+
+renderVisibleRosterReadModelFragmentForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => AuthorizedRosterScope -> RosterProjectionFragment -> IO (Maybe Markup.Html)
+renderVisibleRosterReadModelFragmentForAuthorizedScope authorizedScope fragment =
     profileActionSpan "roster.read_model.render_fragment" do
-        snapshot <- fetchAuthorizedRosterSnapshot scope
+        snapshot <- fetchAuthorizedRosterSnapshotForAuthorizedScope authorizedScope
         case fragment of
             RosterProjectionContent -> do
                 rosterData <- fetchVisibleRosterReadModelFromSnapshot snapshot
@@ -327,9 +343,14 @@ renderRequestedDaySectionFragmentFromProjectionWithMode renderMode RosterRenderD
         FragmentOob _ -> renderRequestedDaySection weekStartDate rosterCalendarRevision orderedSlotNames assignmentFilters staffMembers shiftTypes allSlots slotConflicts renderIndexes rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayId
 
 fetchVisibleRosterReadModel :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterRenderData)
-fetchVisibleRosterReadModel scope =
+fetchVisibleRosterReadModel scope = do
+    authorizedScope <- authorizeRosterScope scope
+    fetchVisibleRosterReadModelForAuthorizedScope authorizedScope
+
+fetchVisibleRosterReadModelForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => AuthorizedRosterScope -> IO (Maybe RosterRenderData)
+fetchVisibleRosterReadModelForAuthorizedScope authorizedScope =
     profileActionSpan "roster.read_model.fetch_visible" do
-        snapshot <- fetchAuthorizedRosterSnapshot scope
+        snapshot <- fetchAuthorizedRosterSnapshotForAuthorizedScope authorizedScope
         fetchVisibleRosterReadModelFromSnapshot snapshot
 
 fetchVisibleRosterReadModelFromSnapshot :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => AuthorizedRosterSnapshot -> IO (Maybe RosterRenderData)
@@ -360,17 +381,17 @@ fetchRosterRenderDataFromSnapshot snapshot = do
     let rosterGroups = snapshot.snapshotRosterGroups
     let currentRosterGroup = snapshot.snapshotRosterGroup
     assignmentFilters <- profileActionSpan "roster.direct.fetch_assignment_filters" fetchRosterAssignmentFilters
-    rosterLayoutMode <- profileActionSpan "roster.direct.fetch_layout_preference" fetchCurrentRosterLayoutMode
-    userShowWageEstimates <- profileActionSpan "roster.direct.fetch_wage_preference" fetchCurrentUserShowWageEstimates
-    showRosterWarnings <- profileActionSpan "roster.direct.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
-    highlightOwnLiveShifts <- profileActionSpan "roster.direct.fetch_own_highlight_preference" fetchCurrentUserHighlightOwnLiveShifts
-    maybeCurrentViewerStaff <- profileActionSpan "roster.direct.fetch_current_staff" fetchCurrentUserStaff
+    let rosterLayoutMode = venueConfig.rosterLayoutMode
+    let userShowWageEstimates = snapshot.snapshotRosterPreferences.userShowWageEstimates
+    let showRosterWarnings = hasRole Manager && snapshot.snapshotRosterPreferences.userShowRosterWarnings
+    let highlightOwnLiveShifts = snapshot.snapshotRosterPreferences.userHighlightOwnLiveShifts
+    let maybeCurrentViewerStaff = snapshot.snapshotCurrentStaff
     let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
     let weekStartDate = scope.rosterWindowStart
     templateLibrary <- fetchRosterPanelTemplateLibrary currentRosterGroup
     rosterPublicHolidays <- profileActionSpan "roster.direct.fetch_public_holidays" (fetchRosterPublicHolidayMap venueConfig weekStartDate)
 
-    let RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, basePanelStaff = panelStaffMembers, baseStaffMembers = staffMembers } = snapshot.snapshotBaseFacts
+    let RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, basePanelStaff = panelStaffMembers, basePanelPayConfigurationRequiredIds = panelPayConfigurationRequiredIds, baseStaffMembers = staffMembers } = snapshot.snapshotBaseFacts
     let currentViewerStaffKey =
             case maybeCurrentViewerStaff of
                 Just staff
@@ -379,9 +400,9 @@ fetchRosterRenderDataFromSnapshot snapshot = do
                     , any (\slot -> slot.staffId == Just (unpackId staff.id)) visibleSlots ->
                         Just ("staff:" <> tshow staff.id)
                 _ -> Nothing
-    panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries panelStaffMembers visibleSlots)
+    panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesWithPayState RosterStaffPanelCurrentGroup panelPayConfigurationRequiredIds panelStaffMembers visibleSlots)
     notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate rosterDays
-    staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLiveShifts)
+    staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope maybeCurrentViewerStaff highlightOwnLiveShifts)
     slotConflicts <-
         if maybe False (.windowIsPublished) rosterWeek
             then pure []
@@ -410,13 +431,12 @@ fetchRosterPanelTemplateLibrary rosterGroup
     | not (hasRole Manager) = pure Nothing
     | otherwise = currentRosterTemplateActor >>= (`fetchRosterTemplateLibrary` rosterGroup)
 
-fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> [RosterGroup] -> RosterWindowScope -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
-fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLiveShifts
+fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> [RosterGroup] -> RosterWindowScope -> Maybe Staff -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
+fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope maybeCurrentStaff highlightOwnLiveShifts
     | hasRole Manager = pure Nothing
     | currentUserIsUnimpersonatedSuperAdmin = pure Nothing
     | otherwise = do
-        maybeStaff <- fetchCurrentUserStaff
-        case maybeStaff of
+        case maybeCurrentStaff of
             Nothing -> pure Nothing
             Just staff -> do
                 operationalDay <- currentOperationalDayForVenue venueConfig
@@ -509,7 +529,7 @@ renderVisibleRosterFragment snapshot fragment = do
                     let facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers } = snapshot.snapshotBaseFacts
                     let venueConfig = snapshot.snapshotVenueConfig
                     assignmentFilters <- fetchRosterAssignmentFilters
-                    rosterLayoutMode <- fetchCurrentRosterLayoutMode
+                    let rosterLayoutMode = venueConfig.rosterLayoutMode
                     let weekStartDate = scope.rosterWindowStart
                     let targetSlots = filter (\slot -> slot.rosterDayId == rosterDayUuid && slot.rowIndex == rowIndex) visibleSlots
                     slotConflicts <-
@@ -522,9 +542,9 @@ renderVisibleRosterFragment snapshot fragment = do
                     let facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers, basePanelStaff = panelStaffMembers } = snapshot.snapshotBaseFacts
                     let venueConfig = snapshot.snapshotVenueConfig
                     assignmentFilters <- fetchRosterAssignmentFilters
-                    rosterLayoutMode <- fetchCurrentRosterLayoutMode
-                    userShowWageEstimates <- fetchCurrentUserShowWageEstimates
-                    showRosterWarnings <- fetchCurrentUserShowRosterWarnings
+                    let rosterLayoutMode = venueConfig.rosterLayoutMode
+                    let userShowWageEstimates = snapshot.snapshotRosterPreferences.userShowWageEstimates
+                    let showRosterWarnings = hasRole Manager && snapshot.snapshotRosterPreferences.userShowRosterWarnings
                     let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
                     let weekStartDate = scope.rosterWindowStart
                     rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
@@ -548,7 +568,12 @@ renderFullProjectionFragment snapshot fragment = do
 
 fetchVisibleRosterStaffPanelRenderModel :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> RosterWindowScope -> IO RosterStaffPanelRenderModel
 fetchVisibleRosterStaffPanelRenderModel panelScope scope = do
-    snapshot <- fetchAuthorizedRosterSnapshot scope
+    authorizedScope <- authorizeRosterScope scope
+    fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope panelScope authorizedScope
+
+fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> AuthorizedRosterScope -> IO RosterStaffPanelRenderModel
+fetchVisibleRosterStaffPanelRenderModelForAuthorizedScope panelScope authorizedScope = do
+    snapshot <- fetchAuthorizedRosterSnapshotForAuthorizedScope authorizedScope
     fetchVisibleRosterStaffPanelRenderModelFromSnapshot panelScope snapshot
 
 fetchVisibleRosterStaffPanelRenderModelFromSnapshot :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> AuthorizedRosterSnapshot -> IO RosterStaffPanelRenderModel
@@ -560,16 +585,19 @@ fetchVisibleRosterStaffPanelRenderModelFromSnapshot panelScope snapshot = do
     let venueConfig = snapshot.snapshotVenueConfig
     let baseFacts = snapshot.snapshotBaseFacts
     assignmentFilters <- profileActionSpan "roster.fragment.fetch_assignment_filters" fetchRosterAssignmentFilters
-    rosterLayoutMode <- profileActionSpan "roster.fragment.fetch_layout_preference" fetchCurrentRosterLayoutMode
-    userShowWageEstimates <- profileActionSpan "roster.fragment.fetch_wage_preference" fetchCurrentUserShowWageEstimates
-    showRosterWarnings <- profileActionSpan "roster.fragment.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
-    highlightOwnLiveShifts <- profileActionSpan "roster.fragment.fetch_own_highlight_preference" fetchCurrentUserHighlightOwnLiveShifts
+    let rosterLayoutMode = venueConfig.rosterLayoutMode
+    let userShowWageEstimates = snapshot.snapshotRosterPreferences.userShowWageEstimates
+    let showRosterWarnings = hasRole Manager && snapshot.snapshotRosterPreferences.userShowRosterWarnings
+    let highlightOwnLiveShifts = snapshot.snapshotRosterPreferences.userHighlightOwnLiveShifts
     let weekStartDate = scope.rosterWindowStart
     templateLibrary <- fetchRosterPanelTemplateLibrary currentRosterGroup
-    panelStaffMembers <- case panelScope of
-        RosterStaffPanelCurrentGroup -> pure baseFacts.basePanelStaff
-        RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
-    panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers baseFacts.baseVisibleSlots)
+    panelStaff <- profileActionSpan "roster.build_staff_panel" $
+        case panelScope of
+            RosterStaffPanelCurrentGroup ->
+                fetchRosterStaffPanelEntriesWithPayState panelScope baseFacts.basePanelPayConfigurationRequiredIds baseFacts.basePanelStaff baseFacts.baseVisibleSlots
+            RosterStaffPanelAllVenue -> do
+                allVenueStaff <- fetchCurrentVenueActiveStaff
+                fetchRosterStaffPanelEntriesForScope panelScope allVenueStaff baseFacts.baseVisibleSlots
     notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate baseFacts.baseRosterDays
     pure RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeek

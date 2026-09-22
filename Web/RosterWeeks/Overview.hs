@@ -10,6 +10,7 @@ import Application.VenueTime.Model (decodeRosterShiftTiming,
                                     rosterShiftTimingElapsedSeconds)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
 import Web.RosterWeeks.AvailabilityInputs (fetchLeaveRequestsForRosterWindowByStatus)
@@ -38,7 +39,7 @@ buildRosterMonthOverviewDays _venueConfig rosterGroupId focusDate = do
 
     eligibleStaffMembers <- fetchEligibleRosterGroupStaff rosterGroupId
     assignedStaffMembers <- fetchAssignedRosterWeekStaff allSlots
-    let overviewStaffIds = nub (map (coerce . (.id)) (eligibleStaffMembers <> assignedStaffMembers))
+    let overviewStaffIds = Set.toList (Set.fromList (map (coerce . (.id)) (eligibleStaffMembers <> assignedStaffMembers)))
     let monthEndExclusive = Calendar.addDays 1 monthEndDate
     leaveRequests <-
         if null overviewStaffIds

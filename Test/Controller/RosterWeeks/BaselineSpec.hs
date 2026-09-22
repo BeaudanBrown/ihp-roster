@@ -11,8 +11,8 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
-import IHP.Prelude
 import IHP.Hspec
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -73,8 +73,16 @@ tests = aroundAll withDatabaseTestContext do
                     staffPanel `responseStatusShouldBe` status200
 
                     serverTiming coldPage `shouldContainBS` "roster_direct_fetch_dated_slots;dur="
-                    forM_ [coldPage, warmPage, contentFragment, toolbarFragment, frameFragment, dayColumnsFragment, dayRailFragment, wageRailFragment, slotsGridFragment, rowFragment, dayFragment, staffPanel] \response ->
+                    forM_ [coldPage, warmPage, contentFragment, toolbarFragment, frameFragment, dayColumnsFragment, dayRailFragment, wageRailFragment, slotsGridFragment, rowFragment, dayFragment, staffPanel] \response -> do
                         countTimingSpan "roster_direct_base_facts" response `shouldBe` 1
+                        countTimingSpan "roster_snapshot_fetch_venue_config" response `shouldBe` 1
+                        countTimingSpan "roster_snapshot_fetch_current_staff" response `shouldBe` 1
+                        countTimingSpan "roster_snapshot_fetch_viewable_groups" response `shouldBe` 1
+                        countTimingSpan "roster_snapshot_fetch_user_preferences" response `shouldBe` 1
+                        countTimingSpan "roster_direct_fetch_group_staff" response `shouldBe` 1
+                        countTimingSpan "roster_direct_fetch_staff_pay_remediation" response `shouldBe` 1
+                        serverTiming response `shouldNotContainBS` "roster_direct_fetch_eligible_staff;dur="
+                        serverTiming response `shouldNotContainBS` "roster_direct_fetch_panel_staff;dur="
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_staff_option_states;dur="

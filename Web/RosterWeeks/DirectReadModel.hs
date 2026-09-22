@@ -20,10 +20,14 @@ import Application.Error.Domain
 import Application.Error.Telemetry (recordAppError)
 import Application.Helper.Conflict
 import Application.Helper.Profiling
-import Application.PayAssignment (PayAssignmentScope (..), PayReferenceRequirement (..), payAssignmentModesRequiring)
+import Application.Helper.Staff (sortStaffForDisplay)
+import Application.PayAssignment (PayAssignmentScope (..),
+                                  PayReferenceRequirement (..),
+                                  payAssignmentModesRequiring)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
@@ -33,7 +37,8 @@ import Web.RosterWeeks.AuthorizedScope (AuthorizedRosterScope,
                                         authorizedRosterWindowScope)
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
-import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
+import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff,
+                                     fetchStaffPayConfigurationRequiredIds)
 
 fetchRosterNotificationWindowDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO [RosterDay]
 fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =
@@ -48,16 +53,17 @@ fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =
 -- Database-near base facts for roster read-model rendering. These reads are
 -- request-local and do not use a cross-request HTML/read-model cache.
 data RosterBaseFacts = RosterBaseFacts
-    { baseRosterWeek             :: !(Maybe RosterWindowState)
-    , baseRosterDays             :: ![RosterDay]
-    , baseAllSlots               :: ![RosterSlot]
-    , baseVisibleSlots           :: ![RosterSlot]
-    , baseOrderedSlotDefinitions :: ![RosterWindowLane]
-    , baseShiftTypes             :: ![ShiftType]
-    , baseEligibleStaff          :: ![Staff]
-    , basePanelStaff             :: ![Staff]
-    , baseAssignedStaff          :: ![Staff]
-    , baseStaffMembers           :: ![Staff]
+    { baseRosterWeek                       :: !(Maybe RosterWindowState)
+    , baseRosterDays                       :: ![RosterDay]
+    , baseAllSlots                         :: ![RosterSlot]
+    , baseVisibleSlots                     :: ![RosterSlot]
+    , baseOrderedSlotDefinitions           :: ![RosterWindowLane]
+    , baseShiftTypes                       :: ![ShiftType]
+    , baseEligibleStaff                    :: ![Staff]
+    , basePanelStaff                       :: ![Staff]
+    , baseAssignedStaff                    :: ![Staff]
+    , basePanelPayConfigurationRequiredIds :: !(Set.Set UUID.UUID)
+    , baseStaffMembers                     :: ![Staff]
     }
 
 fetchRosterBaseFactsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO (Maybe RosterBaseFacts)
@@ -96,9 +102,9 @@ fetchRosterBaseFactsForScopeDirect scope =
                 , windowIsPublished = rosterWindowIsPublished window
                 , windowHasPublishedDays = any ((== Published) . (.publicationState)) rosterDays
                 }
-        allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" do
-            orderedSlotIds :: [PG.Only UUID.UUID] <- unsafeSqlQuery
-                "SELECT roster_slots.id \
+        allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" $
+            unsafeSqlQuery
+                ("SELECT " <> fromString (cs (Text.intercalate ", " (map ("roster_slots." <>) (columnNames @RosterSlot)))) <> " \
                 \FROM roster_slots \
                 \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
                 \WHERE roster_days.venue_id = ? \
@@ -106,16 +112,17 @@ fetchRosterBaseFactsForScopeDirect scope =
                 \AND roster_days.operational_date >= ? \
                 \AND roster_days.operational_date < ? \
                 \AND roster_slots.deleted_at IS NULL \
-                \ORDER BY roster_days.operational_date, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at"
+                \ORDER BY roster_days.operational_date, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at")
                 (unpackId currentVenueId, unpackId rosterGroupId, windowStartDate, windowEndDate)
-            fetchRosterSlotsInIdOrder orderedSlotIds
         let orderedSlotDefinitions = window.rosterWindowLanes
         let visibleSlots = filterVisibleRosterSlots rosterDays allSlots
-        eligibleStaffMembers <- profileActionSpan "roster.direct.fetch_eligible_staff" (fetchEligibleRosterGroupStaffDirect rosterGroupId)
-        panelStaffMembers <- profileActionSpan "roster.direct.fetch_panel_staff" (fetchRosterGroupStaffForPanelDirect rosterGroupId)
+        groupStaffMembers <- profileActionSpan "roster.direct.fetch_group_staff" (fetchRosterGroupStaffForPanelDirect rosterGroupId)
+        let panelStaffMembers = sortStaffForDisplay groupStaffMembers
+        panelPayConfigurationRequiredIds <- profileActionSpan "roster.direct.fetch_staff_pay_remediation" (fetchStaffPayConfigurationRequiredIds panelStaffMembers)
+        let eligibleStaffMembers = filter (not . (`Set.member` panelPayConfigurationRequiredIds) . coerce . (.id)) panelStaffMembers
         assignedStaffMembers <- profileActionSpan "roster.direct.fetch_assigned_staff" (fetchAssignedRosterWeekStaff visibleSlots)
         shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
-        let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
+        let staffMembers = uniqueStaffById (eligibleStaffMembers <> assignedStaffMembers)
         pure RosterBaseFacts
             { baseRosterWeek = Just windowState
             , baseRosterDays = rosterDays
@@ -126,31 +133,17 @@ fetchRosterBaseFactsForScopeDirect scope =
             , baseEligibleStaff = eligibleStaffMembers
             , basePanelStaff = panelStaffMembers
             , baseAssignedStaff = assignedStaffMembers
+            , basePanelPayConfigurationRequiredIds = panelPayConfigurationRequiredIds
             , baseStaffMembers = staffMembers
             }
 
-fetchEligibleRosterGroupStaffDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
-fetchEligibleRosterGroupStaffDirect rosterGroupId =
-    unsafeSqlQuery
-        (rosterGroupStaffSelect <> " AND (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) \
-        \     OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND EXISTS (SELECT 1 FROM award_levels WHERE award_levels.id = staff.default_award_level_id AND award_levels.is_active = TRUE)) \
-        \     OR (staff.pay_assignment_mode = ANY (?::pay_assignment_mode_enum[]) AND EXISTS (SELECT 1 FROM xero_imported_pay_items WHERE xero_imported_pay_items.id = staff.imported_xero_pay_item_id AND xero_imported_pay_items.venue_id = staff.venue_id AND xero_imported_pay_items.archived_at IS NULL AND xero_imported_pay_items.provider_available = TRUE)) \
-        \ ) \
-        \ORDER BY staff.last_name")
-        ( unpackId rosterGroupId, unpackId currentVenueId
-        , payAssignmentModesRequiring StaffPayScope NoPayReference
-        , payAssignmentModesRequiring StaffPayScope ActiveAwardReference
-        , payAssignmentModesRequiring StaffPayScope AvailableXeroReference
-        )
-
-fetchRosterSlotsInIdOrder :: (?modelContext :: ModelContext) => [PG.Only UUID.UUID] -> IO [RosterSlot]
-fetchRosterSlotsInIdOrder [] = pure []
-fetchRosterSlotsInIdOrder orderedIds = do
-    records <- query @RosterSlot
-        |> filterWhereIn (#id, [Id recordId | PG.Only recordId <- orderedIds])
-        |> fetch
-    let recordsById = Map.fromList [(unpackId record.id, record) | record <- records]
-    pure (mapMaybe (\(PG.Only recordId) -> Map.lookup recordId recordsById) orderedIds)
+uniqueStaffById :: [Staff] -> [Staff]
+uniqueStaffById = go Set.empty
+  where
+    go _ [] = []
+    go seen (staff : rest)
+        | staff.id `Set.member` seen = go seen rest
+        | otherwise = staff : go (Set.insert staff.id seen) rest
 
 -- IHP innerJoin requires identical field types, but this schema exposes Staff.id
 -- as Id Staff and StaffRosterGroup.staffId as UUID. Keep that join SQL-local;

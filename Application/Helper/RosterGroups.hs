@@ -125,21 +125,25 @@ fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
 -- call 'ensureStaffDefaultRosterGroupAssignment'.
 fetchViewableRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [RosterGroup]
 fetchViewableRosterGroups = do
+    maybeCurrentStaff <- fetchCurrentUserStaff
+    fetchViewableRosterGroupsForCurrentStaff maybeCurrentStaff
+
+-- | Variant for request snapshots that have already resolved current Staff.
+fetchViewableRosterGroupsForCurrentStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO [RosterGroup]
+fetchViewableRosterGroupsForCurrentStaff maybeCurrentStaff = do
     activeGroups <- filter (.isActive) <$> fetchCurrentVenueRosterGroups
     if hasRole Manager || currentUserIsUnimpersonatedSuperAdmin
         then pure activeGroups
-        else do
-            maybeStaff <- fetchCurrentUserStaff
-            case maybeStaff of
-                Nothing -> pure []
-                Just staff -> do
-                    assignments <-
-                        query @StaffRosterGroup
-                            |> filterWhere (#staffId, unpackId staff.id)
-                            |> filterWhere (#deletedAt, Nothing)
-                            |> fetch
-                    let assignedGroupIds = Set.fromList (map (.rosterGroupId) assignments)
-                    pure (filter (\group -> unpackId group.id `Set.member` assignedGroupIds) activeGroups)
+        else case maybeCurrentStaff of
+            Nothing -> pure []
+            Just staff -> do
+                assignments <-
+                    query @StaffRosterGroup
+                        |> filterWhere (#staffId, unpackId staff.id)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetch
+                let assignedGroupIds = Set.fromList (map (.rosterGroupId) assignments)
+                pure (filter (\group -> unpackId group.id `Set.member` assignedGroupIds) activeGroups)
 
 fetchViewableRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO (Maybe RosterGroup)
 fetchViewableRosterGroup rosterGroupId =

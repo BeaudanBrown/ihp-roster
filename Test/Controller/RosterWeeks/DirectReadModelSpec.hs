@@ -16,7 +16,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime,
+                        secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -31,7 +32,8 @@ import Web.RosterWeeks.DateRange (RosterWindowLane (..), RosterWindowScope (..),
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.RenderData
-import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates, rosterAssignmentOptionStatesFor)
+import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
+                                     rosterAssignmentOptionStatesFor)
 import Web.RosterWeeks.Types
 
 
@@ -69,14 +71,27 @@ tests = aroundAll withDatabaseTestContext do
                 ((.windowRosterGroupId) <$> baseRosterWeek) `shouldBe` Just (unpackId fixture.rosterGroup.id)
                 map (.operationalDate) baseRosterDays `shouldBe` map (`Calendar.addDays` fixture.windowScope.rosterWindowStart) [0 .. 6]
                 map (.rowIndex) baseVisibleSlots `shouldBe` [3]
-                map (.id) baseAllSlots `shouldContain` [fixture.closedDaySlot.id]
+                map (.id) baseAllSlots `shouldBe` [fixture.visibleSparseSlot.id, fixture.closedDaySlot.id]
                 map (.id) baseVisibleSlots `shouldNotContain` [fixture.closedDaySlot.id, fixture.otherGroupSlot.id]
                 map (.rosterWindowLaneFirstSeen) baseOrderedSlotDefinitions `shouldBe` sort (map (.rosterWindowLaneFirstSeen) baseOrderedSlotDefinitions)
                 map (.name) baseShiftTypes `shouldBe` ["Breakfast", "Dinner"]
                 map (.id) baseEligibleStaff `shouldContain` [fixture.eligibleStaff.id]
                 map (.id) baseEligibleStaff `shouldNotContain` [fixture.assignedInactiveStaff.id]
                 map (.id) baseAssignedStaff `shouldBe` [fixture.assignedInactiveStaff.id]
-                map (.id) baseStaffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
+                map (.id) baseStaffMembers `shouldContain` [fixture.eligibleStaff.id]
+                map (.id) baseStaffMembers `shouldContain` [fixture.assignedInactiveStaff.id]
+
+        it "orders consolidated roster Staff by canonical display identity" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+                zuluPreferred <- createStaffRecord fixture.venue Nothing "First Legal" "Ordering" >>= updateRecord . set #preferredName (Just "Zulu")
+                alphaLegal <- createStaffRecord fixture.venue Nothing "Alpha" "Ordering"
+
+                facts <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext (fromJust <$> fetchRosterBaseFactsDirect fixture.windowScope)
+
+                map (.id) (filter ((== "Ordering") . (.lastName)) facts.baseEligibleStaff) `shouldBe` [alphaLegal.id, zuluPreferred.id]
+                map (.id) (filter ((== "Ordering") . (.lastName)) facts.basePanelStaff) `shouldBe` [alphaLegal.id, zuluPreferred.id]
 
         it "preserves complete pay-mode eligibility as reference availability changes" $ withContext do
             withCleanDb do
@@ -190,7 +205,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 let rosterData = fromJust renderData
                 ((.windowRosterGroupId) <$> rosterData.rosterWeek) `shouldBe` Just fixture.rosterWeek.fixtureRosterGroupId
-                map (.id) rosterData.staffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
+                map (.id) rosterData.staffMembers `shouldContain` [fixture.eligibleStaff.id]
+                map (.id) rosterData.staffMembers `shouldContain` [fixture.assignedInactiveStaff.id]
                 map (.id) rosterData.allSlots `shouldContain` [fixture.visibleSparseSlot.id, fixture.closedDaySlot.id]
                 map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames `shouldBe` sortOn (\value -> value) (map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames)
 

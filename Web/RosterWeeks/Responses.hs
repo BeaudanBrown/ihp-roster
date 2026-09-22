@@ -7,6 +7,7 @@ module Web.RosterWeeks.Responses
     , respondToRosterSlotUpdate
     , respondToRosterShiftEdit
     , respondWithRosterContent
+    , respondWithRosterContentForAuthorizedScope
     , respondWithRosterContentError
     , respondWithRosterContentOob
     , respondWithRosterContentUpdate
@@ -28,7 +29,8 @@ import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchViewableRosterGroup,
                                         fetchViewableRosterGroups)
-import Application.Helper.SurfaceResource (LiveMutationResult (..), SurfaceResourceValue)
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
+                                           SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
@@ -39,6 +41,8 @@ import qualified Data.Text.IO as TextIO
 import qualified Data.UUID as UUID
 import qualified IHP.HSX.Markup as Markup
 import Web.Controller.Prelude
+import Web.RosterWeeks.AuthorizedScope (AuthorizedRosterScope,
+                                        authorizedRosterWindowScope)
 import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterCandidateMountedFragments,
@@ -49,13 +53,14 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
 import Web.RosterWeeks.Mutations (type RosterSlotMutationResult)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
-                                    rosterMutationMountedProjections,
-                                    rosterGridInnerAndStaffPanelFragments)
-import Web.RosterWeeks.ShiftWorkflow (RosterShiftEditCompletion (..))
+                                   rosterGridInnerAndStaffPanelFragments,
+                                   rosterMutationMountedProjections)
 import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
                                    fetchVisibleRosterReadModel,
                                    renderVisibleRosterReadModelFragment,
+                                   renderVisibleRosterReadModelFragmentForAuthorizedScope,
                                    rosterGridRenderModelFromProjection)
+import Web.RosterWeeks.ShiftWorkflow (RosterShiftEditCompletion (..))
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),
                               RosterProjectionFragment (..),
                               RosterRenderData (..))
@@ -121,6 +126,14 @@ sourceTimesheetWarningToast shouldWarn =
 respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> IO ResponseReceived
 respondWithRosterContent scope = do
     maybeHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionContent
+    when (isNothing maybeHtml) do
+        TextIO.putStrLn ("roster_read_model_miss: rosterGroupId=" <> tshow scope.rosterWindowRosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
+    respondHtmlProfiled (fromMaybe mempty maybeHtml)
+
+respondWithRosterContentForAuthorizedScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => AuthorizedRosterScope -> IO ResponseReceived
+respondWithRosterContentForAuthorizedScope authorizedScope = do
+    let scope = authorizedScope.authorizedRosterWindowScope
+    maybeHtml <- renderVisibleRosterReadModelFragmentForAuthorizedScope authorizedScope RosterProjectionContent
     when (isNothing maybeHtml) do
         TextIO.putStrLn ("roster_read_model_miss: rosterGroupId=" <> tshow scope.rosterWindowRosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
     respondHtmlProfiled (fromMaybe mempty maybeHtml)

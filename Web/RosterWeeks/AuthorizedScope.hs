@@ -2,22 +2,44 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Web.RosterWeeks.AuthorizedScope
-    ( AuthorizedRosterScope
+    ( RosterAuthorizationContext
+    , loadRosterAuthorizationContext
+    , authorizationVenueConfig
+    , authorizationRosterGroups
+    , AuthorizedRosterScope
     , authorizeRosterScope
+    , authorizeRosterScopeWithContext
     , authorizedRosterWindowScope
     , authorizedVenueConfig
     , authorizedRosterGroups
     , authorizedRosterGroup
+    , authorizedCurrentStaff
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..),
                                   externalRuntimeInvariantFailure)
+import Application.Helper.Controller (fetchCurrentUserStaff)
 import Application.Helper.ControllerAccess (fetchVenueConfig)
 import Application.Helper.Profiling (profileActionSpan)
-import Application.Helper.RosterGroups (fetchViewableRosterGroups)
+import Application.Helper.RosterGroups (fetchViewableRosterGroupsForCurrentStaff)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowScope (..),
                                   rosterWindowScopeMatchesConfig)
+
+-- Loaded once for a roster request, then reused for group resolution, scope
+-- construction, and the authorized snapshot.
+data RosterAuthorizationContext = RosterAuthorizationContext
+    { authorizationVenueConfig  :: !VenueConfig
+    , authorizationRosterGroups :: ![RosterGroup]
+    , authorizationCurrentStaff :: !(Maybe Staff)
+    }
+
+loadRosterAuthorizationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO RosterAuthorizationContext
+loadRosterAuthorizationContext = do
+    authorizationVenueConfig <- profileActionSpan "roster.snapshot.fetch_venue_config" fetchVenueConfig
+    authorizationCurrentStaff <- profileActionSpan "roster.snapshot.fetch_current_staff" fetchCurrentUserStaff
+    authorizationRosterGroups <- profileActionSpan "roster.snapshot.fetch_viewable_groups" (fetchViewableRosterGroupsForCurrentStaff authorizationCurrentStaff)
+    pure RosterAuthorizationContext { .. }
 
 -- The constructor is intentionally private. Possession proves that the scope is
 -- current-venue, current-calendar, and viewable by the effective roster actor.
@@ -26,15 +48,22 @@ data AuthorizedRosterScope = AuthorizedRosterScope
     , authorizedVenueConfig       :: !VenueConfig
     , authorizedRosterGroups      :: ![RosterGroup]
     , authorizedRosterGroup       :: !RosterGroup
+    , authorizedCurrentStaff      :: !(Maybe Staff)
     }
 
 authorizeRosterScope :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO AuthorizedRosterScope
-authorizeRosterScope authorizedRosterWindowScope =
+authorizeRosterScope authorizedRosterWindowScope = do
+    authorizationContext <- loadRosterAuthorizationContext
+    authorizeRosterScopeWithContext authorizationContext authorizedRosterWindowScope
+
+authorizeRosterScopeWithContext :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => RosterAuthorizationContext -> RosterWindowScope -> IO AuthorizedRosterScope
+authorizeRosterScopeWithContext authorizationContext authorizedRosterWindowScope =
     profileActionSpan "roster.snapshot.authorize_scope" do
-        authorizedVenueConfig <- profileActionSpan "roster.snapshot.fetch_venue_config" fetchVenueConfig
+        let authorizedVenueConfig = authorizationContext.authorizationVenueConfig
+        let authorizedCurrentStaff = authorizationContext.authorizationCurrentStaff
+        let authorizedRosterGroups = authorizationContext.authorizationRosterGroups
         accessDeniedUnless (authorizedRosterWindowScope.rosterWindowVenueId == currentVenueId)
         accessDeniedUnless (rosterWindowScopeMatchesConfig authorizedVenueConfig authorizedRosterWindowScope)
-        authorizedRosterGroups <- profileActionSpan "roster.snapshot.fetch_viewable_groups" fetchViewableRosterGroups
         let authorizedRosterGroupOrNothing = find ((== authorizedRosterWindowScope.rosterWindowRosterGroupId) . (.id)) authorizedRosterGroups
         accessDeniedUnless (isJust authorizedRosterGroupOrNothing)
         let authorizedRosterGroup = fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") authorizedRosterGroupOrNothing
