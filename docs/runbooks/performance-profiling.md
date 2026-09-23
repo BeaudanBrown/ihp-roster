@@ -84,6 +84,45 @@ run. Preserve raw local logs and bounded machine-readable summaries under
 `.pi/tmp/`; retain only reviewed comparison evidence with continuing value in
 `docs/archive/`.
 
+### Command recorder
+
+The Linux command-recorder interface is opt-in and tested by `verify-tooling`:
+
+```bash
+bash ./bin/in-env python3 scripts/profiling/verification-measure.py run \
+  --output .pi/tmp/verification-command-01 --owner typecheck \
+  --cache-state retained -- typecheck
+bash ./bin/in-env python3 scripts/profiling/verification-measure.py inspect \
+  .pi/tmp/verification-command-01
+```
+
+Choose a new output directory per attempt; existing or symlinked paths are
+rejected. Artifacts are bounded private JSON, not command logs. Only a digest of
+argv is stored; command stdout/stderr pass through to the terminal unchanged.
+Owner labels must be public, non-sensitive identifiers. Revision capture occurs
+before the command timer, but is not a dirty/generated-input snapshot or proof
+identity. Record those inputs separately under the protocol above until owner
+instrumentation supplies them.
+
+`inspect` validates the completion schema and returns the recorded exit status;
+missing, corrupt or incomplete evidence returns 2. Completion is diagnostic,
+never gate or cache authority. SIGINT/SIGTERM are forwarded to the command's new
+process group, with a ten-second grace before kill escalation (configurable
+from 1–60 using `--termination-grace-seconds`). An interrupted
+command cannot become successful because its signal handler returns zero. A
+hard-killed recorder leaves no completed result. Detached services remain their
+existing owner's cleanup responsibility; do not use this recorder to manage
+production processes.
+
+CPU is the kernel accounting for this waited command and descendants it waited
+for, excluding recorder metadata and pre-existing services/daemons. Memory is
+sampled simultaneous descendant RSS, not summed historical maxima or unique
+physical memory: shared pages can be double-counted, and short-lived/reparented
+processes can be missed. No samples means unavailable, not zero. The timer has
+up to a polling interval plus sampling latency; collection overhead is included
+in the observation. This command-level recorder does not yet attribute linker,
+service-readiness, database or suite phases; #599 owns that integration.
+
 ## Request Instrumentation
 
 Profiling is enabled only when the profiling server sets:
