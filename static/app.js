@@ -2294,7 +2294,8 @@
         surface: config.surface,
         scopeKey: config.scopeKey,
         mountKey: config.mountKey,
-        depth: surfaceMountDepth(ownerEl)
+        depth: surfaceMountDepth(ownerEl),
+        ownerEl
       });
     });
     return instances;
@@ -2304,12 +2305,14 @@
     currentInstances.forEach((instance) => currentById.set(instance.instanceId, instance));
     const removed = [];
     activeInstances.forEach((instance, instanceId) => {
-      if (!currentById.has(instanceId)) removed.push(instance);
+      const current = currentById.get(instanceId);
+      if (!current || current.ownerEl !== instance.ownerEl) removed.push(instance);
     });
     const added = [];
     const retained = [];
     currentById.forEach((instance, instanceId) => {
-      if (activeInstances.has(instanceId)) retained.push(instance);
+      const active = activeInstances.get(instanceId);
+      if (active?.ownerEl === instance.ownerEl) retained.push(active);
       else added.push(instance);
     });
     removed.sort((left, right) => right.depth - left.depth);
@@ -2347,7 +2350,7 @@
       scope: parsed.scope,
       scopeKey: parsed.scopeKey,
       path: parsed.socketPath,
-      resyncFragments: parsed.resyncFragments,
+      resyncFragments: parsed.resyncFragments.map((fragment) => ({ ...fragment, ownerEl })),
       renderedDependencyWatermark: parsed.renderedDependencyWatermark,
       ownerEls: [ownerEl],
       resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh)
@@ -2816,9 +2819,7 @@
       captureDeferredState(target, fragment) {
         return matchingProtection(fragment)?.captureState(target, fragment) ?? fragment;
       },
-      restoreDeferredState(fragment) {
-        const target = targetDocument.getElementById(fragment.targetId);
-        if (!(target instanceof HTMLElement)) return;
+      restoreDeferredState(target, fragment) {
         matchingProtection(fragment)?.restoreState(target, fragment);
       }
     };
@@ -2848,20 +2849,69 @@
     const { targetWindow, targetDocument, diagnostics, activeInteractionSessions } = options;
     const { beginPerfSpan, endPerfSpan, emitDebugEvent } = diagnostics;
     const focus = createFocusedFieldProtection(targetWindow, targetDocument);
-    const pendingFocusedFragments = /* @__PURE__ */ new Map();
-    const pendingInteractionFragments = /* @__PURE__ */ new Map();
-    const pendingInteractionTimers = /* @__PURE__ */ new Map();
-    const inFlightFragments = /* @__PURE__ */ new Map();
-    async function swapFragmentHtml(targetId, html) {
-      const perfSpan = beginPerfSpan("live_updates.swap_fragment", { targetId });
-      const target = targetDocument.getElementById(targetId);
+    const ownerStates = /* @__PURE__ */ new Map();
+    let generation = 1;
+    let stopped = false;
+    function activateOwner(ownerEl) {
+      if (stopped) return;
+      const existing = ownerStates.get(ownerEl);
+      if (existing) {
+        existing.active = true;
+        return;
+      }
+      ownerStates.set(ownerEl, {
+        active: true,
+        inFlight: /* @__PURE__ */ new Map(),
+        pendingFocused: /* @__PURE__ */ new Map(),
+        pendingInteraction: /* @__PURE__ */ new Map(),
+        pendingInteractionTimers: /* @__PURE__ */ new Map()
+      });
+    }
+    function resolveOwnedTarget(fragment) {
+      const target = targetDocument.getElementById(fragment.targetId);
+      if (!(target instanceof HTMLElement) || !fragment.ownerEl.contains(target)) return null;
+      const closestOwner = target === fragment.ownerEl ? fragment.ownerEl : target.closest(`[${surfaceConfigDomAttr}]`);
+      return closestOwner === fragment.ownerEl ? target : null;
+    }
+    function requestIsCurrent(state, targetId, slot) {
+      return !stopped && state.active && slot.generation === generation && !slot.controller.signal.aborted && state.inFlight.get(targetId) === slot;
+    }
+    function clearInteractionDeferredFragment(state, targetId) {
+      const timer = state.pendingInteractionTimers.get(targetId);
+      if (timer) targetWindow.clearTimeout(timer);
+      state.pendingInteractionTimers.delete(targetId);
+      state.pendingInteraction.delete(targetId);
+    }
+    function disposeState(state) {
+      if (!state.active) return;
+      state.active = false;
+      state.pendingInteractionTimers.forEach((timer) => targetWindow.clearTimeout(timer));
+      state.pendingInteractionTimers.clear();
+      state.pendingInteraction.clear();
+      state.pendingFocused.clear();
+      state.inFlight.forEach((slot) => slot.controller.abort());
+      state.inFlight.clear();
+    }
+    function disposeOwner(ownerEl) {
+      const state = ownerStates.get(ownerEl);
+      if (!state) return;
+      disposeState(state);
+      ownerStates.delete(ownerEl);
+    }
+    async function swapFragmentHtml(fragment, state, slot, html) {
+      const perfSpan = beginPerfSpan("live_updates.swap_fragment", { targetId: fragment.targetId });
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale" });
+        return;
+      }
+      const target = resolveOwnedTarget(fragment);
       if (!target) {
         endPerfSpan(perfSpan, { outcome: "target_missing" });
         return;
       }
       const trimmed = (html || "").trim();
       if (!trimmed) {
-        target.remove();
+        if (requestIsCurrent(state, fragment.targetId, slot) && resolveOwnedTarget(fragment) === target) target.remove();
         endPerfSpan(perfSpan, { outcome: "removed_empty_html" });
         return;
       }
@@ -2873,32 +2923,53 @@
         endPerfSpan(perfSpan, { outcome: "no_element" });
         return;
       }
+      if (!requestIsCurrent(state, fragment.targetId, slot) || resolveOwnedTarget(fragment) !== target) {
+        endPerfSpan(perfSpan, { outcome: "stale" });
+        return;
+      }
       const restoreFocus = focus.captureReplacementFocus(target);
       target.replaceWith(nextNode);
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_after_swap" });
+        return;
+      }
       targetWindow.htmx?.process?.(nextNode);
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_after_process" });
+        return;
+      }
       targetWindow.appPageLifecycle?.dispatchPageReady?.({
         source: "live-fragment-refetch",
         target: nextNode,
         isFullPage: false
       });
-      restoreFocus(nextNode);
+      if (requestIsCurrent(state, fragment.targetId, slot)) restoreFocus(nextNode);
       endPerfSpan(perfSpan, { outcome: "swapped", nextTagName: nextNode.tagName });
     }
-    async function refetchFragment(fragment) {
+    async function refetchFragment(fragment, state, slot) {
       const perfSpan = beginPerfSpan("live_updates.refetch_fragment", {
         targetId: fragment.targetId,
         url: fragment.url,
         focusProtected: fragment.protection.kind === "focused-field"
       });
-      const target = targetDocument.getElementById(fragment.targetId);
-      const requestUrl = target instanceof HTMLElement ? decorateSurfaceFragmentRequest(fragment.url, fragment, target) : fragment.url;
+      const target = resolveOwnedTarget(fragment);
+      if (!target || !requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_before_fetch" });
+        return;
+      }
+      const requestUrl = decorateSurfaceFragmentRequest(fragment.url, fragment, target);
       const response = await targetWindow.fetch(requestUrl, {
         credentials: "same-origin",
-        headers: { "HX-Request": "true" }
+        headers: { "HX-Request": "true" },
+        signal: slot.controller.signal
       });
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_response", status: response.status });
+        return;
+      }
       if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
         endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
-        targetWindow.location.reload();
+        if (requestIsCurrent(state, fragment.targetId, slot)) targetWindow.location.reload();
         return;
       }
       if (!response.ok) {
@@ -2906,8 +2977,15 @@
         throw new Error(`Fragment fetch failed with ${response.status}`);
       }
       const html = await response.text();
-      await swapFragmentHtml(fragment.targetId, html);
-      focus.restoreDeferredState(fragment);
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_body", status: response.status });
+        return;
+      }
+      await swapFragmentHtml(fragment, state, slot, html);
+      if (requestIsCurrent(state, fragment.targetId, slot)) {
+        const currentTarget = resolveOwnedTarget(fragment);
+        if (currentTarget) focus.restoreDeferredState(currentTarget, fragment);
+      }
       endPerfSpan(perfSpan, { outcome: "ok", status: response.status, responseBytes: html.length });
     }
     function reportFragmentRefreshError(fragment, error) {
@@ -2920,105 +2998,122 @@
       targetDocument.dispatchEvent(new CustomEvent("app:live-update-fragment-refresh-failed", { detail }));
     }
     function queueFragment(fragment) {
-      const existing = inFlightFragments.get(fragment.targetId);
+      const state = ownerStates.get(fragment.ownerEl);
+      if (!state?.active || stopped) return;
+      const existing = state.inFlight.get(fragment.targetId);
       if (existing) {
-        inFlightFragments.set(fragment.targetId, { ...existing, next: fragment });
+        existing.next = fragment;
         emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
         return;
       }
-      inFlightFragments.set(fragment.targetId, { next: null });
-      void refetchFragment(fragment).catch((error) => reportFragmentRefreshError(fragment, error)).finally(() => {
-        const next = inFlightFragments.get(fragment.targetId)?.next;
-        inFlightFragments.delete(fragment.targetId);
-        if (next) queueFragment(next);
+      const slot = {
+        controller: new AbortController(),
+        fragment,
+        generation,
+        next: null
+      };
+      state.inFlight.set(fragment.targetId, slot);
+      void refetchFragment(fragment, state, slot).catch((error) => {
+        if (requestIsCurrent(state, fragment.targetId, slot)) reportFragmentRefreshError(fragment, error);
+      }).finally(() => {
+        if (state.inFlight.get(fragment.targetId) !== slot) return;
+        state.inFlight.delete(fragment.targetId);
+        const next = slot.next;
+        if (next && state.active && slot.generation === generation && !stopped) queueFragment(next);
       });
     }
-    function clearInteractionDeferredFragment(targetId) {
-      const timer = pendingInteractionTimers.get(targetId);
-      if (timer) targetWindow.clearTimeout(timer);
-      pendingInteractionTimers.delete(targetId);
-      pendingInteractionFragments.delete(targetId);
-    }
-    function flushInteractionDeferredFragment(targetId, reason) {
-      const fragment = pendingInteractionFragments.get(targetId);
+    function flushInteractionDeferredFragment(state, targetId, reason) {
+      const fragment = state.pendingInteraction.get(targetId);
       if (!fragment) return;
-      clearInteractionDeferredFragment(targetId);
+      clearInteractionDeferredFragment(state, targetId);
       emitDebugEvent("deferred_fragment_flush", { targetId, reason });
       queueFragment(fragment);
     }
-    function scheduleInteractionFallback(targetId, timeoutMs) {
-      const existing = pendingInteractionTimers.get(targetId);
+    function scheduleInteractionFallback(state, fragment, timeoutMs) {
+      const existing = state.pendingInteractionTimers.get(fragment.targetId);
       if (existing) targetWindow.clearTimeout(existing);
       if (timeoutMs === null || timeoutMs <= 0) return;
-      pendingInteractionTimers.set(targetId, targetWindow.setTimeout(() => {
-        const fragment = pendingInteractionFragments.get(targetId);
-        const target = targetDocument.getElementById(targetId);
-        if (fragment && target instanceof HTMLElement) {
-          const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
+      state.pendingInteractionTimers.set(fragment.targetId, targetWindow.setTimeout(() => {
+        if (!state.active) return;
+        const pending = state.pendingInteraction.get(fragment.targetId);
+        const target = resolveOwnedTarget(fragment);
+        if (pending && target) {
+          const conflict = resolveLiveFragmentInteractionConflict(pending, target, activeInteractionSessions);
           if (conflict) activeInteractionSessions.requestCancel(conflict.session, "live-fragment-defer-fallback-timeout");
         }
-        flushInteractionDeferredFragment(targetId, "interaction_fallback_timeout");
+        flushInteractionDeferredFragment(state, fragment.targetId, "interaction_fallback_timeout");
       }, timeoutMs));
     }
     function request(fragment) {
-      if (!fragment.targetId || !fragment.url) return;
-      const target = targetDocument.getElementById(fragment.targetId);
-      if (!(target instanceof HTMLElement)) return;
+      if (!fragment.targetId || !fragment.url || stopped) return;
+      const state = ownerStates.get(fragment.ownerEl);
+      if (!state?.active) return;
+      const target = resolveOwnedTarget(fragment);
+      if (!target) return;
       const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
       if (conflict?.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
       if (conflict?.action === "defer") {
-        pendingInteractionFragments.set(fragment.targetId, fragment);
-        scheduleInteractionFallback(fragment.targetId, conflict.timeoutMs);
+        state.pendingInteraction.set(fragment.targetId, fragment);
+        scheduleInteractionFallback(state, fragment, conflict.timeoutMs);
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
           detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "interaction_session" }
         }));
         return;
       }
-      clearInteractionDeferredFragment(fragment.targetId);
+      clearInteractionDeferredFragment(state, fragment.targetId);
       if (fragment.protection.kind === "focused-field" && focus.hasProtectedActiveInput(target, fragment)) {
-        pendingFocusedFragments.set(fragment.targetId, focus.captureDeferredState(target, fragment));
+        state.pendingFocused.set(fragment.targetId, focus.captureDeferredState(target, fragment));
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
           detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "active_input" }
         }));
         return;
       }
-      pendingFocusedFragments.delete(fragment.targetId);
+      state.pendingFocused.delete(fragment.targetId);
       queueFragment(fragment);
     }
     function flushInteractionDeferredFragmentsWithoutActiveSessions() {
-      Array.from(pendingInteractionFragments.entries()).forEach(([targetId, fragment]) => {
-        const target = targetDocument.getElementById(targetId);
-        if (!(target instanceof HTMLElement)) {
-          flushInteractionDeferredFragment(targetId, "target_missing");
-          return;
-        }
-        if (!resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) {
-          flushInteractionDeferredFragment(targetId, "interaction_session_end");
-        }
+      ownerStates.forEach((state) => {
+        if (!state.active) return;
+        Array.from(state.pendingInteraction.entries()).forEach(([targetId, fragment]) => {
+          const target = resolveOwnedTarget(fragment);
+          if (!target) {
+            flushInteractionDeferredFragment(state, targetId, "target_missing");
+            return;
+          }
+          if (!resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) {
+            flushInteractionDeferredFragment(state, targetId, "interaction_session_end");
+          }
+        });
       });
     }
-    function flushFocusedFragment(targetId) {
-      const fragment = pendingFocusedFragments.get(targetId);
-      if (!fragment) return;
-      pendingFocusedFragments.delete(targetId);
-      emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
-      queueFragment(fragment);
-    }
     function flushFocusedFragmentsWithoutActiveInputs() {
-      Array.from(pendingFocusedFragments.entries()).forEach(([targetId, fragment]) => {
-        const target = targetDocument.getElementById(targetId);
-        if (target instanceof HTMLElement && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
-        if (!(target instanceof HTMLElement) || !focus.hasProtectedActiveInput(target, fragment)) flushFocusedFragment(targetId);
+      ownerStates.forEach((state) => {
+        if (!state.active) return;
+        Array.from(state.pendingFocused.entries()).forEach(([targetId, fragment]) => {
+          const target = resolveOwnedTarget(fragment);
+          if (target && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
+          if (!target || !focus.hasProtectedActiveInput(target, fragment)) {
+            state.pendingFocused.delete(targetId);
+            emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
+            queueFragment(fragment);
+          }
+        });
       });
     }
     function stop() {
-      pendingInteractionTimers.forEach((timer) => targetWindow.clearTimeout(timer));
-      pendingInteractionTimers.clear();
-      pendingInteractionFragments.clear();
-      pendingFocusedFragments.clear();
-      inFlightFragments.clear();
+      if (stopped) return;
+      stopped = true;
+      generation += 1;
+      ownerStates.forEach(disposeState);
     }
-    return { request, flushInteractionDeferredFragmentsWithoutActiveSessions, flushFocusedFragmentsWithoutActiveInputs, stop };
+    return {
+      activateOwner,
+      disposeOwner,
+      request,
+      flushInteractionDeferredFragmentsWithoutActiveSessions,
+      flushFocusedFragmentsWithoutActiveInputs,
+      stop
+    };
   }
 
   // frontend/ts/live-updates/runtime.ts
@@ -3045,11 +3140,13 @@
       const current = scanFrontendSurfaceMountInstances(document, reportSurfaceConfigError);
       const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, current);
       reconciliation.removed.forEach((instance) => {
+        refresher.disposeOwner(instance.ownerEl);
         activeSurfaceInstances.delete(instance.instanceId);
         diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
       });
       reconciliation.retained.forEach((instance) => activeSurfaceInstances.set(instance.instanceId, instance));
       reconciliation.added.forEach((instance) => {
+        refresher.activateOwner(instance.ownerEl);
         activeSurfaceInstances.set(instance.instanceId, instance);
         diagnostics.emitDebugEvent("surface_initialized", instanceDebugDetail(instance));
       });

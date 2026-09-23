@@ -32,7 +32,7 @@ export function readSurfaceSubscription(
         scope: parsed.scope,
         scopeKey: parsed.scopeKey,
         path: parsed.socketPath,
-        resyncFragments: parsed.resyncFragments,
+        resyncFragments: parsed.resyncFragments.map((fragment) => ({ ...fragment, ownerEl })),
         renderedDependencyWatermark: parsed.renderedDependencyWatermark,
         ownerEls: [ownerEl],
         resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh),

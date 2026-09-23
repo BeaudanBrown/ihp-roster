@@ -38,11 +38,13 @@ export function enableLiveUpdateRuntime(): void {
         const current = scanFrontendSurfaceMountInstances(document, reportSurfaceConfigError);
         const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, current);
         reconciliation.removed.forEach((instance) => {
+            refresher.disposeOwner(instance.ownerEl);
             activeSurfaceInstances.delete(instance.instanceId);
             diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
         });
         reconciliation.retained.forEach((instance) => activeSurfaceInstances.set(instance.instanceId, instance));
         reconciliation.added.forEach((instance) => {
+            refresher.activateOwner(instance.ownerEl);
             activeSurfaceInstances.set(instance.instanceId, instance);
             diagnostics.emitDebugEvent("surface_initialized", instanceDebugDetail(instance));
         });

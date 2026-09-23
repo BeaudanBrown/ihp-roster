@@ -23,6 +23,7 @@ export type FrontendSurfaceMountedInstance = {
     scopeKey: string;
     mountKey: string;
     depth: number;
+    ownerEl: HTMLElement;
 };
 
 export type FrontendSurfaceInstanceReconciliation = {
@@ -104,6 +105,7 @@ export function scanFrontendSurfaceMountInstances(
             scopeKey: config.scopeKey,
             mountKey: config.mountKey,
             depth: surfaceMountDepth(ownerEl),
+            ownerEl,
         });
     });
     return instances;
@@ -118,13 +120,15 @@ export function reconcileFrontendSurfaceInstances(
 
     const removed: FrontendSurfaceMountedInstance[] = [];
     activeInstances.forEach((instance, instanceId) => {
-        if (!currentById.has(instanceId)) removed.push(instance);
+        const current = currentById.get(instanceId);
+        if (!current || current.ownerEl !== instance.ownerEl) removed.push(instance);
     });
 
     const added: FrontendSurfaceMountedInstance[] = [];
     const retained: FrontendSurfaceMountedInstance[] = [];
     currentById.forEach((instance, instanceId) => {
-        if (activeInstances.has(instanceId)) retained.push(instance);
+        const active = activeInstances.get(instanceId);
+        if (active?.ownerEl === instance.ownerEl) retained.push(active);
         else added.push(instance);
     });
 
