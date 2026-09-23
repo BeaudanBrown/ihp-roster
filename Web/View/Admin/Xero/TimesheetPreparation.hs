@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.Xero.TimesheetPreparation
-    ( renderXeroTimesheetPreparationStaffStep
+    ( renderXeroProblemTimesheetApprovalRefreshConfirmation
+    , renderXeroTimesheetPreparationStaffStep
     , renderXeroTimesheetPreparationPeriodStep
     , renderXeroTimesheetPreparationPayItemsStep
     , renderXeroTimesheetPreparationSubmittedDialog
@@ -24,6 +25,10 @@ module Web.View.Admin.Xero.TimesheetPreparation
 import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
+                                                     ExpectedActiveCalculationIdField,
+                                                     ExpectedApprovalTimestampField,
+                                                     RefreshXeroProblemTimesheetApprovalOverlay,
+                                                     RefreshXeroTimesheetPreparationOverlay,
                                                      PeriodKeyField,
                                                      RunXeroTimesheetPreparationOverlay,
                                                      SelectXeroTimesheetPreparationPeriodOverlay)
@@ -446,6 +451,46 @@ renderPreparationBlockingIssue issue = [hsx|
         {renderPreparationBlockingIssueHint issue.timesheetIssueHint}
     </div>
 |]
+
+renderXeroProblemTimesheetApprovalRefreshConfirmation :: (?context :: ControllerContext) => Id XeroTimesheetPreparationRun -> Id TimesheetEntry -> UUID -> UTCTime -> Html
+renderXeroProblemTimesheetApprovalRefreshConfirmation runId entryId calculationId approvedAt =
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Refresh approval?"
+            [hsx|<p class="mb-0">Refresh this problem Timesheet approval using current pay facts and Xero mappings?</p>|]
+            formId
+            refreshForm)
+            { confirmationDialogApproveLabel = "Refresh approval"
+            , confirmationDialogApproveTone = ConfirmationWarning
+            , confirmationDialogLoadingLabel = "Refreshing…"
+            , confirmationDialogRejectButton = reopenPreparationButton
+            }
+  where
+    formId = "refresh-xero-problem-timesheet-approval-confirmation-form"
+    timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" approvedAt)
+    fields =
+        appShellActionFields @RefreshXeroProblemTimesheetApprovalOverlay
+            (surfaceField @ExpectedActiveCalculationIdField calculationId)
+            (surfaceField @ExpectedApprovalTimestampField timestamp &: noSurfaceFields)
+    refreshForm =
+        renderAppShellActionForm
+            (appShellActionFor fields)
+            ((xeroPreparationAppShellActionRoute (pathTo (RefreshXeroProblemTimesheetApprovalAction runId entryId)))
+                { appShellActionRouteFields =
+                    [ AppShellFieldValue (surfaceFieldNameFrom @ExpectedActiveCalculationIdField fields, tshow calculationId)
+                    , AppShellFieldValue (surfaceFieldNameFrom @ExpectedApprovalTimestampField fields, timestamp)
+                    ]
+                , appShellActionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
+    reopenPreparationButton = OverlayButton
+        { overlayButtonLabel = "Cancel"
+        , overlayButtonClass = "btn btn-outline-secondary"
+        , overlayButtonAction = GeneratedDialogFormAction
+            (appShellActionByMarker @RefreshXeroTimesheetPreparationOverlay)
+            (defaultAppShellActionRoute (pathTo (RefreshXeroTimesheetPreparationAction runId)))
+            []
+        }
 
 renderPreparationBlockingIssueHint :: Maybe Text -> Html
 renderPreparationBlockingIssueHint = \case

@@ -1,10 +1,13 @@
 module Web.LeaveRequests.Responses
     ( respondWithLeaveSubmissionResult
+    , respondWithSelfServiceLeaveDeletionResult
+    , respondWithStaffLeaveDeletionResult
     , respondWithLeaveReviewResult
     , respondWithLeaveContextError
     , respondWithLeaveRequestsContent
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.Profile.Live as ProfileLive
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live as SelfServiceLeaveLive
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLiveResourcesRefreshIncluding)
@@ -47,6 +50,59 @@ respondWithLeaveSubmissionResult responseContext = \case
         if isHtmxRequest
             then respondWithLeaveRequestValidationFailure responseContext leaveRequest
             else render NewView { .. }
+
+respondWithSelfServiceLeaveDeletionResult :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Maybe (LiveMutationResult LeaveRequest) -> IO ResponseReceived
+respondWithSelfServiceLeaveDeletionResult staff deletionResult =
+    case deletionResult of
+        Just result ->
+            if isHtmxRequest
+                then do
+                    let scope = SelfServiceLeaveScopeValue (unpackId currentVenueId) (unpackId staff.id)
+                    setHeader ("HX-Reswap", "none")
+                    setActorLiveResourcesRefreshIncluding
+                        [SelfServiceLeaveLive.selfServiceLeaveFormLiveFragment]
+                        (selfServiceLeaveSurfaceScope scope)
+                        result.liveMutationTouchedResources
+                        [selfServiceLeaveFormMountedFragment, selfServiceLeaveHistoryMountedFragment]
+                    respondHtmlProfiled $
+                        renderDialogOverlayClearOob
+                            <> renderToastOob ToastBottomCenter (successToast "Unavailable period deleted")
+                else do
+                    setSuccessMessage "Unavailable period deleted"
+                    redirectToPath (leaveFallbackPath LeaveSelfServiceResponseContext)
+        Nothing ->
+            if isHtmxRequest
+                then do
+                    let scope = SelfServiceLeaveScopeValue (unpackId currentVenueId) (unpackId staff.id)
+                    setHeader ("HX-Reswap", "none")
+                    setActorLiveResourcesRefreshIncluding
+                        [SelfServiceLeaveLive.selfServiceLeaveHistoryLiveFragment]
+                        (selfServiceLeaveSurfaceScope scope)
+                        Set.empty
+                        [selfServiceLeaveHistoryMountedFragment]
+                    respondHtmlProfiled $
+                        renderDialogOverlayClearOob
+                            <> renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted.")
+                else do
+                    setErrorMessage "Only pending unavailable periods can be deleted."
+                    redirectToPath (leaveFallbackPath LeaveSelfServiceResponseContext)
+
+respondWithStaffLeaveDeletionResult :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> Maybe (LiveMutationResult LeaveRequest) -> IO ResponseReceived
+respondWithStaffLeaveDeletionResult staff deletionResult = do
+    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
+        touchedResources = maybe Set.empty (.liveMutationTouchedResources) deletionResult
+        toast = case deletionResult of
+            Just _  -> successToast "Unavailable period deleted"
+            Nothing -> errorToast "Only pending unavailable periods can be deleted."
+    setHeader ("HX-Reswap", "none")
+    setActorLiveResourcesRefreshIncluding
+        [ProfileLive.staffLeaveSectionLiveFragment]
+        (staffSurfaceScope scope)
+        touchedResources
+        (staffCandidateMountedFragments scope)
+    respondHtmlProfiled $
+        renderDialogOverlayClearOob
+            <> renderToastOob ToastBottomCenter toast
 
 respondWithLeaveReviewResult :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => LeaveReviewDecision -> Maybe (LiveMutationResult ReviewedLeaveRequest) -> IO ResponseReceived
 respondWithLeaveReviewResult decision = \case

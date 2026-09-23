@@ -52,12 +52,16 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   rather than interpreted as compatibility state. Filters never grant authority.
   The roster-group filter is available only when at least two active current-venue
   groups exist; otherwise roster-group URL state canonicalizes to All roster groups.
-  Selecting one
+  The staff dropdown is labelled Staff filter. Its Me shortcut immediately selects
+  the effective viewer's current-venue staff record while retaining the week and
+  roster-group filter. It is shown only when that record is among the eligible
+  dropdown options; ordinary staff remain scoped to themselves without a filter.
+  Selecting one roster group
   retains only entries linked to a source slot in that group and transient
   suggestions from that group; ad-hoc entries have no group and appear only
   under All roster groups.
 - Timesheets uses the shared transient SidePanel and the same main-card header,
-  desktop focus/Escape behavior, and phone stacking as Roster and manager
+  desktop focus/Escape behavior, and responsive tools shelf as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
   contains every active Timesheet-eligible staff member independently of card
   filters. Its counts exclude transient suggestions, ignore the staff card
@@ -82,6 +86,16 @@ all active roster groups. Staff see only their own; managers see their normal
 venue scope.
 
 ## Materialization And History
+
+- Day add controls remain available when creation is blocked. An HTMX attempt
+  returns a shared error toast without replacing the page or opening a dialog.
+  A worker whose valid pay assignment is No timesheets sees: "Your profile is set
+  to 'No timesheets'. If you think this is wrong please ask a manager". Managers
+  and above with no eligible current-venue staff receive a venue-wide explanation;
+  their own No timesheets setting never blocks creating entries for eligible
+  colleagues. Missing staff and invalid pay configuration remain distinct reasons.
+  These presentation checks do not change historical visibility/edit permissions
+  or replace server-side mutation authorization.
 
 - Materialization locks and revalidates the source slot, then snapshots staff,
   instants, timezone, shift type, automatic break, and immutable source ID.
@@ -127,6 +141,11 @@ fragments and publish typed touched resources for passive viewers. Roster
 publication, relevant slot changes, pay-mode changes, and trial adoption touch
 the affected Timesheet week resources. Date moves refresh old and new visible
 scopes. Week/filter requests use the Surface-declared shell synchronization.
+Filter navigation replaces the scope-bearing shell so fragment URLs, hidden action
+fields, and canonical URL state move together. The shared same-feature HTMX
+lifecycle keeps an open tools shelf on its selected tab and restores its scroll
+position. Fragment GETs and their canonical redirects retain both authorized
+staff and roster-group filters; a refresh must not silently return All groups.
 
 Legacy automatic roster-to-Timesheet jobs remain retired: publication creates no
 entry, the compatibility toggle stays false, and historical jobs remain audit

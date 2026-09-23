@@ -50,7 +50,6 @@ data HtmxActionMetadata = HtmxActionMetadata
     , htmxInclude   :: !(Maybe Text)
     , htmxSync      :: !(Maybe Text)
     , htmxIndicator :: !(Maybe Text)
-    , htmxConfirm   :: !(Maybe Text)
     , htmxSelect    :: !(Maybe Text)
     , htmxTarget    :: !(Maybe Text)
     , htmxSwap      :: !(Maybe Text)
@@ -66,7 +65,6 @@ htmxActionMetadataFromOptions options = HtmxActionMetadata
     , htmxInclude = listToMaybe [IR.htmxSyntaxText value | IR.HtmxActionIncludeIR value <- options]
     , htmxSync = listToMaybe [IR.htmxSyntaxText value | IR.HtmxActionSyncIR value <- options]
     , htmxIndicator = listToMaybe [IR.htmxSyntaxText value | IR.HtmxActionIndicatorIR value <- options]
-    , htmxConfirm = listToMaybe [value | IR.HtmxActionConfirmIR value <- options]
     , htmxSelect = listToMaybe [IR.htmxSyntaxText value | IR.HtmxActionSelectIR value <- options]
     , htmxTarget = listToMaybe [IR.htmxSyntaxText value | IR.HtmxActionTargetIR value <- options]
     , htmxSwap = listToMaybe [IR.htmxSyntaxText value | IR.HtmxActionSwapIR value <- options]
@@ -101,7 +99,6 @@ htmxActionOptionAttrPairs metadata =
         <> maybePair "hx-include" metadata.htmxInclude
         <> maybePair "hx-sync" metadata.htmxSync
         <> maybePair "hx-indicator" metadata.htmxIndicator
-        <> maybePair "hx-confirm" metadata.htmxConfirm
         <> maybePair "hx-select" metadata.htmxSelect
         <> maybePair "hx-target" metadata.htmxTarget
         <> maybePair "hx-swap" metadata.htmxSwap

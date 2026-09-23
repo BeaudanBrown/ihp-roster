@@ -20,6 +20,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterRow
     , RosterSlotsGrid
     , RosterStaffPanel
+    , RosterSettingsContent
     , RosterSurface
     , RosterDayTimelineSurface
     , RosterWeekShell
@@ -180,6 +181,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , DuplicateRosterShiftToDay
     , DropRosterStaff
     , NavigateRosterWeek
+    , SwitchRosterGroup
     , ToggleRosterWarnings
     , ToggleRosterWageEstimates
     , ToggleRosterOwnLiveShiftHighlight
@@ -188,6 +190,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ShowRosterNotificationConfirmation
     , CreateRosterNotificationRun
     , ToggleRosterAssignmentFilters
+    , OpenCopyRosterWeekConfirmation
     , CopyRosterWeek
     , CreateRosterWeekSlotDefinition
     , DeleteRosterWeekSlotDefinition
@@ -268,6 +271,7 @@ data RosterDayRail
 data RosterWageRail
 data RosterSlotsGrid
 data RosterStaffPanel
+data RosterSettingsContent
 data RosterDaySection
 data RosterRow
 data RosterDayTimelineContent
@@ -438,6 +442,7 @@ data ShiftGroupHighlightSourceRole
 data ShiftGroupHighlightMemberRole
 
 data NavigateRosterWeek
+data SwitchRosterGroup
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
 data ToggleRosterOwnLiveShiftHighlight
@@ -446,6 +451,7 @@ data ToggleRosterWeekLiveStatus
 data ShowRosterNotificationConfirmation
 data CreateRosterNotificationRun
 data ToggleRosterAssignmentFilters
+data OpenCopyRosterWeekConfirmation
 data CopyRosterWeek
 data CreateRosterWeekSlotDefinition
 data DeleteRosterWeekSlotDefinition
@@ -468,7 +474,6 @@ data HideStaffUnavailable
 data HideStaffOnApprovedLeave
 data HideStaffAlreadyAssignedToday
 data StaffScope
-data CopyRosterWeekCustomHtmx
 
 data RosterDay
 data RosterWeekOverview
@@ -512,6 +517,8 @@ type RosterFragmentBundle =
          , 'Eager
          , 'Contains RosterContent
          , 'Contains RosterStaffPanel
+         , 'Contains RosterSettingsContent
+         , 'Contains RosterTemplateLibraryFragment
          , ContainsSurface SelfServiceLeave.SelfServiceLeave
          ]
      , Fragment RosterContent
@@ -551,7 +558,16 @@ type RosterFragmentBundle =
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ], 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ] ]
+     , Fragment RosterSettingsContent '[]
+        '[ 'MountTarget RosterSettingsContent '[]
+         , 'Eager, 'Live
+         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ]
+         , 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
      , Fragment RosterTemplateLibraryFragment
         '[]
@@ -594,6 +610,17 @@ type RosterActionBundle =
          , Field RosterGroupId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTarget ('HtmxId RosterWeekShell)
+         , 'HtmxSwap 'HtmxOuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlTrue
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         ]
+     , Action SwitchRosterGroup
+        '[ Field AnchorDate 'WireDay
+         , Field RosterGroupId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTrigger 'HtmxChange
          , 'HtmxTarget ('HtmxId RosterWeekShell)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlTrue
@@ -669,6 +696,13 @@ type RosterActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
+     , Action OpenCopyRosterWeekConfirmation
+        '[ Field RosterCalendarRevision 'WireInt ]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
      , Action CopyRosterWeek
         RosterCopyOccurrenceFields
         '[ 'HtmxMethod 'HtmxPost
@@ -676,7 +710,6 @@ type RosterActionBundle =
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
-         , 'CustomHtmx CopyRosterWeekCustomHtmx "copy previous week requires a destructive overwrite confirmation"
          ]
      , Action CreateRosterWeekSlotDefinition
         '[ Field RosterCalendarRevision 'WireInt ]

@@ -232,12 +232,11 @@ renderRosterEndTimesForm venueConfig =
 renderMinutePrecisionSettingToggle :: ActionFields AdminAction.UpdateMinutePrecisionShiftTimesEnabledActionOperation -> Text -> Bool -> Html
 renderMinutePrecisionSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             inputId
             (surfaceToggleScalarField @Surface.MinutePrecisionShiftTimesEnabled fields True False)
             isEnabled
-            [hsx|<span class="small">Enabled</span>|]
-            [hsx|<span class="small">15 minutes</span>|]
+            [hsx|<span class="small">Minute precision</span>|]
         )
             { appToggleButtonClass = "btn-sm"
             , appToggleRoleSwitch = True
@@ -247,12 +246,11 @@ renderMinutePrecisionSettingToggle fields inputId isEnabled =
 renderVenueSettingToggle :: ActionFields AdminAction.UpdateRosterEndTimesEnabledActionOperation -> Text -> Bool -> Html
 renderVenueSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             inputId
             (surfaceToggleScalarField @Surface.RosterEndTimesEnabled fields True False)
             isEnabled
-            [hsx|<span class="small">Enabled</span>|]
-            [hsx|<span class="small">Disabled</span>|]
+            [hsx|<span class="small">Show shift end times</span>|]
         )
             { appToggleButtonClass = "btn-sm"
             , appToggleRoleSwitch = True

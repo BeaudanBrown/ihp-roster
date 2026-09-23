@@ -1,26 +1,133 @@
-/* Shared generated toggle presentation and focus mechanics. */
+/* Shared checkbox/switch presentation. Native controls own accessible state. */
 
-.app-toggle-button {
+.btn.app-toggle-button {
+    /* Pointer hover/focus never impersonates selection. Containers stay neutral. */
+    --bs-btn-color: var(--app-text);
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: var(--app-border-strong);
+    --bs-btn-hover-color: var(--bs-btn-color);
+    --bs-btn-hover-bg: var(--bs-btn-bg);
+    --bs-btn-hover-border-color: var(--bs-btn-border-color);
+    --bs-btn-active-color: var(--bs-btn-color);
+    --bs-btn-active-bg: var(--bs-btn-bg);
+    --bs-btn-active-border-color: var(--bs-btn-border-color);
+    --bs-btn-active-shadow: none;
+    --bs-btn-focus-box-shadow: none;
+    --app-toggle-indicator-bg: transparent;
+    --app-toggle-indicator-border: var(--app-muted);
+    --app-toggle-indicator-ink: var(--app-muted);
+    --app-toggle-check-visibility: hidden;
+    --app-toggle-thumb-position: 0;
+    position: relative;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
+    min-height: var(--app-control-height-sm);
     cursor: pointer;
     user-select: none;
+    text-align: start;
+    white-space: nowrap;
 }
 
-.app-toggle-button.is-toggle-checked,
+.app-toggle-button-content {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    width: 100%;
+}
+
+.app-toggle-button-label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.app-toggle-indicator {
+    position: relative;
+    display: inline-block;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    border: 1px solid var(--app-toggle-indicator-border);
+    background: var(--app-toggle-indicator-bg);
+    color: var(--app-toggle-indicator-ink);
+}
+
+.app-toggle-indicator--checkbox {
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 0.2rem;
+}
+
+.app-toggle-indicator--checkbox::after {
+    content: "";
+    position: absolute;
+    width: 0.3rem;
+    height: 0.6rem;
+    top: 0.1rem;
+    left: 0.33rem;
+    border: solid currentColor;
+    border-width: 0 0.125rem 0.125rem 0;
+    transform: rotate(45deg);
+    visibility: var(--app-toggle-check-visibility);
+}
+
+.app-toggle-indicator--switch {
+    width: 2.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    margin-inline-start: auto;
+}
+
+.app-toggle-indicator--switch::after {
+    content: "";
+    position: absolute;
+    width: 0.875rem;
+    height: 0.875rem;
+    top: calc(0.1875rem - 1px);
+    left: calc(0.1875rem - 1px);
+    border-radius: 50%;
+    background: currentColor;
+    transform: translateX(var(--app-toggle-thumb-position));
+}
+
+.app-toggle-button[aria-checked="true"],
 .app-toggle-button:has(.app-toggle-button-input:checked) {
-    color: var(--bs-btn-hover-color);
-    background-color: var(--bs-btn-hover-bg);
-    border-color: var(--bs-btn-hover-border-color);
+    --app-toggle-indicator-bg: var(--app-success);
+    --app-toggle-indicator-border: var(--app-success);
+    --app-toggle-indicator-ink: var(--app-text-inverse);
+    --app-toggle-check-visibility: visible;
+    --app-toggle-thumb-position: 1rem;
 }
 
-.app-toggle-button:focus-within {
-    outline: 0.2rem solid var(--bs-focus-ring-color);
+@media (hover: hover) and (pointer: fine) {
+    .btn.app-toggle-button:hover {
+        --bs-btn-hover-border-color: var(--app-muted);
+    }
+}
+
+.app-toggle-button:focus-visible,
+.app-toggle-button:has(.app-toggle-button-input:focus-visible) {
+    outline: 0.2rem solid var(--app-focus-outline);
     outline-offset: 0.15rem;
 }
 
-.app-toggle-button-input:disabled + * {
-    pointer-events: none;
+.btn.app-toggle-button:has(.app-toggle-button-input:disabled) {
+    opacity: var(--bs-btn-disabled-opacity);
+    cursor: not-allowed;
+}
+
+@media (any-pointer: coarse) {
+    .btn.app-toggle-button {
+        min-height: max(44px, var(--app-control-height-md));
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .app-toggle-indicator--switch::after {
+        transition: transform 120ms ease;
+    }
+}
+
+@media (forced-colors: active) {
+    .app-toggle-indicator--switch::after {
+        background: CanvasText;
+    }
 }

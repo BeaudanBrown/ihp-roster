@@ -4,6 +4,9 @@
     --app-density-space-scale: 1;
     --app-density-control-scale: 1;
     color-scheme: dark;
+    --app-shelf-bar-height: max(3rem, var(--app-control-height-lg));
+    --app-shelf-z-index: 1030;
+    --app-shelf-header-z-index: 1031;
 
     --app-bg: #0d1119;
     --app-bg-elevated: #172033;
@@ -34,6 +37,7 @@
     --app-accent-border-soft: rgba(139, 181, 255, 0.22);
     --app-accent-border-strong: rgba(139, 181, 255, 0.55);
     --app-focus-ring: rgba(139, 181, 255, 0.28);
+    --app-focus-outline: var(--app-accent);
 
     --app-success: #42b883;
     --app-success-soft: rgba(66, 184, 131, 0.16);

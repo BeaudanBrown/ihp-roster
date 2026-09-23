@@ -38,12 +38,14 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (liveMutationTouchedResources, liveMutationValue))
 import Application.Helper.UserPreferences
-import Application.Helper.View (OverlayButton (OverlayButton, overlayButtonAction, overlayButtonClass, overlayButtonLabel),
-                                OverlayButtonAction (GeneratedDialogFormAction, OverlaySubmitFormAction),
+import Application.Helper.View (ConfirmationDialogConfig (..),
+                                ConfirmationDialogTone (ConfirmationDanger),
+                                OverlayButton (OverlayButton, overlayButtonAction, overlayButtonClass, overlayButtonLabel),
                                 ToastOverlayPosition (ToastBottomCenter),
+                                defaultConfirmationDialogConfig,
                                 defaultDialogOverlayConfig,
-                                dialogOverlayCloseButton, dialogOverlayMountId,
-                                errorToast, renderDialogOverlay,
+                                dialogOverlayMountId,
+                                errorToast, renderConfirmationDialog, renderDialogOverlay,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import qualified Application.RosterNotification as Notification
@@ -106,6 +108,7 @@ import Web.RosterWeeks.ShiftWorkflow
 import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.VenueSettings (setVenueRosterLayoutMode)
+import Web.View.RosterWeeks.CopyConfirmation (renderCopyRosterWeekConfirmation)
 import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirmation)
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
@@ -322,6 +325,13 @@ instance Controller RosterWeeksController where
         fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionSlotsGrid
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
+    action currentAction@ShowRosterSettingsFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionSettings
+        respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+
     action currentAction@ShowRosterWeekStaffPanelFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
@@ -390,14 +400,14 @@ instance Controller RosterWeeksController where
                 markStaleRosterCalendarResponseForRefresh >> respondRosterNotificationBadRequest "The roster calendar changed. Review the refreshed window and try again."
             Notification.RosterNotificationRunAlreadyActive ->
                 if isHtmxRequest
-                    then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
+                    then respondWithRosterFragments scope [RosterProjectionSettings] [hsx|
                         {renderDialogOverlayClearOob}
                         {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
                     |]
                     else setErrorMessage "Roster email delivery is already in progress." >> redirectToRosterWindow scope
             Notification.RosterNotificationRunHasNoEligibleRecipients ->
                 if isHtmxRequest
-                    then respondWithRosterFragments scope [RosterProjectionStaffPanel] [hsx|
+                    then respondWithRosterFragments scope [RosterProjectionSettings] [hsx|
                         {renderDialogOverlayClearOob}
                         {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
                     |]
@@ -410,7 +420,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterResourceInvalidation
                         scope
                         (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) run.weekStart run.windowEnd))
-                        [RosterProjectionStaffPanel]
+                        [RosterProjectionSettings]
                         [hsx|
                             {renderDialogOverlayClearOob}
                             {renderToastOob ToastBottomCenter (successToast successMessage)}
@@ -472,6 +482,21 @@ instance Controller RosterWeeksController where
                     else do
                         setSuccessMessage successMessage
                         redirectToPath targetPath
+
+    action currentAction@ShowCopyRosterWeekConfirmationAction = runBepis currentAction BepisFormAction do
+        ensureManagerRole
+        ensureVenueWritable
+        rosterGroup <- resolveRequestedRosterGroup
+        case RosterAction.parseOpenCopyRosterWeekConfirmationActionParams of
+            Left errors -> respondWithRosterToast (rosterSurfaceRequestErrorMessage errors) "app-toast-error"
+            Right fields -> do
+                (sourceWindowStart, targetWindowStart) <- rosterCopyActionDates
+                renderCopyRosterWeekConfirmation
+                    sourceWindowStart
+                    targetWindowStart
+                    rosterGroup.id
+                    (surfaceFieldValue @Surface.RosterCalendarRevision fields)
+                    |> respondHtmlProfiled
 
     action currentAction@CopyRosterWeekAction = runBepis currentAction BepisMutationAction do
         (sourceWindowStart, targetWindowStart) <- rosterCopyActionDates
@@ -964,7 +989,7 @@ instance Controller RosterWeeksController where
             Right fields -> do
                 _ <- upsertCurrentUserShowRosterWarnings (surfaceFieldValue @Surface.ShowRosterWarnings fields)
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate scope rosterGridStructuralAndStaffPanelFragments (successToast "Roster warning preference saved.")
+                    then respondWithRosterFragmentsUpdate scope (rosterGridStructuralFragments <> [RosterProjectionSettings]) (successToast "Roster warning preference saved.")
                     else do
                         setSuccessMessage "Roster warning preference saved."
                         redirectToRosterWindow scope
@@ -982,7 +1007,7 @@ instance Controller RosterWeeksController where
             Right fields -> do
                 _ <- upsertCurrentUserShowWageEstimates (surfaceFieldValue @Surface.ShowWageEstimates fields)
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate scope rosterGridStructuralAndStaffPanelFragments (successToast "Roster wage estimate preference saved.")
+                    then respondWithRosterFragmentsUpdate scope (rosterGridStructuralFragments <> [RosterProjectionSettings]) (successToast "Roster wage estimate preference saved.")
                     else do
                         setSuccessMessage "Roster wage estimate preference saved."
                         redirectToRosterWindow scope
@@ -1261,17 +1286,20 @@ fetchRosterDayForDialog rosterDayId = do
     case existing of
         Just rosterDay -> rosterActionScopeForDay rosterDay >> pure rosterDay
         Nothing -> do
-            let rosterGroupId = Id (param @UUID "rosterGroupId")
-                operationalDate = param @Calendar.Day "operationalDate"
-            rosterGroup <- query @RosterGroup
+            rosterGroupId <- parseOptionalRosterGroupIdParam
+                >>= maybe (respondRosterBadRequest "Missing roster group parameter.") pure
+            operationalDate <- maybe (respondRosterBadRequest "Missing operational date parameter.") parseIsoDayRouteParam
+                (paramOrNothing @Text "operationalDate")
+            maybeRosterGroup <- query @RosterGroup
                 |> filterWhere (#id, rosterGroupId)
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#isActive, True)
-                |> fetchOne
-            scope <- rosterActionScope rosterGroup.id
+                |> fetchOneOrNothing
+            accessDeniedUnless (isJust maybeRosterGroup)
+            scope <- rosterActionScope rosterGroupId
             accessDeniedUnless (operationalDate >= scope.rosterWindowStart && operationalDate < scope.rosterWindowEnd)
-            window <- fetchRosterWindow currentVenueId rosterGroup.id scope.rosterWindowStart
-            let maybeTarget = rosterWindowTarget currentVenueId rosterGroup.id window rosterDayId
+            window <- fetchRosterWindow currentVenueId rosterGroupId scope.rosterWindowStart
+            let maybeTarget = rosterWindowTarget currentVenueId rosterGroupId window rosterDayId
             accessDeniedUnless (maybe False ((== operationalDate) . (.operationalDate) . fst) maybeTarget)
             pure (fst (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized projected roster day missing") maybeTarget))
 
@@ -1347,20 +1375,25 @@ respondWithDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
     |]
 renderDeleteRosterSlotConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> Markup.Html
 renderDeleteRosterSlotConfirmation rosterSlot anchorDate calendarRevision =
-    renderDialogOverlay (defaultDialogOverlayConfig
-        "Delete roster shift?"
-        [hsx|<p class="mb-0">Delete this shift?</p>|]
-        [ dialogOverlayCloseButton "Cancel"
-        , OverlayButton
-            { overlayButtonLabel = "Delete shift"
-            , overlayButtonClass = "btn btn-danger"
-            , overlayButtonAction = GeneratedDialogFormAction
-                (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
-                (rosterDeleteSlotActionRoute rosterSlot.id anchorDate calendarRevision)
-                []
-                Nothing
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Delete roster shift?"
+            [hsx|<p class="mb-0">Delete this shift?</p>|]
+            formId
+            deleteForm)
+            { confirmationDialogApproveLabel = "Delete shift"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Deleting…"
             }
-        ])
+  where
+    formId = "delete-roster-slot-confirmation-form"
+    deleteForm =
+        renderAppShellActionForm
+            (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
+            ((rosterDeleteSlotActionRoute rosterSlot.id anchorDate calendarRevision)
+                { appShellActionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
 
 rosterDeleteSlotActionRoute :: Id RosterSlot -> Calendar.Day -> Int -> AppShellActionRoute
 rosterDeleteSlotActionRoute rosterSlotId anchorDate calendarRevision =
@@ -1377,7 +1410,6 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
         then respondHtmlProfiled [hsx|
             <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
                 {confirmationDialog}
-                {confirmForm}
             </div>
         |]
         else do
@@ -1403,23 +1435,23 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                     })
                 [hsx|<input type="hidden" name="confirmDeletePopulatedRow" value="true" />|]
         confirmationDialog =
-            renderDialogOverlay (defaultDialogOverlayConfig
-            "Delete roster row?"
-            [hsx|
-                    <p class="mb-2">
-                        {overflowCopy} cannot be packed into another column and will be deleted.
-                    </p>
-                    <p class="mb-0 app-muted">
-                        Shifts that fit will be moved into the bottom of the remaining columns from left to right.
-                    </p>
-                |]
-            [ dialogOverlayCloseButton "Cancel"
-                    , OverlayButton
-                        { overlayButtonLabel = "Delete row"
-                        , overlayButtonClass = "btn btn-danger"
-                        , overlayButtonAction = OverlaySubmitFormAction confirmFormId
-                        }
-                    ])
+            renderConfirmationDialog
+                (defaultConfirmationDialogConfig
+                    "Delete roster row?"
+                    [hsx|
+                        <p class="mb-2">
+                            {overflowCopy} cannot be packed into another column and will be deleted.
+                        </p>
+                        <p class="mb-0 app-muted">
+                            Shifts that fit will be moved into the bottom of the remaining columns from left to right.
+                        </p>
+                    |]
+                    confirmFormId
+                    confirmForm)
+                    { confirmationDialogApproveLabel = "Delete row"
+                    , confirmationDialogApproveTone = ConfirmationDanger
+                    , confirmationDialogLoadingLabel = "Deleting…"
+                    }
 
 
 markStaleRosterCalendarResponseForRefresh :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()

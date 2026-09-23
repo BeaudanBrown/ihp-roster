@@ -12,16 +12,34 @@
 
 .timesheet-settings-toggle-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
     gap: 0.5rem;
-}
-
-.timesheet-settings-toggle-grid:has(> .timesheet-settings-toggle:only-child) {
-    grid-template-columns: minmax(0, 1fr);
 }
 
 .timesheet-settings-toggle {
     min-width: 0;
+}
+
+.timesheet-staff-filter-controls {
+    display: flex;
+    gap: var(--app-space-2);
+}
+
+.timesheet-staff-filter-controls > select {
+    flex: 1;
+    min-width: 0;
+}
+
+.timesheet-staff-filter-controls > button {
+    flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+    .timesheet-staff-filter-controls > select,
+    .timesheet-staff-filter-controls > button {
+        min-height: 2.75rem;
+        min-width: 2.75rem;
+    }
 }
 
 .timesheet-day-columns {

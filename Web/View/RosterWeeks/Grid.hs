@@ -76,7 +76,7 @@ import Web.RosterWeeks.WageFilter (rosterWageFilterConfigAttrs)
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
-import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
+import Web.View.RosterWeeks.StaffPanel (renderRosterSidePanel)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelinePanel)
 
@@ -128,7 +128,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData (isJust gridTemplateLibrary) gridRosterDays gridRenderIndexes)
         renderStaffPanelMount =
             if currentUserIsManager
-                then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
+                then renderRosterSidePanel RosterStaffPanelRenderModel
                     { staffPanelRosterWeek = gridRosterWeek
                     , staffPanelWeekStartDate = gridModel.gridWeekStartDate
                     , staffPanelCalendarRevision = gridModel.gridRosterCalendarRevision

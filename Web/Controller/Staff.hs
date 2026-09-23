@@ -2,8 +2,10 @@ module Web.Controller.Staff where
 
 import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
                                                              appShellActionByMarker,
-                                                             defaultAppShellActionRoute)
+                                                             defaultAppShellActionRoute,
+                                                             renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
@@ -20,11 +22,13 @@ import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (OverlayButton (..), OverlayButtonAction (..),
+import Application.Helper.View (ConfirmationDialogConfig (..),
+                                ConfirmationDialogTone (ConfirmationDanger),
                                 OverlayFormMode (HtmxOverlayForm),
                                 ToastOverlayPosition (..),
-                                defaultDialogOverlayConfig,
-                                dialogOverlayCloseButton, errorToast,
+                                defaultConfirmationDialogConfig,
+                                defaultDialogOverlayConfig, errorToast,
+                                renderConfirmationDialog,
                                 renderDialogOverlay,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
@@ -399,25 +403,27 @@ staffRequiresPayConfigurationRemediation staff =
 
 renderStaffRemovalConfirmation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Day -> Maybe (Id RosterGroup) -> Html
 renderStaffRemovalConfirmation staff anchorDate maybeRosterGroupId =
-    renderDialogOverlay (defaultDialogOverlayConfig
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
             "Remove staff member"
-            [hsx|
-            <p class="mb-0">Are you sure you want to remove this staff member? This cannot be undone.</p>
-        |]
-            [ dialogOverlayCloseButton "Cancel"
-            , OverlayButton
-                { overlayButtonLabel = "Remove staff member"
-                , overlayButtonClass = "btn btn-danger"
-                , overlayButtonAction = GeneratedDialogFormAction
-                    (appShellActionByMarker @RemoveStaffOverlay)
-                    ((defaultAppShellActionRoute (pathTo (RemoveStaffAction staff.id)))
-                        { appShellActionRouteStandardUrl = Just (pathTo (RemoveStaffAction staff.id))
-                        })
-                    returnFields
-                    Nothing
-                }
-            ])
+            [hsx|<p class="mb-0">Are you sure you want to remove this staff member? This cannot be undone.</p>|]
+            formId
+            removalForm)
+            { confirmationDialogApproveLabel = "Remove staff member"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Removing…"
+            }
   where
+    formId = "remove-staff-confirmation-form"
+    removalForm =
+        renderAppShellActionForm
+            (appShellActionByMarker @RemoveStaffOverlay)
+            ((defaultAppShellActionRoute (pathTo (RemoveStaffAction staff.id)))
+                { appShellActionRouteFields = fmap AppShellFieldValue returnFields
+                , appShellActionRouteStandardUrl = Just (pathTo (RemoveStaffAction staff.id))
+                , appShellActionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty
     returnFields =
         [("anchorDate", tshow anchorDate)]
             <> maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId

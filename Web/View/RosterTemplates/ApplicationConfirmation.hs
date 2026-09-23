@@ -27,18 +27,21 @@ renderRosterTemplateApplicationTransportError message =
 
 renderRosterTemplateApplicationConfirmation :: (?context :: ControllerContext) => Id RosterTemplate -> Id RosterGroup -> RosterTemplateApplicationPreview -> Maybe Text -> Html
 renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId preview maybeMessage =
-    renderDialogOverlay (defaultDialogOverlayConfig
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
             ("Apply " <> preview.applicationPreviewTemplateName)
             [hsx|
-            {forEach maybeMessage renderMessage}
-            <p class="alert alert-warning">This will set this roster week to draft mode and replace it with the template. Any existing timesheets will remain unchanged.</p>
-            {renderExceptions preview}
-            {renderFrontendSurfaceActionForm (RosterAction.applyRosterTemplateApplicationAction actionFields) actionRoute (renderApplicationFields rosterTemplateId preview actionFields)}
-        |]
-            [ dialogOverlayCloseButton "Cancel"
-            , dialogOverlaySubmitButton "Approve" formId
-            ])
+                {forEach maybeMessage renderMessage}
+                <p class="alert alert-warning">This will set this roster week to draft mode and replace it with the template. Any existing timesheets will remain unchanged.</p>
+                {renderExceptions preview}
+            |]
+            formId
+            applicationForm)
+            { confirmationDialogApproveLabel = "Approve"
+            , confirmationDialogLoadingLabel = "Applying…"
+            }
   where
+    applicationForm = renderFrontendSurfaceActionForm (RosterAction.applyRosterTemplateApplicationAction actionFields) actionRoute (renderApplicationFields rosterTemplateId preview actionFields)
     formId = "roster-template-application-form"
     actionUrl = rosterTemplateApplicationUrl preview.applicationPreviewTargetWindowStart rosterTemplateId rosterGroupId
     actionFields = RosterAction.applyRosterTemplateApplicationActionFields

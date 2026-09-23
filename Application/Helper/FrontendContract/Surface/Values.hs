@@ -1234,6 +1234,11 @@ surfaceSidePanelValue =
         , sidePanelPanelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelPanelRole
         , sidePanelToggleRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelToggleRole
         , sidePanelLabelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelLabelRole
+        , sidePanelShelfRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelShelfRole
+        , sidePanelShelfToggleRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelShelfToggleRole
+        , sidePanelShelfState = sidePanel.sidePanelShelfState
+            { browserClosedStateAttribute = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelShelfState.browserClosedStateAttribute
+            }
         , sidePanelState = sidePanel.sidePanelState
             { browserClosedStateAttribute = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelState.browserClosedStateAttribute
             }

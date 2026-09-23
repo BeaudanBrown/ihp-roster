@@ -24,8 +24,9 @@ Registers, inspects, resolves, and orients local epic worktrees. The shared
 registry is stored beneath Git's common directory; the compact identity is
 stored in the worktree root. Resolve validates registry, Git, and identity state
 without the process, resource, or HLS diagnostics gathered by inspect.
-Orientation reads live parent/sub-issue/blocker state from GitHub and never
-selects, starts, or closes work.
+Orientation reads live parent/sub-issue/blocker state from GitHub and emits the
+automatic-progression or stop guidance an agent should follow. It does not itself
+mutate issues.
 EOF
 }
 
@@ -373,20 +374,15 @@ if [ "$command_name" = orient ]; then
         issue="$(jq '{number, title, url: .html_url, assignees: [.assignees[].login]}' <<<"$child")"
         if [ "$(jq 'length' <<<"$open_blockers")" -gt 0 ]; then
             blocked="$(jq -c --argjson issue "$issue" --argjson blockers "$open_blockers" '. + [$issue + {blockedBy: $blockers}]' <<<"$blocked")"
-        elif [ "$(jq '.assignees | length' <<<"$child")" -gt 0 ] || jq -e --argjson number "$child_number" 'index($number) != null' <<<"$committed_numbers" >/dev/null; then
-            reasons='[]'
-            if [ "$(jq '.assignees | length' <<<"$child")" -gt 0 ]; then
-                reasons="$(jq -c '. + ["assigned"]' <<<"$reasons")"
-            fi
-            if jq -e --argjson number "$child_number" 'index($number) != null' <<<"$committed_numbers" >/dev/null; then
-                reasons="$(jq -c '. + ["committed-work-awaiting-resolution"]' <<<"$reasons")"
-            fi
+        elif jq -e --argjson number "$child_number" 'index($number) != null' <<<"$committed_numbers" >/dev/null; then
+            reasons='["committed-work-awaiting-resolution"]'
             active="$(jq -c --argjson issue "$issue" --argjson reasons "$reasons" '. + [$issue + {reasons: $reasons}]' <<<"$active")"
         else
             ready="$(jq -c --argjson issue "$issue" '. + [$issue]' <<<"$ready")"
         fi
     done < <(jq -c '.[]' <<<"$children")
 
+    ready="$(jq -c 'sort_by([(.assignees | length > 0), .number])' <<<"$ready")"
     pending_committed_issues="$(jq -c --argjson committed "$committed_numbers" \
         '[.[] | select(.state == "open" and (.number as $number | $committed | index($number) != null)) | .number]' \
         <<<"$children")"
@@ -394,7 +390,7 @@ if [ "$command_name" = orient ]; then
     if [ "$(jq 'length' <<<"$pending_committed_issues")" -gt 0 ]; then
         interrupted=true
     fi
-    selection_allowed="$([ "$interrupted" = false ] && printf true || printf false)"
+    selection_allowed="$([ "$interrupted" = false ] && [ "$(jq -r '.state' <<<"$parent")" = open ] && printf true || printf false)"
     result="$(jq -cn \
         --argjson parent "$parent" --argjson workspace "$orientation_record" \
         --argjson changes "$changes_json" --argjson interrupted "$interrupted" \
@@ -405,12 +401,21 @@ if [ "$command_name" = orient ]; then
             epic: {number: $parent.number, title: $parent.title, state: $parent.state, url: $parent.html_url},
             workspace: ($workspace + {interrupted: $interrupted, pendingCommittedIssues: $pending, aheadOfTarget: $ahead, changes: $changes}),
             issues: {ready: $ready, activeInterrupted: $active, blocked: $blocked},
-            selection: {allowed: $allowed, requiresUserChoice: true},
-            approvalRules: [
-                "Wait for the user to choose an issue before beginning work.",
-                "Commit and present verification evidence before requesting approval to close.",
-                "Close only after approval, then refresh orientation; proceed with an explicitly selected next issue, otherwise request selection."
-            ]
+            selection: {allowed: $allowed, requiresUserChoice: false},
+            workflowRules: (
+                if $parent.state != "open" then
+                    ["Stop: the parent epic is closed; do not select or begin its remaining work."]
+                elif $interrupted then
+                    ["Resolve the interrupted workspace work before selecting another issue."]
+                else
+                    [
+                        "Select and begin the most appropriate ready issue unless the user retained control or a material decision needs input.",
+                        "Prefer unassigned ready work; before starting assigned work, confirm issue activity does not show another actor actively implementing it.",
+                        "Commit, present verification evidence, and close a completed sub-issue without routine confirmation.",
+                        "After closure, refresh orientation and continue with the next most appropriate ready issue by default."
+                    ]
+                end
+            )
         }')"
 
     if [ "$json" = true ]; then
@@ -419,20 +424,26 @@ if [ "$command_name" = orient ]; then
     fi
 
     jq -r '"EPIC #\(.epic.number): \(.epic.title) [\(.epic.state)]\nWORKSPACE: slot \(.workspace.slot), \(.workspace.branch) -> \(.workspace.targetBranch), ahead \(.workspace.aheadOfTarget)"' <<<"$result"
-    if [ "$interrupted" = true ]; then
+    if [ "$(jq -r '.state' <<<"$parent")" != open ]; then
+        echo "STOP: the parent epic is closed; do not select new work from it."
+        echo "READY — unavailable because epic is closed"
+    elif [ "$interrupted" = true ]; then
         echo "STOP: interrupted workspace work must be resumed or resolved before choosing new work."
         echo "READY — unavailable until interruption resolved"
     else
-        echo "READY — choose explicitly"
+        echo "READY — select the most appropriate issue"
     fi
-    jq -r '.issues.ready[] | "  #\(.number) \(.title)"' <<<"$result"
+    jq -r '.issues.ready[] | "  #\(.number) \(.title)" + (if (.assignees | length) > 0 then " [assigned: \(.assignees | join(", "))]" else "" end)' <<<"$result"
     echo "ACTIVE / INTERRUPTED"
     jq -r '.issues.activeInterrupted[] | "  #\(.number) \(.title) [\(.reasons | join(", "))]"' <<<"$result"
     echo "BLOCKED"
     jq -r '.issues.blocked[] | "  #\(.number) \(.title) [blocked by \([.blockedBy[].number | "#\(.)"] | join(", "))]"' <<<"$result"
-    echo "Wait for the user; do not begin, close, or move issues automatically."
-    echo "After implementation: commit, present verification evidence, and request approval before closure."
-    echo "After approved closure: refresh orientation; proceed with an explicitly selected next issue, otherwise request selection."
+    if [ "$(jq -r '.state' <<<"$parent")" = open ] && [ "$interrupted" = false ]; then
+        echo "Select and begin the most appropriate ready issue unless the user retained control or a material decision needs input."
+        echo "Prefer unassigned work; confirm an assigned issue has no active implementation before starting it."
+        echo "After implementation: verify, commit, present evidence, and close the completed sub-issue without routine confirmation."
+        echo "After closure: refresh orientation and continue with the next most appropriate ready issue by default."
+    fi
     exit 0
 fi
 

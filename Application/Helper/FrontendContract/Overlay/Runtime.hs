@@ -5,6 +5,7 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , canonicalOverlayDom
     , dialogBackdropAttrs
     , dialogCloseAttrs
+    , dialogConfirmationAttrs
     , dialogFocusRegionAttrs
     , dialogKeyboardAttrs
     , dialogMountAttrs
@@ -31,6 +32,7 @@ data OverlayDom = OverlayDom
     , overlayToastMountId                :: !Text
     , overlayDialogDismissedEventName    :: !Text
     , overlayDialogMountAttribute        :: !Text
+    , overlayDialogConfirmationAttribute :: !Text
     , overlayDialogBackdropAttribute     :: !Text
     , overlayDialogCloseAttribute        :: !Text
     , overlayDialogSubmitAttribute       :: !Text
@@ -53,6 +55,7 @@ canonicalOverlayDom = OverlayDom
     , overlayToastMountId = domIdValue @Contract.ToastOverlayMount
     , overlayDialogDismissedEventName = eventNameValue @Contract.DialogDismissed
     , overlayDialogMountAttribute = domAttrValue @Contract.DialogMount
+    , overlayDialogConfirmationAttribute = domAttrValue @Contract.DialogConfirmation
     , overlayDialogBackdropAttribute = domAttrValue @Contract.DialogBackdrop
     , overlayDialogCloseAttribute = domAttrValue @Contract.DialogClose
     , overlayDialogSubmitAttribute = domAttrValue @Contract.DialogSubmit
@@ -70,6 +73,9 @@ canonicalOverlayDom = OverlayDom
 
 dialogMountAttrs :: [(Text, Text)]
 dialogMountAttrs = roleAttrs canonicalOverlayDom.overlayDialogMountAttribute
+
+dialogConfirmationAttrs :: [(Text, Text)]
+dialogConfirmationAttrs = roleAttrs canonicalOverlayDom.overlayDialogConfirmationAttribute
 
 dialogBackdropAttrs :: [(Text, Text)]
 dialogBackdropAttrs = roleAttrs canonicalOverlayDom.overlayDialogBackdropAttribute

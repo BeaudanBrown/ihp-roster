@@ -30,6 +30,11 @@ skipped recipients in one transaction. One permanently deduplicated
 an immutable retained communication record; later roster edits and returning the
 week to draft do not change delivery content.
 
+The standalone window-lock owner keeps its body context-polymorphic until IHP
+installs the transaction `ModelContext`; run creation and every recipient
+envelope therefore share that transaction. In-current-transaction callers use
+the separate lock helper and never open a nested transaction.
+
 Each envelope references only its run and snapshots the recipient account ID and
 address. Delivery validates the run schema, relationship, venue, complete run
 identity, and exact recipient snapshot entry. Mail includes only that recipient's

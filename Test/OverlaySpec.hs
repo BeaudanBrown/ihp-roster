@@ -41,9 +41,8 @@ buttonCases page =
     , ("loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving" True [], "button", submitAttrs "Saving", [], [])
     , ("disabled loading submit", OverlaySubmitFormLoadingAction "edit-form" "Saving" False [("data-bepis-checkbox-list-submit", "true")], "button", submitAttrs "Saving" <> [("disabled", "disabled"), ("data-bepis-checkbox-list-submit", "true")], [], [])
     , ("navigate", OverlayNavigateAction "/next", "a", [("href", "/next")], [], [])
-    , ("native form", DialogFormAction "DELETE" "/delete" fields (Just "Really delete?"), "button", [("type", "submit")], [nativeFormAttrs], ("_method", "DELETE") : fields)
-    , ("navigation loading form", DialogNavigationLoadingFormAction "DELETE" "/delete" fields (Just "Really delete?") "Opening" "Please wait", "button", [("type", "submit")], [nativeFormAttrs <> [("data-bepis-navigation-loading", "true"), ("data-bepis-navigation-loading-config", "{&quot;loadingMessage&quot;:&quot;Please wait&quot;,&quot;loadingTitle&quot;:&quot;Opening&quot;}")]], ("_method", "DELETE") : fields)
-    , ("generated form", GeneratedDialogFormAction (appShellActionByMarker @DeleteTimesheetEntryOverlay) route (("_method", "DELETE") : fields) (Just "Really delete?"), "button", [("type", "submit")], [generatedFormAttrs], ("routeField", "route-value") : ("_method", "DELETE") : fields)
+    , ("navigation loading form", DialogNavigationLoadingFormAction "DELETE" "/delete" fields "Opening" "Please wait", "button", [("type", "submit")], [nativeFormAttrs <> [("data-bepis-navigation-loading", "true"), ("data-bepis-navigation-loading-config", "{&quot;loadingMessage&quot;:&quot;Please wait&quot;,&quot;loadingTitle&quot;:&quot;Opening&quot;}")]], ("_method", "DELETE") : fields)
+    , ("generated form", GeneratedDialogFormAction (appShellActionByMarker @DeleteTimesheetEntryOverlay) route (("_method", "DELETE") : fields), "button", [("type", "submit")], [generatedFormAttrs], ("routeField", "route-value") : ("_method", "DELETE") : fields)
     ]
   where
     fields = [("csrfToken", "token-value"), ("entryId", "entry-value")]
@@ -53,12 +52,12 @@ buttonCases page =
         }
     submitAttrs loadingLabel =
         [("type", "submit"), ("form", "edit-form"), ("data-bepis-dialog-submit", "true"), ("data-bepis-dialog-submit-config", "{&quot;loadingLabel&quot;:&quot;" <> loadingLabel <> "&quot;}")]
-    nativeFormAttrs = [("method", "POST"), ("action", "/delete"), ("class", "app-modal-footer-form"), ("onsubmit", "return window.confirm(&quot;Really delete?&quot;);")]
+    nativeFormAttrs = [("method", "POST"), ("action", "/delete"), ("class", "app-modal-footer-form")]
     generatedFormAttrs =
         [("method", if page then "POST" else "post"), ("action", "/native-delete"), ("class", "app-modal-footer-form")]
             <> if page
-                then [("onsubmit", "return window.confirm(&quot;Really delete?&quot;);")]
-                else [("hx-delete", "/htmx-delete"), ("hx-target", "#dialog-overlay-mount"), ("hx-swap", "innerHTML"), ("hx-push-url", "false"), ("hx-confirm", "Delete this timesheet entry? This cannot be undone.")]
+                then []
+                else [("hx-delete", "/htmx-delete"), ("hx-target", "#dialog-overlay-mount"), ("hx-swap", "innerHTML"), ("hx-push-url", "false")]
 
 -- Use IHP's existing markup parser rather than a parallel attribute scanner.
 parseRenderedOverlay :: Html -> IO Hsx.Node
@@ -122,6 +121,18 @@ databaseTests = aroundAll withDatabaseTestContext do
                     filter (\node -> maybe False (Text.isInfixOf "app-modal-footer") (lookup "class" (nodeAttrs node))) (elementNodes emptyTree)
                         `shouldBe` []
 
+        it "renders confirmation as an explicit dialog with a native loading submit" $ withContext do
+            withCurrentControllerContext do
+                let html = renderText (renderConfirmationDialog
+                        ((defaultConfirmationDialogConfig "Confirm" mempty "confirm-form" mempty)
+                            { confirmationDialogLoadingLabel = "Saving…" }))
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-confirmation=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "form=\"confirm-form\""
+                html `shouldSatisfy` Text.isInfixOf "type=\"submit\""
+                html `shouldSatisfy` Text.isInfixOf "Saving…"
+                html `shouldSatisfy` not . Text.isInfixOf "hx-confirm"
+                html `shouldSatisfy` not . Text.isInfixOf "window.confirm"
+
         it "owns the exact dialog mount clear OOB fragment" $ withContext do
             withCurrentControllerContext do
                 let html = renderText renderDialogOverlayClearOob
@@ -166,7 +177,7 @@ databaseTests = aroundAll withDatabaseTestContext do
 
                 html `shouldSatisfy` Text.isInfixOf "id=\"toast-overlay-mount\""
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-mount=\"true\""
-                html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-config=\"{&quot;autoHideMs&quot;:3200}\""
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-config=\"{&quot;autoHideMs&quot;:5000}\""
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-toast-close=\"true\""
                 html `shouldSatisfy` Text.isInfixOf "aria-label=\"Dismiss\""
                 html `shouldSatisfy` not . Text.isInfixOf "data-overlay-toast"

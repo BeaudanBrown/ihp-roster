@@ -296,9 +296,9 @@ test("FrontendSurface mount scanner is safe without a browser document", () => {
 });
 
 test("FrontendSurface instance reconciliation disposes removed children deepest first", () => {
-    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", depth: 0 };
-    const child: FrontendSurfaceMountedInstance = { instanceId: "child:scope:primary", surface: "child", scopeKey: "child:scope", mountKey: "primary", depth: 1 };
-    const grandchild: FrontendSurfaceMountedInstance = { instanceId: "grandchild:scope:primary", surface: "grandchild", scopeKey: "grandchild:scope", mountKey: "primary", depth: 2 };
+    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", depth: 0, ownerEl: {} as HTMLElement };
+    const child: FrontendSurfaceMountedInstance = { instanceId: "child:scope:primary", surface: "child", scopeKey: "child:scope", mountKey: "primary", depth: 1, ownerEl: {} as HTMLElement };
+    const grandchild: FrontendSurfaceMountedInstance = { instanceId: "grandchild:scope:primary", surface: "grandchild", scopeKey: "grandchild:scope", mountKey: "primary", depth: 2, ownerEl: {} as HTMLElement };
     const active = new Map([
         [parent.instanceId, parent],
         [child.instanceId, child],
@@ -313,9 +313,9 @@ test("FrontendSurface instance reconciliation disposes removed children deepest 
 });
 
 test("FrontendSurface instance reconciliation handles same, removed, and newly scoped children", () => {
-    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", depth: 0 };
-    const oldChild: FrontendSurfaceMountedInstance = { instanceId: "child:old:primary", surface: "child", scopeKey: "child:old", mountKey: "primary", depth: 1 };
-    const newChild: FrontendSurfaceMountedInstance = { instanceId: "child:new:primary", surface: "child", scopeKey: "child:new", mountKey: "primary", depth: 1 };
+    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", depth: 0, ownerEl: {} as HTMLElement };
+    const oldChild: FrontendSurfaceMountedInstance = { instanceId: "child:old:primary", surface: "child", scopeKey: "child:old", mountKey: "primary", depth: 1, ownerEl: {} as HTMLElement };
+    const newChild: FrontendSurfaceMountedInstance = { instanceId: "child:new:primary", surface: "child", scopeKey: "child:new", mountKey: "primary", depth: 1, ownerEl: {} as HTMLElement };
     const active = new Map([
         [parent.instanceId, parent],
         [oldChild.instanceId, oldChild],
@@ -326,6 +326,19 @@ test("FrontendSurface instance reconciliation handles same, removed, and newly s
     assertDeepEqual(reconciliation.retained.map((instance) => instance.instanceId), [parent.instanceId]);
     assertDeepEqual(reconciliation.removed.map((instance) => instance.instanceId), [oldChild.instanceId]);
     assertDeepEqual(reconciliation.added.map((instance) => instance.instanceId), [newChild.instanceId]);
+});
+
+test("FrontendSurface instance reconciliation replaces an identical serialized mount with a new DOM lifetime", () => {
+    const oldOwner = {} as HTMLElement;
+    const newOwner = {} as HTMLElement;
+    const oldInstance: FrontendSurfaceMountedInstance = { instanceId: "roster:scope:primary", surface: "roster", scopeKey: "scope", mountKey: "primary", depth: 0, ownerEl: oldOwner };
+    const newInstance: FrontendSurfaceMountedInstance = { ...oldInstance, ownerEl: newOwner };
+
+    const reconciliation = reconcileFrontendSurfaceInstances(new Map([[oldInstance.instanceId, oldInstance]]), [newInstance]);
+
+    assertDeepEqual(reconciliation.retained, []);
+    assertEqual(reconciliation.removed[0]?.ownerEl, oldOwner);
+    assertEqual(reconciliation.added[0]?.ownerEl, newOwner);
 });
 
 test("generated live protocol accepts semantic keys and rejects executable descriptors", () => {

@@ -131,9 +131,10 @@ export type TimesheetsSurfaceFragmentKey =
     { kind: "timesheet-toolbar"; params: TimesheetsTimesheetToolbarFragmentParams | null }
   | { kind: "timesheet-day-columns"; params: TimesheetsTimesheetDayColumnsFragmentParams | null }
   | { kind: "timesheet-side-panel-content"; params: TimesheetsTimesheetSidePanelContentFragmentParams | null }
+  | { kind: "timesheet-staff-content"; params: TimesheetsTimesheetStaffContentFragmentParams | null }
   | { kind: "timesheet-day-section"; params: TimesheetsTimesheetDaySectionFragmentParams };
 export function isTimesheetsSurfaceFragmentKey(value: unknown): value is TimesheetsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && (typeof value["params"]["operationalDate"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-staff-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && (typeof value["params"]["operationalDate"] === "string"))));
 }
 
 export type RosterSurfaceFragmentKey =
@@ -146,12 +147,13 @@ export type RosterSurfaceFragmentKey =
   | { kind: "roster-wage-rail"; params: RosterRosterWageRailFragmentParams | null }
   | { kind: "roster-slots-grid"; params: RosterRosterSlotsGridFragmentParams | null }
   | { kind: "roster-staff-panel"; params: RosterRosterStaffPanelFragmentParams | null }
+  | { kind: "roster-settings-content"; params: RosterRosterSettingsContentFragmentParams | null }
   | { kind: "roster-week-overview"; params: RosterRosterWeekOverviewFragmentParams | null }
   | { kind: "roster-template-library"; params: RosterRosterTemplateLibraryFragmentFragmentParams | null }
   | { kind: "roster-day-section"; params: RosterRosterDaySectionFragmentParams }
   | { kind: "roster-row"; params: RosterRosterRowFragmentParams };
 export function isRosterSurfaceFragmentKey(value: unknown): value is RosterSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-settings-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
 }
 
 export type RosterDayTimelineSurfaceFragmentKey =
@@ -451,6 +453,8 @@ export const dialogDismissedEvent = "bepis:dialog-dismissed" as const;
 
 export const dialogMountDomAttr = "data-bepis-dialog-mount" as const;
 
+export const dialogConfirmationDomAttr = "data-bepis-dialog-confirmation" as const;
+
 export const dialogBackdropDomAttr = "data-bepis-dialog-backdrop" as const;
 
 export const dialogCloseDomAttr = "data-bepis-dialog-close" as const;
@@ -476,6 +480,10 @@ export const toastMountDomAttr = "data-bepis-toast-mount" as const;
 export const toastCloseDomAttr = "data-bepis-toast-close" as const;
 
 export const toastConfigDomAttr = "data-bepis-toast-config" as const;
+
+export const appNavigationHeaderDomAttr = "data-bepis-app-navigation-header" as const;
+
+export const appPageContentDomAttr = "data-bepis-app-page-content" as const;
 
 export type UiRegionTransitionProfile =
     "none"
@@ -1076,6 +1084,11 @@ export function isTimesheetsTimesheetSidePanelContentFragmentParams(value: unkno
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
+export type TimesheetsTimesheetStaffContentFragmentParams = {  };
+export function isTimesheetsTimesheetStaffContentFragmentParams(value: unknown): value is TimesheetsTimesheetStaffContentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
 export type TimesheetsTimesheetDaySectionFragmentParams = { operationalDate: FrontendContractDay };
 export function isTimesheetsTimesheetDaySectionFragmentParams(value: unknown): value is TimesheetsTimesheetDaySectionFragmentParams {
     return isRecord(value) && hasExactKeys(value, ["operationalDate"], ["operationalDate"]) && (typeof value["operationalDate"] === "string");
@@ -1191,6 +1204,11 @@ export function isRosterRosterSlotsGridFragmentParams(value: unknown): value is 
 
 export type RosterRosterStaffPanelFragmentParams = {  };
 export function isRosterRosterStaffPanelFragmentParams(value: unknown): value is RosterRosterStaffPanelFragmentParams {
+    return isRecord(value) && hasExactKeys(value, [], []);
+}
+
+export type RosterRosterSettingsContentFragmentParams = {  };
+export function isRosterRosterSettingsContentFragmentParams(value: unknown): value is RosterRosterSettingsContentFragmentParams {
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
@@ -1513,6 +1531,8 @@ export const timesheetsTimesheetSidePanelMainDomAttr = "data-bepis-timesheets-ti
 export const timesheetsTimesheetSidePanelPanelDomAttr = "data-bepis-timesheets-timesheet-side-panel-panel" as const;
 export const timesheetsTimesheetSidePanelToggleDomAttr = "data-bepis-timesheets-timesheet-side-panel-toggle" as const;
 export const timesheetsTimesheetSidePanelLabelDomAttr = "data-bepis-timesheets-timesheet-side-panel-label" as const;
+export const timesheetsSidePanelShelfDomAttr = "data-bepis-timesheets-side-panel-shelf" as const;
+export const timesheetsSidePanelShelfToggleDomAttr = "data-bepis-timesheets-side-panel-shelf-toggle" as const;
 export const timesheetsTimesheetStaffHighlightSourceDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-source" as const;
 export const timesheetsTimesheetStaffHighlightMemberDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-member" as const;
 export const timesheetsTimesheetStaffHighlightPinDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-pin" as const;
@@ -1528,6 +1548,8 @@ export const rosterSidePanelMainDomAttr = "data-bepis-roster-side-panel-main" as
 export const rosterSidePanelPanelDomAttr = "data-bepis-roster-side-panel-panel" as const;
 export const rosterSidePanelToggleDomAttr = "data-bepis-roster-side-panel-toggle" as const;
 export const rosterSidePanelLabelDomAttr = "data-bepis-roster-side-panel-label" as const;
+export const rosterSidePanelShelfDomAttr = "data-bepis-roster-side-panel-shelf" as const;
+export const rosterSidePanelShelfToggleDomAttr = "data-bepis-roster-side-panel-shelf-toggle" as const;
 export const rosterColumnEditorDomAttr = "data-bepis-roster-column-editor" as const;
 export const rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start" as const;
 export const rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done" as const;
@@ -1576,6 +1598,8 @@ export const leaveRequestsLeaveSidePanelMainDomAttr = "data-bepis-leave-requests
 export const leaveRequestsLeaveSidePanelPanelDomAttr = "data-bepis-leave-requests-leave-side-panel-panel" as const;
 export const leaveRequestsLeaveSidePanelToggleDomAttr = "data-bepis-leave-requests-leave-side-panel-toggle" as const;
 export const leaveRequestsLeaveSidePanelLabelDomAttr = "data-bepis-leave-requests-leave-side-panel-label" as const;
+export const leaveRequestsSidePanelShelfDomAttr = "data-bepis-leave-requests-side-panel-shelf" as const;
+export const leaveRequestsSidePanelShelfToggleDomAttr = "data-bepis-leave-requests-side-panel-shelf-toggle" as const;
 export const leaveRequestsLeaveStaffHighlightSourceDomAttr = "data-bepis-leave-requests-leave-staff-highlight-source" as const;
 export const leaveRequestsLeaveStaffHighlightMemberDomAttr = "data-bepis-leave-requests-leave-staff-highlight-member" as const;
 export const leaveRequestsLeaveStaffHighlightPinDomAttr = "data-bepis-leave-requests-leave-staff-highlight-pin" as const;
@@ -1587,10 +1611,22 @@ export function isTimesheetsTimesheetSidePanelState(value: unknown): value is Ti
     return typeof value === "string" && ["collapsed","expanded"].includes(value);
 }
 
+export const timesheetsSidePanelShelfStates = {"shelf-closed":"shelf-closed","shelf-open":"shelf-open"} as const;
+export type TimesheetsSidePanelShelfState = "shelf-closed" | "shelf-open";
+export function isTimesheetsSidePanelShelfState(value: unknown): value is TimesheetsSidePanelShelfState {
+    return typeof value === "string" && ["shelf-closed","shelf-open"].includes(value);
+}
+
 export const rosterSidePanelStates = {"collapsed":"collapsed","expanded":"expanded"} as const;
 export type RosterSidePanelState = "collapsed" | "expanded";
 export function isRosterSidePanelState(value: unknown): value is RosterSidePanelState {
     return typeof value === "string" && ["collapsed","expanded"].includes(value);
+}
+
+export const rosterSidePanelShelfStates = {"shelf-closed":"shelf-closed","shelf-open":"shelf-open"} as const;
+export type RosterSidePanelShelfState = "shelf-closed" | "shelf-open";
+export function isRosterSidePanelShelfState(value: unknown): value is RosterSidePanelShelfState {
+    return typeof value === "string" && ["shelf-closed","shelf-open"].includes(value);
 }
 
 export const rosterColumnEditingStates = {"inactive":"inactive","active":"active"} as const;
@@ -1627,6 +1663,12 @@ export const leaveRequestsLeaveSidePanelStates = {"collapsed":"collapsed","expan
 export type LeaveRequestsLeaveSidePanelState = "collapsed" | "expanded";
 export function isLeaveRequestsLeaveSidePanelState(value: unknown): value is LeaveRequestsLeaveSidePanelState {
     return typeof value === "string" && ["collapsed","expanded"].includes(value);
+}
+
+export const leaveRequestsSidePanelShelfStates = {"shelf-closed":"shelf-closed","shelf-open":"shelf-open"} as const;
+export type LeaveRequestsSidePanelShelfState = "shelf-closed" | "shelf-open";
+export function isLeaveRequestsSidePanelShelfState(value: unknown): value is LeaveRequestsSidePanelShelfState {
+    return typeof value === "string" && ["shelf-closed","shelf-open"].includes(value);
 }
 
 export type TimesheetStaffPanelSortKey = "name" | "role" | "count";
@@ -1691,10 +1733,10 @@ export const FrontendSurfaceCompleteSetSortRegistry: Record<FrontendSurfaceName,
 export type FrontendSurfaceTabSetDefinition = { name: string; tabRoleAttribute: string; keys: ReadonlyArray<string>; defaultKey: string; isKey: (value: unknown) => boolean };
 export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceTabSetDefinition>> = {"timesheets":[{"name":"timesheet-side-panel-tabs","tabRoleAttribute":timesheetsTimesheetSidePanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isTimesheetSidePanelTabsKey}],"roster":[{"name":"roster-staff-panel-tabs","tabRoleAttribute":rosterStaffPanelTabDomAttr,"keys":["staff","templates","settings"],"defaultKey":"staff","isKey":isRosterStaffPanelTabsKey},{"name":"roster-self-service-panel-tabs","tabRoleAttribute":rosterSelfServicePanelTabDomAttr,"keys":["quick-tools","settings"],"defaultKey":"quick-tools","isKey":isRosterSelfServicePanelTabsKey}],"roster-day-timeline":[],"leave-requests":[{"name":"leave-request-tabs","tabRoleAttribute":leaveRequestsLeaveRequestTabDomAttr,"keys":["pending","approved","denied","archive"],"defaultKey":"pending","isKey":isLeaveRequestTabsKey},{"name":"leave-archive-request-tabs","tabRoleAttribute":leaveRequestsLeaveArchiveRequestTabDomAttr,"keys":["pending","approved","denied","archive"],"defaultKey":"archive","isKey":isLeaveArchiveRequestTabsKey},{"name":"leave-side-panel-tabs","tabRoleAttribute":leaveRequestsLeaveSidePanelTabDomAttr,"keys":["staff","settings"],"defaultKey":"staff","isKey":isLeaveSidePanelTabsKey}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
-export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean };
-export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = {"timesheets":[{"name":"timesheet-side-panel","rootRoleAttribute":timesheetsTimesheetSidePanelRootDomAttr,"mainRoleAttribute":timesheetsTimesheetSidePanelMainDomAttr,"panelRoleAttribute":timesheetsTimesheetSidePanelPanelDomAttr,"toggleRoleAttribute":timesheetsTimesheetSidePanelToggleDomAttr,"labelRoleAttribute":timesheetsTimesheetSidePanelLabelDomAttr,"stateAttribute":timesheetsTimesheetSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","isState":isTimesheetsTimesheetSidePanelState}],"roster":[{"name":"roster-side-panel","rootRoleAttribute":rosterSidePanelRootDomAttr,"mainRoleAttribute":rosterSidePanelMainDomAttr,"panelRoleAttribute":rosterSidePanelPanelDomAttr,"toggleRoleAttribute":rosterSidePanelToggleDomAttr,"labelRoleAttribute":rosterSidePanelLabelDomAttr,"stateAttribute":rosterSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","isState":isRosterSidePanelState}],"roster-day-timeline":[],"leave-requests":[{"name":"leave-side-panel","rootRoleAttribute":leaveRequestsLeaveSidePanelRootDomAttr,"mainRoleAttribute":leaveRequestsLeaveSidePanelMainDomAttr,"panelRoleAttribute":leaveRequestsLeaveSidePanelPanelDomAttr,"toggleRoleAttribute":leaveRequestsLeaveSidePanelToggleDomAttr,"labelRoleAttribute":leaveRequestsLeaveSidePanelLabelDomAttr,"stateAttribute":leaveRequestsLeaveSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","isState":isLeaveRequestsLeaveSidePanelState}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
+export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean; shelfRoleAttribute: string; shelfToggleRoleAttribute: string; shelfStateAttribute: string; shelfClosedValue: string; shelfOpenValue: string; isShelfState: (value: unknown) => boolean };
+export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = {"timesheets":[{"name":"timesheet-side-panel","rootRoleAttribute":timesheetsTimesheetSidePanelRootDomAttr,"mainRoleAttribute":timesheetsTimesheetSidePanelMainDomAttr,"panelRoleAttribute":timesheetsTimesheetSidePanelPanelDomAttr,"toggleRoleAttribute":timesheetsTimesheetSidePanelToggleDomAttr,"labelRoleAttribute":timesheetsTimesheetSidePanelLabelDomAttr,"stateAttribute":timesheetsTimesheetSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":timesheetsSidePanelShelfDomAttr,"shelfToggleRoleAttribute":timesheetsSidePanelShelfToggleDomAttr,"shelfStateAttribute":timesheetsSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isTimesheetsSidePanelShelfState,"isState":isTimesheetsTimesheetSidePanelState}],"roster":[{"name":"roster-side-panel","rootRoleAttribute":rosterSidePanelRootDomAttr,"mainRoleAttribute":rosterSidePanelMainDomAttr,"panelRoleAttribute":rosterSidePanelPanelDomAttr,"toggleRoleAttribute":rosterSidePanelToggleDomAttr,"labelRoleAttribute":rosterSidePanelLabelDomAttr,"stateAttribute":rosterSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":rosterSidePanelShelfDomAttr,"shelfToggleRoleAttribute":rosterSidePanelShelfToggleDomAttr,"shelfStateAttribute":rosterSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isRosterSidePanelShelfState,"isState":isRosterSidePanelState}],"roster-day-timeline":[],"leave-requests":[{"name":"leave-side-panel","rootRoleAttribute":leaveRequestsLeaveSidePanelRootDomAttr,"mainRoleAttribute":leaveRequestsLeaveSidePanelMainDomAttr,"panelRoleAttribute":leaveRequestsLeaveSidePanelPanelDomAttr,"toggleRoleAttribute":leaveRequestsLeaveSidePanelToggleDomAttr,"labelRoleAttribute":leaveRequestsLeaveSidePanelLabelDomAttr,"stateAttribute":leaveRequestsLeaveSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","shelfRoleAttribute":leaveRequestsSidePanelShelfDomAttr,"shelfToggleRoleAttribute":leaveRequestsSidePanelShelfToggleDomAttr,"shelfStateAttribute":leaveRequestsSidePanelShelfDomAttr,"shelfClosedValue":"shelf-closed","shelfOpenValue":"shelf-open","isShelfState":isLeaveRequestsSidePanelShelfState,"isState":isLeaveRequestsLeaveSidePanelState}],"self-service-leave":[],"billing":[],"support":[],"feedback":[],"feedback-moderation":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
-export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-side-panel-content","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-template-library","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"leave-requests":["unavailability-blackouts","leave-side-panel-content","leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","visible-unavailability-blackouts","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"feedback":["feedback-board"],"feedback-moderation":["feedback-desktop-count","feedback-mobile-count","feedback-review"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section"],"staff":["staff-details-section","staff-preferences-section","staff-visible-unavailability-blackouts","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell","admin-xero-reference-sync","admin-xero-timesheet-preparation-wait","admin-xero-pay-item-import-wait","admin-xero-staff-mappings-wait"]} as const;
+export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-side-panel-content","timesheet-staff-content","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-settings-content","roster-template-library","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"leave-requests":["unavailability-blackouts","leave-side-panel-content","leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","visible-unavailability-blackouts","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"feedback":["feedback-board"],"feedback-moderation":["feedback-desktop-count","feedback-mobile-count","feedback-review"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section"],"staff":["staff-details-section","staff-preferences-section","staff-visible-unavailability-blackouts","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell","admin-xero-reference-sync","admin-xero-timesheet-preparation-wait","admin-xero-pay-item-import-wait","admin-xero-staff-mappings-wait"]} as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
 }

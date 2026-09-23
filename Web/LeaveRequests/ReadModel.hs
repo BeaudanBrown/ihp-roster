@@ -146,11 +146,8 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
                 readModel.leaveReadModelWarningThreshold
                 readModel.leaveReadModelWarningPeriods
         LeaveSidePanelContent ->
-            renderLeaveSidePanelWithSwap
+            renderLeaveStaffContent
                 (fragmentRenderSwap renderMode)
-                readModel.leaveReadModelVenueToday
-                readModel.leaveReadModelBlackouts
-                readModel.leaveReadModelRequests
                 readModel.leaveReadModelStaffMembers
                 readModel.leaveReadModelStaffPanelEntries
         UnavailabilityBlackouts ->

@@ -151,7 +151,6 @@ data HtmxActionOptionIR
     | HtmxActionIncludeIR !HtmxSyntaxIR
     | HtmxActionSyncIR !HtmxSyntaxIR
     | HtmxActionIndicatorIR !HtmxSyntaxIR
-    | HtmxActionConfirmIR !Text
     | HtmxActionSelectIR !HtmxSyntaxIR
     | HtmxActionTargetIR !HtmxSyntaxIR
     | HtmxActionSwapIR !HtmxSyntaxIR

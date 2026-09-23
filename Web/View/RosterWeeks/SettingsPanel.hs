@@ -16,7 +16,6 @@ import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterIma
                                                                        rosterPngImageExportTriggerAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceCustomHtmxAttrs (..),
                                                             defaultFrontendSurfaceActionRoute,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
@@ -30,7 +29,7 @@ import Application.RosterNotification (RosterNotificationAudience (..),
                                        RosterNotificationRunSummary (..))
 import Web.RosterWeeks.Dom (rosterEmailButtonId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
-import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
+import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekConfirmationUrl,
                               rosterOwnLiveShiftHighlightPreferenceUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWindowBaseUrl,
@@ -48,7 +47,7 @@ rosterWeekShellSyncRoute actionUrl =
 
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekStartDate, staffPanelCalendarRevision, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelHighlightOwnLiveShifts, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
-    <div class="roster-settings-panel">
+    <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel">
         {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekStartDate staffPanelRosterGroups staffPanelCurrentRosterGroup)}
         {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
         {when (staffPanelViewCapabilities.canManageRosterWarnings || staffPanelViewCapabilities.canViewWageEstimates) $
@@ -74,24 +73,24 @@ renderRosterSettingsSection iconClass title body = [hsx|
 |]
 
 renderRosterGroupSwitcher :: Day -> [RosterGroup] -> RosterGroup -> Html
-renderRosterGroupSwitcher anchorDate rosterGroups currentRosterGroup = [hsx|
-    <form class="mb-0" method="GET" action={rosterWindowBaseUrl anchorDate}>
-        <label class="visually-hidden" for="roster-group-switch">Roster group</label>
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate}/>
-        <select id="roster-group-switch"
-                class="form-select form-select-sm"
-                name={surfaceFieldNameFrom @Surface.RosterGroupId fields}
-                onchange="this.form.submit()">
-            {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
-        </select>
-    </form>
-|]
+renderRosterGroupSwitcher anchorDate rosterGroups currentRosterGroup =
+    renderFrontendSurfaceActionForm
+        (RosterAction.switchRosterGroupAction fields)
+        ((defaultFrontendSurfaceActionRoute (rosterWindowBaseUrl anchorDate))
+            { actionRouteStandardUrl = Just (rosterWindowBaseUrl anchorDate)
+            , actionRouteExtraAttrs = [("class", "mb-0")]
+            })
+        [hsx|
+            <label class="visually-hidden" for="roster-group-switch">Roster group</label>
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate}/>
+            <select id="roster-group-switch"
+                    class="form-select form-select-sm"
+                    name={surfaceFieldNameFrom @Surface.RosterGroupId fields}>
+                {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
+            </select>
+        |]
   where
-    fields :: ActionFields RosterAction.NavigateRosterWeekActionOperation
-    fields =
-        RosterAction.navigateRosterWeekActionFields
-            anchorDate
-            (unpackId currentRosterGroup.id)
+    fields = RosterAction.switchRosterGroupActionFields anchorDate (unpackId currentRosterGroup.id)
 
 renderRosterGroupSwitchOption :: Id RosterGroup -> RosterGroup -> Html
 renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
@@ -179,12 +178,11 @@ renderRosterWageEstimatePreferenceForm anchorDate rosterGroupId viewCapabilities
 renderRosterOwnLiveShiftHighlightToggle :: ActionFields RosterAction.ToggleRosterOwnLiveShiftHighlightActionOperation -> Bool -> Html
 renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             "highlight-own-live-shifts"
             (surfaceToggleScalarField @Surface.HighlightOwnLiveShifts fields True False)
             highlightOwnLiveShifts
-            [hsx|<span class="small">Own shifts highlighted</span>|]
-            [hsx|<span class="small">Own shifts not highlighted</span>|]
+            [hsx|<span class="small">Highlight my shifts</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100 justify-content-start"
             , appToggleSubmitPolicy = ToggleSubmitImmediate
@@ -193,12 +191,11 @@ renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
 renderRosterWarningToggle :: ActionFields RosterAction.ToggleRosterWarningsActionOperation -> Bool -> Html
 renderRosterWarningToggle fields showRosterWarnings =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             "show-roster-warnings"
             (surfaceToggleScalarField @Surface.ShowRosterWarnings fields True False)
             showRosterWarnings
-            [hsx|<span class="small">Warnings enabled</span>|]
-            [hsx|<span class="small">Warnings disabled</span>|]
+            [hsx|<span class="small">Show roster warnings</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100 justify-content-start"
             , appToggleSubmitPolicy = ToggleSubmitImmediate
@@ -207,12 +204,11 @@ renderRosterWarningToggle fields showRosterWarnings =
 renderRosterWageEstimateToggle :: ActionFields RosterAction.ToggleRosterWageEstimatesActionOperation -> Bool -> Html
 renderRosterWageEstimateToggle fields showWageEstimates =
     renderAppToggleButton $
-        ( defaultAppToggleStateButtonConfig
+        ( defaultAppToggleButtonConfig
             "show-wage-estimates"
             (surfaceToggleScalarField @Surface.ShowWageEstimates fields True False)
             showWageEstimates
-            [hsx|<span class="small">Wages enabled</span>|]
-            [hsx|<span class="small">Wages disabled</span>|]
+            [hsx|<span class="small">Show wage estimates</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100 justify-content-start"
             , appToggleSubmitPolicy = ToggleSubmitImmediate
@@ -295,21 +291,20 @@ renderRosterSortForm _ _ _ _ _ = mempty
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Day -> Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm anchorDate calendarRevision rosterGroupId =
     renderFrontendSurfaceActionForm
-        (RosterAction.copyRosterWeekAction (RosterAction.copyRosterWeekActionFields calendarRevision Nothing Nothing))
-        (rosterWeekShellSyncRoute (rosterCopyWeekUrl (addDays (-7) anchorDate) anchorDate rosterGroupId))
-            { actionRouteCustomHtmx =
-                [ FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]
-                ]
-            , actionRouteStandardUrl = Just (rosterCopyWeekUrl (addDays (-7) anchorDate) anchorDate rosterGroupId)
-            , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
-            }
+        (RosterAction.openCopyRosterWeekConfirmationAction fields)
+        ((defaultFrontendSurfaceActionRoute confirmationUrl)
+            { actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
+            })
         [hsx|
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.copyRosterWeekActionFields calendarRevision Nothing Nothing)} value={tshow calendarRevision} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow calendarRevision} />
             <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center roster-week-action-button">
                 <i class="bi bi-copy me-1" aria-hidden="true"></i>
                 Copy Previous Week
             </button>
         |]
+  where
+    fields = RosterAction.openCopyRosterWeekConfirmationActionFields calendarRevision
+    confirmationUrl = rosterCopyWeekConfirmationUrl (addDays (-7) anchorDate) anchorDate rosterGroupId
 
 shouldShowRosterExport :: Maybe RosterWindowState -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Bool
 shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMode =

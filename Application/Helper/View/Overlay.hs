@@ -4,15 +4,19 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.View.Overlay
-    ( DialogOverlayConfig (..)
+    ( ConfirmationDialogConfig (..)
+    , ConfirmationDialogTone (..)
+    , DialogOverlayConfig (..)
     , OverlayButton (..)
     , OverlayButtonAction (..)
     , OverlayFormMode (..)
+    , defaultConfirmationDialogConfig
     , defaultDialogOverlayConfig
     , defaultOverlayButtons
     , dialogOverlayCloseButton
     , dialogOverlayMountId
     , dialogOverlaySubmitButton
+    , renderConfirmationDialog
     , renderDialogOverlay
     , renderDialogOverlayClearOob
     , renderKeyboardDialogOverlay
@@ -55,9 +59,8 @@ data OverlayButtonAction
         , overlaySubmitExtraAttrs :: ![(Text, Text)]
         }
     | OverlayNavigateAction !Text
-    | DialogFormAction !Text !Text ![(Text, Text)] !(Maybe Text)
-    | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !(Maybe Text) !Text !Text
-    | GeneratedDialogFormAction !AppShellActionIR !AppShellActionRoute ![(Text, Text)] !(Maybe Text)
+    | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !Text !Text
+    | GeneratedDialogFormAction !AppShellActionIR !AppShellActionRoute ![(Text, Text)]
     | GeneratedDialogButtonAction !AppShellActionIR !AppShellActionRoute !Bool
 
 data OverlayButton = OverlayButton
@@ -72,6 +75,37 @@ data DialogOverlayConfig = DialogOverlayConfig
     , dialogOverlayStartButtons :: ![OverlayButton]
     , dialogOverlayButtons      :: ![OverlayButton]
     , dialogOverlayDialogClass  :: !Text
+    }
+
+data ConfirmationDialogTone
+    = ConfirmationPrimary
+    | ConfirmationDanger
+    | ConfirmationWarning
+    deriving (Eq, Show)
+
+data ConfirmationDialogConfig = ConfirmationDialogConfig
+    { confirmationDialogTitle        :: !Text
+    , confirmationDialogBody         :: !Html
+    , confirmationDialogFormId       :: !Text
+    , confirmationDialogForm         :: !Html
+    , confirmationDialogApproveLabel :: !Text
+    , confirmationDialogApproveTone  :: !ConfirmationDialogTone
+    , confirmationDialogLoadingLabel :: !Text
+    , confirmationDialogRejectButton :: !OverlayButton
+    , confirmationDialogClass        :: !Text
+    }
+
+defaultConfirmationDialogConfig :: Text -> Html -> Text -> Html -> ConfirmationDialogConfig
+defaultConfirmationDialogConfig title body formId form = ConfirmationDialogConfig
+    { confirmationDialogTitle = title
+    , confirmationDialogBody = body
+    , confirmationDialogFormId = formId
+    , confirmationDialogForm = form
+    , confirmationDialogApproveLabel = "Confirm"
+    , confirmationDialogApproveTone = ConfirmationPrimary
+    , confirmationDialogLoadingLabel = "Working…"
+    , confirmationDialogRejectButton = dialogOverlayCloseButton "Cancel"
+    , confirmationDialogClass = ""
     }
 
 defaultDialogOverlayConfig :: Text -> Html -> [OverlayButton] -> DialogOverlayConfig
@@ -103,23 +137,55 @@ defaultOverlayButtons formId =
     , dialogOverlaySubmitButton "Save" formId
     ]
 
+renderConfirmationDialog :: ConfirmationDialogConfig -> Html
+renderConfirmationDialog ConfirmationDialogConfig
+        { confirmationDialogTitle
+        , confirmationDialogBody
+        , confirmationDialogFormId
+        , confirmationDialogForm
+        , confirmationDialogApproveLabel
+        , confirmationDialogApproveTone
+        , confirmationDialogLoadingLabel
+        , confirmationDialogRejectButton
+        , confirmationDialogClass
+        } =
+    renderDialogOverlayWithOptions dialogConfirmationAttrs [] False DialogOverlayConfig
+        { dialogOverlayTitle = confirmationDialogTitle
+        , dialogOverlayBody = confirmationDialogBody <> confirmationDialogForm
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ confirmationDialogRejectButton
+            , OverlayButton
+                { overlayButtonLabel = confirmationDialogApproveLabel
+                , overlayButtonClass = confirmationToneButtonClass confirmationDialogApproveTone
+                , overlayButtonAction = OverlaySubmitFormLoadingAction confirmationDialogFormId confirmationDialogLoadingLabel True []
+                }
+            ]
+        , dialogOverlayDialogClass = confirmationDialogClass
+        }
+
+confirmationToneButtonClass :: ConfirmationDialogTone -> Text
+confirmationToneButtonClass ConfirmationPrimary = "btn btn-primary"
+confirmationToneButtonClass ConfirmationDanger  = "btn btn-danger"
+confirmationToneButtonClass ConfirmationWarning = "btn btn-warning"
+
 renderDialogOverlay :: DialogOverlayConfig -> Html
-renderDialogOverlay = renderDialogOverlayWithOptions [] False
+renderDialogOverlay = renderDialogOverlayWithOptions [] [] False
 
 renderDialogOverlayClearOob :: Html
 renderDialogOverlayClearOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
 
 renderKeyboardDialogOverlay :: DialogOverlayConfig -> Html
-renderKeyboardDialogOverlay = renderDialogOverlayWithOptions [] True
+renderKeyboardDialogOverlay = renderDialogOverlayWithOptions [] [] True
 
 renderDialogOverlayWithCloseRole :: forall (marker :: Type). (Typeable marker, RegisteredDomAttr marker) => DialogOverlayConfig -> Html
 renderDialogOverlayWithCloseRole =
-    renderDialogOverlayWithOptions [(domAttrValue @marker, "true")] False
+    renderDialogOverlayWithOptions [] [(domAttrValue @marker, "true")] False
 
-renderDialogOverlayWithOptions :: [(Text, Text)] -> Bool -> DialogOverlayConfig -> Html
-renderDialogOverlayWithOptions closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderDialogOverlayWithOptions :: [(Text, Text)] -> [(Text, Text)] -> Bool -> DialogOverlayConfig -> Html
+renderDialogOverlayWithOptions mountAttrs closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
     <div class="modal fade show d-block"
-         {...dialogMountAttrs <> if keyboardEnabled then dialogKeyboardAttrs else []}
+         {...dialogMountAttrs <> mountAttrs <> if keyboardEnabled then dialogKeyboardAttrs else []}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -208,24 +274,10 @@ renderOverlayButton context button =
                 {button.overlayButtonLabel}
             </a>
         |]
-        DialogFormAction method targetUrl fields maybeConfirm -> [hsx|
+        DialogNavigationLoadingFormAction method targetUrl fields loadingTitle loadingMessage -> [hsx|
             <form method="POST"
                   action={targetUrl}
                   class="app-modal-footer-form"
-
-                  onsubmit={confirmSubmitAttribute maybeConfirm}>
-                <input type="hidden" name="_method" value={method} />
-                {forEach fields renderOverlayFormHiddenField}
-                <button type="submit" class={button.overlayButtonClass}>
-                    {button.overlayButtonLabel}
-                </button>
-            </form>
-        |]
-        DialogNavigationLoadingFormAction method targetUrl fields maybeConfirm loadingTitle loadingMessage -> [hsx|
-            <form method="POST"
-                  action={targetUrl}
-                  class="app-modal-footer-form"
-                  onsubmit={confirmSubmitAttribute maybeConfirm}
                   {...navigationLoadingAttrs loadingTitle loadingMessage}>
                 <input type="hidden" name="_method" value={method} />
                 {forEach fields renderOverlayFormHiddenField}
@@ -240,7 +292,7 @@ renderOverlayButton context button =
                 {button.overlayButtonLabel}
             </button>
         |]
-        GeneratedDialogFormAction appShellAction route hiddenFields maybeConfirm -> case context of
+        GeneratedDialogFormAction appShellAction route hiddenFields -> case context of
             MountedOverlayButton ->
                 renderAppShellActionForm
                     appShellAction
@@ -257,8 +309,7 @@ renderOverlayButton context button =
             PageOverlayButton _ -> [hsx|
                 <form method="POST"
                       action={fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl}
-                      class="app-modal-footer-form"
-                      onsubmit={confirmSubmitAttribute maybeConfirm}>
+                      class="app-modal-footer-form">
                     {forEach (route.appShellActionRouteFields <> fmap AppShellFieldValue hiddenFields) renderGeneratedOverlayFormHiddenField}
                     <button type="submit" class={button.overlayButtonClass}>
                         {button.overlayButtonLabel}
@@ -275,10 +326,6 @@ renderGeneratedOverlayFormHiddenField :: AppShellFieldValue -> Html
 renderGeneratedOverlayFormHiddenField (AppShellFieldValue (fieldName, fieldValue)) = [hsx|
     <input type="hidden" name={fieldName} value={fieldValue} />
 |]
-
-confirmSubmitAttribute :: Maybe Text -> Text
-confirmSubmitAttribute Nothing = ""
-confirmSubmitAttribute (Just message) = "return window.confirm(" <> show message <> ");"
 
 renderPageDialogModal :: Text -> DialogOverlayConfig -> Html
 renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|

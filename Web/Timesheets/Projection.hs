@@ -124,6 +124,7 @@ data TimesheetProjectionFragment
     = TimesheetProjectionToolbar
     | TimesheetProjectionDayColumns
     | TimesheetProjectionSidePanel
+    | TimesheetProjectionStaffContent
     | TimesheetProjectionDaySection !Int
     deriving (Eq, Show)
 
@@ -498,7 +499,9 @@ renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
         TimesheetProjectionDayColumns ->
             Just (columnsRenderer (timesheetIndexView projection))
         TimesheetProjectionSidePanel ->
-            Just (sidePanelRenderer (timesheetIndexView projection))
+            Just (renderTimesheetSettingsFragment swapAttr (timesheetIndexView projection))
+        TimesheetProjectionStaffContent ->
+            Just (renderTimesheetStaffContent swapAttr projection.timesheetStaffMembers projection.timesheetStaffPanelEntries)
         TimesheetProjectionDaySection dayOffset ->
             Just (dayRenderer (timesheetDayRenderModelFromProjection projection dayOffset))
     where
@@ -508,9 +511,9 @@ renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
         columnsRenderer = case renderMode of
             FragmentPlain        -> renderTimesheetDayColumns
             FragmentOob swapAttr -> renderTimesheetDayColumnsWithSwap swapAttr
-        sidePanelRenderer = case renderMode of
-            FragmentPlain        -> renderTimesheetSidePanel
-            FragmentOob swapAttr -> renderTimesheetSidePanelWithSwap swapAttr
+        swapAttr = case renderMode of
+            FragmentPlain        -> Nothing
+            FragmentOob value    -> value
         dayRenderer = case renderMode of
             FragmentPlain        -> renderDaySection
             FragmentOob swapAttr -> renderDaySectionWithSwap swapAttr

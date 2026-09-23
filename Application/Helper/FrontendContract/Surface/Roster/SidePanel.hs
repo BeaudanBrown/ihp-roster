@@ -9,4 +9,5 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.View.SidePanel
 
 rosterSidePanelRenderAttrs :: SidePanelRenderAttrs
-rosterSidePanelRenderAttrs = sidePanelRenderAttrs @Roster.RosterSurface @Roster.RosterSidePanel
+rosterSidePanelRenderAttrs = (sidePanelRenderAttrs @Roster.RosterSurface @Roster.RosterSidePanel)
+    { sidePanelShelfTitle = "Roster tools" }

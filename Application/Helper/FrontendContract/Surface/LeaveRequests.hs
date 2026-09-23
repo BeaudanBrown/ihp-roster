@@ -172,13 +172,14 @@ type LeaveRequestsSurface =
              , 'Eager
              , 'Live
              , 'DependsOn UnavailabilityBlackoutsResource '[ 'FromScope VenueId ]
+             , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
              ]
+         -- Staff table only; blackouts are a sibling inside the persistent settings pane.
          , Fragment LeaveSidePanelContent
             '[]
             '[ 'MountTarget LeaveSidePanelContent '[]
              , 'Eager
              , 'Live
-             , 'Contains UnavailabilityBlackouts
              , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
              ]
          , Fragment LeaveAvailabilityWarnings
@@ -226,14 +227,14 @@ type LeaveRequestsSurface =
          , Action CreateUnavailabilityBlackout
             '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxTarget 'HtmxThis
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , Action UpdateUnavailabilityBlackout
             '[ Field StartDate 'WireDay, Field EndDate 'WireDay, Field Reason 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
+             , 'HtmxTarget 'HtmxThis
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]

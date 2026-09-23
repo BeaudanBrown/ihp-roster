@@ -100,6 +100,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
     '[ SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetSidePanelContent
+     , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetStaffContent
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterContent
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterGridToolbar
@@ -109,6 +110,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterWageRail
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSlotsGrid
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffPanel
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSettingsContent
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterTemplateLibraryFragment
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
@@ -205,6 +207,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek requestAdapterOperationsWithParamsPresentWithoutParser
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SwitchRosterGroup
+        (requestAdapterOperationsWithoutParser "Group selection uses the existing authorized roster navigation endpoint and canonical route/query context")
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
@@ -214,6 +218,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ShowRosterNotificationConfirmation allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterNotificationRun allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.OpenCopyRosterWeekConfirmation allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
         (requestAdapterOperationsWithoutParser "The zero-field slot creation endpoint consumes route context and has no Surface request parser")
@@ -251,6 +256,10 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DeleteUnavailabilityBlackout
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.OpenSelfServiceLeaveDeleteConfirmation
+        (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id and has no Surface request parser")
+    , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.DeleteSelfServiceLeaveRequest
+        (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.VoteFeedback
         (requestAdapterOperationsWithoutParser "The zero-field vote consumes its route id and authenticated global account")
     , surfaceOperationLocalActionAdapter @FeedbackAdapterFamily @Feedback.UnvoteFeedback
@@ -260,6 +269,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.UpdateFeedback allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.PublishFeedback
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
+    , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.OpenFeedbackArchiveConfirmation
+        (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.ArchiveFeedback
         (requestAdapterOperationsWithoutParser "The zero-field mutation consumes its route id")
     , surfaceOperationLocalActionAdapter @FeedbackModerationAdapterFamily @Feedback.RestoreFeedback
@@ -273,6 +284,10 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.OpenStaffLeaveDeleteConfirmation
+        (requestAdapterOperationsWithoutParser "The zero-field confirmation launcher consumes its route id")
+    , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.DeleteStaffLeaveRequest
+        (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id")
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterEndTimesEnabled allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateDefaultStaffPayRate allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations

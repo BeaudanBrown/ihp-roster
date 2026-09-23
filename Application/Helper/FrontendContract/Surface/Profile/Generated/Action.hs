@@ -8,12 +8,18 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.Profile.Generated.Action
     ( CreateStaffLeaveRequestActionOperation
+    , DeleteStaffLeaveRequestActionOperation
+    , OpenStaffLeaveDeleteConfirmationActionOperation
     , UpdateProfileDetailsActionOperation
     , UpdateProfileShiftPreferencesActionOperation
     , UpdateStaffProfileActionOperation
     , UpdateStaffShiftPreferencesActionOperation
     , createStaffLeaveRequestAction
     , createStaffLeaveRequestActionFields
+    , deleteStaffLeaveRequestAction
+    , deleteStaffLeaveRequestActionFields
+    , openStaffLeaveDeleteConfirmationAction
+    , openStaffLeaveDeleteConfirmationActionFields
     , parseCreateStaffLeaveRequestActionParams
     , parseUpdateProfileDetailsActionParams
     , parseUpdateProfileShiftPreferencesActionParams
@@ -47,6 +53,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            ActionMarker,
                                                            ActionSurface,
                                                            actionFields,
+                                                           noActionFields,
                                                            noSurfaceFields,
                                                            surfaceField,
                                                            surfaceOptionalField,
@@ -95,6 +102,44 @@ parseCreateStaffLeaveRequestActionParams ::
 parseCreateStaffLeaveRequestActionParams =
     parseActionParams
         @CreateStaffLeaveRequestActionOperation
+
+data DeleteStaffLeaveRequestActionOperation
+
+type instance ActionSurface DeleteStaffLeaveRequestActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.StaffAdapterFamily)
+type instance ActionMarker DeleteStaffLeaveRequestActionOperation = Types1.DeleteStaffLeaveRequest
+type instance ActionFieldSpecs DeleteStaffLeaveRequestActionOperation =
+    '[]
+
+deleteStaffLeaveRequestActionFields :: ActionFields DeleteStaffLeaveRequestActionOperation
+deleteStaffLeaveRequestActionFields =
+    noActionFields
+
+deleteStaffLeaveRequestActionEvidence :: ActionEvidence DeleteStaffLeaveRequestActionOperation
+deleteStaffLeaveRequestActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "DeleteStaffLeaveRequest" "delete-staff-leave-request" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxDeleteIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Staff DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+deleteStaffLeaveRequestAction :: ActionFields DeleteStaffLeaveRequestActionOperation -> FrontendSurfaceAction
+deleteStaffLeaveRequestAction =
+    frontendSurfaceActionFromEvidence deleteStaffLeaveRequestActionEvidence
+
+data OpenStaffLeaveDeleteConfirmationActionOperation
+
+type instance ActionSurface OpenStaffLeaveDeleteConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.StaffAdapterFamily)
+type instance ActionMarker OpenStaffLeaveDeleteConfirmationActionOperation = Types1.OpenStaffLeaveDeleteConfirmation
+type instance ActionFieldSpecs OpenStaffLeaveDeleteConfirmationActionOperation =
+    '[]
+
+openStaffLeaveDeleteConfirmationActionFields :: ActionFields OpenStaffLeaveDeleteConfirmationActionOperation
+openStaffLeaveDeleteConfirmationActionFields =
+    noActionFields
+
+openStaffLeaveDeleteConfirmationActionEvidence :: ActionEvidence OpenStaffLeaveDeleteConfirmationActionOperation
+openStaffLeaveDeleteConfirmationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenStaffLeaveDeleteConfirmation" "open-staff-leave-delete-confirmation" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Staff DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+openStaffLeaveDeleteConfirmationAction :: ActionFields OpenStaffLeaveDeleteConfirmationActionOperation -> FrontendSurfaceAction
+openStaffLeaveDeleteConfirmationAction =
+    frontendSurfaceActionFromEvidence openStaffLeaveDeleteConfirmationActionEvidence
 
 data UpdateProfileDetailsActionOperation
 

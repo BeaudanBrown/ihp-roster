@@ -255,6 +255,7 @@ data RosterProjectionFragment
     | RosterProjectionWageRail
     | RosterProjectionSlotsGrid
     | RosterProjectionStaffPanel
+    | RosterProjectionSettings
     | RosterProjectionDaySection !UUID
     | RosterProjectionRow !UUID !Int
     deriving (Eq, Show)

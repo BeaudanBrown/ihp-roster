@@ -8,16 +8,18 @@ module Web.Timesheets.Paths
     , timesheetDayColumnsFragmentUrl
     , timesheetDaySectionFragmentUrl
     , timesheetSidePanelFragmentUrl
+    , timesheetStaffContentFragmentUrl
     , timesheetToolbarFragmentUrl
     , timesheetWindowStateQueryParams
     , timesheetWindowStateQueryParamsWithFilters
     , timesheetWindowUrl
     , timesheetWindowUrlWithFilters
+    , withTimesheetRosterGroupFilter
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
-import Application.Helper.Url (replaceQueryParams)
+import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Generated.Types
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
@@ -35,6 +37,10 @@ timesheetWindowUrlWithFilters anchorDate filters =
         (pathTo (ShowTimesheetWindowAction (tshow anchorDate)))
         (timesheetWindowStateQueryParamsWithFilters anchorDate filters)
 
+withTimesheetRosterGroupFilter :: Maybe UUID -> Text -> Text
+withTimesheetRosterGroupFilter rosterGroupFilterId url =
+    appendQueryParams url [("rosterGroupFilterId", tshow groupId) | groupId <- maybeToList rosterGroupFilterId]
+
 timesheetToolbarFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl anchorDate staffFilterId =
     replaceQueryParams
@@ -45,6 +51,12 @@ timesheetSidePanelFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetSidePanelFragmentUrl anchorDate staffFilterId =
     replaceQueryParams
         (pathTo ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = tshow anchorDate })
+        (timesheetWindowStateQueryParams anchorDate staffFilterId)
+
+timesheetStaffContentFragmentUrl :: Day -> Maybe UUID -> Text
+timesheetStaffContentFragmentUrl anchorDate staffFilterId =
+    replaceQueryParams
+        (pathTo ShowTimesheetStaffContentFragmentAction { anchorDate = tshow anchorDate })
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 timesheetDayColumnsFragmentUrl :: Day -> Maybe UUID -> Text

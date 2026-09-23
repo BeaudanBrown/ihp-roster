@@ -205,18 +205,15 @@ renderVenueDefaultToggles :: Bool -> Html
 renderVenueDefaultToggles rosterEndTimesEnabled = [hsx|
     <div class="col-12">
         <div class={appSurfaceClasses "p-3"}>
-            <div class="form-check form-switch mb-0">
-                <input
-                    id="venue-roster-end-times-enabled"
-                    class="form-check-input"
-                    type="checkbox"
-                    name="rosterEndTimesEnabled"
-                    value="true"
-                    checked={rosterEndTimesEnabled}
-                />
-                <label class="form-check-label fw-semibold" for="venue-roster-end-times-enabled">Show shift end times in roster</label>
-                <p class="small app-muted mb-0">Shift end times are always collected; this controls whether they appear in the roster.</p>
-            </div>
+            {renderAppToggleButton config}
+            <p class="small app-muted mt-2 mb-0">Shift end times are always collected; this controls whether they appear in the roster.</p>
         </div>
     </div>
 |]
+  where
+    config = (defaultAppToggleButtonConfig
+        "venue-roster-end-times-enabled"
+        (namedCheckboxToggleField "rosterEndTimesEnabled")
+        rosterEndTimesEnabled
+        [hsx|<span class="small fw-semibold">Show shift end times</span>|])
+        { appToggleButtonClass = "w-100" }

@@ -66,10 +66,10 @@
     return isAdminXeroAdminXeroScopeScope(value);
   }
   function isTimesheetsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && typeof value["params"]["operationalDate"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-staff-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && typeof value["params"]["operationalDate"] === "string");
   }
   function isRosterSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-settings-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
   }
   function isRosterDayTimelineSurfaceFragmentKey(value) {
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && typeof value["params"]["rosterDayId"] === "string");
@@ -196,6 +196,8 @@
   var toastMountDomAttr = "data-bepis-toast-mount";
   var toastCloseDomAttr = "data-bepis-toast-close";
   var toastConfigDomAttr = "data-bepis-toast-config";
+  var appNavigationHeaderDomAttr = "data-bepis-app-navigation-header";
+  var appPageContentDomAttr = "data-bepis-app-page-content";
   function isUiRegionTransitionProfile(value) {
     return typeof value === "string" && ["none", "fade", "fade-slide", "panel"].includes(value);
   }
@@ -598,6 +600,8 @@
   var timesheetsTimesheetSidePanelPanelDomAttr = "data-bepis-timesheets-timesheet-side-panel-panel";
   var timesheetsTimesheetSidePanelToggleDomAttr = "data-bepis-timesheets-timesheet-side-panel-toggle";
   var timesheetsTimesheetSidePanelLabelDomAttr = "data-bepis-timesheets-timesheet-side-panel-label";
+  var timesheetsSidePanelShelfDomAttr = "data-bepis-timesheets-side-panel-shelf";
+  var timesheetsSidePanelShelfToggleDomAttr = "data-bepis-timesheets-side-panel-shelf-toggle";
   var timesheetsTimesheetStaffHighlightSourceDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-source";
   var timesheetsTimesheetStaffHighlightMemberDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-member";
   var timesheetsTimesheetStaffHighlightPinDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-pin";
@@ -612,6 +616,8 @@
   var rosterSidePanelPanelDomAttr = "data-bepis-roster-side-panel-panel";
   var rosterSidePanelToggleDomAttr = "data-bepis-roster-side-panel-toggle";
   var rosterSidePanelLabelDomAttr = "data-bepis-roster-side-panel-label";
+  var rosterSidePanelShelfDomAttr = "data-bepis-roster-side-panel-shelf";
+  var rosterSidePanelShelfToggleDomAttr = "data-bepis-roster-side-panel-shelf-toggle";
   var rosterColumnEditorDomAttr = "data-bepis-roster-column-editor";
   var rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start";
   var rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done";
@@ -658,6 +664,8 @@
   var leaveRequestsLeaveSidePanelPanelDomAttr = "data-bepis-leave-requests-leave-side-panel-panel";
   var leaveRequestsLeaveSidePanelToggleDomAttr = "data-bepis-leave-requests-leave-side-panel-toggle";
   var leaveRequestsLeaveSidePanelLabelDomAttr = "data-bepis-leave-requests-leave-side-panel-label";
+  var leaveRequestsSidePanelShelfDomAttr = "data-bepis-leave-requests-side-panel-shelf";
+  var leaveRequestsSidePanelShelfToggleDomAttr = "data-bepis-leave-requests-side-panel-shelf-toggle";
   var leaveRequestsLeaveStaffHighlightSourceDomAttr = "data-bepis-leave-requests-leave-staff-highlight-source";
   var leaveRequestsLeaveStaffHighlightMemberDomAttr = "data-bepis-leave-requests-leave-staff-highlight-member";
   var leaveRequestsLeaveStaffHighlightPinDomAttr = "data-bepis-leave-requests-leave-staff-highlight-pin";
@@ -665,8 +673,14 @@
   function isTimesheetsTimesheetSidePanelState(value) {
     return typeof value === "string" && ["collapsed", "expanded"].includes(value);
   }
+  function isTimesheetsSidePanelShelfState(value) {
+    return typeof value === "string" && ["shelf-closed", "shelf-open"].includes(value);
+  }
   function isRosterSidePanelState(value) {
     return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  function isRosterSidePanelShelfState(value) {
+    return typeof value === "string" && ["shelf-closed", "shelf-open"].includes(value);
   }
   var rosterColumnEditingStates = { "inactive": "inactive", "active": "active" };
   function isRosterColumnEditingState(value) {
@@ -690,6 +704,9 @@
   }
   function isLeaveRequestsLeaveSidePanelState(value) {
     return typeof value === "string" && ["collapsed", "expanded"].includes(value);
+  }
+  function isLeaveRequestsSidePanelShelfState(value) {
+    return typeof value === "string" && ["shelf-closed", "shelf-open"].includes(value);
   }
   function isTimesheetStaffPanelSortKey(value) {
     return typeof value === "string" && ["name", "role", "count"].includes(value);
@@ -721,8 +738,8 @@
   var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [{ "name": "timesheet-staff-cards-highlight", "sourceRoleAttribute": timesheetsTimesheetStaffHighlightSourceDomAttr, "memberRoleAttribute": timesheetsTimesheetStaffHighlightMemberDomAttr, "pinRoleAttribute": timesheetsTimesheetStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "defaultRoleAttribute": rosterStaffHighlightDefaultDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin", "default"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "leave-requests": [{ "name": "leave-staff-periods-highlight", "sourceRoleAttribute": leaveRequestsLeaveStaffHighlightSourceDomAttr, "memberRoleAttribute": leaveRequestsLeaveStaffHighlightMemberDomAttr, "pinRoleAttribute": leaveRequestsLeaveStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [{ "name": "timesheet-staff-panel-sort", "rootRoleAttribute": timesheetsTimesheetStaffPanelSortRootDomAttr, "rowRoleAttribute": timesheetsTimesheetStaffPanelSortRowDomAttr, "controlRoleAttribute": timesheetsTimesheetStaffPanelSortControlDomAttr, "parseRow": parseTimesheetStaffPanelSortRow, "isKey": isTimesheetStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "entryCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).entryCount }, { "field": "approvedCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).approvedCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-staff-panel-sort", "rootRoleAttribute": leaveRequestsLeaveStaffPanelSortRootDomAttr, "rowRoleAttribute": leaveRequestsLeaveStaffPanelSortRowDomAttr, "controlRoleAttribute": leaveRequestsLeaveStaffPanelSortControlDomAttr, "parseRow": parseLeaveStaffPanelSortRow, "isKey": isLeaveStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "periodCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).periodCount }, { "field": "pendingCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).pendingCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceTabSetRegistry = { "timesheets": [{ "name": "timesheet-side-panel-tabs", "tabRoleAttribute": timesheetsTimesheetSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isTimesheetSidePanelTabsKey }], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }, { "name": "roster-self-service-panel-tabs", "tabRoleAttribute": rosterSelfServicePanelTabDomAttr, "keys": ["quick-tools", "settings"], "defaultKey": "quick-tools", "isKey": isRosterSelfServicePanelTabsKey }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-request-tabs", "tabRoleAttribute": leaveRequestsLeaveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "pending", "isKey": isLeaveRequestTabsKey }, { "name": "leave-archive-request-tabs", "tabRoleAttribute": leaveRequestsLeaveArchiveRequestTabDomAttr, "keys": ["pending", "approved", "denied", "archive"], "defaultKey": "archive", "isKey": isLeaveArchiveRequestTabsKey }, { "name": "leave-side-panel-tabs", "tabRoleAttribute": leaveRequestsLeaveSidePanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isLeaveSidePanelTabsKey }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isRosterSidePanelState }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
+  var FrontendSurfaceSidePanelRegistry = { "timesheets": [{ "name": "timesheet-side-panel", "rootRoleAttribute": timesheetsTimesheetSidePanelRootDomAttr, "mainRoleAttribute": timesheetsTimesheetSidePanelMainDomAttr, "panelRoleAttribute": timesheetsTimesheetSidePanelPanelDomAttr, "toggleRoleAttribute": timesheetsTimesheetSidePanelToggleDomAttr, "labelRoleAttribute": timesheetsTimesheetSidePanelLabelDomAttr, "stateAttribute": timesheetsTimesheetSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": timesheetsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": timesheetsSidePanelShelfToggleDomAttr, "shelfStateAttribute": timesheetsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isTimesheetsSidePanelShelfState, "isState": isTimesheetsTimesheetSidePanelState }], "roster": [{ "name": "roster-side-panel", "rootRoleAttribute": rosterSidePanelRootDomAttr, "mainRoleAttribute": rosterSidePanelMainDomAttr, "panelRoleAttribute": rosterSidePanelPanelDomAttr, "toggleRoleAttribute": rosterSidePanelToggleDomAttr, "labelRoleAttribute": rosterSidePanelLabelDomAttr, "stateAttribute": rosterSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": rosterSidePanelShelfDomAttr, "shelfToggleRoleAttribute": rosterSidePanelShelfToggleDomAttr, "shelfStateAttribute": rosterSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isRosterSidePanelShelfState, "isState": isRosterSidePanelState }], "roster-day-timeline": [], "leave-requests": [{ "name": "leave-side-panel", "rootRoleAttribute": leaveRequestsLeaveSidePanelRootDomAttr, "mainRoleAttribute": leaveRequestsLeaveSidePanelMainDomAttr, "panelRoleAttribute": leaveRequestsLeaveSidePanelPanelDomAttr, "toggleRoleAttribute": leaveRequestsLeaveSidePanelToggleDomAttr, "labelRoleAttribute": leaveRequestsLeaveSidePanelLabelDomAttr, "stateAttribute": leaveRequestsLeaveSidePanelDomAttr, "collapsedValue": "collapsed", "expandedValue": "expanded", "shelfRoleAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfToggleRoleAttribute": leaveRequestsSidePanelShelfToggleDomAttr, "shelfStateAttribute": leaveRequestsSidePanelShelfDomAttr, "shelfClosedValue": "shelf-closed", "shelfOpenValue": "shelf-open", "isShelfState": isLeaveRequestsSidePanelShelfState, "isState": isLeaveRequestsLeaveSidePanelState }], "self-service-leave": [], "billing": [], "support": [], "feedback": [], "feedback-moderation": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-settings-content", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "feedback": ["feedback-board"], "feedback-moderation": ["feedback-desktop-count", "feedback-mobile-count", "feedback-review"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell", "admin-xero-reference-sync", "admin-xero-timesheet-preparation-wait", "admin-xero-pay-item-import-wait", "admin-xero-staff-mappings-wait"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
   }
@@ -2287,7 +2304,8 @@
         surface: config.surface,
         scopeKey: config.scopeKey,
         mountKey: config.mountKey,
-        depth: surfaceMountDepth(ownerEl)
+        depth: surfaceMountDepth(ownerEl),
+        ownerEl
       });
     });
     return instances;
@@ -2297,12 +2315,14 @@
     currentInstances.forEach((instance) => currentById.set(instance.instanceId, instance));
     const removed = [];
     activeInstances.forEach((instance, instanceId) => {
-      if (!currentById.has(instanceId)) removed.push(instance);
+      const current = currentById.get(instanceId);
+      if (!current || current.ownerEl !== instance.ownerEl) removed.push(instance);
     });
     const added = [];
     const retained = [];
     currentById.forEach((instance, instanceId) => {
-      if (activeInstances.has(instanceId)) retained.push(instance);
+      const active = activeInstances.get(instanceId);
+      if (active?.ownerEl === instance.ownerEl) retained.push(active);
       else added.push(instance);
     });
     removed.sort((left, right) => right.depth - left.depth);
@@ -2340,7 +2360,7 @@
       scope: parsed.scope,
       scopeKey: parsed.scopeKey,
       path: parsed.socketPath,
-      resyncFragments: parsed.resyncFragments,
+      resyncFragments: parsed.resyncFragments.map((fragment) => ({ ...fragment, ownerEl })),
       renderedDependencyWatermark: parsed.renderedDependencyWatermark,
       ownerEls: [ownerEl],
       resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh)
@@ -2809,9 +2829,7 @@
       captureDeferredState(target, fragment) {
         return matchingProtection(fragment)?.captureState(target, fragment) ?? fragment;
       },
-      restoreDeferredState(fragment) {
-        const target = targetDocument.getElementById(fragment.targetId);
-        if (!(target instanceof HTMLElement)) return;
+      restoreDeferredState(target, fragment) {
         matchingProtection(fragment)?.restoreState(target, fragment);
       }
     };
@@ -2841,20 +2859,80 @@
     const { targetWindow, targetDocument, diagnostics, activeInteractionSessions } = options;
     const { beginPerfSpan, endPerfSpan, emitDebugEvent } = diagnostics;
     const focus = createFocusedFieldProtection(targetWindow, targetDocument);
-    const pendingFocusedFragments = /* @__PURE__ */ new Map();
-    const pendingInteractionFragments = /* @__PURE__ */ new Map();
-    const pendingInteractionTimers = /* @__PURE__ */ new Map();
-    const inFlightFragments = /* @__PURE__ */ new Map();
-    async function swapFragmentHtml(targetId, html) {
-      const perfSpan = beginPerfSpan("live_updates.swap_fragment", { targetId });
-      const target = targetDocument.getElementById(targetId);
+    const ownerStates = /* @__PURE__ */ new Map();
+    let generation = 1;
+    let stopped = false;
+    function activateOwner(ownerEl) {
+      if (stopped) return;
+      const existing = ownerStates.get(ownerEl);
+      if (existing) {
+        existing.active = true;
+        return;
+      }
+      ownerStates.set(ownerEl, {
+        active: true,
+        inFlight: /* @__PURE__ */ new Map(),
+        pendingFocused: /* @__PURE__ */ new Map(),
+        pendingInteraction: /* @__PURE__ */ new Map(),
+        pendingInteractionTimers: /* @__PURE__ */ new Map()
+      });
+    }
+    function resolveOwnedTarget(fragment) {
+      const target = targetDocument.getElementById(fragment.targetId);
+      if (!(target instanceof HTMLElement) || !fragment.ownerEl.contains(target)) return null;
+      const closestOwner = target === fragment.ownerEl ? fragment.ownerEl : target.closest(`[${surfaceConfigDomAttr}]`);
+      return closestOwner === fragment.ownerEl ? target : null;
+    }
+    function requestIsCurrent(state, targetId, slot) {
+      return !stopped && state.active && slot.generation === generation && !slot.controller.signal.aborted && state.inFlight.get(targetId) === slot;
+    }
+    function clearInteractionDeferredFragment(state, targetId) {
+      const timer = state.pendingInteractionTimers.get(targetId);
+      if (timer) targetWindow.clearTimeout(timer);
+      state.pendingInteractionTimers.delete(targetId);
+      state.pendingInteraction.delete(targetId);
+    }
+    function disposeState(state) {
+      if (!state.active) return;
+      state.active = false;
+      state.pendingInteractionTimers.forEach((timer) => targetWindow.clearTimeout(timer));
+      state.pendingInteractionTimers.clear();
+      state.pendingInteraction.clear();
+      state.pendingFocused.clear();
+      state.inFlight.forEach((slot) => slot.controller.abort());
+      state.inFlight.clear();
+    }
+    function disposeOwner(ownerEl) {
+      const state = ownerStates.get(ownerEl);
+      if (!state) return;
+      disposeState(state);
+      ownerStates.delete(ownerEl);
+    }
+    function markProtectionChanged(target) {
+      ownerStates.forEach((state) => {
+        if (!state.active) return;
+        state.inFlight.forEach((slot) => {
+          const refreshedTarget = resolveOwnedTarget(slot.fragment);
+          if (refreshedTarget && (refreshedTarget.contains(target) || target.contains(refreshedTarget))) {
+            slot.protectionChanged = true;
+          }
+        });
+      });
+    }
+    async function swapFragmentHtml(fragment, state, slot, html) {
+      const perfSpan = beginPerfSpan("live_updates.swap_fragment", { targetId: fragment.targetId });
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale" });
+        return;
+      }
+      const target = resolveOwnedTarget(fragment);
       if (!target) {
         endPerfSpan(perfSpan, { outcome: "target_missing" });
         return;
       }
       const trimmed = (html || "").trim();
       if (!trimmed) {
-        target.remove();
+        if (requestIsCurrent(state, fragment.targetId, slot) && resolveOwnedTarget(fragment) === target) target.remove();
         endPerfSpan(perfSpan, { outcome: "removed_empty_html" });
         return;
       }
@@ -2866,41 +2944,94 @@
         endPerfSpan(perfSpan, { outcome: "no_element" });
         return;
       }
+      if (!requestIsCurrent(state, fragment.targetId, slot) || resolveOwnedTarget(fragment) !== target) {
+        endPerfSpan(perfSpan, { outcome: "stale" });
+        return;
+      }
       const restoreFocus = focus.captureReplacementFocus(target);
       target.replaceWith(nextNode);
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_after_swap" });
+        return;
+      }
       targetWindow.htmx?.process?.(nextNode);
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_after_process" });
+        return;
+      }
       targetWindow.appPageLifecycle?.dispatchPageReady?.({
         source: "live-fragment-refetch",
         target: nextNode,
         isFullPage: false
       });
-      restoreFocus(nextNode);
+      if (requestIsCurrent(state, fragment.targetId, slot)) restoreFocus(nextNode);
       endPerfSpan(perfSpan, { outcome: "swapped", nextTagName: nextNode.tagName });
     }
-    async function refetchFragment(fragment) {
+    async function refetchFragment(fragment, state, slot) {
       const perfSpan = beginPerfSpan("live_updates.refetch_fragment", {
         targetId: fragment.targetId,
         url: fragment.url,
         focusProtected: fragment.protection.kind === "focused-field"
       });
-      const target = targetDocument.getElementById(fragment.targetId);
-      const requestUrl = target instanceof HTMLElement ? decorateSurfaceFragmentRequest(fragment.url, fragment, target) : fragment.url;
+      const target = resolveOwnedTarget(fragment);
+      if (!target || !requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_before_fetch" });
+        return;
+      }
+      function fenceForCurrentProtection(stage, status) {
+        const currentTarget = resolveOwnedTarget(fragment);
+        const latestDemand = slot.next ?? fragment;
+        if (!currentTarget || currentTarget !== slot.fetchedTarget) {
+          endPerfSpan(perfSpan, { outcome: `target_changed_after_${stage}`, status });
+          return true;
+        }
+        if (deferForCurrentProtection(state, slot, latestDemand, currentTarget)) {
+          endPerfSpan(perfSpan, { outcome: `deferred_after_${stage}`, status });
+          return true;
+        }
+        if (slot.protectionChanged) {
+          slot.next = latestDemand;
+          endPerfSpan(perfSpan, { outcome: `protection_changed_during_${stage}`, status });
+          return true;
+        }
+        return false;
+      }
+      slot.fetchedTarget = target;
+      const requestUrl = decorateSurfaceFragmentRequest(fragment.url, fragment, target);
       const response = await targetWindow.fetch(requestUrl, {
         credentials: "same-origin",
-        headers: { "HX-Request": "true" }
+        headers: { "HX-Request": "true" },
+        signal: slot.controller.signal
       });
-      if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
-        endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
-        targetWindow.location.reload();
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_response", status: response.status });
+        return;
+      }
+      if (resolveOwnedTarget(fragment) !== slot.fetchedTarget) {
+        endPerfSpan(perfSpan, { outcome: "target_changed_after_response", status: response.status });
         return;
       }
       if (!response.ok) {
         endPerfSpan(perfSpan, { outcome: "http_error", status: response.status });
         throw new Error(`Fragment fetch failed with ${response.status}`);
       }
+      if (fenceForCurrentProtection("response", response.status)) return;
+      if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
+        endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
+        if (requestIsCurrent(state, fragment.targetId, slot)) targetWindow.location.reload();
+        return;
+      }
       const html = await response.text();
-      await swapFragmentHtml(fragment.targetId, html);
-      focus.restoreDeferredState(fragment);
+      if (!requestIsCurrent(state, fragment.targetId, slot)) {
+        endPerfSpan(perfSpan, { outcome: "stale_body", status: response.status });
+        return;
+      }
+      if (fenceForCurrentProtection("body", response.status)) return;
+      await swapFragmentHtml(fragment, state, slot, html);
+      if (requestIsCurrent(state, fragment.targetId, slot)) {
+        const currentTarget = resolveOwnedTarget(fragment);
+        if (currentTarget) focus.restoreDeferredState(currentTarget, fragment);
+      }
       endPerfSpan(perfSpan, { outcome: "ok", status: response.status, responseBytes: html.length });
     }
     function reportFragmentRefreshError(fragment, error) {
@@ -2913,105 +3044,138 @@
       targetDocument.dispatchEvent(new CustomEvent("app:live-update-fragment-refresh-failed", { detail }));
     }
     function queueFragment(fragment) {
-      const existing = inFlightFragments.get(fragment.targetId);
+      const state = ownerStates.get(fragment.ownerEl);
+      if (!state?.active || stopped) return;
+      const existing = state.inFlight.get(fragment.targetId);
       if (existing) {
-        inFlightFragments.set(fragment.targetId, { ...existing, next: fragment });
+        existing.next = fragment;
         emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
         return;
       }
-      inFlightFragments.set(fragment.targetId, { next: null });
-      void refetchFragment(fragment).catch((error) => reportFragmentRefreshError(fragment, error)).finally(() => {
-        const next = inFlightFragments.get(fragment.targetId)?.next;
-        inFlightFragments.delete(fragment.targetId);
-        if (next) queueFragment(next);
+      const slot = {
+        controller: new AbortController(),
+        fragment,
+        fetchedTarget: null,
+        generation,
+        next: null,
+        protectionChanged: false
+      };
+      state.inFlight.set(fragment.targetId, slot);
+      void refetchFragment(fragment, state, slot).catch((error) => {
+        if (requestIsCurrent(state, fragment.targetId, slot)) reportFragmentRefreshError(fragment, error);
+      }).finally(() => {
+        if (state.inFlight.get(fragment.targetId) !== slot) return;
+        state.inFlight.delete(fragment.targetId);
+        const next = slot.next;
+        if (next && state.active && slot.generation === generation && !stopped) queueFragment(next);
       });
     }
-    function clearInteractionDeferredFragment(targetId) {
-      const timer = pendingInteractionTimers.get(targetId);
-      if (timer) targetWindow.clearTimeout(timer);
-      pendingInteractionTimers.delete(targetId);
-      pendingInteractionFragments.delete(targetId);
-    }
-    function flushInteractionDeferredFragment(targetId, reason) {
-      const fragment = pendingInteractionFragments.get(targetId);
+    function flushInteractionDeferredFragment(state, targetId, reason) {
+      const fragment = state.pendingInteraction.get(targetId);
       if (!fragment) return;
-      clearInteractionDeferredFragment(targetId);
+      clearInteractionDeferredFragment(state, targetId);
       emitDebugEvent("deferred_fragment_flush", { targetId, reason });
       queueFragment(fragment);
     }
-    function scheduleInteractionFallback(targetId, timeoutMs) {
-      const existing = pendingInteractionTimers.get(targetId);
+    function scheduleInteractionFallback(state, fragment, timeoutMs) {
+      const existing = state.pendingInteractionTimers.get(fragment.targetId);
       if (existing) targetWindow.clearTimeout(existing);
       if (timeoutMs === null || timeoutMs <= 0) return;
-      pendingInteractionTimers.set(targetId, targetWindow.setTimeout(() => {
-        const fragment = pendingInteractionFragments.get(targetId);
-        const target = targetDocument.getElementById(targetId);
-        if (fragment && target instanceof HTMLElement) {
-          const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
+      state.pendingInteractionTimers.set(fragment.targetId, targetWindow.setTimeout(() => {
+        if (!state.active) return;
+        const pending = state.pendingInteraction.get(fragment.targetId);
+        const target = resolveOwnedTarget(fragment);
+        if (pending && target) {
+          const conflict = resolveLiveFragmentInteractionConflict(pending, target, activeInteractionSessions);
           if (conflict) activeInteractionSessions.requestCancel(conflict.session, "live-fragment-defer-fallback-timeout");
         }
-        flushInteractionDeferredFragment(targetId, "interaction_fallback_timeout");
+        flushInteractionDeferredFragment(state, fragment.targetId, "interaction_fallback_timeout");
       }, timeoutMs));
     }
-    function request(fragment) {
-      if (!fragment.targetId || !fragment.url) return;
-      const target = targetDocument.getElementById(fragment.targetId);
-      if (!(target instanceof HTMLElement)) return;
+    function deferForCurrentProtection(state, slot, fragment, target) {
       const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
-      if (conflict?.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
-      if (conflict?.action === "defer") {
-        pendingInteractionFragments.set(fragment.targetId, fragment);
-        scheduleInteractionFallback(fragment.targetId, conflict.timeoutMs);
+      if (conflict && conflict.action !== "apply") {
+        state.pendingInteraction.set(fragment.targetId, fragment);
+        scheduleInteractionFallback(state, fragment, conflict.timeoutMs);
+        if (slot) slot.next = null;
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
           detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "interaction_session" }
         }));
-        return;
+        if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
+        return true;
       }
-      clearInteractionDeferredFragment(fragment.targetId);
+      clearInteractionDeferredFragment(state, fragment.targetId);
       if (fragment.protection.kind === "focused-field" && focus.hasProtectedActiveInput(target, fragment)) {
-        pendingFocusedFragments.set(fragment.targetId, focus.captureDeferredState(target, fragment));
+        state.pendingFocused.set(fragment.targetId, focus.captureDeferredState(target, fragment));
+        if (slot) slot.next = null;
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
           detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "active_input" }
         }));
+        return true;
+      }
+      state.pendingFocused.delete(fragment.targetId);
+      return false;
+    }
+    function request(fragment) {
+      if (!fragment.targetId || !fragment.url || stopped) return;
+      const state = ownerStates.get(fragment.ownerEl);
+      if (!state?.active) return;
+      const target = resolveOwnedTarget(fragment);
+      if (!target) return;
+      const existing = state.inFlight.get(fragment.targetId);
+      if (existing) {
+        existing.next = fragment;
+        emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
+        if (deferForCurrentProtection(state, null, fragment, target)) return;
         return;
       }
-      pendingFocusedFragments.delete(fragment.targetId);
+      if (deferForCurrentProtection(state, null, fragment, target)) return;
       queueFragment(fragment);
     }
     function flushInteractionDeferredFragmentsWithoutActiveSessions() {
-      Array.from(pendingInteractionFragments.entries()).forEach(([targetId, fragment]) => {
-        const target = targetDocument.getElementById(targetId);
-        if (!(target instanceof HTMLElement)) {
-          flushInteractionDeferredFragment(targetId, "target_missing");
-          return;
-        }
-        if (!resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) {
-          flushInteractionDeferredFragment(targetId, "interaction_session_end");
-        }
+      ownerStates.forEach((state) => {
+        if (!state.active) return;
+        Array.from(state.pendingInteraction.entries()).forEach(([targetId, fragment]) => {
+          const target = resolveOwnedTarget(fragment);
+          if (!target) {
+            flushInteractionDeferredFragment(state, targetId, "target_missing");
+            return;
+          }
+          if (!resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) {
+            flushInteractionDeferredFragment(state, targetId, "interaction_session_end");
+          }
+        });
       });
     }
-    function flushFocusedFragment(targetId) {
-      const fragment = pendingFocusedFragments.get(targetId);
-      if (!fragment) return;
-      pendingFocusedFragments.delete(targetId);
-      emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
-      queueFragment(fragment);
-    }
     function flushFocusedFragmentsWithoutActiveInputs() {
-      Array.from(pendingFocusedFragments.entries()).forEach(([targetId, fragment]) => {
-        const target = targetDocument.getElementById(targetId);
-        if (target instanceof HTMLElement && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
-        if (!(target instanceof HTMLElement) || !focus.hasProtectedActiveInput(target, fragment)) flushFocusedFragment(targetId);
+      ownerStates.forEach((state) => {
+        if (!state.active) return;
+        Array.from(state.pendingFocused.entries()).forEach(([targetId, fragment]) => {
+          const target = resolveOwnedTarget(fragment);
+          if (target && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
+          if (!target || !focus.hasProtectedActiveInput(target, fragment)) {
+            state.pendingFocused.delete(targetId);
+            emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
+            queueFragment(fragment);
+          }
+        });
       });
     }
     function stop() {
-      pendingInteractionTimers.forEach((timer) => targetWindow.clearTimeout(timer));
-      pendingInteractionTimers.clear();
-      pendingInteractionFragments.clear();
-      pendingFocusedFragments.clear();
-      inFlightFragments.clear();
+      if (stopped) return;
+      stopped = true;
+      generation += 1;
+      ownerStates.forEach(disposeState);
     }
-    return { request, flushInteractionDeferredFragmentsWithoutActiveSessions, flushFocusedFragmentsWithoutActiveInputs, stop };
+    return {
+      activateOwner,
+      disposeOwner,
+      markProtectionChanged,
+      request,
+      flushInteractionDeferredFragmentsWithoutActiveSessions,
+      flushFocusedFragmentsWithoutActiveInputs,
+      stop
+    };
   }
 
   // frontend/ts/live-updates/runtime.ts
@@ -3038,11 +3202,13 @@
       const current = scanFrontendSurfaceMountInstances(document, reportSurfaceConfigError);
       const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, current);
       reconciliation.removed.forEach((instance) => {
+        refresher.disposeOwner(instance.ownerEl);
         activeSurfaceInstances.delete(instance.instanceId);
         diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
       });
       reconciliation.retained.forEach((instance) => activeSurfaceInstances.set(instance.instanceId, instance));
       reconciliation.added.forEach((instance) => {
+        refresher.activateOwner(instance.ownerEl);
         activeSurfaceInstances.set(instance.instanceId, instance);
         diagnostics.emitDebugEvent("surface_initialized", instanceDebugDetail(instance));
       });
@@ -3050,7 +3216,11 @@
     function syncRuntime() {
       reconcileMounts();
       const desired = collectDesiredSurfaceSubscriptions(document, refresher.request, reportSurfaceConfigError);
-      if (desired.size === 0) activeSurfaceInstances.clear();
+      if (desired.size === 0) {
+        disposeTrackedSurfaceInstances(activeSurfaceInstances, refresher.disposeOwner).forEach((instance) => {
+          diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
+        });
+      }
       connection?.sync(desired);
     }
     connection = createLiveUpdateConnection({
@@ -3062,6 +3232,13 @@
       diagnostics
     });
     document.addEventListener(liveFragmentsRefreshEvent, invalidation.handleActorEvent);
+    document.addEventListener(interactionSessionStartEvent, (event) => {
+      if (!(event instanceof CustomEvent) || !(event.detail?.mount instanceof Element)) return;
+      refresher.markProtectionChanged(event.detail.mount);
+    });
+    document.addEventListener("focusin", (event) => {
+      if (event.target instanceof Element) refresher.markProtectionChanged(event.target);
+    });
     document.addEventListener(interactionSessionEndEvent, () => {
       refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
       refresher.flushFocusedFragmentsWithoutActiveInputs();
@@ -3078,6 +3255,12 @@
     document.addEventListener("input", scheduleFocusedFlush);
     document.addEventListener("change", scheduleFocusedFlush);
     document.addEventListener(pageReadyEvent, syncRuntime);
+  }
+  function disposeTrackedSurfaceInstances(activeSurfaceInstances, disposeOwner) {
+    const disposed = Array.from(activeSurfaceInstances.values()).sort((left, right) => right.depth - left.depth);
+    disposed.forEach((instance) => disposeOwner(instance.ownerEl));
+    activeSurfaceInstances.clear();
+    return disposed;
   }
   function instanceDebugDetail(instance) {
     return {
@@ -4158,6 +4341,65 @@
     return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelectorAll === "function";
   }
 
+  // frontend/ts/shared/page-overlay.ts
+  var layers = /* @__PURE__ */ new Map();
+  var previousInert = /* @__PURE__ */ new Map();
+  var scrollPosition = null;
+  var observer = null;
+  function reconcilePageOverlays() {
+    if (document.body === null) return;
+    for (const [owner, layer] of layers) {
+      if (!layer.element.isConnected || !layer.boundary.isConnected) layers.delete(owner);
+    }
+    const active = [...layers.values()].sort((a, b) => b.priority - a.priority)[0];
+    const blocked = /* @__PURE__ */ new Set();
+    if (active !== void 0) {
+      const allowed = [active.element, ...active.companions ?? []].filter((element) => element.isConnected);
+      const visit = (parent) => {
+        for (const child of parent.children) {
+          if (!(child instanceof HTMLElement) || allowed.includes(child)) continue;
+          if (allowed.some((element) => child.contains(element))) visit(child);
+          else blocked.add(child);
+        }
+      };
+      visit(active.boundary);
+    }
+    for (const [element, wasInert] of previousInert) {
+      if (!blocked.has(element)) {
+        element.inert = wasInert;
+        previousInert.delete(element);
+      }
+    }
+    for (const element of blocked) {
+      if (!previousInert.has(element)) previousInert.set(element, element.inert);
+      element.inert = true;
+    }
+    if (active !== void 0 && scrollPosition === null) {
+      scrollPosition = { left: window.scrollX, top: window.scrollY };
+      document.documentElement.classList.add("app-page-scroll-locked");
+      observer = new MutationObserver(reconcilePageOverlays);
+      observer.observe(document.body, { childList: true, subtree: true });
+    } else if (active === void 0 && scrollPosition !== null) {
+      const position = scrollPosition;
+      scrollPosition = null;
+      observer?.disconnect();
+      observer = null;
+      document.documentElement.classList.remove("app-page-scroll-locked");
+      window.scrollTo({ ...position, behavior: "instant" });
+    }
+  }
+  function setPageOverlay(owner, layer) {
+    if (layer === null) layers.delete(owner);
+    else layers.set(owner, layer);
+    reconcilePageOverlays();
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => {
+      layers.clear();
+      reconcilePageOverlays();
+    });
+  }
+
   // frontend/ts/side-panel/runtime.ts
   function defaultDiagnosticReporter3(diagnostic11) {
     console.error?.("Invalid generated Surface side-panel boundary", diagnostic11);
@@ -4317,7 +4559,8 @@
       if (isSurfaceElementLike(event.target)) controller.toggle(event.target);
     });
     source.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || !isSurfaceElementLike(source.activeElement)) return;
+      if (event.key !== "Escape" || event.defaultPrevented || !isSurfaceElementLike(source.activeElement)) return;
+      if (typeof window !== "undefined" && window.matchMedia("(max-width: 1199.98px)").matches) return;
       const focused = expandedSidePanelRootForEscape(source.activeElement);
       if (focused) controller.collapse(focused);
     });
@@ -4339,8 +4582,271 @@
     const controller = createSidePanelController();
     const reconcileWithin = (root) => rootsWithin(root).forEach((panelRoot) => controller.reconcile(panelRoot));
     installSidePanelEventListeners(document, controller, reconcileWithin);
+    installResponsiveShelves();
     onAppPageReady((event) => reconcileWithin(detailRoot(event, "target")));
     if (document.readyState !== "loading") reconcileWithin(document);
+  }
+  function installResponsiveShelves() {
+    const mobile = window.matchMedia("(max-width: 1199.98px)");
+    const pending = /* @__PURE__ */ new WeakMap();
+    const pendingOob = /* @__PURE__ */ new Map();
+    const overlayOwner = {};
+    let active = null;
+    let shelfFocus = null;
+    let header = null;
+    let headerObserver = null;
+    let shelfAnimation = null;
+    function cancelSlide() {
+      shelfAnimation?.cancel();
+      shelfAnimation = null;
+    }
+    function shelves() {
+      return rootsWithin(document).flatMap((candidate) => {
+        if (!(candidate instanceof HTMLElement)) return [];
+        const resolved = resolveRoot(candidate);
+        if (!resolved || !stateFor(resolved, defaultDiagnosticReporter3)) return [];
+        const definition = resolved.definition;
+        if (!definition.isShelfState(candidate.getAttribute(definition.shelfStateAttribute))) {
+          defaultDiagnosticReporter3(diagnostic3(candidate, "invalid-shelf-state", "Shelf state is not declared by the Surface contract"));
+          return [];
+        }
+        const panels = ownedElements2(resolved, definition.panelRoleAttribute);
+        const contents = ownedElements2(resolved, definition.shelfRoleAttribute);
+        const bars = ownedElements2(resolved, definition.shelfToggleRoleAttribute);
+        const panel = panels[0];
+        const content = contents[0];
+        const bar = bars[0];
+        if (panels.length !== 1 || contents.length !== 1 || bars.length !== 1 || !(panel instanceof HTMLElement) || !(content instanceof HTMLElement) || !(bar instanceof HTMLButtonElement) || content.getAttribute(definition.shelfRoleAttribute) !== "true" || bar.getAttribute(definition.shelfToggleRoleAttribute) !== "true" || !panel.contains(content) || !panel.contains(bar)) {
+          defaultDiagnosticReporter3(diagnostic3(candidate, "invalid-shelf-role", "SidePanel must own one shelf content region and one toggle inside its panel"));
+          return [];
+        }
+        return [{ resolved, root: candidate, panel, content, bar }];
+      });
+    }
+    function isOpen(shelf) {
+      return mobile.matches && shelf.root.getAttribute(shelf.resolved.definition.shelfStateAttribute) === shelf.resolved.definition.shelfOpenValue;
+    }
+    function setOpen(shelf, open) {
+      const definition = shelf.resolved.definition;
+      shelf.root.setAttribute(definition.shelfStateAttribute, open ? definition.shelfOpenValue : definition.shelfClosedValue);
+    }
+    function lockBackground(shelf) {
+      const page = shelf.panel.closest(`[${appPageContentDomAttr}]`);
+      setPageOverlay(overlayOwner, page ? { element: shelf.panel, boundary: page, priority: 0 } : null);
+      document.body.classList.add("app-shelf-scroll-locked");
+    }
+    function unlockBackground() {
+      setPageOverlay(overlayOwner, null);
+      document.body?.classList.remove("app-shelf-scroll-locked");
+    }
+    function updateGeometry() {
+      const top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+      const viewport = window.visualViewport;
+      const bottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      const style = document.documentElement.style;
+      const height = `${Math.max(0, bottom - top)}px`;
+      const bottomInset = `${Math.max(0, window.innerHeight - bottom)}px`;
+      if (style.getPropertyValue("--app-shelf-height") !== height || style.getPropertyValue("--app-shelf-bottom") !== bottomInset) {
+        cancelSlide();
+      }
+      style.setProperty("--app-shelf-height", height);
+      style.setProperty("--app-shelf-bottom", bottomInset);
+    }
+    function reconcile() {
+      if (document.body === null) return;
+      const all = shelves();
+      const enabled = mobile.matches && all.length > 0;
+      document.body.classList.toggle("app-has-mobile-shelf", enabled);
+      const nextHeader = document.querySelector(`[${appNavigationHeaderDomAttr}]`);
+      if (nextHeader !== header) {
+        headerObserver?.disconnect();
+        header = nextHeader;
+        headerObserver = header ? new ResizeObserver(updateGeometry) : null;
+        if (header) headerObserver?.observe(header);
+      }
+      active = null;
+      for (const shelf of all) {
+        if (!mobile.matches) setOpen(shelf, false);
+        if (active && isOpen(shelf)) setOpen(shelf, false);
+        const open = isOpen(shelf);
+        shelf.root.classList.toggle("is-shelf-open", open);
+        shelf.bar.setAttribute("aria-expanded", String(open));
+        shelf.content.inert = mobile.matches && !open;
+        if (open) active = shelf;
+      }
+      if (active) lockBackground(active);
+      else unlockBackground();
+      updateGeometry();
+    }
+    function changeVisibility(shelf, open) {
+      const before = shelf.panel.getBoundingClientRect().height;
+      const beforeBottom = getComputedStyle(shelf.panel).bottom;
+      cancelSlide();
+      setOpen(shelf, open);
+      reconcile();
+      if (!mobile.matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const after = shelf.panel.getBoundingClientRect().height;
+      const afterBottom = getComputedStyle(shelf.panel).bottom;
+      if (before === after && beforeBottom === afterBottom) return;
+      const animation = shelf.panel.animate([
+        { height: `${before}px`, bottom: beforeBottom },
+        { height: `${after}px`, bottom: afterBottom }
+      ], {
+        duration: 220,
+        easing: "ease"
+      });
+      shelfAnimation = animation;
+      void animation.finished.then(() => {
+        if (shelfAnimation === animation) shelfAnimation = null;
+      }, () => {
+      });
+    }
+    function close(shelf, returnFocus = true) {
+      changeVisibility(shelf, false);
+      if (returnFocus && shelf.bar.isConnected) shelf.bar.focus({ preventScroll: true });
+    }
+    function hasDialog() {
+      return document.querySelector(`[${dialogMountDomAttr}], .modal.show, .offcanvas.show, .offcanvas.showing`) !== null;
+    }
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const shelf = shelves().find((item) => item.bar.contains(target));
+      if (shelf && mobile.matches) {
+        if (isOpen(shelf)) close(shelf);
+        else {
+          changeVisibility(shelf, true);
+          const tab = shelf.content.querySelector('[role="tab"][aria-selected="true"]');
+          (tab ?? shelf.bar).focus({ preventScroll: true });
+        }
+      }
+    });
+    document.addEventListener("focusin", (event) => {
+      if (active && event.target instanceof HTMLElement && active.panel.contains(event.target)) shelfFocus = event.target;
+    });
+    document.addEventListener(dialogDismissedEvent, (event) => {
+      const detail = dialogDismissedDetail(event);
+      if (!detail || detail.replacement !== null) return;
+      requestAnimationFrame(() => {
+        if (!active || hasDialog()) return;
+        if (document.activeElement !== document.body && document.activeElement?.isConnected) return;
+        const target = shelfFocus?.isConnected && active.panel.contains(shelfFocus) ? shelfFocus : active.bar;
+        target.focus({ preventScroll: true });
+      });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !active || hasDialog()) return;
+      event.preventDefault();
+      close(active);
+    });
+    document.addEventListener("click", (event) => {
+      if (!active || !(event.target instanceof Element) || !active.content.contains(event.target)) return;
+      const mount = closestSurfaceMount(event.target);
+      if (!mount) return;
+      for (const definition of surfaceDefinitionsForMount(mount, FrontendSurfaceLinkedHighlightRegistry)) {
+        if (!definition.pinRoleAttribute) continue;
+        const pin = event.target.closest(`[${definition.pinRoleAttribute}]`);
+        if (!pin) continue;
+        const shelf = active;
+        queueMicrotask(() => {
+          if (pin.getAttribute("aria-pressed") === "true" && active?.root === shelf.root) close(shelf);
+        });
+      }
+    }, true);
+    function capture(target) {
+      if (!active || !target.contains(active.root) && !active.panel.contains(target)) return null;
+      const content = active.content;
+      const scrolls = [];
+      content.querySelectorAll("*").forEach((element) => {
+        if (!element.scrollTop && !element.scrollLeft) return;
+        const path = [];
+        let child = element;
+        while (child !== content && child.parentElement) {
+          path.unshift(Array.from(child.parentElement.children).indexOf(child));
+          child = child.parentElement;
+        }
+        scrolls.push({ id: element.id, path, tag: element.tagName, top: element.scrollTop, left: element.scrollLeft });
+      });
+      return { root: active.root, surface: active.resolved.mount.getAttribute(surfaceDomAttr) ?? "", name: active.resolved.definition.name, scrolls };
+    }
+    function restore(snapshot) {
+      const target = snapshot.root.isConnected ? snapshot.root : snapshot.root.id ? document.getElementById(snapshot.root.id) : null;
+      const replacement = shelves().find((item) => item.root === target && item.resolved.definition.name === snapshot.name && item.resolved.mount.getAttribute(surfaceDomAttr) === snapshot.surface);
+      if (!replacement || !mobile.matches) return;
+      setOpen(replacement, true);
+      reconcile();
+      requestAnimationFrame(() => snapshot.scrolls.forEach((position) => {
+        let element = replacement.content;
+        if (position.id) element = document.getElementById(position.id);
+        else for (const index of position.path) element = element?.children[index] ?? null;
+        if (element instanceof HTMLElement && element.tagName === position.tag && replacement.content.contains(element)) {
+          element.scrollTop = position.top;
+          element.scrollLeft = position.left;
+        }
+      }));
+    }
+    document.addEventListener("htmx:beforeSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      if (request === null || typeof request !== "object") return;
+      const snapshot = capture(detailRoot(event, "target"));
+      if (snapshot) pending.set(request, snapshot);
+    });
+    document.addEventListener("htmx:afterSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      const snapshot = request !== null && typeof request === "object" ? pending.get(request) : void 0;
+      if (snapshot) {
+        restore(snapshot);
+        pending.delete(request);
+      }
+      reconcile();
+    });
+    document.addEventListener("htmx:oobBeforeSwap", (event) => {
+      const target = detailTarget(event, "target");
+      if (!(target instanceof Element) || !target.id) return;
+      const snapshot = capture(target);
+      if (snapshot) pendingOob.set(target.id, snapshot);
+    });
+    document.addEventListener("htmx:oobAfterSwap", (event) => {
+      const target = detailTarget(event, "target");
+      if (target instanceof Element) {
+        const snapshot = pendingOob.get(target.id);
+        if (snapshot) restore(snapshot);
+        pendingOob.delete(target.id);
+      }
+      reconcile();
+    });
+    document.addEventListener("htmx:beforeCleanupElement", (event) => {
+      const target = detailTarget(event, "elt") ?? detailTarget(event, "target") ?? event.target;
+      if (shelfFocus && target instanceof Element && target.contains(shelfFocus)) shelfFocus = null;
+      if (active && target instanceof Element && target.contains(active.root)) {
+        active = null;
+        unlockBackground();
+      }
+    });
+    document.addEventListener("htmx:afterSettle", () => {
+      pendingOob.clear();
+      reconcile();
+    });
+    onAppPageReady(reconcile);
+    mobile.addEventListener("change", () => {
+      cancelSlide();
+      const previous = active;
+      reconcile();
+      if (previous && !mobile.matches && previous.bar === document.activeElement) {
+        previous.content.querySelector('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+      }
+    });
+    window.addEventListener("resize", updateGeometry);
+    window.visualViewport?.addEventListener("resize", updateGeometry);
+    window.visualViewport?.addEventListener("scroll", updateGeometry);
+    window.addEventListener("pagehide", () => {
+      cancelSlide();
+      active = null;
+      shelfFocus = null;
+      unlockBackground();
+    });
+    window.addEventListener("pageshow", reconcile);
+    if (document.readyState !== "loading") reconcile();
   }
 
   // frontend/ts/surface-tab-set/runtime.ts
@@ -4636,8 +5142,10 @@
     const mountId = dialogOverlayMountDomId;
     const dismissalLifecycle = createDialogDismissalLifecycle(dialogDismissedEvent);
     installPointerDismissFocusCleanup(document);
-    const blockingBackgroundInertStates = /* @__PURE__ */ new Map();
-    let blockingDialogReturnFocus = null;
+    const overlayOwner = {};
+    const bootstrapDialogs = /* @__PURE__ */ new Set();
+    const returnFocus = /* @__PURE__ */ new WeakMap();
+    let previousModal = null;
     function getMount() {
       const mountEl = document.getElementById(mountId);
       return isHTMLElement(mountEl) ? mountEl : null;
@@ -4670,32 +5178,59 @@
       ].join(",");
       return Array.from(region.querySelectorAll(selector)).filter((element) => {
         if (!(element instanceof HTMLElement)) return false;
-        if (element.hidden || element.closest("[hidden], [inert]") !== null) return false;
+        if (element.hidden || element.closest("[hidden], [inert]") !== null || element.getClientRects().length === 0) return false;
         return element.tabIndex >= 0;
       });
     }
     function focusKeyboardDialog(dialog) {
+      if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
       const region = keyboardFocusRegion(dialog);
-      if (region === null) return;
-      const controls2 = focusableDialogControls(region);
+      const controls2 = focusableDialogControls(region ?? dialog);
       const firstInvalid = controls2.find((control) => control.getAttribute("aria-invalid") === "true");
       const autofocus = controls2.find((control) => control.hasAttribute("autofocus"));
-      (firstInvalid ?? autofocus ?? controls2[0] ?? dialog).focus({ preventScroll: true });
+      (firstInvalid ?? autofocus ?? (region ? controls2[0] : null) ?? dialog).focus({ preventScroll: true });
     }
     function initializeKeyboardDialogs(root) {
-      if (root instanceof HTMLElement && root.matches(dialogKeyboardSelector)) focusKeyboardDialog(root);
-      root.querySelectorAll(dialogKeyboardSelector).forEach((dialog) => {
+      if (root instanceof HTMLElement && root.matches(dialogMountSelector)) focusKeyboardDialog(root);
+      root.querySelectorAll(dialogMountSelector).forEach((dialog) => {
         if (dialog instanceof HTMLElement) focusKeyboardDialog(dialog);
       });
     }
-    function hasVisibleBootstrapModal() {
-      return Boolean(document.querySelector(`.modal.show:not(${dialogMountSelector})`));
+    function getTopModal() {
+      for (const dialog of bootstrapDialogs) {
+        if (!dialog.isConnected) bootstrapDialogs.delete(dialog);
+      }
+      const native = [...bootstrapDialogs];
+      const visible = Array.from(document.querySelectorAll(`.modal.show:not(${dialogMountSelector})`)).filter(isHTMLElement);
+      return native[native.length - 1] ?? visible[visible.length - 1] ?? getActiveDialog();
     }
     function syncDialogState() {
-      const hasDialog = getActiveDialog() !== null;
-      const shouldLockBody = hasDialog || hasVisibleBootstrapModal();
-      document.body.classList.toggle("modal-open", shouldLockBody);
-      document.body.style.overflow = shouldLockBody ? "hidden" : "";
+      if (document.body === null) return;
+      const dialog = getTopModal();
+      const returningToExistingDialog = dialog !== null && returnFocus.has(dialog);
+      if (dialog !== null && dialog !== previousModal && !returningToExistingDialog) {
+        const opener = previousModal !== null && !previousModal.isConnected ? returnFocus.get(previousModal) ?? null : isHTMLElement(document.activeElement) ? document.activeElement : null;
+        returnFocus.set(dialog, opener);
+      }
+      const backdropSelector = dialog?.matches(dialogMountSelector) ? dialogBackdropSelector : `.modal-backdrop:not(${dialogBackdropSelector})`;
+      const backdrops = dialog?.matches(dialogMountSelector) ? Array.from(dialog.parentElement?.children ?? []).filter((element) => element.matches(backdropSelector)).filter(isHTMLElement) : Array.from(document.querySelectorAll(backdropSelector)).filter(isHTMLElement).slice(-1);
+      setPageOverlay(overlayOwner, dialog === null ? null : {
+        element: dialog,
+        boundary: document.body,
+        priority: 1,
+        companions: backdrops
+      });
+      document.body.classList.toggle("modal-open", dialog !== null);
+      if (previousModal !== null && previousModal !== dialog && (dialog === null || returningToExistingDialog)) {
+        const opener = returnFocus.get(previousModal);
+        if (opener?.isConnected && !opener.closest("[inert]") && (dialog === null || dialog.contains(opener))) {
+          opener.focus({ preventScroll: true });
+        }
+      }
+      if (previousModal !== null && previousModal !== dialog && (!previousModal.isConnected || !previousModal.matches(dialogMountSelector) && !bootstrapDialogs.has(previousModal) && !previousModal.classList.contains("show"))) {
+        returnFocus.delete(previousModal);
+      }
+      previousModal = dialog;
     }
     function showNavigationLoadingDialog(config) {
       const mountEl = getMount();
@@ -4735,44 +5270,21 @@
       const backdrop = document.createElement("div");
       backdrop.className = "modal-backdrop fade show";
       backdrop.setAttribute(dialogBackdropDomAttr, "true");
-      blockingDialogReturnFocus = isHTMLElement(document.activeElement) ? document.activeElement : null;
       const replacedDialog = getMountedDialog(mountEl);
       if (replacedDialog !== null) dismissalLifecycle.dismiss(replacedDialog, mountEl, dialogEl);
       mountEl.replaceChildren(dialogEl, backdrop);
       reconcileDialogDismissal(mountEl);
-      setBlockingBackgroundInert(mountEl, true);
       syncDialogState();
-      dialogEl.focus();
-    }
-    function setBlockingBackgroundInert(mountEl, inert) {
-      Array.from(document.body.children).forEach((element) => {
-        if (!(element instanceof HTMLElement) || element === mountEl) return;
-        if (inert) {
-          if (!blockingBackgroundInertStates.has(element)) {
-            blockingBackgroundInertStates.set(element, element.inert);
-          }
-          element.inert = true;
-          return;
-        }
-        const previous = blockingBackgroundInertStates.get(element);
-        if (previous !== void 0) element.inert = previous;
-        blockingBackgroundInertStates.delete(element);
-      });
+      dialogEl.focus({ preventScroll: true });
     }
     function clearDialog(dialogEl) {
       const mountEl = getMount();
       const eventOwner = mountEl !== null && mountEl.contains(dialogEl) ? mountEl : dialogEl;
       dismissalLifecycle.dismiss(dialogEl, eventOwner);
-      const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
-      const inheritedBlockingState = blockingBackgroundInertStates.size > 0;
-      if ((wasBlocking || inheritedBlockingState) && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
-      const returnFocus = wasBlocking || inheritedBlockingState ? blockingDialogReturnFocus : null;
-      if (wasBlocking || inheritedBlockingState) blockingDialogReturnFocus = null;
       if (mountEl !== null && mountEl.contains(dialogEl)) {
         mountEl.innerHTML = "";
         reconcileDialogDismissal(mountEl);
         syncDialogState();
-        if (returnFocus?.isConnected) returnFocus.focus();
         return;
       }
       const localOwner = dialogEl.parentElement;
@@ -4783,16 +5295,9 @@
         });
       }
       syncDialogState();
-      if (returnFocus?.isConnected) returnFocus.focus();
-    }
-    function releaseInheritedBlockingStateWhenDialogAbsent(mountEl) {
-      if (getActiveDialog() !== null || blockingBackgroundInertStates.size === 0) return;
-      setBlockingBackgroundInert(mountEl, false);
-      const returnFocus = blockingDialogReturnFocus;
-      blockingDialogReturnFocus = null;
-      if (returnFocus?.isConnected) returnFocus.focus();
     }
     document.addEventListener("click", function(event) {
+      if (getTopModal() !== getActiveDialog()) return;
       const closeEl = closestHTMLElement(event.target, dialogCloseSelector);
       const closeDialog = closeEl?.closest(dialogMountSelector);
       if (closeEl !== null && isHTMLElement(closeDialog)) {
@@ -4817,15 +5322,15 @@
     });
     document.addEventListener("keydown", function(event) {
       const activeDialog = getActiveDialog();
-      if (activeDialog === null) return;
+      if (activeDialog === null || activeDialog !== getTopModal()) return;
       if (event.key === "Tab" && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
         event.preventDefault();
         activeDialog.focus();
         return;
       }
       const focusRegion = keyboardFocusRegion(activeDialog);
-      if (event.key === "Tab" && focusRegion !== null) {
-        const controls2 = focusableDialogControls(focusRegion);
+      if (event.key === "Tab") {
+        const controls2 = focusableDialogControls(focusRegion ?? activeDialog);
         event.preventDefault();
         if (controls2.length === 0) {
           activeDialog.focus();
@@ -4923,29 +5428,38 @@
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      initializeKeyboardDialogs(target);
       reconcileDialogDismissal(target);
-      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
+      initializeKeyboardDialogs(target);
     });
     document.addEventListener("htmx:oobAfterSwap", function(event) {
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      initializeKeyboardDialogs(target);
       reconcileDialogDismissal(target);
-      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
+      initializeKeyboardDialogs(target);
     });
     window.addEventListener("pageshow", function(event) {
-      if (!event.persisted) return;
       const activeDialog = getActiveDialog();
-      if (activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
+      if (event.persisted && activeDialog !== null && activeDialog.hasAttribute(dialogBlockingDomAttr)) {
         clearDialog(activeDialog);
       }
+      syncDialogState();
+    });
+    document.addEventListener("show.bs.modal", (event) => {
+      const dialog = event.target;
+      queueMicrotask(() => {
+        if (event.defaultPrevented || !(dialog instanceof HTMLElement) || !dialog.isConnected) return;
+        bootstrapDialogs.add(dialog);
+        syncDialogState();
+      });
     });
     document.addEventListener("shown.bs.modal", syncDialogState);
-    document.addEventListener("hidden.bs.modal", syncDialogState);
+    document.addEventListener("hidden.bs.modal", (event) => {
+      if (event.target instanceof HTMLElement) bootstrapDialogs.delete(event.target);
+      syncDialogState();
+    });
     document.addEventListener(pageReadyEvent, (event) => {
       const mountEl = getMount();
       if (mountEl !== null) reconcileDialogDismissal(mountEl);
@@ -5141,6 +5655,8 @@
   var digitBuffers = /* @__PURE__ */ new WeakMap();
   var digitBufferResetMs = 2e3;
   var activeField = null;
+  var pickerBackdrop = null;
+  var backdropsBeforeShow = /* @__PURE__ */ new Set();
   function defaultDiagnosticReporter5(diagnostic11) {
     console.error?.("Invalid generated time picker configuration", diagnostic11);
   }
@@ -5335,9 +5851,8 @@
     modal.modal.style.display = "none";
     modal.modal.setAttribute("aria-hidden", "true");
     modal.modal.removeAttribute("aria-modal");
-    document.body.classList.remove("modal-open");
-    document.body.style.removeProperty("padding-right");
-    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => backdrop.remove());
+    pickerBackdrop?.remove();
+    pickerBackdrop = null;
     restoreModalOptions(modal);
     activeField = null;
   }
@@ -5495,6 +6010,7 @@
       activeField = field;
       renderFieldOptions(modal, field);
       highlightSelectedOption(modal, field.input.value);
+      backdropsBeforeShow = new Set(document.querySelectorAll(".modal-backdrop"));
       bootstrapModal.show();
     });
     document.addEventListener("click", (event) => {
@@ -5546,8 +6062,15 @@
       synchronizeField(activeField);
       hideTimePickerModal(modal);
     });
+    document.addEventListener("shown.bs.modal", (event) => {
+      if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+      pickerBackdrop = Array.from(document.querySelectorAll(".modal-backdrop")).find((element) => !backdropsBeforeShow.has(element)) ?? null;
+      backdropsBeforeShow.clear();
+    });
     document.addEventListener("hidden.bs.modal", (event) => {
       if (!(event.target instanceof HTMLElement) || event.target.id !== timePickerModalDomId) return;
+      pickerBackdrop = null;
+      backdropsBeforeShow.clear();
       const modal = modalControls.get(event.target);
       if (modal !== void 0) restoreModalOptions(modal);
       activeField = null;
@@ -7180,7 +7703,6 @@
 
   // frontend/ts/app-toggle-buttons.ts
   var initializedControls = /* @__PURE__ */ new WeakMap();
-  var checkedClass = "is-toggle-checked";
   function targetsEqual(left, right) {
     if (left.tag !== right.tag) return false;
     if (left.tag === "omitted" || right.tag === "omitted") return true;
@@ -7292,16 +7814,14 @@
       }
       breakRegion = regions[0];
     }
-    return { input, root, form, transport, breakRegion, labels, config };
+    return { input, form, transport, breakRegion, labels, config };
   }
   function synchronizeToggle(control) {
-    const { input, root, transport, breakRegion, labels, config } = control;
+    const { input, transport, breakRegion, labels, config } = control;
     const checked = input.checked;
     const transportState = toggleTransportState(toggleTargetForChecked(config, checked));
     transport.value = transportState.value;
     transport.disabled = transportState.disabled;
-    root.classList.toggle(checkedClass, checked);
-    root.setAttribute("aria-pressed", String(checked));
     if (input.getAttribute("role") === "switch") {
       input.setAttribute("aria-checked", String(checked));
     }

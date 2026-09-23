@@ -2,9 +2,9 @@ import type { FrontendSurfaceMountedFragmentConfig, LiveUpdateCommand, SurfaceFr
 import { encodeLiveUpdateCommand, surfaceFragmentKeyIdentity } from "../generated/contracts";
 
 type MessageWithScopeKey = { scopeKey?: unknown };
-export type MountedFragmentSubscription = {
+export type MountedFragmentSubscription<Fragment extends FrontendSurfaceMountedFragmentConfig = FrontendSurfaceMountedFragmentConfig> = {
     scopeKey: string;
-    resyncFragments: FrontendSurfaceMountedFragmentConfig[];
+    resyncFragments: Fragment[];
 };
 
 export function liveUpdateMessageScopeKey(message: MessageWithScopeKey | null | undefined): string | null {
@@ -61,20 +61,20 @@ export function liveUpdateFragmentMergeKey(fragment: Pick<FrontendSurfaceMounted
     return `${surfaceFragmentKeyIdentity(fragment.fragmentKey)}:${fragment.targetId}`;
 }
 
-export function resolveMountedFragmentsForInvalidation(
-    subscriptions: Iterable<MountedFragmentSubscription>,
+export function resolveMountedFragmentsForInvalidation<Fragment extends FrontendSurfaceMountedFragmentConfig>(
+    subscriptions: Iterable<MountedFragmentSubscription<Fragment>>,
     fragments: readonly SurfaceFragmentKey[],
     scopeKey: string | null = null,
-): FrontendSurfaceMountedFragmentConfig[] {
+): Fragment[] {
     if (scopeKey === null || scopeKey.length === 0) return [];
 
     const mountedSubscriptions = Array.from(subscriptions);
-    const resolved: FrontendSurfaceMountedFragmentConfig[] = [];
+    const resolved: Fragment[] = [];
     const seen = new Set<string>();
 
     fragments.forEach((fragmentKey) => {
         const semanticKey = surfaceFragmentKeyIdentity(fragmentKey);
-        const matches: FrontendSurfaceMountedFragmentConfig[] = [];
+        const matches: Fragment[] = [];
 
         for (const subscription of mountedSubscriptions) {
             if (subscription.scopeKey !== scopeKey) continue;

@@ -62,6 +62,17 @@ expect_no_match \
     '\b(parseSurfaceIntentParams|frontendSurfaceIntentForm)\b' \
     Web
 
+# Confirmation-only interactions belong to the canonical in-app dialog. Browser
+# popup transports are intentionally absent from both contract DSLs and callers.
+expect_no_match \
+    "an application-owned browser confirmation popup returned" \
+    'window\.confirm|(^|[^[:alnum:]_.])confirm[[:space:]]*\(' \
+    Application Web frontend/ts
+expect_no_match \
+    "HTMX popup-confirm contract support returned" \
+    'hx-confirm|AppShellHtmxConfirm|HtmxActionConfirmIR|\bHtmxConfirm\b' \
+    Application Web frontend/ts
+
 # Migrated operation-owned names are always selected from their complete typed
 # bundle. Composite pay-rate and provider selections are intentionally included:
 # they remain open tagged/reference values, but their names stay nominal.

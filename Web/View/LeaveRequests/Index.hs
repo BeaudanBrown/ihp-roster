@@ -136,7 +136,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 }
                 [hsx|
                     {mainRegion}
-                    {renderLeaveSidePanelWithSwap Nothing venueToday blackouts leaveRequests staffMembers staffPanelEntries}
+                    {renderLeaveSidePanel venueToday blackouts leaveRequests staffMembers staffPanelEntries}
                 |]
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Unavailability"
@@ -194,12 +194,12 @@ leaveRequestTabAttrs archiveIsOpen section = case (archiveIsOpen, section) of
     (True, LeaveDeniedSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.DeniedTabKey
     (True, LeaveArchiveSection) -> surfaceTabSetAttrs @Surface.LeaveRequestsSurface @Surface.LeaveArchiveRequestTabs @Surface.ArchiveTabKey
 
-renderLeaveSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> [LeaveStaffPanelEntry] -> Html
-renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests staffMembers staffPanelEntries =
+renderLeaveSidePanel :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> [LeaveStaffPanelEntry] -> Html
+renderLeaveSidePanel venueToday blackouts leaveRequests staffMembers staffPanelEntries =
     renderSidePanelPanelRegion leaveSidePanelRenderAttrs SidePanelRegionConfig
-        { sidePanelRegionId = Just (surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSidePanelContent noSurfaceFields)
+        { sidePanelRegionId = Nothing
         , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 leave-side-panel"
-        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        , sidePanelRegionExtraAttrs = []
         }
         ( renderSidePanelCard
             SidePanelCardConfig
@@ -229,7 +229,14 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
 renderLeaveStaffPanel :: (?context :: ControllerContext) => [Staff] -> [LeaveStaffPanelEntry] -> Html
 renderLeaveStaffPanel staffMembers entries = [hsx|
     <div class="app-side-panel-table-list">
-        <table class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
+        {renderLeaveStaffContent Nothing staffMembers entries}
+    </div>
+|]
+
+renderLeaveStaffContent :: (?context :: ControllerContext) => Maybe Text -> [Staff] -> [LeaveStaffPanelEntry] -> Html
+renderLeaveStaffContent maybeSwapOob staffMembers entries = [hsx|
+        <table id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSidePanelContent noSurfaceFields}
+               hx-swap-oob={maybeSwapOob} class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
             <thead class="app-side-panel-table-head"><tr>
                 <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByName}>Name</button></th>
                 <th scope="col" class="app-side-panel-role-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByRole}>Role</button></th>
@@ -238,7 +245,6 @@ renderLeaveStaffPanel staffMembers entries = [hsx|
             </tr></thead>
             <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderLeaveStaffPanelEntry staffMembers)}</tbody>
         </table>
-    </div>
 |]
 
 renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> LeaveStaffPanelEntry -> Html
@@ -268,18 +274,14 @@ renderLeaveStaffPanelEntry staffMembers entry =
         |]
 
 renderUnavailabilityBlackoutsLiveFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Html
-renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMembers =
-    renderUnavailabilityBlackoutsValidationFragment today blackouts leaveRequests staffMembers Nothing
-
-renderUnavailabilityBlackoutsValidationFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Maybe UnavailabilityBlackout -> Html
-renderUnavailabilityBlackoutsValidationFragment today persistedBlackouts leaveRequests staffMembers submittedBlackout = [hsx|
+renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMembers = [hsx|
     <section id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts noSurfaceFields} class="leave-blackout-settings">
         <div class="mb-3">
             <h2 class="h5 mb-1">Submission blackout periods</h2>
             <p class="small app-muted mb-0">Staff cannot add unavailable time that overlaps these inclusive dates.</p>
         </div>
-        {if currentUserCanManageBlackouts then renderCreateBlackoutForm today createFormBlackout else mempty}
-        {renderBlackoutPeriods leaveRequests staffMembers renderedBlackouts}
+        {if currentUserCanManageBlackouts then renderCreateBlackoutForm today defaultBlackout else mempty}
+        {renderBlackoutPeriods leaveRequests staffMembers blackouts}
     </section>
 |]
   where
@@ -288,11 +290,6 @@ renderUnavailabilityBlackoutsValidationFragment today persistedBlackouts leaveRe
             |> set #startDate today
             |> set #endDate today
             |> set #reason ""
-    createFormBlackout = fromMaybe defaultBlackout (submittedBlackout >>= \blackout -> if isNew blackout then Just blackout else Nothing)
-    renderedBlackouts =
-        case submittedBlackout >>= \blackout -> if isNew blackout then Nothing else Just blackout of
-            Nothing -> persistedBlackouts
-            Just invalidUpdate -> map (\blackout -> if blackout.id == invalidUpdate.id then invalidUpdate else blackout) persistedBlackouts
 
 renderBlackoutPeriods :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> [UnavailabilityBlackout] -> Html
 renderBlackoutPeriods _ _ [] = [hsx|<p class="small app-muted mb-0">No current or upcoming blackout periods.</p>|]
@@ -385,13 +382,13 @@ renderUpdateBlackoutForm blackout = [hsx|
     <details class="mt-3" open={not (isValid blackout)}>
         <summary>Edit period</summary>
         <div class="mt-2">
-            {updateForm}
+            {renderBlackoutUpdateForm blackout}
         </div>
     </details>
 |]
-  where
-    fields = LeaveRequestsAction.updateUnavailabilityBlackoutActionFields blackout.startDate blackout.endDate blackout.reason
-    updateForm =
+
+renderBlackoutUpdateForm :: (?context :: ControllerContext) => UnavailabilityBlackout -> Html
+renderBlackoutUpdateForm blackout =
         renderFrontendSurfaceActionForm
             (LeaveRequestsAction.updateUnavailabilityBlackoutAction fields)
             (leaveRequestsActionRouteWithStandard (pathTo (UpdateUnavailabilityBlackoutAction blackout.id)))
@@ -403,6 +400,8 @@ renderUpdateBlackoutForm blackout = [hsx|
                     <div class="col-12 d-grid"><button class="btn btn-outline-primary" type="submit">Save blackout</button></div>
                 </div>
             |]
+  where
+    fields = LeaveRequestsAction.updateUnavailabilityBlackoutActionFields blackout.startDate blackout.endDate blackout.reason
 
 renderDeleteBlackoutForm :: (?context :: ControllerContext) => UnavailabilityBlackout -> Html
 renderDeleteBlackoutForm blackout =

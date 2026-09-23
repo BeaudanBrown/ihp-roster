@@ -22,27 +22,27 @@ renderRosterNotificationConfirmation ::
     RosterNotificationAudience ->
     Maybe RosterNotificationRunSummary ->
     Html
-renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd calendarRevision audience latestRun =
-    renderDialogOverlay (defaultDialogOverlayConfig
-            "Email roster"
-            [hsx|
-            <dl class="row mb-3">
-                <dt class="col-4">Venue</dt><dd class="col-8">{venue.name}</dd>
-                <dt class="col-4">Roster group</dt><dd class="col-8">{rosterGroup.name}</dd>
-                <dt class="col-4">Week</dt><dd class="col-8">{weekLabel}</dd>
-                <dt class="col-4">Recipients</dt><dd class="col-8">{rosterNotificationRecipientCountLabel recipientCount}</dd>
-                <dt class="col-4">Skipped</dt><dd class="col-8">{tshow skippedCount <> " skipped"}</dd>
-            </dl>
-            {zeroRecipientCopy recipientCount}
-            {renderLatestRunSummary latestRun}
-            {sendForm}
-        |]
-            ( [dialogOverlayCloseButton "Cancel"]
-                <> if canSend
-                    then [dialogOverlaySubmitButton "Email roster" formId]
-                    else []
-            ))
+renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd calendarRevision audience latestRun
+    | canSend =
+        renderConfirmationDialog
+            (defaultConfirmationDialogConfig "Email roster" dialogBody formId sendForm)
+                { confirmationDialogApproveLabel = "Email roster"
+                , confirmationDialogLoadingLabel = "Queueing…"
+                }
+    | otherwise =
+        renderDialogOverlay (defaultDialogOverlayConfig "Email roster" dialogBody [dialogOverlayCloseButton "Close"])
   where
+    dialogBody = [hsx|
+        <dl class="row mb-3">
+            <dt class="col-4">Venue</dt><dd class="col-8">{venue.name}</dd>
+            <dt class="col-4">Roster group</dt><dd class="col-8">{rosterGroup.name}</dd>
+            <dt class="col-4">Week</dt><dd class="col-8">{weekLabel}</dd>
+            <dt class="col-4">Recipients</dt><dd class="col-8">{rosterNotificationRecipientCountLabel recipientCount}</dd>
+            <dt class="col-4">Skipped</dt><dd class="col-8">{tshow skippedCount <> " skipped"}</dd>
+        </dl>
+        {zeroRecipientCopy recipientCount}
+        {renderLatestRunSummary latestRun}
+    |]
     formId = rosterNotificationSendFormId
     actionUrl = pathTo CreateRosterNotificationRunAction
     sendForm = renderFrontendSurfaceActionFormWithHiddenFields

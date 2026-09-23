@@ -61,8 +61,11 @@ Preserve error and side-effect ordering when adopting this contract:
   malformed and protected-field presence retain their existing distinctions.
   Consume generated operation-local request evidence, not duplicate wire DTOs.
 - Scoped lookup and under-lock revalidation stay at their existing points.
-  Workbook's absent-row error precedes name validation; roster materialization
-  may precede invalid form feedback. Do not add an encompassing transaction.
+  Workbook's absent-row error precedes name validation. Roster shift creates
+  validate projected targets and submitted fields before materializing missing
+  dates inside the owning durable save transaction; rejected creates do not
+  persist projections. Other roster mutation seams retain their existing
+  materialization order. Do not add an encompassing controller transaction.
 - Outcomes carry domain errors or exact dialog continuations and committed
   completion data, not callbacks for further controller-side business work.
   A sum type is useful for distinct outcomes; `Either` remains appropriate where

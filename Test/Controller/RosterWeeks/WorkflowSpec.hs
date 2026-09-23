@@ -147,6 +147,56 @@ tests = aroundAll withDatabaseTestContext do
                 length materializedDays `shouldBe` 7
                 map (.rowCount) materializedDays `shouldBe` replicate 7 2
 
+        forM_ [False, True] \create ->
+            forM_ ["missing group", "malformed group", "missing date", "malformed date", "foreign group", "wrong group", "wrong date"] \invalidContext ->
+                it ("rejects projected-day " <> invalidContext <> ", create=" <> cs (show create) <> " without writes") $ withContext do
+                    withCleanDb do
+                        venue <- createVenueWithConfig "Projected rejection"
+                        foreignVenue <- createVenueWithConfig "Foreign projected rejection"
+                        manager <- createUserRecord "projected-rejection@example.com" "staff" True
+                        _ <- createVenueMembershipRecord venue manager Manager
+                        shiftType <- ensureVenueDefaultShiftType venue
+                        group <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                        foreignGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId foreignVenue.id) |> fetchOne
+                        otherGroup <- newRecord @RosterGroup
+                            |> set #venueId (unpackId venue.id)
+                            |> set #name "Other group"
+                            |> createRecord
+                        config <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                        let scope = rosterWindowScopeForAnchor config group.id (testAnchorForOffset 26)
+                            dayId = projectedRosterDayId group.id scope.rosterWindowStart
+                        window <- fetchRosterWindow venue.id group.id scope.rosterWindowStart
+                        let Just (_, lanes) = rosterWindowTarget venue.id group.id window dayId
+                            lane = fromMaybe (error "projected lane missing") (listToMaybe lanes)
+                            groupParams = case invalidContext of
+                                "missing group" -> []
+                                "malformed group" -> [("rosterGroupId", "not-a-uuid")]
+                                "foreign group" -> [("rosterGroupId", cs (tshow foreignGroup.id))]
+                                "wrong group" -> [("rosterGroupId", cs (tshow otherGroup.id))]
+                                _ -> [("rosterGroupId", cs (tshow group.id))]
+                            dateParams = case invalidContext of
+                                "missing date" -> []
+                                "malformed date" -> [("operationalDate", "not-a-date")]
+                                "wrong date" -> [("operationalDate", cs (tshow (addDays 1 scope.rosterWindowStart)))]
+                                _ -> [("operationalDate", cs (tshow scope.rosterWindowStart))]
+                            action = if create
+                                then CreateRosterSlotAction dayId (coerce lane.id) 0
+                                else NewRosterSlotDialogAction dayId (coerce lane.id) 0
+                        response <- withUserAndCurrentVenue manager venue.id do
+                            callActionWithParams action $
+                                groupParams <> dateParams <>
+                                    [ ("anchorDate", cs (tshow scope.rosterWindowStart))
+                                    , ("rosterCalendarRevision", cs (tshow config.rosterCalendarRevision))
+                                    , ("staffId", "open")
+                                    , ("startTime", "09:00")
+                                    , ("endTime", "17:00")
+                                    , ("shiftTypeId", cs (tshow shiftType.id))
+                                    ]
+                        responseStatus response `shouldSatisfy` (`elem` [status400, status403, status404])
+                        query @RosterDay |> fetchCount >>= (`shouldBe` 0)
+                        query @RosterLane |> fetchCount >>= (`shouldBe` 0)
+                        query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
+
         it "records touched resources for roster mutations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Touched Venue"

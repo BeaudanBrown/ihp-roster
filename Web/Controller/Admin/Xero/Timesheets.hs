@@ -4,6 +4,7 @@ module Web.Controller.Admin.Xero.Timesheets
     , confirmXeroTimesheetPreparationSubmissionAction
     , continueXeroTimesheetPreparationStaffStepAction
     , openXeroTimesheetPreparationAction
+    , showXeroProblemTimesheetApprovalRefreshConfirmationAction
     , refreshXeroProblemTimesheetApprovalAction
     , refreshXeroTimesheetPreparationAction
     , runXeroTimesheetPreparationAction
@@ -28,6 +29,7 @@ import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
                                                      ExpectedActiveCalculationIdField,
                                                      ExpectedApprovalTimestampField,
+                                                     OpenXeroProblemTimesheetApprovalConfirmationDialog,
                                                      OpenXeroTimesheetPreparationOverlay,
                                                      PeriodKeyField,
                                                      RefreshXeroProblemTimesheetApprovalOverlay,
@@ -158,6 +160,57 @@ refreshXeroTimesheetPreparationAction runId =
         Right _ -> do
             result <- resolvePreparationResult (Prepare.refreshXeroTimesheetPreparation runId)
             respondWithPreparationDialog result
+
+showXeroProblemTimesheetApprovalRefreshConfirmationAction ::
+    (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    Id TimesheetEntry ->
+    IO ResponseReceived
+showXeroProblemTimesheetApprovalRefreshConfirmationAction runId entryId =
+    case parseAppShellActionParams @OpenXeroProblemTimesheetApprovalConfirmationDialog of
+        Left _ -> rejectStaleControl
+        Right fields -> case parseExpectedApprovalIdentity fields of
+            Nothing -> rejectStaleControl
+            Just expected ->
+                resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= \case
+                    Left loadMessage -> respondWithPreparationDialog (Left loadMessage)
+                    Right view
+                        | refreshControlIsCurrent view entryId expected ->
+                            respondHtml $
+                                renderXeroProblemTimesheetApprovalRefreshConfirmation
+                                    runId
+                                    entryId
+                                    expected.expectedActiveCalculationId
+                                    expected.expectedApprovedAt
+                        | otherwise -> rejectStaleControl
+  where
+    rejectStaleControl =
+        respondWithAppErrorAndStop
+            (appErrorRequestKind ?request)
+            (projectDomainError ApprovalControlStale)
+
+    parseExpectedApprovalIdentity fields = do
+        approvedAt <- parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" (Text.unpack (surfaceFieldValue @ExpectedApprovalTimestampField fields))
+        pure ExpectedApprovalIdentity
+            { expectedActiveCalculationId = surfaceFieldValue @ExpectedActiveCalculationIdField fields
+            , expectedApprovedAt = approvedAt
+            }
+
+    refreshControlIsCurrent view candidateEntryId expected =
+        any (issueMatches candidateEntryId expected) view.preparationReadiness.timesheetReadinessBlockers
+
+    issueMatches candidateEntryId expected issue =
+        issue.timesheetIssueCode `elem` refreshableApprovalBlockerCodes
+            && issue.timesheetIssueTimesheetEntryId == Just (unpackId candidateEntryId)
+            && issue.timesheetIssueExpectedActiveCalculationId == Just expected.expectedActiveCalculationId
+            && issue.timesheetIssueExpectedApprovalTimestamp == Just expected.expectedApprovedAt
+
+    refreshableApprovalBlockerCodes =
+        [ "wage_publication_failed"
+        , "wage_source_policy"
+        , "earnings_mapping_not_verified"
+        , "managed_pay_item_not_ready"
+        ]
 
 refreshXeroProblemTimesheetApprovalAction ::
     (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

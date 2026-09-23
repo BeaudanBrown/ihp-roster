@@ -33,6 +33,7 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..),
 import Application.Helper.View (ToastOverlayPosition (..),
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
+import Application.Helper.View.Toast (errorToast)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
@@ -45,7 +46,7 @@ import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue,
                                        timesheetWeekScopeForAnchor,
-                                       timesheetsCandidateMountedFragments,
+                                       timesheetsViewerMountedFragments,
                                        timesheetsMountStateForFilters,
                                        timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
@@ -156,12 +157,21 @@ respondWithTimesheetReviewOutcome context = \case
 respondWithNewTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> Either TimesheetCreationBlocker NewTimesheetRenderModel -> IO ResponseReceived
 respondWithNewTimesheetForm windowStart selectedStaffFilterId = \case
     Left blocker -> do
-        setErrorMessage case blocker of
-            NoTimesheetStaff -> "No staff record found. Contact an administrator."
-            NoTimesheetShiftTypes -> "Add at least one shift type before creating a timesheet entry."
-            NoTimesheetDay -> "Please choose a day before creating a timesheet entry."
-            TimesheetTimingUnavailable -> "Timesheet creation is unavailable until the venue timezone configuration is repaired."
-        redirectToPath (timesheetWindowUrl windowStart selectedStaffFilterId)
+        let message = case blocker of
+                NoTimesheetStaff -> "No staff record found. Contact an administrator."
+                NoEnabledTimesheetStaff -> "No staff at this venue have timesheets enabled. Enable timesheets in a staff member's profile before creating a timesheet."
+                ViewerTimesheetsDisabled -> "Your profile is set to 'No timesheets'. If you think this is wrong please ask a manager"
+                TimesheetStaffConfigurationRequired -> "Your timesheet pay configuration needs attention. Please ask a manager."
+                NoTimesheetShiftTypes -> "Add at least one shift type before creating a timesheet entry."
+                NoTimesheetDay -> "Please choose a day before creating a timesheet entry."
+                TimesheetTimingUnavailable -> "Timesheet creation is unavailable until the venue timezone configuration is repaired."
+        if isHtmxRequest
+            then do
+                setHeader ("HX-Reswap", "none")
+                respondHtml (renderToastOob ToastBottomCenter (errorToast message))
+            else do
+                setErrorMessage message
+                redirectToPath (timesheetWindowUrl windowStart selectedStaffFilterId)
     Right newTimesheetRenderModel ->
         if isHtmxRequest
             then respondHtml (renderNewTimesheetDialog newTimesheetRenderModel)
@@ -209,13 +219,13 @@ respondWithTimesheetFragment requestKey fragment =
 
 respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [TimesheetProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithTimesheetActorFragments scope mountState fragments extraHtml = do
-    let selectedMountedFragments = selectTimesheetMountedFragments scope (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
+    let selectedMountedFragments = selectTimesheetMountedFragments scope (normalizeTimesheetFragments fragments) (timesheetsViewerMountedFragments scope mountState)
     setActorLocalFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
     respondHtmlProfiled extraHtml
 
 respondWithTimesheetResourceInvalidation :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Markup.Html -> IO ResponseReceived
 respondWithTimesheetResourceInvalidation scope mountState touchedResources extraHtml = do
-    setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsCandidateMountedFragments scope mountState)
+    setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsViewerMountedFragments scope mountState)
     respondHtmlProfiled extraHtml
 
 selectTimesheetMountedFragments :: TimesheetWeekScopeValue -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
@@ -229,6 +239,8 @@ selectTimesheetMountedFragments scope fragments mountedFragments =
             isJust (SurfaceLive.matchTimesheetDayColumnsLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionSidePanel ->
             isJust (SurfaceLive.matchTimesheetSidePanelContentLiveFragment mountedFragment.mountedFragmentKey)
+        TimesheetProjectionStaffContent ->
+            isJust (SurfaceLive.matchTimesheetStaffContentLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDaySection dayOffset ->
             SurfaceLive.matchTimesheetDaySectionLiveFragment mountedFragment.mountedFragmentKey
                 == Just (addDays (toInteger dayOffset) scope.timesheetWindowStart, ())
@@ -249,7 +261,7 @@ respondWithTimesheetPreferenceUpdate scope mountState =
     respondWithTimesheetActorFragments
         scope
         mountState
-        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
+        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel, TimesheetProjectionStaffContent]
         mempty
 
 respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ResponseReceived

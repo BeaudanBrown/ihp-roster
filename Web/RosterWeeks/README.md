@@ -59,11 +59,16 @@ post-commit row impact. A rejection is dialog values; success is the committed
 mutation result, with edit impact and warning policy ready for `Responses`.
 
 The input records are snapshots, not new authorization or freshness evidence.
-Controllers retain the ordered access and calendar/placement checks and sparse
-materialization because those precede field validation. Do not merge that
-materialization into the save transaction or eagerly move request parsing ahead
-of an earlier denial. `Mutations` still owns locks, revalidation and durable
-publication; post-save impact reads must stay outside its transaction.
+Controllers retain ordered access and calendar/placement checks. Shift dialogs
+resolve missing days and lanes as server-side projections without persistence;
+invalid or cancelled creates leave the window unchanged. Successful creates and
+staff-drop assignments materialize missing dates only after validation, inside
+the locked durable save transaction. Materialization, shift persistence, and
+structural invalidation commit together or roll back on failure. Do not eagerly
+move request parsing ahead of an earlier denial. Other mutation entrypoints may
+still materialize at their existing controller seam. `Mutations` owns locks,
+revalidation and durable publication; post-save impact reads stay outside its
+transaction.
 
 This deliberately small interface removes attempted-record assembly and
 Published permission flags from callers without imposing a universal workflow
@@ -145,13 +150,13 @@ retired synthetic evaluators or SQL option builders.
 
 ## Template Application Contract
 
-Week application resolves the submitted ISO `anchorDate` to one exact seven-day roster-group scope. All seven Operational dates must exist, in Draft or Published state. After confirmation, application atomically returns all seven days to Draft alongside target replacement. Saved weekday identity maps each snapshot day to the matching target date while preserving weekday meaning across venue window-order changes. The snapshot replaces all seven open/closed states, row counts, columns/order, and shifts; publication is never sourced from the template.
+Week application resolves the submitted ISO `anchorDate` to one exact seven-day roster-group scope. Missing Operational dates are projected without persistence during preview, including wholly empty and partially persisted windows. After confirmation and locked revision revalidation, application materializes missing dates and atomically returns all seven days to Draft alongside target replacement; existing Published dates are allowed only as part of this confirmed replacement. Saved weekday identity maps each snapshot day to the matching target date while preserving weekday meaning across venue window-order changes. The snapshot replaces all seven open/closed states, row counts, columns/order, and shifts; publication is never sourced from the template.
 
 Preview binds template content, target content, calendar configuration, and current Staff, Shift-type, membership, approved-leave, award-level, and imported-pay-item facts. Confirmation date-locks the window, row-locks those references and relevant Timesheet snapshots, revalidates the bound revision, and performs target replacement plus any template cleanup in one transaction. Replaced roster shifts are soft-deleted, preserving materialized Timesheet values and source provenance.
 
 Approved leave is target-specific and leaves the saved assignment intact. Durable Staff invalidity changes both target and template to Open. Stale Shift types require blank-by-default explicit mappings to active same-venue types; mappings may converge many stale identities onto one replacement and permanently clean the template. Successful results state whether template content changed and publish typed library, Roster, and Timesheet touched resources transactionally.
 
-The manager SidePanel Templates tab owns one alphabetical Week-template library shared by roster group. Its live fragment/resource key contains no effective-user identity; every fragment request repeats Roster editor authorization. The header launches date-native capture; cards show only name, shift count, Apply, and Delete. Save, Apply, and Delete use generated typed server-rendered controls and shared Overlay dialogs on desktop and mobile. Published targets remain applicable after explicit confirmation to unpublish and replace the entire viewed week atomically as Draft. Successful HTMX mutations close the dialog, retain the selected tab and roster URL context, refresh authoritative fragments in place, and show a toast. Transactional typed invalidation converges actor/passive mounts and replay after capture, delete, cleanup, or Apply; Apply also touches only the exact Roster and Timesheet window. Incomplete, malformed, cross-group, or stale targets fail without mutation. Nonexistent Melbourne local times fail; repeated endpoints deterministically use their first occurrence for template application only.
+The manager SidePanel Templates tab owns one alphabetical Week-template library shared by roster group. Its live fragment/resource key contains no effective-user identity; every fragment request repeats Roster editor authorization. The header launches date-native capture; cards show only name, shift count, Apply, and Delete. Save, Apply, and Delete use generated typed server-rendered controls and shared Overlay dialogs on desktop and mobile. Published targets remain applicable after explicit confirmation to unpublish and replace the entire viewed week atomically as Draft. Successful HTMX mutations close the dialog, retain the selected tab and roster URL context, refresh authoritative fragments in place, and show a toast. Transactional typed invalidation converges actor/passive mounts and replay after capture, delete, cleanup, or Apply; Apply also touches only the exact Roster and Timesheet window. Malformed, cross-group, or stale targets fail without mutation; missing persisted dates alone do not invalidate a target. Nonexistent Melbourne local times fail; repeated endpoints deterministically use their first occurrence for template application only.
 
 ## Row-Grid Rendering Contract
 

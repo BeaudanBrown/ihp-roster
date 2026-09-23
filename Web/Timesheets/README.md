@@ -23,7 +23,7 @@ owns lifecycle/access invocation, staged request adaptation and response selecti
 
 Frontend contracts come from the registered Timesheets Surface and shared
 Overlay, Toggle, TimePicker, SidePanel, and linked-highlight capabilities; views
-and TypeScript must not restate them. Hide-approved and suggestion visibility are
+and TypeScript must not restate them. Show-approved and suggestion visibility are
 global user preferences; authorized manager staff and roster-group filtering
 remain canonical URL state.
 

@@ -86,16 +86,18 @@ renderRosterTemplateCaptureConfirmation ::
     Maybe Text ->
     Html
 renderRosterTemplateCaptureConfirmation rosterGroupId anchorDate _request preview maybeMessage =
-    renderDialogOverlay (defaultDialogOverlayConfig
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
             "Save current week as template"
             [hsx|
-            {forEach maybeMessage renderMessage}
-            {renderCaptureExceptions anchorDate preview}
-            {renderCaptureConfirmationForm rosterGroupId anchorDate preview}
-        |]
-            [ dialogOverlayCloseButton "Cancel"
-            , dialogOverlaySubmitButton "Save template" rosterTemplateCaptureFormId
-            ])
+                {forEach maybeMessage renderMessage}
+                {renderCaptureExceptions anchorDate preview}
+            |]
+            rosterTemplateCaptureFormId
+            (renderCaptureConfirmationForm rosterGroupId anchorDate preview))
+            { confirmationDialogApproveLabel = "Save template"
+            , confirmationDialogLoadingLabel = "Saving…"
+            }
 
 renderCaptureConfirmationForm :: (?context :: ControllerContext) => Id RosterGroup -> Day -> RosterTemplateCapturePreview -> Html
 renderCaptureConfirmationForm rosterGroupId anchorDate preview

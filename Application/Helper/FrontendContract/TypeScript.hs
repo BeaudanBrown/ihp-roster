@@ -543,7 +543,7 @@ renderTabSet surface tabSet = objectLiteral
 
 renderFrontendSurfaceSidePanelContracts :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceSidePanelContracts surfaces =
-    [ "export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean };"
+    [ "export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean; shelfRoleAttribute: string; shelfToggleRoleAttribute: string; shelfStateAttribute: string; shelfClosedValue: string; shelfOpenValue: string; isShelfState: (value: unknown) => boolean };"
     , "export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = " <> objectLiteral entries <> ";"
     , ""
     ]
@@ -564,6 +564,12 @@ renderSidePanel surface sidePanel = objectLiteral
     , ("stateAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelState.browserClosedStateAttribute)
     , ("collapsedValue", quote sidePanel.sidePanelCollapsedValue)
     , ("expandedValue", quote sidePanel.sidePanelExpandedValue)
+    , ("shelfRoleAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelShelfRole)
+    , ("shelfToggleRoleAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelShelfToggleRole)
+    , ("shelfStateAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelShelfState.browserClosedStateAttribute)
+    , ("shelfClosedValue", quote sidePanel.sidePanelShelfClosedValue)
+    , ("shelfOpenValue", quote sidePanel.sidePanelShelfOpenValue)
+    , ("isShelfState", "is" <> surfaceBrowserClosedStateTypeName surface sidePanel.sidePanelShelfState)
     , ("isState", "is" <> surfaceBrowserClosedStateTypeName surface sidePanel.sidePanelState)
     ]
 

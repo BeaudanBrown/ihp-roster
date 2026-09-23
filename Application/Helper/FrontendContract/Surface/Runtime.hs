@@ -37,6 +37,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceActionForm
     , renderFrontendSurfaceActionFormWithHiddenFields
     , renderFrontendSurfaceActionLink
+    , renderFrontendSurfaceActionNavigationButton
     , renderFrontendSurfaceActionSubmitButton
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
@@ -495,6 +496,15 @@ renderFrontendSurfaceActionLink action route body =
             : (frontendSurfaceActionHtmxAttrPairsForUrl action route requestUrl <> route.actionRouteExtraAttrs)
         requestUrl = frontendSurfaceActionLinkUrl action route.actionRouteUrl
         standardUrl = frontendSurfaceActionLinkUrl action (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
+
+-- | A keyboard-native button issuing the same request as an action link. Query
+-- fields remain serialized by the Surface rather than by the presentation helper.
+renderFrontendSurfaceActionNavigationButton :: FrontendSurfaceAction -> FrontendSurfaceActionRoute -> Markup.Html -> Markup.Html
+renderFrontendSurfaceActionNavigationButton action route body =
+    [hsx|<button type="button" {...attributes}>{body}</button>|]
+    where
+        attributes = frontendSurfaceActionHtmxAttrPairsForUrl action route requestUrl <> route.actionRouteExtraAttrs
+        requestUrl = frontendSurfaceActionLinkUrl action route.actionRouteUrl
 
 frontendSurfaceActionControlUrl :: FrontendSurfaceAction -> Text -> Text
 frontendSurfaceActionControlUrl action =

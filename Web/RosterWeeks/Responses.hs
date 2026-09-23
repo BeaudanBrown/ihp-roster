@@ -49,8 +49,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
 import Web.RosterWeeks.Mutations (type RosterSlotMutationResult)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Projection (RosterMutationProjection (..),
-                                    rosterMutationMountedProjections,
-                                    rosterGridInnerAndStaffPanelFragments)
+                                    rosterMutationMountedProjections)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftEditCompletion (..))
 import Web.RosterWeeks.RenderData (currentRosterTimelineDate,
                                    fetchVisibleRosterReadModel,
@@ -61,7 +60,6 @@ import Web.RosterWeeks.Types (RosterGridRenderModel (..),
                               RosterRenderData (..))
 import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragmentOob)
 
 respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> RosterDay -> Int -> Bool -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ResponseReceived
 respondToRosterSlotMutation scope rosterDay rowIndex materializedWindow mutationResult successMessage = do
@@ -130,13 +128,12 @@ respondWithRosterFragmentsUpdate scope fragments toast =
     respondWithRosterFragments scope fragments (renderToastOob ToastBottomCenter toast)
 
 respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> ToastOverlayConfig -> IO ResponseReceived
-respondWithRosterOwnHighlightPreferenceUpdate scope toast = do
-    rosterData <- fetchVisibleRosterReadModel scope
-    let selfServicePanel = rosterData >>= (.staffSelfServicePanel)
+respondWithRosterOwnHighlightPreferenceUpdate scope toast =
+    -- The default highlight role belongs to the main content root, not its grid children.
     respondWithRosterFragments
         scope
-        rosterGridInnerAndStaffPanelFragments
-        (renderRosterStaffSelfServicePanelFragmentOob selfServicePanel <> renderToastOob ToastBottomCenter toast)
+        [RosterProjectionContent, RosterProjectionSettings]
+        (renderToastOob ToastBottomCenter toast)
 
 respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [RosterProjectionFragment] -> Markup.Html -> IO ResponseReceived
 respondWithRosterFragments scope fragments extraHtml =

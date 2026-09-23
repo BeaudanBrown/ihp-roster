@@ -8,13 +8,16 @@ import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
                                                    encodeDurableResource)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.RosterNotification
+import Application.RosterPublication.Mutations (withRosterWindowDateLock)
 import Config (config)
+import qualified Control.Concurrent as Concurrent
+import Control.Concurrent.Async (wait, withAsync)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (isLeft)
-import Data.IORef (modifyIORef', newIORef, readIORef)
+import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import qualified Data.Set as Set
 import Data.Text (isInfixOf)
 import qualified Data.Text.Lazy as LazyText
@@ -24,9 +27,11 @@ import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusSucceeded))
+import IHP.ModelSupport.Types (ModelContext (transactionRunner))
 import qualified IHP.MailPrelude as Mail
 import IHP.Test.Mocking (withContext)
 import Network.Mail.Mime (Address (..))
+import System.Timeout (timeout)
 import Test.Hspec
 import Test.Support
 import Test.Support.EmailDelivery
@@ -60,6 +65,117 @@ tests = aroundAll withDatabaseTestContext do
                 run.windowEnd `shouldBe` windowEnd
                 snapshot.snapshotWeekStart `shouldBe` windowStart
                 snapshot.snapshotWeekEnd `shouldBe` addDays (-1) windowEnd
+
+        it "binds roster-window bodies to the transaction-owned ModelContext and rolls back failures" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster window transaction owner"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                observedTransactionOwner <- newIORef False
+                failure <-
+                    Exception.try
+                        (withRosterWindowDateLock venue.id rosterGroup.id (fromGregorian 2027 3 1) (fromGregorian 2027 3 8) do
+                            _ <- newRecord @AppJob
+                                |> set #jobKind "roster_window_transaction_probe"
+                                |> createRecord
+                            writeIORef observedTransactionOwner (isJust ?modelContext.transactionRunner)
+                            Exception.throwIO (userError "forced roster-window transaction failure")
+                        )
+                        :: IO (Either Exception.SomeException ())
+                failure `shouldSatisfy` isLeft
+                readIORef observedTransactionOwner `shouldReturn` True
+                query @AppJob
+                    |> filterWhere (#jobKind, "roster_window_transaction_probe" :: Text)
+                    |> fetchCount
+                    `shouldReturn` 0
+
+        it "rolls back a notification run when the first delivery enqueue fails" $ withContext do
+            withCleanDb do
+                (venue, rosterGroup, actor, rosterWeek) <- createRosterNotificationWindowFixture
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                unrelatedJob <- newRecord @AppJob |> set #jobKind "unrelated_roster_notification_fixture" |> createRecord
+                let installFailure = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_first_roster_notification_delivery() RETURNS trigger AS 'BEGIN IF NEW.related_table = ''roster_notification_runs'' THEN RAISE EXCEPTION ''forced first roster notification delivery failure'' USING ERRCODE = ''23514''; END IF; RETURN NEW; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_first_roster_notification_delivery BEFORE INSERT ON app_jobs FOR EACH ROW EXECUTE FUNCTION test_reject_first_roster_notification_delivery()" ()
+                let removeFailure = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_first_roster_notification_delivery ON app_jobs" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_first_roster_notification_delivery()" ()
+                failure <- Exception.bracket_ installFailure removeFailure do
+                    Exception.try
+                        (createRosterNotificationRunForWindowUnlessActiveAtRevision actor venue rosterGroup rosterWeek.fixtureWindowStart (addDays 7 rosterWeek.fixtureWindowStart) venueConfig.rosterCalendarRevision)
+                        :: IO (Either Exception.SomeException CreateRosterNotificationRunResult)
+                failure `shouldSatisfy` isLeft
+                query @RosterNotificationRun |> fetchCount `shouldReturn` 0
+                query @AppJob
+                    |> filterWhere (#relatedTable, Just "roster_notification_runs")
+                    |> fetchCount
+                    `shouldReturn` 0
+                fetch unrelatedJob.id `shouldReturn` unrelatedJob
+
+        it "rolls back a notification run and earlier envelopes when a later delivery enqueue fails" $ withContext do
+            withCleanDb do
+                (venue, rosterGroup, actor, rosterWeek) <- createRosterNotificationWindowFixture
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                unrelatedJob <- newRecord @AppJob |> set #jobKind "unrelated_roster_notification_fixture" |> createRecord
+                let installFailure = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_later_roster_notification_delivery() RETURNS trigger AS 'BEGIN IF NEW.related_table = ''roster_notification_runs'' AND NEW.payload->>''recipientAddress'' = ''roster-transaction-worker@example.com'' THEN RAISE EXCEPTION ''forced later roster notification delivery failure'' USING ERRCODE = ''23514''; END IF; RETURN NEW; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_later_roster_notification_delivery BEFORE INSERT ON app_jobs FOR EACH ROW EXECUTE FUNCTION test_reject_later_roster_notification_delivery()" ()
+                let removeFailure = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_later_roster_notification_delivery ON app_jobs" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_later_roster_notification_delivery()" ()
+                failure <- Exception.bracket_ installFailure removeFailure do
+                    Exception.try
+                        (createRosterNotificationRunForWindowUnlessActiveAtRevision actor venue rosterGroup rosterWeek.fixtureWindowStart (addDays 7 rosterWeek.fixtureWindowStart) venueConfig.rosterCalendarRevision)
+                        :: IO (Either Exception.SomeException CreateRosterNotificationRunResult)
+                failure `shouldSatisfy` isLeft
+                query @RosterNotificationRun |> fetchCount `shouldReturn` 0
+                query @AppJob
+                    |> filterWhere (#relatedTable, Just "roster_notification_runs")
+                    |> fetchCount
+                    `shouldReturn` 0
+                fetch unrelatedJob.id `shouldReturn` unrelatedJob
+
+        it "serializes independent notification contexts and rejects the active follower" $ withContext do
+            withCleanDb do
+                (venue, rosterGroup, actor, rosterWeek) <- createRosterNotificationWindowFixture
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let windowStart = rosterWeek.fixtureWindowStart
+                let windowEnd = addDays 7 windowStart
+                let operation =
+                        createRosterNotificationRunForWindowUnlessActiveAtRevision
+                            actor
+                            venue
+                            rosterGroup
+                            windowStart
+                            windowEnd
+                            venueConfig.rosterCalendarRevision
+                let runInIndependentContext =
+                        withDatabaseTestContext \mockContext ->
+                            withContext (Exception.try operation :: IO (Either Exception.SomeException CreateRosterNotificationRunResult)) mockContext
+                let installBarrier = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_wait_for_roster_notification_run() RETURNS trigger AS 'BEGIN PERFORM pg_advisory_xact_lock(592001); RETURN NEW; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_wait_for_roster_notification_run BEFORE INSERT ON roster_notification_runs FOR EACH ROW EXECUTE FUNCTION test_wait_for_roster_notification_run()" ()
+                let removeBarrier = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_wait_for_roster_notification_run ON roster_notification_runs" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_wait_for_roster_notification_run()" ()
+                (firstResult, secondResult) <- Exception.bracket_ installBarrier removeBarrier do
+                    firstStart <- Concurrent.newEmptyMVar
+                    secondStart <- Concurrent.newEmptyMVar
+                    withAsync (Concurrent.takeMVar firstStart >> runInIndependentContext) \first ->
+                        withAsync (Concurrent.takeMVar secondStart >> runInIndependentContext) \second -> do
+                            withTransaction do
+                                _ :: Bool <- unsafeSqlQueryScalar "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(592001)) AS roster_notification_test_barrier" ()
+                                Concurrent.putMVar firstStart ()
+                                waitForAdvisoryWaiterCount venue.id 1
+                                Concurrent.putMVar secondStart ()
+                                waitForAdvisoryWaiterCount venue.id 2
+                            (,) <$> wait first <*> wait second
+                firstResult `shouldSatisfy` isCreatedRun
+                secondResult `shouldSatisfy` isAlreadyActiveRun
+                query @RosterNotificationRun |> fetchCount `shouldReturn` 1
+                query @AppJob
+                    |> filterWhere (#relatedTable, Just "roster_notification_runs")
+                    |> fetchCount
+                    `shouldReturn` 2
 
         it "uses explicit Operational dates for notification identity" $ withContext do
             withCleanDb do
@@ -279,6 +395,43 @@ tests = aroundAll withDatabaseTestContext do
                     let ?context = frameworkConfig
                     Exception.try (dispatchAppJob malformed) :: IO (Either Exception.SomeException ())
                 result `shouldSatisfy` isLeft
+
+waitForAdvisoryWaiterCount :: (?modelContext :: ModelContext) => Id Venue -> Int -> IO ()
+waitForAdvisoryWaiterCount venueId expectedCount = do
+    observed <- timeout 5_000_000 waitUntilObserved
+    observed `shouldBe` Just ()
+  where
+    calendarLockKey = "roster-calendar:" <> tshow venueId
+    waitUntilObserved = do
+        waiterCount :: Int <- unsafeSqlQueryScalar
+            "WITH expected_locks (classid, objid) AS (VALUES (0::OID, 592001::OID), ((CASE WHEN hashtext(?) < 0 THEN 4294967295 ELSE 0 END)::OID, ((hashtext(?)::BIGINT & 4294967295))::OID)) SELECT COUNT(*)::INT4 FROM pg_locks JOIN expected_locks USING (classid, objid) WHERE locktype = 'advisory' AND database = (SELECT oid FROM pg_database WHERE datname = current_database()) AND NOT granted"
+            (calendarLockKey, calendarLockKey)
+        if waiterCount >= expectedCount
+            then pure ()
+            else Concurrent.yield >> waitUntilObserved
+
+isCreatedRun :: Either Exception.SomeException CreateRosterNotificationRunResult -> Bool
+isCreatedRun = \case
+    Right (RosterNotificationRunCreated _) -> True
+    _ -> False
+
+isAlreadyActiveRun :: Either Exception.SomeException CreateRosterNotificationRunResult -> Bool
+isAlreadyActiveRun = \case
+    Right RosterNotificationRunAlreadyActive -> True
+    _ -> False
+
+createRosterNotificationWindowFixture ::
+    (?modelContext :: ModelContext) =>
+    IO (Venue, RosterGroup, User, TestRosterWindow)
+createRosterNotificationWindowFixture = do
+    venue <- createVenueWithConfig "Roster transaction notification fixture"
+    rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    actor <- createUserRecord "roster-transaction-actor@example.com" "staff" True
+    _ <- createVenueMembershipRecord venue actor Manager
+    worker <- createUserRecord "roster-transaction-worker@example.com" "staff" True
+    _ <- createVenueMembershipRecord venue worker Worker
+    rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+    pure (venue, rosterGroup, actor, rosterWeek)
 
 createRosterMailFixture ::
     (?modelContext :: ModelContext) =>

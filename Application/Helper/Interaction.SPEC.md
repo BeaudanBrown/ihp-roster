@@ -41,10 +41,41 @@ Focused global capabilities (overlay, toggle, picker, ordered range, horizontal
 scroll, SidePanel, passkey, PWA install, filters) own reusable exact contracts
 only. SidePanel owns nearest-root visibility, ARIA/icon/focus/Escape mechanics,
 and replacement reconciliation; features own panel content and authorization.
+Below the desktop split breakpoint, the same panel becomes a full-height tools
+shelf below sticky navigation. Its bottom launcher moves with the shelf to become
+its top close bar; the bar and tabs remain visible while content scrolls. Shelf
+visibility is independent of desktop expansion. Covered page content is inert and
+scroll-locked, while navigation and overlaid workflow dialogs remain usable.
+Closing preserves mounted forms and tabs; same-feature HTMX replacement preserves
+open state, while changing feature or returning from desktop starts closed.
+Activating a linked-highlight pin closes the shelf to reveal the main content.
+Settings and business invalidations replace typed content fragments inside the
+shelf, not its launcher, tabs, or settings scroll container. Actor and passive
+updates use those same boundaries; do not compensate for oversized fragments
+with feature-specific scroll-restoration code. Navigation to another scope is a
+separate shell-lifecycle operation, not an ordinary settings refresh.
 Haskell owns values, routes, workflow/error copy, and server validation; adapters
 keep browser/platform mechanics local and leave malformed boundaries untouched.
 Capabilities compose through generated roles/native state rather than importing
 one another's feature meaning.
+
+DOM-dependent initialization waits for page readiness; a head-loaded script must
+not access an absent body. Shelves, workflow dialogs, and utility modals share
+page-scroll and background-isolation ownership. The document root remains locked
+until the last overlay releases it, and only the top overlay's interaction region
+is available. Closing a picker restores its underlying dialog; closing that dialog
+restores any open shelf without unlocking the page. Restore prior inert state,
+inline styles, focus, and page scroll position rather than clearing another
+owner's state. Dialog bodies scroll natively with contained overscroll; do not
+suppress touch gestures globally or disable pinch zoom.
+
+Binary settings that apply immediately use switches; selections saved with a
+form use checkboxes. Both share neutral, whole-control click/touch containers,
+with checked colour confined to the indicator. Labels remain stable and
+single-line; narrow layouts reduce columns rather than wrap labels or shrink
+indicators. Native checked state and keyboard focus remain accessible. Navigation
+switches retain Surface-owned GET/query semantics, while form controls retain
+their declared immediate/deferred submission and value-or-omission mappings.
 
 Concrete mount keys participate in IDs, targets, layer/form IDs, and runtime
 lookup. All discovery stays within the nearest owning mount and must not cross a

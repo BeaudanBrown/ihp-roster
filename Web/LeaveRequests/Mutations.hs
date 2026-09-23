@@ -2,6 +2,7 @@ module Web.LeaveRequests.Mutations
     ( LeaveReviewDecision (..)
     , LeaveSubmissionResult (..)
     , ReviewedLeaveRequest (..)
+    , deletePendingLeaveRequest
     , leaveReviewTouchedResources
     , reviewLeaveRequest
     , submitLeaveRequest
@@ -74,6 +75,55 @@ submitLeaveRequest leaveRequest =
   where
     publicationFor (LeaveSubmissionCreated result) = Just ("leave.submit", result.liveMutationTouchedResources)
     publicationFor _ = Nothing
+
+deletePendingLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO (Maybe (LiveMutationResult LeaveRequest))
+deletePendingLeaveRequest leaveRequest =
+    withDurableLiveMutationOutcome publicationFor do
+        fmap join $ withStaffOperationalLocksInCurrentTransaction [leaveRequest.staffId] do
+            lockedRequest <-
+                query @LeaveRequest
+                    |> filterWhere (#id, leaveRequest.id)
+                    |> filterWhere (#venueId, leaveRequest.venueId)
+                    |> filterWhere (#staffId, leaveRequest.staffId)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOneOrNothing
+            case lockedRequest of
+                Just pendingRequest | pendingRequest.status == LeaveRequestStatusEnumPending -> do
+                    now <- getCurrentTime
+                    deletedRequest <-
+                        pendingRequest
+                            |> set #deletedAt (Just now)
+                            |> set #deletedByUserId (Just (unpackId authenticatedCurrentUser.id))
+                            |> set #deleteReason (Just "staff_deleted_pending_request")
+                            |> updateRecord
+                    void $
+                        recordCurrentUserLeaveRequestEvent
+                            deletedRequest
+                            LeaveRequestEventTypeEnumDeleted
+                            (Just pendingRequest.status)
+                            Nothing
+                            (Aeson.object ["reason" Aeson..= ("staff_deleted_pending_request" :: Text)])
+                    void $
+                        recordCurrentUserAuditEvent
+                            LeaveDeletedAudit
+                            "leave_requests"
+                            (unpackId pendingRequest.id)
+                            (Aeson.object
+                                [ "staffId" Aeson..= pendingRequest.staffId
+                                , "startDate" Aeson..= pendingRequest.startDate
+                                , "endDate" Aeson..= pendingRequest.endDate
+                                , "previousStatus" Aeson..= inputValue pendingRequest.status
+                                , "deletedAt" Aeson..= now
+                                ])
+                    let today = utctDay now
+                    pure $
+                        Just $
+                            liveMutationResult
+                                deletedRequest
+                                (baseLeaveTouchedResources deletedRequest <> [leaveRequestVisibleSectionResource today pendingRequest.status pendingRequest])
+                _ -> pure Nothing
+  where
+    publicationFor = fmap (\result -> ("leave.delete", result.liveMutationTouchedResources))
 
 reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO (Maybe (LiveMutationResult ReviewedLeaveRequest))
 reviewLeaveRequest decision leaveRequest =

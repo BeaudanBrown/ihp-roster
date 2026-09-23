@@ -734,7 +734,6 @@ renderHtmxOptionIR = \case
     HtmxActionIncludeIR syntax -> "SurfaceIR.HtmxActionIncludeIR (" <> renderHtmxSyntaxIR syntax <> ")"
     HtmxActionSyncIR syntax -> "SurfaceIR.HtmxActionSyncIR (" <> renderHtmxSyntaxIR syntax <> ")"
     HtmxActionIndicatorIR syntax -> "SurfaceIR.HtmxActionIndicatorIR (" <> renderHtmxSyntaxIR syntax <> ")"
-    HtmxActionConfirmIR value -> "SurfaceIR.HtmxActionConfirmIR " <> renderTextLiteral value
     HtmxActionSelectIR syntax -> "SurfaceIR.HtmxActionSelectIR (" <> renderHtmxSyntaxIR syntax <> ")"
     HtmxActionTargetIR syntax -> "SurfaceIR.HtmxActionTargetIR (" <> renderHtmxSyntaxIR syntax <> ")"
     HtmxActionSwapIR syntax -> "SurfaceIR.HtmxActionSwapIR (" <> renderHtmxSyntaxIR syntax <> ")"

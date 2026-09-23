@@ -1,10 +1,14 @@
 module Web.Controller.Passkeys where
 
+import Application.Helper.FrontendContract.AppShell (DeletePasskeyOverlay)
+import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
+import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.PasskeyRecoveryCodes (verifyAndConsumeRecoveryCode)
 import Application.Helper.PasskeySetupTokens
 import Control.Monad (void)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
+import Web.View.Passkeys.Management (renderPasskeyDeleteConfirmation)
 import Web.View.Passkeys.SetupModal
 import Web.View.Passkeys.StepUp
 
@@ -115,7 +119,17 @@ instance Controller PasskeysController where
                 renderPlain ""
             else redirectToPath managementPath
 
+    action currentAction@ShowPasskeyDeleteConfirmationAction { passkeyId } = runBepis currentAction BepisDialogAction do
+        passkey <- fetch passkeyId
+        accessDeniedUnless (passkey.userId == unpackId currentUser.id)
+        respondHtml (renderPasskeyDeleteConfirmation passkey)
+
     action currentAction@DeletePasskeyAction { passkeyId } = runBepis currentAction BepisMutationAction do
+        case parseAppShellActionParams @DeletePasskeyOverlay of
+            Left errors -> do
+                setErrorMessage (surfaceRequestFieldErrorsMessage errors)
+                earlyReturn (redirectToPath passkeyManagementPath)
+            Right _ -> pure ()
         passkey <- fetch passkeyId
         accessDeniedUnless (passkey.userId == unpackId currentUser.id)
         passkeyCount <-
@@ -131,7 +145,11 @@ instance Controller PasskeysController where
 
         deleteRecord passkey
         setSuccessMessage "Passkey removed."
-        redirectToPath managementPath
+        if isHtmxRequest
+            then do
+                setHeader ("HX-Redirect", cs managementPath)
+                renderPlain ""
+            else redirectToPath managementPath
 
 passkeysActionAllowsOwnerImpersonation :: PasskeysController -> Bool
 passkeysActionAllowsOwnerImpersonation PasskeyStepUpAction = True

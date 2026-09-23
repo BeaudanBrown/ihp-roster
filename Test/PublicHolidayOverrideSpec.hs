@@ -180,16 +180,16 @@ databaseTests = aroundAll withDatabaseTestContext do
                 after <- query @PublicHoliday |> orderByAsc #id |> fetch
                 map (\h -> (h.id, h.holidayDate, h.importedAt)) after `shouldBe` map (\h -> (h.id, h.holidayDate, h.importedAt)) before
 
-        it "resolves override authority with an empty search path like the dev seed dump" $ withContext do
+        it "allows unprotected holiday writes with the seed dump's empty search_path" $ withContext do
             withCleanDb do
                 withTransaction do
                     unsafeSqlExecDiscardResult "SET LOCAL search_path = ''" ()
-                    unsafeSqlExecDiscardResult "INSERT INTO public.public_holidays (jurisdiction, holiday_date, name) VALUES ('NSW', DATE '2026-03-09', 'Seed holiday')" ()
-                    unsafeSqlExecDiscardResult "UPDATE public.public_holidays SET name = 'Updated seed holiday' WHERE jurisdiction = 'NSW'" ()
-                    unsafeSqlExecDiscardResult "DELETE FROM public.public_holidays WHERE jurisdiction = 'NSW'" ()
+                    unsafeSqlExecDiscardResult "INSERT INTO public.public_holidays (jurisdiction, holiday_date, name) VALUES ('VIC', DATE '2026-01-01', 'Seed regression')" ()
+                    unsafeSqlExecDiscardResult "UPDATE public.public_holidays SET name = 'Updated seed regression' WHERE name = 'Seed regression'" ()
+                    unsafeSqlExecDiscardResult "DELETE FROM public.public_holidays WHERE name = 'Updated seed regression'" ()
                 query @PublicHoliday |> fetchCount >>= (`shouldBe` 0)
 
-        it "protects the pinned rows at the database boundary even after review expiry" $ withContext do
+        it "protects the pinned rows with an empty search_path even after review expiry" $ withContext do
             withCleanDb do
                 mapM_ createRecord calendar
                 _ <- createRecord (overrideFixture |> set #verifiedAt (addUTCTime (-100) verifiedAt) |> set #reviewDueAt (addUTCTime (-1) verifiedAt))
@@ -202,7 +202,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                         unsafeSqlExecDiscardResult "SAVEPOINT protected_write" ()
                         result <- Exception.try (unsafeSqlExecDiscardResult statement ()) :: IO (Either Exception.SomeException ())
                         case result of
-                            Left exception -> Exception.displayException exception `shouldContain` "Public holiday year is protected by a reviewed override"
+                            Left failure -> Exception.displayException failure `shouldContain` "Public holiday year is protected by a reviewed override"
                             Right () -> expectationFailure "Protected holiday write unexpectedly succeeded"
                         unsafeSqlExecDiscardResult "ROLLBACK TO SAVEPOINT protected_write" ()
                 query @PublicHoliday |> fetchCount >>= (`shouldBe` 14)

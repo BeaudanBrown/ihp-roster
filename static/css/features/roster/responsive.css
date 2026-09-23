@@ -91,12 +91,6 @@
 
 }
 
-@media (min-width: 992px) {
-    .roster-assignment-filter-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
 @media (max-width: 575.98px) {
     .app-content {
         padding-left: 0.85rem;

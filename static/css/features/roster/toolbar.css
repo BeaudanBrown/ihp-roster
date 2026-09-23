@@ -6,8 +6,8 @@
 
 .roster-assignment-filter-grid {
     display: grid;
-    grid-template-columns: 1fr;
-    column-gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: 0.5rem;
 }
 
 .roster-week-action-grid {

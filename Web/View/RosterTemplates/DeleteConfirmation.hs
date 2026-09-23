@@ -13,20 +13,19 @@ import Web.View.Prelude
 
 renderRosterTemplateDeleteConfirmation :: (?context :: ControllerContext) => RosterTemplate -> Id RosterGroup -> Day -> Html
 renderRosterTemplateDeleteConfirmation template rosterGroupId anchorDate =
-    renderDialogOverlay (defaultDialogOverlayConfig
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
             ("Delete " <> template.name)
             [hsx|
-            <p>Delete this saved template?</p>
-            <p class="small text-muted">Existing rosters are unaffected.</p>
-            {deleteForm}
-        |]
-            [ dialogOverlayCloseButton "Cancel"
-            , OverlayButton
-                { overlayButtonLabel = "Delete template"
-                , overlayButtonClass = "btn btn-danger"
-                , overlayButtonAction = OverlaySubmitFormAction rosterTemplateDeleteFormId
-                }
-            ])
+                <p>Delete this saved template?</p>
+                <p class="small text-muted mb-0">Existing rosters are unaffected.</p>
+            |]
+            rosterTemplateDeleteFormId
+            deleteForm)
+            { confirmationDialogApproveLabel = "Delete template"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Deleting…"
+            }
   where
     deleteForm = renderFrontendSurfaceActionForm (RosterAction.deleteRosterTemplateAction RosterAction.deleteRosterTemplateActionFields) route [hsx|
         <input type="hidden" name="_method" value="DELETE"/>

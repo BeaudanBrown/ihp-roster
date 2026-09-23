@@ -35,6 +35,9 @@ data SidePanelRenderAttrs = SidePanelRenderAttrs
     , sidePanelPanelAttrs  :: ![(Text, Text)]
     , sidePanelToggleAttrs :: ![(Text, Text)]
     , sidePanelLabelAttrs  :: ![(Text, Text)]
+    , sidePanelShelfAttrs :: ![(Text, Text)]
+    , sidePanelShelfToggleAttrs :: ![(Text, Text)]
+    , sidePanelShelfTitle :: !Text
     }
 
 data SidePanelRegionConfig = SidePanelRegionConfig
@@ -67,6 +70,9 @@ sidePanelRenderAttrs = SidePanelRenderAttrs
     , sidePanelPanelAttrs = surfaceSidePanelPanelAttrs @spec @marker
     , sidePanelToggleAttrs = surfaceSidePanelToggleAttrs @spec @marker
     , sidePanelLabelAttrs = surfaceSidePanelLabelAttrs @spec @marker
+    , sidePanelShelfAttrs = surfaceSidePanelShelfAttrs @spec @marker
+    , sidePanelShelfToggleAttrs = surfaceSidePanelShelfToggleAttrs @spec @marker
+    , sidePanelShelfTitle = "Page tools"
     }
 
 renderSidePanelLayout :: SidePanelRenderAttrs -> SidePanelRegionConfig -> Html -> Html
@@ -95,9 +101,21 @@ renderSidePanelPanelRegion attrs config body = [hsx|
            class={"app-side-panel-region " <> config.sidePanelRegionClass}
            {...attrs.sidePanelPanelAttrs}
            {...config.sidePanelRegionExtraAttrs}>
-        {body}
+        <button type="button" class="app-side-panel-shelf-bar"
+                {...attrs.sidePanelShelfToggleAttrs}
+                aria-expanded="false" aria-controls={shelfId}>
+            <span aria-hidden="true">{attrs.sidePanelShelfTitle}</span>
+            <span class="visually-hidden app-side-panel-shelf-open-label">Open {attrs.sidePanelShelfTitle}</span>
+            <span class="visually-hidden app-side-panel-shelf-close-label">Close {attrs.sidePanelShelfTitle}</span>
+            <i class="bi bi-chevron-up" aria-hidden="true"></i>
+        </button>
+        <div id={shelfId} class="app-side-panel-shelf-content" {...attrs.sidePanelShelfAttrs}>
+            {body}
+        </div>
     </aside>
 |]
+  where
+    shelfId = (<> "-shelf-content") <$> config.sidePanelRegionId
 
 renderSidePanelCard :: SidePanelCardConfig -> Html -> Html
 renderSidePanelCard config body = [hsx|

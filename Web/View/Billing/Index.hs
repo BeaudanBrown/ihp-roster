@@ -186,7 +186,7 @@ billingCheckoutDialogButtons (BillingCheckoutFailed _) =
     , OverlayButton
         { overlayButtonLabel = "Try Checkout Again"
         , overlayButtonClass = "btn btn-primary"
-        , overlayButtonAction = DialogNavigationLoadingFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] Nothing "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
+        , overlayButtonAction = DialogNavigationLoadingFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
         }
     ]
 

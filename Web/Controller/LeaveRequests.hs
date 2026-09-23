@@ -15,7 +15,7 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue,
                                            liveMutationResult)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
-                                renderToastOob)
+                                renderDialogOverlayClearOob, renderToastOob)
 import qualified Application.UnavailabilityBlackout.Mutations as BlackoutMutations
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -118,6 +118,71 @@ instance Controller LeaveRequestsController where
         ensureLeaveProfileAccess responseContext
         submitRequestedLeave responseContext >>= respondWithLeaveSubmissionResult responseContext
 
+    action currentAction@ShowSelfServiceLeaveDeleteConfirmationAction { leaveRequestId } = runBepis currentAction BepisFormAction do
+        ensureStaffSelfServiceAccess
+        ensureVenueWritable
+        ensureLeaveProfileAccess LeaveSelfServiceResponseContext
+        fetchCurrentUserStaff >>= \case
+            Nothing -> respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast "No staff record found. Contact an administrator."))
+            Just staff -> do
+                requestedLeave <-
+                    query @LeaveRequest
+                        |> filterWhere (#id, leaveRequestId)
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> filterWhere (#staffId, unpackId staff.id)
+                        |> filterWhere (#status, LeaveRequestStatusEnumPending)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetchOneOrNothing
+                respondHtmlProfiled $
+                    maybe
+                        (renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted."))
+                        renderSelfServiceLeaveDeleteConfirmation
+                        requestedLeave
+
+    action currentAction@DeleteSelfServiceLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
+        ensureStaffSelfServiceAccess
+        ensureVenueWritable
+        ensureLeaveProfileAccess LeaveSelfServiceResponseContext
+        fetchCurrentUserStaff >>= \case
+            Nothing -> respondWithLeaveContextError LeaveSelfServiceResponseContext "No staff record found. Contact an administrator."
+            Just staff -> do
+                requestedLeave <-
+                    query @LeaveRequest
+                        |> filterWhere (#id, leaveRequestId)
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> filterWhere (#staffId, unpackId staff.id)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetchOneOrNothing
+                deletionResult <- maybe (pure Nothing) deletePendingLeaveRequest requestedLeave
+                respondWithSelfServiceLeaveDeletionResult staff deletionResult
+
+    action currentAction@ShowStaffLeaveDeleteConfirmationAction { leaveRequestId } = runBepis currentAction BepisFormAction do
+        ensureProfileCompleted
+        ensureManagerRole
+        ensureVenueWritable
+        fetchPendingVenueLeaveRequest leaveRequestId >>= \case
+            Nothing -> respondHtmlProfiled (renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted."))
+            Just leaveRequest -> respondHtmlProfiled (renderStaffLeaveDeleteConfirmation leaveRequest)
+
+    action currentAction@DeleteStaffLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
+        ensureProfileCompleted
+        ensureManagerRole
+        ensureVenueWritable
+        fetchPendingVenueLeaveRequest leaveRequestId >>= \case
+            Nothing -> do
+                setHeader ("HX-Reswap", "none")
+                respondHtmlProfiled $
+                    renderDialogOverlayClearOob
+                        <> renderToastOob ToastBottomCenter (errorToast "Only pending unavailable periods can be deleted.")
+            Just leaveRequest -> do
+                staff <-
+                    query @Staff
+                        |> filterWhere (#id, Id leaveRequest.staffId)
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> fetchOne
+                deletionResult <- deletePendingLeaveRequest leaveRequest
+                respondWithStaffLeaveDeletionResult staff deletionResult
+
     action currentAction@CreateUnavailabilityBlackoutAction = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
         ensureUnavailabilityBlackoutManager
@@ -218,6 +283,15 @@ instance Controller LeaveRequestsController where
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
         reviewLeaveRequest DenyLeave leaveRequest >>= respondWithLeaveReviewResult DenyLeave
 
+fetchPendingVenueLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id LeaveRequest -> IO (Maybe LeaveRequest)
+fetchPendingVenueLeaveRequest leaveRequestId =
+    query @LeaveRequest
+        |> filterWhere (#id, leaveRequestId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#status, LeaveRequestStatusEnumPending)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchOneOrNothing
+
 reportLeaveArchivePageErrors :: (?context :: ControllerContext, ?request :: Request) => IO ()
 reportLeaveArchivePageErrors =
     case currentLeaveArchivePageResult of
@@ -245,15 +319,12 @@ respondWithBlackoutValidationFailure :: (?context :: ControllerContext, ?modelCo
 respondWithBlackoutValidationFailure submittedBlackout errorMessage =
     if isHtmxRequest
         then do
-            readModel <- fetchLeaveRequestsReadModel
-            respondHtmlProfiled $
-                renderUnavailabilityBlackoutsValidationFragment
-                    readModel.leaveReadModelVenueToday
-                    readModel.leaveReadModelBlackouts
-                    readModel.leaveReadModelRequests
-                    readModel.leaveReadModelStaffMembers
-                    (Just submittedBlackout)
-                    <> renderToastOob ToastBottomCenter (errorToast errorMessage)
+            venueConfig <- fetchVenueConfig
+            today <- currentVenueCalendarDay venueConfig
+            let form = if isNew submittedBlackout
+                    then renderCreateBlackoutForm today submittedBlackout
+                    else renderBlackoutUpdateForm submittedBlackout
+            respondHtmlProfiled (form <> renderToastOob ToastBottomCenter (errorToast errorMessage))
         else do
             setErrorMessage errorMessage
             redirectTo LeaveRequestsAction

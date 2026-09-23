@@ -36,7 +36,6 @@ export type ToggleDiagnosticReporter = (diagnostic: ToggleDiagnostic) => void;
 
 type ToggleControl = {
     input: HTMLInputElement;
-    root: HTMLElement;
     form: HTMLFormElement;
     transport: HTMLInputElement;
     breakRegion: HTMLFieldSetElement | null;
@@ -45,7 +44,6 @@ type ToggleControl = {
 };
 
 const initializedControls = new WeakMap<HTMLInputElement, ToggleControl>();
-const checkedClass = "is-toggle-checked";
 
 function targetsEqual(left: ToggleTarget, right: ToggleTarget): boolean {
     if (left.tag !== right.tag) return false;
@@ -174,11 +172,11 @@ function readToggleControl(input: HTMLInputElement, report: ToggleDiagnosticRepo
         breakRegion = regions[0];
     }
 
-    return { input, root, form, transport, breakRegion, labels, config };
+    return { input, form, transport, breakRegion, labels, config };
 }
 
 function synchronizeToggle(control: ToggleControl): void {
-    const { input, root, transport, breakRegion, labels, config } = control;
+    const { input, transport, breakRegion, labels, config } = control;
     const checked = input.checked;
     const transportState = toggleTransportState(toggleTargetForChecked(config, checked));
 
@@ -187,8 +185,6 @@ function synchronizeToggle(control: ToggleControl): void {
     transport.value = transportState.value;
     transport.disabled = transportState.disabled;
 
-    root.classList.toggle(checkedClass, checked);
-    root.setAttribute("aria-pressed", String(checked));
     if (input.getAttribute("role") === "switch") {
         input.setAttribute("aria-checked", String(checked));
     }

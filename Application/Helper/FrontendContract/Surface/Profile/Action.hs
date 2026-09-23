@@ -6,6 +6,10 @@ module Application.Helper.FrontendContract.Surface.Profile.Action
     , UpdateStaffShiftPreferencesActionOperation
     , createStaffLeaveRequestAction
     , createStaffLeaveRequestActionFields
+    , openStaffLeaveDeleteConfirmationAction
+    , openStaffLeaveDeleteConfirmationActionFields
+    , deleteStaffLeaveRequestAction
+    , deleteStaffLeaveRequestActionFields
     , parseCreateStaffLeaveRequestActionParams
     , parseUpdateProfileDetailsActionParams
     , parseUpdateProfileShiftPreferencesActionParams
@@ -28,6 +32,10 @@ import Application.Helper.FrontendContract.Surface.Profile.Generated.Action (Cre
                                                                              UpdateStaffShiftPreferencesActionOperation,
                                                                              createStaffLeaveRequestAction,
                                                                              createStaffLeaveRequestActionFields,
+                                                                             deleteStaffLeaveRequestAction,
+                                                                             deleteStaffLeaveRequestActionFields,
+                                                                             openStaffLeaveDeleteConfirmationAction,
+                                                                             openStaffLeaveDeleteConfirmationActionFields,
                                                                              parseCreateStaffLeaveRequestActionParams,
                                                                              parseUpdateProfileDetailsActionParams,
                                                                              parseUpdateProfileShiftPreferencesActionParams,

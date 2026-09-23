@@ -52,6 +52,7 @@ data PasskeysController
     | DismissMandatoryPasskeySetupAction
     | ShowPasskeySetupDialogAction
     | ShowPasskeyRecoveryCodeDialogAction
+    | ShowPasskeyDeleteConfirmationAction { passkeyId :: !(Id Passkey) }
     | UsePasskeyRecoveryCodeAction
     | SendNewDevicePasskeySetupEmailAction
     | DeletePasskeyAction { passkeyId :: !(Id Passkey) }
@@ -76,6 +77,7 @@ data TimesheetsController
     | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Text }
+    | ShowTimesheetStaffContentFragmentAction { anchorDate :: !Text }
     | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Text, operationalDate :: !Text }
     | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction
@@ -85,6 +87,7 @@ data TimesheetsController
     | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
     | CreateTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
     | EditTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
+    | ShowTimesheetEntryDeleteConfirmationAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | UpdateTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | DeleteTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | ApproveTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
@@ -98,6 +101,10 @@ data LeaveRequestsController
     | ShowVisibleUnavailabilityBlackoutsFragmentAction
     | NewLeaveRequestAction
     | CreateLeaveRequestAction
+    | ShowSelfServiceLeaveDeleteConfirmationAction { leaveRequestId :: !(Id LeaveRequest) }
+    | DeleteSelfServiceLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
+    | ShowStaffLeaveDeleteConfirmationAction { leaveRequestId :: !(Id LeaveRequest) }
+    | DeleteStaffLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | DenyLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | CreateUnavailabilityBlackoutAction
@@ -170,6 +177,7 @@ data AdminController
     | OpenXeroTimesheetPreparationAction
     | RunXeroTimesheetPreparationAction
     | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | ShowXeroProblemTimesheetApprovalRefreshConfirmationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), timesheetEntryId :: !(Id TimesheetEntry) }
     | RefreshXeroProblemTimesheetApprovalAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun), timesheetEntryId :: !(Id TimesheetEntry) }
     | ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
@@ -237,6 +245,7 @@ data FeedbackController
     | EditFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | UpdateFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | PublishFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | ShowFeedbackArchiveConfirmationAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | ArchiveFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | RestoreFeedbackAction { feedbackItemId :: !(Id UserFeedbackItem) }
     deriving (Eq, Show, Data)
@@ -303,10 +312,12 @@ data RosterWeeksController
     | ShowRosterWeekWageRailFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekSlotsGridFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekStaffPanelFragmentAction { anchorDate :: !Text }
+    | ShowRosterSettingsFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekDaySectionFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | UpdateRosterAssignmentFiltersAction
     | CreateRosterWeekAction
+    | ShowCopyRosterWeekConfirmationAction
     | CopyRosterWeekAction
     | ToggleRosterWeekLiveStatusAction
     | ShowRosterNotificationConfirmationAction

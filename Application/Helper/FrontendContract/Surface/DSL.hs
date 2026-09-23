@@ -56,6 +56,11 @@ module Application.Helper.FrontendContract.Surface.DSL
     , CompleteSetSort
     , TabSet
     , SidePanel
+    , SidePanelShelfRole
+    , SidePanelShelfToggleRole
+    , SidePanelShelfState
+    , ShelfClosed
+    , ShelfOpen
     , ConflictPolicy
     , ConflictPolicyFor
     , Event
@@ -248,7 +253,6 @@ data PrimitiveOption
     | HtmxInclude HtmxSelectorSpec
     | HtmxSync HtmxSyncSpec
     | HtmxIndicator HtmxSelectorSpec
-    | HtmxConfirm Type
     | HtmxSelect HtmxSelectorSpec
     | HtmxTarget HtmxSelectorSpec
     | HtmxSwap HtmxSwapSpec
@@ -316,6 +320,14 @@ type LinkedHighlight name sourceRole memberRole activations effects = 'LinkedHig
 type CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection =
     'CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection
 type TabSet name tabRole keys defaultKey = 'TabSet name tabRole keys defaultKey
+-- SidePanel includes a responsive shelf with independent transient visibility.
+-- These capability-owned markers are registered by reflection for each Surface.
+data SidePanelShelfRole
+data SidePanelShelfToggleRole
+data SidePanelShelfState
+data ShelfClosed
+data ShelfOpen
+
 type SidePanel name rootRole mainRole panelRole toggleRole labelRole state collapsed expanded =
     'SidePanel name rootRole mainRole panelRole toggleRole labelRole state collapsed expanded
 type ConflictPolicy session fragment resolution = 'ConflictPolicy ('SessionKind session) ('FragmentKind fragment) resolution

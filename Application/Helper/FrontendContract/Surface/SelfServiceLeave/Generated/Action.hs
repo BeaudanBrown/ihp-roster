@@ -8,8 +8,14 @@
 -- Do not edit; run `bash ./bin/in-env frontend-surface-adapters`.
 module Application.Helper.FrontendContract.Surface.SelfServiceLeave.Generated.Action
     ( CreateSelfServiceLeaveRequestActionOperation
+    , DeleteSelfServiceLeaveRequestActionOperation
+    , OpenSelfServiceLeaveDeleteConfirmationActionOperation
     , createSelfServiceLeaveRequestAction
     , createSelfServiceLeaveRequestActionFields
+    , deleteSelfServiceLeaveRequestAction
+    , deleteSelfServiceLeaveRequestActionFields
+    , openSelfServiceLeaveDeleteConfirmationAction
+    , openSelfServiceLeaveDeleteConfirmationActionFields
     , parseCreateSelfServiceLeaveRequestActionParams
     ) where
 
@@ -31,6 +37,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            ActionMarker,
                                                            ActionSurface,
                                                            actionFields,
+                                                           noActionFields,
                                                            noSurfaceFields,
                                                            surfaceField, (&:))
 import Data.Time (Day)
@@ -74,3 +81,41 @@ parseCreateSelfServiceLeaveRequestActionParams ::
 parseCreateSelfServiceLeaveRequestActionParams =
     parseActionParams
         @CreateSelfServiceLeaveRequestActionOperation
+
+data DeleteSelfServiceLeaveRequestActionOperation
+
+type instance ActionSurface DeleteSelfServiceLeaveRequestActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.SelfServiceLeaveAdapterFamily)
+type instance ActionMarker DeleteSelfServiceLeaveRequestActionOperation = Types1.DeleteSelfServiceLeaveRequest
+type instance ActionFieldSpecs DeleteSelfServiceLeaveRequestActionOperation =
+    '[]
+
+deleteSelfServiceLeaveRequestActionFields :: ActionFields DeleteSelfServiceLeaveRequestActionOperation
+deleteSelfServiceLeaveRequestActionFields =
+    noActionFields
+
+deleteSelfServiceLeaveRequestActionEvidence :: ActionEvidence DeleteSelfServiceLeaveRequestActionOperation
+deleteSelfServiceLeaveRequestActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "DeleteSelfServiceLeaveRequest" "delete-self-service-leave-request" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxDeleteIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#self-service-leave-history-fragment" ["self-service-leave-history-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+deleteSelfServiceLeaveRequestAction :: ActionFields DeleteSelfServiceLeaveRequestActionOperation -> FrontendSurfaceAction
+deleteSelfServiceLeaveRequestAction =
+    frontendSurfaceActionFromEvidence deleteSelfServiceLeaveRequestActionEvidence
+
+data OpenSelfServiceLeaveDeleteConfirmationActionOperation
+
+type instance ActionSurface OpenSelfServiceLeaveDeleteConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.SelfServiceLeaveAdapterFamily)
+type instance ActionMarker OpenSelfServiceLeaveDeleteConfirmationActionOperation = Types1.OpenSelfServiceLeaveDeleteConfirmation
+type instance ActionFieldSpecs OpenSelfServiceLeaveDeleteConfirmationActionOperation =
+    '[]
+
+openSelfServiceLeaveDeleteConfirmationActionFields :: ActionFields OpenSelfServiceLeaveDeleteConfirmationActionOperation
+openSelfServiceLeaveDeleteConfirmationActionFields =
+    noActionFields
+
+openSelfServiceLeaveDeleteConfirmationActionEvidence :: ActionEvidence OpenSelfServiceLeaveDeleteConfirmationActionOperation
+openSelfServiceLeaveDeleteConfirmationActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenSelfServiceLeaveDeleteConfirmation" "open-self-service-leave-delete-confirmation" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a SelfServiceLeave DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+openSelfServiceLeaveDeleteConfirmationAction :: ActionFields OpenSelfServiceLeaveDeleteConfirmationActionOperation -> FrontendSurfaceAction
+openSelfServiceLeaveDeleteConfirmationAction =
+    frontendSurfaceActionFromEvidence openSelfServiceLeaveDeleteConfirmationActionEvidence

@@ -1,4 +1,4 @@
-import { dialogDismissedEvent, interactionSessionEndEvent, liveFragmentsRefreshEvent, pageReadyEvent } from "../generated/contracts";
+import { dialogDismissedEvent, interactionSessionEndEvent, interactionSessionStartEvent, liveFragmentsRefreshEvent, pageReadyEvent } from "../generated/contracts";
 import { createActiveInteractionSessionTracker } from "../interaction/session-state";
 import { createLiveUpdateConnection, type LiveUpdateConnection } from "./connection";
 import { createLiveUpdateDiagnostics } from "./diagnostics";
@@ -38,11 +38,13 @@ export function enableLiveUpdateRuntime(): void {
         const current = scanFrontendSurfaceMountInstances(document, reportSurfaceConfigError);
         const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, current);
         reconciliation.removed.forEach((instance) => {
+            refresher.disposeOwner(instance.ownerEl);
             activeSurfaceInstances.delete(instance.instanceId);
             diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
         });
         reconciliation.retained.forEach((instance) => activeSurfaceInstances.set(instance.instanceId, instance));
         reconciliation.added.forEach((instance) => {
+            refresher.activateOwner(instance.ownerEl);
             activeSurfaceInstances.set(instance.instanceId, instance);
             diagnostics.emitDebugEvent("surface_initialized", instanceDebugDetail(instance));
         });
@@ -51,7 +53,11 @@ export function enableLiveUpdateRuntime(): void {
     function syncRuntime(): void {
         reconcileMounts();
         const desired = collectDesiredSurfaceSubscriptions(document, refresher.request, reportSurfaceConfigError);
-        if (desired.size === 0) activeSurfaceInstances.clear();
+        if (desired.size === 0) {
+            disposeTrackedSurfaceInstances(activeSurfaceInstances, refresher.disposeOwner).forEach((instance) => {
+                diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
+            });
+        }
         connection?.sync(desired);
     }
 
@@ -65,6 +71,13 @@ export function enableLiveUpdateRuntime(): void {
     });
 
     document.addEventListener(liveFragmentsRefreshEvent, invalidation.handleActorEvent);
+    document.addEventListener(interactionSessionStartEvent, (event) => {
+        if (!(event instanceof CustomEvent) || !(event.detail?.mount instanceof Element)) return;
+        refresher.markProtectionChanged(event.detail.mount);
+    });
+    document.addEventListener("focusin", (event) => {
+        if (event.target instanceof Element) refresher.markProtectionChanged(event.target);
+    });
     document.addEventListener(interactionSessionEndEvent, () => {
         refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
         refresher.flushFocusedFragmentsWithoutActiveInputs();
@@ -82,6 +95,16 @@ export function enableLiveUpdateRuntime(): void {
     document.addEventListener("input", scheduleFocusedFlush);
     document.addEventListener("change", scheduleFocusedFlush);
     document.addEventListener(pageReadyEvent, syncRuntime);
+}
+
+export function disposeTrackedSurfaceInstances(
+    activeSurfaceInstances: Map<string, FrontendSurfaceMountedInstance>,
+    disposeOwner: (ownerEl: HTMLElement) => void,
+): FrontendSurfaceMountedInstance[] {
+    const disposed = Array.from(activeSurfaceInstances.values()).sort((left, right) => right.depth - left.depth);
+    disposed.forEach((instance) => disposeOwner(instance.ownerEl));
+    activeSurfaceInstances.clear();
+    return disposed;
 }
 
 function instanceDebugDetail(instance: FrontendSurfaceMountedInstance): Record<string, unknown> {

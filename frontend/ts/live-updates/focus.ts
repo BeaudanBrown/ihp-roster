@@ -9,7 +9,7 @@ import type {
 export type FocusedFieldProtection = {
     hasProtectedActiveInput(target: HTMLElement, fragment: LiveUpdateFragmentWithState | undefined): boolean;
     captureDeferredState(target: HTMLElement, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState;
-    restoreDeferredState(fragment: LiveUpdateFragmentWithState): void;
+    restoreDeferredState(target: HTMLElement, fragment: LiveUpdateFragmentWithState): void;
     captureReplacementFocus(target: Element): (replacement: Element) => void;
 };
 
@@ -111,9 +111,7 @@ export function createFocusedFieldProtection(targetWindow: Window, targetDocumen
         captureDeferredState(target, fragment) {
             return matchingProtection(fragment)?.captureState(target, fragment) ?? fragment;
         },
-        restoreDeferredState(fragment) {
-            const target = targetDocument.getElementById(fragment.targetId);
-            if (!(target instanceof HTMLElement)) return;
+        restoreDeferredState(target, fragment) {
             matchingProtection(fragment)?.restoreState(target, fragment);
         },
     };

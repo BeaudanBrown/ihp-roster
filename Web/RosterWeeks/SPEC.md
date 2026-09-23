@@ -13,7 +13,13 @@ This document retains cross-module scheduling and state-transition rules.
   do not add compatibility redirects or persist a last-viewed window.
 - Roster data is venue-scoped and may be roster-group-scoped. Missing weeks may
   be materialized only through authorized server behavior; reference browsing
-  for templates never materializes a week.
+  for templates never materializes a week. Opening or cancelling a shift dialog,
+  including staff-drop create dialogs, and rejected shift creates do not persist
+  projected dates or lanes. Successful creates materialize missing dates in the
+  same locked transaction as the shift and durable structural invalidation.
+- New roster days, projected days, and omitted template-day row counts default
+  to two rows. Existing stored row counts are preserved; copying an existing
+  source day preserves its row count, while missing source days use two.
 - Managers, venue admins, owners, and unimpersonated founder support receive
   capabilities only through server-side checks. During founder impersonation,
   visibility, controls, self-service, profile gates, and private preferences use
@@ -89,8 +95,8 @@ controller, mail, and delivery tests.
 ## Templates
 
 - Week templates are roster-group-scoped detached snapshots with case-insensitively unique trimmed names. Capture reads one exact seven-day date-native roster window, preserves weekday identity, structure, local times, Shift types, and Staff/Open assignments, and never stores publication state.
-- Application resolves a submitted ISO anchor to one complete Draft or Published window in the same venue and roster group. Saved weekdays map to matching target operational weekdays even when the venue window order rotates. Open/closed state, rows, columns/order, and shifts replace all seven target days; all seven days become Draft atomically with replacement.
-- Preview carries authoritative template, target, calendar, Staff, Shift-type, membership, leave, and pay-reference identity. Confirmation locks and revalidates those facts, the complete target, and relevant Timesheet snapshots before one atomic replacement.
+- Application resolves a submitted ISO anchor to one seven-day window in the same venue and roster group. Preview accepts empty or sparse persisted targets by projecting missing dates without writes; existing dates may be Draft or Published. Saved weekdays map to matching target operational weekdays even when the venue window order rotates. Open/closed state, rows, columns/order, and shifts replace all seven target days; all seven days become Draft atomically with replacement.
+- Preview carries authoritative template, target, calendar, Staff, Shift-type, membership, leave, and pay-reference identity. Confirmation locks and revalidates those facts, the persisted/projected target, and relevant Timesheet snapshots before materializing missing dates and replacing the target in one atomic transaction. Invalid or stale confirmation does not materialize dates.
 - Approved leave converts only affected target assignments to Open. Durable inactive, archived, wrong-venue, outside-group, or pay-invalid Staff assignments become Open in both target and saved template. Stale Shift types require explicit active same-venue mappings and permanently clean the template; multiple stale identities may share one replacement.
 - Replaced shifts are soft-deleted so materialized Timesheet values and source provenance survive. Application resolves repeated Melbourne boundaries to their first occurrence and rejects nonexistent local times.
 - Authorized roster editors use one responsive SidePanel Templates tab. It shows a case-insensitive alphabetical Week list with name, shift count, Apply, and Delete only; Save remains in the header and the empty state retains it. Save, Apply, and Delete use generated button forms and shared server-rendered Overlay dialogs. Save captures directly from the name/assignment form when no warnings or unresolved mappings remain; only exceptional remediation requires another step, and the locked save still revalidates the source and references. Apply remains available when any target day is Published; confirmation uses one general warning that the week will become Draft and be replaced while existing Timesheets remain unchanged, with an “Approve” submit action. Publication changes after preview invalidate confirmation. Successful HTMX writes retain the viewed date, group, layout, and selected Templates tab, refresh authoritative fragments in place, and show a toast. Validation and stale confirmation failures rerender the dialog with still-valid inputs preserved.
@@ -148,11 +154,13 @@ ordinary venue roles retain amounts and calculation errors, not provider warning
 Managers receive Staff, Templates, and Settings in the shared transient SidePanel.
 Feature content and authorization remain roster-owned. Its toggle uses
 the shared main-card header location, desktop focus/Escape contract, transient
-visibility, and phone stacking used by Timesheets and manager Unavailability. Published rosters
+visibility, and responsive tools shelf used by Timesheets and manager Unavailability. Published rosters
 may highlight the effective viewer's own assigned shifts from a global user
 preference. A manager's transient hover or pinned staff highlight takes
 precedence; draft rosters never apply the own-shift default. Highlight and panel
-visibility do not alter URLs or business projections.
+visibility do not alter URLs or business projections. Roster-group selection uses
+typed HTMX navigation, updating the canonical URL and mounted scope together;
+the shared same-feature shelf lifecycle retains an open Settings shelf.
 
 ## Live Updates
 

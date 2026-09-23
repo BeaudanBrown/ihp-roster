@@ -492,5 +492,5 @@ renderRosterGroupToggle fields rosterGroup isSelected =
             isSelected
             [hsx|<span>{rosterGroup.name}</span>|]
         )
-            { appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1" }
+            { appToggleButtonClass = "btn-sm w-100" }
 

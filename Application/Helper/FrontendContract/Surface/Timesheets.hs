@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetDayColumns
     , TimesheetDaySection
     , TimesheetSidePanelContent
+    , TimesheetStaffContent
     , TimesheetWeekBoundaryConfig
     , TimesheetStaffCardsHighlight
     , TimesheetStaffHighlightSourceRole
@@ -87,6 +88,7 @@ data TimesheetWeekToolbar
 data TimesheetDayColumns
 data TimesheetDaySection
 data TimesheetSidePanelContent
+data TimesheetStaffContent
 data OperationalDate
 
 data TimesheetDay
@@ -262,9 +264,18 @@ type TimesheetFragmentBundle =
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
+     -- Settings content only: the shelf frame, tabs and scroll owner are persistent.
      , Fragment TimesheetSidePanelContent
         '[]
         '[ 'MountTarget TimesheetSidePanelContent '[]
+         , 'Eager
+         , 'Live
+         , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         ]
+     , Fragment TimesheetStaffContent
+        '[]
+        '[ 'MountTarget TimesheetStaffContent '[]
          , 'Eager
          , 'Live
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]

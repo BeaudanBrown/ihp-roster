@@ -40,7 +40,10 @@ with the existing [Checkout](Checkout.hs) phase interface. Follow the
 not an encompassing form transaction or a new provider abstraction.
 
 Preparation is not side-effect-free: Customer creation already calls the
-provider. Session creation depends on a committed attempt; an execution rollback
+provider. The Web phase adapter and customer-created audit callback remain
+context-polymorphic until the local durable transaction installs its
+`ModelContext`, so Customer, attempt, audit and preparation publication share
+that transaction. Session creation depends on a committed attempt; an execution rollback
 does not undo preparation, and outcome selection controls publication rather
 than rollback. Preserve this distinction from signed-webhook transactions.
 

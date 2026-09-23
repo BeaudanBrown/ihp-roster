@@ -3,6 +3,8 @@
 
 module Application.Helper.FrontendContract.Surface.SelfServiceLeave
     ( CreateSelfServiceLeaveRequest
+    , DeleteSelfServiceLeaveRequest
+    , OpenSelfServiceLeaveDeleteConfirmation
     , EndDate
     , Notes
     , SelfServiceLeave
@@ -32,6 +34,8 @@ data SelfServiceLeaveHistoryFragment
 data VisibleUnavailabilityBlackoutsFragment
 data StaffLeaveRequests
 data CreateSelfServiceLeaveRequest
+data DeleteSelfServiceLeaveRequest
+data OpenSelfServiceLeaveDeleteConfirmation
 data StartDate
 data EndDate
 data Notes
@@ -75,6 +79,20 @@ type SelfServiceLeaveSurface =
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId SelfServiceLeaveFormFragment)
              , 'HtmxSwap 'HtmxOuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action OpenSelfServiceLeaveDeleteConfirmation
+            '[]
+            '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a SelfServiceLeave DOM token")
+             , 'HtmxSwap 'HtmxInnerHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action DeleteSelfServiceLeaveRequest
+            '[]
+            '[ 'HtmxMethod 'HtmxDelete
+             , 'HtmxTarget ('HtmxId SelfServiceLeaveHistoryFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          ]

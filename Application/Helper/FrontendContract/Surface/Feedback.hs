@@ -21,6 +21,7 @@ data FeedbackType
 data EditFeedback
 data UpdateFeedback
 data PublishFeedback
+data OpenFeedbackArchiveConfirmation
 data ArchiveFeedback
 data RestoreFeedback
 data VoteFeedback
@@ -47,6 +48,7 @@ type FeedbackModerationSurface = Surface FeedbackModeration
      , Action UpdateFeedback '[Field FeedbackTitle 'WireText, Field FeedbackContent 'WireText, Field FeedbackType ('WireClosed FeedbackTypeEnum)]
          '[ 'HtmxMethod 'HtmxPost, 'HtmxTarget ('HtmxId DialogOverlayMount), 'HtmxSwap 'HtmxInnerHTML]
      , Action PublishFeedback '[] '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap]
+     , Action OpenFeedbackArchiveConfirmation '[] '[ 'HtmxMethod 'HtmxGet, 'HtmxTarget ('HtmxId DialogOverlayMount), 'HtmxSwap 'HtmxInnerHTML]
      , Action ArchiveFeedback '[] '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap]
      , Action RestoreFeedback '[] '[ 'HtmxMethod 'HtmxPost, 'HtmxSwap 'HtmxNoSwap]
      ]

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 program="epic-worktree-workflow-acceptance-test"
+repo_root="$(git rev-parse --show-toplevel)"
 
 fail() {
     echo "$program: $*" >&2
@@ -58,7 +59,9 @@ cat >"$mock_bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 if [ "$1" = issue ] && [ "$2" = close ]; then
-    [ "${EPIC_CLOSURE_APPROVED:-}" = true ] || exit 77
+    if [ "$3" = 999 ]; then
+        [ "${EPIC_CLOSURE_APPROVED:-}" = true ] || exit 77
+    fi
     printf '%s\n' "$*" >>"$EPIC_GH_LOG"
     touch "$EPIC_GH_STATE_DIR/closed-$3"
     exit 0
@@ -75,9 +78,11 @@ case "${!#}" in
         printf '{"number":999,"title":"Workflow acceptance","state":"%s","html_url":"https://example.invalid/issues/999"}\n' "$state"
         ;;
     repos/BeaudanBrown/ihp-roster/issues/999/sub_issues?*)
-        printf '%s\n' '[{"number":1000,"title":"Workflow sub-issue","state":"open","html_url":"https://example.invalid/issues/1000","assignees":[]}]'
+        child_state=open
+        [ ! -f "$EPIC_GH_STATE_DIR/closed-1000" ] || child_state=closed
+        printf '[{"number":1000,"title":"Workflow sub-issue","state":"%s","html_url":"https://example.invalid/issues/1000","assignees":[]},{"number":1001,"title":"Next workflow sub-issue","state":"open","html_url":"https://example.invalid/issues/1001","assignees":[]}]\n' "$child_state"
         ;;
-    repos/BeaudanBrown/ihp-roster/issues/1000/dependencies/blocked_by?*)
+    repos/BeaudanBrown/ihp-roster/issues/1000/dependencies/blocked_by?*|repos/BeaudanBrown/ihp-roster/issues/1001/dependencies/blocked_by?*)
         printf '%s\n' '[]'
         ;;
     *) exit 64 ;;
@@ -89,9 +94,10 @@ run_primary() {
     (
         cd "$primary_repo"
         PATH="$mock_bin:$PATH" \
+        FRONTEND_REPO_ROOT="$repo_root" \
         EPIC_GH_LOG="$fixture_root/gh.log" \
         EPIC_GH_STATE_DIR="$fixture_root/gh-state" \
-        EPIC_WORKTREE_COMMAND="$(command -v epic-worktree)" \
+        EPIC_WORKTREE_COMMAND="$repo_root/Config/nix/scripts/epic/worktree" \
             "$@"
     )
 }
@@ -101,7 +107,8 @@ epic_path="$(jq -r '.path' <<<"$provision")"
 run_epic() {
     (
         cd "$epic_path"
-        PATH="$mock_bin:$PATH" EPIC_GH_LOG="$fixture_root/gh.log" EPIC_GH_STATE_DIR="$fixture_root/gh-state" "$@"
+        PATH="$mock_bin:$PATH" FRONTEND_REPO_ROOT="$repo_root" \
+            EPIC_GH_LOG="$fixture_root/gh.log" EPIC_GH_STATE_DIR="$fixture_root/gh-state" "$@"
     )
 }
 [ "$(jq -r '.slot' <<<"$provision")" = 1 ] || fail "provisioning did not allocate slot 1"
@@ -111,9 +118,9 @@ run_epic() {
     || fail "provisioning changed primary work"
 orientation_before="$(run_epic epic-worktree orient --json)"
 [ "$(jq -r '.selection.allowed' <<<"$orientation_before")" = true ] \
-    || fail "fresh epic workspace did not wait for user selection"
-[[ "$(run_epic epic-worktree orient)" == *"present verification evidence, and request approval before closure"* ]] \
-    || fail "orientation omitted verification-evidence closure rule"
+    || fail "fresh epic workspace did not allow issue selection"
+[[ "$(run_epic epic-worktree orient)" == *"close the completed sub-issue without routine confirmation"* ]] \
+    || fail "orientation omitted automatic closure rule"
 git -C "$primary_repo" add primary-only
 git -C "$primary_repo" commit --quiet -m 'Continue primary work'
 
@@ -129,15 +136,17 @@ completion_evidence="$(jq -cn --arg commit "$(git -C "$epic_path" rev-parse HEAD
     '{commit: $commit, checks: ["orientation"]}')"
 [ "$(jq -r '.commit' <<<"$completion_evidence")" = "$(git -C "$epic_path" rev-parse HEAD)" ] \
     || fail "completion evidence omitted the implemented commit"
-printf '%s: completion evidence %s; awaiting approval\n' "$program" "$completion_evidence"
-set +e
-run_epic gh issue close 1000 --comment "$completion_evidence" >/dev/null 2>&1
-unapproved_child_status=$?
-set -e
-[ "$unapproved_child_status" = 77 ] || fail "sub-issue closure did not require approval"
-EPIC_CLOSURE_APPROVED=true run_epic gh issue close 1000 --comment "$completion_evidence"
+printf '%s: completion evidence %s; closing completed sub-issue\n' "$program" "$completion_evidence"
+run_epic gh issue close 1000 --comment "$completion_evidence"
 grep -Fq "issue close 1000 --comment $completion_evidence" "$fixture_root/gh.log" \
-    || fail "completion evidence was not supplied before sub-issue closure"
+    || fail "completion evidence was not supplied before automatic sub-issue closure"
+orientation_next="$(run_epic epic-worktree orient --json)"
+[ "$(jq -r '.workspace.interrupted' <<<"$orientation_next")" = false ] \
+    || fail "closed sub-issue left the workspace interrupted"
+[ "$(jq -r '.selection.allowed' <<<"$orientation_next")" = true ] \
+    || fail "closed sub-issue did not allow automatic progression"
+[ "$(jq -r '.issues.ready[0].number' <<<"$orientation_next")" = 1001 ] \
+    || fail "next ready sub-issue was not presented after closure"
 run_primary epic-worktree-manage sync --epic 999 --apply --json >/dev/null
 target_before_integration="$(git -C "$primary_repo" rev-parse HEAD)"
 integration_plan="$(run_primary epic-worktree-manage integrate --epic 999 --json)"

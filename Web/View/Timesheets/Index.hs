@@ -25,6 +25,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceActionLink,
+                                                            renderFrontendSurfaceActionNavigationButton,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
@@ -281,14 +282,11 @@ renderTimesheetWageSourceWarning summary
     |]
 
 renderTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSidePanel = renderTimesheetSidePanelWithSwap Nothing
-
-renderTimesheetSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
-renderTimesheetSidePanelWithSwap maybeSwapOob view =
+renderTimesheetSidePanel view =
     renderSidePanelPanelRegion timesheetSidePanelRenderAttrs SidePanelRegionConfig
-        { sidePanelRegionId = Just "timesheet-side-panel-content"
+        { sidePanelRegionId = Nothing
         , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 timesheet-side-panel"
-        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        , sidePanelRegionExtraAttrs = []
         }
         ( renderSidePanelCard
             SidePanelCardConfig
@@ -308,7 +306,7 @@ renderManagerTimesheetSidePanel view = [hsx|
             {renderTimesheetStaffPanel view.staffMembers view.staffPanelEntries}
         </div>
         <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane" id="timesheet-settings-pane" role="tabpanel" aria-labelledby="timesheet-settings-tab" tabindex="0">
-            {renderTimesheetSettings view}
+            {renderTimesheetSettingsFragment Nothing view}
         </div>
     </div>
 |]
@@ -321,23 +319,37 @@ renderManagerTimesheetSidePanel view = [hsx|
 renderWorkerTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
 renderWorkerTimesheetSettings view = [hsx|
     <h2 class="h5">Settings</h2>
-    {renderTimesheetSettings view}
+    {renderTimesheetSettingsFragment Nothing view}
+|]
+
+renderTimesheetSettingsFragment :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
+renderTimesheetSettingsFragment maybeSwapOob view = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetSidePanelContent noSurfaceFields} hx-swap-oob={maybeSwapOob}>
+        {renderTimesheetSettings view}
+    </div>
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, viewFilters, staffMembers, rosterGroups } = [hsx|
+renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, viewFilters, staffMembers, rosterGroups, currentViewerStaffId } = [hsx|
     <div class="timesheet-settings-toggle-grid mb-2">
-        {renderTimesheetHideApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
+        {renderTimesheetShowApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
         {renderTimesheetShowSuggestionsPreferenceForm weekStartDate calendarRevision viewFilters showTimesheetSuggestions}
         {when canViewTimesheetWageEstimates (renderTimesheetShowWageEstimatesPreferenceForm weekStartDate calendarRevision viewFilters showTimesheetWageEstimates)}
     </div>
-    {when currentUserIsManager (renderTimesheetFilterForm weekStartDate viewFilters staffMembers rosterGroups)}
+    {when currentUserIsManager (renderTimesheetFilterForm weekStartDate viewFilters staffMembers rosterGroups currentViewerStaffId)}
 |]
 
 renderTimesheetStaffPanel :: (?context :: ControllerContext) => [Staff] -> [TimesheetStaffPanelEntry] -> Html
 renderTimesheetStaffPanel staffMembers entries = [hsx|
     <div class="app-side-panel-table-list">
-        <table class="app-side-panel-table timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
+        {renderTimesheetStaffContent Nothing staffMembers entries}
+    </div>
+|]
+
+renderTimesheetStaffContent :: (?context :: ControllerContext) => Maybe Text -> [Staff] -> [TimesheetStaffPanelEntry] -> Html
+renderTimesheetStaffContent maybeSwapOob staffMembers entries = [hsx|
+        <table id={surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetStaffContent noSurfaceFields}
+               hx-swap-oob={maybeSwapOob} class="app-side-panel-table timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
             <thead class="app-side-panel-table-head"><tr>
                 <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByName}>Name</button></th>
                 <th scope="col" class="app-side-panel-role-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByRole}>Role</button></th>
@@ -346,7 +358,6 @@ renderTimesheetStaffPanel staffMembers entries = [hsx|
             </tr></thead>
             <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderTimesheetStaffPanelEntry staffMembers)}</tbody>
         </table>
-    </div>
 |]
 
 renderTimesheetStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> TimesheetStaffPanelEntry -> Html
@@ -375,8 +386,8 @@ renderTimesheetStaffPanelEntry staffMembers entry =
             </button>
         |]
 
-renderTimesheetHideApprovedPreferenceForm :: Day -> Int -> TimesheetViewFilters -> Bool -> Html
-renderTimesheetHideApprovedPreferenceForm anchorDate calendarRevision filters hideApproved =
+renderTimesheetShowApprovedPreferenceForm :: Day -> Int -> TimesheetViewFilters -> Bool -> Html
+renderTimesheetShowApprovedPreferenceForm anchorDate calendarRevision filters hideApproved =
     renderFrontendSurfaceActionForm
         (TimesheetsAction.toggleTimesheetHideApprovedAction fields)
         (timesheetsActionRoute (pathTo ToggleTimesheetHideApprovedAction))
@@ -387,7 +398,7 @@ renderTimesheetHideApprovedPreferenceForm anchorDate calendarRevision filters hi
             <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
             <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow calendarRevision} />
             {renderTimesheetFilterHiddenFields fields filters}
-            {renderTimesheetPreferenceToggle "timesheet-hide-approved-toggle" (surfaceToggleScalarField @Surface.HideApproved fields True False) hideApproved "Hide approved"}
+            {renderTimesheetPreferenceToggle "timesheet-show-approved-toggle" (surfaceToggleScalarField @Surface.HideApproved fields False True) (not hideApproved) "Show approved"}
         |]
   where
     fields = TimesheetsAction.toggleTimesheetHideApprovedActionFields anchorDate calendarRevision hideApproved filters.filterStaffId filters.filterRosterGroupId
@@ -434,8 +445,8 @@ renderTimesheetFilterHiddenFields fields filters =
         Nothing -> mempty
         Just value -> [hsx|<input type="hidden" name={fieldName} value={tshow value} />|]
 
-renderTimesheetFilterForm :: (?context :: ControllerContext) => Day -> TimesheetViewFilters -> [Staff] -> [RosterGroup] -> Html
-renderTimesheetFilterForm anchorDate filters staffMembers rosterGroups =
+renderTimesheetFilterForm :: (?context :: ControllerContext) => Day -> TimesheetViewFilters -> [Staff] -> [RosterGroup] -> Maybe UUID -> Html
+renderTimesheetFilterForm anchorDate filters staffMembers rosterGroups currentViewerStaffId =
     renderFrontendSurfaceActionForm
         (TimesheetsAction.updateTimesheetFiltersAction fields)
         (timesheetsActionRoute updateUrl)
@@ -444,27 +455,42 @@ renderTimesheetFilterForm anchorDate filters staffMembers rosterGroups =
             }
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
-            {renderTimesheetStaffFilter fields filters.filterStaffId staffMembers}
+            {renderTimesheetStaffFilter anchorDate fields filters staffMembers currentViewerStaffId}
             {when (length rosterGroups > 1) (renderTimesheetRosterGroupFilter fields filters.filterRosterGroupId rosterGroups)}
         |]
   where
     updateUrl = timesheetWindowUrlWithFilters anchorDate filters
     fields = TimesheetsAction.updateTimesheetFiltersActionFields anchorDate filters.filterStaffId filters.filterRosterGroupId
 
-renderTimesheetStaffFilter :: ActionFields TimesheetsAction.UpdateTimesheetFiltersActionOperation -> Maybe UUID -> [Staff] -> Html
-renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
+renderTimesheetStaffFilter :: Day -> ActionFields TimesheetsAction.UpdateTimesheetFiltersActionOperation -> TimesheetViewFilters -> [Staff] -> Maybe UUID -> Html
+renderTimesheetStaffFilter anchorDate fields filters staffMembers currentViewerStaffId = [hsx|
     <div class="mt-3">
-        <label for="timesheet-staff-filter" class="form-label small mb-1">Staff</label>
-        <select id="timesheet-staff-filter"
-                name={surfaceFieldNameFrom @Surface.StaffFilterId fields}
-                class="form-select form-select-sm"
-                onchange="this.form.requestSubmit();">
-            <option value="" selected={isNothing selectedStaffFilterId}>All staff</option>
-            {forEach (filter staffCanProduceTimesheets staffMembers) renderOption}
-        </select>
+        <label for="timesheet-staff-filter" class="form-label small mb-1">Staff filter</label>
+        <div class="timesheet-staff-filter-controls">
+            <select id="timesheet-staff-filter"
+                    name={surfaceFieldNameFrom @Surface.StaffFilterId fields}
+                    class="form-select form-select-sm"
+                    onchange="this.form.requestSubmit();">
+                <option value="" selected={isNothing selectedStaffFilterId}>All staff</option>
+                {forEach eligibleStaff renderOption}
+            </select>
+            {maybe mempty renderMeButton eligibleViewerStaffId}
+        </div>
     </div>
 |]
     where
+        selectedStaffFilterId = filters.filterStaffId
+        eligibleStaff = filter staffCanProduceTimesheets staffMembers
+        eligibleViewerStaffId = currentViewerStaffId >>= \staffId ->
+            if any ((== staffId) . unpackId . (.id)) eligibleStaff then Just staffId else Nothing
+        renderMeButton staffId =
+            renderFrontendSurfaceActionNavigationButton
+                (TimesheetsAction.updateTimesheetFiltersAction
+                    (TimesheetsAction.updateTimesheetFiltersActionFields anchorDate (Just staffId) filters.filterRosterGroupId))
+                (timesheetsActionRoute (timesheetWindowUrlWithFilters anchorDate filters { filterStaffId = Just staffId }))
+                    { actionRouteExtraAttrs = [("class", "btn btn-sm btn-outline-secondary"), ("title", "Filter to my timesheets")]
+                    }
+                [hsx|Me|]
         staffCanProduceTimesheets staff =
             staffAssignmentAllowsTimesheets
                 (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)

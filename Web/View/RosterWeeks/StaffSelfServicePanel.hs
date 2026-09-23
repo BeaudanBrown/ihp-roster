@@ -2,7 +2,7 @@
 
 module Web.View.RosterWeeks.StaffSelfServicePanel
     ( renderRosterStaffSelfServicePanelFragment
-    , renderRosterStaffSelfServicePanelFragmentOob
+    , renderRosterSelfServiceSettings
     , rosterStaffSelfServicePanelFragmentId
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
@@ -15,6 +15,8 @@ import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterSelf
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import Application.Helper.FrontendContract.Surface.Values (surfaceFragmentTargetId, noSurfaceFields)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveFormMount)
 import Web.RosterWeeks.Dom (rosterSelfServiceQuickToolsPaneId,
                             rosterSelfServiceQuickToolsTabId,
@@ -37,21 +39,15 @@ rosterStaffSelfServiceTimesheetSurfaceId :: Text
 rosterStaffSelfServiceTimesheetSurfaceId = "roster-staff-self-service-timesheet-live-surface"
 
 renderRosterStaffSelfServicePanelFragment :: (?context :: ControllerContext) => Maybe RosterStaffSelfServicePanel -> Html
-renderRosterStaffSelfServicePanelFragment = renderRosterStaffSelfServicePanelFragmentWithSwap Nothing
-
-renderRosterStaffSelfServicePanelFragmentOob :: (?context :: ControllerContext) => Maybe RosterStaffSelfServicePanel -> Html
-renderRosterStaffSelfServicePanelFragmentOob = renderRosterStaffSelfServicePanelFragmentWithSwap (Just "outerHTML")
-
-renderRosterStaffSelfServicePanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe RosterStaffSelfServicePanel -> Html
-renderRosterStaffSelfServicePanelFragmentWithSwap _ Nothing = mempty
-renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
+renderRosterStaffSelfServicePanelFragment Nothing = mempty
+renderRosterStaffSelfServicePanelFragment (Just panel)
     | currentUserIsManager = mempty
     | currentUserIsUnimpersonatedSuperAdmin = mempty
     | otherwise =
         renderSidePanelPanelRegion rosterSidePanelRenderAttrs SidePanelRegionConfig
             { sidePanelRegionId = Just rosterStaffSelfServicePanelFragmentId
             , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 roster-layout-side roster-staff-self-service-panel"
-            , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+            , sidePanelRegionExtraAttrs = []
             }
             [hsx|
                 <div class="app-panel app-side-panel-card app-side-panel-scroll roster-staff-panel">
@@ -90,16 +86,7 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
                                  role="tabpanel"
                                  aria-labelledby={rosterSelfServiceSettingsTabId}
                                  tabindex="0">
-                                <div class="roster-settings-stack">
-                                    {renderRosterGroupSetting panel}
-                                    <section class="roster-settings-section">
-                                        <div class="roster-settings-section-heading">
-                                            <i class="bi bi-eye" aria-hidden="true"></i>
-                                            <h2 class="h6 mb-0">Display</h2>
-                                        </div>
-                                        {renderRosterOwnLiveShiftHighlightPreferenceForm panel.quickToolsTimesheetWeekStartDate panel.quickToolsRosterGroupId panel.quickToolsHighlightOwnLiveShifts}
-                                    </section>
-                                </div>
+                                {renderRosterSelfServiceSettings panel}
                             </div>
                         </div>
                     </div>
@@ -110,6 +97,20 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
         [ SidePanelTabConfig rosterSelfServiceQuickToolsTabId rosterSelfServiceQuickToolsPaneId "Quick tools" "bi bi-lightning" True "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterQuickToolsTab)
         , SidePanelTabConfig rosterSelfServiceSettingsTabId rosterSelfServiceSettingsPaneId "Settings" "bi bi-sliders" False "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterSelfServiceSettingsTab)
         ]
+
+renderRosterSelfServiceSettings :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> Html
+renderRosterSelfServiceSettings panel = [hsx|
+    <div id={surfaceFragmentTargetId @RosterSurface.RosterSurface @RosterSurface.RosterSettingsContent noSurfaceFields} class="roster-settings-stack">
+        {renderRosterGroupSetting panel}
+        <section class="roster-settings-section">
+            <div class="roster-settings-section-heading">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+                <h2 class="h6 mb-0">Display</h2>
+            </div>
+            {renderRosterOwnLiveShiftHighlightPreferenceForm panel.quickToolsRosterWeekStartDate panel.quickToolsRosterGroupId panel.quickToolsHighlightOwnLiveShifts}
+        </section>
+    </div>
+|]
 
 renderRosterGroupSetting :: RosterStaffSelfServicePanel -> Html
 renderRosterGroupSetting panel

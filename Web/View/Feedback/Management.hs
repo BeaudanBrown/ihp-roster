@@ -6,6 +6,7 @@ import qualified Application.Helper.FrontendContract.Surface.Feedback.Action as 
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.FeedbackType (feedbackTypeLabel)
+import Application.Helper.View.Overlay
 import Web.View.Feedback.Card (renderFeedbackVote)
 import Web.View.Prelude
 
@@ -75,11 +76,36 @@ renderManagementRow card = [hsx|
         ((feedbackActionRoute (EditFeedbackAction item.id)) { actionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("data-turbolinks", "false")] }) [hsx|Edit|]
     publish = renderFrontendSurfaceActionForm (Action.publishFeedbackAction Action.publishFeedbackActionFields)
         (feedbackActionRoute (PublishFeedbackAction item.id)) [hsx|<button class="btn btn-primary" type="submit">Publish</button>|]
-    archive = renderFrontendSurfaceActionForm (Action.archiveFeedbackAction Action.archiveFeedbackActionFields)
-        (feedbackActionRoute (ArchiveFeedbackAction item.id)) [hsx|<button class="btn btn-outline-danger" type="submit">Confirm archive</button>|]
+    archive = renderFrontendSurfaceActionForm (Action.openFeedbackArchiveConfirmationAction Action.openFeedbackArchiveConfirmationActionFields)
+        (feedbackActionRoute (ShowFeedbackArchiveConfirmationAction item.id)) [hsx|<button class="btn btn-outline-danger" type="submit">Archive</button>|]
     restore = renderFrontendSurfaceActionForm (Action.restoreFeedbackAction Action.restoreFeedbackActionFields)
         (feedbackActionRoute (RestoreFeedbackAction item.id)) [hsx|<button class="btn btn-outline-secondary" type="submit">Restore</button>|]
     controls = case item.lifecycle of
         Private -> [hsx|{edit}{publish}{archive}|]
-        Public -> [hsx|{edit}<details><summary class="btn btn-outline-danger">Archive</summary><p>Archive this public feedback? All votes will be removed.</p>{archive}</details>|]
+        Public -> [hsx|{edit}{archive}|]
         Archived -> restore
+
+renderFeedbackArchiveConfirmation :: (?context :: ControllerContext) => UserFeedbackItem -> Html
+renderFeedbackArchiveConfirmation feedbackItem =
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Archive feedback?"
+            confirmationCopy
+            formId
+            archiveForm)
+            { confirmationDialogApproveLabel = "Archive"
+            , confirmationDialogApproveTone = ConfirmationDanger
+            , confirmationDialogLoadingLabel = "Archiving…"
+            }
+  where
+    formId = "archive-feedback-confirmation-form"
+    confirmationCopy
+        | feedbackItem.lifecycle == Public = [hsx|<p class="mb-0">Archive this public feedback? All votes will be removed.</p>|]
+        | otherwise = [hsx|<p class="mb-0">Archive this feedback?</p>|]
+    archiveForm =
+        renderFrontendSurfaceActionForm
+            (Action.archiveFeedbackAction Action.archiveFeedbackActionFields)
+            ((feedbackActionRoute (ArchiveFeedbackAction feedbackItem.id))
+                { actionRouteExtraAttrs = [("id", formId)]
+                })
+            mempty

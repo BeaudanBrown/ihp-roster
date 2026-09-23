@@ -261,7 +261,6 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.HtmxActionIncludeIR (Contract.HtmxTypedSyntaxIR "#filters" [])
                 , Contract.HtmxActionSyncIR (Contract.HtmxTypedSyntaxIR "closest form:queue" [])
                 , Contract.HtmxActionIndicatorIR (Contract.HtmxTypedSyntaxIR "#spinner" [])
-                , Contract.HtmxActionConfirmIR "Continue?"
                 , Contract.HtmxActionSelectIR (Contract.HtmxTypedSyntaxIR "#fragment" [])
                 , Contract.HtmxActionTargetIR (Contract.HtmxTypedSyntaxIR "#target" [])
                 , Contract.HtmxActionSwapIR (Contract.HtmxTypedSyntaxIR "outerHTML" [])
@@ -278,7 +277,6 @@ tests = describe "Frontend contract generator foundation" do
                        , ("hx-include", "#filters")
                        , ("hx-sync", "closest form:queue")
                        , ("hx-indicator", "#spinner")
-                       , ("hx-confirm", "Continue?")
                        , ("hx-select", "#fragment")
                        , ("hx-target", "#target")
                        , ("hx-swap", "outerHTML")
