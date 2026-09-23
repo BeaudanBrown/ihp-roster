@@ -3,7 +3,7 @@ import { createFocusedFieldProtection } from "../live-updates/focus";
 import { createLiveUpdateConnection } from "../live-updates/connection";
 import { createLiveUpdateInvalidationRuntime, type LiveUpdateVersionStore } from "../live-updates/invalidation";
 import type { LiveFragmentRefresher } from "../live-updates/refresh";
-import type { SurfaceSubscription } from "../live-updates/runtime-types";
+import type { LiveUpdateFragmentWithState, SurfaceSubscription } from "../live-updates/runtime-types";
 import {
     buildLiveUpdateSubscribeCommand,
     buildSurfaceSubscription,
@@ -74,7 +74,10 @@ const scope: SurfaceScope = {
     },
 };
 
-const fragment: FrontendSurfaceMountedFragmentConfig = {
+const testOwnerEl = {} as HTMLElement;
+
+const fragment: LiveUpdateFragmentWithState = {
+    ownerEl: testOwnerEl,
     fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { operationalDate: "2025-01-07" } },
     targetId: "timesheet-day-2025-01-07",
     url: "/ShowTimesheetDaySectionFragment?operationalDate=2025-01-07",
@@ -101,6 +104,8 @@ test("modular invalidation owner tolerates duplicate listener and actor refreshe
     };
     const activeSubscriptions = new Map([[subscription.scopeKey, subscription]]);
     const refresher: LiveFragmentRefresher = {
+        activateOwner: () => undefined,
+        disposeOwner: () => undefined,
         request: (candidate) => { requested.push(candidate); },
         flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
         flushFocusedFragmentsWithoutActiveInputs: () => undefined,
@@ -151,7 +156,8 @@ test("Admin Xero reconnect refetches while unrelated global version gaps do not"
         surface: "admin-xero",
         scope: { venueId: "00000000-0000-0000-0000-000000000001" },
     };
-    const xeroFragment: FrontendSurfaceMountedFragmentConfig = {
+    const xeroFragment: LiveUpdateFragmentWithState = {
+        ownerEl: testOwnerEl,
         fragmentKey: { surface: "admin-xero", kind: "admin-xero-reference-sync", params: null },
         targetId: "admin-xero-reference-sync-fragment",
         url: "/ShowadminXeroReferenceSyncLiveFragment",
@@ -159,6 +165,8 @@ test("Admin Xero reconnect refetches while unrelated global version gaps do not"
     };
     const requested: FrontendSurfaceMountedFragmentConfig[] = [];
     const refresher: LiveFragmentRefresher = {
+        activateOwner: () => undefined,
+        disposeOwner: () => undefined,
         request: (candidate) => { requested.push(candidate); },
         flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
         flushFocusedFragmentsWithoutActiveInputs: () => undefined,

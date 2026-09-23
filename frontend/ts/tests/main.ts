@@ -20,6 +20,7 @@ import "./low-risk.test";
 import "./medium-risk.test";
 import "./overlay.test";
 import "./live-updates.test";
+import "./live-fragment-refresh-lifetime.test";
 import "./live-updates-validation.test";
 import "./live-fragment-request-context.test";
 import { runTests } from "./harness";

@@ -18,6 +18,7 @@ export type LiveUpdatePreservedField = {
 };
 
 export type LiveUpdateFragmentWithState = FrontendSurfaceMountedFragmentConfig & {
+    ownerEl: HTMLElement;
     preserveField?: LiveUpdatePreservedField;
 };
 
@@ -29,10 +30,6 @@ export type SurfaceSubscription = {
     renderedDependencyWatermark: number;
     ownerEls: HTMLElement[];
     resync: (subscription: SurfaceSubscription) => void;
-};
-
-export type InFlightFragmentState = {
-    next: LiveUpdateFragmentWithState | null;
 };
 
 export type FragmentProtectionAdapter = {
