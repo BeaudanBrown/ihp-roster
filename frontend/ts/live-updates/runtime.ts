@@ -1,4 +1,4 @@
-import { dialogDismissedEvent, interactionSessionEndEvent, liveFragmentsRefreshEvent, pageReadyEvent } from "../generated/contracts";
+import { dialogDismissedEvent, interactionSessionEndEvent, interactionSessionStartEvent, liveFragmentsRefreshEvent, pageReadyEvent } from "../generated/contracts";
 import { createActiveInteractionSessionTracker } from "../interaction/session-state";
 import { createLiveUpdateConnection, type LiveUpdateConnection } from "./connection";
 import { createLiveUpdateDiagnostics } from "./diagnostics";
@@ -67,6 +67,13 @@ export function enableLiveUpdateRuntime(): void {
     });
 
     document.addEventListener(liveFragmentsRefreshEvent, invalidation.handleActorEvent);
+    document.addEventListener(interactionSessionStartEvent, (event) => {
+        if (!(event instanceof CustomEvent) || !(event.detail?.mount instanceof Element)) return;
+        refresher.markProtectionChanged(event.detail.mount);
+    });
+    document.addEventListener("focusin", (event) => {
+        if (event.target instanceof Element) refresher.markProtectionChanged(event.target);
+    });
     document.addEventListener(interactionSessionEndEvent, () => {
         refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
         refresher.flushFocusedFragmentsWithoutActiveInputs();

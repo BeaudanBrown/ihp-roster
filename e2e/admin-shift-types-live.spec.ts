@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { parseFrontendSurfaceMountConfig, surfaceConfigDomAttr, surfaceDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { openAdminWithSeededPasskeySession } from './support/passkeys';
 
@@ -70,8 +71,6 @@ test.describe('Admin shift types live updates', () => {
 
             const focusedName = viewer.locator('#admin-shift-types-fragment input[data-admin-shift-type-field-key]').first();
             const originalName = await focusedName.inputValue();
-            await focusedName.focus();
-            await expect(focusedName).toBeFocused();
             await viewer.evaluate(() => {
                 (window as Window & { __focusedFieldDeferrals?: number }).__focusedFieldDeferrals = 0;
                 document.addEventListener('app:live-update-performance', (event) => {
@@ -83,6 +82,22 @@ test.describe('Admin shift types live updates', () => {
                 });
             });
 
+            const rawConfig = await viewer.locator(`[${surfaceDomAttr}="admin-shift-types"]`).getAttribute(surfaceConfigDomAttr);
+            if (!rawConfig) throw new Error('Expected admin shift-types mount config');
+            const mountConfig = parseFrontendSurfaceMountConfig(JSON.parse(rawConfig));
+            const mountedFragment = mountConfig.fragments.find((candidate) => candidate.targetId === 'admin-shift-types-fragment');
+            if (!mountedFragment) throw new Error('Expected admin shift-types live fragment');
+            const fragmentUrl = new URL(mountedFragment.url, viewer.url()).toString();
+            let releaseDelayedResponse!: () => void;
+            const delayedResponse = new Promise<void>((resolve) => { releaseDelayedResponse = resolve; });
+            let interceptedRefreshes = 0;
+            await viewer.route(fragmentUrl, async (route) => {
+                interceptedRefreshes += 1;
+                const response = await route.fetch();
+                if (interceptedRefreshes === 1) await delayedResponse;
+                await route.fulfill({ response });
+            });
+
             await openAdminWithSeededPasskeySession(actor);
             await actor.getByRole('button', { name: 'Shift Types' }).click();
             await expect(actor.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
@@ -92,7 +107,11 @@ test.describe('Admin shift types live updates', () => {
             await actor.locator('#new-shift-type-name').fill(shiftTypeName);
             await actor.locator('#admin-shift-types-fragment form').first().getByRole('button', { name: 'Add' }).click();
             await expect(actor.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
+            await expect.poll(() => interceptedRefreshes, { timeout: E2E_TIMEOUT.liveUpdate }).toBe(1);
 
+            await focusedName.focus();
+            await expect(focusedName).toBeFocused();
+            releaseDelayedResponse();
             await expect.poll(() => viewer.evaluate(() => (window as Window & { __focusedFieldDeferrals?: number }).__focusedFieldDeferrals ?? 0), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(0);
             await expect(viewer.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(0);
             await expect(focusedName).toBeFocused();
@@ -100,6 +119,7 @@ test.describe('Admin shift types live updates', () => {
 
             await focusedName.blur();
 
+            await expect.poll(() => interceptedRefreshes, { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThanOrEqual(2);
             await expect(viewer.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewer.locator('#admin-shift-types-fragment input[data-admin-shift-type-field-key]').first()).toHaveValue(originalName);
         } finally {

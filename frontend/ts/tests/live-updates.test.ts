@@ -106,6 +106,7 @@ test("modular invalidation owner tolerates duplicate listener and actor refreshe
     const refresher: LiveFragmentRefresher = {
         activateOwner: () => undefined,
         disposeOwner: () => undefined,
+        markProtectionChanged: () => undefined,
         request: (candidate) => { requested.push(candidate); },
         flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
         flushFocusedFragmentsWithoutActiveInputs: () => undefined,
@@ -167,6 +168,7 @@ test("Admin Xero reconnect refetches while unrelated global version gaps do not"
     const refresher: LiveFragmentRefresher = {
         activateOwner: () => undefined,
         disposeOwner: () => undefined,
+        markProtectionChanged: () => undefined,
         request: (candidate) => { requested.push(candidate); },
         flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
         flushFocusedFragmentsWithoutActiveInputs: () => undefined,
