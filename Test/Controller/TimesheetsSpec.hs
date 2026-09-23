@@ -619,6 +619,8 @@ tests = aroundAll withDatabaseTestContext do
                 sidePanelResponse `responseStatusShouldBe` status200
                 sidePanelResponse `responseBodyShouldContain` "id=\"timesheet-side-panel-content\""
                 sidePanelResponse `responseBodyShouldContain` "timesheet-manager-mode-toggle"
+                sidePanelResponse `responseBodyShouldNotContain` "data-bepis-timesheets-timesheet-side-panel-panel=\"true\""
+                sidePanelResponse `responseBodyShouldContain` "Show approved"
 
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
             withCleanDb do
@@ -2274,9 +2276,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Show approved"
                 response `responseBodyShouldNotContain` "Show all staff"
                 response `responseBodyShouldContain` "app-toggle-button"
+                response `responseBodyShouldContain` "checked=\"checked\" data-bepis-toggle-input=\"toggle-transport:timesheet-show-approved-toggle\""
                 response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-show-approved-toggle\""
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
-                response `responseBodyShouldContain` "aria-pressed=\"false\""
+                response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
 

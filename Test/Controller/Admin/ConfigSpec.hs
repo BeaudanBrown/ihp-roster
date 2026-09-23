@@ -464,9 +464,10 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "type=\"hidden\" name=\"isActive\" value=\"false\""
                 pageResponse `responseBodyShouldContain` ("id=\"shift-type-active-" <> tshow shiftType.id <> "\"")
                 pageResponse `responseBodyShouldContain` "app-toggle-button"
+                pageResponse `responseBodyShouldContain` "app-toggle-button-input\" type=\"checkbox\" checked=\"checked\""
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-transport=\""
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-config=\""
-                pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""
+                pageResponse `responseBodyShouldNotContain` "aria-pressed="
                 pageResponse `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"input changed delay:600ms, blur changed\""

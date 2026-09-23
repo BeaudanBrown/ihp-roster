@@ -1854,11 +1854,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldContain` "Show roster warnings"
+                managerResponse `responseBodyShouldContain` "name=\"showRosterWarnings\" value=\"false\""
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 workerResponse `responseStatusShouldBe` status200
+                workerResponse `responseBodyShouldNotContain` "Warnings enabled"
                 workerResponse `responseBodyShouldNotContain` "Show roster warnings"
                 workerResponse `responseBodyShouldContain` "data-roster-warnings=\"hidden\""
 
@@ -2059,6 +2061,8 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseBodyShouldContain` ">Wages<"
                 adminResponse `responseBodyShouldContain` "roster-day-wage-total"
                 adminResponse `responseBodyShouldContain` "aria-label=\"Wages for day\""
+                adminResponse `responseBodyShouldContain` "Show expected wage estimates"
+                adminResponse `responseBodyShouldContain` "name=\"showWageEstimates\" value=\"true\""
                 adminResponse `responseBodyShouldNotContain` "Admin estimate only"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
@@ -2150,11 +2154,14 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenWagesFrameResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages disabled"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "Expected gross wages:"
+                hiddenWagesFrameResponse `responseBodyShouldNotContain` "Show expected wage estimates"
                 hiddenWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
-                        (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
+                        (ShowRosterSettingsFragmentAction (tshow (testAnchorForOffset 0)))
                         [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
                 hiddenWagesPanelResponse `responseStatusShouldBe` status200
+                hiddenWagesPanelResponse `responseBodyShouldContain` "Show expected wage estimates"
+                hiddenWagesPanelResponse `responseBodyShouldContain` "name=\"showWageEstimates\" value=\"false\""
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 hiddenPreferences <- query @UserPreference
@@ -2173,6 +2180,7 @@ tests = aroundAll withDatabaseTestContext do
                 managerResponse `responseBodyShouldContain` "roster-wage-summary"
                 managerResponse `responseBodyShouldContain` "roster-day-wage-total"
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
+                managerResponse `responseBodyShouldNotContain` "Show expected wage estimates"
 
                 managerToggleResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UpdateRosterWageEstimatePreferenceAction
@@ -2216,6 +2224,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 response `responseBodyShouldContain` "Own Published-shift highlight preference saved."
+                response `responseBodyShouldNotContain` "id=\"roster-staff-self-service-panel-fragment\""
+                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-settings-content\"")
                 preferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId worker.id)
                     |> fetchOne
@@ -2225,6 +2237,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 refreshedResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
                 refreshedResponse `responseBodyShouldContain` "Highlight my shifts"
+                refreshedResponse `responseBodyShouldContain` "name=\"highlightOwnLiveShifts\" value=\"false\""
 
         it "allows wage estimates when roster end times are hidden" $ withContext do
             withCleanDb do
@@ -2257,6 +2270,7 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
                 adminResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
                 adminResponse `responseBodyShouldContain` "Show expected wage estimates"
+                adminResponse `responseBodyShouldContain` "name=\"showWageEstimates\" value=\"false\""
                 adminResponse `responseBodyShouldNotContain` "Wages:"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldNotContain` "roster-day-wage-total"
@@ -2278,11 +2292,13 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                 shownWagesFrameResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
                 shownWagesFrameResponse `responseBodyShouldNotContain` "Show expected wage estimates"
+                shownWagesFrameResponse `responseBodyShouldContain` "Expected gross wages:"
                 shownWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
                         (ShowRosterSettingsFragmentAction (tshow (testAnchorForOffset 0)))
                         [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
                 shownWagesPanelResponse `responseBodyShouldContain` "Show expected wage estimates"
+                shownWagesPanelResponse `responseBodyShouldContain` "name=\"showWageEstimates\" value=\"true\""
                 shownWagesFrameResponse `responseBodyShouldContain` "$150.00"
                 shownWagesFrameResponse `responseBodyShouldContain` "roster-wage-summary"
                 shownWagesFrameResponse `responseBodyShouldContain` "roster-day-wage-total"
@@ -2775,6 +2791,17 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-root=\"true\""
                 response `responseBodyShouldNotContain` "id=\"roster-template-library-mount\""
                 response `responseBodyShouldNotContain` "Save current week as template"
+                response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab="
+                response `responseBodyShouldNotContain` "Highlight my shifts"
+
+                pageResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                pageResponse `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
+                pageResponse `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
+                pageResponse `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                pageResponse `responseBodyShouldContain` "id=\"roster-template-library-mount\""
+                pageResponse `responseBodyShouldContain` "Save current week as template"
+                pageResponse `responseBodyShouldContain` "Highlight my shifts"
 
         it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do
             withCleanDb do
