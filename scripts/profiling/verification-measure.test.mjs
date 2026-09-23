@@ -114,6 +114,69 @@ test('oversized and symlinked source inputs are unavailable rather than partiall
     assert.equal(inspect(output).status, 0);
 });
 
+test('records monotonic owner phase boundaries through the command interface', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import subprocess,sys,time\nevent=[sys.executable,${JSON.stringify(recorder)},'event','--phase','compile','--scope','0','--edge']\nsubprocess.run(event+['start'],check=True)\ntime.sleep(0.1)\nsubprocess.run(event+['finish'],check=True)`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.state, 'observed');
+    assert.equal(phases.intervals.length, 1);
+    assert.equal(phases.intervals[0].phase, 'compile');
+    assert.equal(phases.intervals[0].status, 'finished');
+    assert.ok(phases.intervals[0].durationSeconds >= 0.1);
+    assert.equal(inspect(output).status, 0);
+    rmSync(join(output, 'events', '000.json'));
+    assert.equal(inspect(output).status, 2);
+});
+
+test('concurrent phase producers retain separate scopes without taking over events', (t) => {
+    const output = fixture(t);
+    const child = `import subprocess,sys,time\nevent=[sys.executable,${JSON.stringify(recorder)},'event','--phase','hspec-execution','--scope',sys.argv[1],'--edge']\nsubprocess.run(event+['start'],check=True)\ntime.sleep(0.1)\nsubprocess.run(event+['finish'],check=True)`;
+    const result = run(output, `import subprocess,sys\nchildren=[subprocess.Popen([sys.executable,'-c',${JSON.stringify(child)},str(i)]) for i in (1,2)]\nassert all(p.wait()==0 for p in children)`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.state, 'observed');
+    assert.deepEqual(phases.intervals.map(row => row.scope).sort(), [1, 2]);
+    assert.ok(phases.intervals.every(row => row.status === 'finished' && row.durationSeconds >= 0.1));
+    assert.equal(inspect(output).status, 0);
+});
+
+test('failed commands preserve explicitly failed and unfinished phases without inventing durations', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import subprocess,sys\nbase=[sys.executable,${JSON.stringify(recorder)},'event']\nsubprocess.run(base+['--phase','compile','--scope','0','--edge','start'],check=True)\nfor edge in ('start','fail'):\n subprocess.run(base+['--phase','hspec-execution','--scope','1','--edge',edge],check=True)\nraise SystemExit(17)`);
+    assert.equal(result.status, 17, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    const unfinished = phases.intervals.find(row => row.phase === 'compile');
+    assert.equal(unfinished.status, 'unfinished');
+    assert.equal(unfinished.durationSeconds, null);
+    assert.equal(phases.intervals.find(row => row.phase === 'hspec-execution').status, 'failed');
+    assert.equal(inspect(output).status, 17);
+});
+
+test('malformed phase evidence cannot certify measurement or replace the command exit', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import os,pathlib\n(pathlib.Path(os.environ['BEPIS_VERIFICATION_EVENTS'])/'000.json').write_text('{"private":"never-echo-this"}')\nraise SystemExit(17)`);
+    assert.equal(result.status, 17);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.state, 'invalid');
+    assert.equal(phases.invalidEvents, 1);
+    assert.equal(JSON.parse(readFileSync(join(output, 'result.json'))).measurementStatus, 'incomplete');
+    const checked = inspect(output);
+    assert.equal(checked.status, 2);
+    assert.doesNotMatch(checked.stdout + checked.stderr, /never-echo-this/);
+});
+
+test('phase journal overflow is explicit and cannot silently become complete evidence', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import subprocess,sys\nbase=[sys.executable,${JSON.stringify(recorder)},'event','--phase','compile','--scope','0','--edge']\nfor i in range(128):\n assert subprocess.run(base+['start' if i%2==0 else 'finish']).returncode==0\nassert subprocess.run(base+['start']).returncode==2`, { timeout: 20_000 });
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.state, 'truncated');
+    assert.equal(phases.overflow, true);
+    assert.equal(phases.intervals.length, 64);
+    assert.equal(inspect(output).status, 2);
+});
+
 test('retains failures and launch failures without certifying success', (t) => {
     const output = fixture(t);
     const result = run(output, 'raise SystemExit(17)');
@@ -289,7 +352,7 @@ test('publication cannot overwrite an injected completion file', async (t) => {
 test('inspection requires bounded valid metadata and lifecycle evidence', (t) => {
     const output = fixture(t);
     assert.equal(run(output, 'pass').status, 0);
-    for (const name of ['metadata.json', 'run.json', 'provenance.json']) {
+    for (const name of ['metadata.json', 'run.json', 'provenance.json', 'phases.json']) {
         const path = join(output, name);
         const valid = readFileSync(path, 'utf8');
         rmSync(path);

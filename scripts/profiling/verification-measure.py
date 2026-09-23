@@ -22,6 +22,9 @@ import verification_provenance
 
 
 MAX_ARTIFACT_BYTES = 65536
+MAX_PHASE_EVENTS = 128
+PHASES = ('compile', 'hspec-execution', 'database-create', 'database-drop', 'parallel-run')
+EDGES = ('start', 'finish', 'fail', 'ready')
 
 
 @contextmanager
@@ -55,7 +58,11 @@ def verify_directory(path, descriptor):
 
 
 def publish(descriptor, name, value):
-    temporary = '.' + name + '.' + secrets.token_hex(8) + '.pending'
+    publish_available(descriptor, [name], value)
+
+
+def publish_available(descriptor, names, value):
+    temporary = '.' + secrets.token_hex(8) + '.pending'
     encoded = json.dumps(value, indent=2, allow_nan=False).encode() + b'\n'
     if len(encoded) > MAX_ARTIFACT_BYTES:
         raise ValueError('artifact too large')
@@ -66,10 +73,120 @@ def publish(descriptor, name, value):
         os.fsync(handle.fileno())
     try:
         # Atomic create-only publication: never replace another writer's file.
-        os.link(temporary, name, src_dir_fd=descriptor, dst_dir_fd=descriptor, follow_symlinks=False)
-        os.fsync(descriptor)
+        for name in names:
+            try:
+                os.link(temporary, name, src_dir_fd=descriptor, dst_dir_fd=descriptor, follow_symlinks=False)
+            except FileExistsError:
+                continue
+            os.fsync(descriptor)
+            return
+        raise FileExistsError('no unclaimed publication slot')
     finally:
         os.unlink(temporary, dir_fd=descriptor)
+
+
+def phase_scope(value):
+    try:
+        scope = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError('scope must be an integer from 0 to 65535') from error
+    if not 0 <= scope <= 65535:
+        raise argparse.ArgumentTypeError('scope must be an integer from 0 to 65535')
+    return scope
+
+
+def event(args):
+    target = os.environ.get('BEPIS_VERIFICATION_EVENTS')
+    if not target:
+        return 0
+    value = {'schemaVersion': 1, 'phase': args.phase, 'scope': args.scope,
+             'edge': args.edge, 'atSeconds': time.monotonic()}
+    with directory(target) as root:
+        try:
+            publish_available(root, (f'{index:03}.json' for index in range(MAX_PHASE_EVENTS)), value)
+        except FileExistsError:
+            try:
+                publish(root, 'overflow.json', {'schemaVersion': 1, 'overflow': True})
+            except FileExistsError:
+                pass
+            return 2
+    return 0
+
+
+def collect_phases(root, start, wall):
+    events, invalid = [], 0
+    for index in range(MAX_PHASE_EVENTS):
+        try:
+            value = read_artifact(root, f'{index:03}.json')
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError):
+            invalid += 1
+            continue
+        if (set(value) != {'schemaVersion', 'phase', 'scope', 'edge', 'atSeconds'}
+                or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+                or value['phase'] not in PHASES or value['edge'] not in EDGES
+                or type(value['scope']) is not int or not 0 <= value['scope'] <= 65535
+                or not finite_number(value['atSeconds'])
+                or not start <= value['atSeconds'] <= start + wall + 0.000001):
+            invalid += 1
+            continue
+        events.append(value)
+    overflow = False
+    try:
+        marker = read_artifact(root, 'overflow.json')
+        overflow = True
+        if marker != {'schemaVersion': 1, 'overflow': True}:
+            invalid += 1
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError):
+        invalid += 1
+    active, intervals = {}, []
+    for value in sorted(events, key=lambda item: item['atSeconds']):
+        key = (value['phase'], value['scope'])
+        if value['edge'] == 'start':
+            if key in active:
+                invalid += 1
+            else:
+                active[key] = value['atSeconds']
+        elif key not in active:
+            invalid += 1
+        else:
+            began = active.pop(key)
+            intervals.append({'phase': key[0], 'scope': key[1],
+                              'status': {'finish': 'finished', 'fail': 'failed', 'ready': 'ready'}[value['edge']],
+                              'offsetSeconds': began - start, 'durationSeconds': value['atSeconds'] - began})
+    for (phase, scope), began in active.items():
+        intervals.append({'phase': phase, 'scope': scope, 'status': 'unfinished',
+                          'offsetSeconds': began - start, 'durationSeconds': None})
+    return {'schemaVersion': 1, 'state': 'invalid' if invalid else 'truncated' if overflow else 'observed' if events else 'unavailable',
+            'clockOriginSeconds': start, 'invalidEvents': invalid, 'overflow': overflow, 'intervals': intervals}
+
+
+def validate_phases(value, wall):
+    if (not finite_number(wall)
+            or set(value) != {'schemaVersion', 'state', 'clockOriginSeconds', 'invalidEvents', 'overflow', 'intervals'}
+            or not finite_number(value['clockOriginSeconds'])
+            or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+            or type(value['invalidEvents']) is not int or value['invalidEvents'] < 0
+            or type(value['overflow']) is not bool
+            or not isinstance(value['intervals'], list) or len(value['intervals']) > MAX_PHASE_EVENTS):
+        raise ValueError('invalid phase evidence')
+    expected = ('invalid' if value['invalidEvents'] else 'truncated' if value['overflow']
+                else 'observed' if value['intervals'] else 'unavailable')
+    if value['state'] != expected or expected in ('invalid', 'truncated'):
+        raise ValueError('invalid or truncated phase evidence')
+    for item in value['intervals']:
+        if (not isinstance(item, dict)
+                or set(item) != {'phase', 'scope', 'status', 'offsetSeconds', 'durationSeconds'}
+                or item['phase'] not in PHASES or type(item['scope']) is not int or not 0 <= item['scope'] <= 65535
+                or item['status'] not in ('finished', 'failed', 'ready', 'unfinished')
+                or not finite_number(item['offsetSeconds']) or item['offsetSeconds'] > wall + 0.000001
+                or (item['status'] == 'unfinished' and item['durationSeconds'] is not None)
+                or (item['status'] != 'unfinished' and
+                    (not finite_number(item['durationSeconds']) or item['durationSeconds'] > wall - item['offsetSeconds'] + 0.000001))):
+            raise ValueError('invalid phase interval')
 
 
 def revision():
@@ -108,7 +225,7 @@ def tree_rss(root):
 
 
 def finite_number(value):
-    return type(value) in (int, float) and math.isfinite(value) and value >= 0
+    return type(value) in (int, float) and 0 <= value <= 1e18 and math.isfinite(value)
 
 
 def unique_object(pairs):
@@ -136,7 +253,7 @@ def read_artifact(root, name):
 
 def validate_metadata(metadata, lifecycle):
     if (set(metadata) != {'schemaVersion', 'owner', 'cacheState', 'revision', 'capturedAt', 'commandSha256'}
-            or type(metadata['schemaVersion']) is not int or metadata['schemaVersion'] not in (1, 2)
+            or type(metadata['schemaVersion']) is not int or metadata['schemaVersion'] not in (1, 2, 3)
             or not isinstance(metadata['owner'], str)
             or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}', metadata['owner'])
             or metadata['cacheState'] not in ('retained', 'warm', 'output-cold')
@@ -158,9 +275,15 @@ def inspect(path):
     with directory(path) as root:
         metadata = read_artifact(root, 'metadata.json')
         validate_metadata(metadata, read_artifact(root, 'run.json'))
-        if metadata['schemaVersion'] == 2:
+        if metadata['schemaVersion'] >= 2:
             verification_provenance.validate(read_artifact(root, 'provenance.json'))
         result = read_artifact(root, 'result.json')
+        if metadata['schemaVersion'] >= 3:
+            phases = read_artifact(root, 'phases.json')
+            validate_phases(phases, result.get('wallSeconds'))
+            with directory(Path(path) / 'events') as events_root:
+                if collect_phases(events_root, phases['clockOriginSeconds'], result['wallSeconds']) != phases:
+                    raise ValueError('phase journal disagrees with summary')
         verify_directory(path, root)
     wall = result.get('wallSeconds')
     code = result.get('exitCode')
@@ -193,7 +316,7 @@ def inspect(path):
     return code
 
 
-def execute(command, termination_grace_seconds):
+def execute(command, termination_grace_seconds, environment):
     process = None
     interrupted = None
     interrupted_at = None
@@ -215,9 +338,9 @@ def execute(command, termination_grace_seconds):
     start = time.monotonic()
     try:
         try:
-            process = subprocess.Popen(command, start_new_session=True)
+            process = subprocess.Popen(command, start_new_session=True, env=environment)
         except OSError:
-            return 127, 'launch-failed', time.monotonic() - start, None, memory
+            return 127, 'launch-failed', time.monotonic() - start, None, memory, start
         if interrupted is not None:
             forward(interrupted, None)
         while True:
@@ -246,9 +369,9 @@ def execute(command, termination_grace_seconds):
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            return 128 + interrupted, 'interrupted', wall, cpu, memory
+            return 128 + interrupted, 'interrupted', wall, cpu, memory, start
         code = process.returncode if process.returncode >= 0 else 128 - process.returncode
-        return code, 'passed' if code == 0 else 'failed', wall, cpu, memory
+        return code, 'passed' if code == 0 else 'failed', wall, cpu, memory, start
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
@@ -264,19 +387,27 @@ def run(args):
         raise ValueError('invalid public owner label')
     with directory(args.output, create=True) as root:
         publish(root, 'metadata.json', {
-            'schemaVersion': 2, 'owner': args.owner, 'cacheState': args.cache_state,
+            'schemaVersion': 3, 'owner': args.owner, 'cacheState': args.cache_state,
             'revision': revision(),
             'capturedAt': datetime.now(timezone.utc).isoformat(),
             'commandSha256': hashlib.sha256(json.dumps(command).encode()).hexdigest(),
         })
         publish(root, 'provenance.json', verification_provenance.capture(directory))
         publish(root, 'run.json', {'schemaVersion': 1, 'state': 'started'})
-        code, status, wall, cpu, memory = execute(command, args.termination_grace_seconds)
+        os.mkdir('events', mode=0o700, dir_fd=root)
+        events_path = Path(args.output).absolute() / 'events'
+        with directory(events_path) as events_root:
+            environment = {**os.environ, 'BEPIS_VERIFICATION_EVENTS': str(events_path)}
+            code, status, wall, cpu, memory, start = execute(command, args.termination_grace_seconds, environment)
+            verify_directory(events_path, events_root)
+            phases = collect_phases(events_root, start, wall)
         verify_directory(args.output, root)
+        publish(root, 'phases.json', phases)
         publish(root, 'result.json', {
             'schemaVersion': 1, 'authority': 'diagnostic-only',
             'commandStatus': status,
-            'measurementStatus': 'complete', 'exitCode': code,
+            'measurementStatus': 'incomplete' if phases['state'] in ('invalid', 'truncated') else 'complete',
+            'exitCode': code,
             'wallSeconds': wall, 'cpuSeconds': cpu,
             'cpuScope': 'waited-command-and-waited-descendants', 'memory': memory,
         })
@@ -293,10 +424,16 @@ def main():
     capture.add_argument('--cache-state', choices=['retained', 'warm', 'output-cold'], required=True)
     capture.add_argument('--termination-grace-seconds', type=int, choices=range(1, 61), default=10)
     capture.add_argument('command', nargs=argparse.REMAINDER)
+    emission = commands.add_parser('event')
+    emission.add_argument('--phase', choices=PHASES, required=True)
+    emission.add_argument('--scope', type=phase_scope, required=True)
+    emission.add_argument('--edge', choices=EDGES, required=True)
     check = commands.add_parser('inspect')
     check.add_argument('output')
     args = parser.parse_args()
     try:
+        if args.operation == 'event':
+            return event(args)
         return run(args) if args.operation == 'run' else inspect(args.output)
     except (OSError, ValueError):
         print('verification-measure: capture failed; no valid completion implied', file=sys.stderr)

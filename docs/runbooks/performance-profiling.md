@@ -108,7 +108,8 @@ Missing Git context, unsupported/symlinked inputs and exceeded capture bounds
 remain unavailable. Ignored files outside the two generated-source owners,
 external dependencies and compiler configuration are not covered; record these
 separately under the protocol above. Original metadata-v1 artifacts remain
-inspectable without provenance; metadata-v2 requires validated provenance.
+inspectable without provenance; metadata-v2 requires validated provenance and
+metadata-v3 additionally requires a validated phase journal and summary.
 
 `inspect` validates the completion schema and returns the recorded exit status;
 missing, corrupt or incomplete evidence returns 2. Completion is diagnostic,
@@ -126,8 +127,23 @@ sampled simultaneous descendant RSS, not summed historical maxima or unique
 physical memory: shared pages can be double-counted, and short-lived/reparented
 processes can be missed. No samples means unavailable, not zero. The timer has
 up to a polling interval plus sampling latency; collection overhead is included
-in the observation. This command-level recorder does not yet attribute linker,
-service-readiness, database or suite phases; #599 owns that integration.
+in the observation.
+
+The Hspec owner emits opt-in compilation, shard execution, database creation and
+disposal, and parallel-run boundaries. `phases.json` reports monotonic intervals
+relative to command start, including emission overhead; compilation is **not**
+linker-only time. Overlapping shard/parallel intervals must not be summed as
+command elapsed time. An unfinished phase has no invented duration. `observed`
+means some boundaries were captured, not complete phase coverage; uninstrumented
+owners remain unavailable. The journal is capped at 128 events per attempt;
+overflow and malformed evidence fail inspection without replacing the original
+command exit status. Event emission failure does not change Hspec selection,
+retry, cleanup or failure semantics. For paired overhead controls, run the same
+command through `env -u BEPIS_VERIFICATION_EVENTS`; never interpret that control's
+missing phase evidence as zero work.
+
+Service readiness, actual linker completion and per-suite resets remain outside
+these Hspec command boundaries; #599 owns those additional integrations.
 
 ## Request Instrumentation
 

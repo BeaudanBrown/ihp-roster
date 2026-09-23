@@ -32,6 +32,22 @@ if [ -n "$HSPEC_METRICS_DIR" ]; then
     : > "$HSPEC_PHASE_METRICS_FILE"
 fi
 
+# Opt-in diagnostics only: emission failure must not replace an owner result.
+verification_phase() {
+    if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ]; then
+        python3 "${BEPIS_SCRIPTS_ROOT:?}/../../../scripts/profiling/verification-measure.py" event \
+            --phase "$1" --scope "$2" --edge "$3" || true
+    fi
+}
+
+verification_phase_result() {
+    if [ "$3" -eq 0 ]; then
+        verification_phase "$1" "$2" finish
+    else
+        verification_phase "$1" "$2" fail
+    fi
+}
+
 metrics_now() {
     if [ -n "$HSPEC_PHASE_METRICS_FILE" ]; then
         date +%s.%N
@@ -154,9 +170,11 @@ VERIFICATION_DIR="$(ihp_roster_verification_build_dir)"
 ihp_roster_prepare_ghc_build_dir "$VERIFICATION_DIR" "$GHC_OPTS"
 mkdir -p build/Test
 compile_started_at="$(metrics_now)"
+verification_phase compile 0 start
 ghc $GHC_OPTS -main-is Test.HspecMain Test/HspecMain.hs -o build/Test/Main \
     -odir "$VERIFICATION_DIR/obj" \
     -hidir "$VERIFICATION_DIR/hi" 2>&1 | tee "$STATE_DIR/compile.log"
+verification_phase compile 0 finish
 compile_finished_at="$(metrics_now)"
 record_phase "compile" 0 "$compile_started_at" "$compile_finished_at"
 
@@ -174,17 +192,21 @@ if [ "$TEST_SHARDS" -eq 1 ]; then
         export TEST_DATABASE_NAME="$BASE_TEST_DATABASE_NAME"
         export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
         database_started_at="$(metrics_now)"
+        verification_phase database-create 1 start
         test-db-reset
+        verification_phase database-create 1 finish
         database_finished_at="$(metrics_now)"
         record_phase "shard_database_create" 1 "$database_started_at" "$database_finished_at"
     fi
 
     execution_started_at="$(metrics_now)"
+    verification_phase hspec-execution 1 start
     set +e
     build/Test/Main "$@" 2>&1 | tee "$STATE_DIR/shard-1.log"
     status="${PIPESTATUS[0]}"
     set -e
     execution_finished_at="$(metrics_now)"
+    verification_phase_result hspec-execution 1 "$status"
     record_phase "hspec_execution" 1 "$execution_started_at" "$execution_finished_at"
     script_finished_at="$(metrics_now)"
     record_phase "command_total" 0 "$script_started_at" "$script_finished_at"
@@ -225,9 +247,15 @@ run_test_shard() {
 
             local cleanup_started_at cleanup_finished_at
             cleanup_started_at="$(metrics_now)"
-            psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
+            verification_phase database-drop "$shard_index" start
+            if psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1
 DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
 SQL
+            then
+                verification_phase database-drop "$shard_index" finish
+            else
+                verification_phase database-drop "$shard_index" fail
+            fi
             cleanup_finished_at="$(metrics_now)"
             record_phase "shard_database_drop" "$shard_index" "$cleanup_started_at" "$cleanup_finished_at"
         }
@@ -235,18 +263,22 @@ SQL
 
         if [ "$TEST_LANE" != "pure" ]; then
             database_started_at="$(metrics_now)"
+            verification_phase database-create "$shard_index" start
             test-db-reset
+            verification_phase database-create "$shard_index" finish
             database_finished_at="$(metrics_now)"
             record_phase "shard_database_create" "$shard_index" "$database_started_at" "$database_finished_at"
         fi
 
         execution_started_at="$(metrics_now)"
+        verification_phase hspec-execution "$shard_index" start
         if build/Test/Main "$@"; then
             status=0
         else
             status=$?
         fi
         execution_finished_at="$(metrics_now)"
+        verification_phase_result hspec-execution "$shard_index" "$status"
         record_phase "hspec_execution" "$shard_index" "$execution_started_at" "$execution_finished_at"
         exit "$status"
     ) >"$shard_log" 2>&1 &
@@ -255,6 +287,7 @@ SQL
 }
 
 parallel_started_at="$(metrics_now)"
+verification_phase parallel-run 0 start
 for shard_index in $(seq 1 "$TEST_SHARDS"); do
     run_test_shard "$shard_index" "$@"
 done
@@ -270,6 +303,7 @@ for shard_offset in "${!shard_pids[@]}"; do
 done
 
 parallel_finished_at="$(metrics_now)"
+verification_phase_result parallel-run 0 "$failed"
 record_phase "parallel_run" 0 "$parallel_started_at" "$parallel_finished_at"
 
 if [ "$failed" -ne 0 ]; then
