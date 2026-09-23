@@ -1099,7 +1099,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "passkey-list@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
                 now <- getCurrentTime
-                _ <- createTestPasskeyRecord user "Phone passkey"
+                passkey <- createTestPasskeyRecord user "Phone passkey"
                     >>= updateRecord . set #lastUsedAt (Just (addUTCTime (negate (35 * 24 * 60 * 60)) now))
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -1112,10 +1112,24 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Email setup link for another device"
                 response `responseBodyShouldContain` "hx-get=\"/ShowPasskeyDeleteConfirmation?passkeyId="
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` cs (pathTo (ShowPasskeyDeleteConfirmationAction passkey.id))
+                response `responseBodyShouldNotContain` "hx-confirm="
+                response `responseBodyShouldNotContain` "window.confirm"
                 response `responseBodyShouldNotContain` "Created"
                 response `responseBodyShouldNotContain` "Rename"
                 response `responseBodyShouldNotContain` "id=\"passkey-management-name\""
                 response `responseBodyShouldNotContain` "data-begin-url=\"/BeginPasskeyRegistration\""
+
+                confirmation <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowPasskeyDeleteConfirmationAction passkey.id)
+                confirmation `responseStatusShouldBe` status200
+                confirmation `responseBodyShouldContain` "Delete <strong>Phone passkey</strong>?"
+                confirmation `responseBodyShouldContain` "You may need to verify with a passkey before it is removed."
+                confirmation `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
+                confirmation `responseBodyShouldContain` cs (pathTo (DeletePasskeyAction passkey.id))
+                confirmation `responseBodyShouldNotContain` "hx-confirm="
+                confirmation `responseBodyShouldNotContain` "window.confirm"
+                query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists >>= (`shouldBe` True)
 
         it "requires fresh passkey verification before an ordinary user deletes a passkey" $ withContext do
             withCleanDb do
