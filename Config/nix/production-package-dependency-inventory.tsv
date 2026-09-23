@@ -55,11 +55,11 @@ Data.Map.Strict	containers	Application/Helper/Profiling.hs via Main
 Data.Maybe	base	Application/Xero/Admin/PayItems.hs via Main
 Data.Ratio	base	Application/Helper/Export/Render.hs via Main
 Data.Scientific	scientific	Application/Helper/LiveUpdate/DurableCodec.hs via Main
-Data.Set	containers	Web/SurfaceInvalidation.hs via Main
+Data.Set	containers	Application/Helper/LiveUpdate/RequestState.hs via Main
 Data.Text	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding	text	Application/Helper/Telemetry.hs via Main
 Data.Text.Encoding.Error	text	Application/Helper/FrontendContract/Surface/Request.hs via Main
-Data.Text.IO	text	Application/Helper/FrontendContract/Registry.hs via Main
+Data.Text.IO	text	Application/Helper/Authentication.hs via Main
 Data.Time	time	Application/Helper/FrontendContract/Surface/Roster/Generated/Live.hs via Main
 Data.Time.Calendar	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Calendar.WeekDate	time	Application/VenueTime.hs via Main
@@ -135,7 +135,7 @@ OpenTelemetry.Context.ThreadLocal	hs-opentelemetry-api	Application/Helper/Teleme
 OpenTelemetry.Instrumentation.Wai	hs-opentelemetry-instrumentation-wai	Application/Helper/Telemetry.hs via Main
 OpenTelemetry.Trace	hs-opentelemetry-sdk	Application/Helper/Telemetry.hs via Main
 OpenTelemetry.Trace.Core	hs-opentelemetry-api	Application/Helper/Telemetry.hs via Main
-Prelude	base	Application/Error/Startup.hs via Main
+Prelude	base	Application/Error/Runtime.hs via Main
 System.Directory	directory	Web/Controller/StaffDocuments.hs via Main
 System.Environment	base	Application/Helper/Telemetry.hs via Main
 System.Exit	base	Application/Helper/FrontendContract/Registry.hs via Main

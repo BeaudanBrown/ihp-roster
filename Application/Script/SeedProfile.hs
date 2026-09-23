@@ -13,7 +13,9 @@ import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Generated.Types (RosterDay)
 import IHP.ControllerPrelude (pathTo)
+import IHP.ModelSupport (textToId)
 import IHP.Prelude
 import System.Directory (createDirectoryIfMissing)
 import qualified System.Environment as Environment
@@ -24,7 +26,7 @@ import Web.Routes ()
 import Web.Types (AdminController (AdminAction, ShowadminInvitesLiveFragmentAction, ShowadminRosterGroupsLiveFragmentAction, ShowadminShiftTypesLiveFragmentAction, ShowadminXeroShellLiveFragmentAction, XeroAction),
                   LeaveRequestsController (LeaveRequestsAction, ShowleaveRequestsContentLiveFragmentAction),
                   ProfilesController (EditProfileAction, ShowprofileContentLiveFragmentAction),
-                  RosterWeeksController (ShowRosterWeekContentFragmentAction, ShowRosterWeekOverviewFragmentAction, ShowRosterWeekStaffPanelFragmentAction, ShowRosterWindowAction),
+                  RosterWeeksController (ShowRosterWeekContentFragmentAction, ShowRosterWeekDaySectionFragmentAction, ShowRosterWeekGridFrameFragmentAction, ShowRosterWeekGridToolbarFragmentAction, ShowRosterWeekOverviewFragmentAction, ShowRosterWeekRowFragmentAction, ShowRosterWeekStaffPanelFragmentAction, ShowRosterWindowAction),
                   TimesheetsController (ShowTimesheetDaySectionFragmentAction, ShowTimesheetWindowAction, TimesheetsAction))
 
 run :: IO ()
@@ -209,6 +211,10 @@ renderProfileSeedManifest plan =
         , "    \"rosterHistorical\": " <> jsonString (rosterWeekPath historicalWindowStart 1 1) <> ","
         , "    \"rosterFuture\": " <> jsonString (rosterWeekPath futureWindowStart 1 1) <> ","
         , "    \"rosterContentFragment\": " <> jsonString (rosterWeekContentFragmentPath plan.currentWindowStart 1 1) <> ","
+        , "    \"rosterGridToolbarFragment\": " <> jsonString (rosterWeekGridToolbarFragmentPath plan.currentWindowStart 1 1) <> ","
+        , "    \"rosterGridFrameFragment\": " <> jsonString (rosterWeekGridFrameFragmentPath plan.currentWindowStart 1 1) <> ","
+        , "    \"rosterDaySectionFragment\": " <> jsonString (rosterWeekDaySectionFragmentPath plan.currentWindowStart 1 1 (rosterDayId 1 1 (plan.options.weeksHistory - 1) 0)) <> ","
+        , "    \"rosterRowFragment\": " <> jsonString (rosterWeekRowFragmentPath plan.currentWindowStart 1 1 (rosterDayId 1 1 (plan.options.weeksHistory - 1) 0) 0) <> ","
         , "    \"rosterStaffPanelFragment\": " <> jsonString (rosterWeekStaffPanelFragmentPath plan.currentWindowStart 1 1) <> ","
         , "    \"rosterOverviewFragment\": " <> jsonString (rosterWeekOverviewFragmentPath plan.currentWindowStart 1 1) <> ","
         , "    \"timesheetsCurrent\": " <> jsonString (timesheetWeekPath plan.currentWindowStart) <> ","
@@ -282,6 +288,30 @@ rosterWeekContentFragmentPath :: Day -> Int -> Int -> Text
 rosterWeekContentFragmentPath anchorDate venueIndex groupIndex =
     replaceQueryParams
         (pathTo (ShowRosterWeekContentFragmentAction (tshow anchorDate)))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+
+rosterWeekGridToolbarFragmentPath :: Day -> Int -> Int -> Text
+rosterWeekGridToolbarFragmentPath anchorDate venueIndex groupIndex =
+    replaceQueryParams
+        (pathTo (ShowRosterWeekGridToolbarFragmentAction (tshow anchorDate)))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+
+rosterWeekGridFrameFragmentPath :: Day -> Int -> Int -> Text
+rosterWeekGridFrameFragmentPath anchorDate venueIndex groupIndex =
+    replaceQueryParams
+        (pathTo (ShowRosterWeekGridFrameFragmentAction (tshow anchorDate)))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+
+rosterWeekDaySectionFragmentPath :: Day -> Int -> Int -> Text -> Text
+rosterWeekDaySectionFragmentPath anchorDate venueIndex groupIndex dayId =
+    replaceQueryParams
+        (pathTo (ShowRosterWeekDaySectionFragmentAction (tshow anchorDate) (textToId dayId :: Id RosterDay)))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+
+rosterWeekRowFragmentPath :: Day -> Int -> Int -> Text -> Int -> Text
+rosterWeekRowFragmentPath anchorDate venueIndex groupIndex dayId rowIndex =
+    replaceQueryParams
+        (pathTo (ShowRosterWeekRowFragmentAction (tshow anchorDate) (textToId dayId :: Id RosterDay) rowIndex))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
 
 rosterWeekStaffPanelFragmentPath :: Day -> Int -> Int -> Text

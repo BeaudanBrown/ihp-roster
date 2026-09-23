@@ -3,6 +3,10 @@
     "roster": [
       { "kind": "visit", "name": "roster.current.full", "routeKey": "rosterCurrent", "readySelector": "#roster-week-shell" },
       { "kind": "visit", "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment", "readySelector": "#roster-content" },
+      { "kind": "visit", "name": "roster.current.grid_toolbar_fragment", "routeKey": "rosterGridToolbarFragment", "readySelector": "#roster-grid-toolbar" },
+      { "kind": "visit", "name": "roster.current.grid_frame_fragment", "routeKey": "rosterGridFrameFragment", "readySelector": "#roster-grid-frame" },
+      { "kind": "visit", "name": "roster.current.day_section_fragment", "routeKey": "rosterDaySectionFragment", "readySelector": "[data-roster-day-section=\"true\"]" },
+      { "kind": "visit", "name": "roster.current.row_fragment", "routeKey": "rosterRowFragment", "readySelector": "[data-roster-row=\"true\"]" },
       { "kind": "visit", "name": "roster.current.staff_panel_fragment", "routeKey": "rosterStaffPanelFragment", "readySelector": "#roster-staff-panel-fragment" },
       { "kind": "visit", "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment", "readySelector": ".roster-week-overview-panel" },
       { "kind": "visit", "name": "roster.historical.full", "routeKey": "rosterHistorical", "readySelector": "#roster-week-shell" },
@@ -79,6 +83,10 @@
     "roster-projections": [
       { "name": "roster.current.full", "routeKey": "rosterCurrent" },
       { "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment" },
+      { "name": "roster.current.grid_toolbar_fragment", "routeKey": "rosterGridToolbarFragment" },
+      { "name": "roster.current.grid_frame_fragment", "routeKey": "rosterGridFrameFragment" },
+      { "name": "roster.current.day_section_fragment", "routeKey": "rosterDaySectionFragment" },
+      { "name": "roster.current.row_fragment", "routeKey": "rosterRowFragment" },
       { "name": "roster.current.staff_panel_fragment", "routeKey": "rosterStaffPanelFragment" }
     ],
     "fragments": [

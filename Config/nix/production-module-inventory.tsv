@@ -269,9 +269,9 @@ Application/Helper/LiveUpdate/DurableCodec.hs	production	runtime	Main	Reachable 
 Application/Helper/LiveUpdate/DurableListener.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/DurablePublisher.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/DurableState.hs	production	runtime	Main	Reachable from Main
-Application/Helper/LiveUpdate/RequestState.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Internal.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/OutboxPruning.hs	production	operational-script-closure	Application.Script.LiveInvalidationOutboxPrune	Reachable from Application.Script.LiveInvalidationOutboxPrune
+Application/Helper/LiveUpdate/RequestState.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Mail.hs	production	runtime	Main	Reachable from Main
 Application/Helper/NavigationContextInitialization.hs	production	runtime	Main	Reachable from Main

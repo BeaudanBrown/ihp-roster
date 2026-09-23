@@ -67,6 +67,19 @@ test('profile scenario catalog covers diagnostic roles and operations', () => {
   assert.ok(catalog.browserScenarios.auth.some((entry) => entry.kind === 'passwordLogin'));
   assert.ok(catalog.browserScenarios.auth.some((entry) => entry.kind === 'passkeyRegistration'));
   assert.ok(catalog.browserScenarios.writes.some((entry) => entry.kind === 'exportGeneration'));
+  const expectedRosterProjections = [
+    'roster.current.full',
+    'roster.current.content_fragment',
+    'roster.current.grid_toolbar_fragment',
+    'roster.current.grid_frame_fragment',
+    'roster.current.day_section_fragment',
+    'roster.current.row_fragment',
+    'roster.current.staff_panel_fragment',
+  ];
+  assert.deepEqual(catalog.loadScenarios['roster-projections'].map((entry) => entry.name), expectedRosterProjections);
+  for (const name of expectedRosterProjections) {
+    assert.ok(catalog.browserScenarios.roster.some((entry) => entry.name === name), `missing roster browser projection ${name}`);
+  }
   const liveSource = fs.readFileSync(path.join(repoRoot, 'e2e/profile-live-load.js'), 'utf8');
   assert.doesNotMatch(liveSource, /fragments:\s*\[\]/);
   for (const fragment of ['support-award-rates', 'admin-invites', 'timesheet-toolbar', 'roster-day-columns', 'leave-section-list']) {

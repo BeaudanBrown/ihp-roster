@@ -219,7 +219,7 @@ Available scenarios:
 - `roster-hot`: current full roster, content fragment, overview fragment.
 - `roster-wide`: current, historical, future, staff panel, content, overview.
 - `roster-overview`: overview-heavy pressure plus historical/future full roster pages.
-- `roster-projections`: full roster plus content and staff panel projection paths.
+- `roster-projections`: full roster plus content, grid toolbar, grid frame, one day, one row, and staff panel projection paths.
 - `fragments`: HTMX-style roster/timesheet fragments.
 - `timesheets`: timesheet full page and day fragment.
 - `leave`: manager leave and profile leave pages.
@@ -239,8 +239,14 @@ through `profile-live-load --scenario=mixed-live` and `--scenario=support`.
 Stable evidence/correctness budgets live in
 `e2e/profile-regression-budgets.json`. Diagnostic runners write the report and
 fail when required query, GHC, process, or pool samples are absent, or when a
-stable correctness budget fails. Compare latency only against a matched seed,
-scenario, rate, and host baseline. External `profile-live-load --base-url` runs
+stable correctness budget fails. Roster-specific deterministic budgets are
+owned by `Test/Controller/RosterWeeks/BaselineSpec.hs` (one authorized snapshot
+fact load, projection-specific fact reads, and no fragment layout navigation),
+`Test/SurfaceDependencySpec.hs` (narrow single-target refresh and sibling
+promotion), and the live-fragment request-count browser tests. Keep noisy route
+latency and host resource use as matched-profile evidence rather than fixed CI
+thresholds. Compare latency only against a matched seed, scenario, rate, and
+host baseline. External `profile-live-load --base-url` runs
 must also pass `--server-pgid` for bounded process-group sampling and
 `--server-log` so the runner can retain only query/GHC evidence appended during
 the run.

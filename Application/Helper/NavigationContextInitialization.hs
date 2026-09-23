@@ -7,12 +7,11 @@ module Application.Helper.NavigationContextInitialization
     ) where
 
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar)
-import Control.Exception (SomeException)
 import qualified Control.Exception as Exception
 import qualified Data.Vault.Lazy as Vault
 import IHP.ControllerPrelude
 import IHP.RequestVault.Helper (insertNewIORefVaultMiddleware)
-import Network.Wai (Middleware, Request, vault)
+import Network.Wai (Middleware, vault)
 import System.IO.Unsafe (unsafePerformIO)
 
 data NavigationInitialization
