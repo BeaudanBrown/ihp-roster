@@ -41,7 +41,7 @@ fi
 endpoint="${!#}"
 case "$endpoint" in
     repos/BeaudanBrown/ihp-roster/issues/265)
-        printf '%s\n' '{"number":265,"title":"Epic: Agent-first native-Nix epic worktree orchestration","state":"open","html_url":"https://example.invalid/issues/265"}'
+        printf '{"number":265,"title":"Epic: Agent-first native-Nix epic worktree orchestration","state":"%s","html_url":"https://example.invalid/issues/265"}\n' "${EPIC_PARENT_STATE:-open}"
         ;;
     repos/BeaudanBrown/ihp-roster/issues/265/sub_issues?*)
         printf '%s\n' '[{"number":268,"title":"Runtime isolation","state":"closed","html_url":"https://example.invalid/issues/268","assignees":[]},{"number":269,"title":"Fresh-agent orientation","state":"open","html_url":"https://example.invalid/issues/269","assignees":[]},{"number":270,"title":"Integration safeguards","state":"open","html_url":"https://example.invalid/issues/270","assignees":[]},{"number":271,"title":"Concurrent acceptance","state":"open","html_url":"https://example.invalid/issues/271","assignees":[{"login":"agent"}]}]'
@@ -67,11 +67,21 @@ orientation_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_
 [ "$(jq -r '.epic.number' <<<"$orientation_json")" = 265 ] || fail "epic identity was not detected"
 [ "$(jq -r '.workspace.slot' <<<"$orientation_json")" = 1 ] || fail "workspace slot was not reported"
 [ "$(jq -r '.issues.ready[0].number' <<<"$orientation_json")" = 269 ] || fail "ready issue was not presented"
-[ "$(jq -r '.issues.activeInterrupted[0].number' <<<"$orientation_json")" = 271 ] || fail "assigned issue was not presented as active"
+[ "$(jq -r '.issues.ready[] | select(.number == 271) | .assignees[0]' <<<"$orientation_json")" = agent ] || fail "assignment incorrectly removed a ready issue"
+[ "$(jq '.issues.activeInterrupted | length' <<<"$orientation_json")" = 0 ] || fail "assignment incorrectly marked work active"
 [ "$(jq -r '.issues.blocked[0].number' <<<"$orientation_json")" = 270 ] || fail "blocked issue was not presented"
 [ "$(jq -r '.issues.blocked[0].blockedBy[0].number' <<<"$orientation_json")" = 269 ] || fail "open blocker was not presented"
-[ "$(jq -r '.selection.allowed' <<<"$orientation_json")" = true ] || fail "clean workspace did not allow user selection"
-[ "$(jq -r '.selection.requiresUserChoice' <<<"$orientation_json")" = true ] || fail "orientation did not require user choice"
+[ "$(jq -r '.selection.allowed' <<<"$orientation_json")" = true ] || fail "clean workspace did not allow issue selection"
+[ "$(jq -r '.selection.requiresUserChoice' <<<"$orientation_json")" = false ] || fail "orientation unexpectedly required user choice"
+[ "$(jq -r '.workflowRules[] | select(startswith("Prefer unassigned"))' <<<"$orientation_json")" != "" ] || fail "orientation omitted assigned-work advisory"
+ready_output="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient)"
+[[ "$ready_output" == *"#271 Concurrent acceptance [assigned: agent]"* ]] || fail "human output omitted assignment advisory"
+closed_json="$(cd "$fixture_repo" && EPIC_PARENT_STATE=closed PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
+[ "$(jq -r '.selection.allowed' <<<"$closed_json")" = false ] || fail "closed epic allowed issue selection"
+[ "$(jq -r '.workflowRules[0]' <<<"$closed_json")" = "Stop: the parent epic is closed; do not select or begin its remaining work." ] || fail "closed epic JSON omitted stop rule"
+closed_output="$(cd "$fixture_repo" && EPIC_PARENT_STATE=closed PATH="$mock_bin:$PATH" bash "$command_path" orient)"
+[[ "$closed_output" == *"STOP: the parent epic is closed"* ]] || fail "closed epic omitted stop instruction"
+[[ "$closed_output" != *"Select and begin the most appropriate ready issue"* ]] || fail "closed epic emitted automatic-selection instruction"
 
 git -C "$fixture_repo" commit --quiet --allow-empty -m 'Implement orientation (#269)'
 pending_json="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path" orient --json)"
@@ -91,6 +101,6 @@ human_output="$(cd "$fixture_repo" && PATH="$mock_bin:$PATH" bash "$command_path
 [[ "$human_output" == *"EPIC #265"* ]] || fail "human output omitted epic"
 [[ "$human_output" == *"READY — unavailable until interruption resolved"* ]] || fail "human output offered new work despite interruption"
 [[ "$human_output" == *"STOP: interrupted workspace work must be resumed or resolved"* ]] || fail "human output did not block selection"
-[[ "$human_output" == *"Wait for the user; do not begin, close, or move issues automatically."* ]] || fail "human output omitted approval rule"
+[[ "$human_output" != *"Select and begin the most appropriate ready issue"* ]] || fail "interrupted workspace emitted automatic-selection instruction"
 
 echo "epic-worktree-orientation-test: ok"

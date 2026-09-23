@@ -242,8 +242,12 @@ From the registered epic worktree:
 bash ./bin/in-env epic-worktree orient
 ```
 
-Present ready, active/interrupted, and blocked lanes. Wait for the user to choose
-work. Do not assign, start, move, or close issues automatically.
+Present ready, active/interrupted, and blocked lanes. Select and begin the most
+appropriate ready work by default, preferring unassigned work and checking issue
+activity before starting assigned work. Then verify, commit, close the completed
+subissue, refresh orientation, and continue. Stop when orientation disallows
+selection (including a closed parent), the user retained control, interrupted
+work must be resolved, or a material decision needs input.
 
 After the cycle, perform a short process retrospective:
 
