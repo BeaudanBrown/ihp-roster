@@ -4,6 +4,8 @@ import Application.Billing.Checkout
 import Application.Billing.Reconciliation (billingReconciliationJobKind,
                                            performBillingReconciliationJob)
 import Application.Billing.Stripe
+import Application.Helper.ControllerContext (ActualUser (..), EffectiveUser (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Job.App ()
 import Config
 import qualified Control.Concurrent as Concurrent
@@ -12,6 +14,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
+import Data.Either (isLeft)
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -29,6 +32,7 @@ import Network.Wai (responseHeaders)
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Web.Billing.Mutations (startOrResumeBillingCheckoutMutation)
 import Web.Controller.Billing ()
 import Web.FrontController ()
 import Web.Routes
@@ -604,6 +608,144 @@ tests = aroundAll withDatabaseTestContext do
                 IORef.readIORef stripeCalls `shouldReturn` 0
                 query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
                 query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
+
+        it "rolls back customer preparation facts and reuses the venue Customer identity on retry" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Customer Preparation Rollback Venue"
+                owner <- createUserRecord "billing-customer-preparation-rollback@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                customerIdentities <- IORef.newIORef ([] :: [Text])
+                let client = checkoutStripeClient
+                        { createCustomer = \_ venueId _ _ -> do
+                            IORef.modifyIORef' customerIdentities (venueId :)
+                            pure (Right StripeCustomer { stripeCustomerId = "cus_checkout_123", stripeCustomerLivemode = False })
+                        }
+                let successUrlFor attemptId = "http://localhost/BillingSuccess?attempt_id=" <> inputValue attemptId <> "&session_id={CHECKOUT_SESSION_ID}"
+                let cancelUrlFor attemptId = "http://localhost/BillingCancel?attempt_id=" <> inputValue attemptId
+                let runMutation =
+                        withUserAndCurrentVenue owner venue.id $ withCurrentControllerContext do
+                            startOrResumeBillingCheckoutMutation
+                                client
+                                testStripeConfig
+                                venue
+                                (ActualUser owner)
+                                (EffectiveUser owner)
+                                successUrlFor
+                                cancelUrlFor
+                let installFailure = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_billing_checkout_attempt() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced Checkout preparation failure'' USING ERRCODE = ''23514''; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_billing_checkout_attempt BEFORE INSERT ON billing_checkout_attempts FOR EACH ROW EXECUTE FUNCTION test_reject_billing_checkout_attempt()" ()
+                let removeFailure = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_billing_checkout_attempt ON billing_checkout_attempts" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_billing_checkout_attempt()" ()
+
+                failed <- Exception.bracket_ installFailure removeFailure do
+                    Exception.try runMutation
+                        :: IO (Either Exception.SomeException (LiveMutationResult CheckoutStartResult))
+
+                failed `shouldSatisfy` isLeft
+                query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
+                query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
+                query @AuditEvent
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#eventType, "billing_customer_created")
+                    |> fetchCount
+                    `shouldReturn` 0
+                query @LiveInvalidationEvent
+                    |> filterWhere (#source, "billing.checkout.prepare")
+                    |> fetchCount
+                    `shouldReturn` 0
+
+                retried <- runMutation
+                retried.liveMutationValue.checkoutStartOutcome `shouldSatisfy` \case
+                    CheckoutSessionReady _ _ -> True
+                    _ -> False
+                IORef.readIORef customerIdentities `shouldReturn` [inputValue venue.id, inputValue venue.id]
+                customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                customer.stripeCustomerId `shouldBe` "cus_checkout_123"
+                query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
+                query @AuditEvent
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#eventType, "billing_customer_created")
+                    |> fetchCount
+                    `shouldReturn` 1
+
+        it "keeps committed preparation facts when the later provider phase fails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Committed Preparation Venue"
+                owner <- createUserRecord "billing-committed-preparation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                customerCalls <- IORef.newIORef (0 :: Int)
+                checkoutAttemptIds <- IORef.newIORef ([] :: [Text])
+                let client = checkoutStripeClient
+                        { createCustomer = \config venueId venueName ownerEmail -> do
+                            IORef.modifyIORef' customerCalls (+ 1)
+                            checkoutStripeClient.createCustomer config venueId venueName ownerEmail
+                        , createCheckoutSession = \config attemptId venueId customerId priceId successUrl cancelUrl -> do
+                            attempts <- IORef.atomicModifyIORef' checkoutAttemptIds \ids ->
+                                let updated = attemptId : ids
+                                 in (updated, updated)
+                            case attempts of
+                                [_] -> Exception.throwIO (userError "forced Checkout execute-phase interruption")
+                                _ -> checkoutStripeClient.createCheckoutSession config attemptId venueId customerId priceId successUrl cancelUrl
+                        }
+                let successUrlFor attemptId = "http://localhost/BillingSuccess?attempt_id=" <> inputValue attemptId <> "&session_id={CHECKOUT_SESSION_ID}"
+                let cancelUrlFor attemptId = "http://localhost/BillingCancel?attempt_id=" <> inputValue attemptId
+                let runMutation =
+                        withUserAndCurrentVenue owner venue.id $ withCurrentControllerContext do
+                            startOrResumeBillingCheckoutMutation
+                                client
+                                testStripeConfig
+                                venue
+                                (ActualUser owner)
+                                (EffectiveUser owner)
+                                successUrlFor
+                                cancelUrlFor
+
+                interrupted <- Exception.try runMutation
+                    :: IO (Either Exception.SomeException (LiveMutationResult CheckoutStartResult))
+
+                interrupted `shouldSatisfy` isLeft
+                customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                customer.stripeCustomerId `shouldBe` "cus_checkout_123"
+                attempt <- query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                attempt.stripeCustomerId `shouldBe` customer.stripeCustomerId
+                attempt.stripeCheckoutSessionId `shouldBe` Nothing
+                query @AuditEvent
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#eventType, "billing_customer_created")
+                    |> fetchCount
+                    `shouldReturn` 1
+                query @LiveInvalidationEvent
+                    |> filterWhere (#source, "billing.checkout.prepare")
+                    |> fetchCount
+                    `shouldReturn` 1
+                query @LiveInvalidationEvent
+                    |> filterWhere (#source, "billing.checkout.execute")
+                    |> fetchCount
+                    `shouldReturn` 0
+
+                retried <- runMutation
+                retried.liveMutationValue.checkoutStartOutcome `shouldSatisfy` \case
+                    CheckoutSessionReady retriedAttempt _ -> retriedAttempt.id == attempt.id
+                    _ -> False
+                IORef.readIORef customerCalls `shouldReturn` 1
+                IORef.readIORef checkoutAttemptIds `shouldReturn` [inputValue attempt.id, inputValue attempt.id]
+                query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
+                query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 1
+                query @AuditEvent
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#eventType, "billing_customer_created")
+                    |> fetchCount
+                    `shouldReturn` 1
+                query @LiveInvalidationEvent
+                    |> filterWhere (#source, "billing.checkout.prepare")
+                    |> fetchCount
+                    `shouldReturn` 1
+                query @LiveInvalidationEvent
+                    |> filterWhere (#source, "billing.checkout.execute")
+                    |> fetchCount
+                    `shouldReturn` 1
 
         it "starts hosted Checkout and stores one Stripe Customer per venue" $ withContext do
             withCleanDb do
