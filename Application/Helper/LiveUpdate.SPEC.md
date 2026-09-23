@@ -95,15 +95,23 @@ writer-local client-id/echo protocol.
 `app-live-updates.ts` remains orchestration-only.
 
 Incoming keys resolve only against matching local mounted descriptors. There is
-no URL/target fallback. Same-scope subscriptions merge; invalidations may select
-multiple keys/mounts. Nested mount lifecycle follows current DOM recursively so
-new children initialize, removed descendants dispose, and subscription state
+no URL/target fallback. Every request, queued demand, fallback timer, and saved
+field state belongs to one concrete mount element and runtime generation; reused
+surface, scope, mount, or target strings do not transfer that lifetime. Removal
+or stop aborts its work, while independent stale-completion checks fence reload,
+removal/replacement, HTMX processing, page-ready dispatch, and focus/state
+restoration. Same-scope subscriptions merge; invalidations may select multiple
+keys/mounts. Nested mount lifecycle follows current DOM recursively so new
+children initialize, removed descendants dispose, and subscription state
 matches mounted scopes.
 
 `focus.ts` is the sole focused-field replacement owner. It applies the exact
 Haskell-declared protection, keeps only the latest deferred refresh, refetches on
-blur, and restores configured field state. Replace-policy fragments refresh
-immediately. Immediately before replacement, the focus owner captures a focused
+blur, and restores configured field state. Protection is re-evaluated when a
+response and its body complete. Focus or an interaction that begins while a
+request is active discards that response and causes fresh authority to be fetched
+when protection releases; it never applies retained HTML after user work.
+Replace-policy fragments refresh immediately. Immediately before replacement, the focus owner captures a focused
 native element's stable server-rendered ID and viewport position. If that same
 ID remains inside the replacement, it restores focus without copying old field
 values and compensates window scroll for movement. A control outside the replaced

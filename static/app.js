@@ -2898,6 +2898,17 @@
       disposeState(state);
       ownerStates.delete(ownerEl);
     }
+    function markProtectionChanged(target) {
+      ownerStates.forEach((state) => {
+        if (!state.active) return;
+        state.inFlight.forEach((slot) => {
+          const refreshedTarget = resolveOwnedTarget(slot.fragment);
+          if (refreshedTarget && (refreshedTarget.contains(target) || target.contains(refreshedTarget))) {
+            slot.protectionChanged = true;
+          }
+        });
+      });
+    }
     async function swapFragmentHtml(fragment, state, slot, html) {
       const perfSpan = beginPerfSpan("live_updates.swap_fragment", { targetId: fragment.targetId });
       if (!requestIsCurrent(state, fragment.targetId, slot)) {
@@ -2957,6 +2968,25 @@
         endPerfSpan(perfSpan, { outcome: "stale_before_fetch" });
         return;
       }
+      function fenceForCurrentProtection(stage, status) {
+        const currentTarget = resolveOwnedTarget(fragment);
+        const latestDemand = slot.next ?? fragment;
+        if (!currentTarget || currentTarget !== slot.fetchedTarget) {
+          endPerfSpan(perfSpan, { outcome: `target_changed_after_${stage}`, status });
+          return true;
+        }
+        if (deferForCurrentProtection(state, slot, latestDemand, currentTarget)) {
+          endPerfSpan(perfSpan, { outcome: `deferred_after_${stage}`, status });
+          return true;
+        }
+        if (slot.protectionChanged) {
+          slot.next = latestDemand;
+          endPerfSpan(perfSpan, { outcome: `protection_changed_during_${stage}`, status });
+          return true;
+        }
+        return false;
+      }
+      slot.fetchedTarget = target;
       const requestUrl = decorateSurfaceFragmentRequest(fragment.url, fragment, target);
       const response = await targetWindow.fetch(requestUrl, {
         credentials: "same-origin",
@@ -2967,20 +2997,26 @@
         endPerfSpan(perfSpan, { outcome: "stale_response", status: response.status });
         return;
       }
-      if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
-        endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
-        if (requestIsCurrent(state, fragment.targetId, slot)) targetWindow.location.reload();
+      if (resolveOwnedTarget(fragment) !== slot.fetchedTarget) {
+        endPerfSpan(perfSpan, { outcome: "target_changed_after_response", status: response.status });
         return;
       }
       if (!response.ok) {
         endPerfSpan(perfSpan, { outcome: "http_error", status: response.status });
         throw new Error(`Fragment fetch failed with ${response.status}`);
       }
+      if (fenceForCurrentProtection("response", response.status)) return;
+      if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
+        endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
+        if (requestIsCurrent(state, fragment.targetId, slot)) targetWindow.location.reload();
+        return;
+      }
       const html = await response.text();
       if (!requestIsCurrent(state, fragment.targetId, slot)) {
         endPerfSpan(perfSpan, { outcome: "stale_body", status: response.status });
         return;
       }
+      if (fenceForCurrentProtection("body", response.status)) return;
       await swapFragmentHtml(fragment, state, slot, html);
       if (requestIsCurrent(state, fragment.targetId, slot)) {
         const currentTarget = resolveOwnedTarget(fragment);
@@ -3009,8 +3045,10 @@
       const slot = {
         controller: new AbortController(),
         fragment,
+        fetchedTarget: null,
         generation,
-        next: null
+        next: null,
+        protectionChanged: false
       };
       state.inFlight.set(fragment.targetId, slot);
       void refetchFragment(fragment, state, slot).catch((error) => {
@@ -3044,31 +3082,44 @@
         flushInteractionDeferredFragment(state, fragment.targetId, "interaction_fallback_timeout");
       }, timeoutMs));
     }
+    function deferForCurrentProtection(state, slot, fragment, target) {
+      const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
+      if (conflict) {
+        if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
+        state.pendingInteraction.set(fragment.targetId, fragment);
+        scheduleInteractionFallback(state, fragment, conflict.timeoutMs);
+        if (slot) slot.next = null;
+        targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
+          detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "interaction_session" }
+        }));
+        return true;
+      }
+      clearInteractionDeferredFragment(state, fragment.targetId);
+      if (fragment.protection.kind === "focused-field" && focus.hasProtectedActiveInput(target, fragment)) {
+        state.pendingFocused.set(fragment.targetId, focus.captureDeferredState(target, fragment));
+        if (slot) slot.next = null;
+        targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
+          detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "active_input" }
+        }));
+        return true;
+      }
+      state.pendingFocused.delete(fragment.targetId);
+      return false;
+    }
     function request(fragment) {
       if (!fragment.targetId || !fragment.url || stopped) return;
       const state = ownerStates.get(fragment.ownerEl);
       if (!state?.active) return;
       const target = resolveOwnedTarget(fragment);
       if (!target) return;
-      const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
-      if (conflict?.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
-      if (conflict?.action === "defer") {
-        state.pendingInteraction.set(fragment.targetId, fragment);
-        scheduleInteractionFallback(state, fragment, conflict.timeoutMs);
-        targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
-          detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "interaction_session" }
-        }));
+      const existing = state.inFlight.get(fragment.targetId);
+      if (existing) {
+        existing.next = fragment;
+        emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
+        if (deferForCurrentProtection(state, null, fragment, target)) return;
         return;
       }
-      clearInteractionDeferredFragment(state, fragment.targetId);
-      if (fragment.protection.kind === "focused-field" && focus.hasProtectedActiveInput(target, fragment)) {
-        state.pendingFocused.set(fragment.targetId, focus.captureDeferredState(target, fragment));
-        targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
-          detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "active_input" }
-        }));
-        return;
-      }
-      state.pendingFocused.delete(fragment.targetId);
+      if (deferForCurrentProtection(state, null, fragment, target)) return;
       queueFragment(fragment);
     }
     function flushInteractionDeferredFragmentsWithoutActiveSessions() {
@@ -3109,6 +3160,7 @@
     return {
       activateOwner,
       disposeOwner,
+      markProtectionChanged,
       request,
       flushInteractionDeferredFragmentsWithoutActiveSessions,
       flushFocusedFragmentsWithoutActiveInputs,
@@ -3166,6 +3218,13 @@
       diagnostics
     });
     document.addEventListener(liveFragmentsRefreshEvent, invalidation.handleActorEvent);
+    document.addEventListener(interactionSessionStartEvent, (event) => {
+      if (!(event instanceof CustomEvent) || !(event.detail?.mount instanceof Element)) return;
+      refresher.markProtectionChanged(event.detail.mount);
+    });
+    document.addEventListener("focusin", (event) => {
+      if (event.target instanceof Element) refresher.markProtectionChanged(event.target);
+    });
     document.addEventListener(interactionSessionEndEvent, () => {
       refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
       refresher.flushFocusedFragmentsWithoutActiveInputs();
