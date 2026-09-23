@@ -3,6 +3,7 @@ set -euo pipefail
 unset DEVENV_AGENT_STATE_DIR XDG_RUNTIME_DIR DEV_POSTGRES_MODE DEV_POSTGRES_ROOT DEV_POSTGRES_SOCKET PGHOST DATABASE_URL
 
 repo_root="$(git rev-parse --show-toplevel)"
+export BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run"
 registry_command="$repo_root/Config/nix/scripts/epic/worktree"
 fixture_root="$(mktemp -d)"
 main_pid=""
@@ -277,13 +278,13 @@ rm -f "$epic_state/runtime.env" "$epic_state/start-child.pid" "$epic_state/worke
         BEPIS_SCRIPTS_ROOT="$epic_path/Config/nix/scripts" \
         BEPIS_DEV_RESOURCE_CONTAINED=1 \
         "$dev_foreground_command"
-) >/dev/null 2>&1 &
+) >"$fixture_root/foreground.log" 2>&1 &
 foreground_pid=$!
-for _ in $(seq 1 100); do
+for _ in $(seq 1 300); do
     [ -f "$epic_state/start-child.pid" ] && [ -f "$epic_state/worker-child.pid" ] && break
     sleep 0.05
 done
-[ -f "$epic_state/start-child.pid" ] || fail "foreground app child did not start"
+[ -f "$epic_state/start-child.pid" ] || { cat "$fixture_root/foreground.log" >&2 || true; fail "foreground app child did not start"; }
 foreground_child_pid="$(cat "$epic_state/start-child.pid")"
 kill -0 "$foreground_child_pid" 2>/dev/null || fail "foreground app child was not alive"
 [ -f "$epic_state/worker-child.pid" ] || fail "foreground worker did not start"
@@ -307,6 +308,9 @@ fi
 
 worker_state="$(awk '{print $3}' "/proc/$worker_child_pid/stat" 2>/dev/null || true)"
 if [ -n "$worker_state" ] && [ "$worker_state" != Z ]; then
+    ps -o pid,ppid,pgid,sid,state,cmd -p "$worker_child_pid" >&2 || true
+    [ ! -f "$epic_state/worker.owner.json" ] || cat "$epic_state/worker.owner.json" >&2
+    cat "$fixture_root/foreground.log" >&2 || true
     fail "foreground worker child survived Ctrl-C/TERM cleanup"
 fi
 
@@ -336,5 +340,36 @@ if RUNTIME_APP_HEALTHY=1 run_for "$epic_path" "$dev_foreground_command" >"$fixtu
 fi
 assert_contains "$(cat "$fixture_root/already-running.log")" "stop it before starting the foreground stack"
 [ ! -f "$epic_state/worker-child.pid" ] || fail "worker started beside an unowned app"
+
+# The public dev-start adapter keeps its established exit 1 contract even
+# though the shared runtime classifies immediate child failure as exit 75.
+cat >"$fake_bin/start" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fake_bin/start"
+set +e
+run_for "$epic_path" "$dev_start_command" >"$fixture_root/start-failure.log" 2>&1
+start_failure_status=$?
+set -e
+[ "$start_failure_status" = 1 ] || fail "dev-start leaked runtime failure exit $start_failure_status"
+assert_contains "$(cat "$fixture_root/start-failure.log")" "devenv failed to start; log retained"
+run_for "$epic_path" "$dev_stop_command" >/dev/null
+
+# A child that passes runtime publication but exits during the delayed startup
+# window also leaves no stale ownership artifacts.
+cat >"$fake_bin/start" <<'EOF'
+#!/usr/bin/env bash
+sleep 0.3
+exit 1
+EOF
+chmod +x "$fake_bin/start"
+set +e
+run_for "$epic_path" "$dev_start_command" >"$fixture_root/delayed-start-failure.log" 2>&1
+delayed_start_status=$?
+set -e
+[ "$delayed_start_status" = 1 ] || fail "delayed dev-start failure returned $delayed_start_status"
+[ ! -e "$epic_state/devenv.pid" ] && [ ! -e "$epic_state/devenv.owner.json" ] || fail "delayed startup failure retained ownership state"
+run_for "$epic_path" "$dev_stop_command" >/dev/null
 
 echo "dev-runtime-isolation-test: ok"

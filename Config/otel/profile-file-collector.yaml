@@ -2,9 +2,9 @@ receivers:
   otlp:
     protocols:
       http:
-        endpoint: 127.0.0.1:24318
+        endpoint: 127.0.0.1:${env:BEPIS_RUNNER_OTLP_HTTP_PORT}
       grpc:
-        endpoint: 127.0.0.1:24317
+        endpoint: 127.0.0.1:${env:BEPIS_RUNNER_OTLP_GRPC_PORT}
 
 processors:
   batch: {}

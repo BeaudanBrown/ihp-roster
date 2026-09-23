@@ -418,6 +418,9 @@ type AppShellContract =
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              , AppShellHtmxTrigger "load"
+             -- Progress invalidations may replace the ready form while its POST
+             -- is in flight. Synchronize on the stable mount, not that form.
+             , AppShellHtmxSync "#dialog-overlay-mount:drop"
              , AppShellHtmxIndicator "#xero-timesheet-preparation-modal-loading-indicator"
              ]
          , AppShellAction ContinueXeroTimesheetPreparationStaffOverlay '[] DialogSubmitOptions

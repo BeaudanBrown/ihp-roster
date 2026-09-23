@@ -4,11 +4,12 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
-# shellcheck source=generated-state-lib
-. "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
-if ! frontend_js_watch_lock; then
-    echo "frontend-watch: another watcher already owns this workspace" >&2
-    exit 75
+state_dir="$(dev-agent-state-dir)/generated-code"
+tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
+mkdir -p "$state_dir"
+if [ "${BEPIS_JS_WATCH_LOCKED:-0}" != 1 ]; then
+    exec "$tooling_launcher" artifacts lock-exec --lock "$state_dir/js-watch.lock" --nonblocking -- \
+        env BEPIS_JS_WATCH_LOCKED=1 "$0" "$@"
 fi
 
 entries=(frontend/ts/app.ts frontend/ts/dev-live-reload.ts)

@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Live
     , rosterRowLiveFragment
     , rosterSlotsGridLiveFragment
     , rosterStaffPanelLiveFragment
+    , rosterSettingsContentLiveFragment
     , rosterTemplateLibraryLiveFragment
     , rosterWageRailLiveFragment
     , rosterWeekLiveScope
@@ -28,6 +29,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Live (roster
                                                                           rosterRowLiveFragment,
                                                                           rosterSlotsGridLiveFragment,
                                                                           rosterStaffPanelLiveFragment,
+                                                                          rosterSettingsContentLiveFragment,
                                                                           rosterTemplateLibraryLiveFragment,
                                                                           rosterWageRailLiveFragment,
                                                                           rosterWeekLiveScope)

@@ -52,25 +52,20 @@ or `.so` output. `production-package-smoke` enforces those artifacts, rejects
 app-lib in the packaged runtime closure or binary dynamic-link tables, and then
 launches every allowlisted executable.
 
-`baselines/production-build/final-regression-budget.json` owns stable ceilings
-for app-lib self-size, module count, artifact kinds/counts (including symlinked
-artifacts), production module, direct-package, and executable inventories, and
-a 600 MiB aggregate installed `.hi` limit. Its `measurement_profile` retains the
-complete build baseline; `module_count_inspection_profile` is supplementary
-realized-output evidence for count-only reconciliation, not a build-time or
-memory baseline.
-`production-build-budget-check` applies them to an explicit profile, or to the
-current realized app-lib after `production-package-smoke`. The default interface
-ceiling is 16 MiB. Exact, reason-bearing Roster paths have explicit per-file
-exception ceilings because GHC 9.10 serializes canonical promoted/runtime surface
-authority into those interfaces; new paths do not inherit an exception.
+Artifact checks compare installed interfaces with the current generated
+`app-lib.cabal` module declarations, not historical counts. They require the
+static archive and package metadata and reject missing/unexpected interfaces,
+extra build ways, unknown artifacts, and broken links. Focused fixtures run with
+`bash ./bin/in-env node --test scripts/production-artifacts.test.mjs`.
 
-Machine memory is deliberately evidence, not a blocking budget: process RSS is
-sampled, builder-specific, and showed substantial run-to-run variance on NAS.
-The profiler retains clean revision, builder, effective core, RSS, cgroup, swap,
-and timing evidence, but `production-build-budget-check` enforces only stable
-app-owned output and inventory properties. It does not cap GHC memory or fail a
-release from a machine-global memory reading.
+Module/package counts and interface/output sizes are diagnostic evidence, not
+release ceilings. Splitting a module or adding reviewed functionality must not
+require a numeric baseline reconciliation. `production-build-profile` remains
+an opt-in investigation with bounded sizes, counts, timing, memory, and
+same-builder comparison evidence; it is not part of `verify-full`. See
+[the profiling runbook](../../docs/runbooks/production-build-profiling.md) and
+[ADR 0011](../../docs/adr/0011-structural-production-checks-not-footprint-budgets.md).
+No profiler value caps GHC or substitutes for a successful production build.
 
 After intentionally adding or changing a module or script:
 
@@ -106,7 +101,12 @@ Managed E2E PostgreSQL reserves 400 connections: eight shards × (two pools of
 at most 20 plus two dedicated listeners) = 336, with 64 slots for fixtures,
 administration and PostgreSQL reserves. E2E bounds `HASQL_POOL_SIZE` to 1–20
 (default 20); live capacity drift fails closed. This does not change Hspec,
-development, external or production PostgreSQL settings.
+development, external or production PostgreSQL settings. Hspec, E2E, and
+profiling entrypoints share `bepis-runners` run IDs, owned run directories,
+workspace-wide port-block leases, collision checks, process-group cancellation,
+and failure evidence. E2E still starts web and worker subprocesses separately and
+stops both before releasing its PostgreSQL lifecycle lock; Playwright, k6, and
+telemetry summary processors remain application-owned commands.
 
 `just dev` and `just ddev` start the registered AppJob worker alongside the web
 app through `dev-foreground`, with the same workspace database and environment.
@@ -140,12 +140,21 @@ type for observability checks; it must never enter deployment host imports.
 
 ## Compiler Warning And Reachability Evidence
 
-`application-warnings` first builds dependency interfaces, then forces each
-inventoried, non-generated production subject in an isolated one-shot GHC
-session. Warning flags alone do not invalidate those interfaces; a multi-file
-forced `-c` session can load a subject's cached instances before compiling it
-and report duplicate instances. Generated/dependency code remains interface-only
-in the strict pass. Real compiler fixtures cover both cold and warm caches.
+`application-warnings` forces one GHC `--make` graph and filters structured
+compiler diagnostics against inventoried, non-generated production subjects.
+It rejects owned warnings, compiler failures and malformed diagnostics; generated
+warnings stay outside application authority. Forcing the graph prevents warm
+interfaces from hiding warnings, while `--make` avoids duplicate instances from
+multi-file `-c`. Real compiler fixtures retain cold/warm, generated-dependency
+and instance-import regressions. No separate warning cache or per-module GHC
+processes are needed.
+
+`typed-error-boundary-check` scans the same owned inventory with HLint's
+unchanged project restriction policy, disabling only shipped rewrite hints
+that this primitive/category gate does not report. Structured restriction and
+parse-error diagnostics fail the gate; ordinary `lint` retains all its hints.
+Real compiler/scanner fixtures compare restricted-function diagnostics and
+approved category owners with default HLint, including policy/parse failures.
 
 Unused imports are errors. Required controller/AutoRoute instance imports say
 `()` explicitly; marker/type imports remain normal compiler-checked uses.
@@ -157,9 +166,12 @@ require constructor-local labels, not unsafe getters. Exhaustive constructor
 patterns remain valid; no route/JSON metadata or application ADTs change.
 
 `weeder-check` retains its complete source sweep, canonical `weeder.toml`,
-`unused-types=false` and baseline gate. It also emits
+`unused-types=false` and baseline gate. For optional root-set diagnostics, run
+`bash ./bin/in-env weeder-check --advisory`. This emits
 `build/Verification/weeder/reachability-advisory.json` (under `WEEDER_BUILD_DIR`
 when overridden), reusing the same HIE rather than compiling another graph.
+The extra advisory analyses are not part of `verify-full`; default runs remove
+previous advisory evidence rather than leave an apparently current report.
 Root-set comparisons distinguish production from test/development retention.
 Script ownership comes from the existing module/script/executable inventories;
 canonical roots are narrowed, never supplemented with blanket handwritten roots.
@@ -191,6 +203,28 @@ once. Its temporary repositories come from tracked source and exercise the real
 wrapper entrypoints; unrelated enum/package authorities are stubbed only in
 these scanner fixtures. Real repository gates remain separately required.
 
+## Glue Compatibility And Change Footprint
+
+`glue-compatibility-test` executes the public generated-watcher alias, mobile
+screenshot matrix, and both SSH tunnel roles against isolated fake dependencies.
+It retains exact argument order, exit status, capture count, viewport, port-map,
+and destination assertions without contacting a browser, tunnel, or remote
+service. `tooling-hls-test` resolves one module from every independent package
+and repeats resolution from `tooling/`, while `hie-bios-test` retains the
+application cradle contract.
+
+For a glue-only issue, use the issue's pinned fixed point and reviewed scope as
+the deterministic physical-line report contract:
+
+```bash
+git diff --numstat <fixed-point> -- <reviewed-path>...
+```
+
+Report added lines, deleted lines, net lines, deleted forwarding files, and the
+unique assertions retained by their canonical owner. Binary entries are not a
+valid line report. This is change evidence, not a second source inventory or
+task tracker.
+
 ## Test-only Haskell dependencies
 
 `hspec`, `ihp-hspec`, and `QuickCheck` belong to `ihp.devHaskellPackages`, so
@@ -216,6 +250,23 @@ transitively—`aeson` retains QuickCheck and monolithic `ihp` retains Hspec—b
 those packages are not direct app declarations. Hspec, compile-failure, and
 tooling dependencies remain in their separate development/tool package sets.
 
+## Independent developer tooling packages
+
+`.#tooling` exposes the app-independent packages documented in
+`tooling/README.md`. Epic orientation and Git lifecycle ownership live in
+`bepis-epic-lifecycle`; compatibility scripts only locate `bin/tooling-run` and
+provide service paths. Planning is read-only, synchronization requires
+`--apply`, and integration or cleanup requires `--approve`. The owner validates
+v1 workspace identity, pinned refs, all remote endpoints before a rebase, owned
+runtime evidence, HLS cache cleanup, and lock-protected compare-and-delete
+registry state before destructive worktree or branch cleanup.
+
+`bepis-artifacts` owns cache markers and lifecycle locks, deterministic explicit
+inventory hashing, atomic generation manifests, stable-input publication, and
+validated managed-tree replacement. HLS, generated Haskell, frontend contracts,
+Surface adapters, JavaScript bundles, and GHC cache adapters retain their public
+commands while supplying only application-specific inventories and recipes.
+
 ## Frontend-contract tooling package
 
 `frontend-contract-tool-module-inventory.tsv` is the exact closure of the three
@@ -240,7 +291,11 @@ so uncommitted authoring remains usable; CI and `verify-full` set
 `frontend-contract-package-check` is blocking in both paths. It checks the
 exact binary set, retains interface/build-resource metrics, and reruns generated
 TypeScript, all generated Haskell adapters plus private proofs, and architecture
-emission through packaged binaries. In `verify-full`, the later single
+emission through packaged binaries. Adapter validation reuses the locked
+compiler dependency cache, not generated results: each invocation renders and
+compiles fresh modules/private proofs and compares the exact managed output.
+Temporary staging paths must not invalidate unchanged dependency configuration.
+In `verify-full`, the later single
 `production-package-smoke` traversal proves the optimized production closure
 does not reference this tooling output. Generated repository artifacts are
 accepted only when those package-backed freshness checks pass.

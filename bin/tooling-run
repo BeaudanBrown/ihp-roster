@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+program="bepis-tooling-run"
+script_path="$(realpath "$0")"
+repo_root="$(realpath "$(dirname "$script_path")/..")"
+invocation_dir="$PWD"
+if [[ "$repo_root" == *$'\n'* || "$repo_root" == *$'\r'* ]]; then
+    echo "$program: checkout paths containing line breaks are unsupported" >&2
+    exit 64
+fi
+
+if [ "${BEPIS_TOOLING_ENV:-0}" != 1 ]; then
+    command -v nix >/dev/null 2>&1 || { echo "$program: nix is required" >&2; exit 69; }
+    # Git filters environment inputs; Cabal below still compiles the live tree,
+    # including dirty and untracked Haskell. Do not snapshot build/log directories.
+    exec env -u BEPIS_TOOLING_BUILD_PATH nix develop "$repo_root#tooling" --no-write-lock-file -c \
+        env BEPIS_TOOLING_ENV=1 "$script_path" "$@"
+fi
+
+family="${1:-}"
+[ "$#" -gt 0 ] && shift
+case "$family" in
+    workspace)
+        component="bepis-workspace-state:exe:bepis-workspace-state"
+        ;;
+    postgres)
+        component="bepis-postgres:exe:bepis-postgres"
+        ;;
+    runtime)
+        component="bepis-runtime:exe:bepis-runtime"
+        ;;
+    epic)
+        component="bepis-epic-lifecycle:exe:bepis-epic-lifecycle"
+        ;;
+    artifacts)
+        component="bepis-artifacts:exe:bepis-artifacts"
+        ;;
+    runners)
+        component="bepis-runners:exe:bepis-runners"
+        ;;
+    -h|--help|help|"")
+        echo "Usage: $program workspace|postgres|runtime|epic|artifacts|runners [ARGS...]"
+        exit 0
+        ;;
+    *)
+        echo "$program: unknown tool family: $family" >&2
+        exit 64
+        ;;
+esac
+
+build_dir="$repo_root/tooling/dist-newstyle"
+project_file="tooling.project"
+command -v cabal >/dev/null 2>&1 || { echo "$program: cabal is unavailable in the tooling environment" >&2; exit 69; }
+command -v flock >/dev/null 2>&1 || { echo "$program: flock is unavailable in the tooling environment" >&2; exit 69; }
+mkdir -p "$build_dir"
+exec 9>>"$build_dir/.launcher-build.lock"
+flock 9
+cd "$repo_root"
+# The selected Nix shell owns a stable compiler path. Runtime PATH changes
+# (direnv layouts, script profiles, Git/PostgreSQL fixtures) do not invalidate it.
+PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal build -v0 --offline \
+    --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component" >&2
+binary="$(PATH="${BEPIS_TOOLING_BUILD_PATH:-$PATH}" cabal list-bin \
+    --project-dir="$repo_root" --project-file="$project_file" --builddir="$build_dir" "$component")"
+flock -u 9
+exec 9>&-
+[ -x "$binary" ] || { echo "$program: successful build did not produce $component" >&2; exit 70; }
+if [ "${1:-}" = --print-binary ]; then
+    printf '%s\n' "$binary"
+    exit 0
+fi
+cd "$invocation_dir"
+exec "$binary" "$@"

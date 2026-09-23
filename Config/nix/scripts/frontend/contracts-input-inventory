@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'path\t%s\n' \
+    App.cabal \
+    flake.lock \
+    Application/Script/GenerateFrontendContracts.hs \
+    Application/Script/GenerateFrontendSurfaceAdapters.hs \
+    Config/nix/scripts/frontend/contracts \
+    Config/nix/scripts/frontend/generate-contract-artifacts \
+    Config/nix/scripts/frontend/surface-adapters \
+    Config/nix/scripts/frontend/tool-package-lib \
+    Config/nix/scripts/frontend/surface-adapter-validate-stage \
+    Config/nix/scripts/frontend/contracts-input-inventory \
+    Config/nix/scripts/frontend/contracts-output-inventory \
+    Config/nix/scripts/lib/ghc.sh
+find Application/Helper/FrontendContract -type d -name Generated -prune -o -type f -name '*.hs' -print \
+    | LC_ALL=C sort | while IFS= read -r path; do printf 'path\t%s\n' "$path"; done
+printf 'value\tghc-version\t%s\n' "$(ghc --numeric-version 2>/dev/null || printf missing)"
+printf 'value\tuse-package\t%s\n' "${FRONTEND_CONTRACT_USE_PACKAGE:-0}"
+printf 'value\ttools-root\t%s\n' "${FRONTEND_CONTRACT_TOOLS_ROOT:-source-build}"

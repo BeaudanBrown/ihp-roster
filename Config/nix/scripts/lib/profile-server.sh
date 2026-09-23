@@ -2,41 +2,45 @@
 # Scripts sourcing this file must set PROFILE_PID_FILE before using
 # cleanup_profile_server.
 
-_ihp_roster_profile_lib_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=common.sh
-. "$_ihp_roster_profile_lib_dir/common.sh"
-unset _ihp_roster_profile_lib_dir
-
-process_group_pids() {
-    ihp_roster_process_group_pids "$@"
-}
-
 detect_profile_base_url() {
-    local pgid="$1"
-    local pids ports port
-    pids=$(process_group_pids "$pgid")
-    if [ -z "$pids" ]; then
-        return 1
+    local _pid="$1"
+    local port="${BEPIS_RUNNER_PORT:-}"
+    [ -n "$port" ] || return 1
+    PROFILE_OWNER_FILE="${PROFILE_OWNER_FILE:-$PROFILE_PID_FILE.owner.json}"
+    "$(profile_runtime_binary)" process observe "$PROFILE_PID_FILE" "$PROFILE_OWNER_FILE" \
+        profile-server "$PWD" >/dev/null 2>&1 || return 1
+    if curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null | grep -q 'id="email"'; then
+        printf 'http://127.0.0.1:%s\n' "$port"
+        return 0
     fi
-
-    ports=$(ihp_roster_listen_ports_for_pids "$pids")
-
-    for port in $ports; do
-        if curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null | grep -q 'id="email"'; then
-            printf 'http://127.0.0.1:%s\n' "$port"
-            return 0
-        fi
-    done
-
     return 1
 }
 
+profile_runtime_binary() {
+    if [ -n "${BEPIS_RUNTIME_BINARY:-}" ]; then
+        printf '%s\n' "$BEPIS_RUNTIME_BINARY"
+        return
+    fi
+    local launcher="${BEPIS_TOOLING_LAUNCHER:-$PWD/bin/tooling-run}"
+    BEPIS_RUNTIME_BINARY="$("$launcher" runtime --print-binary)"
+    export BEPIS_RUNTIME_BINARY
+    printf '%s\n' "$BEPIS_RUNTIME_BINARY"
+}
+
+start_profile_server() {
+    local label="$1"
+    shift
+    PROFILE_OWNER_FILE="${PROFILE_OWNER_FILE:-$PROFILE_PID_FILE.owner.json}"
+    export PROFILE_OWNER_FILE
+    "$(profile_runtime_binary)" process start "$PROFILE_PID_FILE" "$PROFILE_OWNER_FILE" \
+        "$PROFILE_LOG" "$label" "$PWD" -- "$@" >/dev/null
+}
+
 cleanup_profile_server() {
-    if [ -f "$PROFILE_PID_FILE" ]; then
-        local pid
-        pid=$(cat "$PROFILE_PID_FILE")
-        kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-        rm -f "$PROFILE_PID_FILE"
+    PROFILE_OWNER_FILE="${PROFILE_OWNER_FILE:-$PROFILE_PID_FILE.owner.json}"
+    if [ -f "$PROFILE_PID_FILE" ] || [ -f "$PROFILE_OWNER_FILE" ]; then
+        "$(profile_runtime_binary)" process stop "$PROFILE_PID_FILE" "$PROFILE_OWNER_FILE" \
+            profile-server "$PWD" 3000 >/dev/null 2>&1 || true
     fi
 }
 

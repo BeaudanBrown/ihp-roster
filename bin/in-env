@@ -37,6 +37,9 @@ export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
 export IHP_TELEMETRY_DISABLED="${IHP_TELEMETRY_DISABLED:-1}"
 mkdir -p "$XDG_CACHE_HOME"
 
+# A newly selected shell owns its compiler PATH, not the caller's shell.
+unset BEPIS_TOOLING_BUILD_PATH
+
 # Ask direnv to validate its watched inputs even when the caller inherited an
 # active shell. Executing the inherited command directly can select stale
 # materialized project-script wrappers after Config/nix changes.

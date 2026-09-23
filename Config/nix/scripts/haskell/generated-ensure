@@ -1,28 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 repo_root="${HASKELL_GENERATED_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
-
-# shellcheck source=generated-state-lib
-. "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-state-lib"
-
-expected="$(haskell_generated_input_hash)"
-if haskell_generated_is_current "$expected"; then
+scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
+tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
+state_dir="$(dev-agent-state-dir)/generated-code"
+generator="${HASKELL_REGEN_TYPES_COMMAND:-$scripts_root/haskell/regen-types-raw}"
+mkdir -p "$state_dir"
+result="$("$tooling_launcher" artifacts generate --mode ensure --root "$repo_root" \
+    --lock "$state_dir/haskell-generation.lock" --manifest "$state_dir/haskell-types.manifest" \
+    --input-command "$scripts_root/haskell/generated-input-inventory" \
+    --output-command "$scripts_root/haskell/generated-output-inventory" -- "$generator")"
+if [ "$result" = current ]; then
     echo "haskell-generated-ensure: generated types are current"
-    exit 0
+else
+    echo "haskell-generated-ensure: regenerated types"
 fi
-
-haskell_generation_lock
-expected="$(haskell_generated_input_hash)"
-if haskell_generated_is_current "$expected"; then
-    echo "haskell-generated-ensure: generated types are current"
-    exit 0
-fi
-
-echo "haskell-generated-ensure: regenerating types"
-"${HASKELL_REGEN_TYPES_COMMAND:-regen-types}"
-expected="$(haskell_generated_input_hash)"
-haskell_generated_write_marker "$expected"
-haskell_generated_is_current "$expected" \
-    || { echo "haskell-generated-ensure: regeneration did not publish current types" >&2; exit 1; }

@@ -6,6 +6,15 @@ ihp_roster_ghc_opts() {
         | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g'
 }
 
+ihp_roster_prepare_artifacts() {
+    [ -z "${IHP_ROSTER_ARTIFACTS_BINARY:-}" ] || return 0
+    local launcher scripts_repo
+    scripts_repo="$(cd "${BEPIS_SCRIPTS_ROOT:?}/../../.." && pwd)"
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$scripts_repo/bin/tooling-run}"
+    IHP_ROSTER_ARTIFACTS_BINARY="$("$launcher" artifacts --print-binary)"
+    export IHP_ROSTER_ARTIFACTS_BINARY
+}
+
 ihp_roster_verification_build_dir() {
     printf '%s\n' "${VERIFICATION_BUILD_DIR:-$PWD/build/Verification}"
 }
@@ -49,7 +58,7 @@ ihp_roster_configure_compiler_tmpdir() {
         return 0
     fi
 
-    local workspace parent workspace_id root marker temporary
+    local workspace parent workspace_id root marker artifacts
     workspace="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
     workspace="$(realpath "$workspace")"
     parent="${BEPIS_COMPILER_TMP_PARENT:-/var/tmp/bepis-compiler-$(id -u)}"
@@ -69,22 +78,22 @@ ihp_roster_configure_compiler_tmpdir() {
     fi
     chmod 700 "$parent"
 
-    workspace_id="$(printf '%s' "$workspace" | sha256sum | cut -c1-12)"
+    ihp_roster_prepare_artifacts
+    artifacts="$IHP_ROSTER_ARTIFACTS_BINARY"
+    workspace_id="$("$artifacts" digest --truncate 12 "$workspace")"
     root="$parent/$workspace_id"
     marker="$root/.bepis-compiler-tmp"
     if [ -e "$root" ] || [ -L "$root" ]; then
         [ -d "$root" ] && [ ! -L "$root" ] \
             && [ "$(stat -c %u "$root" 2>/dev/null)" = "$(id -u)" ] \
             && [ -f "$marker" ] && [ ! -L "$marker" ] \
-            && [ "$(cat "$marker" 2>/dev/null)" = "$workspace" ] || {
+            && "$artifacts" manifest check "$marker" "$workspace" "compiler-tmp-v1" || {
                 echo "compiler-tmp: foreign or unsafe workspace temp root: $root" >&2
                 return 65
             }
     else
         mkdir -m 700 "$root" || return 73
-        temporary="$(mktemp "$root/.marker.XXXXXX")"
-        printf '%s\n' "$workspace" >"$temporary"
-        mv "$temporary" "$marker"
+        "$artifacts" manifest publish "$marker" "$workspace" "compiler-tmp-v1"
     fi
     chmod 700 "$root"
     export TMPDIR="$root"
@@ -94,22 +103,25 @@ ihp_roster_configure_compiler_tmpdir() {
 # Persistent verification caches retain only successfully compiled dependencies.
 # Callers still pass every validation subject to GHC on every invocation.
 ihp_roster_prepare_verification_cache() {
-    local purpose="$1" ghc_opts="$2" format="$3" workspace parent root fingerprint stamp
+    local purpose="$1" ghc_opts="$2" format="$3" workspace parent root source_hash option_hash stamp artifacts scripts_root inventory
     workspace="$(git rev-parse --show-toplevel)"
     parent="${BEPIS_GHC_CACHE_PARENT:-/var/tmp/bepis-ghc-cache-$(id -u)}"
-    root="$parent/$(printf '%s' "$workspace" | sha256sum | cut -c1-12)/$purpose"
+    ihp_roster_prepare_artifacts
+    artifacts="$IHP_ROSTER_ARTIFACTS_BINARY"
+    root="$parent/$("$artifacts" digest --truncate 12 "$workspace")/$purpose"
     mkdir -p "$root"
     chmod 700 "$parent" "${root%/$purpose}" "$root"
     exec {IHP_ROSTER_GHC_CACHE_FD}>>"$root/lock"
     flock "$IHP_ROSTER_GHC_CACHE_FD"
-    # Include the current contents of every tracked source, not just HEAD, so
-    # dirty dependency/schema changes cannot reuse stale interfaces.
-    fingerprint="$({ printf '%s\n%s\n%s\n' "$(ghc --numeric-version)" "$ghc_opts" "$format"; git ls-files -z | xargs -0 git hash-object; } | sha256sum | cut -d' ' -f1)"
-    stamp="$root/fingerprint.sha256"
-    if [ "$(cat "$stamp" 2>/dev/null || true)" != "$fingerprint" ]; then
+    scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
+    inventory="${IHP_ROSTER_GHC_CACHE_INVENTORY:-$scripts_root/haskell/verification-cache-inputs}"
+    source_hash="$("$artifacts" snapshot --root "$workspace" --inventory-command "$inventory")"
+    option_hash="$("$artifacts" digest "$(ghc --numeric-version)" "$ghc_opts" "$format")"
+    stamp="$root/fingerprint.json"
+    if ! "$artifacts" manifest check "$stamp" "$source_hash" "$option_hash"; then
         rm -rf "$root/obj" "$root/hi"
         mkdir -p "$root/obj" "$root/hi"
-        printf '%s\n' "$fingerprint" >"$stamp"
+        "$artifacts" manifest publish "$stamp" "$source_hash" "$option_hash"
     fi
     IHP_ROSTER_GHC_CACHE_DIR="$root"
 }
@@ -123,15 +135,18 @@ ihp_roster_release_verification_cache() {
 ihp_roster_prepare_ghc_build_dir() {
     local build_dir="$1"
     local ghc_opts="$2"
-    local fingerprint stamp_file previous_fingerprint
-    fingerprint="$(printf '%s\n%s\n' "$(ghc --numeric-version)" "$ghc_opts" | sha256sum | cut -d' ' -f1)"
+    local option_hash stamp_file artifacts
+    ihp_roster_prepare_artifacts
+    artifacts="$IHP_ROSTER_ARTIFACTS_BINARY"
+    option_hash="$("$artifacts" digest "$(ghc --numeric-version)" "$ghc_opts")"
+    # Keep the published evidence filename: reachability snapshots hash it.
     stamp_file="$build_dir/ghc-options.sha256"
-    previous_fingerprint="$(cat "$stamp_file" 2>/dev/null || true)"
 
-    if [ "$previous_fingerprint" != "$fingerprint" ]; then
+    if ! "$artifacts" manifest check "$stamp_file" "$option_hash" "ghc-build-dir-v1"; then
         rm -rf "$build_dir/obj" "$build_dir/hi" "$build_dir/hie"
+        mkdir -p "$build_dir/obj" "$build_dir/hi"
+        "$artifacts" manifest publish "$stamp_file" "$option_hash" "ghc-build-dir-v1"
+    else
+        mkdir -p "$build_dir/obj" "$build_dir/hi"
     fi
-
-    mkdir -p "$build_dir/obj" "$build_dir/hi"
-    printf '%s\n' "$fingerprint" > "$stamp_file"
 }

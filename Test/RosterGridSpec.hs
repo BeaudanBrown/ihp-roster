@@ -160,6 +160,7 @@ tests = describe "Roster grid row grouping" do
                 , RosterProjectionWageRail
                 , RosterProjectionSlotsGrid
                 , RosterProjectionStaffPanel
+                , RosterProjectionSettings
                 ]
 
         rosterMutationProjectionFragments DayRows (RosterDayMutation dayId)
@@ -175,4 +176,5 @@ tests = describe "Roster grid row grouping" do
                 [ RosterProjectionGridToolbar
                 , RosterProjectionGridFrame
                 , RosterProjectionStaffPanel
+                , RosterProjectionSettings
                 ]

@@ -3,37 +3,28 @@ set -euo pipefail
 
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
-
-# shellcheck source=Config/nix/scripts/frontend/generated-state-lib
-. "${BEPIS_SCRIPTS_ROOT:?}/frontend/generated-state-lib"
-
-state_dir="$(frontend_generated_state_dir)"
-contract_manifest="$state_dir/frontend-contracts.manifest"
-js_manifest="$state_dir/frontend-js.manifest"
+scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
+tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
+state_dir="$(dev-agent-state-dir)/generated-code"
 mkdir -p "$state_dir"
-frontend_generation_lock
 
-contract_input="$(frontend_contract_input_hash)"
-contract_output="$(frontend_contract_output_hash)"
-if frontend_manifest_matches "$contract_manifest" "$contract_input" "$contract_output"; then
+contract_result="$("$tooling_launcher" artifacts generate --mode ensure --root "$repo_root" \
+    --lock "$state_dir/generation.lock" --manifest "$state_dir/frontend-contracts.manifest" \
+    --input-command "$scripts_root/frontend/contracts-input-inventory" \
+    --output-command "$scripts_root/frontend/contracts-output-inventory" -- \
+    "$scripts_root/frontend/generate-contract-artifacts")"
+if [ "$contract_result" = current ]; then
     echo "frontend-generated-ensure: Haskell adapters and TypeScript contracts are current"
 else
-    echo "frontend-generated-ensure: regenerating Haskell adapters and TypeScript contracts"
-    frontend-surface-adapters
-    frontend-contracts
-    contract_input="$(frontend_contract_input_hash)"
-    contract_output="$(frontend_contract_output_hash)"
-    frontend_write_manifest "$contract_manifest" "$contract_input" "$contract_output"
+    echo "frontend-generated-ensure: regenerated Haskell adapters and TypeScript contracts"
 fi
 
-js_input="$(frontend_js_input_hash)"
-js_output="$(frontend_js_output_hash)"
-if frontend_manifest_matches "$js_manifest" "$js_input" "$js_output"; then
+js_result="$("$tooling_launcher" artifacts generate --mode ensure --root "$repo_root" \
+    --lock "$state_dir/generation.lock" --manifest "$state_dir/frontend-js.manifest" \
+    --input-command "$scripts_root/frontend/js-input-inventory" \
+    --output-command "$scripts_root/frontend/js-output-inventory" -- frontend-build)"
+if [ "$js_result" = current ]; then
     echo "frontend-generated-ensure: JavaScript bundles are current"
 else
-    echo "frontend-generated-ensure: rebuilding JavaScript bundles"
-    frontend-build
-    js_input="$(frontend_js_input_hash)"
-    js_output="$(frontend_js_output_hash)"
-    frontend_write_manifest "$js_manifest" "$js_input" "$js_output"
+    echo "frontend-generated-ensure: rebuilt JavaScript bundles"
 fi

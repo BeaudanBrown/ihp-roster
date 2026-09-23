@@ -2,30 +2,13 @@
 set -euo pipefail
 
 program="epic-worktree-workflow-acceptance-test"
-repo_root="$(git rev-parse --show-toplevel)"
+repository_root="$(git rev-parse --show-toplevel)"
+tooling_launcher="$repository_root/bin/tooling-run"
 
 fail() {
     echo "$program: $*" >&2
     exit 69
 }
-
-commands=(
-    epic-worktree-test
-    epic-worktree-provision-test
-    epic-worktree-orientation-test
-    epic-worktree-manage-test
-    epic-worktree-concurrency-test
-)
-
-for command_name in "${commands[@]}"; do
-    command -v "$command_name" >/dev/null 2>&1 \
-        || fail "named command unavailable: $command_name"
-done
-
-for command_name in "${commands[@]}"; do
-    echo "$program: running $command_name"
-    "$command_name"
-done
 
 fixture_root="$(mktemp -d)"
 cleanup() {
@@ -35,7 +18,7 @@ trap cleanup EXIT
 
 primary_repo="$fixture_root/repo"
 mock_bin="$fixture_root/bin"
-mkdir -p "$mock_bin" "$fixture_root/gh-state"
+mkdir -p "$mock_bin"
 git init --quiet --initial-branch=roster "$primary_repo"
 git -C "$primary_repo" config user.name "Epic Workflow Acceptance"
 git -C "$primary_repo" config user.email "epic-workflow-acceptance@example.invalid"
@@ -58,14 +41,6 @@ EOF
 cat >"$mock_bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = issue ] && [ "$2" = close ]; then
-    if [ "$3" = 999 ]; then
-        [ "${EPIC_CLOSURE_APPROVED:-}" = true ] || exit 77
-    fi
-    printf '%s\n' "$*" >>"$EPIC_GH_LOG"
-    touch "$EPIC_GH_STATE_DIR/closed-$3"
-    exit 0
-fi
 if [ "$1" = repo ] && [ "$2" = view ]; then
     printf '%s\n' 'BeaudanBrown/ihp-roster'
     exit 0
@@ -74,12 +49,12 @@ fi
 case "${!#}" in
     repos/BeaudanBrown/ihp-roster/issues/999)
         state=open
-        [ ! -f "$EPIC_GH_STATE_DIR/closed-999" ] || state=closed
+        [ ! -f "$(dirname "$0")/parent-closed" ] || state=closed
         printf '{"number":999,"title":"Workflow acceptance","state":"%s","html_url":"https://example.invalid/issues/999"}\n' "$state"
         ;;
     repos/BeaudanBrown/ihp-roster/issues/999/sub_issues?*)
         child_state=open
-        [ ! -f "$EPIC_GH_STATE_DIR/closed-1000" ] || child_state=closed
+        [ ! -f "$(dirname "$0")/child-closed" ] || child_state=closed
         printf '[{"number":1000,"title":"Workflow sub-issue","state":"%s","html_url":"https://example.invalid/issues/1000","assignees":[]},{"number":1001,"title":"Next workflow sub-issue","state":"open","html_url":"https://example.invalid/issues/1001","assignees":[]}]\n' "$child_state"
         ;;
     repos/BeaudanBrown/ihp-roster/issues/1000/dependencies/blocked_by?*|repos/BeaudanBrown/ihp-roster/issues/1001/dependencies/blocked_by?*)
@@ -94,21 +69,19 @@ run_primary() {
     (
         cd "$primary_repo"
         PATH="$mock_bin:$PATH" \
-        FRONTEND_REPO_ROOT="$repo_root" \
-        EPIC_GH_LOG="$fixture_root/gh.log" \
-        EPIC_GH_STATE_DIR="$fixture_root/gh-state" \
-        EPIC_WORKTREE_COMMAND="$repo_root/Config/nix/scripts/epic/worktree" \
+        BEPIS_TOOLING_LAUNCHER="$tooling_launcher" \
+        EPIC_WORKTREE_COMMAND="$(command -v epic-worktree)" \
             "$@"
     )
 }
 
-provision="$(run_primary epic-worktree-provision --epic 999 --base roster --json)"
+provision="$(run_primary epic-worktree-provision --epic 999 --base roster --name workflow-acceptance --json)"
 epic_path="$(jq -r '.path' <<<"$provision")"
 run_epic() {
     (
         cd "$epic_path"
-        PATH="$mock_bin:$PATH" FRONTEND_REPO_ROOT="$repo_root" \
-            EPIC_GH_LOG="$fixture_root/gh.log" EPIC_GH_STATE_DIR="$fixture_root/gh-state" "$@"
+        PATH="$mock_bin:$PATH" \
+            BEPIS_TOOLING_LAUNCHER="$tooling_launcher" "$@"
     )
 }
 [ "$(jq -r '.slot' <<<"$provision")" = 1 ] || fail "provisioning did not allocate slot 1"
@@ -132,14 +105,8 @@ orientation_after="$(run_epic epic-worktree orient --json)"
     || fail "interrupted epic workspace offered a new selection"
 [ "$(jq -r '.workspace.pendingCommittedIssues[0]' <<<"$orientation_after")" = 1000 ] \
     || fail "interrupted work was not tied to its open sub-issue"
-completion_evidence="$(jq -cn --arg commit "$(git -C "$epic_path" rev-parse HEAD)" \
-    '{commit: $commit, checks: ["orientation"]}')"
-[ "$(jq -r '.commit' <<<"$completion_evidence")" = "$(git -C "$epic_path" rev-parse HEAD)" ] \
-    || fail "completion evidence omitted the implemented commit"
-printf '%s: completion evidence %s; closing completed sub-issue\n' "$program" "$completion_evidence"
-run_epic gh issue close 1000 --comment "$completion_evidence"
-grep -Fq "issue close 1000 --comment $completion_evidence" "$fixture_root/gh.log" \
-    || fail "completion evidence was not supplied before automatic sub-issue closure"
+# Remote closure is fixture input: orientation advises but never mutates GitHub.
+touch "$mock_bin/child-closed"
 orientation_next="$(run_epic epic-worktree orient --json)"
 [ "$(jq -r '.workspace.interrupted' <<<"$orientation_next")" = false ] \
     || fail "closed sub-issue left the workspace interrupted"
@@ -160,21 +127,15 @@ run_primary epic-worktree-manage integrate --epic 999 --approve --json >/dev/nul
 
 [[ "$(run_primary epic-worktree-manage preflight --epic 999)" == *"parent closure: separate approval required"* ]] \
     || fail "preflight omitted separate parent-closure approval"
-set +e
-run_primary gh issue close 999 --comment "approved parent closure" >/dev/null 2>&1
-unapproved_parent_status=$?
-set -e
-[ "$unapproved_parent_status" = 77 ] || fail "parent closure did not require approval"
-EPIC_CLOSURE_APPROVED=true run_primary gh issue close 999 --comment "approved parent closure"
-grep -Fq 'issue close 999 --comment approved parent closure' "$fixture_root/gh.log" \
-    || fail "parent closure did not require its own explicit approval"
+# Remote closure is a fixture input, not an approval mechanism implemented here.
+touch "$mock_bin/parent-closed"
 cleanup_plan="$(run_primary epic-worktree-manage cleanup --epic 999 --json)"
 [ "$(jq -r '.applied' <<<"$cleanup_plan")" = false ] \
     || fail "cleanup ran without approval"
 [ -d "$epic_path" ] || fail "unapproved cleanup removed worktree"
 run_primary epic-worktree-manage cleanup --epic 999 --approve --json >/dev/null
 [ ! -e "$epic_path" ] || fail "approved cleanup left worktree"
-git -C "$primary_repo" show-ref --verify --quiet refs/heads/epic-999 \
+git -C "$primary_repo" show-ref --verify --quiet "refs/heads/$(jq -r '.branch' <<<"$provision")" \
     && fail "approved cleanup left epic branch"
 [ "$(git -C "$primary_repo" show HEAD:primary-only)" = 'primary work' ] \
     || fail "integration or cleanup changed primary work"

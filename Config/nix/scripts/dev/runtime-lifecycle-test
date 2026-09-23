@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+launcher="$repo_root/bin/tooling-run"
+fixture_root="$(mktemp -d)"
+cleanup() {
+    for name in owned concurrent; do
+        "$launcher" runtime process stop "$fixture_root/$name.pid" "$fixture_root/$name.owner.json" "$name" "$fixture_root" 500 >/dev/null 2>&1 || true
+    done
+    [ -z "${borrowed_pid:-}" ] || kill "$borrowed_pid" >/dev/null 2>&1 || true
+    [ -z "${shared_borrowed_pid:-}" ] || kill "$shared_borrowed_pid" >/dev/null 2>&1 || true
+    [ -z "${adopted_pid:-}" ] || kill "$adopted_pid" >/dev/null 2>&1 || true
+    [ -z "${unsafe_child_pid:-}" ] || kill "$unsafe_child_pid" >/dev/null 2>&1 || true
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+fail() { echo "runtime-lifecycle-test: $*" >&2; exit 1; }
+
+# Immediate child failure retains its bounded log but no false ownership state.
+set +e
+failure_output="$("$launcher" runtime process start "$fixture_root/fail.pid" "$fixture_root/fail.owner.json" "$fixture_root/fail.log" fail "$fixture_root" -- false 2>&1)"
+failure_status=$?
+set -e
+[ "$failure_status" = 75 ] && [[ "$failure_output" == *"failed to start"* ]] || fail "child failure was not diagnosed"
+[ ! -e "$fixture_root/fail.pid" ] && [ ! -e "$fixture_root/fail.owner.json" ] || fail "failed child retained ownership state"
+
+# Concurrent starts converge on one owner and publish a descendant tree.
+cat >"$fixture_root/tree.sh" <<'EOF'
+#!/usr/bin/env bash
+sleep 30 &
+echo "$!" > child.pid
+wait
+EOF
+chmod +x "$fixture_root/tree.sh"
+"$launcher" runtime process start "$fixture_root/concurrent.pid" "$fixture_root/concurrent.owner.json" "$fixture_root/concurrent.log" concurrent "$fixture_root" -- "$fixture_root/tree.sh" >"$fixture_root/first" &
+first=$!
+"$launcher" runtime process start "$fixture_root/concurrent.pid" "$fixture_root/concurrent.owner.json" "$fixture_root/concurrent.log" concurrent "$fixture_root" -- "$fixture_root/tree.sh" >"$fixture_root/second" &
+second=$!
+wait "$first"
+wait "$second"
+cmp -s "$fixture_root/first" "$fixture_root/second" || fail "concurrent starts created different owners"
+
+# Group termination cleans descendants, not only the recorded leader.
+for _ in $(seq 1 20); do [ -s "$fixture_root/child.pid" ] && break; sleep 0.05; done
+child_pid="$(cat "$fixture_root/child.pid")"
+"$launcher" runtime process stop "$fixture_root/concurrent.pid" "$fixture_root/concurrent.owner.json" concurrent "$fixture_root" 1000 >/dev/null
+[ ! -e "$fixture_root/concurrent.pid" ] || fail "owned stop retained PID state"
+[ ! -e "/proc/$child_pid/status" ] || [ "$(awk '{print $3}' "/proc/$child_pid/stat")" = Z ] || fail "owned descendant survived group stop"
+
+# Reused/stale evidence never authorizes signalling the numeric PID.
+printf '%s\n' "$$" >"$fixture_root/stale.pid"
+printf '{"version":1,"pid":%s,"startTicks":"0","workingDirectory":"%s","label":"stale"}\n' "$$" "$fixture_root" >"$fixture_root/stale.owner.json"
+"$launcher" runtime process stop "$fixture_root/stale.pid" "$fixture_root/stale.owner.json" stale "$fixture_root" 0 >/dev/null
+kill -0 "$$" || fail "stale evidence signalled the caller"
+[ ! -e "$fixture_root/stale.pid" ] || fail "stale evidence was not cleared"
+
+# Explicit process diagnostics remain separate and bounded; this timing does
+# not claim to explain or repair the older epic workflow timeout.
+diagnostic_started="$(date +%s%N)"
+"$launcher" runtime process observe "$fixture_root/missing.pid" "$fixture_root/missing.owner.json" missing "$fixture_root" >/dev/null 2>&1 || true
+diagnostic_ms=$(( ($(date +%s%N) - diagnostic_started) / 1000000 ))
+[ "$diagnostic_ms" -lt 2000 ] || fail "explicit process diagnostic exceeded 2s"
+
+# A reachable/borrowed process is untouched even if stale PID-only state points
+# at it; PID existence plus workspace cwd never grants termination authority.
+(cd "$fixture_root" && exec sleep 30) &
+borrowed_pid=$!
+printf '%s\n' "$borrowed_pid" >"$fixture_root/borrowed.pid"
+"$launcher" runtime process stop "$fixture_root/borrowed.pid" "$fixture_root/borrowed.owner.json" borrowed "$fixture_root" 0 >/dev/null
+kill -0 "$borrowed_pid" || fail "borrowed process was stopped without ownership evidence"
+[ ! -e "$fixture_root/borrowed.pid" ] || fail "unsafe PID-only state was retained"
+
+# Adoption never grants authority over the caller's shared process group.
+(cd "$fixture_root" && exec sleep 30) &
+adopted_pid=$!
+(cd "$fixture_root" && exec sleep 30) &
+shared_borrowed_pid=$!
+"$launcher" runtime process adopt "$fixture_root/adopted.pid" "$fixture_root/adopted.owner.json" adopted "$fixture_root" "$adopted_pid" >/dev/null
+"$launcher" runtime process stop "$fixture_root/adopted.pid" "$fixture_root/adopted.owner.json" adopted "$fixture_root" 1000 >/dev/null
+kill -0 "$shared_borrowed_pid" || fail "adopted stop signalled a shared borrowed process"
+[ ! -e "/proc/$adopted_pid/status" ] || [ "$(awk '{print $3}' "/proc/$adopted_pid/stat")" = Z ] || fail "adopted process survived individual stop"
+
+# Readiness uses a bounded monotonic deadline and emits no log contents/secrets.
+printf 'DATABASE_URL=postgres://secret@example.invalid\n' >"$fixture_root/secret.log"
+cat >"$fixture_root/hanging-probe.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "$$" > "$1"
+exec sleep 10
+EOF
+chmod +x "$fixture_root/hanging-probe.sh"
+started=$(date +%s)
+set +e
+wait_output="$("$launcher" runtime wait-command 300 readiness "$fixture_root/secret.log" -- "$fixture_root/hanging-probe.sh" "$fixture_root/probe.pid" 2>&1)"
+wait_status=$?
+set -e
+elapsed=$(( $(date +%s) - started ))
+[ "$wait_status" = 75 ] && [ "$elapsed" -lt 3 ] || fail "readiness deadline was not bounded"
+[[ "$wait_output" != *"secret@example"* ]] || fail "readiness diagnostics leaked a secret"
+[[ "$wait_output" == *"inspect $fixture_root/secret.log"* ]] || fail "readiness failure omitted retained log path"
+probe_pid="$(cat "$fixture_root/probe.pid")"
+for _ in $(seq 1 20); do [ ! -e "/proc/$probe_pid/status" ] && break; sleep 0.05; done
+[ ! -e "/proc/$probe_pid/status" ] || fail "timed-out readiness probe survived cancellation"
+
+# A leader that exits after spawning a same-session descendant retains group
+# ownership so stop still cleans the descendant.
+cat >"$fixture_root/orphan-tree.py" <<'EOF'
+import os
+import time
+child = os.fork()
+if child:
+    with open("orphan-child.pid", "w", encoding="utf-8") as handle:
+        handle.write(f"{child}\n")
+    raise SystemExit(0)
+time.sleep(30)
+EOF
+"$launcher" runtime process start "$fixture_root/orphan.pid" "$fixture_root/orphan.owner.json" "$fixture_root/orphan.log" orphan "$fixture_root" -- python3 "$fixture_root/orphan-tree.py" >/dev/null
+orphan_child="$(cat "$fixture_root/orphan-child.pid")"
+"$launcher" runtime process stop "$fixture_root/orphan.pid" "$fixture_root/orphan.owner.json" orphan "$fixture_root" 1000 >/dev/null
+[ ! -e "/proc/$orphan_child/status" ] || [ "$(awk '{print $3}' "/proc/$orphan_child/stat")" = Z ] || fail "descendant survived exited group leader"
+
+# If a descendant drops the ownership token, termination fails safe and retains
+# the evidence required for operator diagnosis instead of clearing state.
+cat >"$fixture_root/unsafe-tree.py" <<'EOF'
+import os
+import time
+time.sleep(0.2)
+child = os.fork()
+if child:
+    with open("unsafe-child.pid", "w", encoding="utf-8") as handle:
+        handle.write(f"{child}\n")
+    raise SystemExit(0)
+os.environ.pop("BEPIS_RUNTIME_OWNER_TOKEN", None)
+os.execvpe("sleep", ["sleep", "30"], os.environ)
+EOF
+"$launcher" runtime process start "$fixture_root/unsafe.pid" "$fixture_root/unsafe.owner.json" "$fixture_root/unsafe.log" unsafe "$fixture_root" -- python3 "$fixture_root/unsafe-tree.py" >/dev/null
+for _ in $(seq 1 20); do [ -s "$fixture_root/unsafe-child.pid" ] && break; sleep 0.05; done
+unsafe_child_pid="$(cat "$fixture_root/unsafe-child.pid")"
+sleep 0.2
+set +e
+unsafe_output="$("$launcher" runtime process stop "$fixture_root/unsafe.pid" "$fixture_root/unsafe.owner.json" unsafe "$fixture_root" 0 2>&1)"
+unsafe_status=$?
+set -e
+[ "$unsafe_status" = 75 ] && [[ "$unsafe_output" == *"retained ownership state"* ]] || fail "unsafe group did not fail with retained state"
+[ -e "$fixture_root/unsafe.pid" ] && [ -e "$fixture_root/unsafe.owner.json" ] || fail "unsafe group evidence was cleared"
+kill "$unsafe_child_pid" >/dev/null 2>&1 || true
+unsafe_child_pid=""
+rm -f "$fixture_root/unsafe.pid" "$fixture_root/unsafe.owner.json"
+
+# Symlinked log artifacts are rejected before opening or publication.
+printf 'unchanged\n' >"$fixture_root/log-target"
+ln -s "$fixture_root/log-target" "$fixture_root/symlink.log"
+set +e
+symlink_output="$("$launcher" runtime process start "$fixture_root/symlink.pid" "$fixture_root/symlink.owner.json" "$fixture_root/symlink.log" symlink "$fixture_root" -- sleep 30 2>&1)"
+symlink_status=$?
+set -e
+[ "$symlink_status" = 73 ] && [[ "$symlink_output" == *"is a symlink"* ]] || fail "symlinked log was not refused"
+[ "$(cat "$fixture_root/log-target")" = unchanged ] || fail "symlink target was mutated"
+
+# Adapter rollback preserves ownership established by an earlier invocation.
+mkdir -p "$fixture_root/adapter-bin"
+cat >"$fixture_root/adapter-bin/runtime" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$RUNTIME_CALL_LOG"
+case "$1 $2" in
+    "process observe") printf 'pid=123 alive=true owned=true reason=owner-evidence\n' ;;
+    "process start-result") printf 'pid=123 created=false\n' ;;
+    "process start") printf '123\n' ;;
+    wait-owned-command*) exit 75 ;;
+    "process stop") exit 0 ;;
+esac
+EOF
+cat >"$fixture_root/adapter-bin/curl" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+cat >"$fixture_root/adapter-bin/MailHog" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$fixture_root/adapter-bin"/*
+set +e
+(
+    cd "$repo_root"
+    PATH="$fixture_root/adapter-bin:$PATH" \
+        BEPIS_RUNTIME_BINARY="$fixture_root/adapter-bin/runtime" \
+        BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
+        DEVENV_AGENT_STATE_DIR="$fixture_root/adapter-state" \
+        RUNTIME_CALL_LOG="$fixture_root/runtime-calls" \
+        bash "$repo_root/Config/nix/scripts/dev/ensure-mailhog"
+) >/dev/null 2>&1
+adapter_status=$?
+set -e
+[ "$adapter_status" = 75 ] || fail "pre-existing service readiness failure changed exit status"
+! grep -q '^process stop ' "$fixture_root/runtime-calls" || fail "rollback used unconditional stop for a pre-existing owned service"
+
+echo "runtime-lifecycle-test: ok diagnostic_ms=$diagnostic_ms (separate from inherited workflow timeout)"

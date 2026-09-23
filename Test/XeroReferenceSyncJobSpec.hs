@@ -25,6 +25,7 @@ import Control.Concurrent.Async (withAsync, wait, cancel)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import System.Timeout (timeout)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (isLeft)
 import Data.IORef
 import qualified Data.Set as Set
@@ -682,6 +683,26 @@ tests = aroundAll withDatabaseTestContext do
                 syncRun.errorMessage `shouldSatisfy` \case
                     Just message -> "repeated an earnings-rate page" `isInfixOf` message
                     Nothing -> False
+
+        it "does not schedule an explicit retry in the past after all failure delays have elapsed" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Elapsed Retry Delay"
+                owner <- createUserRecord "xero-elapsed-retry@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-elapsed-retry"
+                EnqueuedAppJob previous <- enqueueXeroReferenceSyncJob Nothing connection
+                now <- getCurrentTime
+                _ <- previous
+                    |> set #status JobStatusFailed
+                    |> set #updatedAt (addUTCTime (-120) now)
+                    |> set #progress (Aeson.object ["retryAt" Aeson..= addUTCTime (-60) now])
+                    |> updateRecord
+                EnqueuedAppJob replacement <- enqueueXeroReferenceSyncJob Nothing connection
+                requestedAt <- either fail pure $
+                    AesonTypes.parseEither (Aeson.withObject "reference sync payload" (Aeson..: "requestedAt")) replacement.payload
+                -- PostgreSQL stores microseconds; the JSON request time retains
+                -- sub-microsecond precision. Compare this request, not wall-clock samples.
+                abs (diffUTCTime replacement.runAt requestedAt) `shouldSatisfy` (< 0.000001)
+                query @AppJob |> fetchCount `shouldReturn` 2
 
         it "retains Retry-After when an exhausted chain is explicitly retried" $ withContext do
             withCleanDb do

@@ -3,7 +3,6 @@ module Application.Helper.XeroTimesheetReadiness
     , XeroReadinessSeverity (..)
     , XeroTimesheetReadiness (..)
     , XeroTimesheetReadinessRequest (..)
-    , deriveXeroPayrollCalendarPeriod
     , fetchPreviousConnectionImportedEntryIds
     , readinessBlockerCodes
     , validateXeroTimesheetReadiness
@@ -104,7 +103,7 @@ validateXeroTimesheetReadiness request =
         let selectedResult = case request.readinessSelection of
                 AllEligible -> Right allPeriodEntries
                 selection -> validateTimesheetSelection (unpackId request.readinessVenueId) request.readinessPeriodStart request.readinessPeriodEnd selection allPeriodEntries
-            periodEntries = either (const []) (\value -> value) selectedResult
+            periodEntries = either (const []) IHP.ControllerPrelude.id selectedResult
             selectionBlockers = either (\failure -> [blockerWith "selection_changed" (renderTimesheetSelectionFailure failure)]) (const []) selectedResult
         notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
         let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
@@ -350,32 +349,6 @@ xeroEmployeePayrollCalendarId employee =
     where
         parser = AesonTypes.withObject "Xero employee" \object ->
             (object AesonTypes..:? "PayrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarId")
-
-deriveXeroPayrollCalendarPeriod :: XeroPayrollCalendar -> Day -> Maybe (Day, Day)
-deriveXeroPayrollCalendarPeriod calendar localPeriodStart = do
-    anchor <- calendar.startDate
-    days <- calendarLengthDays calendar.calendarType
-    let offset = diffDays localPeriodStart anchor
-    guard (days > 0)
-    let periodIndex = floorDiv offset days
-    let expectedStart = addDays (periodIndex * days) anchor
-    pure (expectedStart, addDays (days - 1) expectedStart)
-
-calendarLengthDays :: Maybe Text -> Maybe Integer
-calendarLengthDays maybeCalendarType =
-    case Text.toCaseFold . Text.strip <$> maybeCalendarType of
-        Just "weekly"      -> Just 7
-        Just "week"        -> Just 7
-        Just "fortnightly" -> Just 14
-        Just "biweekly"    -> Just 14
-        Just "fourweekly"  -> Just 28
-        Just "four weekly" -> Just 28
-        _                  -> Nothing
-
-floorDiv :: Integer -> Integer -> Integer
-floorDiv numerator denominator =
-    let (quotient, remainder) = numerator `quotRem` denominator
-     in if remainder < 0 then quotient - 1 else quotient
 
 fetchPreviousConnectionImportedEntryIds ::
     (?modelContext :: ModelContext) =>

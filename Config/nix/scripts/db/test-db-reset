@@ -74,33 +74,35 @@ state_root="$PWD/.devenv"
 lock_file="$state_root/test-db-template.lock"
 mkdir -p "$state_root"
 
-# All local Hspec shards share one immutable schema template. The file lock
-# ensures only one shard builds a missing fingerprint while the others wait.
-(
-    flock 9
-
-    template_exists="$(psql -h "$DB_SOCKET" -d postgres -Atv ON_ERROR_STOP=1 \
-        -c "SELECT 1 FROM pg_database WHERE datname = '$template_name'")"
-
-    if [ "$template_exists" != "1" ]; then
-        staging_name="${template_name}_building_$$"
-        cleanup_staging() {
-            psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 \
-                -c "DROP DATABASE IF EXISTS \"$staging_name\" WITH (FORCE)" >/dev/null 2>&1 || true
-        }
-        trap cleanup_staging EXIT
-
-        create_empty_database "$staging_name"
-        load_base_schema "$staging_name"
-        psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
-ALTER DATABASE "$staging_name" RENAME TO "$template_name";
-ALTER DATABASE "$template_name" WITH IS_TEMPLATE true ALLOW_CONNECTIONS false;
-SQL
-        trap - EXIT
-    fi
-) 9>"$lock_file"
-
-psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+# Shards wait for immutable template publication, then clone independently.
+# The Haskell owner cannot leak its lock descriptor into PostgreSQL children.
+if [ "${BEPIS_TEST_DB_TEMPLATE_HELD:-0}" != 1 ]; then
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$(realpath "$(dirname "$0")/../../../../bin/tooling-run")}"
+    "$launcher" postgres maintenance-run --wait "$lock_file" -- \
+        env BEPIS_TEST_DB_TEMPLATE_HELD=1 bash "$0" "$@"
+    psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
 DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
 CREATE DATABASE "$DB_NAME" TEMPLATE "$template_name";
 SQL
+    exit 0
+fi
+
+template_exists="$(psql -h "$DB_SOCKET" -d postgres -Atv ON_ERROR_STOP=1 \
+    -c "SELECT 1 FROM pg_database WHERE datname = '$template_name'")"
+
+if [ "$template_exists" != "1" ]; then
+    staging_name="${template_name}_building_$$"
+    cleanup_staging() {
+        psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 \
+            -c "DROP DATABASE IF EXISTS \"$staging_name\" WITH (FORCE)" >/dev/null 2>&1 || true
+    }
+    trap cleanup_staging EXIT
+
+    create_empty_database "$staging_name"
+    load_base_schema "$staging_name"
+    psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+ALTER DATABASE "$staging_name" RENAME TO "$template_name";
+ALTER DATABASE "$template_name" WITH IS_TEMPLATE true ALLOW_CONNECTIONS false;
+SQL
+    trap - EXIT
+fi

@@ -3,6 +3,8 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
+# shellcheck source=../lib/runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 STATE_DIR="$(dev-agent-state-dir)"
 MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
@@ -10,38 +12,31 @@ MAILHOG_URL="$MAILHOG_BASE_URL"
 MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
 
 mkdir -p "$STATE_DIR"
-: > "$LOG_FILE"
 
 if curl -fsS "$MAILHOG_URL/api/v2/messages" >/dev/null 2>&1; then
     exit 0
 fi
 
-if [ -f "$MAILHOG_PID_FILE" ]; then
-    MAILHOG_PID=$(cat "$MAILHOG_PID_FILE")
-    if ! kill -0 "$MAILHOG_PID" 2>/dev/null; then
-        rm -f "$MAILHOG_PID_FILE"
+bepis_runtime_ensure_invocation_token
+mailhog_created=false
+cleanup_failed_start() {
+    local status=$?
+    if [ "$status" -ne 0 ]; then
+        bepis_runtime_stop_invocation "$MAILHOG_PID_FILE" mailhog 2000 >/dev/null 2>&1 || true
     fi
+    return "$status"
+}
+trap cleanup_failed_start EXIT
+mailhog_result="$(bepis_runtime_start_result "$MAILHOG_PID_FILE" "$LOG_FILE" mailhog "$MAILHOG_BIN" \
+    -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
+    -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
+    -api-bind-addr "127.0.0.1:$MAILHOG_PORT")"
+MAILHOG_PID="$(bepis_runtime_result_value "$mailhog_result" pid)"
+mailhog_created="$(bepis_runtime_result_value "$mailhog_result" created)"
+
+bepis_runtime_wait_owned 20000 mailhog "$LOG_FILE" "$MAILHOG_PID_FILE" \
+    curl -fsS "$MAILHOG_URL/api/v2/messages"
+trap - EXIT
+if [ "${BEPIS_RUNTIME_REPORT_START:-0}" = 1 ]; then
+    printf 'pid=%s created=%s\n' "$MAILHOG_PID" "$mailhog_created"
 fi
-
-if [ ! -f "$MAILHOG_PID_FILE" ]; then
-    echo "[dev-ensure-mailhog] launching MailHog" >>"$LOG_FILE"
-    setsid nohup "$MAILHOG_BIN" \
-        -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
-        -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-        -api-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-        </dev/null >>"$LOG_FILE" 2>&1 &
-    MAILHOG_PID=$!
-    echo "$MAILHOG_PID" > "$MAILHOG_PID_FILE"
-    disown "$MAILHOG_PID" 2>/dev/null || true
-fi
-
-for _ in $(seq 1 20); do
-    if curl -fsS "$MAILHOG_URL/api/v2/messages" >/dev/null 2>&1; then
-        exit 0
-    fi
-    sleep 1
-done
-
-echo "devenv MailHog failed to start; recent log output:"
-tail -n 60 "$LOG_FILE" || true
-exit 1

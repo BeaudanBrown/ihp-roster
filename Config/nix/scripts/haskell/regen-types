@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# shellcheck source=../lib/ghc.sh
-. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
-# shellcheck source=generated-state-lib
-. "${BEPIS_SCRIPTS_ROOT:?}/haskell/generated-state-lib"
-ihp_roster_configure_compiler_tmpdir
-rm -rf build/Generated
-mkdir -p build/Generated
-build-generated-code
-haskell_generated_write_marker "$(haskell_generated_input_hash)"
+repo_root="${HASKELL_GENERATED_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
+tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
+state_dir="$(dev-agent-state-dir)/generated-code"
+mkdir -p "$state_dir"
+"$tooling_launcher" artifacts generate --mode sync --root "$repo_root" \
+    --lock "$state_dir/haskell-generation.lock" --manifest "$state_dir/haskell-types.manifest" \
+    --input-command "$scripts_root/haskell/generated-input-inventory" \
+    --output-command "$scripts_root/haskell/generated-output-inventory" -- \
+    "$scripts_root/haskell/regen-types-raw" >/dev/null
 echo "Types regenerated in build/Generated/"

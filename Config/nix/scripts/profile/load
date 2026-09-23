@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+PROFILE_ORIGINAL_ARGS=("$@")
 
 export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 PROFILE_RUN_ID="${PROFILE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
@@ -137,6 +138,15 @@ EOF
     esac
 done
 
+if [ "${BEPIS_RUNNER_LEASED:-0}" != 1 ]; then
+    workspace="$(realpath "$(git rev-parse --show-toplevel)")"
+    launcher="${BEPIS_TOOLING_LAUNCHER:-$workspace/bin/tooling-run}"
+    export PROFILE_RUN_ID PROFILE_LOAD_OUTPUT_DIR PROFILE_DATABASE_NAME
+    exec "$launcher" runners run --family profile-load --workspace "$workspace" \
+        --run-id "$PROFILE_RUN_ID" --artifact-dir "$(realpath -m "$PROFILE_LOAD_OUTPUT_DIR/failure")" -- \
+        env BEPIS_RUNNER_LEASED=1 "$0" "${PROFILE_ORIGINAL_ARGS[@]}"
+fi
+
 [[ "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || {
     echo "Profile load startup timeout must be a positive integer" >&2
     exit 64
@@ -151,6 +161,12 @@ case "$PROFILE_DATABASE_NAME" in
         exit 1
         ;;
 esac
+
+runner_binary="${BEPIS_RUNNERS_BINARY:-$("${BEPIS_TOOLING_LAUNCHER:-$PWD/bin/tooling-run}" runners --print-binary)}"
+profile_plan=(profile-plan --kind load --scenario "$PROFILE_LOAD_SCENARIO" \
+    --rate "$PROFILE_LOAD_RATE" --duration "$PROFILE_LOAD_DURATION" --vus "$PROFILE_LOAD_VUS")
+[ -z "$PROFILE_LOAD_MAX_VUS" ] || profile_plan+=(--max-vus "$PROFILE_LOAD_MAX_VUS")
+"$runner_binary" "${profile_plan[@]}" >/dev/null
 
 case "$PROFILE_LOAD_SCENARIO" in
     roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|staff|support|billing|auth|mixed-app)
@@ -183,6 +199,7 @@ PROFILE_RUNTIME_SAMPLER_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/runtime-resources.pid
 PROFILE_OTEL_TRACE_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-traces.json"
 PROFILE_OTEL_LOG="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.log"
 PROFILE_OTEL_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.pid"
+PROFILE_OTEL_OWNER_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.owner.json"
 
 if [ "$PROFILE_SHOULD_SEED" = "1" ]; then
     seed-profile "$PROFILE_DATABASE_NAME" --output-dir="$PROFILE_SEED_OUTPUT_DIR" "${PROFILE_SEED_ARGS[@]}"
@@ -203,12 +220,9 @@ fi
 cleanup_profile_load() {
     stop_profile_runtime_sampler "$PROFILE_RUNTIME_SAMPLER_PID_FILE"
     cleanup_profile_server
-    if [ -f "$PROFILE_OTEL_PID_FILE" ]; then
-        local otel_pid
-        otel_pid=$(cat "$PROFILE_OTEL_PID_FILE")
-        kill -TERM "$otel_pid" 2>/dev/null || true
-        wait "$otel_pid" 2>/dev/null || true
-        rm -f "$PROFILE_OTEL_PID_FILE"
+    if [ -f "$PROFILE_OTEL_PID_FILE" ] || [ -f "$PROFILE_OTEL_OWNER_FILE" ]; then
+        "$(profile_runtime_binary)" process stop "$PROFILE_OTEL_PID_FILE" "$PROFILE_OTEL_OWNER_FILE" \
+            profile-otel "$PWD" 3000 >/dev/null 2>&1 || true
     fi
 }
 
@@ -222,11 +236,10 @@ if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     fi
     mkdir -p "$(dirname "$PROFILE_OTEL_TRACE_FILE")"
     rm -f "$PROFILE_OTEL_TRACE_FILE"
-    (
-        export OTEL_FILE_EXPORTER_PATH="$PROFILE_OTEL_TRACE_FILE"
-        exec otelcol-contrib --config ./Config/otel/profile-file-collector.yaml
-    ) >>"$PROFILE_OTEL_LOG" 2>&1 &
-    echo "$!" > "$PROFILE_OTEL_PID_FILE"
+    "$(profile_runtime_binary)" process start "$PROFILE_OTEL_PID_FILE" "$PROFILE_OTEL_OWNER_FILE" \
+        "$PROFILE_OTEL_LOG" profile-otel "$PWD" -- env \
+        OTEL_FILE_EXPORTER_PATH="$PROFILE_OTEL_TRACE_FILE" \
+        otelcol-contrib --config ./Config/otel/profile-file-collector.yaml >/dev/null
     sleep 1
     if ! kill -0 "$(cat "$PROFILE_OTEL_PID_FILE")" 2>/dev/null; then
         echo "OpenTelemetry collector failed to start" >&2
@@ -240,12 +253,9 @@ finalize_profile_otel() {
         return 0
     fi
     sleep 1
-    if [ -f "$PROFILE_OTEL_PID_FILE" ]; then
-        local otel_pid
-        otel_pid=$(cat "$PROFILE_OTEL_PID_FILE")
-        kill -TERM "$otel_pid" 2>/dev/null || true
-        wait "$otel_pid" 2>/dev/null || true
-        rm -f "$PROFILE_OTEL_PID_FILE"
+    if [ -f "$PROFILE_OTEL_PID_FILE" ] || [ -f "$PROFILE_OTEL_OWNER_FILE" ]; then
+        "$(profile_runtime_binary)" process stop "$PROFILE_OTEL_PID_FILE" "$PROFILE_OTEL_OWNER_FILE" \
+            profile-otel "$PWD" 3000 >/dev/null
     fi
     if [ ! -s "$PROFILE_OTEL_TRACE_FILE" ]; then
         if [ "$PROFILE_LOAD_REQUIRE_OTEL_TRACES" = "0" ]; then
@@ -267,8 +277,8 @@ if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     otel_env=(
         IHP_ROSTER_OTEL=1
         OTEL_SERVICE_NAME=ihp-roster-profile
-        OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:24318
-        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:24318/v1/traces
+        OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:${BEPIS_RUNNER_OTLP_HTTP_PORT:?}"
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="http://127.0.0.1:${BEPIS_RUNNER_OTLP_HTTP_PORT:?}/v1/traces"
         OTEL_TRACES_SAMPLER="$PROFILE_LOAD_OTEL_SAMPLER"
         IHP_ROSTER_OTEL_SHUTDOWN_TIMEOUT_MS=2000
         OTEL_BSP_MAX_QUEUE_SIZE=512
@@ -287,25 +297,18 @@ if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
     fi
 fi
 
-(
-    export PROFILE_DATABASE_NAME
-    export PROFILE_DB_SOCKET
-    if [ "$PROFILE_LOAD_PROFILING" = "1" ]; then
-        export IHP_ROSTER_PROFILING=1
-        export GHCRTS="${GHCRTS:+$GHCRTS }-T"
-    else
-        export IHP_ROSTER_PROFILING=0
-    fi
-    if [ "${#otel_env[@]}" -gt 0 ]; then
-        export "${otel_env[@]}"
-    fi
-    setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
-    echo "$!" > "$PROFILE_PID_FILE"
-    wait "$!"
-) &
-PROFILE_WRAPPER_PID="$!"
-
-PROFILE_SERVER_PID=""
+export PROFILE_DATABASE_NAME PROFILE_DB_SOCKET
+if [ "$PROFILE_LOAD_PROFILING" = "1" ]; then
+    export IHP_ROSTER_PROFILING=1
+    export GHCRTS="${GHCRTS:+$GHCRTS }-T"
+else
+    export IHP_ROSTER_PROFILING=0
+fi
+if [ "${#otel_env[@]}" -gt 0 ]; then
+    export "${otel_env[@]}"
+fi
+start_profile_server profile-server profile-test-server
+PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
 for _ in $(seq 1 "$PROFILE_LOAD_STARTUP_TIMEOUT_SECONDS"); do
     if [ -f "$PROFILE_PID_FILE" ]; then
         PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
@@ -381,5 +384,4 @@ done
 
 echo "Timed out waiting for profile load app server" >&2
 tail -n 120 "$PROFILE_LOG" >&2 || true
-kill "$PROFILE_WRAPPER_PID" 2>/dev/null || true
 exit 1

@@ -3,6 +3,8 @@ set -euo pipefail
 # shellcheck source=../lib/workspace.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/workspace.sh"
 bepis_workspace_configure
+# shellcheck source=../lib/runtime.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/runtime.sh"
 stop_postgres() {
     dev-postgres stop >/dev/null || true
 }
@@ -16,32 +18,8 @@ MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
 
 stop_tracked_process() {
-    local pid_file="$1"
-
-    if [ ! -f "$pid_file" ]; then
-        return 0
-    fi
-
-    local tracked_pid
-    tracked_pid=$(cat "$pid_file")
-
-    if ! kill -0 "$tracked_pid" 2>/dev/null; then
-        rm -f "$pid_file"
-        return 0
-    fi
-
-    kill -TERM -"$tracked_pid" 2>/dev/null || kill -TERM "$tracked_pid" 2>/dev/null || true
-
-    for _ in $(seq 1 20); do
-        if ! kill -0 "$tracked_pid" 2>/dev/null; then
-            rm -f "$pid_file"
-            return 0
-        fi
-        sleep 1
-    done
-
-    kill -KILL -"$tracked_pid" 2>/dev/null || kill -KILL "$tracked_pid" 2>/dev/null || true
-    rm -f "$pid_file"
+    local pid_file="$1" label="${2:-service}"
+    bepis_runtime_stop "$pid_file" "$label" 20000 >/dev/null
 }
 
 if [ -f "$STATE_DIR/tempo.pid" ] \
@@ -64,13 +42,13 @@ if [ ! -f "$PID_FILE" ]; then
 fi
 
 PID=$(cat "$PID_FILE")
-if ! kill -0 "$PID" 2>/dev/null; then
-    rm -f "$PID_FILE"
+if ! bepis_runtime_observe "$PID_FILE" devenv >/dev/null 2>&1; then
+    bepis_runtime_stop "$PID_FILE" devenv 0 >/dev/null
     if dev-status >/dev/null 2>&1; then
-        echo "devenv is healthy but unmanaged (stale pid file removed); not stopping"
+        echo "devenv is healthy but unmanaged (stale or foreign pid evidence removed); not stopping"
         exit 0
     fi
-    echo "devenv not running (stale pid file removed)"
+    echo "devenv not running (stale or foreign pid evidence removed)"
     exit 0
 fi
 

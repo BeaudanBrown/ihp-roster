@@ -1,9 +1,11 @@
 module Test.Support.XeroAdmin where
 
 import Application.Helper.Xero
+import Application.Helper.XeroTimesheetReadiness (XeroTimesheetReadinessRequest (..))
 import Config
 import Application.Helper.TimesheetSelection (timesheetSelectionIdentity)
 import qualified Application.Xero.Timesheets.Preview as AppPreview
+import Application.Xero.Timesheets.Prepare.Helpers (payRunsSnapshotJson)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
@@ -15,6 +17,7 @@ import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
+import Test.Hspec (shouldBe)
 import Test.Support
 import qualified Test.Support.XeroTimesheet as Preview
 import qualified Test.XeroMock as XeroMock
@@ -69,12 +72,55 @@ referenceSyncXeroClientForFixture tokenResponse connection = do
         query @XeroPayrollCalendar
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> fetch
+    payRuns <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
     pure $
-        referenceSyncXeroClient
+        (referenceSyncXeroClient
             tokenResponse
             (map xeroEmployeeRefFromRecord employees)
             (map xeroEarningsRateRefFromRecord earningsRates)
-            (map xeroPayrollCalendarRefFromRecord payrollCalendars)
+            (map xeroPayrollCalendarRefFromRecord payrollCalendars))
+                { fetchPayRuns = \_ _ query -> pure (Right (if fromMaybe 1 query.xeroPayRunPage == 1 then map xeroPayRunRefFromRecord payRuns else [])) }
+
+-- Fresh reference data avoids a reference refresh, not the live draft-pay-run query.
+withFreshPreparationClient :: (?modelContext :: ModelContext) => Preview.PreviewFixture -> IO value -> IO value
+withFreshPreparationClient fixture action = do
+    encryptedToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+    _ <- fixture.connection |> set #encryptedRefreshToken encryptedToken |> updateRecord
+    baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+    queries <- IORef.newIORef (0 :: Int)
+    referenceCalls <- IORef.newIORef ([] :: [Text])
+    let unexpectedReference :: Text -> IO (Either XeroClientError result)
+        unexpectedReference name = do
+            IORef.modifyIORef' referenceCalls (<> [name])
+            pure (Left (XeroHttpError "Unexpected reference request from a fresh preparation"))
+        client = (failingRefreshXeroClient "Unexpected request from a fresh preparation")
+            { refreshXeroToken = refreshXeroToken baseClient
+            , fetchPayRuns = \token tenant query -> do
+                IORef.modifyIORef' queries (+ 1)
+                fetchPayRuns baseClient token tenant query
+            , fetchPayrollEmployees = \_ _ -> unexpectedReference "employees"
+            , fetchEarningsRates = \_ _ -> unexpectedReference "earnings rates"
+            , fetchEarningsRatesPage = \_ _ _ -> unexpectedReference "earnings rates page"
+            , fetchPayrollCalendars = \_ _ -> unexpectedReference "calendars"
+            , fetchAccounts = \_ _ -> unexpectedReference "accounts"
+            , fetchPayrollSettingsAccounts = \_ _ -> unexpectedReference "payroll accounts"
+            }
+    result <- withXeroConfigForTest (Right testXeroConfig) (withXeroClientForTest client action)
+    IORef.readIORef referenceCalls >>= (`shouldBe` [])
+    IORef.readIORef queries >>= (`shouldBe` 1)
+    pure result
+
+xeroPayRunRefFromRecord :: XeroPayRun -> XeroPayRunRef
+xeroPayRunRefFromRecord payRun =
+    XeroPayRunRef
+        { xeroPayRunId = payRun.xeroPayRunId
+        , xeroPayRunCalendarId = payRun.xeroPayrollCalendarId
+        , xeroPayRunPeriodStart = payRun.payPeriodStart
+        , xeroPayRunPeriodEnd = payRun.payPeriodEnd
+        , xeroPayRunPaymentDate = payRun.paymentDate
+        , xeroPayRunStatus = payRun.payRunStatus
+        , xeroPayRunRaw = payRun.rawPayload
+        }
 
 xeroEmployeeRefFromRecord :: XeroEmployee -> XeroEmployeeRef
 xeroEmployeeRefFromRecord employee =
@@ -342,24 +388,6 @@ markOtherFixtureStaffNotPaid fixture = do
                     |> createRecord
                     >>= const (pure ())
 
-createSubmissionRunForFixture ::
-    (?modelContext :: ModelContext) =>
-    Preview.PreviewFixture ->
-    XeroSubmissionRunStatusEnum ->
-    IO XeroSubmissionRun
-createSubmissionRunForFixture fixture status =
-    newRecord @XeroSubmissionRun
-        |> set #venueId (unpackId fixture.venue.id)
-        |> set #xeroConnectionId (unpackId fixture.connection.id)
-        |> set #submittedByUserId (unpackId fixture.owner.id)
-        |> set #payPeriodStart fixture.periodStart
-        |> set #payPeriodEnd fixture.periodEnd
-        |> set #selectedPayrollCalendarId (Just ("calendar-preview" :: Text))
-        |> set #selectedPayrollCalendarName (Just ("Preview Calendar" :: Text))
-        |> set #selectedPeriodKey (Just ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text))
-        |> set #status status
-        |> createRecord
-
 createPreparationRunForFixture ::
     (?modelContext :: ModelContext) =>
     Preview.PreviewFixture ->
@@ -367,6 +395,7 @@ createPreparationRunForFixture ::
     IO XeroTimesheetPreparationRun
 createPreparationRunForFixture fixture status = do
     input <- AppPreview.fetchPreviewInput fixture.request fixture.connection
+    payRuns <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     newRecord @XeroTimesheetPreparationRun
         |> set #selectedEntriesJson (Just (Aeson.toJSON (map timesheetSelectionIdentity input.previewTimesheetEntries)))
         |> set #venueId (unpackId fixture.venue.id)
@@ -377,11 +406,11 @@ createPreparationRunForFixture fixture status = do
         |> set #selectedPeriodKey (Just ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text))
         |> set #payPeriodStart (Just fixture.periodStart)
         |> set #payPeriodEnd (Just fixture.periodEnd)
+        |> set #xeroPayRunId fixture.request.readinessXeroPayRunId
+        |> set #xeroPayRunStatus fixture.request.readinessXeroPayRunStatus
+        |> set #remotePayRunsJson (payRunsSnapshotJson (map xeroPayRunRefFromRecord payRuns))
         |> set #status status
         |> createRecord
-
-createXeroPayRunForFixture :: (?modelContext :: ModelContext) => Preview.PreviewFixture -> Text -> IO XeroPayRun
-createXeroPayRunForFixture = Preview.createPreviewPayRun
 
 createXeroPayrollCalendarRecord ::
     (?modelContext :: ModelContext) =>

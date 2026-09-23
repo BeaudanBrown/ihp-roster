@@ -11,7 +11,7 @@ import Application.TimesheetApproval
 import Application.Xero.Timesheets.Prepare.Helpers (preparationReadinessForRun, preparationReadinessRequest)
 import Application.Xero.Timesheets.Selection (fetchPreparationSelectionCandidates)
 import qualified Control.Exception as Exception
-import Control.Monad (foldM)
+import Control.Monad (foldM, guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Hasql.Errors as Hasql
@@ -34,7 +34,7 @@ recoverPreparationApprovals run
             foldM recoverEntry run entryIds
   where
     recoverEntry expectedRun entryId = do
-        attempt <- Exception.try @HasqlSessionError $ withAppResultTransaction do
+        attempt <- Exception.tryJust (guard . lockTimedOut) $ withAppResultTransaction do
             unsafeSqlExecDiscardResult "SET LOCAL lock_timeout = '5s'" ()
             (_ :: [Only UUID]) <- unsafeSqlQuery
                 "SELECT id FROM xero_timesheet_preparation_runs WHERE id = ? AND venue_id = ? FOR UPDATE"
@@ -66,8 +66,7 @@ recoverPreparationApprovals run
         case attempt of
             Right (Right repaired) -> pure repaired
             Right (Left _) -> fetch expectedRun.id -- The original blocker remains visible.
-            Left exception | lockTimedOut exception -> fetch expectedRun.id
-            Left exception -> Exception.throwIO exception
+            Left () -> fetch expectedRun.id -- Only a lock timeout is recoverable.
 
 lockTimedOut :: HasqlSessionError -> Bool
 lockTimedOut (HasqlSessionError sessionError) = case sessionError of

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'path\t%s\n' App.cabal flake.lock Makefile Config/nix/scripts/lib/ghc.sh Config/nix/scripts/haskell/verification-cache-inputs
+for root in Application Web; do
+    [ -d "$root" ] || continue
+    find "$root" -type f \( -name '*.hs' -o -name '*.sql' \) -print
+done | LC_ALL=C sort -u | while IFS= read -r path; do printf 'path\t%s\n' "$path"; done
+printf 'value\tghc-version\t%s\n' "$(ghc --numeric-version)"

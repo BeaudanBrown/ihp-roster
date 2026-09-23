@@ -26,7 +26,11 @@ parallel Markdown task tracker.
 
 ## Epic Worktree Delegation
 
-In a checkout with `.bepis-epic-worktree.json`, first run:
+Delegation and work selection are explicit user decisions. When provisioning a
+new epic worktree, derive a unique one- or two-word lowercase kebab-case name
+from the epic goal and pass it as `--name` (for example,
+`--name public-holidays`); do not use a generic numeric-only worktree name. In
+a checkout with `.bepis-epic-worktree.json`, first run:
 
 ```bash
 bash ./bin/in-env epic-worktree orient
@@ -127,13 +131,21 @@ full gates, and validate worktree identity before starting any runtime-dependent
 E2E check. Stop and report infrastructure failures separately from code failures
 instead of broadening an integration task into runtime repair.
 
-During delegated epic implementation, keep each intermediate commit mechanically
-sound. After code edits, inspect language-server diagnostics and run
-`bash ./bin/in-env typecheck`. Run additional per-commit checks when required to
-keep generated artifacts, schema contracts, migrations, or other hard build
-boundaries valid, or when a change is unusually risky. Schema changes must include
-their customer-data-preserving migration in the same commit; run `regen-types`
-and the minimum migration/schema checks needed to establish that boundary.
+Keep each intermediate commit mechanically sound. Inspect language-server
+diagnostics, then use the cheapest affected authority:
+
+- Independent tooling: affected Cabal suite/CLI fixture; `tooling-foundation-test`
+  for launcher, package-source, or dependency changes. No application typecheck.
+- Application Haskell: `typecheck`, then focused Hspec for changed behavior.
+- Frontend: relevant TypeScript/unit checks; focused E2E for browser behavior.
+- Schema/migrations: `regen-types`, typecheck, and real migration/schema checks;
+  preserve customer data in the same commit.
+- Nix/packaging: affected evaluation and package/source-boundary checks.
+
+`verify-fast` is additive application feedback: cheap policies, typecheck and
+pure Hspec. It starts no browser/database runtime and omits whole-application
+warning, lint and reachability sweeps. Use a focused owner command
+while iterating; do not run the entire gate after every small edit.
 
 Defer broad Hspec, frontend, E2E, lint, formatting, coverage, weeder,
 documentation-drift, and full verification gates until the epic implementation
@@ -143,6 +155,7 @@ repository-wide gates, and final Standards and Spec review. Available gates:
 ```bash
 bash ./bin/in-env verify-fast
 bash ./bin/in-env verify-full
+bash ./bin/in-env verify-tooling
 bash ./bin/in-env hspec-test
 bash ./bin/in-env hspec-coverage
 bash ./bin/in-env frontend-check
@@ -152,6 +165,10 @@ bash ./bin/in-env format
 bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env ./bin/doc-drift-check
 ```
+
+`verify-tooling` owns synthetic checker/lifecycle fixtures; `verify-full` owns
+repository/application authority. Complete `hspec-test` remains protected merge
+and CI evidence; pure/focused tests are never a substitute.
 
 Before runtime E2E, validate worktree identity. Do not defer safety-critical
 migration correctness merely to reduce verification time.

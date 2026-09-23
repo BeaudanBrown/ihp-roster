@@ -33,6 +33,7 @@ test("generated live fragment registry contains only production semantic live fr
         "timesheet-toolbar",
         "timesheet-day-columns",
         "timesheet-side-panel-content",
+        "timesheet-staff-content",
         "timesheet-day-section",
     ]);
     assertEqual(isFrontendSurfaceLiveFragmentName("timesheets", "timesheet-day-section"), true);

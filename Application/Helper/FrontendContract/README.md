@@ -240,8 +240,8 @@ counts in prose.
 
 `HaskellAdapter.Registry` is the single typed authority for Action/Intent homes
 and operation eligibility, including explicit parser-only or excluded
-operations. `frontend-operation-evidence-matrix.tsv` owns compile-failure
-coverage and provenance. Generated modules remain private behind feature
+operations. `frontend-surface-compile-fail-check` registers the negative
+fixtures and their expected diagnostics. Generated modules remain private behind feature
 facades, production callers cannot use generic parser/metadata calls, and raw
 field constructors expose no bundle split or re-indexing path.
 

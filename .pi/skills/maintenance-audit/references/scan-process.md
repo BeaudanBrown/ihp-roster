@@ -71,19 +71,23 @@ There are two supported sequences.
    that children will be reconciled after evidence collection.
 2. Validate it with `github_issue_plan` using a stable run key and `apply: false`.
 3. Present the dry run. Apply only after explicit user approval.
-4. Once the parent number exists, inspect existing paths/branches and create a
-   sibling worktree. Derive names from the issue number; do not assume the
-   target branch is `main`:
+4. Once the parent number exists, derive a unique one- or two-word lowercase
+   kebab-case name from its goal; do not assume the target branch is `main`.
+   Provision from the primary checkout:
 
    ```bash
-   git worktree add ../ihp-roster-epic-N -b epic-N TARGET_BRANCH
-   cd ../ihp-roster-epic-N
-   bash ./bin/in-env epic-worktree register --epic N --target TARGET_BRANCH
+   provision="$(bash ./bin/in-env epic-worktree-provision --epic N --base TARGET_BRANCH --name GOAL-NAME --json)"
+   cd "$(jq -r '.path' <<<"$provision")"
    bash ./bin/in-env epic-worktree orient
    ```
 
-   `epic-worktree register` registers an existing Git worktree; it does not
-   create one.
+   `epic-worktree-provision` creates or resumes the named worktree and registers
+   it; `epic-worktree register` is only for an already-existing worktree. If
+   provisioning stopped after creating Git state, inspect the retained sibling
+   path and branch, repair the reported initialization problem, then rerun the
+   same provision command. For a manually created or recovered worktree, verify
+   its common Git directory, branch, target and files before registering it with
+   `epic-worktree register`; never force-remove it as rollback.
 5. Present orientation and wait for explicit approval to conduct the audit in
    the registered workspace.
 6. Reconcile the same stable-key issue plan after the scan; do not create a

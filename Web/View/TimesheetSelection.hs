@@ -10,7 +10,6 @@ import qualified Application.Helper.FrontendContract.Toggle as Toggle
 import Application.Helper.FrontendContract.Values (domAttrValue)
 import Application.Helper.View.Overlay
 import qualified Data.List as List
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 -- Quantities here are a worked-time display only, never payroll inputs.

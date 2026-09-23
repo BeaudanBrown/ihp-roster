@@ -48,6 +48,7 @@ cat >"$fixture_root/bin/haskell-language-server-wrapper" <<'EOF'
 #!/usr/bin/env bash
 mkdir -p "$XDG_CACHE_HOME/ghcide"
 printf 'fixture hiedb\n' >"$XDG_CACHE_HOME/ghcide/fixture.hiedb"
+printf '%s\n' "$BASHPID" >"$XDG_CACHE_HOME/hls.pid"
 exec 8<>"$XDG_CACHE_HOME/ghcide/fixture.hiedb"
 while :; do
     touch "$XDG_CACHE_HOME/ghcide/fixture.hiedb"
@@ -58,10 +59,26 @@ chmod +x "$fixture_root/bin/haskell-language-server-wrapper"
 long_hls_argument="$(printf '%100000s' '' | tr ' ' x)"
 (
     cd "$fixture_repo"
-    BEPIS_HLS_SERVER_COMMAND="$fixture_root/bin/haskell-language-server-wrapper" \
+    BEPIS_TOOLING_LAUNCHER="$repo_root/bin/tooling-run" \
+        BEPIS_HLS_SERVER_COMMAND="$fixture_root/bin/haskell-language-server-wrapper" \
         exec setsid bash "$hls_wrapper" "$long_hls_argument"
 ) &
 hls_pid="$!"
+hls_process_pid=""
+for _ in $(seq 1 300); do
+    hls_pid_file="$(find "$BEPIS_HLS_CACHE_PARENT" -type f -name hls.pid -print -quit 2>/dev/null || true)"
+    if [ -n "$hls_pid_file" ]; then
+        hls_process_pid="$(cat "$hls_pid_file")"
+        break
+    fi
+    sleep 0.1
+done
+[ -n "$hls_process_pid" ] || fail "HLS fixture did not become ready"
+[ "$(readlink "/proc/$hls_process_pid/cwd" 2>/dev/null || true)" = "$fixture_repo" ] \
+    || fail "HLS fixture did not retain the worktree cwd"
+hls_command="$(head -c 8192 "/proc/$hls_process_pid/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
+[[ "$hls_command" == *haskell-language-server-wrapper* ]] \
+    || fail "HLS fixture command was not observable"
 
 identity_keys="$(jq -r 'keys | sort | join(",")' "$identity_file")"
 [ "$identity_keys" = "epic,kind,slot,targetBranch,version" ] || fail "identity contains unexpected fields: $identity_keys"
@@ -86,8 +103,9 @@ json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
 [ "$(jq -r '.status' <<<"$json_output")" = "active" ] || fail "inspect did not report active workspace"
 [ "$(jq -r '.resources.cpuWeight' <<<"$json_output")" = "100" ] || fail "inspect omitted equal CPU weight"
 [[ "$(jq -r '.resources.slice' <<<"$json_output")" == *'-epic1.slice' ]] || fail "inspect omitted slot slice identity"
-[ "$(jq -r '.resources.hls.processes | length' <<<"$json_output")" = "1" ] || fail "inspect omitted HLS process details"
-[ "$(jq -r '.resources.hls.processes[0].pid' <<<"$json_output")" = "$hls_pid" ] || fail "inspect reported the wrong HLS PID"
+[ "$(jq -r '.resources.hls.processes | length' <<<"$json_output")" = "1" ] \
+    || fail "inspect omitted HLS process details: $json_output"
+[ "$(jq -r '.resources.hls.processes[0].pid' <<<"$json_output")" = "$hls_process_pid" ] || fail "inspect reported the wrong HLS PID"
 [ "$(jq -r '.resources.hls.totalRssKiB > 0' <<<"$json_output")" = "true" ] || fail "inspect omitted HLS RSS"
 [ "$(jq -r '.resources.hls.cacheBytes > 0' <<<"$json_output")" = "true" ] || fail "inspect omitted ghcide cache size"
 [ "$(jq -r '.resources.hls.cacheState' <<<"$json_output")" = "present" ] || fail "inspect omitted worktree cache state"
@@ -101,7 +119,7 @@ json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
 [ "$(jq -r '.resources.warning' <<<"$json_output")" = "resource-consuming processes in worktree are outside expected slice" ] \
     || fail "inspect warning did not identify resource-consuming work"
 human_inspect_output="$(cd "$fixture_repo" && bash "$command_path" inspect)"
-assert_contains "$human_inspect_output" "HLS pid $hls_pid"
+assert_contains "$human_inspect_output" "HLS pid $hls_process_pid"
 assert_contains "$human_inspect_output" "CPU "
 assert_contains "$human_inspect_output" "elapsed "
 assert_contains "$human_inspect_output" "cache root $BEPIS_HLS_CACHE_PARENT/"
@@ -110,6 +128,8 @@ second_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 
 assert_contains "$second_output" "slot 1"
 fixture_common_dir="$(git -C "$fixture_repo" rev-parse --path-format=absolute --git-common-dir)"
 registry_file="$fixture_common_dir/bepis/epic-worktrees/registry.json"
+[ -f "$fixture_common_dir/bepis/epic-worktrees/registry.lock" ] \
+    || fail "registration did not use the published registry.lock path"
 [ "$(jq '.workspaces | length' "$registry_file")" = "1" ] \
     || fail "idempotent registration duplicated the workspace"
 

@@ -154,7 +154,7 @@ enqueueXeroReferenceSyncCategories requestedByUserId connection categories
         let retryTimes = concatMap (\job -> addUTCTime 30 job.updatedAt : maybeToList (referenceSyncRetryAt job.progress)) failedJobs
             runAt = case retryTimes of
                 [] -> Nothing
-                _ -> Just (maximum (requestedAt : retryTimes))
+                _ -> Just (foldl' max requestedAt retryTimes)
         enqueueReferenceSyncAttempt requestedByUserId connection requestedAt 0 runAt categories (categories == allXeroReferenceSyncCategories)
 
 requestXeroReferenceSyncJob ::

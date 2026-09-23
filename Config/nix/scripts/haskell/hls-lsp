@@ -1,29 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
-
-scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
-# shellcheck source=../lib/hls-cache.sh
-# shellcheck disable=SC1091
-. "$scripts_root/lib/hls-cache.sh"
-
-for required in flock git jq realpath sha256sum; do
-    command -v "$required" >/dev/null 2>&1 || {
-        echo "hls-lsp: required command is unavailable: $required" >&2
-        exit 69
-    }
-done
-
-bepis_hls_cache_resolve_workspace
-bepis_hls_cache_ensure_parent
-exec 9>>"$BEPIS_HLS_CACHE_LIFECYCLE_LOCK"
-flock -s 9
-bepis_hls_cache_prepare_locked
-export XDG_CACHE_HOME="$BEPIS_HLS_CACHE_ROOT/xdg"
-
+workspace="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "hls-lsp: cannot resolve Git worktree" >&2
+    exit 66
+}
+workspace="$(realpath "$workspace")"
+cache_parent="${BEPIS_HLS_CACHE_PARENT:-/var/tmp/bepis-hls-$(id -u)}"
+repo_root="${BEPIS_REPO_ROOT:-$workspace}"
+tooling_launcher="${BEPIS_TOOLING_LAUNCHER:-$repo_root/bin/tooling-run}"
 server_command="${BEPIS_HLS_SERVER_COMMAND:-haskell-language-server-wrapper}"
 command -v "$server_command" >/dev/null 2>&1 || {
     echo "hls-lsp: HLS command is unavailable: $server_command" >&2
     exit 69
 }
-exec "$server_command" "$@"
+exec "$tooling_launcher" artifacts cache exec --workspace "$workspace" --parent "$cache_parent" -- \
+    "$server_command" "$@"

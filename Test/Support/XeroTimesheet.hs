@@ -13,7 +13,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
+import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -84,25 +84,15 @@ createPreviewFixture = createPreviewFixtureWithRosterStart 1
 
 createPreviewFixtureWithStaffFacts :: (?modelContext :: ModelContext) => [FixtureStaff] -> Text -> [EntrySpec] -> IO PreviewFixture
 createPreviewFixtureWithStaffFacts staffFacts calendarType entrySpecs =
-    createCurrentPreviewFixture (standardPreviewFixturePlan 1 ApproveAfterXero staffFacts calendarType fixtureAnchorStart entrySpecs)
+    createPreviewFixtureFromPlan (standardPreviewFixturePlan 1 ApproveAfterXero staffFacts calendarType fixtureAnchorStart entrySpecs)
 
 createPreviewFixtureWithRosterStart :: (?modelContext :: ModelContext) => Int -> Text -> [EntrySpec] -> IO PreviewFixture
 createPreviewFixtureWithRosterStart rosterWeekStartsOn calendarType entrySpecs =
-    createCurrentPreviewFixture (standardPreviewFixturePlan rosterWeekStartsOn ApproveAfterXero (fixtureStaffFactsFromEntries entrySpecs) calendarType fixtureAnchorStart entrySpecs)
+    createPreviewFixtureFromPlan (standardPreviewFixturePlan rosterWeekStartsOn ApproveAfterXero (fixtureStaffFactsFromEntries entrySpecs) calendarType fixtureAnchorStart entrySpecs)
 
 createLateBindingPreviewFixture :: (?modelContext :: ModelContext) => Text -> [EntrySpec] -> IO PreviewFixture
 createLateBindingPreviewFixture calendarType entrySpecs =
-    createCurrentPreviewFixture (standardPreviewFixturePlan 1 ApproveBeforeXero (fixtureStaffFactsFromEntries entrySpecs) calendarType fixtureAnchorStart entrySpecs)
-
-createCurrentPreviewFixture :: (?modelContext :: ModelContext) => PreviewFixturePlan -> IO PreviewFixture
-createCurrentPreviewFixture plan = do
-    today <- utctDay <$> getCurrentTime
-    let periodLength = fixturePeriodLength plan.fixtureCalendarType
-        periodsElapsed = diffDays today fixtureAnchorStart `div` periodLength
-        currentPeriodStart = addDays (periodsElapsed * periodLength) fixtureAnchorStart
-    fixture <- createPreviewFixtureFromPlan plan { fixturePeriodStart = currentPeriodStart }
-    _ <- createPreviewPayRun fixture "DRAFT"
-    pure fixture
+    createPreviewFixtureFromPlan (standardPreviewFixturePlan 1 ApproveBeforeXero (fixtureStaffFactsFromEntries entrySpecs) calendarType fixtureAnchorStart entrySpecs)
 
 createPreviewFixtureAtPeriod :: (?modelContext :: ModelContext) => Text -> Day -> [EntrySpec] -> IO PreviewFixture
 createPreviewFixtureAtPeriod = createPreviewFixtureAtPeriodWithRosterStart 1
@@ -130,6 +120,8 @@ standardPreviewPayFacts = PreviewPayFacts
 fixtureStaffFactsFromEntries :: [EntrySpec] -> [FixtureStaff]
 fixtureStaffFactsFromEntries entrySpecs = nub (FixtureStaffA : map (.entryStaff) entrySpecs)
 
+-- A live draft can cover a historical period. Neither fixtures nor provider
+-- responses should drift with today's calendar week.
 fixtureAnchorStart :: Day
 fixtureAnchorStart = fromGregorian 2026 5 4
 
@@ -161,6 +153,7 @@ createPreviewFixtureFromPlan plan = do
     connection <- createPreviewXeroConnection venue owner
     _ <- createPreviewSyncRun venue connection
     _ <- createPreviewPayrollCalendar venue connection plan.fixtureCalendarType periodStart
+    payRun <- createDraftPayRun venue connection "calendar-preview" periodStart periodEnd
     buckets <- currentVenueBuckets venue periodStart
     createPreviewMappings venue connection periodStart ([staffA] <> maybeToList staffB) buckets
     entries <-
@@ -180,8 +173,8 @@ createPreviewFixtureFromPlan plan = do
                 , readinessPeriodStart = periodStart
                 , readinessPeriodEnd = periodEnd
                 , readinessPaymentDate = Nothing
-                , readinessXeroPayRunId = Nothing
-                , readinessXeroPayRunStatus = Nothing
+                , readinessXeroPayRunId = Just payRun.xeroPayRunId
+                , readinessXeroPayRunStatus = payRun.payRunStatus
                 , readinessRemoteTimesheets = []
                 , readinessSkippedStaffIds = []
                 , readinessSelection = AllEligible
@@ -240,18 +233,19 @@ createPreviewXeroConnection venue owner = do
         |> set #scopes requiredXeroScopesText
         |> updateRecord
 
-createPreviewPayRun :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> IO XeroPayRun
-createPreviewPayRun fixture status = do
+-- A ready fixture represents a period selected from a successful live draft query.
+-- Negative cases remove or change this provider fact explicitly.
+createDraftPayRun :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> Text -> Day -> Day -> IO XeroPayRun
+createDraftPayRun venue connection calendarId periodStart periodEnd = do
     now <- getCurrentTime
     newRecord @XeroPayRun
-        |> set #venueId (unpackId fixture.venue.id)
-        |> set #xeroConnectionId (unpackId fixture.connection.id)
-        |> set #xeroPayRunId ("pay-run-" <> Text.toLower status)
-        |> set #xeroPayrollCalendarId ("calendar-preview" :: Text)
-        |> set #payPeriodStart fixture.periodStart
-        |> set #payPeriodEnd fixture.periodEnd
-        |> set #payRunStatus (Just status)
-        |> set #rawPayload (Aeson.object ["PayRunID" Aeson..= ("pay-run-" <> Text.toLower status)])
+        |> set #venueId (unpackId venue.id)
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #xeroPayRunId ("pay-run-" <> calendarId <> "-" <> tshow periodStart)
+        |> set #xeroPayrollCalendarId calendarId
+        |> set #payPeriodStart periodStart
+        |> set #payPeriodEnd periodEnd
+        |> set #payRunStatus (Just ("DRAFT" :: Text))
         |> set #syncedAt now
         |> createRecord
 

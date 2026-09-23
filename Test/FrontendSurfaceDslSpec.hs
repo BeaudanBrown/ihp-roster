@@ -373,6 +373,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , ("browser-fixture-side-panel-panel", "data-bepis-browser-fixture-browser-fixture-side-panel-panel")
                        , ("browser-fixture-side-panel-toggle", "data-bepis-browser-fixture-browser-fixture-side-panel-toggle")
                        , ("browser-fixture-side-panel-label", "data-bepis-browser-fixture-browser-fixture-side-panel-label")
+                       , ("side-panel-shelf", "data-bepis-browser-fixture-side-panel-shelf")
+                       , ("side-panel-shelf-toggle", "data-bepis-browser-fixture-side-panel-shelf-toggle")
                        , ("staff-highlight-source", "data-bepis-browser-fixture-staff-highlight-source")
                        , ("staff-highlight-member", "data-bepis-browser-fixture-staff-highlight-member")
                        , ("staff-highlight-pin", "data-bepis-browser-fixture-staff-highlight-pin")
@@ -386,6 +388,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
             `shouldBe`
                 [ ("browser-fixture-side-panel", ["collapsed", "expanded"])
+                , ("side-panel-shelf", ["shelf-closed", "shelf-open"])
                 , ("browser-fixture-mode", ["calm", "busy"])
                 ]
         let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
@@ -521,6 +524,7 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe`
                 [ ("data-bepis-browser-fixture-browser-fixture-side-panel-root", "true")
                 , ("data-bepis-browser-fixture-browser-fixture-side-panel", "collapsed")
+                , ("data-bepis-browser-fixture-side-panel-shelf", "shelf-closed")
                 ]
         surfaceSidePanelMainAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
             `shouldBe` [("data-bepis-browser-fixture-browser-fixture-side-panel-main", "true")]
@@ -933,7 +937,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.scopeName) surface.surfaceScopes `shouldBe` ["timesheet-week"]
         map (.scopeOptions) surface.surfaceScopes `shouldBe` [[AuthorizeCurrentVenueIR "venueId"]]
         map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
-        map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"]
+        map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-staff-content", "timesheet-day-section"]
         surface.surfaceBrowserDomTokens `shouldBe` []
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
@@ -985,7 +989,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountConfig ="
         frontendSurfaceContractsTypeScript `shouldNotContainText` "TimesheetsTimesheetsMountStateMountState"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export type TimesheetsMountState ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-side-panel-content\",\"timesheet-day-section\"]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-side-panel-content\",\"timesheet-staff-content\",\"timesheet-day-section\"]"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "timesheetsSurfaceManifest"
 
     it "renders marker-indexed roster column-edit roles and closed states" do
@@ -1110,6 +1114,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-wage-rail"
                        , "roster-slots-grid"
                        , "roster-staff-panel"
+                       , "roster-settings-content"
                        , "roster-week-overview"
                        , "roster-template-library"
                        , "roster-day-section"
@@ -1122,6 +1127,7 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` Just ["rosterDayId", "rowIndex"]
         map (.htmxActionName) surface.surfaceHtmxActions
             `shouldBe` [ "navigate-roster-week"
+                       , "switch-roster-group"
                        , "toggle-roster-warnings"
                        , "toggle-roster-wage-estimates"
                        , "toggle-roster-own-live-shift-highlight"
@@ -1130,6 +1136,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "show-roster-notification-confirmation"
                        , "create-roster-notification-run"
                        , "toggle-roster-assignment-filters"
+                       , "open-copy-roster-week-confirmation"
                        , "copy-roster-week"
                        , "create-roster-week-slot-definition"
                        , "delete-roster-week-slot-definition"
@@ -1175,6 +1182,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-side-panel-panel"
                        , "data-bepis-roster-side-panel-toggle"
                        , "data-bepis-roster-side-panel-label"
+                       , "data-bepis-roster-side-panel-shelf"
+                       , "data-bepis-roster-side-panel-shelf-toggle"
                        , "data-bepis-roster-column-editor"
                        , "data-bepis-roster-column-edit-start"
                        , "data-bepis-roster-column-edit-done"
@@ -1215,6 +1224,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
             `shouldBe`
                 [ ("side-panel", ["collapsed", "expanded"])
+                , ("side-panel-shelf", ["shelf-closed", "shelf-open"])
                 , ("column-editing", ["inactive", "active"])
                 , ("image-export-format", ["png"])
                 , ("week-overview-availability", ["loaded", "unloaded"])

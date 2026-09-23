@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ import test from 'node:test';
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const gate = join(repo, 'Config/nix/scripts/haskell/weeder-check');
 const advisory = join(repo, 'scripts/weeder-reachability.py');
+const artifactsBinary = execFileSync(join(repo, 'bin/tooling-run'), ['artifacts', '--print-binary'], { encoding: 'utf8' }).trim();
 
 function put(root, path, text) {
     const target = join(root, path);
@@ -57,8 +58,21 @@ function fixture(t) {
     command(root, 'git', ['init', '-q']);
     command(root, 'git', ['add', '.']);
     command(root, 'git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture']);
-    command(root, 'bash', [gate], { BEPIS_SCRIPTS_ROOT: join(root, 'helpers'), WEEDER_BUILD_DIR: join(root, 'cache') });
+    const result = runGate(root, ['--advisory']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
     return root;
+}
+
+function runGate(root, args = []) {
+    const result = spawnSync('bash', [gate, ...args], {
+        cwd: root, encoding: 'utf8', timeout: 120_000,
+        env: { ...process.env, BEPIS_SCRIPTS_ROOT: join(root, 'helpers'),
+            IHP_ROSTER_ARTIFACTS_BINARY: artifactsBinary,
+            IHP_ROSTER_GHC_CACHE_INVENTORY: join(repo, 'Config/nix/scripts/haskell/verification-cache-inputs'),
+            WEEDER_BUILD_DIR: join(root, 'cache') },
+    });
+    assert.ifError(result.error);
+    return result;
 }
 
 function report(root) {
@@ -90,11 +104,39 @@ test('real complete sweep distinguishes runtime, test, script and conservative c
     assert.equal(result.advisoryOnly, true);
 });
 
+test('default gate removes stale advisory evidence but still rejects newly unreachable values in either mode', (t) => {
+    const root = fixture(t);
+    assert.equal(report(root).status, 'fresh');
+    const result = runGate(root);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(existsSync(join(root, 'cache/reachability-advisory.json')), false);
+    assert.equal(existsSync(join(root, 'cache/reachability-inputs.json')), false);
+    assert.doesNotMatch(result.stdout, /reachability advisory/);
+    appendFileSync(join(root, 'Application/Shared.hs'), '\ndeadValue :: Int\ndeadValue = 42\n');
+    for (const args of [[], ['--advisory']]) {
+        const rejected = runGate(root, args);
+        assert.notEqual(rejected.status, 0);
+        assert.match(rejected.stderr, /new unexplained app-owned unreachable declaration[\s\S]*deadValue/);
+    }
+});
+
+test('failed model bootstrap cannot leave a prior advisory looking current', (t) => {
+    const root = fixture(t);
+    assert.equal(report(root).status, 'fresh');
+    put(root, 'helpers/haskell/generated-ensure', 'echo "fixture model bootstrap failed" >&2\nexit 42\n');
+    const result = runGate(root);
+    assert.equal(result.status, 42);
+    assert.match(result.stderr, /fixture model bootstrap failed/);
+    assert.equal(existsSync(join(root, 'cache/reachability-advisory.json')), false);
+    assert.equal(existsSync(join(root, 'cache/reachability-inputs.json')), false);
+});
+
 test('unrecognised regex dialect features qualify the advisory, not the complete gate', (t) => {
     const root = fixture(t);
     const path = join(root, 'weeder.toml');
     writeFileSync(path, readFileSync(path, 'utf8').replace('roots = [', 'roots = [\n    "^Main[.]main$",'));
-    command(root, 'bash', [gate], { BEPIS_SCRIPTS_ROOT: join(root, 'helpers'), WEEDER_BUILD_DIR: join(root, 'cache') });
+    const result = runGate(root, ['--advisory']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.equal(report(root).status, 'unavailable');
     assert.match(report(root).reason, /regex needs an explicit compatibility check/);
 });

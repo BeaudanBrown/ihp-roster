@@ -11,7 +11,8 @@ bash ./bin/in-env e2e-fast
 bash ./bin/in-env e2e-typecheck
 bash ./bin/in-env e2e-typecheck-test
 bash ./bin/in-env e2e-support-import-check
-bash ./bin/in-env e2e e2e/auth.spec.ts
+bash ./bin/in-env e2e e2e/auth.spec.ts --project=desktop-chromium --reporter=line
+bash ./bin/in-env e2e --list
 bash ./bin/in-env env PLAYWRIGHT_RETRIES=0 e2e e2e/auth.spec.ts
 bash ./bin/in-env e2e-report
 bash ./bin/in-env screenshot-page /RosterWeeks output/check.png --selector '#roster-week-shell'
@@ -25,12 +26,19 @@ imports through `e2e-support-import-check`. `e2e` is the complete gate;
 `e2e-fast` runs each source behavior on desktop and the canonical Pixel profile.
 Focused/interactive runs default to one shard;
 complete runs use isolated app/database shards. Do not treat a focused or fast
-run as complete evidence.
+run as complete evidence. `--help` and `--list` start no tooling/runtime services.
+Use `--reporter=line` for focused feedback without an HTML-report merge; default
+runs retain durable HTML reports. GHC checks shared executable outputs each run,
+then copies private runtime images rather than relinking unchanged executables.
+`E2E_SERVER_MODE=dev e2e ...` uses GHCi with the same test-only entrypoint,
+not the ordinary development server; it does not provide IDE hot reload.
 
 Managed E2E owns disposable native PostgreSQL/runtime state. Inspect it through
 `e2e-runtime` and `e2e-postgres`; never infer sockets, ports, database names, or
 precreate managed roots. External mode requires an explicit mode/socket pair and
-refuses destructive lifecycle operations. Failure artifacts are copied under
+refuses destructive lifecycle operations. The shell owner stops owned children
+with bounded escalation before disposing each shard database; no browser-level
+row-cleanup SQL duplicates that ownership. Failure artifacts are copied under
 `.devenv/e2e/`; use dry-run-first cleanup commands.
 
 ## Writing Tests
@@ -76,7 +84,12 @@ start; clean dependent rows before users. Never clear shared MailHog globally—
 match a unique recipient.
 
 Do not weaken canonical wage/payroll fixture completeness or cross-venue
-separation to simplify a test. Real external API probes are diagnostics, not CI
+separation to simplify a test. Xero browser scenarios use `Test/E2EXero.hs`
+through the test-only app/worker entrypoints: a closed local client, independent
+per-example venues, and the shared sealed-payroll builder. Never restore real
+provider fallback or repair credentials without that boundary. HTTP/provider
+contracts and approval integrity belong in Hspec; browsers own interaction and
+cross-process publication. Real external API probes are diagnostics, not CI
 or production authority.
 
 ## Browser Exploration And Responsive Work
