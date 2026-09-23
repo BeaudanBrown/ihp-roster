@@ -86,6 +86,7 @@ deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
     ]
     where
         requestParams = timesheetDeleteRequestParams timesheetEntry calendarRevision selectedStaffFilterId
+        -- The form submits calendar/filter fields; the GET URL must not duplicate them.
         confirmationUrl = pathTo (ShowTimesheetEntryDeleteConfirmationAction (get #id timesheetEntry))
 
 renderTimesheetDeleteConfirmation :: (?context :: ControllerContext) => TimesheetEntry -> Int -> Maybe UUID -> Html

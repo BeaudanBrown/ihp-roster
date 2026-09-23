@@ -309,6 +309,19 @@ tests = describe "Frontend contract generator foundation" do
             Left _  -> pure ()
             Right _ -> expectationFailure "repeated empty optional accountCode parsed successfully"
 
+    it "allows an omitted timesheet confirmation filter without relaxing calendar or scalar fields" do
+        let parse = parseAppShellActionParamPairs @AppShell.OpenTimesheetDeleteConfirmationDialog
+        let calendar = [("anchorDate", Just "2025-01-06"), ("rosterCalendarRevision", Just "1")]
+        forM_ [calendar, calendar <> [("staffFilterId", Just "00000000-0000-0000-0000-000000000001")]] \params ->
+            case parse params of
+                Left errors -> expectationFailure (cs (show errors))
+                Right _ -> pure ()
+        forM_ [take 1 calendar, drop 1 calendar, calendar <> take 1 calendar, calendar <> drop 1 calendar,
+               calendar <> [("staffFilterId", Just ""), ("staffFilterId", Just "")]] \params ->
+            case parse params of
+                Left _ -> pure ()
+                Right _ -> expectationFailure "missing calendar or repeated scalar fields parsed successfully"
+
     it "keeps migrated app-owned request values nominal and closed" do
         closedScalarLiterals @FeedbackTypeEnum `shouldBe` ["bug", "suggestion", "other"]
         closedScalarLiterals @StaffProfileSectionValue `shouldBe` ["profile", "preferences"]

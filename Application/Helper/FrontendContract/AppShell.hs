@@ -358,7 +358,7 @@ type AppShellContract =
          , AppShellAction OpenTimesheetDeleteConfirmationDialog
             '[ Field AnchorDateField 'WireText
              , Field RosterCalendarRevisionField 'WireText
-             , Field StaffFilterIdField 'WireText
+             , OptionalField StaffFilterIdField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellGet
              , AppShellHtmxTarget DialogOverlayMount

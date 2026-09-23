@@ -1393,49 +1393,44 @@ tests = aroundAll withDatabaseTestContext do
                 entryExists <- query @TimesheetEntry |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 entryExists `shouldBe` False
 
-        it "opens typed delete confirmation from the HTMX timesheet edit modal footer" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Venue"
-                user <- createUserRecord "timesheet-delete-form@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Manager
-                staff <- createStaffRecord venue Nothing "Tess" "Delete"
-                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+        forM_ [("HTMX dialog", True, False), ("page modal", False, False), ("staff-filtered HTMX dialog", True, True), ("staff-filtered page modal", False, True)] \(mode, isHtmx, filtered) ->
+            it ("opens timesheet delete confirmation from the " <> mode <> " without browser popups") $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Timesheet Venue"
+                    user <- createUserRecord "timesheet-delete-form@example.com" "staff" True
+                    _ <- createVenueMembershipRecord venue user Manager
+                    staff <- createStaffRecord venue (Just user) "Tess" "Delete"
+                    payLevel <- createPayLevelRecord venue "Level 1"
+                    _ <- makeStaffTimesheetProducing payLevel staff
+                    entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                    let params = [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
+                            <> [("staffFilterId", cs (tshow (unpackId staff.id))) | filtered]
 
-                response <- withUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (EditTimesheetEntryAction entry.id)
-                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
-                            ]
+                    response <- withUserAndCurrentVenue user venue.id do
+                        withRequestHeaders (if isHtmx then [("HX-Request", "true")] else []) do
+                            callActionWithQueryParams (EditTimesheetEntryAction entry.id) params
 
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs (pathTo (ShowTimesheetEntryDeleteConfirmationAction entry.id))
-                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
-                response `responseBodyShouldNotContain` "name=\"_method\" value=\"DELETE\""
-                response `responseBodyShouldNotContain` "hx-confirm="
-                response `responseBodyShouldNotContain` "onsubmit=\"return window.confirm"
-                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
-                response `responseBodyShouldContain` "app-modal-footer-start"
-                response `responseBodyShouldNotContain` "js-delete"
+                    ("edit", responseStatus response, lookup "Location" (responseHeaders response)) `shouldBe` ("edit", status200, Nothing)
+                    response `responseBodyShouldContain` cs (pathTo (ShowTimesheetEntryDeleteConfirmationAction entry.id))
+                    response `responseBodyShouldNotContain` "hx-confirm="
+                    response `responseBodyShouldNotContain` "window.confirm"
+                    response `responseBodyShouldNotContain` "data-disable-javascript-submission"
+                    response `responseBodyShouldContain` "app-modal-footer-start"
+                    response `responseBodyShouldNotContain` "js-delete"
 
-        it "opens typed delete confirmation from the direct-page edit dialog" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Venue"
-                user <- createUserRecord "timesheet-page-delete-form@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Manager
-                staff <- createStaffRecord venue Nothing "Tess" "Delete"
-                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams (EditTimesheetEntryAction entry.id)
-                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
-                        ]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs (pathTo (ShowTimesheetEntryDeleteConfirmationAction entry.id))
-                response `responseBodyShouldNotContain` "onsubmit=\"return window.confirm"
-                response `responseBodyShouldNotContain` "hx-confirm="
-                response `responseBodyShouldContain` "app-modal-footer-start"
-                response `responseBodyShouldNotContain` "js-delete"
+                    confirmation <- withUserAndCurrentVenue user venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithQueryParams (ShowTimesheetEntryDeleteConfirmationAction entry.id) params
+                    ("confirmation", responseStatus confirmation, lookup "Location" (responseHeaders confirmation)) `shouldBe` ("confirmation", status200, Nothing)
+                    confirmation `responseBodyShouldContain` "Delete this timesheet entry? This cannot be undone."
+                    confirmation `responseBodyShouldContain` "id=\"delete-timesheet-entry-confirmation-form\""
+                    confirmation `responseBodyShouldContain` cs (pathTo (DeleteTimesheetEntryAction entry.id))
+                    confirmation `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
+                    confirmation `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entry.id))
+                    confirmation `responseBodyShouldNotContain` "hx-confirm="
+                    confirmation `responseBodyShouldNotContain` "window.confirm"
+                    persisted <- fetch entry.id
+                    persisted.deletedAt `shouldBe` Nothing
 
         it "scopes timesheet day fragments to the current viewer visibility" $ withContext do
             withCleanDb do

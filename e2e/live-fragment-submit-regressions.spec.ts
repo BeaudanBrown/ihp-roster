@@ -29,7 +29,7 @@ async function login(page: Page) {
 }
 
 const hideApprovedSubmitTitle = 'timesheet submit preserves the disabled Show approved preference';
-const modalDeleteTitle = 'timesheet modal delete prompts for confirmation once';
+const modalDeleteTitle = 'timesheet modal delete supports server confirmation and cancellation without a staff filter';
 const timesheetPreferenceMutators = new Set([
     hideApprovedSubmitTitle,
     modalDeleteTitle,
@@ -307,6 +307,7 @@ test.describe('HTMX submit regressions', () => {
         if (!(await showApproved.isChecked())) {
             await showApproved.locator('..').click();
         }
+        expect(new URL(page.url()).searchParams.has('staffFilterId')).toBe(false);
 
         const targetEntry = page.locator(`.timesheet-entry-card:has(a[href*="${deletedEntryId}"])`);
         await expect(targetEntry).toBeVisible();
@@ -323,19 +324,40 @@ test.describe('HTMX submit regressions', () => {
         await editLink.click();
         await expect(page.locator('#timesheet-entry-edit-form')).toBeVisible();
 
-        await page.getByRole('button', { name: 'Delete' }).click();
-        const confirmationDialog = page.getByRole('dialog', { name: 'Delete timesheet entry?' });
-        await expect(confirmationDialog).toBeVisible();
+        const nativeDialogs: string[] = [];
+        page.on('dialog', async (dialog) => {
+            nativeDialogs.push(dialog.type());
+            await dialog.dismiss();
+        });
+        const confirmation = page.getByRole('dialog', { name: 'Delete timesheet entry?', exact: true });
+        const confirmationResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'GET' && response.url().includes('/ShowTimesheetEntryDeleteConfirmation')
+        );
+        await page.getByRole('button', { name: 'Delete', exact: true }).click();
+        const confirmationResponse = await confirmationResponsePromise;
+        expect(confirmationResponse.status()).toBe(200);
+        const confirmationParams = new URL(confirmationResponse.url()).searchParams;
+        expect(confirmationParams.getAll('anchorDate')).toHaveLength(1);
+        expect(confirmationParams.getAll('rosterCalendarRevision')).toHaveLength(1);
+        expect(confirmationParams.has('staffFilterId')).toBe(false);
+        await expect(confirmation).toBeVisible();
+        await expect(confirmation).toContainText('Delete this timesheet entry? This cannot be undone.');
+        await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(page.locator('#timesheet-entry-edit-form')).toBeVisible();
+        await expect(targetEntry).toBeVisible();
+        await page.getByRole('button', { name: 'Delete', exact: true }).click();
+        await expect(confirmation).toBeVisible();
 
         const deleteResponsePromise = page.waitForResponse((response) =>
             response.request().method() === 'DELETE' && response.url().includes('/DeleteTimesheetEntry')
         );
-        await confirmationDialog.getByRole('button', { name: 'Delete' }).click();
+        await confirmation.getByRole('button', { name: 'Delete', exact: true }).click();
         const deleteResponse = await deleteResponsePromise;
         expect(deleteResponse.status(), await deleteResponse.text()).toBe(200);
         await deleteResponse.finished();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
         await expect(updatedDaySection.locator(`.timesheet-entry-card a[href*="${deletedEntryId}"]`)).toHaveCount(0);
+        expect(nativeDialogs).toEqual([]);
     });
 });
