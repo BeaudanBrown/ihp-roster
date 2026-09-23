@@ -86,7 +86,8 @@ run. Preserve raw local logs and bounded machine-readable summaries under
 
 ### Command recorder
 
-The Linux command-recorder interface is opt-in and tested by `verify-tooling`:
+The Linux [command recorder](../../scripts/profiling/verification-measure.py)
+is opt-in; its `--help` and source own current options and artifact bounds:
 
 ```bash
 bash ./bin/in-env python3 scripts/profiling/verification-measure.py run \
@@ -107,9 +108,8 @@ bounded, best-effort diagnostic snapshot, not atomic proof or cache identity.
 Missing Git context, unsupported/symlinked inputs and exceeded capture bounds
 remain unavailable. Ignored files outside the two generated-source owners,
 external dependencies and compiler configuration are not covered; record these
-separately under the protocol above. Original metadata-v1 artifacts remain
-inspectable without provenance; metadata-v2 requires validated provenance and
-metadata-v3 additionally requires a validated phase journal and summary.
+separately under the protocol above. Older artifacts remain inspectable only
+with the evidence required by their original schema.
 
 `inspect` validates the completion schema and returns the recorded exit status;
 missing, corrupt or incomplete evidence returns 2. Completion is diagnostic,
@@ -129,21 +129,34 @@ processes can be missed. No samples means unavailable, not zero. The timer has
 up to a polling interval plus sampling latency; collection overhead is included
 in the observation.
 
-The Hspec owner emits opt-in compilation, shard execution, database creation and
-disposal, and parallel-run boundaries. `phases.json` reports monotonic intervals
-relative to command start, including emission overhead; compilation is **not**
+The [Hspec](../../Config/nix/scripts/haskell/hspec-test) and
+[E2E](../../Config/nix/scripts/e2e/e2e) owners emit opt-in phase boundaries.
+`phases.json` reports monotonic intervals relative to command start, including
+emission overhead; compilation is **not**
 linker-only time. Overlapping shard/parallel intervals must not be summed as
 command elapsed time. An unfinished phase has no invented duration. `observed`
 means some boundaries were captured, not complete phase coverage; uninstrumented
-owners remain unavailable. The journal is capped at 128 events per attempt;
-overflow and malformed evidence fail inspection without replacing the original
+owners remain unavailable. Journal overflow and malformed evidence fail
+inspection without replacing the original
 command exit status. Event emission failure does not change Hspec selection,
 retry, cleanup or failure semantics. For paired overhead controls, run the same
 command through `env -u BEPIS_VERIFICATION_EVENTS`; never interpret that control's
 missing phase evidence as zero work.
 
-Service readiness, actual linker completion and per-suite resets remain outside
-these Hspec command boundaries; #599 owns those additional integrations.
+App readiness uses the existing login-page probe; Stripe uses Warp's before-main-loop
+callback. Worker readiness observes acknowledged PostgreSQL LISTEN subscriptions,
+not merely a live PID or queued subscription. These are startup observations,
+not continuing health guarantees or new test gates. Worker/Stripe deaths already
+observed at cleanup close unfinished startup intervals only after producer reap;
+that timestamp is the observation time, not the exact time of death. Intentional
+cleanup and death after readiness do not become startup failures.
+
+MailHog's opt-in, owner-reaped observer checks its loopback HTTP API and SMTP
+banner, sends only QUIT, and neither reads mail bodies nor sends mail. An
+observation timeout leaves startup unfinished; observed producer death records
+failure. With profiling disabled no observer is launched. Browser intervals
+cover the Playwright command, not a separately measured browser-ready boundary.
+Actual linker completion and per-suite reset attribution remain unavailable.
 
 ## Request Instrumentation
 

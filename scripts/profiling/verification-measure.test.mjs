@@ -139,6 +139,55 @@ test('stdlib-only phase CLI preserves option syntax and rejects invalid boundari
     assert.equal(inspect(output).status, 0);
 });
 
+test('service readiness is a recorded boundary distinct from merely starting a process', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import subprocess,sys,time\nbase=[sys.executable,'-S',${JSON.stringify(recorder)},'event','--phase','e2e-app-startup','--scope','1','--edge']\nsubprocess.run(base+['start'],check=True)\ntime.sleep(0.1)\nsubprocess.run(base+['ready'],check=True)`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.intervals.length, 1);
+    assert.equal(phases.intervals[0].status, 'ready');
+    assert.ok(phases.intervals[0].durationSeconds >= 0.1);
+    assert.equal(inspect(output).status, 0);
+});
+
+test('reaped service failures close only unfinished startup intervals', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import subprocess,sys\nbase=[sys.executable,'-S',${JSON.stringify(recorder)},'event']\nfor phase,scope,ready in [('e2e-worker-startup',1,False),('e2e-stripe-startup',1,False),('e2e-stripe-startup',2,True)]:\n args=base+['--phase',phase,'--scope',str(scope)]\n subprocess.run(args+['--edge','start'],check=True)\n producer=subprocess.Popen([sys.executable,'-c','pass']); producer.wait()\n if ready: subprocess.run(args+['--edge','ready'],check=True)\n for _ in range(2): subprocess.run(args+['--edge','fail','--if-unfinished'],check=True)`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.deepEqual(phases.intervals.map((item) => item.status), ['failed', 'failed', 'ready']);
+    assert.equal(inspect(output).status, 0);
+});
+
+test('MailHog readiness observes HTTP and SMTP without sending a message', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import http.server,os,socket,subprocess,sys,threading,time\nclass Handler(http.server.BaseHTTPRequestHandler):\n def do_GET(self):\n  assert self.path=='/api/v2/messages?limit=0'\n  self.send_response(200); self.end_headers()\n def log_message(self,*args): pass\nhttp=http.server.HTTPServer(('127.0.0.1',0),Handler)\nsmtp=socket.socket(); smtp.bind(('127.0.0.1',0)); smtp.listen(); smtp.settimeout(2)\nquit_commands=[]\ndef smtp_ready():\n time.sleep(0.15)\n connection,_=smtp.accept()\n with connection:\n  connection.settimeout(2)\n  connection.sendall(b'220 fixture ready\\r\\n')\n  quit_commands.append(connection.recv(256))\nt=threading.Thread(target=smtp_ready,daemon=True); t.start()\nthreading.Thread(target=http.serve_forever,daemon=True).start()\nbase=[sys.executable,'-S',${JSON.stringify(recorder)}]\nsubprocess.run(base+['event','--phase','e2e-mailhog-startup','--scope','0','--edge','start'],check=True)\nsubprocess.run(base+['watch-mailhog','--http-port',str(http.server_port),'--smtp-port',str(smtp.getsockname()[1]),'--pid',str(os.getpid()),'--timeout-seconds','2'],check=True)\nt.join(); assert quit_commands==[b'QUIT\\r\\n']\nhttp.shutdown(); smtp.close()`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.intervals.length, 1);
+    assert.equal(phases.intervals[0].status, 'ready');
+    assert.equal(inspect(output).status, 0);
+});
+
+test('MailHog observation timeout stays unfinished when only HTTP is ready', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import http.server,os,socket,subprocess,sys,threading\nclass Handler(http.server.BaseHTTPRequestHandler):\n def do_GET(self): self.send_response(200); self.end_headers()\n def log_message(self,*args): pass\nhttp=http.server.HTTPServer(('127.0.0.1',0),Handler)\nthreading.Thread(target=http.serve_forever,daemon=True).start()\nsmtp=socket.socket(); smtp.bind(('127.0.0.1',0)); smtp.listen()\nbase=[sys.executable,'-S',${JSON.stringify(recorder)}]\nsubprocess.run(base+['event','--phase','e2e-mailhog-startup','--scope','0','--edge','start'],check=True)\nassert subprocess.run(base+['watch-mailhog','--http-port',str(http.server_port),'--smtp-port',str(smtp.getsockname()[1]),'--pid',str(os.getpid()),'--timeout-seconds','0.1']).returncode==2\nhttp.shutdown(); smtp.close()`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.intervals[0].status, 'unfinished');
+    assert.equal(phases.intervals[0].durationSeconds, null);
+    assert.equal(inspect(output).status, 0);
+});
+
+test('MailHog producer death is distinguished from readiness timeout', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import subprocess,sys\nbase=[sys.executable,'-S',${JSON.stringify(recorder)}]\nsubprocess.run(base+['event','--phase','e2e-mailhog-startup','--scope','0','--edge','start'],check=True)\nassert subprocess.run(base+['watch-mailhog','--http-port','9','--smtp-port','9','--pid','2147483647']).returncode==1`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.intervals[0].status, 'failed');
+    assert.equal(inspect(output).status, 0);
+});
+
 test('concurrent phase producers retain separate scopes without taking over events', (t) => {
     const output = fixture(t);
     const child = `import subprocess,sys,time\nevent=[sys.executable,${JSON.stringify(recorder)},'event','--phase','hspec-execution','--scope',sys.argv[1],'--edge']\nsubprocess.run(event+['start'],check=True)\ntime.sleep(0.1)\nsubprocess.run(event+['finish'],check=True)`;
@@ -178,12 +227,14 @@ test('malformed phase evidence cannot certify measurement or replace the command
 
 test('phase journal overflow is explicit and cannot silently become complete evidence', (t) => {
     const output = fixture(t);
-    const result = run(output, `import subprocess,sys\nbase=[sys.executable,${JSON.stringify(recorder)},'event','--phase','compile','--scope','0','--edge']\nfor i in range(128):\n assert subprocess.run(base+['start' if i%2==0 else 'finish']).returncode==0\nassert subprocess.run(base+['start']).returncode==2`, { timeout: 20_000 });
+    const result = run(output, `import subprocess,sys\nbase=[sys.executable,'-S',${JSON.stringify(recorder)},'event','--phase','e2e-worker-startup','--edge','start','--scope']\nfor i in range(256):\n assert subprocess.run(base+[str(65000+i)]).returncode==0\nassert subprocess.run(base+['65535']).returncode==2`, { timeout: 20_000 });
     assert.equal(result.status, 0, result.stderr);
     const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
     assert.equal(phases.state, 'truncated');
     assert.equal(phases.overflow, true);
-    assert.equal(phases.intervals.length, 64);
+    assert.equal(phases.intervals.length, 256);
+    assert.ok(phases.intervals.every(row => row.durationSeconds === null));
+    assert.ok(readFileSync(join(output, 'phases.json')).length <= 65_536);
     assert.equal(inspect(output).status, 2);
 });
 

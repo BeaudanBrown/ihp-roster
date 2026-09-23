@@ -11,8 +11,12 @@ sys.dont_write_bytecode = True
 
 
 MAX_ARTIFACT_BYTES = 65536
-MAX_PHASE_EVENTS = 128
-PHASES = ('compile', 'hspec-execution', 'database-create', 'database-drop', 'parallel-run')
+MAX_PHASE_EVENTS = 256
+PHASES = ('compile', 'hspec-execution', 'database-create', 'database-drop', 'parallel-run',
+          'e2e-app-compile', 'e2e-worker-compile', 'e2e-stripe-compile',
+          'e2e-app-startup', 'e2e-worker-startup', 'e2e-stripe-startup',
+          'e2e-database-create', 'e2e-database-drop', 'e2e-browser', 'e2e-parallel-run',
+          'e2e-mailhog-startup')
 EDGES = ('start', 'finish', 'fail', 'ready')
 
 
@@ -92,27 +96,38 @@ def event_cli(arguments):
     import getopt
 
     try:
-        options, remaining = getopt.getopt(arguments, 'h', ['help', 'phase=', 'scope=', 'edge='])
+        options, remaining = getopt.getopt(arguments, 'h', ['help', 'phase=', 'scope=', 'edge=', 'if-unfinished'])
     except getopt.GetoptError as error:
         raise ValueError('invalid event options') from error
     if any(key in ('-h', '--help') for key, _ in options):
         print('usage: verification-measure.py event --phase {' + ','.join(PHASES)
-              + '} --scope 0..65535 --edge {' + ','.join(EDGES) + '}')
+              + '} --scope 0..65535 --edge {' + ','.join(EDGES) + '} [--if-unfinished (fail only, after producer reap)]')
         return 0
-    values = {key[2:]: value for key, value in options}
+    conditional = any(key == '--if-unfinished' for key, _ in options)
+    values = {key[2:]: value for key, value in options if key != '--if-unfinished'}
     if (remaining or set(values) != {'phase', 'scope', 'edge'}
-            or values['phase'] not in PHASES or values['edge'] not in EDGES):
+            or values['phase'] not in PHASES or values['edge'] not in EDGES
+            or (conditional and values['edge'] != 'fail')):
         raise ValueError('invalid event boundary')
-    return event(values['phase'], phase_scope(values['scope']), values['edge'])
+    return event(values['phase'], phase_scope(values['scope']), values['edge'], conditional)
 
 
-def event(phase, scope, edge):
+def event(phase, scope, edge, if_unfinished=False):
     target = os.environ.get('BEPIS_VERIFICATION_EVENTS')
     if not target:
         return 0
     value = {'schemaVersion': 1, 'phase': phase, 'scope': scope,
              'edge': edge, 'atSeconds': time.monotonic()}
     with directory(target) as root:
+        if if_unfinished:
+            # Only the owner of an exited/reaped producer may use this. It is
+            # not a compare-and-swap against a concurrent same-scope publisher.
+            phases = collect_phases(root, 0, None)
+            if phases['state'] in ('invalid', 'truncated'):
+                return 2
+            if not any(item['phase'] == phase and item['scope'] == scope
+                       and item['status'] == 'unfinished' for item in phases['intervals']):
+                return 0
         try:
             publish_available(root, (f'{index:03}.json' for index in range(MAX_PHASE_EVENTS)), value)
         except FileExistsError:
@@ -124,8 +139,45 @@ def event(phase, scope, edge):
     return 0
 
 
+def watch_mailhog(args):
+    import http.client
+    import socket
+
+    if (not 1 <= args.http_port <= 65535 or not 1 <= args.smtp_port <= 65535
+            or not 1 <= args.pid <= 2147483647 or not finite_number(args.timeout_seconds)
+            or not 0 < args.timeout_seconds <= 60):
+        raise ValueError('invalid local observer bounds')
+    if not os.environ.get('BEPIS_VERIFICATION_EVENTS'):
+        return 0
+    deadline = time.monotonic() + args.timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            os.kill(args.pid, 0)
+        except ProcessLookupError:
+            event('e2e-mailhog-startup', args.scope, 'fail')
+            return 1
+        timeout = min(0.2, max(0.001, deadline - time.monotonic()))
+        connection = http.client.HTTPConnection('127.0.0.1', args.http_port, timeout=timeout)
+        try:
+            # Fixed read-only endpoint, no proxies, response bodies or mail payloads.
+            connection.request('GET', '/api/v2/messages?limit=0', headers={'Connection': 'close'})
+            response = connection.getresponse()
+            if response.status == 200:
+                with socket.create_connection(('127.0.0.1', args.smtp_port), timeout=timeout) as smtp:
+                    if smtp.recv(256).startswith((b'220 ', b'220-')):
+                        smtp.sendall(b'QUIT\r\n')
+                        return event('e2e-mailhog-startup', args.scope, 'ready')
+        except (OSError, http.client.HTTPException):
+            pass
+        finally:
+            connection.close()
+        time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+    # A diagnostic observation timeout is not proof that the service failed.
+    return 2
+
+
 def collect_phases(root, start, wall):
-    events, invalid = [], 0
+    events, unvalidated, invalid = [], [], 0
     for index in range(MAX_PHASE_EVENTS):
         try:
             value = read_artifact(root, f'{index:03}.json')
@@ -134,6 +186,10 @@ def collect_phases(root, start, wall):
         except (OSError, ValueError):
             invalid += 1
             continue
+        unvalidated.append(value)
+    if wall is None:
+        wall = time.monotonic() - start
+    for value in unvalidated:
         if (set(value) != {'schemaVersion', 'phase', 'scope', 'edge', 'atSeconds'}
                 or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
                 or value['phase'] not in PHASES or value['edge'] not in EDGES
@@ -462,6 +518,12 @@ def parse_command():
     capture.add_argument('--termination-grace-seconds', type=int, choices=range(1, 61), default=10)
     capture.add_argument('command', nargs=argparse.REMAINDER)
     commands.add_parser('event', help='emit a bounded phase boundary')
+    observer = commands.add_parser('watch-mailhog', help='observe isolated MailHog readiness without gating tests')
+    observer.add_argument('--http-port', type=int, required=True)
+    observer.add_argument('--smtp-port', type=int, required=True)
+    observer.add_argument('--pid', type=int, required=True)
+    observer.add_argument('--scope', type=phase_scope, default=0)
+    observer.add_argument('--timeout-seconds', type=float, default=30)
     check = commands.add_parser('inspect')
     check.add_argument('output')
     return parser.parse_args()
@@ -472,6 +534,8 @@ def main():
         if len(sys.argv) > 1 and sys.argv[1] == 'event':
             return event_cli(sys.argv[2:])
         args = parse_command()
+        if args.operation == 'watch-mailhog':
+            return watch_mailhog(args)
         return run(args) if args.operation == 'run' else inspect(args.output)
     except (OSError, ValueError):
         print('verification-measure: capture failed; no valid completion implied', file=sys.stderr)
