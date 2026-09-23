@@ -30,13 +30,13 @@ data SurfaceInvalidationTarget = SurfaceInvalidationTarget
 -- dependency graph selects and coalesces concrete refresh targets.
 planFrontendSurfaceInvalidations :: Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
 planFrontendSurfaceInvalidations touchedResources subscriptions =
-    [ SurfaceInvalidationTarget scope (normalizeContainedFragmentKeys fragments)
-    | (scope, fragments) <- Map.toAscList grouped
+    [ SurfaceInvalidationTarget scope (normalizeContainedFragmentKeys (promoteSiblingFragments mountedFragments affectedFragments))
+    | (scope, (affectedFragments, mountedFragments)) <- Map.toAscList grouped
     ]
   where
     touchedIdentities = Set.map ResourceInternal.surfaceResourceIdentity touchedResources
-    grouped = Map.fromListWith (<>)
-        [ (subscription.subscriptionScope, affectedFragments)
+    grouped = Map.fromListWith (\(affectedLeft, mountedLeft) (affectedRight, mountedRight) -> (affectedLeft <> affectedRight, mountedLeft <> mountedRight))
+        [ (subscription.subscriptionScope, (affectedFragments, subscription.subscriptionFragmentKeys))
         | subscription <- subscriptions
         , let affectedFragments =
                 filter
@@ -44,6 +44,32 @@ planFrontendSurfaceInvalidations touchedResources subscriptions =
                     subscription.subscriptionFragmentKeys
         , not (null affectedFragments)
         ]
+
+-- When two or more selected siblings are already represented by a mounted
+-- typed ancestor, fetch that nearest ancestor once. A single selected child
+-- remains narrow. This uses only declared containment and mounted semantic
+-- keys, so browser transport still carries no executable batching authority.
+promoteSiblingFragments :: [SurfaceFragmentKey] -> [SurfaceFragmentKey] -> [SurfaceFragmentKey]
+promoteSiblingFragments mountedFragmentKeys affectedFragmentKeys =
+    coalescedAffected <> nearestPromotions
+  where
+    coalescedAffected = coalesceSurfaceFragmentKeys affectedFragmentKeys
+    promotionCandidates =
+        [ candidate
+        | candidate <- coalesceSurfaceFragmentKeys mountedFragmentKeys
+        , candidate `notElem` coalescedAffected
+        , let containedKinds =
+                [ fragmentKind
+                | affected <- coalescedAffected
+                , candidate `fragmentKeyContains` affected
+                , let (_, fragmentKind, _) = LiveUpdateInternal.surfaceFragmentKeyIdentity affected
+                ]
+        , any ((>= 2) . length) (List.group (List.sort containedKinds))
+        ]
+    nearestPromotions =
+        filter
+            (\candidate -> not (any (\other -> other /= candidate && candidate `fragmentKeyContains` other) promotionCandidates))
+            promotionCandidates
 
 frontendSurfaceFragmentKeyDependsOnTouchedResource :: Set.Set (Text, Aeson.Value) -> SurfaceScope -> SurfaceFragmentKey -> Bool
 frontendSurfaceFragmentKeyDependsOnTouchedResource touchedIdentities scope fragmentKey =

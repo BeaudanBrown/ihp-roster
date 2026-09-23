@@ -1,11 +1,11 @@
 module Test.SurfaceDependencySpec where
 
 import Application.Feedback.LiveUpdates
-import Application.Helper.FrontendContract.Surface.Feedback.Live
-import Application.Helper.FrontendContract.Surface.Feedback.Resource
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
+import Application.Helper.FrontendContract.Surface.Feedback.Live
+import Application.Helper.FrontendContract.Surface.Feedback.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource
@@ -316,6 +316,24 @@ tests = do
                     , RosterLive.rosterStaffPanelLiveFragment
                     , RosterLive.rosterDaySectionLiveFragment rosterDayUuid
                     ]
+
+        it "promotes repeated roster day siblings to one mounted grid frame while one day stays narrow" do
+            let venueId = fromWords 24 0 0 0
+            let rosterGroupUuid = fromWords 25 0 0 0
+            let firstDayUuid = fromWords 26 0 0 0
+            let secondDayUuid = fromWords 27 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let firstDayId = Id firstDayUuid :: Id RosterDay
+            let secondDayId = Id secondDayUuid :: Id RosterDay
+            let scopeValue = rosterScopeValue venueId rosterGroupId 3
+            let scope = rosterSurfaceScope scopeValue
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [firstDayId, secondDayId], rosterMountedRows = [], rosterMountedHasTemplateLibrary = False }
+            let candidates = rosterCandidateMountedFragments scopeValue plan
+
+            passiveFragmentKeys (Set.singleton (rosterDayResource firstDayUuid)) scope candidates
+                `shouldBe` [RosterLive.rosterDaySectionLiveFragment firstDayUuid]
+            passiveFragmentKeys (Set.fromList [rosterDayResource firstDayUuid, rosterDayResource secondDayUuid]) scope candidates
+                `shouldBe` [RosterLive.rosterGridFrameLiveFragment]
 
         it "selects the slots scroll owner only for slots-structure changes" do
             let venueId = fromWords 10 0 0 0

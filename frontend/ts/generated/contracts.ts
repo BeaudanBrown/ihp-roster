@@ -367,9 +367,9 @@ export function parseAppErrorWire(value: unknown): AppErrorWire {
 
 export const pageReadyEvent = "bepis:page-ready" as const;
 
-export type LiveFragmentsRefreshEventDetail = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };
+export type LiveFragmentsRefreshEventDetail = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey>; localFragments: ReadonlyArray<SurfaceFragmentKey>; version: number | null };
 export function isLiveFragmentsRefreshEventDetail(value: unknown): value is LiveFragmentsRefreshEventDetail {
-    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"], ["scope", "scopeKey", "fragments"]) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
+    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments", "localFragments", "version"], ["scope", "scopeKey", "fragments", "localFragments", "version"]) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (Array.isArray(value["localFragments"]) && value["localFragments"].every((item) => isSurfaceFragmentKey(item))) && (value["version"] === null || (typeof value["version"] === "number" && Number.isInteger(value["version"])));
 }
 
 export function parseLiveFragmentsRefreshEventDetail(value: unknown): LiveFragmentsRefreshEventDetail {

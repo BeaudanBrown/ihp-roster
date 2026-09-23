@@ -19,6 +19,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMount
                                                             mountedFragmentKey)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.LiveUpdate.Internal
+import Application.Helper.LiveUpdate.RequestState (requestLivePublicationVersion)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Set as Set
@@ -29,10 +30,7 @@ import IHP.ControllerPrelude
 -- touched resources must use 'setActorLiveResourcesRefresh'.
 setActorLocalFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceFragmentKey] -> IO ()
 setActorLocalFragmentsRefresh scope fragments =
-    setHeader
-        ( "HX-Trigger"
-        , cs (Aeson.encode (actorLiveFragmentsRefreshTriggerPayload scope fragments))
-        )
+    setActorFragmentsRefreshAtVersion scope [] fragments Nothing
 
 setActorLiveResourcesRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> IO ()
 setActorLiveResourcesRefresh scope touchedResources mountedFragments =
@@ -42,10 +40,11 @@ setActorLiveResourcesRefresh scope touchedResources mountedFragments =
 -- fragments, such as resetting a resync-only form after a successful mutation.
 setActorLiveResourcesRefreshIncluding :: (?context :: ControllerContext, ?request :: Request) => [SurfaceFragmentKey] -> SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> IO ()
 setActorLiveResourcesRefreshIncluding actorOnlyFragments scope touchedResources mountedFragments = do
-    let resourceFragmentKeys = actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments
-    let fragmentKeys = coalesceSurfaceFragmentKeys (actorOnlyFragments <> resourceFragmentKeys)
-    unless (null fragmentKeys) do
-        setActorLocalFragmentsRefresh scope fragmentKeys
+    let resourceFragmentKeys = coalesceSurfaceFragmentKeys (actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments)
+    let localFragmentKeys = filter (`notElem` resourceFragmentKeys) (coalesceSurfaceFragmentKeys actorOnlyFragments)
+    unless (null resourceFragmentKeys && null localFragmentKeys) do
+        version <- if null resourceFragmentKeys then pure Nothing else requestLivePublicationVersion touchedResources
+        setActorFragmentsRefreshAtVersion scope resourceFragmentKeys localFragmentKeys version
 
 actorLiveFragmentsRefreshKeys :: SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments =
@@ -61,10 +60,23 @@ actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments =
 
 actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceFragmentKey] -> Aeson.Value
 actorLiveFragmentsRefreshTriggerPayload scope fragmentKeys =
+    actorLiveFragmentsRefreshTriggerPayloadAtVersion scope [] fragmentKeys Nothing
+
+setActorFragmentsRefreshAtVersion :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceFragmentKey] -> [SurfaceFragmentKey] -> Maybe Int -> IO ()
+setActorFragmentsRefreshAtVersion scope fragments localFragments version =
+    setHeader
+        ( "HX-Trigger"
+        , cs (Aeson.encode (actorLiveFragmentsRefreshTriggerPayloadAtVersion scope fragments localFragments version))
+        )
+
+actorLiveFragmentsRefreshTriggerPayloadAtVersion :: SurfaceScope -> [SurfaceFragmentKey] -> [SurfaceFragmentKey] -> Maybe Int -> Aeson.Value
+actorLiveFragmentsRefreshTriggerPayloadAtVersion scope fragmentKeys localFragmentKeys version =
     Aeson.object
         [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Wire.LiveFragmentsRefreshEventDetail
             { Wire.scope = surfaceScopeToWire scope
             , Wire.scopeKey = surfaceScopeKey scope
             , Wire.fragments = map surfaceFragmentKeyToWire (coalesceSurfaceFragmentKeys fragmentKeys)
+            , Wire.localFragments = map surfaceFragmentKeyToWire (coalesceSurfaceFragmentKeys localFragmentKeys)
+            , Wire.version = version
             }
         ]

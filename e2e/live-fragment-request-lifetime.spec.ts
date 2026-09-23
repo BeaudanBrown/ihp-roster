@@ -46,7 +46,7 @@ test.describe('Live fragment request lifetime', () => {
             document.dispatchEvent(new CustomEvent(eventName, { detail }));
         }, {
             eventName: liveFragmentsRefreshEvent,
-            detail: { scope: request.scope, scopeKey: request.scopeKey, fragments: [request.fragmentKey] },
+            detail: { scope: request.scope, scopeKey: request.scopeKey, fragments: [], localFragments: [request.fragmentKey], version: null },
         });
         await refreshRequest;
         const delayedRoute = await delayedRoutePromise;

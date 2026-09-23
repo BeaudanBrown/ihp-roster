@@ -1,10 +1,11 @@
 module Config where
 
+import Application.Helper.Authentication (bepisAuthenticationMiddleware)
 import Application.Helper.BrowserFailure (browserFailurePageMiddleware)
+import Application.Helper.ControllerContext (venueRequestStateMiddleware)
 import Application.Helper.FrontendContract.Registry (ensureRegisteredFrontendContract)
 import Application.Helper.LiveUpdate.DurableListener (startDurableInvalidationListener)
-import Application.Helper.Authentication (bepisAuthenticationMiddleware)
-import Application.Helper.ControllerContext (venueRequestStateMiddleware)
+import Application.Helper.LiveUpdate.RequestState (liveUpdateRequestStateMiddleware)
 import Application.Helper.Profiling (profilingMiddleware)
 import Application.Helper.Telemetry (telemetryMiddleware)
 import IHP.EnvVar
@@ -35,7 +36,7 @@ config = do
             , credentials = smtpCredentials
             , encryption = smtpEncryption
             }
-    option $ CustomMiddleware (browserFailurePageMiddleware . telemetryMiddleware . profilingMiddleware . venueRequestStateMiddleware)
+    option $ CustomMiddleware (browserFailurePageMiddleware . telemetryMiddleware . profilingMiddleware . liveUpdateRequestStateMiddleware . venueRequestStateMiddleware)
     option $ AuthMiddleware bepisAuthenticationMiddleware
     addInitializer ensureRegisteredFrontendContract
     addInitializer (startDurableInvalidationListener dispatchDurableInvalidation)

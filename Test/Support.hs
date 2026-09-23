@@ -5,13 +5,15 @@ import qualified Application.Fixture.PayrollFixtures as Payroll
 import qualified Application.Fixture.Reset as FixtureReset
 import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts,
                                                sealApprovedFixtureCalculation)
+import Application.Helper.Authentication (bepisAuthenticationMiddleware)
 import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
                                       initImpersonationContext,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
-import Application.Helper.Authentication (bepisAuthenticationMiddleware)
-import Application.Helper.ControllerContext (initCurrentVenueContext, venueRequestStateMiddleware)
+import Application.Helper.ControllerContext (initCurrentVenueContext,
+                                             venueRequestStateMiddleware)
+import Application.Helper.LiveUpdate.RequestState (liveUpdateRequestStateMiddleware)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
@@ -48,10 +50,10 @@ import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
-import IHP.Test.Mocking
 import IHP.Server (initMiddlewareStack)
-import qualified Network.HTTP.Types as HTTP
+import IHP.Test.Mocking
 import Network.HTTP.Types (Status, status200)
+import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import Network.Wai.Internal (ResponseReceived (..))
@@ -373,7 +375,7 @@ withControllerTestContext ::
     IO a
 withControllerTestContext action =
     withSessionValues [] do
-        request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware) ?request
+        request <- applyTestRequestMiddleware (liveUpdateRequestStateMiddleware . venueRequestStateMiddleware . bepisAuthenticationMiddleware) ?request
         let ?context = request
         let ?request = request
         action
@@ -386,7 +388,7 @@ withCurrentControllerContext action = do
     -- Match callAction's ordering: fixture overrides (including withUser) run
     -- after authentication, before controller context initialization.
     let overrideMiddleware = fromMaybe Prelude.id (Vault.lookup mockOverrideVaultKey (Wai.vault ?request))
-    request <- applyTestRequestMiddleware (venueRequestStateMiddleware . bepisAuthenticationMiddleware . overrideMiddleware) ?request
+    request <- applyTestRequestMiddleware (liveUpdateRequestStateMiddleware . venueRequestStateMiddleware . bepisAuthenticationMiddleware . overrideMiddleware) ?request
     let ?context = request
     let ?request = request
     initCurrentVenueContext

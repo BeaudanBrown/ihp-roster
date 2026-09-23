@@ -9,6 +9,8 @@ module Application.Helper.FrontendContract.App
     , Scope
     , ScopeKey
     , Fragments
+    , LocalFragments
+    , Version
     , InteractionIntent
     , IntentSubmit
     , InteractionSessionStart
@@ -38,6 +40,8 @@ data LiveFragmentsRefresh
 data Scope
 data ScopeKey
 data Fragments
+data LocalFragments
+data Version
 data InteractionIntent
 data IntentSubmit
 data InteractionSessionStart
@@ -66,6 +70,8 @@ type AppContract =
             '[ Field Scope 'WireSurfaceScope
              , Field ScopeKey 'WireText
              , Field Fragments ('WireList 'WireSurfaceFragmentKey)
+             , Field LocalFragments ('WireList 'WireSurfaceFragmentKey)
+             , NullableField Version 'WireInt
              ]
          , Event InteractionIntent '[]
          , ServerEvent IntentSubmit '[]

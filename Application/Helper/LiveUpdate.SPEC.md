@@ -59,8 +59,10 @@ second passive broadcast.
 `Surface.DependencyPlanner` is the singular pure actor/passive planner. It
 matches concrete resources to exact mounted/subscribed semantic keys using
 checked `DependsOn` metadata, collapses duplicates, and applies typed containment
-so a selected ancestor suppresses its matching descendant while siblings and
-different parameters remain independent.
+so a selected ancestor suppresses its matching descendant. One selected
+parameterized child remains narrow; two or more selected siblings of the same
+fragment kind promote to the nearest mounted typed ancestor, avoiding parallel
+requests that repeat the same parent read without introducing a second planner.
 
 Broad domain effects expand to concrete resources in the producer or a focused
 feature helper. Cross-process effects must not depend only on the producer's
@@ -79,9 +81,13 @@ A selector returning `Nothing` commits without publication, even for a `Left`
 value; exceptions roll back. Do not substitute generic outcome-based rollback
 or add a second dispatcher, resource registry, or transport.
 
-`setActorLiveResourcesRefresh` plans resource-backed actor updates.
-`setActorLocalFragmentsRefresh` is limited to requester-local workflows with no
-shared resource change. Direct raw transport/broadcast helpers remain inside
+`setActorLiveResourcesRefresh` plans resource-backed actor updates and attaches
+the durable publication sequence recorded for those exact request-local touched
+resources. `setActorLocalFragmentsRefresh` is limited to requester-local
+workflows with no shared resource change and therefore carries no durable
+version evidence. Mixed actor responses keep resource-derived `fragments` and
+unversioned `localFragments` as separate typed event fields; a publication
+version applies only to the resource-derived group. Direct raw transport/broadcast helpers remain inside
 `Web.SurfaceInvalidation` and `Application.Helper.LiveUpdate.Runtime`.
 
 ## Browser Runtime And Protection
@@ -101,7 +107,13 @@ surface, scope, mount, or target strings do not transfer that lifetime. Removal
 or stop aborts its work, while independent stale-completion checks fence reload,
 removal/replacement, HTMX processing, page-ready dispatch, and focus/state
 restoration. Same-scope subscriptions merge; invalidations may select multiple
-keys/mounts. Nested mount lifecycle follows current DOM recursively so new
+keys/mounts. Actor, passive, and resync demands carry their origin and available
+durable version into the generic refresher. A successful mounted replacement
+satisfies that version for its mount lifetime; matching actor/passive echoes and
+duplicate in-flight demands share one request, a newer version remains queued,
+and a failed actor request retains a matching passive retry. Unversioned
+actor-local work is never treated as durable evidence. Nested mount lifecycle
+follows current DOM recursively so new
 children initialize, removed descendants dispose, and subscription state
 matches mounted scopes.
 

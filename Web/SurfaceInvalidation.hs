@@ -10,7 +10,8 @@ module Web.SurfaceInvalidation
     , planSurfaceInvalidationsWithoutContext
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..),
+                                  externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
                                                                       planFrontendSurfaceInvalidations)
@@ -20,6 +21,7 @@ import Application.Helper.LiveUpdate.Diagnostics
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..))
 import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
                                                        withDurableLiveMutationOutcomeTransaction)
+import Application.Helper.LiveUpdate.RequestState (recordRequestLivePublication)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
@@ -85,6 +87,7 @@ withDurableLiveMutationOutcome publicationFor businessAction =
         case (publicationFor outcome, maybePublication) of
             (Nothing, Nothing) -> pure (outcome, Nothing)
             (Just (label, touchedResources), Just publication) -> do
+                recordRequestLivePublication touchedResources publication.durablePublicationEventSequence
                 (observed, observeDurationMs) <- measureDuration $
                     recordLiveMutationDiagnostics label (LiveMutationResult () touchedResources)
                 (_, profileDetail) <- completeRequestInvalidation startedAtNs label observed observeDurationMs publication

@@ -352,8 +352,13 @@ test("generated actor refresh parser is exact and uses per-surface scope and fra
         scope: validScope,
         scopeKey: "timesheets:venue-1:2025-01-06:2025-01-13:1",
         fragments: [validFragmentKey],
+        localFragments: [],
+        version: 12,
     };
     assertEqual(isLiveFragmentsRefreshEventDetail(detail), true);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, version: null }), true);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, localFragments: [validFragmentKey] }), true);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, version: "12" }), false);
     assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, elt: {} }), false);
     assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, executableUrl: "/unsafe" }), false);
     assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, scope: { surface: "timesheets", scope: { venueId: "venue-1", windowStartDate: 0, windowEndDate: "2025-01-13", rosterCalendarRevision: 1 } } }), false);

@@ -8,7 +8,7 @@ import {
 } from "./protocol";
 import type { LiveFragmentRefresher } from "./refresh";
 import { assertNever } from "../shared/exhaustive";
-import type { SurfaceSubscription } from "./runtime-types";
+import type { LiveUpdateFragmentWithState, LiveUpdateRequestOrigin, SurfaceSubscription } from "./runtime-types";
 
 type LiveUpdateDiagnostics = ReturnType<typeof createLiveUpdateDiagnostics>;
 
@@ -46,6 +46,18 @@ export function createLiveUpdateInvalidationRuntime(options: {
         },
     };
 
+    function requestFragments(
+        fragments: LiveUpdateFragmentWithState[],
+        origin: LiveUpdateRequestOrigin,
+        version: number | null,
+    ): void {
+        fragments.forEach((fragment) => refresher.request({
+            ...fragment,
+            requestOrigin: origin,
+            ...(version === null ? {} : { requestVersion: version }),
+        }));
+    }
+
     function handleSubscribedMessage(message: Extract<LiveUpdateMessage, { type: "subscribed" }>): void {
         const scopeKey = liveUpdateMessageScopeKey(message);
         if (!scopeKey) return;
@@ -53,7 +65,7 @@ export function createLiveUpdateInvalidationRuntime(options: {
         if (!subscription) return;
 
         versions.set(scopeKey, message.currentVersion);
-        if (message.resync) subscription.resync(subscription);
+        if (message.resync) requestFragments(subscription.resyncFragments, "resync", message.currentVersion);
         diagnostics.emitDebugEvent("subscription_acknowledged", { scopeKey, resync: message.resync });
     }
 
@@ -85,12 +97,12 @@ export function createLiveUpdateInvalidationRuntime(options: {
         }
 
         if (message.fragments.length === 0) {
-            subscription.resync(subscription);
+            requestFragments(subscription.resyncFragments, "resync", nextVersion);
             diagnostics.endPerfSpan(perfSpan, { outcome: "resync_empty_fragments", scopeKey });
             return;
         }
 
-        resolveMountedFragmentsForInvalidation([subscription], message.fragments, scopeKey).forEach(refresher.request);
+        requestFragments(resolveMountedFragmentsForInvalidation([subscription], message.fragments, scopeKey), "passive", nextVersion);
         diagnostics.endPerfSpan(perfSpan, { outcome: "queued_fragments", scopeKey });
     }
 
@@ -116,8 +128,16 @@ export function createLiveUpdateInvalidationRuntime(options: {
 
         try {
             const detail = parseLiveFragmentsRefreshEventDetail(actorDetail);
-            resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey)
-                .forEach(refresher.request);
+            requestFragments(
+                resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey),
+                "actor",
+                detail.version,
+            );
+            requestFragments(
+                resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.localFragments, detail.scopeKey),
+                "actor",
+                null,
+            );
         } catch {
             return;
         }

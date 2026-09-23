@@ -92,7 +92,6 @@ const fragment: LiveUpdateFragmentWithState = {
 
 test("modular invalidation owner tolerates duplicate listener and actor refreshes", () => {
     const requested: FrontendSurfaceMountedFragmentConfig[] = [];
-    let resyncCount = 0;
     const subscription: SurfaceSubscription = {
         scope,
         scopeKey: "timesheets:v:0",
@@ -100,7 +99,6 @@ test("modular invalidation owner tolerates duplicate listener and actor refreshe
         resyncFragments: [fragment],
         renderedDependencyWatermark: 7,
         ownerEls: [],
-        resync: () => { resyncCount += 1; },
     };
     const activeSubscriptions = new Map([[subscription.scopeKey, subscription]]);
     const refresher: LiveFragmentRefresher = {
@@ -138,7 +136,7 @@ test("modular invalidation owner tolerates duplicate listener and actor refreshe
         fragments: [fragment.fragmentKey],
     });
     runtime.handleActorEvent(new CustomEvent("actor-refresh", {
-        detail: { scope, scopeKey: subscription.scopeKey, fragments: [fragment.fragmentKey] },
+        detail: { scope, scopeKey: subscription.scopeKey, fragments: [], localFragments: [fragment.fragmentKey], version: null },
     }));
     runtime.handleMessage({
         type: "invalidate",
@@ -148,8 +146,12 @@ test("modular invalidation owner tolerates duplicate listener and actor refreshe
         fragments: [],
     });
 
-    assertDeepEqual(requested, [fragment, fragment, fragment]);
-    assertEqual(resyncCount, 1);
+    assertDeepEqual(requested, [
+        { ...fragment, requestOrigin: "passive", requestVersion: 1 },
+        { ...fragment, requestOrigin: "passive", requestVersion: 2 },
+        { ...fragment, requestOrigin: "actor" },
+        { ...fragment, requestOrigin: "resync", requestVersion: 3 },
+    ]);
 });
 
 test("Admin Xero reconnect refetches while unrelated global version gaps do not", () => {
@@ -181,7 +183,6 @@ test("Admin Xero reconnect refetches while unrelated global version gaps do not"
         resyncFragments: [xeroFragment],
         renderedDependencyWatermark: 7,
         ownerEls: [],
-        resync: (current) => current.resyncFragments.forEach(refresher.request),
     };
     const runtime = createLiveUpdateInvalidationRuntime({
         activeSubscriptions: new Map([[subscription.scopeKey, subscription]]),
@@ -208,7 +209,10 @@ test("Admin Xero reconnect refetches while unrelated global version gaps do not"
         fragments: [xeroFragment.fragmentKey],
     });
 
-    assertDeepEqual(requested, [xeroFragment, xeroFragment]);
+    assertDeepEqual(requested, [
+        { ...xeroFragment, requestOrigin: "resync", requestVersion: 1 },
+        { ...xeroFragment, requestOrigin: "passive", requestVersion: 3 },
+    ]);
 });
 
 test("connection cleanup resets versions when the mounted subscription set becomes empty", () => {
@@ -219,7 +223,6 @@ test("connection cleanup resets versions when the mounted subscription set becom
         resyncFragments: [fragment],
         renderedDependencyWatermark: 7,
         ownerEls: [],
-        resync: () => undefined,
     };
     const activeSubscriptions = new Map([[subscription.scopeKey, subscription]]);
     const cleared: string[] = [];

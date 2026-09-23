@@ -17,9 +17,13 @@ export type LiveUpdatePreservedField = {
     value: string;
 };
 
+export type LiveUpdateRequestOrigin = "actor" | "passive" | "resync";
+
 export type LiveUpdateFragmentWithState = FrontendSurfaceMountedFragmentConfig & {
     ownerEl: HTMLElement;
     preserveField?: LiveUpdatePreservedField;
+    requestOrigin?: LiveUpdateRequestOrigin;
+    requestVersion?: number;
 };
 
 export type SurfaceSubscription = {
@@ -29,7 +33,6 @@ export type SurfaceSubscription = {
     resyncFragments: LiveUpdateFragmentWithState[];
     renderedDependencyWatermark: number;
     ownerEls: HTMLElement[];
-    resync: (subscription: SurfaceSubscription) => void;
 };
 
 export type FragmentProtectionAdapter = {

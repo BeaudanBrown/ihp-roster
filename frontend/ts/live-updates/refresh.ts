@@ -23,7 +23,10 @@ type FragmentRequestSlot = {
     fetchedTarget: HTMLElement | null;
     generation: number;
     next: LiveUpdateFragmentWithState | null;
+    retryOnFailure: LiveUpdateFragmentWithState | null;
     protectionChanged: boolean;
+    applied: boolean;
+    failed: boolean;
 };
 
 type OwnerRefreshState = {
@@ -32,6 +35,7 @@ type OwnerRefreshState = {
     pendingFocused: Map<string, LiveUpdateFragmentWithState>;
     pendingInteraction: Map<string, LiveUpdateFragmentWithState>;
     pendingInteractionTimers: Map<string, ReturnType<Window["setTimeout"]>>;
+    satisfiedVersions: Map<string, number>;
 };
 
 export function createLiveFragmentRefresher(options: {
@@ -60,6 +64,7 @@ export function createLiveFragmentRefresher(options: {
             pendingFocused: new Map(),
             pendingInteraction: new Map(),
             pendingInteractionTimers: new Map(),
+            satisfiedVersions: new Map(),
         });
     }
 
@@ -136,7 +141,10 @@ export function createLiveFragmentRefresher(options: {
 
         const trimmed = (html || "").trim();
         if (!trimmed) {
-            if (requestIsCurrent(state, fragment.targetId, slot) && resolveOwnedTarget(fragment) === target) target.remove();
+            if (requestIsCurrent(state, fragment.targetId, slot) && resolveOwnedTarget(fragment) === target) {
+                target.remove();
+                slot.applied = true;
+            }
             endPerfSpan(perfSpan, { outcome: "removed_empty_html" });
             return;
         }
@@ -156,6 +164,7 @@ export function createLiveFragmentRefresher(options: {
         }
         const restoreFocus = focus.captureReplacementFocus(target);
         target.replaceWith(nextNode);
+        slot.applied = true;
         if (!requestIsCurrent(state, fragment.targetId, slot)) {
             endPerfSpan(perfSpan, { outcome: "stale_after_swap" });
             return;
@@ -179,6 +188,8 @@ export function createLiveFragmentRefresher(options: {
             targetId: fragment.targetId,
             url: fragment.url,
             focusProtected: fragment.protection.kind === "focused-field",
+            requestOrigin: fragment.requestOrigin ?? "unspecified",
+            requestVersion: requestVersion(fragment),
         });
         const target = resolveOwnedTarget(fragment);
         if (!target || !requestIsCurrent(state, fragment.targetId, slot)) {
@@ -226,7 +237,10 @@ export function createLiveFragmentRefresher(options: {
         if (fenceForCurrentProtection("response", response.status)) return;
         if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
             endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
-            if (requestIsCurrent(state, fragment.targetId, slot)) targetWindow.location.reload();
+            if (requestIsCurrent(state, fragment.targetId, slot)) {
+                slot.applied = true;
+                targetWindow.location.reload();
+            }
             return;
         }
 
@@ -254,13 +268,56 @@ export function createLiveFragmentRefresher(options: {
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-fragment-refresh-failed", { detail }));
     }
 
+    function requestVersion(fragment: LiveUpdateFragmentWithState): number | null {
+        return Number.isInteger(fragment.requestVersion) && (fragment.requestVersion ?? -1) >= 0
+            ? fragment.requestVersion ?? null
+            : null;
+    }
+
+    function versionIsSatisfied(fragment: LiveUpdateFragmentWithState, satisfiedVersion: number | null): boolean {
+        const version = requestVersion(fragment);
+        return version !== null && satisfiedVersion !== null && version <= satisfiedVersion;
+    }
+
+    function mergeInFlightDemand(existing: FragmentRequestSlot, fragment: LiveUpdateFragmentWithState): "coalesced" | "queued" {
+        const currentVersion = requestVersion(existing.fragment);
+        const queuedVersion = existing.next ? requestVersion(existing.next) : null;
+        const coveredVersion = Math.max(currentVersion ?? -1, queuedVersion ?? -1);
+        const incomingVersion = requestVersion(fragment);
+        const sameUnversionedRequest = incomingVersion === null
+            && currentVersion === null
+            && fragment.url === existing.fragment.url;
+        if ((incomingVersion !== null && coveredVersion >= 0 && incomingVersion <= coveredVersion) || sameUnversionedRequest) {
+            if (incomingVersion === currentVersion && queuedVersion === null) {
+                if (incomingVersion === null) existing.retryOnFailure = fragment;
+                else if (fragment.requestOrigin === "passive" && existing.retryOnFailure?.requestOrigin !== "passive") existing.retryOnFailure = fragment;
+            }
+            emitDebugEvent(incomingVersion === null ? "fragment_request_coalesced" : "fragment_version_coalesced", {
+                targetId: fragment.targetId,
+                currentVersion,
+                queuedVersion,
+                incomingVersion,
+                currentOrigin: existing.fragment.requestOrigin ?? null,
+                incomingOrigin: fragment.requestOrigin ?? null,
+            });
+            return "coalesced";
+        }
+        existing.next = fragment;
+        emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url, incomingVersion });
+        return "queued";
+    }
+
     function queueFragment(fragment: LiveUpdateFragmentWithState): void {
         const state = ownerStates.get(fragment.ownerEl);
         if (!state?.active || stopped) return;
+        const satisfiedVersion = state.satisfiedVersions.get(fragment.targetId) ?? null;
+        if (versionIsSatisfied(fragment, satisfiedVersion)) {
+            emitDebugEvent("fragment_version_satisfied", { targetId: fragment.targetId, version: requestVersion(fragment) });
+            return;
+        }
         const existing = state.inFlight.get(fragment.targetId);
         if (existing) {
-            existing.next = fragment;
-            emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
+            mergeInFlightDemand(existing, fragment);
             return;
         }
 
@@ -270,17 +327,38 @@ export function createLiveFragmentRefresher(options: {
             fetchedTarget: null,
             generation,
             next: null,
+            retryOnFailure: null,
             protectionChanged: false,
+            applied: false,
+            failed: false,
         };
         state.inFlight.set(fragment.targetId, slot);
         void refetchFragment(fragment, state, slot)
+            .then(() => {
+                const version = requestVersion(fragment);
+                if (slot.applied && version !== null) {
+                    state.satisfiedVersions.set(fragment.targetId, Math.max(version, state.satisfiedVersions.get(fragment.targetId) ?? 0));
+                }
+            })
             .catch((error) => {
+                slot.failed = true;
                 if (requestIsCurrent(state, fragment.targetId, slot)) reportFragmentRefreshError(fragment, error);
             })
             .finally(() => {
                 if (state.inFlight.get(fragment.targetId) !== slot) return;
                 state.inFlight.delete(fragment.targetId);
-                const next = slot.next;
+                const satisfiedVersion = state.satisfiedVersions.get(fragment.targetId) ?? null;
+                const queued = slot.next && !versionIsSatisfied(slot.next, satisfiedVersion) ? slot.next : null;
+                const retry = slot.failed ? slot.retryOnFailure : null;
+                const next = queued ?? retry;
+                emitDebugEvent("fragment_request_settled", {
+                    targetId: fragment.targetId,
+                    applied: slot.applied,
+                    failed: slot.failed,
+                    satisfiedVersion,
+                    queuedVersion: slot.next ? requestVersion(slot.next) : null,
+                    nextVersion: next ? requestVersion(next) : null,
+                });
                 if (next && state.active && slot.generation === generation && !stopped) queueFragment(next);
             });
     }
@@ -349,10 +427,14 @@ export function createLiveFragmentRefresher(options: {
         const target = resolveOwnedTarget(fragment);
         if (!target) return;
 
+        const satisfiedVersion = state.satisfiedVersions.get(fragment.targetId) ?? null;
+        if (versionIsSatisfied(fragment, satisfiedVersion)) {
+            emitDebugEvent("fragment_version_satisfied", { targetId: fragment.targetId, version: requestVersion(fragment) });
+            return;
+        }
         const existing = state.inFlight.get(fragment.targetId);
         if (existing) {
-            existing.next = fragment;
-            emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
+            if (mergeInFlightDemand(existing, fragment) === "coalesced") return;
             if (deferForCurrentProtection(state, null, fragment, target)) return;
             return;
         }

@@ -141,7 +141,7 @@
   }
   var pageReadyEvent = "bepis:page-ready";
   function isLiveFragmentsRefreshEventDetail(value) {
-    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"], ["scope", "scopeKey", "fragments"]) && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
+    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments", "localFragments", "version"], ["scope", "scopeKey", "fragments", "localFragments", "version"]) && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (Array.isArray(value["localFragments"]) && value["localFragments"].every((item) => isSurfaceFragmentKey(item))) && (value["version"] === null || typeof value["version"] === "number" && Number.isInteger(value["version"]));
   }
   function parseLiveFragmentsRefreshEventDetail(value) {
     if (isLiveFragmentsRefreshEventDetail(value)) return value;
@@ -2341,7 +2341,7 @@
       targetDocument.dispatchEvent(new CustomEvent("app:live-update-surface-config-failed", { detail }));
     };
   }
-  function readSurfaceSubscription(ownerEl, requestRefresh, reportError2) {
+  function readSurfaceSubscription(ownerEl, reportError2) {
     const config = readFrontendSurfaceMountElement(ownerEl, reportError2);
     if (!config) return null;
     const parsed = parseFrontendSurfaceSubscriptionConfig(config);
@@ -2352,15 +2352,14 @@
       path: parsed.socketPath,
       resyncFragments: parsed.resyncFragments.map((fragment) => ({ ...fragment, ownerEl })),
       renderedDependencyWatermark: parsed.renderedDependencyWatermark,
-      ownerEls: [ownerEl],
-      resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh)
+      ownerEls: [ownerEl]
     };
   }
-  function collectDesiredSurfaceSubscriptions(targetDocument, requestRefresh, reportError2) {
+  function collectDesiredSurfaceSubscriptions(targetDocument, reportError2) {
     const desired = /* @__PURE__ */ new Map();
     targetDocument.querySelectorAll(surfaceConfigSelector).forEach((ownerEl) => {
       if (!(ownerEl instanceof HTMLElement)) return;
-      const subscription = readSurfaceSubscription(ownerEl, requestRefresh, reportError2);
+      const subscription = readSurfaceSubscription(ownerEl, reportError2);
       if (!subscription?.scopeKey) return;
       desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
     });
@@ -2621,13 +2620,20 @@
         scopeVersions.delete(scopeKey);
       }
     };
+    function requestFragments(fragments, origin, version) {
+      fragments.forEach((fragment) => refresher.request({
+        ...fragment,
+        requestOrigin: origin,
+        ...version === null ? {} : { requestVersion: version }
+      }));
+    }
     function handleSubscribedMessage(message) {
       const scopeKey = liveUpdateMessageScopeKey(message);
       if (!scopeKey) return;
       const subscription = activeSubscriptions.get(scopeKey);
       if (!subscription) return;
       versions.set(scopeKey, message.currentVersion);
-      if (message.resync) subscription.resync(subscription);
+      if (message.resync) requestFragments(subscription.resyncFragments, "resync", message.currentVersion);
       diagnostics.emitDebugEvent("subscription_acknowledged", { scopeKey, resync: message.resync });
     }
     function handleInvalidateMessage(message) {
@@ -2656,11 +2662,11 @@
         versions.set(scopeKey, nextVersion);
       }
       if (message.fragments.length === 0) {
-        subscription.resync(subscription);
+        requestFragments(subscription.resyncFragments, "resync", nextVersion);
         diagnostics.endPerfSpan(perfSpan, { outcome: "resync_empty_fragments", scopeKey });
         return;
       }
-      resolveMountedFragmentsForInvalidation([subscription], message.fragments, scopeKey).forEach(refresher.request);
+      requestFragments(resolveMountedFragmentsForInvalidation([subscription], message.fragments, scopeKey), "passive", nextVersion);
       diagnostics.endPerfSpan(perfSpan, { outcome: "queued_fragments", scopeKey });
     }
     function handleMessage(message) {
@@ -2683,7 +2689,16 @@
       if (!actorDetail) return;
       try {
         const detail = parseLiveFragmentsRefreshEventDetail(actorDetail);
-        resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey).forEach(refresher.request);
+        requestFragments(
+          resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey),
+          "actor",
+          detail.version
+        );
+        requestFragments(
+          resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.localFragments, detail.scopeKey),
+          "actor",
+          null
+        );
       } catch {
         return;
       }
@@ -2864,7 +2879,8 @@
         inFlight: /* @__PURE__ */ new Map(),
         pendingFocused: /* @__PURE__ */ new Map(),
         pendingInteraction: /* @__PURE__ */ new Map(),
-        pendingInteractionTimers: /* @__PURE__ */ new Map()
+        pendingInteractionTimers: /* @__PURE__ */ new Map(),
+        satisfiedVersions: /* @__PURE__ */ new Map()
       });
     }
     function resolveOwnedTarget(fragment) {
@@ -2922,7 +2938,10 @@
       }
       const trimmed = (html || "").trim();
       if (!trimmed) {
-        if (requestIsCurrent(state, fragment.targetId, slot) && resolveOwnedTarget(fragment) === target) target.remove();
+        if (requestIsCurrent(state, fragment.targetId, slot) && resolveOwnedTarget(fragment) === target) {
+          target.remove();
+          slot.applied = true;
+        }
         endPerfSpan(perfSpan, { outcome: "removed_empty_html" });
         return;
       }
@@ -2940,6 +2959,7 @@
       }
       const restoreFocus = focus.captureReplacementFocus(target);
       target.replaceWith(nextNode);
+      slot.applied = true;
       if (!requestIsCurrent(state, fragment.targetId, slot)) {
         endPerfSpan(perfSpan, { outcome: "stale_after_swap" });
         return;
@@ -2961,7 +2981,9 @@
       const perfSpan = beginPerfSpan("live_updates.refetch_fragment", {
         targetId: fragment.targetId,
         url: fragment.url,
-        focusProtected: fragment.protection.kind === "focused-field"
+        focusProtected: fragment.protection.kind === "focused-field",
+        requestOrigin: fragment.requestOrigin ?? "unspecified",
+        requestVersion: requestVersion(fragment)
       });
       const target = resolveOwnedTarget(fragment);
       if (!target || !requestIsCurrent(state, fragment.targetId, slot)) {
@@ -3008,7 +3030,10 @@
       if (fenceForCurrentProtection("response", response.status)) return;
       if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
         endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
-        if (requestIsCurrent(state, fragment.targetId, slot)) targetWindow.location.reload();
+        if (requestIsCurrent(state, fragment.targetId, slot)) {
+          slot.applied = true;
+          targetWindow.location.reload();
+        }
         return;
       }
       const html = await response.text();
@@ -3033,13 +3058,49 @@
       targetWindow.console?.error?.("Live fragment refresh failed", detail);
       targetDocument.dispatchEvent(new CustomEvent("app:live-update-fragment-refresh-failed", { detail }));
     }
+    function requestVersion(fragment) {
+      return Number.isInteger(fragment.requestVersion) && (fragment.requestVersion ?? -1) >= 0 ? fragment.requestVersion ?? null : null;
+    }
+    function versionIsSatisfied(fragment, satisfiedVersion) {
+      const version = requestVersion(fragment);
+      return version !== null && satisfiedVersion !== null && version <= satisfiedVersion;
+    }
+    function mergeInFlightDemand(existing, fragment) {
+      const currentVersion = requestVersion(existing.fragment);
+      const queuedVersion = existing.next ? requestVersion(existing.next) : null;
+      const coveredVersion = Math.max(currentVersion ?? -1, queuedVersion ?? -1);
+      const incomingVersion = requestVersion(fragment);
+      const sameUnversionedRequest = incomingVersion === null && currentVersion === null && fragment.url === existing.fragment.url;
+      if (incomingVersion !== null && coveredVersion >= 0 && incomingVersion <= coveredVersion || sameUnversionedRequest) {
+        if (incomingVersion === currentVersion && queuedVersion === null) {
+          if (incomingVersion === null) existing.retryOnFailure = fragment;
+          else if (fragment.requestOrigin === "passive" && existing.retryOnFailure?.requestOrigin !== "passive") existing.retryOnFailure = fragment;
+        }
+        emitDebugEvent(incomingVersion === null ? "fragment_request_coalesced" : "fragment_version_coalesced", {
+          targetId: fragment.targetId,
+          currentVersion,
+          queuedVersion,
+          incomingVersion,
+          currentOrigin: existing.fragment.requestOrigin ?? null,
+          incomingOrigin: fragment.requestOrigin ?? null
+        });
+        return "coalesced";
+      }
+      existing.next = fragment;
+      emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url, incomingVersion });
+      return "queued";
+    }
     function queueFragment(fragment) {
       const state = ownerStates.get(fragment.ownerEl);
       if (!state?.active || stopped) return;
+      const satisfiedVersion = state.satisfiedVersions.get(fragment.targetId) ?? null;
+      if (versionIsSatisfied(fragment, satisfiedVersion)) {
+        emitDebugEvent("fragment_version_satisfied", { targetId: fragment.targetId, version: requestVersion(fragment) });
+        return;
+      }
       const existing = state.inFlight.get(fragment.targetId);
       if (existing) {
-        existing.next = fragment;
-        emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
+        mergeInFlightDemand(existing, fragment);
         return;
       }
       const slot = {
@@ -3048,15 +3109,35 @@
         fetchedTarget: null,
         generation,
         next: null,
-        protectionChanged: false
+        retryOnFailure: null,
+        protectionChanged: false,
+        applied: false,
+        failed: false
       };
       state.inFlight.set(fragment.targetId, slot);
-      void refetchFragment(fragment, state, slot).catch((error) => {
+      void refetchFragment(fragment, state, slot).then(() => {
+        const version = requestVersion(fragment);
+        if (slot.applied && version !== null) {
+          state.satisfiedVersions.set(fragment.targetId, Math.max(version, state.satisfiedVersions.get(fragment.targetId) ?? 0));
+        }
+      }).catch((error) => {
+        slot.failed = true;
         if (requestIsCurrent(state, fragment.targetId, slot)) reportFragmentRefreshError(fragment, error);
       }).finally(() => {
         if (state.inFlight.get(fragment.targetId) !== slot) return;
         state.inFlight.delete(fragment.targetId);
-        const next = slot.next;
+        const satisfiedVersion2 = state.satisfiedVersions.get(fragment.targetId) ?? null;
+        const queued = slot.next && !versionIsSatisfied(slot.next, satisfiedVersion2) ? slot.next : null;
+        const retry = slot.failed ? slot.retryOnFailure : null;
+        const next = queued ?? retry;
+        emitDebugEvent("fragment_request_settled", {
+          targetId: fragment.targetId,
+          applied: slot.applied,
+          failed: slot.failed,
+          satisfiedVersion: satisfiedVersion2,
+          queuedVersion: slot.next ? requestVersion(slot.next) : null,
+          nextVersion: next ? requestVersion(next) : null
+        });
         if (next && state.active && slot.generation === generation && !stopped) queueFragment(next);
       });
     }
@@ -3112,10 +3193,14 @@
       if (!state?.active) return;
       const target = resolveOwnedTarget(fragment);
       if (!target) return;
+      const satisfiedVersion = state.satisfiedVersions.get(fragment.targetId) ?? null;
+      if (versionIsSatisfied(fragment, satisfiedVersion)) {
+        emitDebugEvent("fragment_version_satisfied", { targetId: fragment.targetId, version: requestVersion(fragment) });
+        return;
+      }
       const existing = state.inFlight.get(fragment.targetId);
       if (existing) {
-        existing.next = fragment;
-        emitDebugEvent("fragment_deduped", { targetId: fragment.targetId, url: fragment.url });
+        if (mergeInFlightDemand(existing, fragment) === "coalesced") return;
         if (deferForCurrentProtection(state, null, fragment, target)) return;
         return;
       }
@@ -3205,7 +3290,7 @@
     }
     function syncRuntime() {
       reconcileMounts();
-      const desired = collectDesiredSurfaceSubscriptions(document, refresher.request, reportSurfaceConfigError);
+      const desired = collectDesiredSurfaceSubscriptions(document, reportSurfaceConfigError);
       if (desired.size === 0) activeSurfaceInstances.clear();
       connection?.sync(desired);
     }

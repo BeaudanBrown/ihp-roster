@@ -20,7 +20,6 @@ export function createSurfaceConfigErrorReporter(targetDocument: Document): Fron
 
 export function readSurfaceSubscription(
     ownerEl: HTMLElement,
-    requestRefresh: (fragment: LiveUpdateFragmentWithState) => void,
     reportError?: FrontendSurfaceMountErrorReporter,
 ): SurfaceSubscription | null {
     const config = readFrontendSurfaceMountElement(ownerEl, reportError);
@@ -35,19 +34,17 @@ export function readSurfaceSubscription(
         resyncFragments: parsed.resyncFragments.map((fragment) => ({ ...fragment, ownerEl })),
         renderedDependencyWatermark: parsed.renderedDependencyWatermark,
         ownerEls: [ownerEl],
-        resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh),
     };
 }
 
 export function collectDesiredSurfaceSubscriptions(
     targetDocument: Document,
-    requestRefresh: (fragment: LiveUpdateFragmentWithState) => void,
     reportError?: FrontendSurfaceMountErrorReporter,
 ): Map<string, SurfaceSubscription> {
     const desired = new Map<string, SurfaceSubscription>();
     targetDocument.querySelectorAll(surfaceConfigSelector).forEach((ownerEl) => {
         if (!(ownerEl instanceof HTMLElement)) return;
-        const subscription = readSurfaceSubscription(ownerEl, requestRefresh, reportError);
+        const subscription = readSurfaceSubscription(ownerEl, reportError);
         if (!subscription?.scopeKey) return;
         desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
     });

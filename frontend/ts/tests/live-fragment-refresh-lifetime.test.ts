@@ -291,9 +291,7 @@ function installRefreshFixture() {
 }
 
 async function settle(): Promise<void> {
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let turn = 0; turn < 8; turn += 1) await Promise.resolve();
 }
 
 function focusedFragment(
@@ -694,6 +692,91 @@ test("live refresher stop fences delayed bodies, queued work, reload, and repeat
         assertEqual(fixture.effects().reloads, 0);
         assertEqual(fixture.effects().processed, 0);
         assertEqual(fixture.effects().pageReady, 0);
+    } finally {
+        fixture.restore();
+    }
+});
+
+test("actor and passive evidence for one version share one successful mounted request", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor", requestVersion: 10 });
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "passive", requestVersion: 10 });
+        assertEqual(fixture.controls.length, 1);
+        fixture.respond(fixture.controls[0]!, '<section id="shared-fragment">version ten</section>');
+        await settle();
+
+        fixture.refresher.request({ ...mounted.fragment, ownerEl: mounted.fragment.ownerEl, requestOrigin: "resync", requestVersion: 10 });
+        assertEqual(fixture.controls.length, 1);
+        assertEqual(fixture.effects().processed, 1);
+    } finally {
+        fixture.restore();
+    }
+});
+
+test("a newer invalidation survives in-flight version coalescing", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor", requestVersion: 10 });
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "passive", requestVersion: 10 });
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "passive", requestVersion: 11 });
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "passive", requestVersion: 10 });
+        fixture.respond(fixture.controls[0]!, '<section id="shared-fragment">version ten</section>');
+        await settle();
+
+        assertEqual(fixture.controls.length, 2);
+        fixture.respond(fixture.controls[1]!, '<section id="shared-fragment">version eleven</section>');
+        await settle();
+        assertEqual(fixture.effects().processed, 2);
+    } finally {
+        fixture.restore();
+    }
+});
+
+test("duplicate unversioned actor-local demand shares one in-flight request without becoming satisfied evidence", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor" });
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor" });
+        assertEqual(fixture.controls.length, 1);
+        fixture.respond(fixture.controls[0]!, '<section id="shared-fragment">actor local</section>');
+        await settle();
+        assertEqual(fixture.controls.length, 1);
+
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor" });
+        assertEqual(fixture.controls.length, 2);
+    } finally {
+        fixture.restore();
+    }
+});
+
+test("a coalesced passive echo retries once when the actor request fails", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "actor", requestVersion: 10 });
+        fixture.refresher.request({ ...mounted.fragment, requestOrigin: "passive", requestVersion: 10 });
+        fixture.refresher.request({ ...mounted.fragment, url: "/actor-duplicate", requestOrigin: "actor", requestVersion: 10 });
+        fixture.controls[0]?.fetch.resolve({
+            ok: false,
+            status: 503,
+            headers: { get: () => null },
+            text: () => Promise.resolve(""),
+        } as unknown as Response);
+        await settle();
+
+        assertEqual(fixture.controls.length, 2);
+        assertEqual(fixture.controls[1]?.url, "/fragment");
+        fixture.respond(fixture.controls[1]!, '<section id="shared-fragment">passive retry</section>');
+        await settle();
+        assertEqual(fixture.effects().processed, 1);
     } finally {
         fixture.restore();
     }

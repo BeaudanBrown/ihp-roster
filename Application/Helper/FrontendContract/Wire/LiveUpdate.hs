@@ -46,9 +46,11 @@ data SurfaceSubscription = SurfaceSubscription
     deriving (Eq, Show)
 
 data LiveFragmentsRefreshEventDetail = LiveFragmentsRefreshEventDetail
-    { scope     :: !SurfaceScope
-    , scopeKey  :: !Text
-    , fragments :: ![SurfaceFragmentKey]
+    { scope          :: !SurfaceScope
+    , scopeKey       :: !Text
+    , fragments      :: ![SurfaceFragmentKey]
+    , localFragments :: ![SurfaceFragmentKey]
+    , version        :: !(Maybe Int)
     }
     deriving (Eq, Show)
 
@@ -125,18 +127,20 @@ instance Aeson.FromJSON SurfaceSubscription where
             (\(scope, (scopeKey, (fragments, (renderedDependencyWatermark, ())))) -> pure SurfaceSubscription { scope, scopeKey, fragments, renderedDependencyWatermark })
 
 instance Aeson.ToJSON LiveFragmentsRefreshEventDetail where
-    toJSON LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments } =
+    toJSON LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments, localFragments, version } =
         eventValue @AppContract.LiveFragmentsRefresh
             ( requiredField @AppContract.Scope scope
                 &: requiredField @AppContract.ScopeKey scopeKey
                 &: requiredField @AppContract.Fragments fragments
+                &: requiredField @AppContract.LocalFragments localFragments
+                &: nullableField @AppContract.Version version
                 &: noFields
             )
 
 instance Aeson.FromJSON LiveFragmentsRefreshEventDetail where
     parseJSON =
         parseEvent @AppContract.LiveFragmentsRefresh
-            (\(scope, (scopeKey, (fragments, ()))) -> pure LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments })
+            (\(scope, (scopeKey, (fragments, (localFragments, (version, ()))))) -> pure LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments, localFragments, version })
 
 instance Aeson.ToJSON LiveUpdateCommand where
     toJSON Subscribe { subscription, lastSeenVersion } =

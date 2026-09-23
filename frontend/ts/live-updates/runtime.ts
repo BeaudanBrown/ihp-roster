@@ -52,7 +52,7 @@ export function enableLiveUpdateRuntime(): void {
 
     function syncRuntime(): void {
         reconcileMounts();
-        const desired = collectDesiredSurfaceSubscriptions(document, refresher.request, reportSurfaceConfigError);
+        const desired = collectDesiredSurfaceSubscriptions(document, reportSurfaceConfigError);
         if (desired.size === 0) activeSurfaceInstances.clear();
         connection?.sync(desired);
     }

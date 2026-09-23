@@ -9,6 +9,7 @@ import Application.Helper.FrontendContract.AppValues (AppEvents (..),
                                                       canonicalAppEvents)
 import qualified Application.Helper.FrontendContract.LiveUpdate as LiveContract
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminShiftTypesResource)
 import Application.Helper.FrontendContract.Surface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
                                                                   validateFrontendSurfaceLiveSubscription)
 import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
@@ -34,6 +35,9 @@ import Application.Helper.FrontendContract.Wire.Json (validateContractMarkerValu
                                                       validateSurfaceScopeValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshTriggerPayload)
+import Application.Helper.LiveUpdate.RequestState (liveUpdateRequestStateMiddleware,
+                                                   recordRequestLivePublication,
+                                                   requestLivePublicationVersion)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
@@ -42,16 +46,30 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isLeft, isRight)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import qualified Data.UUID as UUID
 import IHP.Prelude
+import qualified Network.Wai as Wai
 import Test.Hspec
-import Test.Support (testAnchorForOffset)
+import Test.Support (applyTestRequestMiddleware, testAnchorForOffset)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 
 tests :: Spec
 tests = describe "LiveUpdate runtime types" do
+    it "keeps durable publication evidence exact and request-local" do
+        request <- applyTestRequestMiddleware liveUpdateRequestStateMiddleware Wai.defaultRequest
+        let ?context = request
+        let firstResources = Set.singleton (adminShiftTypesResource (expectUuid "11111111-1111-1111-1111-111111111111"))
+        let otherResources = Set.singleton (adminShiftTypesResource (expectUuid "22222222-2222-2222-2222-222222222222"))
+        recordRequestLivePublication firstResources 10
+        recordRequestLivePublication otherResources 11
+        recordRequestLivePublication firstResources 12
+        requestLivePublicationVersion firstResources `shouldReturn` Just 12
+        requestLivePublicationVersion otherResources `shouldReturn` Just 11
+        requestLivePublicationVersion (firstResources <> otherResources) `shouldReturn` Nothing
+
     it "constructs and matches declaration-complete typed live identities" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope =
@@ -117,7 +135,9 @@ tests = describe "LiveUpdate runtime types" do
                     [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Wire.LiveFragmentsRefreshEventDetail
                         { Wire.scope = surfaceScopeToWire scope
                         , Wire.scopeKey = surfaceScopeKey scope
-                        , Wire.fragments = [surfaceFragmentKeyToWire fragmentKey]
+                        , Wire.fragments = []
+                        , Wire.localFragments = [surfaceFragmentKeyToWire fragmentKey]
+                        , Wire.version = Nothing
                         }
                     ]
 
@@ -293,7 +313,7 @@ tests = describe "LiveUpdate runtime types" do
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "windowStartDate" Aeson..= ("2025-02-03" :: Text), "windowEndDate" Aeson..= ("2025-02-10" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)])
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["operationalDate" Aeson..= ("2025-02-05" :: Text)])
         let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:2025-02-03:2025-02-10:1" [fragmentKey] 0
-        let refreshDetail = Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey]
+        let refreshDetail = Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey] [] Nothing
         let command = Wire.Subscribe subscription (Just 9)
         let message = Wire.Invalidate scope subscription.scopeKey 10 [fragmentKey]
         let executableDescriptor = Aeson.object
@@ -334,7 +354,7 @@ tests = describe "LiveUpdate runtime types" do
         AesonTypes.parseEither validateSurfaceScopeValue (Aeson.toJSON scope) `shouldSatisfy` isRight
         AesonTypes.parseEither validateSurfaceFragmentKeyValue (Aeson.toJSON fragmentKey) `shouldSatisfy` isRight
         AesonTypes.parseEither (validateContractMarkerValue @LiveContract.SurfaceSubscription) (Aeson.toJSON subscription) `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateContractMarkerValue @AppContract.LiveFragmentsRefresh) (Aeson.toJSON (Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey])) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractMarkerValue @AppContract.LiveFragmentsRefresh) (Aeson.toJSON (Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey] [] Nothing)) `shouldSatisfy` isRight
         forM_ commands \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON value) `shouldSatisfy` isRight
         forM_ messages \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateMessage) (Aeson.toJSON value) `shouldSatisfy` isRight
 

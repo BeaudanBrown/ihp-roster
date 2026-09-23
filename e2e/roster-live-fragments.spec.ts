@@ -17,6 +17,25 @@ import {
 import { runSql } from './support/database';
 
 type OpenShiftLiveWindow = Window & { __openShiftRosterSubscriptions?: string[] };
+type RosterRequestTraceWindow = Window & { __rosterVersionCoalesced?: boolean };
+
+async function installRosterRequestTrace(page: Page): Promise<string[]> {
+    const requests: string[] = [];
+    page.on('request', (request) => {
+        const pathname = new URL(request.url()).pathname;
+        if (request.method() === 'GET' && pathname.includes('RosterWeek') && pathname.includes('Fragment')) requests.push(pathname);
+    });
+    await page.addInitScript(() => {
+        (window as RosterRequestTraceWindow).__rosterVersionCoalesced = false;
+        document.addEventListener('app:live-update-debug', (event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.name === 'fragment_version_coalesced' || detail?.name === 'fragment_version_satisfied') {
+                (window as RosterRequestTraceWindow).__rosterVersionCoalesced = true;
+            }
+        });
+    });
+    return requests;
+}
 
 async function installOpenShiftLiveObserver(page: Page) {
     await page.addInitScript(() => {
@@ -279,6 +298,7 @@ test.describe('Roster live fragments', () => {
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
         const viewerPage = await viewerContext.newPage();
+        const actorRequests = await installRosterRequestTrace(actorPage);
 
         await openRoster(actorPage, { rosterLayoutMode: 'day_rows', ensureEditable: false });
         await openRoster(viewerPage, { rosterLayoutMode: 'day_rows', ensureEditable: false });
@@ -286,6 +306,9 @@ test.describe('Roster live fragments', () => {
 
         await expect(actorPage.locator('#roster-grid-frame')).toHaveAttribute('data-roster-layout', 'day_columns');
         await expect(viewerPage.locator('#roster-grid-frame')).toHaveAttribute('data-roster-layout', 'day_columns', { timeout: E2E_TIMEOUT.liveUpdate });
+        await expect.poll(() => actorPage.evaluate(() => (window as RosterRequestTraceWindow).__rosterVersionCoalesced ?? false), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(true);
+        expect(actorRequests.filter((path) => path.includes('ShowRosterWeekGridFrameFragment'))).toHaveLength(1);
+        expect(actorRequests.filter((path) => path.includes('ShowRosterWeekStaffPanelFragment'))).toHaveLength(1);
 
         await actorContext.close();
         await viewerContext.close();
