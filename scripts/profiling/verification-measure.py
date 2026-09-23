@@ -14,8 +14,11 @@ import signal
 import stat
 import subprocess
 import sys
-import tempfile
 import time
+
+# Diagnostic capture must not create new source-tree inputs while inspecting it.
+sys.dont_write_bytecode = True
+import verification_provenance
 
 
 MAX_ARTIFACT_BYTES = 65536
@@ -72,12 +75,9 @@ def publish(descriptor, name, value):
 def revision():
     # Metadata subprocesses finish before timing/resource collection begins.
     try:
-        with tempfile.TemporaryFile() as output:
-            result = subprocess.run(['git', 'rev-parse', 'HEAD'], stdout=output,
-                                    stderr=subprocess.DEVNULL, timeout=5, check=False)
-            output.seek(0)
-            value = output.read(128).decode('ascii').strip()
-        if result.returncode == 0 and re.fullmatch(r'[0-9a-f]{40,64}', value):
+        output = verification_provenance.git_output('rev-parse', 'HEAD')
+        value = output.decode('ascii').strip() if output is not None else ''
+        if re.fullmatch(r'(?:[0-9a-f]{40}|[0-9a-f]{64})', value):
             return value
     except (OSError, UnicodeError, subprocess.TimeoutExpired):
         pass
@@ -136,7 +136,7 @@ def read_artifact(root, name):
 
 def validate_metadata(metadata, lifecycle):
     if (set(metadata) != {'schemaVersion', 'owner', 'cacheState', 'revision', 'capturedAt', 'commandSha256'}
-            or type(metadata['schemaVersion']) is not int or metadata['schemaVersion'] != 1
+            or type(metadata['schemaVersion']) is not int or metadata['schemaVersion'] not in (1, 2)
             or not isinstance(metadata['owner'], str)
             or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}', metadata['owner'])
             or metadata['cacheState'] not in ('retained', 'warm', 'output-cold')
@@ -156,7 +156,10 @@ def validate_metadata(metadata, lifecycle):
 
 def inspect(path):
     with directory(path) as root:
-        validate_metadata(read_artifact(root, 'metadata.json'), read_artifact(root, 'run.json'))
+        metadata = read_artifact(root, 'metadata.json')
+        validate_metadata(metadata, read_artifact(root, 'run.json'))
+        if metadata['schemaVersion'] == 2:
+            verification_provenance.validate(read_artifact(root, 'provenance.json'))
         result = read_artifact(root, 'result.json')
         verify_directory(path, root)
     wall = result.get('wallSeconds')
@@ -261,11 +264,12 @@ def run(args):
         raise ValueError('invalid public owner label')
     with directory(args.output, create=True) as root:
         publish(root, 'metadata.json', {
-            'schemaVersion': 1, 'owner': args.owner, 'cacheState': args.cache_state,
+            'schemaVersion': 2, 'owner': args.owner, 'cacheState': args.cache_state,
             'revision': revision(),
             'capturedAt': datetime.now(timezone.utc).isoformat(),
             'commandSha256': hashlib.sha256(json.dumps(command).encode()).hexdigest(),
         })
+        publish(root, 'provenance.json', verification_provenance.capture(directory))
         publish(root, 'run.json', {'schemaVersion': 1, 'state': 'started'})
         code, status, wall, cpu, memory = execute(command, args.termination_grace_seconds)
         verify_directory(args.output, root)

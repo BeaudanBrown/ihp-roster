@@ -99,10 +99,16 @@ bash ./bin/in-env python3 scripts/profiling/verification-measure.py inspect \
 Choose a new output directory per attempt; existing or symlinked paths are
 rejected. Artifacts are bounded private JSON, not command logs. Only a digest of
 argv is stored; command stdout/stderr pass through to the terminal unchanged.
-Owner labels must be public, non-sensitive identifiers. Revision capture occurs
-before the command timer, but is not a dirty/generated-input snapshot or proof
-identity. Record those inputs separately under the protocol above until owner
-instrumentation supplies them.
+Owner labels must be public, non-sensitive identifiers. Revision and input
+provenance are collected before command timing. `provenance.json` fingerprints
+tracked changes, untracked files and generated Haskell/TypeScript sources,
+without storing input paths or contents. Keep inputs quiescent: this is a
+bounded, best-effort diagnostic snapshot, not atomic proof or cache identity.
+Missing Git context, unsupported/symlinked inputs and exceeded capture bounds
+remain unavailable. Ignored files outside the two generated-source owners,
+external dependencies and compiler configuration are not covered; record these
+separately under the protocol above. Original metadata-v1 artifacts remain
+inspectable without provenance; metadata-v2 requires validated provenance.
 
 `inspect` validates the completion schema and returns the recorded exit status;
 missing, corrupt or incomplete evidence returns 2. Completion is diagnostic,

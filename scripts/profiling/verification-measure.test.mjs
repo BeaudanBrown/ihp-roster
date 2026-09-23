@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 
 const recorder = new URL('./verification-measure.py', import.meta.url).pathname;
@@ -11,10 +11,10 @@ function fixture(t) {
     t.after(() => rmSync(root, { recursive: true, force: true }));
     return join(root, 'run');
 }
-function run(output, code) {
+function run(output, code, options = {}) {
     return spawnSync('python3', [recorder, 'run', '--output', output,
         '--owner', 'fixture', '--cache-state', 'retained', '--', 'python3', '-c', code],
-    { encoding: 'utf8', timeout: 10_000 });
+    { encoding: 'utf8', timeout: 10_000, ...options });
 }
 
 test('records real command duration and exit without persisting arguments or output', (t) => {
@@ -37,6 +37,82 @@ test('records real command duration and exit without persisting arguments or out
 function inspect(output) {
     return spawnSync('python3', [recorder, 'inspect', output], { encoding: 'utf8', timeout: 10_000 });
 }
+
+test('captures dirty and generated input changes without persisting paths or contents', (t) => {
+    const root = fixture(t);
+    mkdirSync(root);
+    const git = (...args) => {
+        const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+        assert.equal(result.status, 0, result.stderr);
+    };
+    git('init', '-q');
+    writeFileSync(join(root, '.gitignore'), 'capture-*/\nbuild/\nfrontend/\n');
+    writeFileSync(join(root, 'private-source-name'), 'initial-private-content');
+    git('add', '.');
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture');
+    mkdirSync(join(root, 'build/Generated'), { recursive: true });
+    writeFileSync(join(root, 'build/Generated/Types.hs'), 'initial generated source');
+    const capture = (name) => {
+        const output = join(root, `capture-${name}`);
+        const result = run(output, 'pass', { cwd: root });
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(inspect(output).status, 0);
+        return readFileSync(join(output, 'provenance.json'), 'utf8');
+    };
+    const clean = JSON.parse(capture('clean'));
+    assert.equal(clean.dirty, false);
+    assert.equal(clean.untracked.files, 0);
+    assert.equal(clean.generatedHaskell.files, 1);
+    assert.equal(clean.generatedFrontend.state, 'absent');
+    writeFileSync(join(root, 'private-source-name'), 'modified-private-content');
+    writeFileSync(join(root, 'private-untracked-name'), 'untracked-private-content');
+    writeFileSync(join(root, 'build/Generated/Types.hs'), 'changed generated source');
+    const raw = capture('dirty');
+    const dirty = JSON.parse(raw);
+    assert.equal(dirty.dirty, true);
+    assert.notEqual(dirty.trackedDiffSha256, clean.trackedDiffSha256);
+    assert.equal(dirty.untracked.files, 1);
+    assert.notEqual(dirty.untracked.sha256, clean.untracked.sha256);
+    assert.notEqual(dirty.generatedHaskell.sha256, clean.generatedHaskell.sha256);
+    assert.doesNotMatch(raw, /private-(source|untracked)-name|private-content|generated source/);
+});
+
+test('missing Git provenance is unavailable, never reported as clean', (t) => {
+    const output = fixture(t);
+    assert.equal(run(output, 'pass', { cwd: dirname(output) }).status, 0);
+    const provenance = JSON.parse(readFileSync(join(output, 'provenance.json')));
+    assert.equal(provenance.dirty, null);
+    assert.equal(provenance.trackedDiffSha256, null);
+    assert.equal(provenance.untracked.state, 'unavailable');
+    assert.equal(provenance.generatedHaskell.state, 'unavailable');
+    assert.equal(inspect(output).status, 0);
+    for (const invalid of [{ ...provenance, dirty: 'false' },
+        { ...provenance, untracked: { state: 'captured', files: 0, sha256: null } }]) {
+        writeFileSync(join(output, 'provenance.json'), JSON.stringify(invalid));
+        assert.equal(inspect(output).status, 2);
+    }
+    rmSync(join(output, 'provenance.json'));
+    assert.equal(inspect(output).status, 2);
+});
+
+test('oversized and symlinked source inputs are unavailable rather than partially fingerprinted', (t) => {
+    const output = fixture(t);
+    const root = dirname(output);
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: root }).status, 0);
+    const oversized = join(root, 'large-private-input');
+    writeFileSync(oversized, '');
+    truncateSync(oversized, 16 * 1024 * 1024 + 1);
+    mkdirSync(join(root, 'build'));
+    mkdirSync(join(root, 'elsewhere'));
+    symlinkSync(join(root, 'elsewhere'), join(root, 'build/Generated'));
+    assert.equal(run(output, 'pass', { cwd: root }).status, 0);
+    const provenance = JSON.parse(readFileSync(join(output, 'provenance.json')));
+    assert.equal(provenance.dirty, true);
+    assert.equal(provenance.untracked.state, 'unavailable');
+    assert.equal(provenance.untracked.sha256, null);
+    assert.equal(provenance.generatedHaskell.state, 'unavailable');
+    assert.equal(inspect(output).status, 0);
+});
 
 test('retains failures and launch failures without certifying success', (t) => {
     const output = fixture(t);
@@ -213,7 +289,7 @@ test('publication cannot overwrite an injected completion file', async (t) => {
 test('inspection requires bounded valid metadata and lifecycle evidence', (t) => {
     const output = fixture(t);
     assert.equal(run(output, 'pass').status, 0);
-    for (const name of ['metadata.json', 'run.json']) {
+    for (const name of ['metadata.json', 'run.json', 'provenance.json']) {
         const path = join(output, name);
         const valid = readFileSync(path, 'utf8');
         rmSync(path);
