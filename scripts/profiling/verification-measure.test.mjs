@@ -129,6 +129,16 @@ test('records monotonic owner phase boundaries through the command interface', (
     assert.equal(inspect(output).status, 2);
 });
 
+test('stdlib-only phase CLI preserves option syntax and rejects invalid boundaries', (t) => {
+    const output = fixture(t);
+    const result = run(output, `import subprocess,sys\nbase=[sys.executable,'-S',${JSON.stringify(recorder)},'event']\nassert subprocess.run(base+['--help'],capture_output=True).returncode==0\nassert subprocess.run(base+['--scope=0','--edge=start','--phase=compile']).returncode==0\nassert subprocess.run(base+['--phase','compile','--edge','finish','--scope','0']).returncode==0\nfor extra in (['--scope','-1'],['--scope','65536'],['--edge','unknown'],['--unknown'],['unexpected']):\n p=subprocess.run(base+['--phase','compile','--scope','0','--edge','start']+extra,capture_output=True)\n assert p.returncode==2\n assert len(p.stderr)<4096`);
+    assert.equal(result.status, 0, result.stderr);
+    const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
+    assert.equal(phases.intervals.length, 1);
+    assert.equal(phases.intervals[0].status, 'finished');
+    assert.equal(inspect(output).status, 0);
+});
+
 test('concurrent phase producers retain separate scopes without taking over events', (t) => {
     const output = fixture(t);
     const child = `import subprocess,sys,time\nevent=[sys.executable,${JSON.stringify(recorder)},'event','--phase','hspec-execution','--scope',sys.argv[1],'--edge']\nsubprocess.run(event+['start'],check=True)\ntime.sleep(0.1)\nsubprocess.run(event+['finish'],check=True)`;

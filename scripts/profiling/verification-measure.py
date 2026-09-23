@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
 """Opt-in diagnostic command evidence; never a verification certificate."""
-import argparse
 from contextlib import contextmanager
-from datetime import datetime, timezone
-import hashlib
 import json
-import math
 import os
-from pathlib import Path
-import re
-import secrets
-import signal
-import stat
-import subprocess
 import sys
 import time
 
 # Diagnostic capture must not create new source-tree inputs while inspecting it.
 sys.dont_write_bytecode = True
-import verification_provenance
 
 
 MAX_ARTIFACT_BYTES = 65536
@@ -29,8 +18,11 @@ EDGES = ('start', 'finish', 'fail', 'ready')
 
 @contextmanager
 def directory(path, create=False):
-    parts = Path(path).absolute().parts
-    if '..' in parts or len(parts) < 2:
+    path = os.fspath(path)
+    if '..' in path.split('/'):
+        raise ValueError('invalid artifact directory')
+    parts = ('/', *filter(None, os.path.abspath(path).split('/')))
+    if len(parts) < 2:
         raise ValueError('invalid artifact directory')
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
     descriptor = os.open('/', flags)
@@ -62,7 +54,7 @@ def publish(descriptor, name, value):
 
 
 def publish_available(descriptor, names, value):
-    temporary = '.' + secrets.token_hex(8) + '.pending'
+    temporary = '.' + os.urandom(8).hex() + '.pending'
     encoded = json.dumps(value, indent=2, allow_nan=False).encode() + b'\n'
     if len(encoded) > MAX_ARTIFACT_BYTES:
         raise ValueError('artifact too large')
@@ -89,18 +81,37 @@ def phase_scope(value):
     try:
         scope = int(value)
     except ValueError as error:
-        raise argparse.ArgumentTypeError('scope must be an integer from 0 to 65535') from error
+        raise ValueError('scope must be an integer from 0 to 65535') from error
     if not 0 <= scope <= 65535:
-        raise argparse.ArgumentTypeError('scope must be an integer from 0 to 65535')
+        raise ValueError('scope must be an integer from 0 to 65535')
     return scope
 
 
-def event(args):
+def event_cli(arguments):
+    # Keep the high-frequency operation independent of capture/parser imports.
+    import getopt
+
+    try:
+        options, remaining = getopt.getopt(arguments, 'h', ['help', 'phase=', 'scope=', 'edge='])
+    except getopt.GetoptError as error:
+        raise ValueError('invalid event options') from error
+    if any(key in ('-h', '--help') for key, _ in options):
+        print('usage: verification-measure.py event --phase {' + ','.join(PHASES)
+              + '} --scope 0..65535 --edge {' + ','.join(EDGES) + '}')
+        return 0
+    values = {key[2:]: value for key, value in options}
+    if (remaining or set(values) != {'phase', 'scope', 'edge'}
+            or values['phase'] not in PHASES or values['edge'] not in EDGES):
+        raise ValueError('invalid event boundary')
+    return event(values['phase'], phase_scope(values['scope']), values['edge'])
+
+
+def event(phase, scope, edge):
     target = os.environ.get('BEPIS_VERIFICATION_EVENTS')
     if not target:
         return 0
-    value = {'schemaVersion': 1, 'phase': args.phase, 'scope': args.scope,
-             'edge': args.edge, 'atSeconds': time.monotonic()}
+    value = {'schemaVersion': 1, 'phase': phase, 'scope': scope,
+             'edge': edge, 'atSeconds': time.monotonic()}
     with directory(target) as root:
         try:
             publish_available(root, (f'{index:03}.json' for index in range(MAX_PHASE_EVENTS)), value)
@@ -190,13 +201,16 @@ def validate_phases(value, wall):
 
 
 def revision():
+    import re
+    import verification_provenance
+
     # Metadata subprocesses finish before timing/resource collection begins.
     try:
         output = verification_provenance.git_output('rev-parse', 'HEAD')
         value = output.decode('ascii').strip() if output is not None else ''
         if re.fullmatch(r'(?:[0-9a-f]{40}|[0-9a-f]{64})', value):
             return value
-    except (OSError, UnicodeError, subprocess.TimeoutExpired):
+    except (OSError, UnicodeError):
         pass
     return None
 
@@ -207,6 +221,8 @@ def tree_rss(root):
     Shared pages can be counted more than once; short-lived, reparented or
     detached service work can be missed. Missing samples are never zero bytes.
     """
+    from pathlib import Path
+
     pending, seen, total, partial = [root], set(), 0, False
     while pending:
         pid = pending.pop()
@@ -225,6 +241,8 @@ def tree_rss(root):
 
 
 def finite_number(value):
+    import math
+
     return type(value) in (int, float) and 0 <= value <= 1e18 and math.isfinite(value)
 
 
@@ -238,6 +256,8 @@ def unique_object(pairs):
 
 
 def read_artifact(root, name):
+    import stat
+
     descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=root)
     with os.fdopen(descriptor, 'rb') as handle:
         if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
@@ -252,6 +272,9 @@ def read_artifact(root, name):
 
 
 def validate_metadata(metadata, lifecycle):
+    from datetime import datetime
+    import re
+
     if (set(metadata) != {'schemaVersion', 'owner', 'cacheState', 'revision', 'capturedAt', 'commandSha256'}
             or type(metadata['schemaVersion']) is not int or metadata['schemaVersion'] not in (1, 2, 3)
             or not isinstance(metadata['owner'], str)
@@ -272,6 +295,9 @@ def validate_metadata(metadata, lifecycle):
 
 
 def inspect(path):
+    from pathlib import Path
+    import verification_provenance
+
     with directory(path) as root:
         metadata = read_artifact(root, 'metadata.json')
         validate_metadata(metadata, read_artifact(root, 'run.json'))
@@ -317,6 +343,9 @@ def inspect(path):
 
 
 def execute(command, termination_grace_seconds, environment):
+    import signal
+    import subprocess
+
     process = None
     interrupted = None
     interrupted_at = None
@@ -378,6 +407,12 @@ def execute(command, termination_grace_seconds, environment):
 
 
 def run(args):
+    from datetime import datetime, timezone
+    import hashlib
+    from pathlib import Path
+    import re
+    import verification_provenance
+
     command = args.command
     if command and command[0] == '--':
         command = command[1:]
@@ -415,7 +450,9 @@ def run(args):
         return code
 
 
-def main():
+def parse_command():
+    import argparse
+
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='operation', required=True)
     capture = commands.add_parser('run')
@@ -424,16 +461,17 @@ def main():
     capture.add_argument('--cache-state', choices=['retained', 'warm', 'output-cold'], required=True)
     capture.add_argument('--termination-grace-seconds', type=int, choices=range(1, 61), default=10)
     capture.add_argument('command', nargs=argparse.REMAINDER)
-    emission = commands.add_parser('event')
-    emission.add_argument('--phase', choices=PHASES, required=True)
-    emission.add_argument('--scope', type=phase_scope, required=True)
-    emission.add_argument('--edge', choices=EDGES, required=True)
+    commands.add_parser('event', help='emit a bounded phase boundary')
     check = commands.add_parser('inspect')
     check.add_argument('output')
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
     try:
-        if args.operation == 'event':
-            return event(args)
+        if len(sys.argv) > 1 and sys.argv[1] == 'event':
+            return event_cli(sys.argv[2:])
+        args = parse_command()
         return run(args) if args.operation == 'run' else inspect(args.output)
     except (OSError, ValueError):
         print('verification-measure: capture failed; no valid completion implied', file=sys.stderr)
