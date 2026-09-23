@@ -288,6 +288,31 @@ bash ./bin/in-env profile-load-suite \
   --duration=30s
 ```
 
+## Query Plan Validation
+
+Treat indexes as measured production changes, not default performance fixes. Use an
+isolated profile database at representative cardinality, warm each query, then
+capture at least three bounded plans with:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+SELECT ...;
+```
+
+Record actual rows, execution time, root shared-buffer reads/hits, sort shape,
+and every selected index. Evaluate candidate indexes only inside a transaction:
+create the candidate, `ANALYZE` the affected tables, repeat the same plans, inspect
+`pg_relation_size`, then `ROLLBACK`. Run a post-drop warmed control in the same
+session so index benefit is not confused with cache warming. Check whether an
+existing non-partial index also owns mutation, history, or locking queries before
+considering replacement with a partial index.
+
+Add an index only for a repeatable material benefit that justifies its build lock,
+storage, and ongoing write amplification. Otherwise retain the bounded plan
+summary on the GitHub issue and close with a no-index rationale. Any accepted
+index still requires `Application/Schema.sql`, a customer-data-preserving
+migration, and live build/rollback notes.
+
 ## Interpreting Reports
 
 Prefer matched `otel-summary.json` route/span groups and exclusive-time evidence for code optimization. `Server-Timing` is compatibility context only; HTTP latency also includes transfer, local scheduling, and login setup.
