@@ -317,14 +317,14 @@ export function createLiveFragmentRefresher(options: {
         target: HTMLElement,
     ): boolean {
         const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
-        if (conflict) {
-            if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
+        if (conflict && conflict.action !== "apply") {
             state.pendingInteraction.set(fragment.targetId, fragment);
             scheduleInteractionFallback(state, fragment, conflict.timeoutMs);
             if (slot) slot.next = null;
             targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
                 detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "interaction_session" },
             }));
+            if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
             return true;
         }
 

@@ -429,6 +429,55 @@ test("focus begun and ended during fetch still forces a fresh authority request"
     }
 });
 
+test("interaction apply policy refreshes immediately without ending the session", async () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        mounted.owner.setAttribute(InteractionDom.attributes.conflictPolicies, JSON.stringify([
+            { session: "drag", targetId: mounted.fragment.targetId, resolution: "apply" },
+        ]));
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        fixture.document.dispatchEvent(new CustomEvent(interactionSessionStartEvent, {
+            detail: { mount: mounted.owner, mountId: mounted.owner.id, sessionKind: "drag", intent: "move" },
+        }));
+
+        fixture.refresher.request(mounted.fragment);
+        assertEqual(fixture.controls.length, 1);
+        fixture.respond(fixture.controls[0]!, '<section id="shared-fragment">applied during interaction</section>');
+        await settle();
+
+        assertEqual(fixture.document.getElementById("shared-fragment") === mounted.target, false);
+        assertEqual(fixture.effects().processed, 1);
+    } finally {
+        fixture.restore();
+    }
+});
+
+test("interaction cancel policy queues fresh authority before synchronous session cleanup", () => {
+    const fixture = installRefreshFixture();
+    try {
+        const mounted = fixture.mount();
+        mounted.owner.setAttribute(InteractionDom.attributes.conflictPolicies, JSON.stringify([
+            { session: "drag", targetId: mounted.fragment.targetId, resolution: "cancel" },
+        ]));
+        fixture.refresher.activateOwner(mounted.fragment.ownerEl);
+        fixture.document.dispatchEvent(new CustomEvent(interactionSessionStartEvent, {
+            detail: { mount: mounted.owner, mountId: mounted.owner.id, sessionKind: "drag", intent: "move" },
+        }));
+        fixture.document.addEventListener(interactionSessionCancelRequestEvent, () => {
+            fixture.document.dispatchEvent(new CustomEvent(interactionSessionEndEvent, {
+                detail: { mount: mounted.owner, mountId: mounted.owner.id, sessionKind: "drag", intent: "move" },
+            }));
+            fixture.refresher.flushInteractionDeferredFragmentsWithoutActiveSessions();
+        });
+
+        fixture.refresher.request(mounted.fragment);
+        assertEqual(fixture.controls.length, 1);
+    } finally {
+        fixture.restore();
+    }
+});
+
 test("interaction present before request defers until normal release then fetches current authority", () => {
     const fixture = installRefreshFixture();
     try {

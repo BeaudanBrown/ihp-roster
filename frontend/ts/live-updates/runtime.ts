@@ -53,7 +53,11 @@ export function enableLiveUpdateRuntime(): void {
     function syncRuntime(): void {
         reconcileMounts();
         const desired = collectDesiredSurfaceSubscriptions(document, refresher.request, reportSurfaceConfigError);
-        if (desired.size === 0) activeSurfaceInstances.clear();
+        if (desired.size === 0) {
+            disposeTrackedSurfaceInstances(activeSurfaceInstances, refresher.disposeOwner).forEach((instance) => {
+                diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
+            });
+        }
         connection?.sync(desired);
     }
 
@@ -91,6 +95,16 @@ export function enableLiveUpdateRuntime(): void {
     document.addEventListener("input", scheduleFocusedFlush);
     document.addEventListener("change", scheduleFocusedFlush);
     document.addEventListener(pageReadyEvent, syncRuntime);
+}
+
+export function disposeTrackedSurfaceInstances(
+    activeSurfaceInstances: Map<string, FrontendSurfaceMountedInstance>,
+    disposeOwner: (ownerEl: HTMLElement) => void,
+): FrontendSurfaceMountedInstance[] {
+    const disposed = Array.from(activeSurfaceInstances.values()).sort((left, right) => right.depth - left.depth);
+    disposed.forEach((instance) => disposeOwner(instance.ownerEl));
+    activeSurfaceInstances.clear();
+    return disposed;
 }
 
 function instanceDebugDetail(instance: FrontendSurfaceMountedInstance): Record<string, unknown> {

@@ -2,7 +2,9 @@ import { surfaceFragmentKeyIdentity, surfaceFragmentKeysEqual, type FrontendSurf
 import { createFocusedFieldProtection } from "../live-updates/focus";
 import { createLiveUpdateConnection } from "../live-updates/connection";
 import { createLiveUpdateInvalidationRuntime, type LiveUpdateVersionStore } from "../live-updates/invalidation";
+import type { FrontendSurfaceMountedInstance } from "../live-updates/mount";
 import type { LiveFragmentRefresher } from "../live-updates/refresh";
+import { disposeTrackedSurfaceInstances } from "../live-updates/runtime";
 import type { LiveUpdateFragmentWithState, SurfaceSubscription } from "../live-updates/runtime-types";
 import {
     buildLiveUpdateSubscribeCommand,
@@ -209,6 +211,35 @@ test("Admin Xero reconnect refetches while unrelated global version gaps do not"
     });
 
     assertDeepEqual(requested, [xeroFragment, xeroFragment]);
+});
+
+test("empty subscriptions dispose tracked surface owners deepest first before clearing them", () => {
+    const parentOwner = {} as HTMLElement;
+    const childOwner = {} as HTMLElement;
+    const parent: FrontendSurfaceMountedInstance = {
+        instanceId: "parent",
+        surface: "timesheets",
+        scopeKey: "timesheets:scope",
+        mountKey: "parent",
+        depth: 0,
+        ownerEl: parentOwner,
+    };
+    const child: FrontendSurfaceMountedInstance = {
+        instanceId: "child",
+        surface: "timesheets",
+        scopeKey: "timesheets:scope",
+        mountKey: "child",
+        depth: 1,
+        ownerEl: childOwner,
+    };
+    const active = new Map([[parent.instanceId, parent], [child.instanceId, child]]);
+    const disposed: HTMLElement[] = [];
+
+    const removed = disposeTrackedSurfaceInstances(active, (ownerEl) => disposed.push(ownerEl));
+
+    assertDeepEqual(removed.map((instance) => instance.instanceId), ["child", "parent"]);
+    assertDeepEqual(disposed, [childOwner, parentOwner]);
+    assertEqual(active.size, 0);
 });
 
 test("connection cleanup resets versions when the mounted subscription set becomes empty", () => {

@@ -3084,14 +3084,14 @@
     }
     function deferForCurrentProtection(state, slot, fragment, target) {
       const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
-      if (conflict) {
-        if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
+      if (conflict && conflict.action !== "apply") {
         state.pendingInteraction.set(fragment.targetId, fragment);
         scheduleInteractionFallback(state, fragment, conflict.timeoutMs);
         if (slot) slot.next = null;
         targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
           detail: { name: "live_updates.defer_fragment", duration: 0, targetId: fragment.targetId, reason: "interaction_session" }
         }));
+        if (conflict.action === "cancel") activeInteractionSessions.requestCancel(conflict.session, "live-fragment-conflict");
         return true;
       }
       clearInteractionDeferredFragment(state, fragment.targetId);
@@ -3206,7 +3206,11 @@
     function syncRuntime() {
       reconcileMounts();
       const desired = collectDesiredSurfaceSubscriptions(document, refresher.request, reportSurfaceConfigError);
-      if (desired.size === 0) activeSurfaceInstances.clear();
+      if (desired.size === 0) {
+        disposeTrackedSurfaceInstances(activeSurfaceInstances, refresher.disposeOwner).forEach((instance) => {
+          diagnostics.emitDebugEvent("surface_disposed", instanceDebugDetail(instance));
+        });
+      }
       connection?.sync(desired);
     }
     connection = createLiveUpdateConnection({
@@ -3241,6 +3245,12 @@
     document.addEventListener("input", scheduleFocusedFlush);
     document.addEventListener("change", scheduleFocusedFlush);
     document.addEventListener(pageReadyEvent, syncRuntime);
+  }
+  function disposeTrackedSurfaceInstances(activeSurfaceInstances, disposeOwner) {
+    const disposed = Array.from(activeSurfaceInstances.values()).sort((left, right) => right.depth - left.depth);
+    disposed.forEach((instance) => disposeOwner(instance.ownerEl));
+    activeSurfaceInstances.clear();
+    return disposed;
   }
   function instanceDebugDetail(instance) {
     return {
