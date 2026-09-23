@@ -248,6 +248,47 @@ tests = aroundAll withDatabaseTestContext do
                         , "sheetFamilies" Aeson..= (["employee-pay-bucket-wages", "summary"] :: [Text])
                         ]
 
+        it "rolls back standalone creation when a later family insert fails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Standalone workbook rollback"
+                admin <- createUserRecord "standalone-workbook-rollback@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                let installFailure = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_standalone_workbook_family() RETURNS trigger AS 'BEGIN IF NEW.position = 1 THEN RAISE EXCEPTION ''forced standalone second family failure'' USING ERRCODE = ''23514''; END IF; RETURN NEW; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_standalone_workbook_family BEFORE INSERT ON payroll_workbook_configuration_families FOR EACH ROW EXECUTE FUNCTION test_reject_standalone_workbook_family()" ()
+                let removeFailure = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_standalone_workbook_family ON payroll_workbook_configuration_families" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_standalone_workbook_family()" ()
+                failure <- bracket_ installFailure removeFailure do
+                    try
+                        (asCurrentVenueUser admin venue.id do
+                            createSavedPayrollWorkbookConfiguration
+                                (newConfiguration "Standalone" 1 ["shift-type-wages", "summary"])
+                        )
+                        :: IO (Either SomeException (Either PayrollWorkbookConfigurationError SavedPayrollWorkbookConfiguration))
+                failure `shouldSatisfy` isLeft
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
+                query @PayrollWorkbookConfigurationFamily |> fetchCount `shouldReturn` 0
+
+        it "classifies a standalone unique failure only after rollback" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Standalone workbook unique conflict"
+                admin <- createUserRecord "standalone-workbook-unique@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                let installFailure = do
+                        unsafeSqlExecDiscardResult "CREATE FUNCTION test_reject_standalone_workbook_unique() RETURNS trigger AS 'BEGIN IF NEW.position = 1 THEN RAISE EXCEPTION ''forced standalone unique conflict after first family'' USING ERRCODE = ''23505''; END IF; RETURN NEW; END' LANGUAGE plpgsql" ()
+                        unsafeSqlExecDiscardResult "CREATE TRIGGER test_reject_standalone_workbook_unique BEFORE INSERT ON payroll_workbook_configuration_families FOR EACH ROW EXECUTE FUNCTION test_reject_standalone_workbook_unique()" ()
+                let removeFailure = do
+                        unsafeSqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_standalone_workbook_unique ON payroll_workbook_configuration_families" ()
+                        unsafeSqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_standalone_workbook_unique()" ()
+                result <- bracket_ installFailure removeFailure do
+                    asCurrentVenueUser admin venue.id do
+                        createSavedPayrollWorkbookConfiguration
+                            (newConfiguration "Unique Race" 1 ["shift-type-wages", "summary"])
+                result `shouldBe` Left (PayrollWorkbookConfigurationNameConflict "Unique Race")
+                query @PayrollWorkbookConfiguration |> fetchCount `shouldReturn` 0
+                query @PayrollWorkbookConfigurationFamily |> fetchCount `shouldReturn` 0
+
         it "lets non-unique family failures escape and rolls back durable creation, provisioning and replacement" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Workbook family rollback"
