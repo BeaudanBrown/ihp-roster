@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import {
     dialogOverlayMountDomId,
     timePickerClearDomAttr,
+    timePickerModalDomId,
     timePickerTriggerDomAttr,
     toggleInputDomAttr,
 } from '../frontend/ts/generated/contracts';
@@ -97,6 +98,9 @@ test.describe('Workflow dialog keyboard controls', () => {
         await expect(startTrigger).toBeFocused();
         const invalidTrigger = form.locator(`[${timePickerTriggerDomAttr}]`).nth(invalidIndex);
         await invalidTrigger.click();
+        // Bootstrap focuses the picker after opening completes. A click during
+        // its entrance motion can land outside Clear before pointer release.
+        await expect(page.locator(`#${timePickerModalDomId}`)).toBeFocused();
         await page.locator(`[${timePickerClearDomAttr}]`).click();
         await expect(invalidTrigger).toBeFocused();
 
