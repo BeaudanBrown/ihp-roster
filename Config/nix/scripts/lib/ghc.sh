@@ -1,6 +1,15 @@
 # shellcheck shell=bash
 # Shared GHC option discovery for ihp-roster devenv scripts.
 
+ihp_roster_ghc_observe() {
+    if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ]; then
+        # Load only for opt-in capture; standalone cache fixtures need no observer.
+        # shellcheck source=Config/nix/scripts/lib/verification.sh
+        . "${BEPIS_SCRIPTS_ROOT:?}/lib/verification.sh"
+        verification_phase "$@"
+    fi
+}
+
 ihp_roster_ghc_opts() {
     make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
         | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g'
@@ -103,7 +112,12 @@ ihp_roster_configure_compiler_tmpdir() {
 # Persistent verification caches retain only successfully compiled dependencies.
 # Callers still pass every validation subject to GHC on every invocation.
 ihp_roster_prepare_verification_cache() {
-    local purpose="$1" ghc_opts="$2" format="$3" workspace parent root source_hash option_hash stamp artifacts scripts_root inventory
+    local purpose="$1" ghc_opts="$2" format="$3" workspace parent root source_hash option_hash stamp artifacts scripts_root inventory metric_scope
+    case "$purpose" in
+        surface-adapter-validation) metric_scope=1 ;;
+        surface-compile-fail) metric_scope=2 ;;
+        *) metric_scope=0 ;;
+    esac
     workspace="$(git rev-parse --show-toplevel)"
     parent="${BEPIS_GHC_CACHE_PARENT:-/var/tmp/bepis-ghc-cache-$(id -u)}"
     ihp_roster_prepare_artifacts
@@ -112,16 +126,21 @@ ihp_roster_prepare_verification_cache() {
     mkdir -p "$root"
     chmod 700 "$parent" "${root%/$purpose}" "$root"
     exec {IHP_ROSTER_GHC_CACHE_FD}>>"$root/lock"
+    ihp_roster_ghc_observe ghc-dependency-lock "$metric_scope" start
     flock "$IHP_ROSTER_GHC_CACHE_FD"
+    ihp_roster_ghc_observe ghc-dependency-lock "$metric_scope" finish
     scripts_root="${BEPIS_SCRIPTS_ROOT:?}"
     inventory="${IHP_ROSTER_GHC_CACHE_INVENTORY:-$scripts_root/haskell/verification-cache-inputs}"
     source_hash="$("$artifacts" snapshot --root "$workspace" --inventory-command "$inventory")"
     option_hash="$("$artifacts" digest "$(ghc --numeric-version)" "$ghc_opts" "$format")"
     stamp="$root/fingerprint.json"
     if ! "$artifacts" manifest check "$stamp" "$source_hash" "$option_hash"; then
+        ihp_roster_ghc_observe ghc-dependency-manifest-reset "$metric_scope" observe
         rm -rf "$root/obj" "$root/hi"
         mkdir -p "$root/obj" "$root/hi"
         "$artifacts" manifest publish "$stamp" "$source_hash" "$option_hash"
+    else
+        ihp_roster_ghc_observe ghc-dependency-manifest-reused "$metric_scope" observe
     fi
     IHP_ROSTER_GHC_CACHE_DIR="$root"
 }
@@ -143,10 +162,12 @@ ihp_roster_prepare_ghc_build_dir() {
     stamp_file="$build_dir/ghc-options.sha256"
 
     if ! "$artifacts" manifest check "$stamp_file" "$option_hash" "ghc-build-dir-v1"; then
+        ihp_roster_ghc_observe ghc-build-options-reset 0 observe
         rm -rf "$build_dir/obj" "$build_dir/hi" "$build_dir/hie"
         mkdir -p "$build_dir/obj" "$build_dir/hi"
         "$artifacts" manifest publish "$stamp_file" "$option_hash" "ghc-build-dir-v1"
     else
+        ihp_roster_ghc_observe ghc-build-options-reused 0 observe
         mkdir -p "$build_dir/obj" "$build_dir/hi"
     fi
 }

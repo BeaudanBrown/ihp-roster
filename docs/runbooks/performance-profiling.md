@@ -90,7 +90,8 @@ The Linux [command recorder](../../scripts/profiling/verification-measure.py)
 is opt-in; its `--help` and source own current options and artifact bounds:
 
 ```bash
-bash ./bin/in-env python3 scripts/profiling/verification-measure.py run \
+bash ./bin/in-env env BEPIS_SCRIPTS_ROOT="$PWD/Config/nix/scripts" \
+  python3 scripts/profiling/verification-measure.py run \
   --output .pi/tmp/verification-command-01 --owner typecheck \
   --cache-state retained -- typecheck
 bash ./bin/in-env python3 scripts/profiling/verification-measure.py inspect \
@@ -106,9 +107,15 @@ tracked changes, untracked files and generated Haskell/TypeScript sources,
 without storing input paths or contents. Keep inputs quiescent: this is a
 bounded, best-effort diagnostic snapshot, not atomic proof or cache identity.
 Missing Git context, unsupported/symlinked inputs and exceeded capture bounds
-remain unavailable. Ignored files outside the two generated-source owners,
-external dependencies and compiler configuration are not covered; record these
-separately under the protocol above. Older artifacts remain inspectable only
+remain unavailable. With the explicitly selected current-workspace scripts root,
+metadata also queries the native workspace owner and fingerprints its Haskell,
+frontend-contract and JavaScript generation manifests. Absent manifests differ
+from unavailable ownership. Merely inspecting an unrelated Git tree never
+executes helpers found in that tree. Tooling source is covered by revision and
+tracked/untracked provenance, not by a second lifecycle implementation; compiled
+tooling binaries, other ignored inputs, external dependencies and compiler
+configuration are not complete identities here. Record these separately under
+the protocol above. Older artifacts remain inspectable only
 with the evidence required by their original schema.
 
 `inspect` validates the completion schema and returns the recorded exit status;
@@ -143,6 +150,16 @@ retry, cleanup or failure semantics. For paired overhead controls, run the same
 command through `env -u BEPIS_VERIFICATION_EVENTS`; never interpret that control's
 missing phase evidence as zero work.
 
+Closed `observations` record actual dependency-manifest/build-option reuse or
+reset decisions and native generation outcomes, without private paths or inputs.
+Dependency-cache scopes 1/2 identify adapter validation/negative fixtures; scope
+0 is unspecified. Generation scopes 1/2/3 identify Haskell/contracts/JavaScript.
+Reuse of dependencies is **not** reuse of successful verification. Lock intervals
+cover acquisition calls plus diagnostic overhead, not kernel-only wait time or
+proof of contention; no nonblocking probe or lock policy change is introduced.
+Unsupported linker configurations are explicitly unavailable. Other owners'
+internal contention/cache decisions remain unobserved rather than inferred.
+
 App readiness uses the existing login-page probe; Stripe uses Warp's before-main-loop
 callback. Worker readiness observes acknowledged PostgreSQL LISTEN subscriptions,
 not merely a live PID or queued subscription. These are startup observations,
@@ -156,6 +173,10 @@ banner, sends only QUIT, and neither reads mail bodies nor sends mail. An
 observation timeout leaves startup unfinished; observed producer death records
 failure. With profiling disabled no observer is launched. Browser intervals
 cover the Playwright command, not a separately measured browser-ready boundary.
+There is no single runner-owned browser-ready instant: projects launch lazily
+and tests own multiple contexts. Adding a fixture callback would measure that
+fixture's setup, not universal browser readiness; this attribution is deliberately
+unavailable rather than inferred from app readiness or command launch.
 The opt-in [GHC observer](../../scripts/profiling/verification-ghc.py) records
 actual link-driver launch/completion inside the existing Hspec/E2E compile
 intervals, not timestamps inferred from compiler output. These intervals include

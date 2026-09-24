@@ -214,7 +214,9 @@ else
     lifecycle_lock="$STATE_ROOT/external-runs.lock"
 fi
 exec 7>>"$lifecycle_lock"
+verification_phase e2e-postgres-lock 0 start
 flock -s 7
+verification_phase e2e-postgres-lock 0 finish
 LIFECYCLE_LOCKED=1
 # Holding the shared lifecycle lock before ensure prevents a concurrently
 # finishing last run from stopping the cluster after this run observed it.
@@ -277,7 +279,9 @@ E2E_WORKER_BIN="$STATE_DIR/build/RunE2EWorker"
 E2E_STRIPE_MOCK_BIN="$STATE_DIR/build/StripeProcessMock"
 mkdir -p "$STATE_DIR/build" "$E2E_BUILD_DIR/bin"
 (
+    verification_phase e2e-build-lock 0 start
     flock 9
+    verification_phase e2e-build-lock 0 finish
     # GHC remains the freshness authority. Stable outputs avoid unchanged links;
     # each run receives a snapshot so concurrent runs cannot replace its image.
     if [ "$E2E_SERVER_MODE" = compiled ]; then

@@ -18,6 +18,10 @@ if [ "$contract_result" = current ]; then
 else
     echo "frontend-generated-ensure: regenerated Haskell adapters and TypeScript contracts"
 fi
+if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ] && [ -f "$scripts_root/lib/verification.sh" ]; then
+    . "$scripts_root/lib/verification.sh"
+    verification_generation_result 2 "$contract_result"
+fi
 
 js_result="$("$tooling_launcher" artifacts generate --mode ensure --root "$repo_root" \
     --lock "$state_dir/generation.lock" --manifest "$state_dir/frontend-js.manifest" \
@@ -27,4 +31,8 @@ if [ "$js_result" = current ]; then
     echo "frontend-generated-ensure: JavaScript bundles are current"
 else
     echo "frontend-generated-ensure: rebuilt JavaScript bundles"
+fi
+if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ] && [ -f "$scripts_root/lib/verification.sh" ]; then
+    . "$scripts_root/lib/verification.sh"
+    verification_generation_result 3 "$js_result"
 fi

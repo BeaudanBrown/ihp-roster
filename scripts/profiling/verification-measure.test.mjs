@@ -77,6 +77,38 @@ test('captures dirty and generated input changes without persisting paths or con
     assert.doesNotMatch(raw, /private-(source|untracked)-name|private-content|generated source/);
 });
 
+test('captures current owner generation manifests without executing helpers in unrelated trees', (t) => {
+    const root = dirname(fixture(t));
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: root }).status, 0);
+    const scripts = join(root, 'Config/nix/scripts');
+    const state = join(root, 'private-state-root');
+    mkdirSync(join(scripts, 'dev'), { recursive: true });
+    mkdirSync(join(state, 'generated-code'), { recursive: true });
+    const called = join(root, 'helper-called');
+    writeFileSync(join(scripts, 'dev/agent-state-dir'), `#!/usr/bin/env bash\ntouch ${JSON.stringify(called)}\nprintf '%s\\n' ${JSON.stringify(state)}\n`);
+    const manifest = join(state, 'generated-code/haskell-types.manifest');
+    writeFileSync(manifest, 'private-manifest-original');
+    const unrelated = join(root, 'unrelated');
+    assert.equal(run(unrelated, 'pass', { cwd: root, env: { ...process.env, BEPIS_SCRIPTS_ROOT: '/unrelated' } }).status, 0);
+    assert.equal(existsSync(called), false);
+    const capture = (name) => {
+        const output = join(root, name);
+        assert.equal(run(output, 'pass', { cwd: root, env: { ...process.env, BEPIS_SCRIPTS_ROOT: scripts } }).status, 0);
+        assert.equal(inspect(output).status, 0);
+        const raw = readFileSync(join(output, 'provenance.json'), 'utf8');
+        assert.doesNotMatch(raw, /private-manifest|private-state-root/);
+        return JSON.parse(raw).generationManifests;
+    };
+    const before = capture('before');
+    assert.equal(before['haskell-types'].state, 'captured');
+    assert.equal(before['frontend-contracts'].state, 'absent');
+    writeFileSync(manifest, 'private-manifest-changed');
+    symlinkSync(manifest, join(state, 'generated-code/frontend-js.manifest'));
+    const after = capture('after');
+    assert.notEqual(after['haskell-types'].sha256, before['haskell-types'].sha256);
+    assert.equal(after['frontend-js'].state, 'unavailable');
+});
+
 test('missing Git provenance is unavailable, never reported as clean', (t) => {
     const output = fixture(t);
     assert.equal(run(output, 'pass', { cwd: dirname(output) }).status, 0);

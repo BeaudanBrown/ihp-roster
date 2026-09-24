@@ -17,7 +17,15 @@ PHASES = ('compile', 'hspec-execution', 'database-create', 'database-drop', 'par
           'e2e-app-startup', 'e2e-worker-startup', 'e2e-stripe-startup',
           'e2e-database-create', 'e2e-database-drop', 'e2e-browser', 'e2e-parallel-run',
           'e2e-mailhog-startup', 'hspec-link', 'e2e-app-link', 'e2e-worker-link', 'e2e-stripe-link')
-EDGES = ('start', 'finish', 'fail', 'ready')
+OBSERVATIONS = ('ghc-dependency-manifest-reused', 'ghc-dependency-manifest-reset',
+                'ghc-build-options-reused', 'ghc-build-options-reset',
+                'ghc-link-observation-unavailable', 'generation-current', 'generation-regenerated')
+PHASES += ('ghc-dependency-lock', 'e2e-build-lock', 'e2e-postgres-lock') + OBSERVATIONS
+EDGES = ('start', 'finish', 'fail', 'ready', 'observe')
+
+
+def valid_boundary(phase, edge):
+    return phase in PHASES and edge in EDGES and ((phase in OBSERVATIONS) == (edge == 'observe'))
 
 
 @contextmanager
@@ -106,7 +114,7 @@ def event_cli(arguments):
     conditional = any(key == '--if-unfinished' for key, _ in options)
     values = {key[2:]: value for key, value in options if key != '--if-unfinished'}
     if (remaining or set(values) != {'phase', 'scope', 'edge'}
-            or values['phase'] not in PHASES or values['edge'] not in EDGES
+            or not valid_boundary(values['phase'], values['edge'])
             or (conditional and values['edge'] != 'fail')):
         raise ValueError('invalid event boundary')
     return event(values['phase'], phase_scope(values['scope']), values['edge'], conditional)
@@ -192,7 +200,7 @@ def collect_phases(root, start, wall):
     for value in unvalidated:
         if (set(value) != {'schemaVersion', 'phase', 'scope', 'edge', 'atSeconds'}
                 or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
-                or value['phase'] not in PHASES or value['edge'] not in EDGES
+                or not valid_boundary(value['phase'], value['edge'])
                 or type(value['scope']) is not int or not 0 <= value['scope'] <= 65535
                 or not finite_number(value['atSeconds'])
                 or not start <= value['atSeconds'] <= start + wall + 0.000001):
@@ -209,10 +217,12 @@ def collect_phases(root, start, wall):
         pass
     except (OSError, ValueError):
         invalid += 1
-    active, intervals = {}, []
+    active, intervals, observations = {}, [], []
     for value in sorted(events, key=lambda item: item['atSeconds']):
         key = (value['phase'], value['scope'])
-        if value['edge'] == 'start':
+        if value['edge'] == 'observe':
+            observations.append({'phase': key[0], 'scope': key[1], 'offsetSeconds': value['atSeconds'] - start})
+        elif value['edge'] == 'start':
             if key in active:
                 invalid += 1
             else:
@@ -227,27 +237,41 @@ def collect_phases(root, start, wall):
     for (phase, scope), began in active.items():
         intervals.append({'phase': phase, 'scope': scope, 'status': 'unfinished',
                           'offsetSeconds': began - start, 'durationSeconds': None})
-    return {'schemaVersion': 1, 'state': 'invalid' if invalid else 'truncated' if overflow else 'observed' if events else 'unavailable',
-            'clockOriginSeconds': start, 'invalidEvents': invalid, 'overflow': overflow, 'intervals': intervals}
+    result = {'schemaVersion': 2 if observations else 1,
+              'state': 'invalid' if invalid else 'truncated' if overflow else 'observed' if events else 'unavailable',
+              'clockOriginSeconds': start, 'invalidEvents': invalid, 'overflow': overflow, 'intervals': intervals}
+    if observations:
+        result['observations'] = observations
+    return result
 
 
 def validate_phases(value, wall):
+    extra = {'observations'} if value.get('schemaVersion') == 2 else set()
     if (not finite_number(wall)
-            or set(value) != {'schemaVersion', 'state', 'clockOriginSeconds', 'invalidEvents', 'overflow', 'intervals'}
+            or set(value) != {'schemaVersion', 'state', 'clockOriginSeconds', 'invalidEvents', 'overflow', 'intervals'} | extra
             or not finite_number(value['clockOriginSeconds'])
-            or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+            or type(value['schemaVersion']) is not int or value['schemaVersion'] not in (1, 2)
             or type(value['invalidEvents']) is not int or value['invalidEvents'] < 0
             or type(value['overflow']) is not bool
             or not isinstance(value['intervals'], list) or len(value['intervals']) > MAX_PHASE_EVENTS):
         raise ValueError('invalid phase evidence')
+    observations = value.get('observations', [])
+    if not isinstance(observations, list) or len(observations) + len(value['intervals']) > MAX_PHASE_EVENTS:
+        raise ValueError('invalid observations')
+    for item in observations:
+        if (not isinstance(item, dict) or set(item) != {'phase', 'scope', 'offsetSeconds'}
+                or item['phase'] not in OBSERVATIONS
+                or type(item['scope']) is not int or not 0 <= item['scope'] <= 65535
+                or not finite_number(item['offsetSeconds']) or item['offsetSeconds'] > wall + 0.000001):
+            raise ValueError('invalid observation')
     expected = ('invalid' if value['invalidEvents'] else 'truncated' if value['overflow']
-                else 'observed' if value['intervals'] else 'unavailable')
+                else 'observed' if value['intervals'] or observations else 'unavailable')
     if value['state'] != expected or expected in ('invalid', 'truncated'):
         raise ValueError('invalid or truncated phase evidence')
     for item in value['intervals']:
         if (not isinstance(item, dict)
                 or set(item) != {'phase', 'scope', 'status', 'offsetSeconds', 'durationSeconds'}
-                or item['phase'] not in PHASES or type(item['scope']) is not int or not 0 <= item['scope'] <= 65535
+                or item['phase'] not in PHASES or item['phase'] in OBSERVATIONS or type(item['scope']) is not int or not 0 <= item['scope'] <= 65535
                 or item['status'] not in ('finished', 'failed', 'ready', 'unfinished')
                 or not finite_number(item['offsetSeconds']) or item['offsetSeconds'] > wall + 0.000001
                 or (item['status'] == 'unfinished' and item['durationSeconds'] is not None)

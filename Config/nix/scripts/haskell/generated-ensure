@@ -16,3 +16,7 @@ if [ "$result" = current ]; then
 else
     echo "haskell-generated-ensure: regenerated types"
 fi
+if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ] && [ -f "$scripts_root/lib/verification.sh" ]; then
+    . "$scripts_root/lib/verification.sh"
+    verification_generation_result 1 "$result"
+fi

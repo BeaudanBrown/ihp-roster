@@ -76,6 +76,7 @@ def compile_observed(phase, scope, arguments):
         environment = {**os.environ, CONFIG: json.dumps(command),
                        'BEPIS_VERIFICATION_LINK_PHASE': phase, 'BEPIS_VERIFICATION_LINK_SCOPE': scope}
     except (OSError, ValueError, SyntaxError, KeyError, TypeError, subprocess.CalledProcessError):
+        emit('ghc-link-observation-unavailable', 0, 'observe')
         print('verification-ghc: unsupported configuration; linking attribution unavailable', file=sys.stderr)
         os.execvp('ghc', ['ghc', *arguments])
     return wait(['ghc', *options, *arguments], environment)

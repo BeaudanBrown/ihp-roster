@@ -7,6 +7,14 @@ verification_phase() {
     fi
 }
 
+verification_generation_result() {
+    if [ "$2" = current ]; then
+        verification_phase generation-current "$1" observe
+    else
+        verification_phase generation-regenerated "$1" observe
+    fi
+}
+
 # Leave compiler options/cache identity and the uninstrumented path untouched.
 verification_ghc() {
     local phase="$1" scope="$2"

@@ -15,10 +15,14 @@ MAX_FILES = 4096
 
 
 def git_output(*arguments):
+    return bounded_output(['git', *arguments])
+
+
+def bounded_output(command):
     """Bound both time and bytes while reading, not after buffering all stdout."""
     process = None
     try:
-        process = subprocess.Popen(['git', *arguments], stdout=subprocess.PIPE,
+        process = subprocess.Popen(command, stdout=subprocess.PIPE,
                                    stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
                                    env={**os.environ, 'GIT_OPTIONAL_LOCKS': '0'},
                                    start_new_session=True)
@@ -119,10 +123,47 @@ def generated(root, relative, suffix, open_directory):
         return empty_snapshot()
 
 
+GENERATION_MANIFESTS = ('haskell-types', 'frontend-contracts', 'frontend-js')
+
+
+def generation_manifests(root, open_directory):
+    result = {name: empty_snapshot() for name in GENERATION_MANIFESTS}
+    scripts = root / 'Config/nix/scripts'
+    # Only query the explicitly selected current-workspace owner. Merely
+    # capturing another Git tree must never execute scripts found in that tree.
+    if os.environ.get('BEPIS_SCRIPTS_ROOT') != str(scripts):
+        return result
+    query = scripts / 'dev/agent-state-dir'
+    try:
+        with open_directory(query.parent) as parent:
+            if not stat.S_ISREG(os.stat(query.name, dir_fd=parent, follow_symlinks=False).st_mode):
+                return result
+    except (OSError, ValueError):
+        return result
+    output = bounded_output(['bash', str(query)])
+    if output is None or len(output) > 4096 or output.count(b'\n') != 1:
+        return result
+    state = Path(os.fsdecode(output.rstrip(b'\n')))
+    if not state.is_absolute():
+        return result
+    for name in GENERATION_MANIFESTS:
+        relative = Path('generated-code') / (name + '.manifest')
+        try:
+            with open_directory(state / relative.parent) as parent:
+                os.stat(relative.name, dir_fd=parent, follow_symlinks=False)
+            result[name] = fingerprint(state, [relative], open_directory)
+        except FileNotFoundError:
+            result[name] = empty_snapshot('absent')
+        except (OSError, ValueError):
+            pass
+    return result
+
+
 def capture(open_directory):
-    result = {'schemaVersion': 1, 'dirty': None, 'trackedDiffSha256': None,
+    result = {'schemaVersion': 2, 'dirty': None, 'trackedDiffSha256': None,
               'untracked': empty_snapshot(), 'generatedHaskell': empty_snapshot(),
-              'generatedFrontend': empty_snapshot()}
+              'generatedFrontend': empty_snapshot(),
+              'generationManifests': {name: empty_snapshot() for name in GENERATION_MANIFESTS}}
     raw_root = git_output('rev-parse', '--show-toplevel')
     if raw_root is None:
         return result
@@ -145,6 +186,7 @@ def capture(open_directory):
         result['untracked'] = fingerprint(root, names, open_directory)
     result['generatedHaskell'] = generated(root, 'build/Generated', '.hs', open_directory)
     result['generatedFrontend'] = generated(root, 'frontend/ts/generated', '.ts', open_directory)
+    result['generationManifests'] = generation_manifests(root, open_directory)
     return result
 
 
@@ -153,12 +195,19 @@ def validate(value):
             'generatedHaskell', 'generatedFrontend'}
     def digest(item):
         return isinstance(item, str) and re.fullmatch(r'[0-9a-f]{64}', item) is not None
-    if (set(value) != keys or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+    if value.get('schemaVersion') == 2:
+        keys.add('generationManifests')
+    if (set(value) != keys or type(value['schemaVersion']) is not int or value['schemaVersion'] not in (1, 2)
             or (value['dirty'] is not None and type(value['dirty']) is not bool)
             or (value['trackedDiffSha256'] is not None and not digest(value['trackedDiffSha256']))):
         raise ValueError('invalid provenance')
-    for key in ('untracked', 'generatedHaskell', 'generatedFrontend'):
-        item = value[key]
+    snapshots = [(key, value[key]) for key in ('untracked', 'generatedHaskell', 'generatedFrontend')]
+    if value['schemaVersion'] == 2:
+        manifests = value['generationManifests']
+        if not isinstance(manifests, dict) or set(manifests) != set(GENERATION_MANIFESTS):
+            raise ValueError('invalid generation ownership')
+        snapshots.extend(manifests.items())
+    for key, item in snapshots:
         if not isinstance(item, dict) or set(item) != {'state', 'files', 'sha256'}:
             raise ValueError('invalid input snapshot')
         if item['state'] == 'captured':
