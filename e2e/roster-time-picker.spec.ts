@@ -131,6 +131,8 @@ test.describe('Roster Time Picker', () => {
         await page.keyboard.press('Enter');
         await expect(page.locator(modalSelector)).toBeHidden();
         await expect(hiddenInput).toHaveValue('06:15');
+        // Hidden picker content precedes overlay teardown and keyboard focus return.
+        await expect(trigger).toBeFocused();
 
         await dialog.getByRole('button', { name: 'Close' }).click();
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
