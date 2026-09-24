@@ -256,6 +256,82 @@ def validate_phases(value, wall):
             raise ValueError('invalid phase interval')
 
 
+def validate_reset_summary(value):
+    import re
+
+    if (not isinstance(value, dict) or set(value) != {'schemaVersion', 'scope', 'overflow', 'suites', 'unattributed'}
+            or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+            or type(value['scope']) is not int or not 0 <= value['scope'] <= 65535
+            or type(value['overflow']) is not bool or value['overflow']
+            or not isinstance(value['suites'], list) or len(value['suites']) > 256):
+        raise ValueError('invalid reset summary')
+    labels = set()
+    for row in [*value['suites'], value['unattributed']]:
+        named = row is not value['unattributed']
+        if (not isinstance(row, dict)
+                or set(row) != ({'suite'} if named else set()) | {'attempts', 'failures', 'durationNanoseconds'}
+                or any(type(row[key]) is not int or not 0 <= row[key] <= 10**18
+                       for key in ('attempts', 'failures', 'durationNanoseconds'))
+                or row['failures'] > row['attempts']
+                or (row['attempts'] == 0 and row['durationNanoseconds'] != 0)):
+            raise ValueError('invalid reset counters')
+        if named:
+            if (not isinstance(row['suite'], str) or not re.fullmatch(r'[A-Z][A-Za-z0-9.-]{0,63}', row['suite'])
+                    or row['suite'] in labels):
+                raise ValueError('invalid reset suite')
+            labels.add(row['suite'])
+
+
+def reset_summary():
+    raw = sys.stdin.buffer.read(MAX_ARTIFACT_BYTES + 1)
+    if len(raw) > MAX_ARTIFACT_BYTES:
+        raise ValueError('reset summary too large')
+    value = json.loads(raw, object_pairs_hook=unique_object)
+    validate_reset_summary(value)
+    target = os.environ.get('BEPIS_VERIFICATION_EVENTS')
+    if target:
+        with directory(target) as root:
+            try:
+                publish_available(root, (f'reset-{index:03}.json' for index in range(64)), value)
+            except FileExistsError:
+                try:
+                    publish(root, 'reset-overflow.json', {'schemaVersion': 1, 'overflow': True})
+                except FileExistsError:
+                    pass
+                return 2
+    return 0
+
+
+def collect_resets(root, phases):
+    summaries, invalid, seen = [], 0, set()
+    for index in range(64):
+        try:
+            value = read_artifact(root, f'reset-{index:03}.json')
+            validate_reset_summary(value)
+            if value['scope'] in seen:
+                raise ValueError('duplicate reset scope')
+            seen.add(value['scope'])
+            summaries.append(value)
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError):
+            invalid += 1
+    try:
+        read_artifact(root, 'reset-overflow.json')
+        invalid += 1
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError):
+        invalid += 1
+    expected = {item['scope'] for item in phases['intervals'] if item['phase'] == 'hspec-execution'}
+    missing = sorted(expected - seen)
+    if sum(len(value['suites']) for value in summaries) > 256:
+        invalid += 1
+        summaries = []
+    return {'schemaVersion': 1, 'state': 'invalid' if invalid else 'partial' if missing and seen else 'observed' if seen else 'unavailable',
+            'invalidSummaries': invalid, 'missingScopes': missing, 'summaries': summaries}
+
+
 def revision():
     import re
     import verification_provenance
@@ -332,7 +408,7 @@ def validate_metadata(metadata, lifecycle):
     import re
 
     if (set(metadata) != {'schemaVersion', 'owner', 'cacheState', 'revision', 'capturedAt', 'commandSha256'}
-            or type(metadata['schemaVersion']) is not int or metadata['schemaVersion'] not in (1, 2, 3)
+            or type(metadata['schemaVersion']) is not int or metadata['schemaVersion'] not in (1, 2, 3, 4)
             or not isinstance(metadata['owner'], str)
             or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}', metadata['owner'])
             or metadata['cacheState'] not in ('retained', 'warm', 'output-cold')
@@ -366,6 +442,10 @@ def inspect(path):
             with directory(Path(path) / 'events') as events_root:
                 if collect_phases(events_root, phases['clockOriginSeconds'], result['wallSeconds']) != phases:
                     raise ValueError('phase journal disagrees with summary')
+                if metadata['schemaVersion'] >= 4:
+                    resets = read_artifact(root, 'resets.json')
+                    if resets != collect_resets(events_root, phases) or resets['state'] == 'invalid':
+                        raise ValueError('invalid reset journal or summary')
         verify_directory(path, root)
     wall = result.get('wallSeconds')
     code = result.get('exitCode')
@@ -478,7 +558,7 @@ def run(args):
         raise ValueError('invalid public owner label')
     with directory(args.output, create=True) as root:
         publish(root, 'metadata.json', {
-            'schemaVersion': 3, 'owner': args.owner, 'cacheState': args.cache_state,
+            'schemaVersion': 4, 'owner': args.owner, 'cacheState': args.cache_state,
             'revision': revision(),
             'capturedAt': datetime.now(timezone.utc).isoformat(),
             'commandSha256': hashlib.sha256(json.dumps(command).encode()).hexdigest(),
@@ -492,12 +572,14 @@ def run(args):
             code, status, wall, cpu, memory, start = execute(command, args.termination_grace_seconds, environment)
             verify_directory(events_path, events_root)
             phases = collect_phases(events_root, start, wall)
+            resets = collect_resets(events_root, phases)
         verify_directory(args.output, root)
         publish(root, 'phases.json', phases)
+        publish(root, 'resets.json', resets)
         publish(root, 'result.json', {
             'schemaVersion': 1, 'authority': 'diagnostic-only',
             'commandStatus': status,
-            'measurementStatus': 'incomplete' if phases['state'] in ('invalid', 'truncated') else 'complete',
+            'measurementStatus': 'incomplete' if phases['state'] in ('invalid', 'truncated') or resets['state'] == 'invalid' else 'complete',
             'exitCode': code,
             'wallSeconds': wall, 'cpuSeconds': cpu,
             'cpuScope': 'waited-command-and-waited-descendants', 'memory': memory,
@@ -518,6 +600,7 @@ def parse_command():
     capture.add_argument('--termination-grace-seconds', type=int, choices=range(1, 61), default=10)
     capture.add_argument('command', nargs=argparse.REMAINDER)
     commands.add_parser('event', help='emit a bounded phase boundary')
+    commands.add_parser('reset-summary', help='publish one bounded native shard reset aggregate from stdin')
     observer = commands.add_parser('watch-mailhog', help='observe isolated MailHog readiness without gating tests')
     observer.add_argument('--http-port', type=int, required=True)
     observer.add_argument('--smtp-port', type=int, required=True)
@@ -534,6 +617,8 @@ def main():
         if len(sys.argv) > 1 and sys.argv[1] == 'event':
             return event_cli(sys.argv[2:])
         args = parse_command()
+        if args.operation == 'reset-summary':
+            return reset_summary()
         if args.operation == 'watch-mailhog':
             return watch_mailhog(args)
         return run(args) if args.operation == 'run' else inspect(args.output)

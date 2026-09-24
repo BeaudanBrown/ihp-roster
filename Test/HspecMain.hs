@@ -7,6 +7,7 @@ import Test.Hspec
 
 import qualified Test.BaselineProbe as BaselineProbe
 import qualified Test.Suite as TestSuite
+import qualified Test.ResetMetrics as ResetMetrics
 
 main :: IO ()
 main = do
@@ -33,4 +34,6 @@ runRegisteredSuites arguments = do
     selection <- TestSuite.shardSelectionFromEnv
     putStrLn (cs (TestSuite.renderShardSelection selection) :: Text)
     putStrLn (cs (TestSuite.renderSelectionCoverage arguments selection) :: Text)
-    hspec (mapM_ TestSuite.suiteSpec selection.suites)
+    let label suite = cs suite.testSuiteMetadata.suiteLabel
+    ResetMetrics.withResetMetrics (map label selection.suites) $
+        hspec (mapM_ (\suite -> around_ (ResetMetrics.withResetSuite (label suite)) suite.suiteSpec) selection.suites)

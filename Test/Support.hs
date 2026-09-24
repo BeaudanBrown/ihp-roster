@@ -61,6 +61,7 @@ import System.Environment (lookupEnv, setEnv)
 import qualified System.IO as IO
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec (Expectation, shouldBe, shouldSatisfy)
+import qualified Test.ResetMetrics as ResetMetrics
 import Test.Support.Environment (withEnvironmentVariable)
 import Web.FrontController ()
 import Web.Types
@@ -349,7 +350,7 @@ withPrivilegedStrongAuthentication enabled =
         (Just (if enabled then "true" else "false"))
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
-resetDatabase = FixtureReset.resetDatabase
+resetDatabase = ResetMetrics.measureReset FixtureReset.resetDatabase
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do
