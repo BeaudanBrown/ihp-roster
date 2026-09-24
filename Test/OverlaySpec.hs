@@ -2,12 +2,16 @@
 
 module Test.OverlaySpec where
 
-import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay, DeleteTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime
 import Application.Helper.FrontendContract.Overlay.Runtime (DialogDismissalGuardConfigValue (..), dialogDismissalGuardAttrs, dialogPointerDismissBlurAttrs, navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
 import Application.Helper.View.Toast
+import Application.Helper.View.Timesheets
+import Generated.Types
+import IHP.ModelSupport
+import Web.View.RosterWeeks.ShiftDialog
 import Config
 import qualified Data.Text as Text
 import qualified Data.List as List
@@ -142,6 +146,46 @@ databaseTests = aroundAll withDatabaseTestContext do
                 let guardedDialogs = filter (\node -> lookup "data-bepis-dialog-dismissal-guard" (nodeAttrs node) == Just "true") (elementNodes tree)
                 map nodeAttrs guardedDialogs `shouldSatisfy` any (elem ("data-bepis-dialog-mount", "true"))
 
+        forM_ [1, 15] \step ->
+            forM_ autofocusCases \(label, failures, manager, ownEntry, origin, hasBreak, expected) ->
+                it ("selects one eligible timesheet autofocus target: " <> label <> " step " <> cs (tshow step)) $ withContext do
+                    withCurrentControllerContext do
+                        let base = autofocusTimesheetModel
+                            entry = base.timesheetFormInputs.timesheetEntry
+                            annotated = entry { meta = entry.meta { annotations = [(field, TextViolation "Invalid") | field <- failures] }
+                                              , breakStartsAt = if hasBreak then Just entry.startsAt else Nothing
+                                              , breakEndsAt = if hasBreak then Just entry.endsAt else Nothing }
+                            model = base
+                                { timesheetFormInputs = base.timesheetFormInputs
+                                    { timesheetEntry = annotated, viewerIsManager = manager, pickerStep = step
+                                    , currentViewerStaffId = if ownEntry then Just entry.staffId else Nothing }
+                                , timesheetFormPresentation = base.timesheetFormPresentation { formOrigin = origin }
+                                }
+                        tree <- parseRenderedOverlay (renderTimesheetFormFields model)
+                        length (filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree)) `shouldBe` 1
+                        autofocusControlNames tree `shouldBe` [expected]
+
+        forM_ [("default", emptyRosterShiftDialogValues, False, "startTime")
+              , ("role before time", emptyRosterShiftDialogValues { rosterShiftTypeError = Just "Invalid", rosterShiftEndError = Just "Invalid" }, False, "shiftTypeId")
+              , ("staff before time", emptyRosterShiftDialogValues { rosterShiftStaffError = Just "Invalid", rosterShiftStartError = Just "Invalid" }, False, "staffId")
+              , ("end time", emptyRosterShiftDialogValues { rosterShiftEndError = Just "Invalid" }, False, "endTime")
+              , ("disabled fields", emptyRosterShiftDialogValues { rosterShiftTypeError = Just "Invalid", rosterShiftStartError = Just "Invalid" }, True, "staffId")]
+            \(label, values, assignmentOnly, expected) ->
+                it ("selects one eligible roster autofocus target: " <> label) $ withContext do
+                    withCurrentControllerContext do
+                        tree <- parseRenderedOverlay (renderRosterShiftDialog (autofocusRosterDialog values assignmentOnly))
+                        length (filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree)) `shouldBe` 1
+                        autofocusControlNames tree `shouldBe` [expected]
+
+        it "declares shell autofocus only for dialogs without a form-owned target" $ withContext do
+            withCurrentControllerContext do
+                forM_ [renderDialogOverlay dialogConfig, renderDialogOverlayBodyOnly "Body" "" mempty] \markup -> do
+                    tree <- parseRenderedOverlay markup
+                    map (lookup "role" . nodeAttrs) (filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree))
+                        `shouldBe` [Just "dialog"]
+                tree <- parseRenderedOverlay (renderKeyboardDialogOverlay dialogConfig)
+                filter (isJust . lookup "autofocus" . nodeAttrs) (elementNodes tree) `shouldSatisfy` null
+
         it "renders confirmation as an explicit dialog with a native loading submit" $ withContext do
             withCurrentControllerContext do
                 let html = renderText (renderConfirmationDialog
@@ -224,6 +268,59 @@ databaseTests = aroundAll withDatabaseTestContext do
             "Generated overlay"
             (HtmlRenderer.toHtml ("Body" :: Text))
             (defaultOverlayButtons "generated-overlay-form")
+
+autofocusCases :: [(String, [Text], Bool, Bool, TimesheetFormOrigin, Bool, Text)]
+autofocusCases =
+    [ ("default", [], False, True, AdHocTimesheetForm, False, "startTime")
+    , ("start before end", ["startsAt", "endsAt"], False, True, AdHocTimesheetForm, False, "startTime")
+    , ("end", ["endsAt"], False, True, AdHocTimesheetForm, False, "endTime")
+    , ("role before time", ["endsAt", "shiftTypeId"], False, True, AdHocTimesheetForm, False, "shiftTypeId")
+    , ("editable staff", ["staffId", "shiftTypeId"], True, False, AdHocTimesheetForm, False, "staffId")
+    , ("hidden worker staff", ["staffId", "endsAt"], False, True, AdHocTimesheetForm, False, "endTime")
+    , ("locked roster staff", ["staffId", "endsAt"], False, False, RosteredTimesheetForm, False, "endTime")
+    , ("editable roster staff", ["staffId", "endsAt"], True, False, RosteredTimesheetForm, False, "staffId")
+    , ("inactive break", ["breakStartsAt"], False, True, AdHocTimesheetForm, False, "startTime")
+    , ("break start", ["breakStartsAt", "breakEndsAt"], False, True, AdHocTimesheetForm, True, "breakStartTime")
+    , ("break end", ["breakEndsAt"], False, True, AdHocTimesheetForm, True, "breakEndTime")
+    , ("own comment", ["staffComment"], False, True, AdHocTimesheetForm, False, "staffComment")
+    , ("read-only comment", ["staffComment", "managerNote"], True, False, AdHocTimesheetForm, False, "managerNote")
+    , ("absent manager note", ["managerNote"], False, True, AdHocTimesheetForm, False, "startTime")
+    ]
+
+-- Native controls carry names directly; picker buttons use their field's hidden
+-- transport. Inspect rendered structure, not the production focus-selection code.
+autofocusControlNames :: Hsx.Node -> [Text]
+autofocusControlNames tree =
+    [name | node <- elementNodes tree, isJust (lookup "autofocus" (nodeAttrs node)), Just name <- [lookup "name" (nodeAttrs node)]]
+    <> [name | field <- elementNodes tree, isJust (lookup "data-bepis-time-picker-field" (nodeAttrs field))
+             , any (\node -> nodeName node == "button" && isJust (lookup "autofocus" (nodeAttrs node))) (elementNodes field)
+             , input <- elementNodes field, nodeName input == "input", Just name <- [lookup "name" (nodeAttrs input)]]
+
+autofocusTimesheetModel :: TimesheetFormRenderModel
+autofocusTimesheetModel = TimesheetFormRenderModel
+    { timesheetFormInputs = TimesheetFormInputs
+        { timesheetEntry = (newRecord @TimesheetEntry)
+            { startsAt = UTCTime day 0, endsAt = UTCTime day (8 * 3600)
+            , timezone = "Australia/Melbourne", operationalDate = day }
+        , staffMembers = [], shiftTypes = [], calendarRevision = 0, selectedStaffFilterId = Nothing
+        , currentViewerStaffId = Nothing, pickerStart = "00:00", pickerEnd = "23:45", pickerStep = 15, viewerIsManager = False
+        }
+    , timesheetFormPresentation = TimesheetFormPresentation
+        { appShellAction = appShellActionByMarker @CreateTimesheetEntryOverlay
+        , formOrigin = AdHocTimesheetForm, actionUrl = "/CreateTimesheetEntry", formId = "focus-form", formMode = HtmxOverlayForm }
+    }
+  where
+    day = fromGregorian 2026 9 21
+
+autofocusRosterDialog :: RosterShiftDialogValues -> Bool -> RosterShiftDialogData
+autofocusRosterDialog values assignmentOnly = RosterShiftDialogData
+    { rosterShiftDialogMode = EditRosterShiftDialog { dialogRosterSlotId = def }
+    , rosterShiftDialogTitle = "Focus", rosterShiftDialogStaff = [], rosterShiftDialogStaffOptionStates = mempty
+    , rosterShiftDialogPayInvalidStaffIds = mempty, rosterShiftDialogShiftTypes = []
+    , rosterShiftDialogTimePickerStart = "00:00", rosterShiftDialogTimePickerEnd = "23:45", rosterShiftDialogTimePickerStep = 15
+    , rosterShiftDialogValues = values, rosterShiftDialogAssignmentOnly = assignmentOnly
+    , rosterShiftDialogAnchorDate = fromGregorian 2026 9 21, rosterShiftDialogCalendarRevision = 0
+    }
 
 renderText :: Html -> Text
 renderText = cs . HtmlRenderer.renderMarkupLazyText

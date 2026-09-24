@@ -169,7 +169,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         <div class="row g-3 mb-3">
             <fieldset class="col-12 col-lg-6" disabled={rosterShiftDialogAssignmentOnly} data-roster-live-open-fields={if rosterShiftDialogAssignmentOnly then ("true" :: Text) else "false"}>
                 <label class="form-label" for="roster-shift-type-id">Role</label>
-                <select id="roster-shift-type-id" name="shiftTypeId" aria-invalid={if isJust rosterShiftDialogValues.rosterShiftTypeError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
+                <select id="roster-shift-type-id" name="shiftTypeId" autofocus={autofocusField == "shiftTypeId"} aria-invalid={if isJust rosterShiftDialogValues.rosterShiftTypeError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
                     <option value="">Select role</option>
                     {forEach visibleShiftTypes (renderDialogShiftTypeOption rosterShiftDialogValues.rosterShiftTypeId)}
                 </select>
@@ -177,7 +177,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
             </fieldset>
             <div class="col-12 col-lg-6">
                 <label class="form-label" for="roster-shift-staff-id">Staff member</label>
-                <select id="roster-shift-staff-id" name="staffId" aria-invalid={if isJust rosterShiftDialogValues.rosterShiftStaffError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
+                <select id="roster-shift-staff-id" name="staffId" autofocus={autofocusField == "staffId"} aria-invalid={if isJust rosterShiftDialogValues.rosterShiftStaffError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
                     <option value="">Select staff member</option>
                     <option value="open" selected={rosterShiftDialogValues.rosterShiftSelectedAssignment == Just OpenAssignment}>Open shift</option>
                     {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftSelectedAssignment rosterShiftDialogStaff rosterShiftDialogPayInvalidStaffIds)}
@@ -191,18 +191,28 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         <fieldset class="row g-3 mb-3" disabled={rosterShiftDialogAssignmentOnly} data-roster-live-open-fields={if rosterShiftDialogAssignmentOnly then ("true" :: Text) else "false"}>
             <div class="col-12 col-sm-6">
                 <label class="form-label">Start time</label>
-                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd rosterShiftDialogTimePickerStep True (isJust rosterShiftDialogValues.rosterShiftStartError)}
+                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd rosterShiftDialogTimePickerStep (autofocusField == "startTime") (isJust rosterShiftDialogValues.rosterShiftStartError)}
                 {when rosterShiftDialogValues.rosterShiftStartIsRepeated (renderDialogOccurrenceChooser "startOccurrence" "Start occurrence" rosterShiftDialogValues.rosterShiftStartOccurrence (isJust rosterShiftDialogValues.rosterShiftStartError))}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStartError}
             </div>
             <div class="col-12 col-sm-6">
                 <label class="form-label">End time</label>
-                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd rosterShiftDialogTimePickerStep False (isJust rosterShiftDialogValues.rosterShiftEndError)}
+                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd rosterShiftDialogTimePickerStep (autofocusField == "endTime") (isJust rosterShiftDialogValues.rosterShiftEndError)}
                 {when rosterShiftDialogValues.rosterShiftEndIsRepeated (renderDialogOccurrenceChooser "endOccurrence" "End occurrence" rosterShiftDialogValues.rosterShiftEndOccurrence (isJust rosterShiftDialogValues.rosterShiftEndError))}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
             </div>
         </fieldset>
     |]
+    -- Assignment-only dialogs disable role and time fields; focus the editable
+    -- staff selector even if stale validation annotations name disabled fields.
+    autofocusField :: Text
+    autofocusField
+        | rosterShiftDialogAssignmentOnly = "staffId"
+        | isJust rosterShiftDialogValues.rosterShiftTypeError = "shiftTypeId"
+        | isJust rosterShiftDialogValues.rosterShiftStaffError = "staffId"
+        | isJust rosterShiftDialogValues.rosterShiftStartError = "startTime"
+        | isJust rosterShiftDialogValues.rosterShiftEndError = "endTime"
+        | otherwise = "startTime"
     selectedOrVisible staff =
         let staffId = coerce staff.id
             isSelected = rosterShiftDialogValues.rosterShiftSelectedAssignment == Just (StaffAssignment (Id staffId))

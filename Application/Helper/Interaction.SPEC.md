@@ -69,6 +69,15 @@ inline styles, focus, and page scroll position rather than clearing another
 owner's state. Dialog bodies scroll natively with contained overscroll; do not
 suppress touch gestures globally or disable pinch zoom.
 
+HTMX-mounted workflow dialogs declare one native `autofocus` target. Keyboard
+forms select the first eligible invalid control in visual order, otherwise their
+starting control; other workflow dialogs focus their shell. Hidden, disabled,
+and read-only presentation fields cannot consume the target. HTML/HTMX applies
+initial focus, not a second application page-ready/after-swap selector. Keep
+HTMX's ordinary settlement delay: interaction before settlement can still be
+superseded by autofocus. Focus restoration, Tab containment, and explicit loading
+state focus remain separate existing runtime responsibilities.
+
 Binary settings that apply immediately use switches; selections saved with a
 form use checkboxes. Both share neutral, whole-control click/touch containers,
 with checked colour confined to the indicator. Labels remain stable and

@@ -145,20 +145,20 @@ renderTimesheetFormFields model@TimesheetFormRenderModel
     <input type="hidden" name="rosterGroupId" value={maybe "" tshow timesheetEntry.rosterGroupId} />
     {renderTimesheetFormOriginNotice formOrigin}
     {renderStaffFieldForOrigin model}
-    {renderShiftTypeField timesheetEntry shiftTypes}
+    {renderShiftTypeField (autofocusField == Just "shiftTypeId") timesheetEntry shiftTypes}
     <input type="hidden" name="workedOn" value={dateValueIso} />
     {renderFieldError timesheetEntry "startsAt"}
 
     <div class="row mb-3">
         <div class="col">
             <label class="form-label">Shift Start</label>
-            {renderTimePickerField (timesheetPickerConfig "startTime" startTimeValue True (hasErrorFor timesheetEntry "startsAt"))}
+            {renderTimePickerField (timesheetPickerConfig "startTime" startTimeValue "startsAt")}
             {maybe mempty (\localTime -> renderOccurrenceChooser timesheetEntry "startsAt" "startOccurrence" "Shift start occurrence" localTime startOccurrence) startLocalTime}
             {renderFieldError timesheetEntry "startsAt"}
         </div>
         <div class="col">
             <label class="form-label">Shift End</label>
-            {renderTimePickerField (timesheetPickerConfig "endTime" endTimeValue False (hasErrorFor timesheetEntry "endsAt"))}
+            {renderTimePickerField (timesheetPickerConfig "endTime" endTimeValue "endsAt")}
             {maybe mempty (\localTime -> renderOccurrenceChooser timesheetEntry "endsAt" "endOccurrence" "Shift end occurrence" localTime endOccurrence) endLocalTime}
             {renderFieldError timesheetEntry "endsAt"}
         </div>
@@ -169,25 +169,48 @@ renderTimesheetFormFields model@TimesheetFormRenderModel
     </div>
 
     {renderTimesheetBreakFields model timeValues}
-    {renderTimesheetStaffCommentField inputs}
-    {renderTimesheetManagerNoteField inputs}
+    {renderTimesheetStaffCommentField (autofocusField == Just "staffComment") inputs}
+    {renderTimesheetManagerNoteField (autofocusField == Just "managerNote") inputs}
 |]
     where
         timeValues@TimesheetTimeRenderValues { .. } = timesheetTimeRenderValues timesheetEntry
         keyboardEnabled = timesheetFormKeyboardEnabled formMode
         dateValueIso = tshow timesheetEntry.operationalDate :: Text
-        timesheetPickerConfig fieldName value autofocus invalid =
+        autofocusField = timesheetAutofocusField model
+        timesheetPickerConfig fieldName value annotationField =
             (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
                 { timePickerStepMinutes = pickerStep
                 , timePickerKeyboardEnabled = keyboardEnabled
-                , timePickerAutofocus = keyboardEnabled && autofocus
-                , timePickerInvalid = invalid
+                , timePickerAutofocus = autofocusField == Just annotationField
+                , timePickerInvalid = hasErrorFor timesheetEntry annotationField
                 }
         stateFields =
             TimesheetsAction.createTimesheetEntryFromRosterShiftActionFields timesheetEntry.operationalDate calendarRevision selectedStaffFilterId
         classificationValue = case timesheetEntry.rosterGroupClassification of
             InRosterGroup -> "in_roster_group" :: Text
             NoRosterGroup -> "no_roster_group"
+
+-- Select among rendered, editable controls in their visual order. Hidden staff
+-- transport and inactive break fields must never consume the autofocus target.
+-- Full-page forms retain their existing lack of field autofocus.
+timesheetAutofocusField :: TimesheetFormRenderModel -> Maybe Text
+timesheetAutofocusField TimesheetFormRenderModel
+        { timesheetFormInputs = TimesheetFormInputs { timesheetEntry, viewerIsManager, currentViewerStaffId }
+        , timesheetFormPresentation = TimesheetFormPresentation { formMode }
+        }
+    | not (timesheetFormKeyboardEnabled formMode) = Nothing
+    | otherwise = Just (fromMaybe "startsAt" (find (hasErrorFor timesheetEntry) eligibleFields))
+  where
+    eligibleFields = [field | (field, eligible) <-
+        [ ("staffId", viewerIsManager)
+        , ("shiftTypeId", True)
+        , ("startsAt", True)
+        , ("endsAt", True)
+        , ("breakStartsAt", timesheetEntryHadBreak timesheetEntry)
+        , ("breakEndsAt", timesheetEntryHadBreak timesheetEntry)
+        , ("staffComment", currentViewerStaffId == Just timesheetEntry.staffId)
+        , ("managerNote", viewerIsManager)
+        ], eligible]
 
 timesheetTimeRenderValues :: TimesheetEntry -> TimesheetTimeRenderValues
 timesheetTimeRenderValues timesheetEntry =
@@ -217,7 +240,7 @@ timesheetFormKeyboardEnabled PageOverlayForm = False
 
 renderTimesheetBreakFields :: TimesheetFormRenderModel -> TimesheetTimeRenderValues -> Html
 renderTimesheetBreakFields
-        TimesheetFormRenderModel
+        model@TimesheetFormRenderModel
             { timesheetFormInputs = TimesheetFormInputs { timesheetEntry, pickerStart, pickerEnd, pickerStep, .. }
             , timesheetFormPresentation = TimesheetFormPresentation { formMode, .. }
             }
@@ -225,24 +248,25 @@ renderTimesheetBreakFields
     renderAppToggleBreakRegion timesheetBreakRegion (timesheetEntryHadBreak timesheetEntry) "row mb-3" [hsx|
         <div class="col">
             <label class="form-label">Break Start</label>
-            {renderTimePickerField (breakPickerConfig "breakStartTime" breakStartTimeValue (hasErrorFor timesheetEntry "breakStartsAt"))}
+            {renderTimePickerField (breakPickerConfig "breakStartTime" breakStartTimeValue "breakStartsAt")}
             {maybe mempty (\localTime -> renderOccurrenceChooser timesheetEntry "breakStartsAt" "breakStartOccurrence" "Break start occurrence" localTime breakStartOccurrence) breakStartLocalTime}
             {renderFieldError timesheetEntry "breakStartsAt"}
         </div>
         <div class="col">
             <label class="form-label">Break End</label>
-            {renderTimePickerField (breakPickerConfig "breakEndTime" breakEndTimeValue (hasErrorFor timesheetEntry "breakEndsAt"))}
+            {renderTimePickerField (breakPickerConfig "breakEndTime" breakEndTimeValue "breakEndsAt")}
             {maybe mempty (\localTime -> renderOccurrenceChooser timesheetEntry "breakEndsAt" "breakEndOccurrence" "Break end occurrence" localTime breakEndOccurrence) breakEndLocalTime}
             {renderFieldError timesheetEntry "breakEndsAt"}
         </div>
     |]
   where
     keyboardEnabled = timesheetFormKeyboardEnabled formMode
-    breakPickerConfig fieldName value invalid =
+    breakPickerConfig fieldName value annotationField =
         (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
             { timePickerStepMinutes = pickerStep
             , timePickerKeyboardEnabled = keyboardEnabled
-            , timePickerInvalid = invalid
+            , timePickerAutofocus = timesheetAutofocusField model == Just annotationField
+            , timePickerInvalid = hasErrorFor timesheetEntry annotationField
             }
 
 renderOccurrenceChooser :: TimesheetEntry -> Text -> Text -> Text -> LocalTime -> Maybe RepeatedTimeOccurrence -> Html
@@ -273,18 +297,20 @@ renderTimesheetFormOriginNotice RosteredTimesheetForm = [hsx|
 renderTimesheetFormOriginNotice RosteredTimesheetEntryForm = mempty
 
 renderStaffFieldForOrigin :: TimesheetFormRenderModel -> Html
-renderStaffFieldForOrigin TimesheetFormRenderModel
+renderStaffFieldForOrigin model@TimesheetFormRenderModel
         { timesheetFormInputs = inputs@TimesheetFormInputs { timesheetEntry, staffMembers, viewerIsManager, .. }
         , timesheetFormPresentation = TimesheetFormPresentation { formOrigin, .. }
         } =
     case formOrigin of
-        AdHocTimesheetForm               -> renderStaffField inputs
+        AdHocTimesheetForm               -> renderStaffField autofocus inputs
         RosteredTimesheetForm
-            | viewerIsManager -> renderStaffField inputs
+            | viewerIsManager -> renderStaffField autofocus inputs
             | otherwise -> renderRosteredStaffField timesheetEntry staffMembers
         RosteredTimesheetEntryForm
-            | viewerIsManager -> renderStaffField inputs
+            | viewerIsManager -> renderStaffField autofocus inputs
             | otherwise -> renderRosteredStaffField timesheetEntry staffMembers
+  where
+    autofocus = timesheetAutofocusField model == Just "staffId"
 
 renderRosteredStaffField :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> Html
 renderRosteredStaffField entry staffMembers = [hsx|
@@ -312,13 +338,14 @@ renderTimesheetBreakToggle entry =
             , appToggleBreakRegion = Just timesheetBreakRegion
             }
 
-renderTimesheetStaffCommentField :: TimesheetFormInputs -> Html
-renderTimesheetStaffCommentField TimesheetFormInputs { timesheetEntry, currentViewerStaffId, viewerIsManager, .. }
+renderTimesheetStaffCommentField :: Bool -> TimesheetFormInputs -> Html
+renderTimesheetStaffCommentField autofocus TimesheetFormInputs { timesheetEntry, currentViewerStaffId, viewerIsManager, .. }
     | currentViewerStaffId == Just timesheetEntry.staffId = [hsx|
         <div class="mb-3">
             <label for="staffComment" class="form-label">Staff comment</label>
             <textarea id="staffComment"
                       name="staffComment"
+                      autofocus={autofocus}
                       class={classes [("form-control", True), ("is-invalid", hasErrorFor timesheetEntry "staffComment")]}
                       aria-invalid={if hasErrorFor timesheetEntry "staffComment" then ("true" :: Text) else "false"}
                       rows="3"
@@ -334,13 +361,14 @@ renderTimesheetStaffCommentField TimesheetFormInputs { timesheetEntry, currentVi
     |]
     | otherwise = mempty
 
-renderTimesheetManagerNoteField :: TimesheetFormInputs -> Html
-renderTimesheetManagerNoteField TimesheetFormInputs { timesheetEntry, viewerIsManager, .. }
+renderTimesheetManagerNoteField :: Bool -> TimesheetFormInputs -> Html
+renderTimesheetManagerNoteField autofocus TimesheetFormInputs { timesheetEntry, viewerIsManager, .. }
     | viewerIsManager = [hsx|
         <div class="mb-3">
             <label for="managerNote" class="form-label">Manager note</label>
             <textarea id="managerNote"
                       name="managerNote"
+                      autofocus={autofocus}
                       class={classes [("form-control", True), ("is-invalid", hasErrorFor timesheetEntry "managerNote")]}
                       aria-invalid={if hasErrorFor timesheetEntry "managerNote" then ("true" :: Text) else "false"}
                       rows="3"
@@ -350,13 +378,13 @@ renderTimesheetManagerNoteField TimesheetFormInputs { timesheetEntry, viewerIsMa
     |]
     | otherwise = mempty
 
-renderStaffField :: TimesheetFormInputs -> Html
-renderStaffField TimesheetFormInputs { timesheetEntry, staffMembers, viewerIsManager, .. } =
+renderStaffField :: Bool -> TimesheetFormInputs -> Html
+renderStaffField autofocus TimesheetFormInputs { timesheetEntry, staffMembers, viewerIsManager, .. } =
     if viewerIsManager
         then [hsx|
             <div class="mb-3">
                 <label for="staffId" class="form-label">Staff Member</label>
-                <select name="staffId" id="staffId" aria-invalid={if hasErrorFor timesheetEntry "staffId" then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", hasErrorFor timesheetEntry "staffId")]} required="required">
+                <select name="staffId" id="staffId" autofocus={autofocus} aria-invalid={if hasErrorFor timesheetEntry "staffId" then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", hasErrorFor timesheetEntry "staffId")]} required="required">
                     {forEach staffMembers (renderTimesheetStaffOption timesheetEntry.staffId)}
                 </select>
                 {renderFieldError timesheetEntry "staffId"}
@@ -366,11 +394,11 @@ renderStaffField TimesheetFormInputs { timesheetEntry, staffMembers, viewerIsMan
             <input type="hidden" name="staffId" value={inputValue timesheetEntry.staffId} />
         |]
 
-renderShiftTypeField :: TimesheetEntry -> [ShiftType] -> Html
-renderShiftTypeField entry shiftTypes = [hsx|
+renderShiftTypeField :: Bool -> TimesheetEntry -> [ShiftType] -> Html
+renderShiftTypeField autofocus entry shiftTypes = [hsx|
     <div class="mb-3">
         <label for="shiftTypeId" class="form-label">Shift Type</label>
-        <select name="shiftTypeId" id="shiftTypeId" aria-invalid={if hasErrorFor entry "shiftTypeId" then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "shiftTypeId")]} required="required">
+        <select name="shiftTypeId" id="shiftTypeId" autofocus={autofocus} aria-invalid={if hasErrorFor entry "shiftTypeId" then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "shiftTypeId")]} required="required">
             {forEach shiftTypes (renderShiftTypeOption entry.shiftTypeId)}
         </select>
         {renderFieldError entry "shiftTypeId"}

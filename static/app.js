@@ -5225,14 +5225,6 @@
         return element.tabIndex >= 0;
       });
     }
-    function focusKeyboardDialog(dialog) {
-      if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
-      const region = keyboardFocusRegion(dialog);
-      const controls2 = focusableDialogControls(region ?? dialog);
-      const firstInvalid = controls2.find((control) => control.getAttribute("aria-invalid") === "true");
-      const autofocus = controls2.find((control) => control.hasAttribute("autofocus"));
-      (firstInvalid ?? autofocus ?? (region ? controls2[0] : null) ?? dialog).focus({ preventScroll: true });
-    }
     function initializeDismissalGuard(dialog) {
       if (!dialog.matches(dialogDismissalGuardSelector)) {
         activeGuardTracker = null;
@@ -5263,15 +5255,13 @@
         });
       }
     }
-    function initializeKeyboardDialogs(root) {
+    function initializeDismissalGuards(root) {
       if (root instanceof HTMLElement && root.matches(dialogMountSelector)) {
         initializeDismissalGuard(root);
-        focusKeyboardDialog(root);
       }
       root.querySelectorAll(dialogMountSelector).forEach((dialog) => {
         if (dialog instanceof HTMLElement) {
           initializeDismissalGuard(dialog);
-          focusKeyboardDialog(dialog);
         }
       });
     }
@@ -5356,6 +5346,14 @@
       syncDialogState();
       dialogEl.focus({ preventScroll: true });
     }
+    function restoreKeyboardDialogFocus(dialog) {
+      if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
+      const region = keyboardFocusRegion(dialog);
+      const controls2 = focusableDialogControls(region ?? dialog);
+      const firstInvalid = controls2.find((control) => control.getAttribute("aria-invalid") === "true");
+      const autofocus = controls2.find((control) => control.hasAttribute("autofocus"));
+      (firstInvalid ?? autofocus ?? (region ? controls2[0] : null) ?? dialog).focus({ preventScroll: true });
+    }
     function keepEditing(dialogEl) {
       const state = dismissalGuards.get(dialogEl);
       if (state?.confirmation === null || state === void 0) return;
@@ -5371,7 +5369,7 @@
       else dialogEl.setAttribute("aria-labelledby", previousAriaLabelledBy);
       state.confirmation = null;
       if (previousFocus?.isConnected && dialogEl.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
-      else focusKeyboardDialog(dialogEl);
+      else restoreKeyboardDialogFocus(dialogEl);
     }
     function showDismissalConfirmation(dialogEl, state) {
       if (state.confirmation !== null) return;
@@ -5596,7 +5594,7 @@
       if (target.id !== mountId) return;
       reconcileDialogDismissal(target);
       syncDialogState();
-      initializeKeyboardDialogs(target);
+      initializeDismissalGuards(target);
       if (getMountedDialog(target) === null) {
         activeGuardTracker = null;
         activeGuardFormId = null;
@@ -5609,7 +5607,7 @@
       if (target.id !== mountId) return;
       reconcileDialogDismissal(target);
       syncDialogState();
-      initializeKeyboardDialogs(target);
+      initializeDismissalGuards(target);
       if (getMountedDialog(target) === null) {
         activeGuardTracker = null;
         activeGuardFormId = null;
@@ -5641,7 +5639,7 @@
       if (mountEl !== null) reconcileDialogDismissal(mountEl);
       syncDialogState();
       const target = detailTarget(event, "target");
-      if (target instanceof HTMLElement || target instanceof Document) initializeKeyboardDialogs(target);
+      if (target instanceof HTMLElement || target instanceof Document) initializeDismissalGuards(target);
     });
   })();
 

@@ -261,14 +261,8 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         });
     }
 
-    function focusKeyboardDialog(dialog: HTMLElement): void {
-        if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
-        const region = keyboardFocusRegion(dialog);
-        const controls = focusableDialogControls(region ?? dialog);
-        const firstInvalid = controls.find((control) => control.getAttribute("aria-invalid") === "true");
-        const autofocus = controls.find((control) => control.hasAttribute("autofocus"));
-        (firstInvalid ?? autofocus ?? (region ? controls[0] : null) ?? dialog).focus({ preventScroll: true });
-    }
+    // Initial focus is declared by server-rendered autofocus and applied by
+    // HTML/HTMX. This runtime owns containment and restoration, not selection.
 
     function initializeDismissalGuard(dialog: HTMLElement): void {
         if (!dialog.matches(dialogDismissalGuardSelector)) {
@@ -303,15 +297,13 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         }
     }
 
-    function initializeKeyboardDialogs(root: ParentNode): void {
+    function initializeDismissalGuards(root: ParentNode): void {
         if (root instanceof HTMLElement && root.matches(dialogMountSelector)) {
             initializeDismissalGuard(root);
-            focusKeyboardDialog(root);
         }
         root.querySelectorAll(dialogMountSelector).forEach((dialog) => {
             if (dialog instanceof HTMLElement) {
                 initializeDismissalGuard(dialog);
-                focusKeyboardDialog(dialog);
             }
         });
     }
@@ -409,6 +401,17 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         dialogEl.focus({ preventScroll: true });
     }
 
+    // A discarded confirmation may have lost its original control. This is
+    // restoration within an existing dialog, never initial HTMX autofocus.
+    function restoreKeyboardDialogFocus(dialog: HTMLElement): void {
+        if (dialog !== getTopModal() || dialog.contains(document.activeElement)) return;
+        const region = keyboardFocusRegion(dialog);
+        const controls = focusableDialogControls(region ?? dialog);
+        const firstInvalid = controls.find((control) => control.getAttribute("aria-invalid") === "true");
+        const autofocus = controls.find((control) => control.hasAttribute("autofocus"));
+        (firstInvalid ?? autofocus ?? (region ? controls[0] : null) ?? dialog).focus({ preventScroll: true });
+    }
+
     function keepEditing(dialogEl: HTMLElement): void {
         const state = dismissalGuards.get(dialogEl);
         if (state?.confirmation === null || state === undefined) return;
@@ -424,7 +427,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         else dialogEl.setAttribute("aria-labelledby", previousAriaLabelledBy);
         state.confirmation = null;
         if (previousFocus?.isConnected && dialogEl.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
-        else focusKeyboardDialog(dialogEl);
+        else restoreKeyboardDialogFocus(dialogEl);
     }
 
     function showDismissalConfirmation(dialogEl: HTMLElement, state: DialogDismissalGuardState): void {
@@ -685,7 +688,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
 
         reconcileDialogDismissal(target);
         syncDialogState();
-        initializeKeyboardDialogs(target);
+        initializeDismissalGuards(target);
         if (getMountedDialog(target) === null) {
             activeGuardTracker = null;
             activeGuardFormId = null;
@@ -700,7 +703,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
 
         reconcileDialogDismissal(target);
         syncDialogState();
-        initializeKeyboardDialogs(target);
+        initializeDismissalGuards(target);
         if (getMountedDialog(target) === null) {
             activeGuardTracker = null;
             activeGuardFormId = null;
@@ -733,6 +736,6 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (mountEl !== null) reconcileDialogDismissal(mountEl);
         syncDialogState();
         const target = detailTarget(event, "target");
-        if (target instanceof HTMLElement || target instanceof Document) initializeKeyboardDialogs(target);
+        if (target instanceof HTMLElement || target instanceof Document) initializeDismissalGuards(target);
     });
 })();

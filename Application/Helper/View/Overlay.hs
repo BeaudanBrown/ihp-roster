@@ -190,6 +190,7 @@ renderDialogOverlayWithOptions :: [(Text, Text)] -> [(Text, Text)] -> Bool -> Di
 renderDialogOverlayWithOptions mountAttrs closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass, dialogOverlayDismissalGuard } = [hsx|
     <div class="modal fade show d-block"
          {...dialogMountAttrs <> mountAttrs <> maybe [] dialogDismissalGuardAttrs dialogOverlayDismissalGuard <> if keyboardEnabled then dialogKeyboardAttrs else []}
+          autofocus={not keyboardEnabled}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -213,6 +214,7 @@ renderDialogOverlayBodyOnly :: Text -> Text -> Html -> Html
 renderDialogOverlayBodyOnly ariaLabel dialogOverlayDialogClass dialogOverlayBody = [hsx|
     <div class="modal fade show d-block"
          {...dialogMountAttrs}
+         autofocus="autofocus"
          tabindex="-1"
          role="dialog"
          aria-modal="true"
