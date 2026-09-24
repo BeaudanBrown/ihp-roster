@@ -36,10 +36,11 @@ async function loginWorker(page: Page) {
 
 async function showApprovedTimesheets(page: Page) {
     await openTimesheetSettings(page);
-    const showApproved = page.locator('label', { hasText: 'Show approved' });
-    if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
-        await showApproved.click();
+    const showApproved = page.getByRole('switch', { name: 'Show approved', exact: true });
+    if (!(await showApproved.isChecked())) {
+        await page.locator('label', { hasText: 'Show approved' }).click();
     }
+    await expect(showApproved).toBeChecked();
 }
 
 async function loginAndOpenRoster(page: Page) {

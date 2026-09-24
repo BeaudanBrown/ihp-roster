@@ -246,10 +246,11 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const showApproved = page.getByRole('switch', { name: 'Show approved' });
+        const showApproved = page.getByRole('switch', { name: 'Show approved', exact: true });
         if (await showApproved.isChecked()) {
             await showApproved.locator('..').click();
         }
+        await expect(showApproved).not.toBeChecked();
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
 
         await page.locator('[data-timesheet-day-add="true"]').first().click();

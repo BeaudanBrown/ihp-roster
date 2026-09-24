@@ -506,6 +506,7 @@ test.describe('Mobile experience smoke', () => {
         const closeTimesheetTools = page.getByRole('button', { name: 'Close Timesheet tools' });
         if (await closeTimesheetTools.isVisible()) await closeTimesheetTools.click();
 
+        await page.keyboard.press('Escape');
         const beforeWeekScroll = await setScroll();
         const previousAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
         await page.locator('.app-week-nav-group').getByRole('link', { name: '>' }).click();
@@ -526,6 +527,13 @@ test.describe('Mobile experience smoke', () => {
     test(timesheetMobileActionsTitle, async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        await openTimesheetSettings(page);
+        const showApproved = page.getByRole('switch', { name: 'Show approved', exact: true });
+        if (!(await showApproved.isChecked())) {
+            await showApproved.locator('..').click();
+        }
+        await expect(showApproved).toBeChecked();
+        await page.keyboard.press('Escape');
 
         const approvedEntry = page.locator('[data-timesheet-entry-approved="true"]').first();
         const pendingEntry = page.locator('[data-timesheet-entry-approved="false"]').first();

@@ -186,7 +186,7 @@ test.describe('Generated toggle capability', () => {
         const scopeWindowStart = mountConfig.scopeKey.split(':')[2];
         expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('anchorDate') === scopeWindowStart)).toBe(true);
         await openTimesheetSettings(page);
-        let showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
+        const showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
         await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
 
         let requestPromise = page.waitForRequest((request) =>
@@ -200,7 +200,6 @@ test.describe('Generated toggle capability', () => {
         await toggleResponse?.finished();
         await page.reload();
         await openTimesheetSettings(page);
-        showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
         await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
 
         requestPromise = page.waitForRequest((request) =>

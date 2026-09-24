@@ -40,7 +40,7 @@ export async function openTimesheetSettings(page: Page) {
         await shelfToggle.click();
         await expect(shelfToggle).toHaveAttribute('aria-expanded', 'true');
     }
-    const settingsTab = page.getByRole('tab', { name: 'Settings' });
+    const settingsTab = page.getByRole('tab', { name: 'Settings', includeHidden: true });
     if (!(await settingsTab.isVisible())) {
         const mobilePanelToggle = page.getByRole('button', { name: 'Open Timesheet tools' });
         if (await mobilePanelToggle.isVisible()) await mobilePanelToggle.click();
