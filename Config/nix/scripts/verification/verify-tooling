@@ -60,6 +60,7 @@ check node --test scripts/architecture/query.test.mjs
 check node --test scripts/architecture/whole-graph.test.mjs
 check e2e-typecheck-test
 check node --test scripts/playwright-cache-isolation.test.mjs
+check python3 scripts/libreoffice-recalculate.test.py
 check node --test scripts/architecture/email-transport.test.mjs
 check node --test scripts/architecture/fixture-reset-manifest.test.mjs
 check stripe-sandbox-contract-parity --self-test

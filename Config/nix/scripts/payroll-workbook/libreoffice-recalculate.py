@@ -56,7 +56,11 @@ def unused_tcp_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def connect_to_office(port: int):
+OPERATION_TIMEOUT_SECONDS = 30
+
+
+def connect_to_office(office: subprocess.Popen[str], port: int, deadline: float,
+                      deadline_exceeded: threading.Event):
     local_context = uno.getComponentContext()
     resolver = local_context.ServiceManager.createInstanceWithContext(
         "com.sun.star.bridge.UnoUrlResolver", local_context
@@ -65,13 +69,32 @@ def connect_to_office(port: int):
         f"uno:socket,host=127.0.0.1,port={port};urp;StarOffice.ComponentContext"
     )
     last_error: Exception | None = None
-    for _ in range(100):
+    attempts = 0
+
+    def startup_failure(reason: str) -> NoReturn:
+        elapsed = time.monotonic() - (deadline - OPERATION_TIMEOUT_SECONDS)
+        fail(f"could not connect to isolated LibreOffice: {reason}; "
+             f"elapsed={elapsed:.3f}s attempts={attempts} child_exit={office.poll()}; "
+             f"last_error={last_error}")
+
+    while True:
+        if deadline_exceeded.is_set() or time.monotonic() >= deadline:
+            startup_failure("30 second safety deadline exceeded")
+        if office.poll() is not None:
+            startup_failure("process exited before readiness")
         try:
-            return resolver.resolve(connection)
+            attempts += 1
+            context = resolver.resolve(connection)
         except Exception as exception:  # UNO raises generated exception classes
             last_error = exception
-            time.sleep(0.05)
-    fail(f"could not connect to isolated LibreOffice: {last_error}")
+        else:
+            # A blocking resolver can return after the watchdog has fired.
+            if deadline_exceeded.is_set() or time.monotonic() >= deadline:
+                startup_failure("30 second safety deadline exceeded")
+            if office.poll() is not None:
+                startup_failure("process exited during readiness")
+            return context
+        deadline_exceeded.wait(min(0.05, max(0, deadline - time.monotonic())))
 
 
 def parse_expectations(arguments: list[str]) -> list[tuple[str, str, float]]:
@@ -152,6 +175,7 @@ def main() -> None:
         office_environment = {**os.environ, "HOME": str(home_path)}
         office_environment.pop("UNO_PATH", None)
         office_environment.pop("URE_BOOTSTRAP", None)
+        deadline = time.monotonic() + OPERATION_TIMEOUT_SECONDS
         office = subprocess.Popen(
             [
                 "libreoffice",
@@ -174,7 +198,7 @@ def main() -> None:
         deadline_exceeded = threading.Event()
 
         def enforce_deadline() -> None:
-            if not watchdog_finished.wait(timeout=30):
+            if not watchdog_finished.wait(timeout=max(0, deadline - time.monotonic())):
                 deadline_exceeded.set()
                 print("libreoffice-recalculate: exceeded 30 second safety deadline", file=sys.stderr, flush=True)
                 stop_office(office)
@@ -186,7 +210,7 @@ def main() -> None:
         reopened_document: Any | None = None
         try:
             print("libreoffice-recalculate: connecting", file=sys.stderr, flush=True)
-            context = connect_to_office(port)
+            context = connect_to_office(office, port, deadline, deadline_exceeded)
             if deadline_exceeded.is_set():
                 fail("LibreOffice exceeded the 30 second safety deadline")
             desktop = context.ServiceManager.createInstanceWithContext(
