@@ -61,7 +61,7 @@ import Web.RosterWeeks.ShiftWorkflow (RosterShiftDialogSubmission (..),
                                       applyValidatedRosterShift,
                                       validateRosterShiftDialogSubmission)
 import Web.Routes
-import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
+import Web.Timesheets.Projection (fetchTimesheetRosterPrefillForRosterSlot)
 import Web.Types
 import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..), rosterShiftDialogValuesFromSlot)
 
@@ -914,7 +914,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 beforeFill <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                beforeFill `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
+                beforeFill `responseBodyShouldNotContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow openSlot.id <> "\"")
 
                 dialogResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -949,7 +949,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 afterFill <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                afterFill `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
+                afterFill `responseBodyShouldNotContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow openSlot.id <> "\"")
 
         it "completes only one Published fill from two stale workflow snapshots" $ withContext do
             withCleanDb do
@@ -1401,7 +1401,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> createRecord
                 publishedSuggestion <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        fetchTimesheetSuggestionForRosterSlot suggestionSlot.id
+                        fetchTimesheetRosterPrefillForRosterSlot suggestionSlot.id
                 publishedSuggestion `shouldSatisfy` isJust
 
                 drafted <- toggle "false"
@@ -1413,7 +1413,7 @@ tests = aroundAll withDatabaseTestContext do
                 draftedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
                 draftSuggestion <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        fetchTimesheetSuggestionForRosterSlot suggestionSlot.id
+                        fetchTimesheetRosterPrefillForRosterSlot suggestionSlot.id
                 draftSuggestion `shouldBe` Nothing
 
         it "wires roster duration validation into publication" $ withContext do
@@ -2419,7 +2419,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                timesheetsResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slot.id <> "\"")
+                timesheetsResponse `responseBodyShouldNotContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow slot.id <> "\"")
 
         it "hides draft-roster suggestions while preserving materialized timesheet snapshots" $ withContext do
             withCleanDb do
@@ -2452,11 +2452,11 @@ tests = aroundAll withDatabaseTestContext do
 
                 liveResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow sourceSlot.id <> "\"")
-                liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
+                liveResponse `responseBodyShouldNotContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow sourceSlot.id <> "\"")
+                liveResponse `responseBodyShouldNotContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow pendingSlot.id <> "\"")
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = sourceSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = sourceSlot.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 createResponse `responseStatusShouldBe` status302
                 materializedEntry <- query @TimesheetEntry |> fetchOne
@@ -2468,7 +2468,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                timesheetsResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
+                timesheetsResponse `responseBodyShouldNotContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow pendingSlot.id <> "\"")
                 timesheetsResponse `responseBodyShouldContain` cs (pathTo EditTimesheetEntryAction { timesheetEntryId = materializedEntry.id })
                 unchangedEntry <- fetch materializedEntry.id
                 unchangedEntry.sourceRosterSlotId `shouldBe` Just (unpackId sourceSlot.id)
@@ -2501,7 +2501,7 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = completeSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = completeSlot.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 createResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne

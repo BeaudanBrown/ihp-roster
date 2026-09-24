@@ -1,7 +1,7 @@
 module Web.Timesheets.Responses
     ( requireTimesheetSurfaceContext
-    , respondWithSuggestedTimesheetForm
-    , respondWithTimesheetSuggestionOutcome
+    , respondWithRosterPrefillTimesheetForm
+    , respondWithTimesheetRosterPrefillOutcome
     , respondWithTimesheetReviewOutcome
     , requireTimesheetCalendarResult
     , requireCurrentTimesheetCalendar
@@ -10,6 +10,7 @@ module Web.Timesheets.Responses
     , requireTimesheetMutationContext
     , markStaleTimesheetCalendarResponseForRefresh
     , respondWithNewTimesheetForm
+    , respondWithTimesheetChooser
     , respondWithEditTimesheetForm
     , respondWithTimesheetCreateOutcome
     , respondWithTimesheetEditOutcome
@@ -55,8 +56,10 @@ import Web.Timesheets.Projection
 import Web.Timesheets.Validation (TimesheetCalendarConflict (..))
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.Index
+import Web.View.Timesheets.Chooser (TimesheetChooserView (..),
+                                    renderTimesheetChooserDialog)
 import Web.View.Timesheets.New
-import Web.View.Timesheets.SuggestedNew
+import Web.View.Timesheets.RosterPrefillNew
 
 requireTimesheetCalendarResult :: (?respond :: Respond, ?context :: ControllerContext, ?request :: Request) => Either TimesheetCalendarConflict value -> IO value
 requireTimesheetCalendarResult = \case
@@ -106,37 +109,32 @@ requireTimesheetSurfaceContext state = do
     timesheetFilters <- canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
     pure TimesheetRequestContext { .. }
 
-respondWithSuggestedTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe UUID -> TimesheetSuggestionFormOutcome -> IO ResponseReceived
-respondWithSuggestedTimesheetForm selectedStaffFilterId = \case
-    SuggestedTimesheetMissing -> do
+respondWithRosterPrefillTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Maybe UUID -> TimesheetRosterPrefillFormOutcome -> IO ResponseReceived
+respondWithRosterPrefillTimesheetForm selectedStaffFilterId = \case
+    RosterPrefillTimesheetMissing -> do
         windowStart <- windowStartFromParamOrCurrent
-        setErrorMessage "That rostered shift is no longer available as a timesheet suggestion."
+        setErrorMessage "That rostered shift is no longer available for Timesheet prefill."
         redirectToPath (timesheetWindowUrl windowStart selectedStaffFilterId)
-    SuggestedTimesheetCanonicalRedirect path -> redirectToPath path
-    SuggestedTimesheetTimingUnavailable workedOn -> respondWithNewTimesheetForm workedOn selectedStaffFilterId (Left TimesheetTimingUnavailable)
-    SuggestedTimesheetForm model -> respondSuggestedTimesheetDialog model
+    RosterPrefillTimesheetCanonicalRedirect path -> redirectToPath path
+    RosterPrefillTimesheetTimingUnavailable workedOn -> respondWithNewTimesheetForm workedOn selectedStaffFilterId (Left TimesheetTimingUnavailable)
+    RosterPrefillTimesheetForm model -> respondRosterPrefillTimesheetDialog model
 
-respondSuggestedTimesheetDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => SuggestedTimesheetRenderModel -> IO ResponseReceived
-respondSuggestedTimesheetDialog suggestedTimesheetRenderModel =
+respondRosterPrefillTimesheetDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterPrefillTimesheetRenderModel -> IO ResponseReceived
+respondRosterPrefillTimesheetDialog rosterPrefillTimesheetRenderModel =
     if isHtmxRequest
-        then respondHtml (renderSuggestedTimesheetDialog suggestedTimesheetRenderModel)
-        else render SuggestedNewView { .. }
+        then respondHtml (renderRosterPrefillTimesheetDialog rosterPrefillTimesheetRenderModel)
+        else render RosterPrefillNewView { .. }
 
-respondWithTimesheetSuggestionOutcome :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => TimesheetRequestContext -> TimesheetSuggestionOutcome -> IO ResponseReceived
-respondWithTimesheetSuggestionOutcome context = \case
-    SuggestionUnavailable -> reject "That rostered shift is no longer available as a timesheet suggestion."
-    SuggestionTimingUnavailable -> respondWithNewTimesheetForm context.timesheetScope.timesheetWindowStart context.timesheetFilters.filterStaffId (Left TimesheetTimingUnavailable)
-    SuggestionInvalid model -> respondSuggestedTimesheetDialog model
-    SuggestionAccessDenied -> buildAccessDeniedResponse >>= respondAndStop
-    SuggestionCalendarConflict conflict -> requireTimesheetCalendarResult (Left conflict)
-    SuggestionChanged intent -> reject case intent of
-        CreateSuggestedTimesheet -> "That rostered shift changed before the timesheet entry was created. Review the current suggestion and try again."
-        ApproveSuggestedTimesheet -> "That rostered shift changed before the timesheet entry was approved. Review the current suggestion and try again."
-    SuggestionApprovalFailed failure -> reject (appErrorSafeMessage failure)
-    SuggestionCompleted intent _ result ->
-        respondWithTimesheetCompletion context result (case intent of
-            CreateSuggestedTimesheet  -> "Rostered timesheet entry created"
-            ApproveSuggestedTimesheet -> "Rostered timesheet entry approved") True
+respondWithTimesheetRosterPrefillOutcome :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => TimesheetRequestContext -> TimesheetRosterPrefillOutcome -> IO ResponseReceived
+respondWithTimesheetRosterPrefillOutcome context = \case
+    RosterPrefillUnavailable -> reject "That rostered shift is no longer available for Timesheet prefill."
+    RosterPrefillTimingUnavailable -> respondWithNewTimesheetForm context.timesheetScope.timesheetWindowStart context.timesheetFilters.filterStaffId (Left TimesheetTimingUnavailable)
+    RosterPrefillInvalid model -> respondRosterPrefillTimesheetDialog model
+    RosterPrefillAccessDenied -> buildAccessDeniedResponse >>= respondAndStop
+    RosterPrefillCalendarConflict conflict -> requireTimesheetCalendarResult (Left conflict)
+    RosterPrefillChanged -> reject "That rostered shift changed before the Timesheet entry was created. Review the current prefill and try again."
+    RosterPrefillCompleted _ result ->
+        respondWithTimesheetCompletion context result "Rostered Timesheet entry created" True
   where
     reject message = do
         setErrorMessage message
@@ -153,6 +151,15 @@ respondWithTimesheetReviewOutcome context = \case
         respondWithTimesheetCompletion context result (case intent of
             ApproveTimesheet   -> "Timesheet entry approved"
             UnapproveTimesheet -> "Timesheet entry unapproved") False
+
+respondWithTimesheetChooser :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> TimesheetChooserOutcome -> IO ResponseReceived
+respondWithTimesheetChooser windowStart selectedStaffFilterId = \case
+    TimesheetChooserBlocked blocker -> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Left blocker)
+    TimesheetChooserDirectBlank model -> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Right model)
+    TimesheetChooserRequired timesheetChooserRenderModel ->
+        if isHtmxRequest
+            then respondHtml (renderTimesheetChooserDialog timesheetChooserRenderModel)
+            else render TimesheetChooserView { .. }
 
 respondWithNewTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> Maybe UUID -> Either TimesheetCreationBlocker NewTimesheetRenderModel -> IO ResponseReceived
 respondWithNewTimesheetForm windowStart selectedStaffFilterId = \case

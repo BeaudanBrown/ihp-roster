@@ -2,8 +2,7 @@ module Web.Timesheets.Mutations
     ( TimesheetMaterializationKind (..)
     , approveTimesheetEntryMutation
     , createTimesheetEntryMutation
-    , materializeAndApproveTimesheetSuggestionMutation
-    , materializeTimesheetSuggestionMutation
+    , materializeTimesheetRosterPrefillMutation
     , deleteTimesheetEntryMutation
     , timesheetEntryTouchedResourcesForScopes
     , unapproveTimesheetEntryMutation
@@ -34,8 +33,8 @@ import Web.SurfaceInvalidation (withDurableLiveMutation,
                                 withDurableLiveMutationOutcome)
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue,
                                        timesheetWeekScopeMatchesConfig)
-import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
-import Web.Timesheets.Suggestion (TimesheetSuggestion (..))
+import Web.Timesheets.Projection (fetchTimesheetRosterPrefillForRosterSlot)
+import Web.Timesheets.RosterPrefill (TimesheetRosterPrefill (..))
 import Web.Timesheets.Validation (TimesheetCalendarConflict (..),
                                   TimesheetEditIntent, originalTimesheetEntry,
                                   resetApprovalOnEdit, submittedTimesheetEntry,
@@ -63,12 +62,12 @@ data TimesheetMaterializationKind = NewTimesheetSnapshot | ExistingTimesheetSnap
 materializationKind :: Bool -> TimesheetMaterializationKind
 materializationKind wasCreated = if wasCreated then NewTimesheetSnapshot else ExistingTimesheetSnapshot
 
-materializeTimesheetSuggestionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry)))
-materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
+materializeTimesheetRosterPrefillMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetRosterPrefill -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry)))
+materializeTimesheetRosterPrefillMutation scope expectedPrefill timesheetEntry =
     Exception.try @TimesheetCalendarConflict $ fmap (fmap (\(_, kind, result) -> (kind, result))) $
         withDurableLiveMutationOutcome publicationFor $
             withTimesheetCalendarMutationLock scope do
-                materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry >>= \case
+                materializeTimesheetRosterPrefillInCurrentTransaction expectedPrefill timesheetEntry >>= \case
                     Nothing -> pure Nothing
                     Just (materializedEntry, wasCreated) -> do
                         result <- timesheetCreationResult materializedEntry
@@ -77,45 +76,32 @@ materializeTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry =
   where
     publicationFor = fmap (\(label, _, result) -> (label, result.liveMutationTouchedResources))
 
-materializeAndApproveTimesheetSuggestionMutation :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetSuggestion -> TimesheetEntry -> IO (Either TimesheetCalendarConflict (AppResult (Maybe (TimesheetMaterializationKind, LiveMutationResult TimesheetEntry))))
-materializeAndApproveTimesheetSuggestionMutation scope expectedSuggestion timesheetEntry = Exception.try @TimesheetCalendarConflict do
-    approval <- Exception.try @TimesheetApprovalRollback $
-        withDurableLiveMutationOutcome publicationFor $
-            withTimesheetCalendarMutationLock scope do
-                materialization <- materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry
-                case materialization of
-                    Nothing -> pure Nothing
-                    Just (materializedEntry, wasCreated) -> do
-                        approvedEntry <- approveTimesheetEntryInCurrentTransaction materializedEntry
-                        venueConfig <- fetchVenueConfig
-                        activeScopes <- activeTimesheetWindowScopes
-                        pure (Just (materializationKind wasCreated, liveMutationResult approvedEntry (timesheetEntryTouchedResourcesForScopes venueConfig activeScopes [approvedEntry])))
-    pure case approval of
-        Left (TimesheetApprovalRollback appError) -> Left appError
-        Right mutationResult                      -> Right mutationResult
-  where
-    publicationFor = fmap (\(_, result) -> ("timesheet.suggestion.approve", result.liveMutationTouchedResources))
-
-materializeTimesheetSuggestionInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetSuggestion -> TimesheetEntry -> IO (Maybe (TimesheetEntry, Bool))
-materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetEntry = do
-    let rosterSlotId = unpackId expectedSuggestion.suggestionRosterSlotId
+materializeTimesheetRosterPrefillInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRosterPrefill -> TimesheetEntry -> IO (Maybe (TimesheetEntry, Bool))
+materializeTimesheetRosterPrefillInCurrentTransaction expectedPrefill timesheetEntry = do
+    let rosterSlotId = unpackId expectedPrefill.prefillRosterSlotId
     lockRosterSlot rosterSlotId
     existingEntry <- fetchActiveEntryForRosterSlot rosterSlotId
     case existingEntry of
         Just existingEntry
-            | existingEntry.staffId == expectedSuggestion.suggestionStaffId
-                && existingEntry.operationalDate == expectedSuggestion.suggestionOperationalDate
-                && existingEntry.startsAt == authoritativeStartsAt expectedSuggestion.suggestionBoundaries
-                && existingEntry.endsAt == authoritativeEndsAt expectedSuggestion.suggestionBoundaries
-                && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries
-                && existingEntry.rosterGroupId == Just expectedSuggestion.suggestionRosterGroupId
-                && existingEntry.rosterGroupClassification == InRosterGroup ->
+            | existingEntry.venueId == timesheetEntry.venueId
+                && existingEntry.staffId == timesheetEntry.staffId
+                && existingEntry.shiftTypeId == timesheetEntry.shiftTypeId
+                && existingEntry.operationalDate == timesheetEntry.operationalDate
+                && existingEntry.startsAt == timesheetEntry.startsAt
+                && existingEntry.endsAt == timesheetEntry.endsAt
+                && existingEntry.breakStartsAt == timesheetEntry.breakStartsAt
+                && existingEntry.breakEndsAt == timesheetEntry.breakEndsAt
+                && existingEntry.timezone == timesheetEntry.timezone
+                && existingEntry.staffComment == timesheetEntry.staffComment
+                && existingEntry.managerNote == timesheetEntry.managerNote
+                && existingEntry.rosterGroupId == timesheetEntry.rosterGroupId
+                && existingEntry.rosterGroupClassification == timesheetEntry.rosterGroupClassification ->
                 pure (Just (existingEntry, False))
             | otherwise -> pure Nothing
         Nothing -> do
             targetAllowed <- timesheetTargetAllowsCreation timesheetEntry
-            currentSuggestion <- fetchTimesheetSuggestionForRosterSlot expectedSuggestion.suggestionRosterSlotId
-            if not targetAllowed || currentSuggestion /= Just expectedSuggestion
+            currentPrefill <- fetchTimesheetRosterPrefillForRosterSlot expectedPrefill.prefillRosterSlotId
+            if not targetAllowed || currentPrefill /= Just expectedPrefill
                 then pure Nothing
                 else Just . (, True) <$> createTimesheetEntryWithVersion timesheetEntry
 

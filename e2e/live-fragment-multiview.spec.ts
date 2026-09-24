@@ -291,7 +291,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerContext.close();
     });
 
-    test('roster suggestion cards materialize once and update another timesheet viewer live', async ({ browser }) => {
+    test('roster-prefill chooser materializes once and updates another timesheet viewer live', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -388,32 +388,27 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(actorPage, '/Timesheets', '#timesheet-week-shell');
         await gotoWhenReady(viewerPage, '/Timesheets', '#timesheet-week-shell');
 
-        const actorSuggestion = actorPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
-        const viewerSuggestion = viewerPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
-        await expect(actorSuggestion).toHaveCount(1);
-        await expect(actorSuggestion).toHaveClass(/timesheet-entry-card/);
-        await expect(actorSuggestion).toHaveCSS('opacity', '1');
-        await expect(actorSuggestion).toHaveCSS('border-top-width', '2px');
-        await expect(actorSuggestion).toHaveCSS('cursor', 'pointer');
-        await expect(actorSuggestion).not.toContainText('Rostered');
-        await expect(actorSuggestion).toContainText(renderedRange);
-        await expect(actorSuggestion.locator('.timesheet-shape-bar')).toHaveCount(1);
-        await expect(actorSuggestion.getByRole('button', { name: 'Create', exact: true })).toBeVisible();
-        await expect(actorSuggestion).not.toContainText('Edit first');
-        await expect(viewerSuggestion).toHaveCount(1);
+        await expect(actorPage.locator('.timesheet-prefill-card')).toHaveCount(0);
+        await expect(viewerPage.locator('.timesheet-prefill-card')).toHaveCount(0);
 
-        await actorSuggestion.locator('.timesheet-entry-card-link').click();
-        await expect(actorPage.locator('#timesheet-suggestion-create-form')).toBeVisible();
-        await expect(actorPage.locator('#timesheet-suggestion-create-form select[name="staffId"]')).toHaveCount(0);
+        await actorPage.locator('.timesheet-day-add-bar').first().click();
+        const actorPrefill = actorPage.locator(`.timesheet-prefill-card[data-timesheet-roster-prefill-id="${rosterSlotId}"]`);
+        await expect(actorPrefill).toHaveCount(1);
+        await expect(actorPrefill).toContainText(renderedRange);
+        await expect(actorPrefill.locator('.timesheet-shape-bar')).toHaveCount(1);
+        await expect(actorPrefill.getByRole('link', { name: 'Use this shift', exact: true })).toBeVisible();
+        await expect(actorPrefill).not.toContainText('Approve');
+
+        await actorPrefill.getByRole('link', { name: 'Use this shift', exact: true }).click();
+        await expect(actorPage.locator('#timesheet-roster-prefill-create-form')).toBeVisible();
+        await expect(actorPage.locator('#timesheet-roster-prefill-create-form select[name="staffId"]')).toHaveCount(0);
         await actorPage.getByRole('button', { name: 'Save', exact: true }).click();
 
-        const actorEntry = actorPage.locator('.timesheet-entry-card:not(.timesheet-suggestion-card)').filter({ hasText: renderedRange });
-        const viewerEntry = viewerPage.locator('.timesheet-entry-card:not(.timesheet-suggestion-card)').filter({ hasText: renderedRange });
-        await expect(actorSuggestion).toHaveCount(0);
+        const actorEntry = actorPage.locator('.timesheet-entry-card').filter({ hasText: renderedRange });
+        const viewerEntry = viewerPage.locator('.timesheet-entry-card').filter({ hasText: renderedRange });
         await expect(actorEntry).toHaveCount(1);
         await expect(actorEntry).toHaveCSS('border-top-width', '1px');
         await expect(actorEntry).not.toContainText('Approved');
-        await expect(viewerSuggestion).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
         await expect(viewerEntry).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
 
         runSql(`

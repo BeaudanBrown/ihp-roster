@@ -61,8 +61,7 @@ import Web.Timesheets.Mutations (TimesheetMaterializationKind (..),
                                  approveTimesheetEntryMutation,
                                  createTimesheetEntryMutation,
                                  deleteTimesheetEntryMutation,
-                                 materializeAndApproveTimesheetSuggestionMutation,
-                                 materializeTimesheetSuggestionMutation,
+                                 materializeTimesheetRosterPrefillMutation,
                                  timesheetEntryTouchedResourcesForScopes,
                                  unapproveTimesheetEntryMutation,
                                  updateTimesheetEntryMutation)
@@ -71,11 +70,11 @@ import Web.Timesheets.Projection (TimesheetFormContext (..),
                                   TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
                                   fetchTimesheetFormContext,
-                                  fetchTimesheetSuggestionForRosterSlot,
+                                  fetchTimesheetRosterPrefillForRosterSlot,
                                   noReferencedTimesheetOptions)
 import Web.Timesheets.Responses (requireTimesheetCalendarResult)
-import Web.Timesheets.Suggestion (TimesheetSuggestion (..),
-                                  newTimesheetEntryFromSuggestion)
+import Web.Timesheets.RosterPrefill (TimesheetRosterPrefill (..),
+                                  newTimesheetEntryFromRosterPrefill)
 import Web.Timesheets.Validation (TimesheetCalendarConflict (..),
                                   prepareTimesheetEdit)
 import Web.Types
@@ -298,7 +297,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "hx-sync=\"closest #timesheet-week-shell:replace\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-timesheet-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-hide-approved\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-show-suggestions\""
+                response `responseBodyShouldNotContain` "Show suggestions"
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
                 response `responseBodyShouldNotContain` "Pay preview"
                 response `responseBodyShouldNotContain` "timesheet-wage-preview"
@@ -365,32 +364,16 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders hideResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2025-01-20"
 
-                suggestionResponse <- withUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams ToggleTimesheetShowSuggestionsAction
-                            [("anchorDate", "2025-01-20"), ("rosterCalendarRevision", "1"), ("showTimesheetSuggestions", "false")]
-
-                suggestionResponse `responseStatusShouldBe` status200
-                lookup "HX-Push-Url" (responseHeaders suggestionResponse)
-                    `shouldBe` Nothing
-                suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-week-toolbar\""
-                suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-day-columns\""
-                let preferenceRefreshHeader = cs <$> lookup "HX-Trigger" (responseHeaders suggestionResponse)
-                preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-toolbar\"")
-                preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-columns\"")
-
                 preferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId user.id)
                     |> fetchOne
                 preferences.hideApproved `shouldBe` False
-                preferences.showTimesheetSuggestions `shouldBe` False
 
                 reloaded <- withUserAndCurrentVenue user venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 2)))
                 reloaded `responseStatusShouldBe` status200
                 reloaded `responseBodyShouldContain` "name=\"hideApproved\" value=\"false\""
-                reloaded `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
+                reloaded `responseBodyShouldNotContain` "Show suggestions"
 
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
             withCurrentControllerContext do
@@ -1309,12 +1292,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 initialSuggestions <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        mapM (fetchTimesheetSuggestionForRosterSlot . (.id))
+                        mapM (fetchTimesheetRosterPrefillForRosterSlot . (.id))
                             [eligibleSlot, staffSuppressedSlot, shiftSuppressedSlot, bothSuppressedSlot]
                 map isJust initialSuggestions `shouldBe` [True, False, False, False]
 
                 tamperedMaterialization <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = eligibleSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = eligibleSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam payableStaff.id)
                         , ("shiftTypeId", idToParam rosterOnlyShift.id)
@@ -1328,12 +1311,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 let eligibleSuggestion = fromMaybe (error "expected eligible suggestion") (listToMaybe initialSuggestions >>= \suggestion -> suggestion)
                     tamperedEntry =
-                        newTimesheetEntryFromSuggestion (unpackId venue.id) eligibleSuggestion
+                        newTimesheetEntryFromRosterPrefill (unpackId venue.id) eligibleSuggestion
                             |> set #shiftTypeId (unpackId rosterOnlyShift.id)
                 lockedRevalidation <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
-                        materializeTimesheetSuggestionMutation scope eligibleSuggestion tamperedEntry
+                        materializeTimesheetRosterPrefillMutation scope eligibleSuggestion tamperedEntry
                 lockedRevalidation `shouldBe` Right Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
@@ -1341,7 +1324,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (suppressedStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 restoredSuggestion <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        fetchTimesheetSuggestionForRosterSlot staffSuppressedSlot.id
+                        fetchTimesheetRosterPrefillForRosterSlot staffSuppressedSlot.id
                 restoredSuggestion `shouldSatisfy` isJust
 
         it "rejects tampered manager timesheet creation for trial staff" $ withContext do
@@ -1460,16 +1443,26 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseBodyShouldContain` "Ava Hours"
                 workerResponse `responseBodyShouldNotContain` "Bea Hours"
 
-        it "renders a highlighted roster-derived suggestion without a status badge" $ withContext do
+        it "renders authorized roster-prefill chooser cards without pay or approval controls" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Suggestion Venue"
                 manager <- createUserRecord "timesheet-suggestion-manager@example.com" "staff" True
                 workerUser <- createUserRecord "timesheet-suggestion-worker@example.com" "staff" True
+                otherUser <- createUserRecord "timesheet-chooser-other@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createVenueMembershipRecord venue workerUser Worker
+                _ <- createVenueMembershipRecord venue otherUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Rita" "Rostered"
+                otherStaff <- createStaffRecord venue (Just otherUser) "Zoe" "Other"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- makeStaffTimesheetProducing payLevel worker
+                _ <- makeStaffTimesheetProducing payLevel otherStaff
+                otherGroup <- newRecord @RosterGroup
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Late service"
+                    |> set #sortOrder 20
+                    |> createRecord
+                _ <- createStaffRosterGroupRecord otherStaff otherGroup
                 shiftType <- createShiftTypeRecord venue payLevel "Dinner"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 1
@@ -1482,32 +1475,49 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
+                let chooserParams = [("anchorDate", "2025-01-06"), ("workedOn", "2025-01-07")]
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction chooserParams
                 workerResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction chooserParams
+                forgedDirectResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            (chooserParams <> [("staffFilterId", idToParam otherStaff.id), ("blankClassification", "group:" <> cs (tshow otherGroup.id))])
+                selectedBlankResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ChooseBlankTimesheetEntryAction
+                            (chooserParams <> [("staffFilterId", idToParam otherStaff.id), ("blankClassification", "group:" <> cs (tshow otherGroup.id))])
+                workerBlankResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ChooseBlankTimesheetEntryAction
+                            (chooserParams <> [("staffFilterId", idToParam worker.id), ("blankClassification", "group:" <> cs (tshow rosterDay.rosterGroupId))])
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Choose a Timesheet"
+                response `responseBodyShouldContain` "Other staff shifts"
+                response `responseBodyShouldContain` "Blank timesheet"
                 response `responseBodyShouldContain` "Rita Rostered"
-                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
-                response `responseBodyShouldContain` "class=\"timesheet-entry-card timesheet-suggestion-card\""
-                response `responseBodyShouldNotContain` "<span class=\"badge text-bg-info\">Rostered</span>"
-                response `responseBodyShouldContain` cs (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
-                response `responseBodyShouldContain` cs (pathTo NewTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
-                response `responseBodyShouldContain` "timesheet-entry-card-link"
-                response `responseBodyShouldContain` "data-bepis-dialog-pointer-dismiss-blur=\"true\""
-                response `responseBodyShouldContain` "timesheet-shape-bar"
-                response `responseBodyShouldContain` "timesheet-shape-segment-shift"
-                response `responseBodyShouldContain` "timesheet-shape-segment-break"
-                response `responseBodyShouldContain` ">Approve</button>"
-                response `responseBodyShouldContain` "approveSuggestion=true"
-                response `responseBodyShouldNotContain` ">Create</button>"
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"create-timesheet-entry-from-suggestion\""
-                response `responseBodyShouldNotContain` ">Edit first</a>"
+                response `responseBodyShouldContain` "Zoe Other"
+                response `responseBodyShouldContain` "Late service"
+                response `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow rosterSlot.id <> "\"")
+                response `responseBodyShouldContain` "class=\"timesheet-entry-card timesheet-prefill-card\""
+                response `responseBodyShouldContain` cs (pathTo NewTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id })
+                response `responseBodyShouldContain` ">Use this shift</a>"
+                response `responseBodyShouldNotContain` ">Approve</button>"
+                response `responseBodyShouldNotContain` "Estimated gross wages"
                 workerResponse `responseStatusShouldBe` status200
-                workerResponse `responseBodyShouldContain` ">Create</button>"
-                workerResponse `responseBodyShouldNotContain` "approveSuggestion=true"
-                workerResponse `responseBodyShouldNotContain` ">Approve</button>"
+                workerResponse `responseBodyShouldContain` "Your shifts"
+                workerResponse `responseBodyShouldNotContain` "Other staff shifts"
+                workerResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow rosterSlot.id <> "\"")
+                forgedDirectResponse `responseBodyShouldContain` "Choose a Timesheet"
+                forgedDirectResponse `responseBodyShouldNotContain` "id=\"timesheet-entry-create-form\""
+                selectedBlankResponse `responseBodyShouldContain` "id=\"timesheet-entry-create-form\""
+                selectedBlankResponse `responseBodyShouldContain` cs ("name=\"rosterGroupId\" value=\"" <> tshow otherGroup.id <> "\"")
+                workerBlankResponse `responseBodyShouldContain` "id=\"timesheet-entry-create-form\""
+                workerBlankResponse `responseBodyShouldContain` cs ("name=\"staffId\" value=\"" <> tshow worker.id <> "\"")
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "shows future Published-roster suggestions immediately" $ withContext do
@@ -1521,37 +1531,12 @@ tests = aroundAll withDatabaseTestContext do
                     }
 
                 response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 3)))
-                        [("anchorDate", "2025-01-27"), ("rosterCalendarRevision", "1")]
+                    callActionWithParams NewTimesheetEntryAction
+                        [("anchorDate", "2025-01-27"), ("workedOn", "2025-01-31")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
+                response `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
-
-        it "hides suggestions from the persisted user preference with clean week navigation" $ withContext do
-            withCleanDb do
-                scenario <- createSuggestionScenario SuggestionScenarioPlan
-                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Filter Venue" (Just "timesheet-suggestion-filter-manager@example.com") "timesheet-suggestion-filter-worker@example.com" "Fiona" "Filtered"
-                    , suggestionActor = SuggestionManager
-                    , suggestionEligibility = PreserveStaffPayDefaults
-                    , suggestionApprovalFacts = NoSuggestionApproval
-                    , suggestionRosterFacts = SuggestionRosterFacts "Lunch" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) 360
-                    }
-
-                now <- getCurrentTime
-                _ <- newRecord @UserPreference
-                    |> set #userId (unpackId scenario.scenarioActor.id)
-                    |> set #showTimesheetSuggestions False
-                    |> set #timesheetPreferencesInitializedAt (Just now)
-                    |> createRecord
-                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Show suggestions"
-                response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
-                response `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
-                response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-13\""
 
         it "quick-creates one unapproved snapshot from an authorized roster suggestion" $ withContext do
             withCleanDb do
@@ -1565,7 +1550,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 malformedResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
+                        callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                             [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("hadBreak", "not-a-boolean")
                             ]
@@ -1583,7 +1568,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (membership |> set #deletedAt (Just now))
 
                 response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
@@ -1610,7 +1595,7 @@ tests = aroundAll withDatabaseTestContext do
                     , "rosterSlotId" Aeson..= tshow scenario.scenarioRosterSlot.id
                     ]
 
-        it "quick-approves a manager's roster suggestion atomically" $ withContext do
+        it "ignores the obsolete quick-approval parameter and saves roster prefill unapproved" $ withContext do
             withCleanDb do
                 scenario <- createSuggestionScenario SuggestionScenarioPlan
                     { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Quick Approve Venue" (Just "timesheet-suggestion-quick-approve-manager@example.com") "timesheet-suggestion-quick-approve-worker@example.com" "Quinn" "Approve"
@@ -1621,41 +1606,18 @@ tests = aroundAll withDatabaseTestContext do
                     }
 
                 response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("approveSuggestion", "true")
                         ]
 
                 response `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                entry.isApproved `shouldBe` True
-                entry.approvedByUserId `shouldBe` Just (unpackId scenario.scenarioActor.id)
-                entry.activePayCalculationId `shouldSatisfy` isJust
-                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 2)
-                query @AuditEvent |> filterWhere (#eventType, auditEventTypeText TimesheetApprovedAudit) |> fetchCount >>= (`shouldBe` 1)
-
-        it "rolls back quick suggestion creation when manager approval fails" $ withContext do
-            withCleanDb do
-                scenario <- createSuggestionScenario SuggestionScenarioPlan
-                    { suggestionIdentity = SuggestionIdentity "Timesheet Suggestion Approval Rollback Venue" (Just "timesheet-suggestion-approval-rollback-manager@example.com") "timesheet-suggestion-approval-rollback-worker@example.com" "Rollback" "Approval"
-                    , suggestionActor = SuggestionManager
-                    , suggestionEligibility = EnsureTimesheetProducing
-                    , suggestionApprovalFacts = AwardSuggestionApprovalWithoutSealedFacts
-                    , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 15 15 0) 375
-                    }
-
-                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
-                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
-                        , ("approveSuggestion", "true")
-                        ]
-
-                response `responseStatusShouldBe` status302
-                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
-                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
-                query @TimesheetPayCalculation |> fetchCount >>= (`shouldBe` 0)
+                entry.isApproved `shouldBe` False
+                entry.approvedByUserId `shouldBe` Nothing
+                entry.activePayCalculationId `shouldBe` Nothing
+                query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 1)
                 query @AuditEvent |> filterWhere (#eventType, auditEventTypeText TimesheetApprovedAudit) |> fetchCount >>= (`shouldBe` 0)
-                query @LiveInvalidationEvent |> filterWhere (#source, "timesheet.suggestion.approve") |> fetchCount >>= (`shouldBe` 0)
 
         it "preserves an authoritative repeated occurrence through a roster suggestion" $ withContext do
             withCleanDb do
@@ -1690,13 +1652,13 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("anchorDate", "2026-03-30"), ("rosterCalendarRevision", "1")
                         ]
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
+                    callActionWithParams NewTimesheetEntryAction (surfaceParams <> [("workedOn", cs (tshow rosterDay.operationalDate))])
 
                 suggestionResponse `responseStatusShouldBe` status200
-                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow rosterSlot.id <> "\"")
 
                 createdResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id } surfaceParams
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id } surfaceParams
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
@@ -1739,13 +1701,13 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
+                    callActionWithParams NewTimesheetEntryAction (surfaceParams <> [("workedOn", cs (tshow rosterDay.operationalDate))])
 
                 suggestionResponse `responseStatusShouldBe` status200
-                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow rosterSlot.id <> "\"")
 
                 createdResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id } surfaceParams
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id } surfaceParams
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
@@ -1784,20 +1746,20 @@ tests = aroundAll withDatabaseTestContext do
 
                 autumnSuggestion <- withUserAndCurrentVenue workerUser venue.id do
                     withCurrentControllerContext do
-                        fetchTimesheetSuggestionForRosterSlot autumnSlot.id
+                        fetchTimesheetRosterPrefillForRosterSlot autumnSlot.id
                             >>= maybe (expectationFailure "Expected autumn suggestion" >> error "unreachable") pure
                 springSuggestion <- withUserAndCurrentVenue workerUser venue.id do
                     withCurrentControllerContext do
-                        fetchTimesheetSuggestionForRosterSlot springSlot.id
+                        fetchTimesheetRosterPrefillForRosterSlot springSlot.id
                             >>= maybe (expectationFailure "Expected spring suggestion" >> error "unreachable") pure
 
-                authoritativeElapsedSeconds autumnSuggestion.suggestionBoundaries `shouldBe` 480 * 60
-                authoritativeBreakElapsedSeconds autumnSuggestion.suggestionBoundaries `shouldBe` 30 * 60
-                fmap (.localTimeOfDay) (authoritativeBreakStartLocalTime autumnSuggestion.suggestionBoundaries)
+                authoritativeElapsedSeconds autumnSuggestion.prefillBoundaries `shouldBe` 480 * 60
+                authoritativeBreakElapsedSeconds autumnSuggestion.prefillBoundaries `shouldBe` 30 * 60
+                fmap (.localTimeOfDay) (authoritativeBreakStartLocalTime autumnSuggestion.prefillBoundaries)
                     `shouldBe` Just (TimeOfDay 2 30 0)
-                authoritativeBreakStartOccurrence autumnSuggestion.suggestionBoundaries `shouldBe` Just SecondOccurrence
-                authoritativeElapsedSeconds springSuggestion.suggestionBoundaries `shouldBe` 360 * 60
-                authoritativeBreakStartLocalTime springSuggestion.suggestionBoundaries `shouldBe` Nothing
+                authoritativeBreakStartOccurrence autumnSuggestion.prefillBoundaries `shouldBe` Just SecondOccurrence
+                authoritativeElapsedSeconds springSuggestion.prefillBoundaries `shouldBe` 360 * 60
+                authoritativeBreakStartLocalTime springSuggestion.prefillBoundaries `shouldBe` Nothing
 
         it "keeps a Sunday after-midnight roster suggestion in its source Operational week" $ withContext do
             withCleanDb do
@@ -1822,13 +1784,13 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
+                    callActionWithParams NewTimesheetEntryAction (surfaceParams <> [("workedOn", cs (tshow rosterDay.operationalDate))])
 
                 suggestionResponse `responseStatusShouldBe` status200
-                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow rosterSlot.id <> "\"")
 
                 createdResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id } surfaceParams
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id } surfaceParams
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
@@ -1871,27 +1833,27 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
-                workerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
-                workerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
+                    callActionWithParams NewTimesheetEntryAction
+                        [("anchorDate", "2025-01-06"), ("workedOn", "2025-01-07")]
+                workerResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow slotA.id <> "\"")
+                workerResponse `responseBodyShouldNotContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow slotB.id <> "\"")
 
                 deniedResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = slotB.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 deniedResponse `responseStatusShouldBe` status302
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("staffFilterId", idToParam workerA.id)]
-                managerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
-                managerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
+                    callActionWithParams NewTimesheetEntryAction
+                        [("anchorDate", "2025-01-06"), ("workedOn", "2025-01-07"), ("staffFilterId", idToParam workerA.id)]
+                managerResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow slotA.id <> "\"")
+                managerResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow slotB.id <> "\"")
 
                 -- URL filters limit presentation, not the manager's venue-wide
                 -- Timesheets authority over an otherwise eligible source.
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = slotB.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = slotB.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 createdResponse `responseStatusShouldBe` status302
                 createdEntry <- query @TimesheetEntry |> fetchOne
@@ -1909,11 +1871,11 @@ tests = aroundAll withDatabaseTestContext do
 
                 materializationResult <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withCurrentControllerContext do
-                        suggestion <- fetchTimesheetSuggestionForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
+                        suggestion <- fetchTimesheetRosterPrefillForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
                         _ <- updateRecord (scenario.scenarioRosterSlot |> setTestEndTime (Just (TimeOfDay 18 0 0)) |> setTestDurationMinutes (Just 540))
-                        let entry = newTimesheetEntryFromSuggestion (unpackId scenario.scenarioVenue.id) suggestion
+                        let entry = newTimesheetEntryFromRosterPrefill (unpackId scenario.scenarioVenue.id) suggestion
                         let scope = TimesheetWeekScopeValue (unpackId scenario.scenarioVenue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
-                        materializeTimesheetSuggestionMutation scope suggestion entry
+                        materializeTimesheetRosterPrefillMutation scope suggestion entry
 
                 materializationResult `shouldBe` Right Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
@@ -1930,11 +1892,10 @@ tests = aroundAll withDatabaseTestContext do
                 eventCount <- query @LiveInvalidationEvent |> fetchCount
                 withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withCurrentControllerContext do
-                        suggestion <- fetchTimesheetSuggestionForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected suggestion" >> error "unreachable") pure
-                        let entry = newTimesheetEntryFromSuggestion (unpackId scenario.scenarioVenue.id) suggestion
+                        suggestion <- fetchTimesheetRosterPrefillForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected suggestion" >> error "unreachable") pure
+                        let entry = newTimesheetEntryFromRosterPrefill (unpackId scenario.scenarioVenue.id) suggestion
                         let scope = TimesheetWeekScopeValue (unpackId scenario.scenarioVenue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 0
-                        materializeTimesheetSuggestionMutation scope suggestion entry `shouldReturn` Left TimesheetCalendarChanged
-                        materializeAndApproveTimesheetSuggestionMutation scope suggestion entry `shouldReturn` Left TimesheetCalendarChanged
+                        materializeTimesheetRosterPrefillMutation scope suggestion entry `shouldReturn` Left TimesheetCalendarChanged
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
                 query @TimesheetEntryVersion |> fetchCount >>= (`shouldBe` 0)
                 query @LiveInvalidationEvent |> fetchCount >>= (`shouldBe` eventCount)
@@ -1950,11 +1911,11 @@ tests = aroundAll withDatabaseTestContext do
                     }
                 withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withCurrentControllerContext do
-                        suggestion <- fetchTimesheetSuggestionForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected suggestion" >> error "unreachable") pure
-                        let entry = newTimesheetEntryFromSuggestion (unpackId scenario.scenarioVenue.id) suggestion
+                        suggestion <- fetchTimesheetRosterPrefillForRosterSlot scenario.scenarioRosterSlot.id >>= maybe (expectationFailure "Expected suggestion" >> error "unreachable") pure
+                        let entry = newTimesheetEntryFromRosterPrefill (unpackId scenario.scenarioVenue.id) suggestion
                         let scope = TimesheetWeekScopeValue (unpackId scenario.scenarioVenue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
-                        first <- materializeTimesheetSuggestionMutation scope suggestion entry
-                        repeated <- materializeTimesheetSuggestionMutation scope suggestion entry
+                        first <- materializeTimesheetRosterPrefillMutation scope suggestion entry
+                        repeated <- materializeTimesheetRosterPrefillMutation scope suggestion entry
                         case (first, repeated) of
                             (Right (Just (NewTimesheetSnapshot, created)), Right (Just (ExistingTimesheetSnapshot, existing))) -> do
                                 existing.liveMutationValue.id `shouldBe` created.liveMutationValue.id
@@ -1977,7 +1938,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 results <- runConcurrentActionsImmediately 8 do
                     withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                        callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
+                        callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                             [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 lefts results `shouldSatisfy` null
@@ -2001,7 +1962,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 formResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams NewTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
+                        callActionWithParams NewTimesheetEntryFromRosterShiftAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                             [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 formResponse `responseStatusShouldBe` status200
@@ -2013,7 +1974,7 @@ tests = aroundAll withDatabaseTestContext do
                 formResponse `responseBodyShouldContain` "name=\"endTime\" value=\"17:00\""
 
                 createResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam scenario.scenarioWorker.id)
                         , ("shiftTypeId", idToParam scenario.scenarioShiftType.id)
@@ -2030,7 +1991,7 @@ tests = aroundAll withDatabaseTestContext do
                 testHadBreak entry `shouldBe` False
                 entry.sourceRosterSlotId `shouldBe` Just (unpackId scenario.scenarioRosterSlot.id)
 
-        it "keeps an ad-hoc entry separate without showing an origin warning" $ withContext do
+        it "keeps blank and roster-prefill choices explicit before ad-hoc creation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Ad Hoc Warning Venue"
                 workerUser <- createUserRecord "timesheet-ad-hoc-warning-worker@example.com" "staff" True
@@ -2058,10 +2019,11 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "This creates a separate timesheet entry"
-                response `responseBodyShouldNotContain` "The rostered suggestion will remain"
-                response `responseBodyShouldContain` cs (pathTo CreateTimesheetEntryAction)
-                response `responseBodyShouldNotContain` cs (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id })
+                response `responseBodyShouldContain` "Choose a Timesheet"
+                response `responseBodyShouldContain` "Blank timesheet"
+                response `responseBodyShouldContain` "Your shifts"
+                response `responseBodyShouldContain` cs (pathTo NewTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id })
+                response `responseBodyShouldNotContain` cs (pathTo CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id })
 
                 createResponse <- withUserAndCurrentVenue workerUser venue.id do
                     callActionWithParams CreateTimesheetEntryAction
@@ -2077,9 +2039,9 @@ tests = aroundAll withDatabaseTestContext do
                 adHocEntry.sourceRosterSlotId `shouldBe` Nothing
 
                 refreshedResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
-                refreshedResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
+                    callActionWithParams NewTimesheetEntryAction
+                        [("anchorDate", "2025-01-06"), ("workedOn", "2025-01-07")]
+                refreshedResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow rosterSlot.id <> "\"")
 
         it "restores a suggestion after its linked entry is soft-deleted and preserves both snapshots" $ withContext do
             withCleanDb do
@@ -2113,12 +2075,12 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 suggestionResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
-                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
+                    callActionWithParams NewTimesheetEntryAction
+                        [("anchorDate", "2025-01-06"), ("workedOn", "2025-01-07")]
+                suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow scenario.scenarioRosterSlot.id <> "\"")
 
                 createResponse <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 createResponse `responseStatusShouldBe` status302
@@ -2159,7 +2121,7 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 creationResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = rosterSlot.id }
+                    callActionWithParams CreateTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 creationResponse `responseStatusShouldBe` status302
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
@@ -2269,7 +2231,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Hide approved"
-                response `responseBodyShouldContain` "Show suggestions"
+                response `responseBodyShouldNotContain` "Show suggestions"
                 response `responseBodyShouldContain` "timesheet-side-panel"
                 response `responseBodyShouldContain` "<h2 class=\"h5\">Settings</h2>"
                 response `responseBodyShouldNotContain` "id=\"timesheet-staff-tab\""
@@ -3026,7 +2988,7 @@ data SuggestionRosterFacts = SuggestionRosterFacts
     , suggestionSlotName        :: Text
     , suggestionWeekOffset      :: Int
     , suggestionDayOffset       :: Int
-    , suggestionOperationalDate :: Day
+    , prefillOperationalDate :: Day
     , suggestionStartTime       :: TimeOfDay
     , suggestionEndTime         :: TimeOfDay
     , suggestionDurationMinutes :: Int
@@ -3082,7 +3044,7 @@ createSuggestionScenario plan = do
         >>= updateRecord
             . set #shiftTypeId (Just (unpackId shiftType.id))
             . setTestDurationMinutes (Just rosterFacts.suggestionDurationMinutes)
-            . setTestRosterSlotBoundaries rosterFacts.suggestionOperationalDate rosterFacts.suggestionStartTime rosterFacts.suggestionEndTime
+            . setTestRosterSlotBoundaries rosterFacts.prefillOperationalDate rosterFacts.suggestionStartTime rosterFacts.suggestionEndTime
     actor <- case plan.suggestionActor of
         SuggestionWorker -> pure workerUser
         SuggestionManager -> maybe (error "manager suggestion actor requires a manager") pure manager

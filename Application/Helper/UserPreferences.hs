@@ -18,7 +18,6 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserShowWageEstimates
     , upsertCurrentUserHighlightOwnLiveShifts
     , upsertCurrentUserTimesheetShowApproved
-    , upsertCurrentUserTimesheetShowSuggestions
     , upsertCurrentUserTimesheetWageDisplayMode
     ) where
 
@@ -38,7 +37,6 @@ data UserRosterPreferences = UserRosterPreferences
 
 data UserTimesheetPreferences = UserTimesheetPreferences
     { userTimesheetShowApproved      :: Bool
-    , userTimesheetShowSuggestions   :: Bool
     , userTimesheetWageDisplayMode   :: WageDisplayModeEnum
     }
     deriving (Eq, Show)
@@ -102,7 +100,6 @@ fetchCurrentUserTimesheetPreferences = do
         { -- The deployed column remains inverted for compatibility; positive
           -- Timesheets semantics stop at this storage boundary.
           userTimesheetShowApproved = not preferences.hideApproved
-        , userTimesheetShowSuggestions = preferences.showTimesheetSuggestions
         , userTimesheetWageDisplayMode = preferences.timesheetWageDisplayMode
         }
 
@@ -201,18 +198,6 @@ upsertCurrentUserTimesheetShowApproved showApproved = do
     now <- getCurrentTime
     preferences
         |> set #hideApproved (not showApproved)
-        |> set #timesheetPreferencesInitializedAt (Just now)
-        |> updateRecord
-
-upsertCurrentUserTimesheetShowSuggestions ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
-    IO UserPreference
-upsertCurrentUserTimesheetShowSuggestions showTimesheetSuggestions = do
-    preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
-    now <- getCurrentTime
-    preferences
-        |> set #showTimesheetSuggestions showTimesheetSuggestions
         |> set #timesheetPreferencesInitializedAt (Just now)
         |> updateRecord
 

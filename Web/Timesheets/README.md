@@ -3,17 +3,17 @@
 ## Ownership
 
 `Web/Timesheets/` owns explicit Operational-window paths and authoritative
-projections (including transient roster suggestions), materialization/persistence mutations, validation,
+projections (including transient roster-prefill candidates), materialization/persistence mutations, validation,
 Surface metadata, and actor response helpers. `Web/Controller/Timesheets.hs`
 owns lifecycle/access invocation, staged request adaptation and response selection;
 `Web/View/Timesheets/` owns HSX.
 
 ## Start Here
 
-- `Projection.hs` — persisted-entry and suggestion read model.
-- `Suggestion.hs` — suggestion value and immutable snapshot conversion.
-- `EntryWorkflow.hs` — ordinary and suggested form reads/create/edit, typed
-  suggestion/review outcomes, authorized edit snapshots, and shared canonical
+- `Projection.hs` — persisted-entry and roster-prefill candidate read model.
+- `RosterPrefill.hs` — prefill value and immutable snapshot conversion.
+- `EntryWorkflow.hs` — chooser, ordinary and roster-prefilled form reads/create/edit, typed
+  prefill/review outcomes, authorized edit snapshots, and shared canonical
   request context. Delete uses the already-deep mutation.
 - `Mutations.hs` — persistence, approval-reset decision, provenance, idempotency,
   calendar-lock rollback and invalidation.
@@ -23,9 +23,10 @@ owns lifecycle/access invocation, staged request adaptation and response selecti
 
 Frontend contracts come from the registered Timesheets Surface and shared
 Overlay, Toggle, TimePicker, SidePanel, and linked-highlight capabilities; views
-and TypeScript must not restate them. Show-approved and suggestion visibility are
-global user preferences; authorized manager staff and roster-group filtering
-remain canonical URL state.
+and TypeScript must not restate them. Show-approved is a global user preference;
+authorized manager Staff and roster-group filtering remain canonical URL state.
+The day `+` chooser deliberately ignores those presentation filters while loading
+its complete authorized candidate set.
 
 ## Ordinary Editing And Calendar Outcomes
 
@@ -52,14 +53,21 @@ The response adapter preserves locked conflicts as native 403 or HTMX 409 with
 controllers consume only closed feature outcomes. Approval failures retain their
 own rollback exception.
 
-## Suggestion And Review Operations
+## Roster Prefill, Chooser, And Review Operations
 
-`createSuggestedTimesheetEntry` owns scoped suggestion lookup, optional form
-application, source identity/eligibility checks and the late role-gated decision
-to create or atomically approve. `prepareSuggestedTimesheetForm` retains missing,
+`prepareTimesheetChooser` loads complete authorized candidates for one Operational
+day. It groups own shifts, blank Timesheets, and management-authorized other-Staff
+shifts; active group headings appear when multiple classifications are present.
+It bypasses the chooser only for exactly one blank choice and no roster shift.
+A single roster shift never bypasses source selection. Candidates require a live,
+Published, complete, assigned, Timesheet-eligible, unlinked source slot.
+
+`createRosterPrefillTimesheetEntry` owns scoped roster-prefill lookup, optional form
+application and source identity/eligibility checks before unapproved creation.
+Approval is a separate persisted-entry action. `prepareRosterPrefillTimesheetForm` retains missing,
 canonical-redirect, invalid-timezone and ready-form distinctions. Neither flow
 moves parsing ahead of its former scope/calendar checks. Existing form parsers,
-transient suggestion conversion and focused projections remain authoritative.
+transient roster-prefill conversion and focused projections remain authoritative.
 
 `reviewTimesheetEntry` takes an explicit approve/unapprove intent after the
 controller's manager, writable-venue and entry-scope checks and shared request
@@ -70,10 +78,8 @@ safe errors, native redirects, HTMX actor refresh and dialog-clear choices.
 Materialization retains source-slot locking and revalidation. Its completion
 reports `NewTimesheetSnapshot` or `ExistingTimesheetSnapshot`; this distinction
 does not suppress the existing convergent idempotent publication. A later HTTP
-retry may instead find no eligible suggestion and use the unavailable response.
-Failed atomic approval leaves no newly created entry, version, approval audit,
-pay calculation or outbox event. The approval engine and sealed history are not
-reimplemented by the workflow.
+retry may instead find no eligible roster-prefill candidate and use the unavailable response.
+The prefill workflow does not invoke the approval engine or create sealed pay history.
 
 ## Date-Native Interface
 
@@ -88,6 +94,6 @@ and source retirement does not establish deployment state.
 
 ## Related Docs
 
-- `SPEC.md` — durable suggestion, materialization, approval, and time contracts.
+- `SPEC.md` — durable chooser, roster-prefill, materialization, approval, and time contracts.
 - `AGENTS.md` — local editing rules.
 - `docs/workstreams/record-retention.md` — unresolved protected-record work.

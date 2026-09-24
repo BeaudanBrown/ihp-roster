@@ -8,9 +8,9 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surfa
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
-                                           upsertCurrentUserTimesheetShowSuggestions,
                                            upsertCurrentUserTimesheetWageDisplayMode)
 import Application.VenueTime.Model
+import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Timesheets.EntryWorkflow
 import Web.Timesheets.Filters (TimesheetViewFilters (..),
@@ -27,6 +27,7 @@ import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
                              timesheetWindowUrlWithFilters)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
+import Web.Timesheets.Validation (requireBlankTimesheetClassification)
 import Web.Timesheets.WageEstimates (canConfigureTimesheetWageEstimates)
 import Web.View.Timesheets.Edit (renderTimesheetDeleteConfirmation)
 
@@ -167,20 +168,6 @@ instance Controller TimesheetsController where
                     then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
                     else redirectToPath (timesheetWindowUrl anchorDate filters.filterStaffId)
 
-    action currentAction@ToggleTimesheetShowSuggestionsAction = runBepis currentAction BepisMutationAction do
-        case TimesheetsAction.parseToggleTimesheetShowSuggestionsActionParams of
-            Left errors -> do
-                reportTimesheetSurfaceRequestErrors errors
-                redirectTo TimesheetsAction
-            Right fields -> do
-                let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
-                timesheetScope <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
-                filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
-                upsertCurrentUserTimesheetShowSuggestions (surfaceFieldValue @Surface.ShowTimesheetSuggestions fields)
-                if isHtmxRequest
-                    then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
-                    else redirectToPath (timesheetWindowUrl anchorDate filters.filterStaffId)
-
     action currentAction@ToggleTimesheetWageEstimatesAction = runBepis currentAction BepisMutationAction do
         accessDeniedUnless canConfigureTimesheetWageEstimates
         case TimesheetsAction.parseToggleTimesheetWageEstimatesActionParams of
@@ -222,25 +209,37 @@ instance Controller TimesheetsController where
             earlyReturn $ case maybeWorkedOn of
                 Just workedOn -> redirectToPath (newTimesheetEntryUrl workedOn workedOn selectedStaffFilterId)
                 Nothing       -> redirectToTimesheetWindow windowStart selectedStaffFilterId
-        prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn
-            >>= respondWithNewTimesheetForm windowStart selectedStaffFilterId
+        case maybeWorkedOn of
+            Nothing -> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Left NoTimesheetDay)
+            Just workedOn ->
+                prepareTimesheetChooser selectedStaffFilterId workedOn >>= respondWithTimesheetChooser windowStart selectedStaffFilterId
+
+    action currentAction@ChooseBlankTimesheetEntryAction = runBepis currentAction BepisFormAction do
+        windowStart <- windowStartFromParamOrCurrent
+        workedOn <- maybe (accessDeniedUnless False >> pure windowStart) pure (paramOrNothing @Day "workedOn")
+        requestedStaffId <- maybe (accessDeniedUnless False >> pure UUID.nil) pure (paramOrNothing @UUID "staffFilterId")
+        selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters (Just requestedStaffId) Nothing)
+        classification <- requireBlankTimesheetClassification
+        prepareChosenBlankTimesheetForm requestedStaffId workedOn classification >>= \case
+            Nothing -> accessDeniedUnless False >> respondWithNewTimesheetForm windowStart selectedStaffFilterId (Left NoEnabledTimesheetStaff)
+            Just outcome -> respondWithNewTimesheetForm windowStart selectedStaffFilterId outcome
 
     action currentAction@CreateTimesheetEntryAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         context <- requireTimesheetMutationContext
         createOrdinaryTimesheetEntry context >>= respondWithTimesheetCreateOutcome context
 
-    action currentAction@NewTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisFormAction do
+    action currentAction@NewTimesheetEntryFromRosterShiftAction { rosterSlotId } = runBepis currentAction BepisFormAction do
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters requestedStaffFilterId Nothing)
-        prepareSuggestedTimesheetForm rosterSlotId selectedStaffFilterId (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId)
-            >>= respondWithSuggestedTimesheetForm selectedStaffFilterId
+        prepareRosterPrefillTimesheetForm rosterSlotId selectedStaffFilterId (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId)
+            >>= respondWithRosterPrefillTimesheetForm selectedStaffFilterId
 
-    action currentAction@CreateTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateTimesheetEntryFromRosterShiftAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
-        state <- requireTimesheetSurfaceState parseCreateTimesheetEntryFromSuggestionState
+        state <- requireTimesheetSurfaceState parseCreateTimesheetEntryFromRosterShiftState
         context <- requireTimesheetSurfaceContext state
-        createSuggestedTimesheetEntry context rosterSlotId >>= respondWithTimesheetSuggestionOutcome context
+        createRosterPrefillTimesheetEntry context rosterSlotId >>= respondWithTimesheetRosterPrefillOutcome context
 
     action currentAction@EditTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisFormAction do
         timesheetEntry <- fetchEditableTimesheetEntry timesheetEntryId

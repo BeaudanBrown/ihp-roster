@@ -3,21 +3,18 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , UpdateTimesheetFiltersActionOperation
     , approveTimesheetEntryAction
     , approveTimesheetEntryActionFields
-    , createTimesheetEntryFromSuggestionAction
-    , createTimesheetEntryFromSuggestionActionFields
+    , createTimesheetEntryFromRosterShiftAction
+    , createTimesheetEntryFromRosterShiftActionFields
     , navigateTimesheetWeekAction
     , navigateTimesheetWeekActionFields
     , parseApproveTimesheetEntryActionParams
-    , parseCreateTimesheetEntryFromSuggestionActionParams
+    , parseCreateTimesheetEntryFromRosterShiftActionParams
     , parseToggleTimesheetHideApprovedActionParams
-    , parseToggleTimesheetShowSuggestionsActionParams
     , parseToggleTimesheetWageEstimatesActionParams
     , parseToggleTimesheetManagerModeActionParams
     , parseUnapproveTimesheetEntryActionParams
     , toggleTimesheetHideApprovedAction
     , toggleTimesheetHideApprovedActionFields
-    , toggleTimesheetShowSuggestionsAction
-    , toggleTimesheetShowSuggestionsActionFields
     , toggleTimesheetWageEstimatesAction
     , toggleTimesheetWageEstimatesActionFields
     , ToggleTimesheetManagerModeActionOperation
@@ -33,21 +30,18 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (
                                                                                 UpdateTimesheetFiltersActionOperation,
                                                                                 approveTimesheetEntryAction,
                                                                                 approveTimesheetEntryActionFields,
-                                                                                createTimesheetEntryFromSuggestionAction,
-                                                                                createTimesheetEntryFromSuggestionActionFields,
+                                                                                createTimesheetEntryFromRosterShiftAction,
+                                                                                createTimesheetEntryFromRosterShiftActionFields,
                                                                                 navigateTimesheetWeekAction,
                                                                                 navigateTimesheetWeekActionFields,
                                                                                 parseApproveTimesheetEntryActionParams,
-                                                                                parseCreateTimesheetEntryFromSuggestionActionParams,
+                                                                                parseCreateTimesheetEntryFromRosterShiftActionParams,
                                                                                 parseToggleTimesheetHideApprovedActionParams,
-                                                                                parseToggleTimesheetShowSuggestionsActionParams,
                                                                                 parseToggleTimesheetWageEstimatesActionParams,
                                                                                 parseToggleTimesheetManagerModeActionParams,
                                                                                 parseUnapproveTimesheetEntryActionParams,
                                                                                 toggleTimesheetHideApprovedAction,
                                                                                 toggleTimesheetHideApprovedActionFields,
-                                                                                toggleTimesheetShowSuggestionsAction,
-                                                                                toggleTimesheetShowSuggestionsActionFields,
                                                                                 toggleTimesheetWageEstimatesAction,
                                                                                 toggleTimesheetWageEstimatesActionFields,
                                                                                 ToggleTimesheetManagerModeActionOperation,

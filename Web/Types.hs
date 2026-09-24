@@ -80,13 +80,13 @@ data TimesheetsController
     | ShowTimesheetStaffContentFragmentAction { anchorDate :: !Text }
     | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Text, operationalDate :: !Text }
     | ToggleTimesheetHideApprovedAction
-    | ToggleTimesheetShowSuggestionsAction
     | ToggleTimesheetWageEstimatesAction
     | ToggleTimesheetManagerModeAction
     | NewTimesheetEntryAction
+    | ChooseBlankTimesheetEntryAction
     | CreateTimesheetEntryAction
-    | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
-    | CreateTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
+    | NewTimesheetEntryFromRosterShiftAction { rosterSlotId :: !(Id RosterSlot) }
+    | CreateTimesheetEntryFromRosterShiftAction { rosterSlotId :: !(Id RosterSlot) }
     | EditTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | ShowTimesheetEntryDeleteConfirmationAction { timesheetEntryId :: !(Id TimesheetEntry) }
     | UpdateTimesheetEntryAction { timesheetEntryId :: !(Id TimesheetEntry) }

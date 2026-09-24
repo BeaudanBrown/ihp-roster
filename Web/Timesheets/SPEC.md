@@ -7,8 +7,8 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 ## Terms And Authority
 
 - A **roster shift** is the current roster definition.
-- A **suggestion** is a transient server projection of an eligible roster shift;
-  it is neither persisted nor a status.
+- A **roster-prefill candidate** is a transient server projection of an eligible
+  roster shift shown only in the pre-form chooser; it is neither persisted nor a status.
 - A **Timesheet entry** is the persisted work record used for review, approval,
   export, and payroll.
 - Entries are venue- and staff-scoped. Staff manage their own visible entries;
@@ -44,8 +44,9 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 
 ## Presentation Preferences And Side Panel
 
-- `Show approved` and `Show suggestions` are global per-user preferences and
-  default on when Timesheets preferences are first initialized. The independent
+- `Show approved` is a global per-user preference and defaults on when Timesheets
+  preferences are first initialized. The obsolete suggestion-visibility control
+  is absent. The independent
   estimated-pay display mode defaults Hidden. These preferences do not enter
   Bepis-generated Timesheets URLs, fragment
   requests, or mutation envelopes. The viewed week and authorized manager staff
@@ -59,8 +60,8 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   to their own records without a filter.
   Every entry has an immutable closed roster-group classification: a named
   roster group or explicit No roster group. Selecting one roster group retains
-  only entries classified to that group and transient suggestions from that
-  group. All roster groups includes explicit No roster group entries; there is
+  only entries classified to that group. The pre-form chooser ignores these
+  presentation filters. All roster groups includes explicit No roster group entries; there is
   no separate No roster group filter. Cards render `Shift type - Group` and keep
   archived historical group names available as labels without exposing archived
   groups as filter choices.
@@ -76,26 +77,37 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   desktop focus/Escape behavior, and responsive tools shelf as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
   contains every active Timesheet-eligible staff member independently of card
-  filters. Its counts exclude transient suggestions, ignore the staff card
+  filters. Its counts include persisted entries only, ignore the staff card
   filter, and reflect the selected roster group.
-- Manager row hover/focus highlights matching persisted and suggestion cards;
+- Manager row hover/focus highlights matching persisted entry cards;
   pinning keeps that presentation relationship. Keyboard row activation opens
   the existing staff profile dialog. Highlight and pin state never alter URLs or
   query results.
 
-## Roster Suggestions
+## Grouped Roster-Prefill Chooser
 
-A suggestion exists only while its roster group/week/slot is active and live,
-the shift is complete and explicitly Staff-assigned, linked staff and shift type
-are eligible for Timesheets, and no active entry owns that source slot. Open,
-trial, roster-only, deleted, incomplete, or already-materialized shifts do not
-produce suggestions.
+Clicking a day's `+` loads the complete authorized candidate set for that
+Operational day, independent of current Staff and roster-group presentation
+filters. The chooser renders `Your shifts`, `Blank timesheet`, and, in Manager
+mode where applicable, `Other staff shifts`. Group headings appear when the set
+spans multiple active roster-group classifications. Own shifts order by start and
+end; other shifts order by group, start, Staff name, then stable slot ID.
 
-Suggestions are derived on every projection with no background rows or grace
-period. Their day follows the source Roster day's explicit Operational date,
-independently of the local start calendar date. Windows are venue-wide across
-all active roster groups. Staff see only their own; managers see their normal
-venue scope.
+A roster-prefill candidate exists only while its roster group and day are active,
+the day is Published, the slot is complete and explicitly Staff-assigned, linked
+Staff and shift type are active and Timesheet-eligible, and no active entry owns
+that source slot. Open, trial, roster-only, deleted, incomplete, or already-
+materialized shifts are absent. Candidates are derived on request with no
+background rows or grace period. Their day follows the source Roster day's
+explicit Operational date independently of the local start calendar date. Staff
+see only their own; management sees its normal venue Staff scope.
+
+Blank cards bind both default Staff and immutable classification before opening
+the form. They expose only classification-valid Staff options. The chooser is
+bypassed only when its complete contents are exactly one blank choice and no
+roster shift; one roster shift always retains explicit source selection. Chooser
+cards have `Use this shift` or `Use blank timesheet` actions and no pay or
+approval controls.
 
 ## Materialization And History
 
@@ -114,13 +126,13 @@ venue scope.
   source roster-group classification. Source classification does not depend on
   the assigned Staff member's current group memberships. The partial source-slot
   uniqueness constraint and lock make concurrent retries idempotent.
-- Staff creation and ordinary Save create unapproved entries. Authorized
-  managers may atomically materialize and approve; failed approval rolls back
-  the new entry completely.
+- Staff and manager roster-prefill Save create unapproved entries. Approval is
+  available only as a separate action on the resulting persisted card; chooser
+  and prefill forms never save-and-approve.
 - Roster edits and membership changes never mutate an existing Timesheet
   snapshot. Soft-deleting the entry may make the current source eligible for a
   new snapshot while retaining deleted history. Blank entries remain unrelated
-  to suggestions. A blank entry uses No roster group for zero memberships, its
+  to roster-prefill candidates. A blank entry uses No roster group for zero memberships, its
   sole group for one membership, and requires the pre-form group choice owned by
   the grouped chooser when multiple memberships exist.
 - Staff cannot reassign roster-derived entries. Managers may correct staff in
@@ -139,7 +151,7 @@ venue scope.
 - Visible summaries use shown persisted entries after Staff, roster-group, and
   Show approved filters. All summaries use persisted non-deleted entries in the
   selected week within pay authority and ignore those presentation filters. Day
-  summaries apply the same rules to that day. Suggestions never contribute.
+  summaries apply the same rules to that day. Roster-prefill candidates never contribute.
   Combined mode renders the visible amount followed by the all amount in
   parentheses. Failed calculations are excluded rather than treated as zero;
   visible and overall unavailable counts remain distinct and personal summaries

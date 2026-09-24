@@ -8,9 +8,8 @@ import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowUrl)
 import Web.View.Prelude
 
-data NewTimesheetRenderModel = NewTimesheetRenderModel
-    { timesheetFormInputs       :: TimesheetFormInputs
-    , hasRosterSuggestionForDay :: Bool
+newtype NewTimesheetRenderModel = NewTimesheetRenderModel
+    { timesheetFormInputs :: TimesheetFormInputs
     }
 
 newtype NewView = NewView
@@ -42,13 +41,13 @@ renderNewTimesheetDialog newTimesheetRenderModel =
     operationalDate = timesheetEntryOperationalDate newTimesheetRenderModel.timesheetFormInputs.timesheetEntry
 
 newTimesheetFormRenderModel :: OverlayFormMode -> NewTimesheetRenderModel -> TimesheetFormRenderModel
-newTimesheetFormRenderModel formMode NewTimesheetRenderModel { timesheetFormInputs, hasRosterSuggestionForDay } =
+newTimesheetFormRenderModel formMode NewTimesheetRenderModel { timesheetFormInputs } =
     TimesheetFormRenderModel
         { timesheetFormInputs
         , timesheetFormPresentation =
             TimesheetFormPresentation
                 { appShellAction = appShellActionByMarker @CreateTimesheetEntryOverlay
-                , formOrigin = if hasRosterSuggestionForDay then AdHocTimesheetFormWithSuggestion else AdHocTimesheetForm
+                , formOrigin = AdHocTimesheetForm
                 , actionUrl = pathTo CreateTimesheetEntryAction
                 , formId = newTimesheetFormId
                 , formMode

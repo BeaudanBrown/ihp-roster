@@ -7,23 +7,26 @@
 - Shift duration caps and sanity checks apply (e.g. max duration, break <= shift duration).
 - Fifteen-minute mode reuses the shared modal picker. Minute-precision mode uses an inline native time input, while both persist canonical local wall-clock values as `HH:MM`.
 
-## Roster-derived Timesheet suggestions
+## Roster-derived Timesheet prefill
 
-- Complete eligible shifts on active live rosters are derived immediately as
-  transient **Timesheet suggestions**, including future shifts.
-- Suggestions are not stored rows or statuses. Returning the roster to draft
-  hides them; no elapsed grace period may create an entry.
-- Staff may create their own suggestion. Managers may create suggestions within
-  their normal Timesheet staff scope.
-- Create snapshots current values into one unapproved **Timesheet entry** and
-  records immutable roster-slot provenance. Clicking the highlighted suggestion
-  card opens the same prefilled form shape as an entry; time, break, shift type,
-  and authorized comments may change before creation. After creation, managers
-  may correct staff assignment while the worked date and source link stay fixed.
-- Approval remains a separate manager action.
-- Ad-hoc entries remain valid, unlinked, and do not consume a suggestion.
+- Clicking a Timesheet day's `+` loads a grouped chooser of authorized blank
+  choices and complete eligible shifts from active Published roster groups,
+  including future shifts. Current Staff/group presentation filters do not hide
+  authorized shift candidates.
+- Prefill candidates are transient values, not stored rows or statuses. Returning
+  the roster to Draft removes its shifts from the chooser; no elapsed grace period
+  creates an entry.
+- Staff see only their shifts. Management sees shifts within normal Timesheet
+  Staff authority. A roster shift always requires explicit chooser selection;
+  only one blank choice with no shifts may open its form directly.
+- Save snapshots current values into one unapproved **Timesheet entry** and
+  records immutable roster-slot provenance. Time, break, shift type, and
+  authorized comments may change before creation. Managers may correct Staff
+  only within the immutable source group while worked date and source stay fixed.
+- Approval remains a separate manager action. Ad-hoc entries remain valid,
+  unlinked, and do not consume a similar roster shift.
 - One active linked entry per roster slot is enforced under concurrent requests.
-  Soft-deleting it restores the suggestion without deleting history.
+  Soft-deleting it restores the candidate without deleting history.
 
 ## Timesheet edit windows
 

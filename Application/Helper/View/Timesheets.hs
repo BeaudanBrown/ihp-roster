@@ -51,7 +51,6 @@ data TimesheetDismissalGuardMode
 
 data TimesheetFormOrigin
     = AdHocTimesheetForm
-    | AdHocTimesheetFormWithSuggestion
     | RosteredTimesheetForm
     | RosteredTimesheetEntryForm
     deriving (Eq, Show)
@@ -134,6 +133,8 @@ renderTimesheetFormFields model@TimesheetFormRenderModel
     <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate stateFields} value={surfaceWireText @'WireDay timesheetEntry.operationalDate} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision stateFields} value={tshow calendarRevision} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.StaffFilterId stateFields} value={maybe "" tshow selectedStaffFilterId} />
+    <input type="hidden" name="rosterGroupClassification" value={classificationValue} />
+    <input type="hidden" name="rosterGroupId" value={maybe "" tshow timesheetEntry.rosterGroupId} />
     {renderTimesheetFormOriginNotice formOrigin}
     {renderStaffFieldForOrigin model}
     {renderShiftTypeField timesheetEntry shiftTypes}
@@ -175,7 +176,10 @@ renderTimesheetFormFields model@TimesheetFormRenderModel
                 , timePickerInvalid = invalid
                 }
         stateFields =
-            TimesheetsAction.createTimesheetEntryFromSuggestionActionFields timesheetEntry.operationalDate calendarRevision selectedStaffFilterId
+            TimesheetsAction.createTimesheetEntryFromRosterShiftActionFields timesheetEntry.operationalDate calendarRevision selectedStaffFilterId
+        classificationValue = case timesheetEntry.rosterGroupClassification of
+            InRosterGroup -> "in_roster_group" :: Text
+            NoRosterGroup -> "no_roster_group"
 
 timesheetTimeRenderValues :: TimesheetEntry -> TimesheetTimeRenderValues
 timesheetTimeRenderValues timesheetEntry =
@@ -252,11 +256,10 @@ renderOccurrenceChooser entry annotationField fieldName label localTime storedOc
 
 renderTimesheetFormOriginNotice :: TimesheetFormOrigin -> Html
 renderTimesheetFormOriginNotice AdHocTimesheetForm = mempty
-renderTimesheetFormOriginNotice AdHocTimesheetFormWithSuggestion = mempty
 renderTimesheetFormOriginNotice RosteredTimesheetForm = [hsx|
     <div class="alert alert-info" role="status">
-        <strong>Roster suggestion.</strong>
-        This form starts from the current roster shift. Your changes are saved only to the new timesheet entry.
+        <strong>Rostered shift.</strong>
+        This form is prefilled from the current roster shift. Your changes are saved only to the new Timesheet entry.
     </div>
 |]
 renderTimesheetFormOriginNotice RosteredTimesheetEntryForm = mempty
@@ -268,8 +271,9 @@ renderStaffFieldForOrigin TimesheetFormRenderModel
         } =
     case formOrigin of
         AdHocTimesheetForm               -> renderStaffField inputs
-        AdHocTimesheetFormWithSuggestion -> renderStaffField inputs
-        RosteredTimesheetForm            -> renderRosteredStaffField timesheetEntry staffMembers
+        RosteredTimesheetForm
+            | viewerIsManager -> renderStaffField inputs
+            | otherwise -> renderRosteredStaffField timesheetEntry staffMembers
         RosteredTimesheetEntryForm
             | viewerIsManager -> renderStaffField inputs
             | otherwise -> renderRosteredStaffField timesheetEntry staffMembers

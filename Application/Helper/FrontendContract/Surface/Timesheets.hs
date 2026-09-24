@@ -4,7 +4,6 @@
 module Application.Helper.FrontendContract.Surface.Timesheets
     ( OperationalDate
     , HideApproved
-    , ShowTimesheetSuggestions
     , TimesheetWageDisplayMode
     , ManagerModeEnabled
     , StaffFilterId
@@ -50,12 +49,11 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetToolbar
     , NavigateTimesheetWeek
     , ToggleTimesheetHideApproved
-    , ToggleTimesheetShowSuggestions
     , ToggleTimesheetWageEstimates
     , ToggleTimesheetManagerMode
     , UpdateTimesheetFilters
     , ApproveTimesheetEntry
-    , CreateTimesheetEntryFromSuggestion
+    , CreateTimesheetEntryFromRosterShift
     , UnapproveTimesheetEntry
     , TimesheetWeek
     , TimesheetsMountState
@@ -81,7 +79,6 @@ data RosterCalendarRevision
 
 data TimesheetsMountState
 data HideApproved
-data ShowTimesheetSuggestions
 data TimesheetWageDisplayMode
 data ManagerModeEnabled
 data StaffFilterId
@@ -101,11 +98,10 @@ data TimesheetWeekBoundaryConfig
 data NavigateTimesheetWeek
 data UpdateTimesheetFilters
 data ToggleTimesheetHideApproved
-data ToggleTimesheetShowSuggestions
 data ToggleTimesheetWageEstimates
 data ToggleTimesheetManagerMode
 data ApproveTimesheetEntry
-data CreateTimesheetEntryFromSuggestion
+data CreateTimesheetEntryFromRosterShift
 data UnapproveTimesheetEntry
 data TimesheetWeekShell
 
@@ -199,17 +195,6 @@ type TimesheetActionBundle =
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
-     , Action ToggleTimesheetShowSuggestions
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , Field ShowTimesheetSuggestions 'WireBool
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
-        '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap 'HtmxNoSwap
-         , 'HtmxPushUrl 'HtmxPushUrlFalse
-         ]
      , Action ToggleTimesheetWageEstimates
         '[ Field AnchorDate 'WireDay
          , Field RosterCalendarRevision 'WireInt
@@ -229,7 +214,7 @@ type TimesheetActionBundle =
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
-     , Action CreateTimesheetEntryFromSuggestion
+     , Action CreateTimesheetEntryFromRosterShift
         '[ Field AnchorDate 'WireDay
          , Field RosterCalendarRevision 'WireInt
          , OptionalField StaffFilterId 'WireUUID

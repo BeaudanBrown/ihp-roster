@@ -592,8 +592,8 @@ instance Controller RosterWeeksController where
                     Right mutationResult -> do
                         let successMessage =
                                 if nextLiveStatus
-                                    then "Roster window Published. Timesheet suggestions are available immediately."
-                                    else "Roster window returned to Draft. Timesheet suggestions are hidden."
+                                    then "Roster window Published. Eligible shifts are available in the Timesheet chooser immediately."
+                                    else "Roster window returned to Draft. Its shifts are removed from the Timesheet chooser."
                         if isHtmxRequest
                             then do
                                 setHtmxPushUrl targetPath

@@ -24,8 +24,8 @@ state machines.
   assignment state.
 - **Roster template** is a reusable detached roster-group Week snapshot with one
   plan per calendar weekday and no separate authoring lifecycle.
-- **Timesheet suggestion** is a transient read model derived from an eligible
-  published shift. It is not stored and is not a Timesheet status.
+- **Timesheet roster-prefill candidate** is a transient chooser value derived
+  from an eligible Published shift. It is not stored and is not a Timesheet status.
 - **Timesheet entry** is a worker time record which may retain immutable roster
   provenance. Approval seals authoritative pay facts; later correction must not
   erase business history.

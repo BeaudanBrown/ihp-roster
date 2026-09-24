@@ -3,6 +3,7 @@ module Web.Timesheets.RosterGroupClassification
     , applyTimesheetRosterGroupClassification
     , resolveTimesheetRosterGroupForStaff
     , staffMatchesTimesheetRosterGroup
+    , validTimesheetRosterGroupClassificationsForStaff
     , timesheetRosterGroupClassification
     ) where
 
@@ -13,7 +14,7 @@ import Web.Controller.Prelude
 data TimesheetRosterGroupClassification
     = TimesheetInRosterGroup !UUID
     | TimesheetNoRosterGroup
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
 
 timesheetRosterGroupClassification :: TimesheetEntry -> TimesheetRosterGroupClassification
 timesheetRosterGroupClassification entry = case (entry.rosterGroupClassification, entry.rosterGroupId) of
@@ -40,6 +41,13 @@ resolveTimesheetRosterGroupForStaff venueId staffId = do
         [] -> Just TimesheetNoRosterGroup
         [groupId] -> Just (TimesheetInRosterGroup groupId)
         _ -> Nothing
+
+validTimesheetRosterGroupClassificationsForStaff :: (?modelContext :: ModelContext) => UUID -> UUID -> IO [TimesheetRosterGroupClassification]
+validTimesheetRosterGroupClassificationsForStaff venueId staffId = do
+    groupIds <- activeRosterGroupIdsForStaff venueId staffId
+    pure case groupIds of
+        [] -> [TimesheetNoRosterGroup]
+        _ -> map TimesheetInRosterGroup groupIds
 
 staffMatchesTimesheetRosterGroup :: (?modelContext :: ModelContext) => UUID -> UUID -> TimesheetRosterGroupClassification -> IO Bool
 staffMatchesTimesheetRosterGroup venueId staffId classification = do

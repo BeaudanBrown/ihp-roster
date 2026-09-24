@@ -35,8 +35,8 @@ This document retains cross-module scheduling and state-transition rules.
   the effective user's Staff identity and venue role; founder authority does not
   bypass them. Staff cannot edit unpublished weeks and must not see draft detail
   behind the mounted placeholder.
-- Publishing is the staff-visibility gate. Returning to draft hides transient
-  Timesheet suggestions but never changes an existing Timesheet entry.
+- Publishing is the staff-visibility gate. Returning to draft removes transient
+  roster-prefill candidates from the Timesheet chooser but never changes an existing entry.
 
 ## Shift And Time Authority
 
@@ -65,7 +65,7 @@ Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
   Existing invalid shifts remain renderable with a subtle repair indicator and
   standard edit dialog; untrustworthy clocks stay blank. They may only be
   corrected or deleted and cannot be published, copied, projected into payroll,
-  or offered as Timesheet suggestions.
+  or offered as Timesheet roster-prefill candidates.
 - Effective roster-only shifts still require valid boundaries but skip Award
   projected-duration validation. Timesheet-producing shifts use the canonical
   projected-duration/pay boundary.
@@ -73,14 +73,14 @@ Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
 ## Open Shifts And Publication
 
 Complete Open shifts are publishable and visible as `OPEN`, but contribute no
-staff counts, conflicts, wage estimates, or Timesheet suggestions. Draft editors
+staff counts, conflicts, wage estimates, or Timesheet roster-prefill candidates. Draft editors
 may switch Staff/Open. On a Published roster, only authorized editors may perform one
 atomic Open-to-valid-Staff fill; all protected fields remain locked. That fill
 touches both Roster and Timesheet resources. Staffed Published shifts and ordinary
 staff projections remain read-only.
 
 Publishing never creates Timesheet rows. A complete Published linked-staff shift
-becomes a transient Timesheet suggestion; trial staff and Open shifts do not.
+becomes a transient Timesheet roster-prefill candidate; trial staff and Open shifts do not.
 Materialized entries are immutable snapshots of their roster source. Later
 roster edits expose warnings but never rewrite or delete those entries.
 
@@ -154,7 +154,7 @@ error classification.
 The row-grid, day-column, and direct timeline URL are projections over the same
 direct read model. Timeline lane/overlap geometry is display-only and never
 redefines persisted `row_index`. Roster wage estimates use the same canonical
-unsealed boundary as a Timesheet suggestion; roster-only shifts contribute
+unsealed boundary as a Timesheet roster-prefill candidate; roster-only shifts contribute
 neither totals nor errors. The independently persisted toggle defaults off.
 Worker, Supervisor, and Manager roles always receive only their effective linked
 Staff's authorized visible shifts. Admin and Owner receive selected-group venue

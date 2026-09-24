@@ -41,11 +41,11 @@ The provider-supplied date range selected for one Xero Timesheet preparation. It
 _Avoid_: Roster window
 
 **Published roster day**:
-A roster day whose planned shifts are visible to staff and eligible for Timesheet suggestions.
+A roster day whose planned shifts are visible to staff and eligible for the Timesheet roster-prefill chooser.
 _Avoid_: Live roster week
 
 **Draft roster day**:
-A roster day whose planned shifts are hidden from staff and ineligible for Timesheet suggestions.
+A roster day whose planned shifts are hidden from staff and ineligible for Timesheet roster-prefill.
 _Avoid_: Unpublished week
 
 **Open shift**:

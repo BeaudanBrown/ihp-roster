@@ -4,7 +4,7 @@
 
 module Web.View.Timesheets.Index where
 
-import Application.Helper.Controller (currentUserIsSuperAdmin, currentVenueId,
+import Application.Helper.Controller (currentUserIsSuperAdmin,
                                       hasManagementMode, isWithinEditWindow,
                                       managerModePreferenceEnabled,
                                       managerModeToggleEnabled,
@@ -49,12 +49,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (timesheetStaffCardsLinkedHighlight)
-import Web.Timesheets.Paths (createTimesheetEntryFromSuggestionUrl,
-                             editTimesheetEntryUrl,
-                             newTimesheetEntryFromSuggestionUrl,
+import Web.Timesheets.Paths (editTimesheetEntryUrl,
                              newTimesheetEntryUrl,
                              timesheetWindowUrlWithFilters)
-import Web.Timesheets.Suggestion
 import Web.Timesheets.WageEstimates
 import Web.View.Prelude
 
@@ -68,7 +65,6 @@ data TimesheetStaffPanelEntry = TimesheetStaffPanelEntry
 data IndexView = IndexView
     { entries                  :: [TimesheetEntry]
     , timingByEntryId          :: Map.Map UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming)
-    , suggestions              :: [TimesheetSuggestion]
     , staffMembers             :: [Staff]
     , shiftTypes               :: [ShiftType]
     , today                    :: Day
@@ -77,7 +73,6 @@ data IndexView = IndexView
     , weekEndDate              :: Day
     , calendarRevision         :: Int
     , hideApproved             :: Bool
-    , showTimesheetSuggestions :: Bool
     , timesheetWageDisplayMode   :: WageDisplayModeEnum
     , wageEstimates            :: Maybe TimesheetWageEstimates
     , rosterGroups             :: [RosterGroup]
@@ -96,7 +91,6 @@ timesheetsActionRoute actionUrl =
 data TimesheetDayRenderModel = TimesheetDayRenderModel
     { dayEntries             :: [TimesheetEntry]
     , dayTimingByEntryId     :: Map.Map UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming)
-    , daySuggestions         :: [TimesheetSuggestion]
     , dayStaffMembers        :: [Staff]
     , dayShiftTypes          :: [ShiftType]
     , dayRosterGroups        :: [RosterGroup]
@@ -343,11 +337,10 @@ renderTimesheetSettingsFragment maybeSwapOob view = [hsx|
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, showTimesheetSuggestions, timesheetWageDisplayMode, viewFilters, staffMembers, rosterGroups } = [hsx|
+renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, timesheetWageDisplayMode, viewFilters, staffMembers, rosterGroups } = [hsx|
     {when managerModeToggleVisible (renderTimesheetManagerModePreferenceForm weekStartDate)}
     <div class="timesheet-settings-toggle-grid mb-2">
         {renderTimesheetShowApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
-        {renderTimesheetShowSuggestionsPreferenceForm weekStartDate calendarRevision viewFilters showTimesheetSuggestions}
         {when canConfigureTimesheetWageEstimates (renderTimesheetWageDisplayModePreferenceForm weekStartDate calendarRevision viewFilters timesheetWageDisplayMode)}
     </div>
     {when hasManagementMode (renderTimesheetFilterForm weekStartDate viewFilters staffMembers rosterGroups)}
@@ -443,23 +436,6 @@ renderTimesheetShowApprovedPreferenceForm anchorDate calendarRevision filters hi
         |]
   where
     fields = TimesheetsAction.toggleTimesheetHideApprovedActionFields anchorDate calendarRevision hideApproved filters.filterStaffId filters.filterRosterGroupId
-
-renderTimesheetShowSuggestionsPreferenceForm :: Day -> Int -> TimesheetViewFilters -> Bool -> Html
-renderTimesheetShowSuggestionsPreferenceForm anchorDate calendarRevision filters showTimesheetSuggestions =
-    renderFrontendSurfaceActionForm
-        (TimesheetsAction.toggleTimesheetShowSuggestionsAction fields)
-        (timesheetsActionRoute (pathTo ToggleTimesheetShowSuggestionsAction))
-            { actionRouteStandardUrl = Just (pathTo ToggleTimesheetShowSuggestionsAction)
-            , actionRouteExtraAttrs = [("class", "mb-0")]
-            }
-        [hsx|
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow calendarRevision} />
-            {renderTimesheetFilterHiddenFields fields filters}
-            {renderTimesheetPreferenceToggle "timesheet-show-suggestions-toggle" (surfaceToggleScalarField @Surface.ShowTimesheetSuggestions fields True False) showTimesheetSuggestions "Show suggestions"}
-        |]
-  where
-    fields = TimesheetsAction.toggleTimesheetShowSuggestionsActionFields anchorDate calendarRevision showTimesheetSuggestions filters.filterStaffId filters.filterRosterGroupId
 
 renderTimesheetWageDisplayModePreferenceForm :: Day -> Int -> TimesheetViewFilters -> WageDisplayModeEnum -> Html
 renderTimesheetWageDisplayModePreferenceForm anchorDate calendarRevision filters displayMode =
@@ -579,11 +555,10 @@ renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
 timesheetDayRenderModel :: IndexView -> Int -> TimesheetDayRenderModel
-timesheetDayRenderModel IndexView { entries, timingByEntryId, suggestions, staffMembers, shiftTypes, rosterGroupLabels, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates, selectedStaffFilterId } dayOffset =
+timesheetDayRenderModel IndexView { entries, timingByEntryId, staffMembers, shiftTypes, rosterGroupLabels, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates, selectedStaffFilterId } dayOffset =
     TimesheetDayRenderModel
         { dayEntries = entries
         , dayTimingByEntryId = timingByEntryId
-        , daySuggestions = suggestions
         , dayStaffMembers = staffMembers
         , dayShiftTypes = shiftTypes
         , dayRosterGroups = rosterGroupLabels
@@ -602,7 +577,7 @@ renderDaySection =
     renderDaySectionWithSwap Nothing
 
 renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> TimesheetDayRenderModel -> Html
-renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, daySuggestions, dayWeekStartDate, dayStaffFilterId, dayWageEstimates, dayOffset } = [hsx|
+renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, dayWeekStartDate, dayStaffFilterId, dayWageEstimates, dayOffset } = [hsx|
     <section id={timesheetDaySectionDomId dayDate}
              class="timesheet-day-panel app-horizontal-panel"
              data-timesheet-operational-date={surfaceWireText @'WireDay dayDate}
@@ -614,14 +589,13 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
         {renderTimesheetDayWageEstimate dayDate dayWageEstimates}
 
         <div class="timesheet-day-body">
-            {renderDayEntries model dayEntriesForDate suggestionsForDate}
+            {renderDayEntries model dayEntriesForDate}
         </div>
     </section>
 |]
     where
         dayDate = addDays (toInteger dayOffset) dayWeekStartDate
         dayEntriesForDate = filter ((== dayDate) . timesheetEntryOperationalDate) dayEntries
-        suggestionsForDate = filter ((== dayDate) . timesheetSuggestionOperationalDate) daySuggestions
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
         weekdayShortLabel = Text.pack (formatTime defaultTimeLocale "%a" dayDate)
         newEntryUrl = newTimesheetEntryUrl dayDate dayDate dayStaffFilterId
@@ -646,56 +620,14 @@ timesheetDaySectionDomId operationalDate =
     surfaceFragmentTargetId @Surface.TimesheetsSurface @Surface.TimesheetDaySection
         (surfaceField @Surface.OperationalDate operationalDate &: noSurfaceFields)
 
-renderDayEntries :: (?context :: ControllerContext) => TimesheetDayRenderModel -> [TimesheetEntry] -> [TimesheetSuggestion] -> Html
-renderDayEntries model dayEntries daySuggestions
-    | null dayEntries && null daySuggestions = [hsx|<p class="timesheet-day-empty app-muted mb-0">No entries for this day.</p>|]
+renderDayEntries :: (?context :: ControllerContext) => TimesheetDayRenderModel -> [TimesheetEntry] -> Html
+renderDayEntries model dayEntries
+    | null dayEntries = [hsx|<p class="timesheet-day-empty app-muted mb-0">No entries for this day.</p>|]
     | otherwise = [hsx|
         <div class="timesheet-entry-list">
-            {forEach daySuggestions (renderSuggestionCard model)}
             {forEach dayEntries (renderEntryCard model)}
         </div>
     |]
-
-renderSuggestionCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetSuggestion -> Html
-renderSuggestionCard model@TimesheetDayRenderModel { dayCalendarRevision, dayStaffFilterId } suggestion =
-    renderTimesheetCard
-        model
-        suggestedEntry
-        (decodeTimesheetTiming suggestedEntry)
-        "timesheet-entry-card timesheet-suggestion-card"
-        (Just (tshow suggestion.suggestionRosterSlotId))
-        (renderSuggestionCardOverlayLink (timesheetSuggestionOperationalDate suggestion) editUrl)
-        (renderSuggestionCreateAction createUrl action)
-  where
-    suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
-    stateFields = TimesheetsAction.createTimesheetEntryFromSuggestionActionFields (timesheetSuggestionOperationalDate suggestion) dayCalendarRevision dayStaffFilterId
-    createUrl =
-        let baseUrl = createTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId (timesheetSuggestionOperationalDate suggestion) dayStaffFilterId
-         in if hasManagementMode then appendQueryParams baseUrl [("approveSuggestion", "true")] else baseUrl
-    editUrl = newTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId (timesheetSuggestionOperationalDate suggestion) dayStaffFilterId
-    action = TimesheetsAction.createTimesheetEntryFromSuggestionAction stateFields
-
-renderSuggestionCreateAction :: Text -> FrontendSurfaceAction -> Html
-renderSuggestionCreateAction createUrl action = [hsx|
-    {createForm}
-|]
-  where
-    createForm =
-        renderTimesheetApprovalForm
-            action
-            createUrl
-            [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">{if hasManagementMode then ("Approve" :: Text) else "Create"}</button>|]
-
-renderSuggestionCardOverlayLink :: (?context :: ControllerContext) => Day -> Text -> Html
-renderSuggestionCardOverlayLink workedOn editUrl =
-    renderAppShellActionLink
-        (appShellActionByMarker @OpenTimesheetEntryDialog)
-        ((defaultAppShellActionRoute (editUrl))
-            { appShellActionRouteExtraAttrs = dialogPointerDismissBlurAttrs <> [ ("class", "timesheet-entry-card-link")
-                , ("aria-label", "Adjust rostered timesheet suggestion for " <> tshow workedOn)
-                ]
-            })
-        mempty
 
 renderEntryCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Html
 renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, dayEditWindowDays, dayCalendarRevision, dayStaffFilterId } entry =
@@ -713,13 +645,13 @@ renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, da
     editUrl = editTimesheetEntryUrl (get #id entry) (timesheetEntryOperationalDate entry) dayStaffFilterId
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Text -> Maybe Text -> Html -> Html -> Html
-renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayRosterGroups } entry timingOutcome cardClass suggestionId cardOverlay cardAction =
+renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayRosterGroups } entry timingOutcome cardClass rosterPrefillId cardOverlay cardAction =
     card
   where
     card = [hsx|
         <article {...(SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs timesheetStaffCardsLinkedHighlight ("staff:" <> tshow entry.staffId) Nothing)} class={cardClass}
                  data-timesheet-entry-approved={boolParam entry.isApproved}
-                 data-timesheet-suggestion-id={suggestionId}>
+                 data-timesheet-roster-prefill-id={rosterPrefillId}>
             {cardOverlay}
             <div class="timesheet-entry-main">
                 <div class="timesheet-entry-identity">

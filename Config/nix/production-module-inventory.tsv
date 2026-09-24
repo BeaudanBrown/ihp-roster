@@ -569,7 +569,7 @@ Web/Timesheets/Paths.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Projection.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Responses.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/RosterGroupClassification.hs	production	runtime	Main	Reachable from Main
-Web/Timesheets/Suggestion.hs	production	runtime	Main	Reachable from Main
+Web/Timesheets/RosterPrefill.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Validation.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/WageEstimates.hs	production	runtime	Main	Reachable from Main
 Web/Types.hs	production	runtime	Main	Reachable from Main
@@ -634,10 +634,11 @@ Web/View/Static/InstallApp.hs	production	runtime	Main	Reachable from Main
 Web/View/Static/Welcome.hs	production	runtime	Main	Reachable from Main
 Web/View/Support/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/TimesheetSelection.hs	production	runtime	Main	Reachable from Main
+Web/View/Timesheets/Chooser.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/Index.hs	production	runtime	Main	Reachable from Main
 Web/View/Timesheets/New.hs	production	runtime	Main	Reachable from Main
-Web/View/Timesheets/SuggestedNew.hs	production	runtime	Main	Reachable from Main
+Web/View/Timesheets/RosterPrefillNew.hs	production	runtime	Main	Reachable from Main
 Web/View/Users/New.hs	production	runtime	Main	Reachable from Main
 Web/Worker.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 WorkerMain.hs	production	runtime	WorkerMain	Reachable from WorkerMain

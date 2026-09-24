@@ -1,9 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Web.Timesheets.Paths
-    ( createTimesheetEntryFromSuggestionUrl
-    , editTimesheetEntryUrl
-    , newTimesheetEntryFromSuggestionUrl
+    ( editTimesheetEntryUrl
+    , newTimesheetEntryFromRosterPrefillUrl
     , newTimesheetEntryUrl
     , timesheetDayColumnsFragmentUrl
     , timesheetDaySectionFragmentUrl
@@ -77,16 +76,10 @@ newTimesheetEntryUrl anchorDate workedOn staffFilterId =
         (pathTo NewTimesheetEntryAction)
         (("workedOn", tshow workedOn) : timesheetWindowStateQueryParams anchorDate staffFilterId)
 
-newTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Day -> Maybe UUID -> Text
-newTimesheetEntryFromSuggestionUrl rosterSlotId anchorDate staffFilterId =
+newTimesheetEntryFromRosterPrefillUrl :: Id RosterSlot -> Day -> Maybe UUID -> Text
+newTimesheetEntryFromRosterPrefillUrl rosterSlotId anchorDate staffFilterId =
     replaceQueryParams
-        (pathTo NewTimesheetEntryFromSuggestionAction { rosterSlotId })
-        (timesheetWindowStateQueryParams anchorDate staffFilterId)
-
-createTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Day -> Maybe UUID -> Text
-createTimesheetEntryFromSuggestionUrl rosterSlotId anchorDate staffFilterId =
-    replaceQueryParams
-        (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId })
+        (pathTo NewTimesheetEntryFromRosterShiftAction { rosterSlotId })
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 editTimesheetEntryUrl :: Id TimesheetEntry -> Day -> Maybe UUID -> Text

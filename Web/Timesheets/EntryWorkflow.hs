@@ -4,17 +4,19 @@ module Web.Timesheets.EntryWorkflow
     , TimesheetCreateOutcome (..)
     , TimesheetEditOutcome (..)
     , fetchEditableTimesheetEntry
+    , prepareChosenBlankTimesheetForm
     , prepareNewTimesheetForm
+    , prepareTimesheetChooser
+    , TimesheetChooserOutcome (..)
     , prepareEditTimesheetForm
     , createOrdinaryTimesheetEntry
     , editOrdinaryTimesheetEntry
-    , TimesheetSuggestionIntent (..)
-    , TimesheetSuggestionOutcome (..)
-    , TimesheetSuggestionFormOutcome (..)
+    , TimesheetRosterPrefillOutcome (..)
+    , TimesheetRosterPrefillFormOutcome (..)
     , TimesheetReviewIntent (..)
     , TimesheetReviewOutcome (..)
-    , prepareSuggestedTimesheetForm
-    , createSuggestedTimesheetEntry
+    , prepareRosterPrefillTimesheetForm
+    , createRosterPrefillTimesheetEntry
     , reviewTimesheetEntry
     ) where
 
@@ -23,18 +25,27 @@ import Application.Helper.SurfaceResource (LiveMutationResult)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
 import Application.PayAssignment (StaffPayAssignment (..), staffAssignmentSuppressesTimesheets)
 import Application.VenueTime.Model
+import Control.Monad (filterM, guard)
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..))
 import Web.Timesheets.Mutations
-import Web.Timesheets.Paths (newTimesheetEntryFromSuggestionUrl)
+import Web.Timesheets.Paths (newTimesheetEntryFromRosterPrefillUrl)
 import Web.Timesheets.Projection
 import Web.Timesheets.RosterGroupClassification
-import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion,
-                                  timesheetSuggestionOperationalDate)
+import Web.Timesheets.RosterPrefill (newTimesheetEntryFromRosterPrefill,
+                                  timesheetRosterPrefillEndTime,
+                                  timesheetRosterPrefillOperationalDate,
+                                  timesheetRosterPrefillStartTime)
 import Web.Timesheets.Validation
+import Web.View.Timesheets.Chooser (TimesheetBlankChoice (..),
+                                    TimesheetChooserRenderModel (..))
 import Web.View.Timesheets.New (NewTimesheetRenderModel (..))
-import Web.View.Timesheets.SuggestedNew (SuggestedTimesheetRenderModel (..))
+import Web.View.Timesheets.RosterPrefillNew (RosterPrefillTimesheetRenderModel (..))
 
 -- Canonical response context, not authorization evidence. Existing-entry scope
 -- checks must precede reading the mutation calendar and canonicalizing filters.
@@ -61,6 +72,11 @@ data TimesheetEditOutcome
     = TimesheetEditInvalid TimesheetFormInputs
     | TimesheetEditCompleted (Either TimesheetCalendarConflict (Bool, LiveMutationResult TimesheetEntry))
 
+data TimesheetChooserOutcome
+    = TimesheetChooserBlocked TimesheetCreationBlocker
+    | TimesheetChooserDirectBlank NewTimesheetRenderModel
+    | TimesheetChooserRequired TimesheetChooserRenderModel
+
 -- Preserve the existing lookup/venue/visibility/window precedence. This snapshot
 -- does not introduce a new row lock or change the mutation's calendar lock.
 fetchEditableTimesheetEntry :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => Id TimesheetEntry -> IO TimesheetEntry
@@ -76,9 +92,78 @@ prepareEditTimesheetForm selectedStaffFilterId entry = do
     formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor entry) selectedStaffFilterId
     pure (timesheetFormInputsFor formContext entry)
 
-prepareNewTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe UUID -> Maybe Day -> IO (Either TimesheetCreationBlocker NewTimesheetRenderModel)
-prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn = do
+prepareTimesheetChooser :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe UUID -> Day -> IO TimesheetChooserOutcome
+prepareTimesheetChooser selectedStaffFilterId operationalDate = do
     formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+    case (formContext.formStaffMembers, formContext.formShiftTypes) of
+        ([], _) -> TimesheetChooserBlocked <$> unavailableTimesheetStaffBlocker formContext
+        (_, []) -> pure (TimesheetChooserBlocked NoTimesheetShiftTypes)
+        (eligibleStaff, _) -> do
+            rosterShifts <- fetchAuthorizedTimesheetRosterPrefillsForWindow operationalDate (addDays 1 operationalDate) Nothing
+            rosterGroups <- fetchActiveTimesheetRosterGroups
+            let orderedStaff = sortOn (\staff -> (Text.toCaseFold staff.lastName, Text.toCaseFold staff.firstName, staff.id)) eligibleStaff
+            staffClassifications <- forM orderedStaff \staff -> do
+                classifications <- validTimesheetRosterGroupClassificationsForStaff (unpackId currentVenueId) (unpackId staff.id)
+                pure (staff, classifications)
+            let groupOrder = Map.fromList [(unpackId group.id, index) | (index, group) <- zip [0 :: Int ..] rosterGroups]
+            let classificationOrder = \case
+                    TimesheetInRosterGroup groupId -> (Map.findWithDefault maxBound groupId groupOrder, (0 :: Int), groupId)
+                    TimesheetNoRosterGroup -> (maxBound, 1, UUID.nil)
+            let blankClassifications = sortOn classificationOrder (Set.toList (Set.fromList (concatMap snd staffClassifications)))
+            let defaultStaffFor classification =
+                    let matchingStaff = [staff | (staff, classifications) <- staffClassifications, classification `elem` classifications]
+                     in fromMaybe (error "Timesheet classification has no eligible Staff") $
+                            find (\staff -> Just (unpackId staff.id) == selectedStaffFilterId) matchingStaff
+                                <|> (formContext.formCurrentViewerStaffId >>= \staffId -> find ((== staffId) . unpackId . (.id)) matchingStaff)
+                                <|> head matchingStaff
+            let blankChoices = [TimesheetBlankChoice (defaultStaffFor classification) classification | classification <- blankClassifications]
+            let staffNames = Map.fromList [(unpackId staff.id, (Text.toCaseFold staff.lastName, Text.toCaseFold staff.firstName)) | staff <- eligibleStaff]
+            let currentViewerId = formContext.formCurrentViewerStaffId
+            let groupIndex rosterPrefill = Map.findWithDefault maxBound rosterPrefill.prefillRosterGroupId groupOrder
+            let ownShiftOrder rosterPrefill =
+                    ( timesheetRosterPrefillStartTime rosterPrefill
+                    , timesheetRosterPrefillEndTime rosterPrefill
+                    , rosterPrefill.prefillRosterSlotId
+                    )
+            let otherShiftOrder rosterPrefill =
+                    ( groupIndex rosterPrefill
+                    , timesheetRosterPrefillStartTime rosterPrefill
+                    , Map.findWithDefault ("", "") rosterPrefill.prefillStaffId staffNames
+                    , rosterPrefill.prefillRosterSlotId
+                    )
+            let (ownRosterShifts, otherRosterShifts) = partition ((== currentViewerId) . Just . (.prefillStaffId)) rosterShifts
+            let chooserRosterShifts = sortOn ownShiftOrder ownRosterShifts <> sortOn otherShiftOrder otherRosterShifts
+            let chooserBlankChoices = blankChoices
+            let chooserStaffMembers = eligibleStaff
+            let chooserShiftTypes = formContext.formShiftTypes
+            let chooserRosterGroups = rosterGroups
+            let chooserCalendarRevision = formContext.formVenueConfig.rosterCalendarRevision
+            let chooserSelectedStaffFilter = selectedStaffFilterId
+            let chooserCurrentViewerStaff = currentViewerId
+            let chooserOperationalDate = operationalDate
+            if null chooserRosterShifts && length chooserBlankChoices == 1
+                then
+                    let soleChoice = fromMaybe (error "sole blank Timesheet choice missing") (head chooserBlankChoices)
+                     in prepareNewTimesheetForm (Just (unpackId soleChoice.blankChoiceStaff.id)) (Just operationalDate) (Just soleChoice.blankChoiceClassification)
+                    >>= \case
+                        Left blocker -> pure (TimesheetChooserBlocked blocker)
+                        Right model -> pure (TimesheetChooserDirectBlank model)
+                else pure (TimesheetChooserRequired TimesheetChooserRenderModel { .. })
+
+prepareChosenBlankTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> Day -> TimesheetRosterGroupClassification -> IO (Maybe (Either TimesheetCreationBlocker NewTimesheetRenderModel))
+prepareChosenBlankTimesheetForm selectedStaffId operationalDate classification =
+    prepareTimesheetChooser (Just selectedStaffId) operationalDate >>= \case
+        TimesheetChooserRequired model ->
+            case find (\choice -> unpackId choice.blankChoiceStaff.id == selectedStaffId && choice.blankChoiceClassification == classification) model.chooserBlankChoices of
+                Nothing -> pure Nothing
+                Just _ -> Just <$> prepareNewTimesheetForm (Just selectedStaffId) (Just operationalDate) (Just classification)
+        TimesheetChooserBlocked _ -> pure Nothing
+        TimesheetChooserDirectBlank _ -> pure Nothing
+
+prepareNewTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe UUID -> Maybe Day -> Maybe TimesheetRosterGroupClassification -> IO (Either TimesheetCreationBlocker NewTimesheetRenderModel)
+prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn maybeClassification = do
+    baseFormContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+    formContext <- constrainFormContextToClassification baseFormContext maybeClassification
     let venueConfig = formContext.formVenueConfig
     case (formContext.formStaffMembers, formContext.formShiftTypes, maybeWorkedOn) of
         ([], _, _) -> Left <$> unavailableTimesheetStaffBlocker formContext
@@ -88,13 +173,23 @@ prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn = do
             case defaultTimesheetEntry venueConfig workedOn of
                 Left _ -> pure (Left TimesheetTimingUnavailable)
                 Right entry -> do
-                    hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay selectedStaffFilterId workedOn
+                    let defaultStaffId =
+                            (formContext.formSelectedStaffFilterId >>= \staffId -> guard (any ((== staffId) . unpackId . (.id)) formContext.formStaffMembers) >> pure staffId)
+                                <|> (formContext.formCurrentViewerStaffId >>= \staffId -> guard (any ((== staffId) . unpackId . (.id)) formContext.formStaffMembers) >> pure staffId)
+                                <|> (unpackId . (.id) <$> head formContext.formStaffMembers)
                     let timesheetEntry = entry
                             |> set #venueId (unpackId currentVenueId)
-                            |> (\record -> maybe record (\staffId -> set #staffId staffId record) formContext.formCurrentViewerStaffId)
+                            |> (\record -> maybe record (\staffId -> set #staffId staffId record) defaultStaffId)
                             |> set #shiftTypeId (unpackId defaultShiftType.id)
+                            |> (\record -> maybe record (`applyTimesheetRosterGroupClassification` record) maybeClassification)
                     let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
                     pure (Right NewTimesheetRenderModel { .. })
+
+constrainFormContextToClassification :: (?modelContext :: ModelContext) => TimesheetFormContext -> Maybe TimesheetRosterGroupClassification -> IO TimesheetFormContext
+constrainFormContextToClassification context Nothing = pure context
+constrainFormContextToClassification context (Just classification) = do
+    matchingStaff <- filterM (\staff -> staffMatchesTimesheetRosterGroup staff.venueId (unpackId staff.id) classification) context.formStaffMembers
+    pure context { formStaffMembers = matchingStaff }
 
 -- An empty authorized option list is not necessarily a missing staff record.
 -- Managers may create for colleagues even when their own profile is roster-only.
@@ -110,17 +205,24 @@ unavailableTimesheetStaffBlocker formContext
 createOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> IO TimesheetCreateOutcome
 createOrdinaryTimesheetEntry context = do
     let selectedStaffFilterId = context.timesheetFilters.filterStaffId
-    formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+    submittedClassification <- submittedTimesheetRosterGroupClassification
+    baseFormContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+    formContext <- constrainFormContextToClassification baseFormContext submittedClassification
     let venueConfig = formContext.formVenueConfig
     let submittedWorkedOn = fromMaybe context.timesheetScope.timesheetWindowStart (paramOrNothing @Day "workedOn")
     case (formContext.formStaffMembers, defaultTimesheetEntry venueConfig submittedWorkedOn) of
         ([], _) -> TimesheetCreateBlocked <$> unavailableTimesheetStaffBlocker formContext
         (_, Left _) -> pure (TimesheetCreateBlocked TimesheetTimingUnavailable)
         (_, Right entry) -> do
-            let timesheetEntryRecord = entry
+            let submittedEntry = entry
                     |> set #venueId (unpackId currentVenueId)
                     |> buildTimesheetEntry venueConfig formContext.formCurrentViewerStaffId
-            hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay selectedStaffFilterId submittedWorkedOn
+            classification <- case submittedClassification of
+                Just classification -> pure classification
+                Nothing -> validTimesheetRosterGroupClassificationsForStaff submittedEntry.venueId submittedEntry.staffId >>= \case
+                    [classification] -> pure classification
+                    _ -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+            let timesheetEntryRecord = applyTimesheetRosterGroupClassification classification submittedEntry
             timesheetEntryRecord |> ifValid \case
                 Left timesheetEntry -> do
                     let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
@@ -128,11 +230,9 @@ createOrdinaryTimesheetEntry context = do
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
-                    classification <- resolveTimesheetRosterGroupForStaff timesheetEntry.venueId timesheetEntry.staffId >>= \case
-                        Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
-                        Just resolved -> pure resolved
-                    let classifiedEntry = applyTimesheetRosterGroupClassification classification timesheetEntry
-                    TimesheetCreateCompleted <$> createTimesheetEntryMutation context.timesheetScope classifiedEntry
+                    classificationAllowed <- staffMatchesTimesheetRosterGroup timesheetEntry.venueId timesheetEntry.staffId classification
+                    accessDeniedUnless classificationAllowed
+                    TimesheetCreateCompleted <$> createTimesheetEntryMutation context.timesheetScope timesheetEntry
 
 editOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> TimesheetEntry -> IO TimesheetEditOutcome
 editOrdinaryTimesheetEntry context existingEntry = do
@@ -141,23 +241,20 @@ editOrdinaryTimesheetEntry context existingEntry = do
         Left timesheetEntry -> pure (TimesheetEditInvalid (timesheetFormInputsFor formContext timesheetEntry))
         Right intent -> TimesheetEditCompleted <$> updateTimesheetEntryMutation context.timesheetScope intent
 
-data TimesheetSuggestionIntent = CreateSuggestedTimesheet | ApproveSuggestedTimesheet
+data TimesheetRosterPrefillFormOutcome
+    = RosterPrefillTimesheetMissing
+    | RosterPrefillTimesheetCanonicalRedirect Text
+    | RosterPrefillTimesheetTimingUnavailable Day
+    | RosterPrefillTimesheetForm RosterPrefillTimesheetRenderModel
 
-data TimesheetSuggestionFormOutcome
-    = SuggestedTimesheetMissing
-    | SuggestedTimesheetCanonicalRedirect Text
-    | SuggestedTimesheetTimingUnavailable Day
-    | SuggestedTimesheetForm SuggestedTimesheetRenderModel
-
-data TimesheetSuggestionOutcome
-    = SuggestionUnavailable
-    | SuggestionTimingUnavailable
-    | SuggestionInvalid SuggestedTimesheetRenderModel
-    | SuggestionAccessDenied
-    | SuggestionCalendarConflict TimesheetCalendarConflict
-    | SuggestionChanged TimesheetSuggestionIntent
-    | SuggestionApprovalFailed AppError
-    | SuggestionCompleted TimesheetSuggestionIntent TimesheetMaterializationKind (LiveMutationResult TimesheetEntry)
+data TimesheetRosterPrefillOutcome
+    = RosterPrefillUnavailable
+    | RosterPrefillTimingUnavailable
+    | RosterPrefillInvalid RosterPrefillTimesheetRenderModel
+    | RosterPrefillAccessDenied
+    | RosterPrefillCalendarConflict TimesheetCalendarConflict
+    | RosterPrefillChanged
+    | RosterPrefillCompleted TimesheetMaterializationKind (LiveMutationResult TimesheetEntry)
 
 data TimesheetReviewIntent = ApproveTimesheet | UnapproveTimesheet
 
@@ -167,64 +264,60 @@ data TimesheetReviewOutcome
     | TimesheetReviewCalendarConflict TimesheetCalendarConflict
     | TimesheetReviewCompleted TimesheetReviewIntent (LiveMutationResult TimesheetEntry)
 
-prepareSuggestedTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterSlot -> Maybe UUID -> Bool -> IO TimesheetSuggestionFormOutcome
-prepareSuggestedTimesheetForm rosterSlotId selectedStaffFilterId needsCanonicalRedirect = do
-    fetchTimesheetSuggestionForRosterSlot rosterSlotId >>= \case
-        Nothing -> pure SuggestedTimesheetMissing
-        Just suggestion -> do
-            let workedOn = timesheetSuggestionOperationalDate suggestion
+prepareRosterPrefillTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterSlot -> Maybe UUID -> Bool -> IO TimesheetRosterPrefillFormOutcome
+prepareRosterPrefillTimesheetForm rosterSlotId selectedStaffFilterId needsCanonicalRedirect = do
+    fetchTimesheetRosterPrefillForRosterSlot rosterSlotId >>= \case
+        Nothing -> pure RosterPrefillTimesheetMissing
+        Just rosterPrefill -> do
+            let workedOn = timesheetRosterPrefillOperationalDate rosterPrefill
             if needsCanonicalRedirect
-                then pure (SuggestedTimesheetCanonicalRedirect (newTimesheetEntryFromSuggestionUrl rosterSlotId workedOn selectedStaffFilterId))
+                then pure (RosterPrefillTimesheetCanonicalRedirect (newTimesheetEntryFromRosterPrefillUrl rosterSlotId workedOn selectedStaffFilterId))
                 else do
-                    formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+                    baseFormContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
+                    formContext <- constrainFormContextToClassification baseFormContext (Just (TimesheetInRosterGroup rosterPrefill.prefillRosterGroupId))
                     case validatePersistedTimezone formContext.formVenueConfig.timezone of
-                        Left _ -> pure (SuggestedTimesheetTimingUnavailable workedOn)
+                        Left _ -> pure (RosterPrefillTimesheetTimingUnavailable workedOn)
                         Right () -> do
-                            let timesheetEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
+                            let timesheetEntry = newTimesheetEntryFromRosterPrefill (unpackId currentVenueId) rosterPrefill
                             let timesheetFormInputs = timesheetFormInputsFor formContext timesheetEntry
-                            pure (SuggestedTimesheetForm SuggestedTimesheetRenderModel { .. })
+                            pure (RosterPrefillTimesheetForm RosterPrefillTimesheetRenderModel { .. })
 
-createSuggestedTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> Id RosterSlot -> IO TimesheetSuggestionOutcome
-createSuggestedTimesheetEntry context rosterSlotId = do
-    fetchTimesheetSuggestionForRosterSlot rosterSlotId >>= \case
-        Nothing -> pure SuggestionUnavailable
-        Just suggestion -> do
-            formContext <- fetchTimesheetFormContext noReferencedTimesheetOptions context.timesheetFilters.filterStaffId
+createRosterPrefillTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> Id RosterSlot -> IO TimesheetRosterPrefillOutcome
+createRosterPrefillTimesheetEntry context rosterSlotId = do
+    fetchTimesheetRosterPrefillForRosterSlot rosterSlotId >>= \case
+        Nothing -> pure RosterPrefillUnavailable
+        Just rosterPrefill -> do
+            baseFormContext <- fetchTimesheetFormContext noReferencedTimesheetOptions context.timesheetFilters.filterStaffId
+            formContext <- constrainFormContextToClassification baseFormContext (Just (TimesheetInRosterGroup rosterPrefill.prefillRosterGroupId))
             let venueConfig = formContext.formVenueConfig
             case validatePersistedTimezone venueConfig.timezone of
-                Left _ -> pure SuggestionTimingUnavailable
+                Left _ -> pure RosterPrefillTimingUnavailable
                 Right () -> do
-                    let suggestedEntry = newTimesheetEntryFromSuggestion (unpackId currentVenueId) suggestion
+                    let rosterPrefillEntry = newTimesheetEntryFromRosterPrefill (unpackId currentVenueId) rosterPrefill
                     let timesheetEntry =
                             if hasParam "startTime" || hasParam "hadBreak"
-                                then buildTimesheetEntry venueConfig formContext.formCurrentViewerStaffId suggestedEntry
-                                else suggestedEntry
+                                then buildTimesheetEntry venueConfig formContext.formCurrentViewerStaffId rosterPrefillEntry
+                                else rosterPrefillEntry
                     timesheetEntry |> ifValid \case
                         Left invalidEntry -> do
                             let timesheetFormInputs = timesheetFormInputsFor formContext invalidEntry
-                            pure (SuggestionInvalid SuggestedTimesheetRenderModel { .. })
+                            pure (RosterPrefillInvalid RosterPrefillTimesheetRenderModel { .. })
                         Right validEntry ->
-                            if validEntry.staffId /= suggestion.suggestionStaffId || validEntry.operationalDate /= suggestion.suggestionOperationalDate
-                                then pure SuggestionAccessDenied
+                            if validEntry.operationalDate /= rosterPrefill.prefillOperationalDate
+                                then pure RosterPrefillAccessDenied
                                 else do
                                     staffAllowed <- timesheetStaffAssignmentAllowed validEntry.staffId
-                                    shiftAllowed <- if staffAllowed then timesheetShiftTypeAllowed validEntry.shiftTypeId else pure False
+                                    groupAllowed <-
+                                        if validEntry.staffId == rosterPrefill.prefillStaffId
+                                            then pure True
+                                            else staffMatchesTimesheetRosterGroup validEntry.venueId validEntry.staffId (TimesheetInRosterGroup rosterPrefill.prefillRosterGroupId)
+                                    shiftAllowed <- if staffAllowed && groupAllowed then timesheetShiftTypeAllowed validEntry.shiftTypeId else pure False
                                     if not shiftAllowed
-                                        then pure SuggestionAccessDenied
-                                        else
-                                            -- Preserve late, role-gated optional approval parsing.
-                                            if hasManagementMode && paramOrDefault @Bool False "approveSuggestion"
-                                                then materializeAndApproveTimesheetSuggestionMutation context.timesheetScope suggestion validEntry >>= \case
-                                                    Left conflict -> pure (SuggestionCalendarConflict conflict)
-                                                    Right (Left failure) -> pure (SuggestionApprovalFailed failure)
-                                                    Right (Right result) -> pure (suggestionCompletion ApproveSuggestedTimesheet result)
-                                                else materializeTimesheetSuggestionMutation context.timesheetScope suggestion validEntry >>= \case
-                                                    Left conflict -> pure (SuggestionCalendarConflict conflict)
-                                                    Right result -> pure (suggestionCompletion CreateSuggestedTimesheet result)
-  where
-    suggestionCompletion intent = \case
-        Nothing -> SuggestionChanged intent
-        Just (kind, result) -> SuggestionCompleted intent kind result
+                                        then pure RosterPrefillAccessDenied
+                                        else materializeTimesheetRosterPrefillMutation context.timesheetScope rosterPrefill validEntry >>= \case
+                                            Left conflict -> pure (RosterPrefillCalendarConflict conflict)
+                                            Right Nothing -> pure RosterPrefillChanged
+                                            Right (Just (kind, result)) -> pure (RosterPrefillCompleted kind result)
 
 -- Controller invokes manager/writability/venue/deleted-row policy before reading
 -- the shared request context. Timing and approval decisions stay here.

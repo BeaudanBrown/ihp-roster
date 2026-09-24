@@ -13,6 +13,8 @@ module Web.Timesheets.Validation
     , ensureStaffAssignmentAllowed
     , ensureStaffAssignmentAllowedForExisting
     , ensureTimesheetVisibility
+    , requireBlankTimesheetClassification
+    , submittedTimesheetRosterGroupClassification
     , resetApprovalOnEdit
     , timesheetCoreChanged
     ) where
@@ -38,6 +40,22 @@ data TimesheetCalendarConflict = TimesheetCalendarChanged
     deriving stock (Eq, Show)
 
 instance Exception.Exception TimesheetCalendarConflict
+
+requireBlankTimesheetClassification :: (?request :: Request, ?respond :: Respond) => IO TimesheetRosterGroupClassification
+requireBlankTimesheetClassification = case paramOrNothing @Text "blankClassification" of
+    Just "none" -> pure TimesheetNoRosterGroup
+    Just value -> case Text.stripPrefix "group:" value >>= UUID.fromText of
+        Just groupId -> pure (TimesheetInRosterGroup groupId)
+        Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+    Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+
+submittedTimesheetRosterGroupClassification :: (?request :: Request, ?respond :: Respond) => IO (Maybe TimesheetRosterGroupClassification)
+submittedTimesheetRosterGroupClassification =
+    case (paramOrNothing @Text "rosterGroupClassification", paramOrNothing @UUID "rosterGroupId") of
+        (Nothing, Nothing) -> pure Nothing
+        (Just "no_roster_group", Nothing) -> pure (Just TimesheetNoRosterGroup)
+        (Just "in_roster_group", Just groupId) -> pure (Just (TimesheetInRosterGroup groupId))
+        _ -> accessDeniedUnless False >> pure Nothing
 
 -- Constructed only after ordinary form validation and identity/eligibility checks.
 -- The mutation derives approval reset; callers cannot supply that decision.
