@@ -4,10 +4,11 @@ module Web.RosterWeeks.Capabilities
 
 import Application.Helper.ControllerContext (hasManagementMode)
 import Application.Helper.View (ViewAudience (ManagerAudience),
-                                currentUserIsAdmin, currentUserMatchesAudience)
+                                currentUserMatchesAudience)
 import IHP.ControllerSupport (ControllerContext)
 import IHP.Prelude
 import Web.RosterWeeks.Types
+import Web.RosterWeeks.WageEstimates (rosterPayAudienceForCurrentUser)
 
 buildRosterViewCapabilities :: (?context :: ControllerContext) => Maybe RosterWindowState -> RosterViewCapabilities
 buildRosterViewCapabilities maybeRosterWeek =
@@ -20,6 +21,6 @@ buildRosterViewCapabilities maybeRosterWeek =
             , canManageAssignmentFilter = managerAudience
             , canManageRosterColumns = managerAudience && draftWeek
             , canViewLeaveMetrics = managerAudience
-            , canViewWageEstimates = hasManagementMode && currentUserIsAdmin
+            , canViewWageEstimates = isJust rosterPayAudienceForCurrentUser
             , canManageRosterWarnings = managerAudience
             }

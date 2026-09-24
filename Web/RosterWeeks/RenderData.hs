@@ -46,8 +46,8 @@ import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
-import Web.RosterWeeks.WageFilter (filterRosterWageSlots,
-                                   pinnedRosterWageStaffId)
+import Web.RosterWeeks.WageEstimates (rosterPayAudienceForCurrentUser,
+                                      rosterWageSlotsForAudience)
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
 import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
@@ -56,7 +56,7 @@ import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterSelfServiceQuickT
 
 shouldShowRosterWageEstimates :: (?context :: ControllerContext) => Bool -> Bool
 shouldShowRosterWageEstimates userShowWageEstimates =
-    hasManagementMode && hasRole VenueAdmin && userShowWageEstimates
+    userShowWageEstimates && isJust rosterPayAudienceForCurrentUser
 
 fetchRosterPublicHolidayMap :: (?modelContext :: ModelContext) => VenueConfig -> Calendar.Day -> IO (Map.Map Calendar.Day Text)
 fetchRosterPublicHolidayMap venueConfig weekStartDate = do
@@ -385,7 +385,7 @@ fetchRosterRenderData scope = do
                     then pure []
                     else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsDirect venueConfig.lateToEarlyMinStartGapMinutes visibleSlots)
             let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
-            let wageSlots = filterRosterWageSlots (pinnedRosterWageStaffId showWageEstimates panelStaffMembers) visibleSlots
+            let wageSlots = maybe [] (`rosterWageSlotsForAudience` visibleSlots) rosterPayAudienceForCurrentUser
             rosterWagePrediction <-
                 if showWageEstimates
                     then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePredictionForWindow venueConfig rosterDays wageSlots)
@@ -541,7 +541,7 @@ renderVisibleRosterFragment scope fragment = do
                     let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
                     pure (renderRequestedRowFragment (hasManagementMode && not rosterWeek.windowIsPublished) weekStartDate scope.rosterWindowCalendarRevision facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled (rosterDayUuid, rowIndex))
                 RosterProjectionDaySection rosterDayUuid -> do
-                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers, basePanelStaff = panelStaffMembers } <- fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
+                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers } <- fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
                     venueConfig <- fetchVenueConfig
                     assignmentFilters <- fetchRosterAssignmentFilters
                     rosterLayoutMode <- fetchCurrentRosterLayoutMode
@@ -556,7 +556,7 @@ renderVisibleRosterFragment scope fragment = do
                             then pure []
                             else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsForSlotsDirect venueConfig.lateToEarlyMinStartGapMinutes visibleSlots targetSlots)
                     let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
-                    let wageSlots = filterRosterWageSlots (pinnedRosterWageStaffId showWageEstimates panelStaffMembers) visibleSlots
+                    let wageSlots = maybe [] (`rosterWageSlotsForAudience` visibleSlots) rosterPayAudienceForCurrentUser
                     rosterWagePrediction <-
                         if showWageEstimates
                             then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePredictionForWindow venueConfig rosterDays wageSlots)

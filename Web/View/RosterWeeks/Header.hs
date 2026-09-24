@@ -25,6 +25,8 @@ import Web.RosterWeeks.Paths (rosterTimelineWindowUrl, rosterWindowUrl)
 import Web.RosterWeeks.Types (RosterGridViewMode (..),
                               RosterViewCapabilities (..),
                               RosterWindowState (..))
+import Web.RosterWeeks.WageEstimates (rosterPayAudienceForCurrentUser,
+                                      rosterPayAudienceLabel)
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderRosterWeekLabel)
 
@@ -55,11 +57,12 @@ renderRosterSidePanelToggle = renderSidePanelToggle rosterSidePanelRenderAttrs
 
 renderRosterWeekWageSummary :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
 renderRosterWeekWageSummary Nothing = mempty
-renderRosterWeekWageSummary (Just prediction)
-    | not currentUserIsAdmin = mempty
-    | otherwise = [hsx|
-        <div class="roster-wage-summary" aria-label="Week wages estimate">
-            <span class="roster-wage-summary-label">Wages:</span>
+renderRosterWeekWageSummary (Just prediction) =
+    case rosterPayAudienceForCurrentUser of
+        Nothing -> mempty
+        Just (audience, _) -> [hsx|
+        <div class="roster-wage-summary" aria-label="Week wage estimate">
+            <span class="roster-wage-summary-label">{rosterPayAudienceLabel audience}:</span>
             <span class="roster-wage-summary-total">{formatMoneyAmount prediction.predictionWeekTotal}</span>
             {renderRosterWageFailures prediction}
             {renderRosterWageSourceWarnings prediction}

@@ -40,6 +40,8 @@ import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekConfirma
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWindowBaseUrl,
                               rosterWindowUrl)
+import Web.RosterWeeks.WageEstimates (RosterPayAudience (..),
+                                      rosterPayAudienceForCurrentUser)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterGridViewMode (..),
                               RosterStaffPanelRenderModel (..),
@@ -258,11 +260,16 @@ renderRosterWageEstimateToggle fields showWageEstimates =
             "show-wage-estimates"
             (surfaceToggleScalarField @Surface.ShowWageEstimates fields True False)
             showWageEstimates
-            [hsx|<span class="small">Show wage estimates</span>|]
+            [hsx|<span class="small">{rosterWageToggleLabel}</span>|]
         )
             { appToggleButtonClass = "btn-sm w-100 justify-content-start"
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
+  where
+    rosterWageToggleLabel :: Text
+    rosterWageToggleLabel = case fst <$> rosterPayAudienceForCurrentUser of
+        Just ManagementRosterPayAudience -> "Show expected wage estimates"
+        _ -> "Show my expected pay"
 
 renderRosterAssignmentFiltersSection :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterAssignmentFilters -> Html
 renderRosterAssignmentFiltersSection anchorDate rosterGroupId filters =

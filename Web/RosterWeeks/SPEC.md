@@ -155,10 +155,16 @@ The row-grid, day-column, and direct timeline URL are projections over the same
 direct read model. Timeline lane/overlap geometry is display-only and never
 redefines persisted `row_index`. Roster wage estimates use the same canonical
 unsealed boundary as a Timesheet suggestion; roster-only shifts contribute
-neither totals nor errors. Wage visibility and staff filtering remain
-server-authorized and transient. Draft wage-source maintenance warnings are
-visible only to platform super admins on both full pages and fragment responses;
-ordinary venue roles retain amounts and calculation errors, not provider warnings.
+neither totals nor errors. The independently persisted toggle defaults off.
+Worker, Supervisor, and Manager roles always receive only their effective linked
+Staff's authorized visible shifts. Admin and Owner receive selected-group venue
+totals in Manager mode and personal totals while it is off. Unimpersonated
+support receives selected-group venue totals; impersonation follows the effective
+actor. Missing eligible linked Staff means no personal estimate. Staff highlight
+pins and assignment filters never alter wage scope or totals, and no wage request
+decoration exists. Draft wage-source maintenance warnings are visible only to
+platform super admins on both full pages and fragment responses; ordinary venue
+roles retain amounts and calculation errors, not provider warnings.
 
 Managers receive Staff, Templates, and Settings in the shared transient SidePanel
 while Manager mode is on. With mode off, Staff inventory remains available,

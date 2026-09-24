@@ -67,6 +67,7 @@ import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
 import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.WageEstimates (rosterPayAudienceForCurrentUser)
 import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (laneRowRemovalOverflowCount),
                                   RosterWindow (rosterWindowLanes, rosterWindowProjectedDays),
                                   RosterWindowDay (persistedRosterDay),
@@ -996,8 +997,7 @@ instance Controller RosterWeeksController where
                         redirectToRosterWindow scope
 
     action currentAction@UpdateRosterWageEstimatePreferenceAction = runBepis currentAction BepisPreferenceAction do
-        ensureManagementMode
-        accessDeniedUnless (hasRole VenueAdmin)
+        accessDeniedUnless (isJust rosterPayAudienceForCurrentUser)
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterActionScope rosterGroup.id
         case RosterAction.parseToggleRosterWageEstimatesActionParams of

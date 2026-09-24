@@ -515,16 +515,6 @@
     if (isRosterImageExportCell(value)) return value;
     throw new Error("Invalid RosterImageExportCell");
   }
-  function isRosterWageFilterConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"], ["wageFilterEnabled", "wageFilterRefreshTargetIds", "wageFilterRequestTargetIds"]) && typeof value["wageFilterEnabled"] === "boolean" && (Array.isArray(value["wageFilterRefreshTargetIds"]) && value["wageFilterRefreshTargetIds"].every((item) => typeof item === "string")) && (Array.isArray(value["wageFilterRequestTargetIds"]) && value["wageFilterRequestTargetIds"].every((item) => typeof item === "string"));
-  }
-  function parseRosterWageFilterConfig(value) {
-    if (isRosterWageFilterConfig(value)) return value;
-    throw new Error("Invalid RosterWageFilterConfig");
-  }
-  function encodeRosterWageFilterRequest(value) {
-    return value;
-  }
   function isRosterWeekOverviewPanelConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["weekOverviewCurrentDate"], ["weekOverviewCurrentDate"]) && typeof value["weekOverviewCurrentDate"] === "string";
   }
@@ -635,7 +625,6 @@
   var rosterImageExportProjectionDomAttr = "data-bepis-roster-image-export-projection";
   var rosterImageExportRowDomAttr = "data-bepis-roster-image-export-row";
   var rosterImageExportCellDomAttr = "data-bepis-roster-image-export-cell";
-  var rosterWageFilterConfigDomAttr = "data-bepis-roster-wage-filter-config";
   var rosterWeekOverviewPanelDomAttr = "data-bepis-roster-week-overview-panel";
   var rosterWeekOverviewDayDomAttr = "data-bepis-roster-week-overview-day";
   var rosterWeekOverviewTodayDomAttr = "data-bepis-roster-week-overview-today";
@@ -2852,10 +2841,6 @@
     const runtimeGlobal = globalThis;
     runtimeGlobal.__bepisSurfaceFragmentRequestDecorators ?? (runtimeGlobal.__bepisSurfaceFragmentRequestDecorators = /* @__PURE__ */ new Set());
     return runtimeGlobal.__bepisSurfaceFragmentRequestDecorators;
-  }
-  function registerSurfaceFragmentRequestDecorator(decorator) {
-    decorators().add(decorator);
-    return () => decorators().delete(decorator);
   }
   function decorateSurfaceFragmentRequest(url, fragment, target) {
     let decoratedUrl = url;
@@ -7653,104 +7638,11 @@
     });
   }
 
-  // frontend/ts/roster/wage-filter.ts
-  function createRosterWageFilterController(targetDocument) {
-    const pinnedKeysByMount = /* @__PURE__ */ new WeakMap();
-    function pinChanged(change) {
-      if (change.pinRoleAttribute !== rosterStaffHighlightPinDomAttr) return;
-      if (!(change.mount instanceof HTMLElement)) return;
-      const ownerMount = owningRosterMount(change.mount);
-      if (!ownerMount) return;
-      pinnedKeysByMount.set(ownerMount, change.pinnedKey);
-      const config = readWageFilterConfig(ownerMount);
-      if (!config?.wageFilterEnabled) return;
-      const mountConfig = readFrontendSurfaceMountElement(ownerMount);
-      if (!mountConfig || mountConfig.surface !== "roster" || !mountConfig.subscription) return;
-      const targetIds = new Set(config.wageFilterRefreshTargetIds);
-      const fragments = mountConfig.fragments.filter((fragment) => targetIds.has(fragment.targetId)).map((fragment) => fragment.fragmentKey);
-      if (fragments.length === 0) return;
-      targetDocument.dispatchEvent(new CustomEvent(liveFragmentsRefreshEvent, {
-        detail: {
-          scope: mountConfig.subscription.scope,
-          scopeKey: mountConfig.scopeKey,
-          fragments
-        }
-      }));
-    }
-    function decorateRequest(event) {
-      const htmxEvent = event;
-      const source = htmxEvent.detail?.elt;
-      if (!(source instanceof Element)) return;
-      const ownerMount = source.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
-      if (!ownerMount) return;
-      const config = readWageFilterConfig(ownerMount);
-      const mountConfig = readFrontendSurfaceMountElement(ownerMount);
-      if (!config?.wageFilterEnabled || !mountConfig || !htmxEvent.detail?.path) return;
-      if (!requestTargetsWageFragment(source, ownerMount, config.wageFilterRequestTargetIds)) return;
-      const requestPath = new URL(htmxEvent.detail.path, targetDocument.defaultView?.location.origin ?? "http://localhost").pathname;
-      const isMountedFragmentRequest = mountConfig.fragments.some(
-        (fragment) => config.wageFilterRequestTargetIds.includes(fragment.targetId) && new URL(fragment.url, targetDocument.defaultView?.location.origin ?? "http://localhost").pathname === requestPath
-      );
-      if (!isMountedFragmentRequest) return;
-      const pinnedStaffKey = pinnedKeysByMount.get(ownerMount) ?? null;
-      if (!pinnedStaffKey || !htmxEvent.detail) return;
-      const encodedRequest = encodeRosterWageFilterRequest({ pinnedStaffKey });
-      if (htmxEvent.detail.parameters) {
-        Object.assign(htmxEvent.detail.parameters, encodedRequest);
-      } else {
-        htmxEvent.detail.parameters = { ...encodedRequest };
-      }
-    }
-    function decorateFragmentUrl(url, _fragment, target) {
-      const ownerMount = target.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
-      if (!ownerMount) return url;
-      const config = readWageFilterConfig(ownerMount);
-      if (!config?.wageFilterEnabled || !config.wageFilterRequestTargetIds.includes(target.id)) return url;
-      const pinnedStaffKey = pinnedKeysByMount.get(ownerMount) ?? null;
-      if (!pinnedStaffKey) return url;
-      const request = encodeRosterWageFilterRequest({ pinnedStaffKey });
-      const parsed = new URL(url, targetDocument.defaultView?.location.origin ?? "http://localhost");
-      Object.entries(request).forEach(([name, value]) => {
-        if (value !== void 0) parsed.searchParams.set(name, value);
-      });
-      return url.startsWith("/") ? `${parsed.pathname}${parsed.search}${parsed.hash}` : parsed.toString();
-    }
-    return { pinChanged, decorateRequest, decorateFragmentUrl };
-  }
-  function enableRosterWageFilter() {
-    const controller = createRosterWageFilterController(document);
-    document.addEventListener("htmx:configRequest", controller.decorateRequest);
-    registerSurfaceFragmentRequestDecorator(controller.decorateFragmentUrl);
-    return controller;
-  }
-  function owningRosterMount(interactionMount) {
-    return interactionMount.closest(`[${surfaceDomAttr}="roster"][${surfaceConfigDomAttr}]`);
-  }
-  function readWageFilterConfig(mount) {
-    const element = mount.querySelector(`[${rosterWageFilterConfigDomAttr}]`);
-    if (!element) return null;
-    const raw = element.getAttribute(rosterWageFilterConfigDomAttr);
-    if (!raw) return null;
-    try {
-      return parseRosterWageFilterConfig(JSON.parse(raw));
-    } catch {
-      return null;
-    }
-  }
-  function requestTargetsWageFragment(source, mount, targetIds) {
-    for (const targetId of targetIds) {
-      const target = mount.querySelector(`#${targetId}`);
-      if (target && (target === source || target.contains(source))) return true;
-    }
-    return false;
-  }
-
   // frontend/ts/app-roster.ts
   enableRosterWeekOverview();
   enableRosterColumnEditMode();
   enableRosterImageExport();
-  var rosterWageFilter = enableRosterWageFilter();
-  enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });
+  enableFrontendSurfaceLinkedHighlight();
 
   // frontend/ts/xero-candidate-filter/configuration.ts
   function parseXeroCandidateFilterConfiguration(raw) {

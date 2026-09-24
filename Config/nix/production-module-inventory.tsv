@@ -554,7 +554,7 @@ Web/RosterWeeks/TemplateApplication/Types.hs	production	runtime	Main	Reachable f
 Web/RosterWeeks/TemplateCapture.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Types.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/VenueSettings.hs	production	runtime	Main	Reachable from Main
-Web/RosterWeeks/WageFilter.hs	production	runtime	Main	Reachable from Main
+Web/RosterWeeks/WageEstimates.hs	production	runtime	Main	Reachable from Main
 Web/Routes.hs	production	runtime	Main	Reachable from Main
 Web/Staff/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Staff/ProfileSurfaceRequest.hs	production	runtime	Main	Reachable from Main

@@ -1930,7 +1930,7 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseBodyShouldNotContain` "Export colour PNG"
                 workerResponse `responseBodyShouldNotContain` "Export print PNG"
 
-        it "shows week wage estimates to admins only" $ withContext do
+        it "scopes expected pay by audience and Manager mode" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 wageVenueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -1945,7 +1945,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Early"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                staffMember <- createStaffRecord venue (Just manager) "Alpha" "Crew"
                 _ <- updateRecord (staffMember |> set #employmentBasis Permanent)
                 level <- createPayLevelRecordWithRates venue "Level 1" 20 5 10 1 1.5 2
                 _ <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
@@ -2006,7 +2006,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId uncalculableShiftType.id))
                         |> setTestDurationMinutes (Just 240)
                     )
-                secondStaff <- createStaffRecord venue Nothing "Bravo" "Crew"
+                secondStaff <- createStaffRecord venue (Just admin) "Bravo" "Crew"
                 _ <- updateRecord (secondStaff |> set #employmentBasis Permanent)
                 _ <- updateRecord (secondStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
                 secondShiftType <- createShiftTypeRecord venue level "Bar"
@@ -2018,8 +2018,6 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId secondShiftType.id))
                         |> setTestDurationMinutes (Just 240)
                     )
-                otherVenue <- createVenueWithConfig "Venue B"
-                foreignStaff <- createStaffRecord otherVenue Nothing "Foreign" "Staff"
                 _ <-
                     newRecord @UserPreference
                         |> set #userId (unpackId admin.id)
@@ -2035,13 +2033,19 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #userId (unpackId owner.id)
                         |> set #showWageEstimates True
                         |> createRecord
+                _ <-
+                    newRecord @UserPreference
+                        |> set #userId (unpackId manager.id)
+                        |> set #showWageEstimates True
+                        |> createRecord
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
-                adminResponse `responseBodyShouldContain` "Wages:"
+                adminResponse `responseBodyShouldContain` "Expected gross wages:"
+                adminResponse `responseBodyShouldContain` "Show expected wage estimates"
                 adminResponse `responseBodyShouldContain` "$230.00"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary-total"
@@ -2054,7 +2058,6 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseBodyShouldContain` ">Wages<"
                 adminResponse `responseBodyShouldContain` "roster-day-wage-total"
                 adminResponse `responseBodyShouldContain` "aria-label=\"Wages for day\""
-                adminResponse `responseBodyShouldContain` "Wages enabled"
                 adminResponse `responseBodyShouldNotContain` "Admin estimate only"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
@@ -2062,32 +2065,24 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
-                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
-                            ]
-                alphaToolbarResponse `responseBodyShouldContain` "$150.00"
+                            [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
+                alphaToolbarResponse `responseBodyShouldContain` "$230.00"
                 alphaToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
                 alphaToolbarResponse `responseBodyShouldNotContain` "Wage source warning"
-                alphaToolbarResponse `responseBodyShouldNotContain` "$230.00"
 
                 alphaWageRailResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekWageRailFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
-                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
-                            ]
-                alphaWageRailResponse `responseBodyShouldContain` "$150.00"
-                alphaWageRailResponse `responseBodyShouldNotContain` "$230.00"
+                            [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
+                alphaWageRailResponse `responseBodyShouldContain` "$230.00"
 
                 supportToolbarResponse <- withUserAndCurrentVenue supportAdmin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
-                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
-                            ]
-                supportToolbarResponse `responseBodyShouldContain` "$150.00"
+                            [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
+                supportToolbarResponse `responseBodyShouldContain` "$230.00"
                 supportToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
                 supportToolbarResponse `responseBodyShouldContain` "Wage source warning"
 
@@ -2099,46 +2094,21 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
-                            , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
-                            ]
-                ownerToolbarResponse `responseBodyShouldContain` "$150.00"
+                            [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
+                ownerToolbarResponse `responseBodyShouldContain` "$230.00"
                 ownerToolbarResponse `responseBodyShouldContain` "1 wage estimate error"
                 ownerToolbarResponse `responseBodyShouldNotContain` "Wage source warning"
 
-                bravoToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
-                            , ("pinnedStaffKey", "staff:" <> cs (tshow secondStaff.id))
-                            ]
-                bravoToolbarResponse `responseBodyShouldContain` "$80.00"
-                bravoToolbarResponse `responseBodyShouldNotContain` "wage estimate error"
-
-                unpinnedToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
-                unpinnedToolbarResponse `responseBodyShouldContain` "$230.00"
-
-                foreignPinToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
-                            , ("pinnedStaffKey", "staff:" <> cs (tshow foreignStaff.id))
-                            ]
-                foreignPinToolbarResponse `responseBodyShouldContain` "$230.00"
-                foreignPinToolbarResponse `responseBodyShouldNotContain` "$80.00"
-
-                fullNavigationIgnoresPinResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams
-                        (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
-                        [("pinnedStaffKey", "staff:" <> cs (tshow secondStaff.id))]
-                fullNavigationIgnoresPinResponse `responseBodyShouldContain` "$230.00"
-                fullNavigationIgnoresPinResponse `responseBodyShouldNotContain` "$80.00"
+                adminPreferences <- query @UserPreference |> filterWhere (#userId, unpackId admin.id) |> fetchOne
+                _ <- adminPreferences |> set #managerModeEnabled False |> updateRecord
+                personalAdminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                personalAdminResponse `responseBodyShouldContain` "Your expected pay:"
+                personalAdminResponse `responseBodyShouldContain` "Show my expected pay"
+                personalAdminResponse `responseBodyShouldContain` "$80.00"
+                personalAdminResponse `responseBodyShouldNotContain` "$230.00"
+                refreshedAdminPreferences <- query @UserPreference |> filterWhere (#userId, unpackId admin.id) |> fetchOne
+                _ <- refreshedAdminPreferences |> set #managerModeEnabled True |> updateRecord
 
                 dayColumnsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -2155,7 +2125,7 @@ tests = aroundAll withDatabaseTestContext do
                 dayColumnsFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                 dayColumnsFrameResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                dayColumnsFrameResponse `responseBodyShouldContain` "Wages:"
+                dayColumnsFrameResponse `responseBodyShouldContain` "Expected gross wages:"
                 dayColumnsFrameResponse `responseBodyShouldContain` "roster-wage-summary-total"
                 dayColumnsFrameResponse `responseBodyShouldContain` "roster-day-wage-total-labeled"
                 dayColumnsFrameResponse `responseBodyShouldContain` "Wages"
@@ -2178,12 +2148,12 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                 hiddenWagesFrameResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages disabled"
-                hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages:"
+                hiddenWagesFrameResponse `responseBodyShouldNotContain` "Expected gross wages:"
                 hiddenWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
                         (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
                         [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
-                hiddenWagesPanelResponse `responseBodyShouldContain` "Wages disabled"
+                hiddenWagesPanelResponse `responseStatusShouldBe` status200
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 hiddenPreferences <- query @UserPreference
@@ -2195,13 +2165,35 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 managerResponse `responseStatusShouldBe` status200
-                managerResponse `responseBodyShouldNotContain` "Week wage estimate"
-                managerResponse `responseBodyShouldNotContain` "roster-wage-summary"
-                managerResponse `responseBodyShouldNotContain` "roster-wage-summary-total"
-                managerResponse `responseBodyShouldNotContain` "roster-day-wage-total"
-                managerResponse `responseBodyShouldNotContain` "aria-label=\"Wages for day\""
+                managerResponse `responseBodyShouldContain` "Your expected pay:"
+                managerResponse `responseBodyShouldContain` "Show my expected pay"
+                managerResponse `responseBodyShouldContain` "$150.00"
+                managerResponse `responseBodyShouldNotContain` "$230.00"
+                managerResponse `responseBodyShouldContain` "roster-wage-summary"
+                managerResponse `responseBodyShouldContain` "roster-day-wage-total"
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
-                managerResponse `responseBodyShouldNotContain` "Wages disabled"
+
+                managerToggleResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UpdateRosterWageEstimatePreferenceAction
+                        [("anchorDate", "2025-01-06"), ("showWageEstimates", "false")]
+                managerToggleResponse `responseStatusShouldBe` status302
+                managerPreferences <- query @UserPreference |> filterWhere (#userId, unpackId manager.id) |> fetchOne
+                managerPreferences.showWageEstimates `shouldBe` False
+
+        it "rejects the expected-pay toggle without an eligible linked Staff identity" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster pay identity venue"
+                manager <- createUserRecord "roster-pay-no-staff@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createStaffRecord venue (Just manager) "Inactive" "Manager"
+                    >>= updateRecord . set #isActive False
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UpdateRosterWageEstimatePreferenceAction
+                        [("anchorDate", "2025-01-06"), ("showWageEstimates", "true")]
+
+                response `responseStatusShouldBe` status403
+                query @UserPreference |> filterWhere (#userId, unpackId manager.id) |> fetchCount >>= (`shouldBe` 0)
 
         it "allows an ordinary roster viewer to persist own Published-shift highlighting" $ withContext do
             withCleanDb do

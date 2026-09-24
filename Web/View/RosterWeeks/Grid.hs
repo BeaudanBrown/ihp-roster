@@ -73,7 +73,6 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (RosterWeekScopeVal
 import Web.RosterWeeks.Paths (rosterDayMutationUrl)
 import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.Types
-import Web.RosterWeeks.WageFilter (rosterWageFilterConfigAttrs)
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
@@ -195,8 +194,6 @@ renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderMode
 renderRosterMainPanel gridModel =
     profileHtmlComponent "render.roster.main_panel" [hsx|
         <div class="app-panel mb-5 mb-xl-0 roster-main-panel">
-            <span hidden
-                  {...rosterWageFilterConfigAttrs (currentUserIsAdmin && gridModel.gridShowWageEstimates) gridModel.gridRosterDays gridModel.gridRosterLayoutMode gridModel.gridViewMode}></span>
             {renderrosterGridToolbarLiveFragment gridModel}
             {renderrosterGridFrameLiveFragment gridModel}
         </div>

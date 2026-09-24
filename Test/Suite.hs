@@ -107,6 +107,7 @@ import qualified Test.RosterGridSpec
 import qualified Test.RosterInteractionWorkflowSpec
 import qualified Test.RosterNotificationSpec
 import qualified Test.RosterTemplateApplicationSpec
+import qualified Test.RosterWageDisplaySpec
 import qualified Test.RosterTemplateCaptureSpec
 import qualified Test.RosterTemplatesSpec
 import qualified Test.SchemaSpec
@@ -473,6 +474,7 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "HelpController", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = ProductSupport, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.Controller.HelpSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "SupportController", definitionEstimatedRuntimeSeconds = 2.4, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TestInfrastructure, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A4], definitionPartialInvariants = []} Test.Controller.SupportSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "RosterAwardDuration", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterAwardDurationSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "RosterWageDisplay", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterWageDisplaySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "RosterGrid", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Rostering, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterGridSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "RosterInteractionWorkflow", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Rostering, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterInteractionWorkflowSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "UsersController", definitionEstimatedRuntimeSeconds = 1.8, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A1, A2, A3, A4, T7], definitionPartialInvariants = []} Test.Controller.UsersSpec.tests
