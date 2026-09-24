@@ -66,9 +66,13 @@ test('moderates Feedback with actor and passive plain-fragment refreshes', async
         await expect(viewer.locator('#feedback-cards')).toContainText('1 votes');
 
         await card.getByRole('button', { name: 'Archive', exact: true }).click();
-        const archiveDialog = page.getByRole('dialog', { name: 'Archive feedback?' });
-        await expect(archiveDialog).toContainText('All votes will be removed.');
-        await archiveDialog.getByRole('button', { name: 'Archive', exact: true }).click();
+        const confirmation = page.getByRole('dialog', { name: 'Archive feedback?', exact: true });
+        await expect(confirmation).toContainText('All votes will be removed.');
+        await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(confirmation).toHaveCount(0);
+        await expect(viewer.locator('#feedback-cards')).toContainText('1 votes');
+        await card.getByRole('button', { name: 'Archive', exact: true }).click();
+        await confirmation.getByRole('button', { name: 'Archive', exact: true }).click();
         await expect(viewer.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         await card.getByRole('button', { name: 'Restore', exact: true }).click();
         await expect(page.locator('#feedback-desktop-count')).toHaveText(String(initialCount), { timeout: E2E_TIMEOUT.assertion });

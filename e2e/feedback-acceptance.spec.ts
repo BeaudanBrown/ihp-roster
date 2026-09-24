@@ -80,7 +80,8 @@ test('complete moderated journey preserves private data and private-only live ac
         await founder.getByRole('button', { name: 'Save', exact: true }).click();
         await expect(founder.locator('#dialog-overlay-mount')).toBeEmpty();
         await management.getByRole('button', { name: 'Archive', exact: true }).click();
-        await founder.getByRole('dialog', { name: 'Archive feedback?' }).getByRole('button', { name: 'Archive', exact: true }).click();
+        const confirmation = founder.getByRole('dialog', { name: 'Archive feedback?', exact: true });
+        await confirmation.getByRole('button', { name: 'Archive', exact: true }).click();
         await management.getByRole('button', { name: 'Restore', exact: true }).click();
         await management.getByRole('button', { name: 'Publish', exact: true }).click();
         await expect(voter.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toBeVisible();
@@ -104,9 +105,8 @@ test('complete moderated journey preserves private data and private-only live ac
         await expect(voter.locator('#feedback-cards')).toContainText('Public revision preserves votes.');
         await expect(authorVote).toHaveAttribute('aria-pressed', 'true');
         await management.getByRole('button', { name: 'Archive', exact: true }).click();
-        const archiveDialog = founder.getByRole('dialog', { name: 'Archive feedback?' });
-        await expect(archiveDialog).toContainText('All votes will be removed.');
-        await archiveDialog.getByRole('button', { name: 'Archive', exact: true }).click();
+        await expect(confirmation).toContainText('All votes will be removed.');
+        await confirmation.getByRole('button', { name: 'Archive', exact: true }).click();
         await expect(voter.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         expect(querySql(`SELECT count(*) FROM feedback_votes WHERE feedback_item_id = '${itemId}'`)).toBe('0');
         await screenshot(founder, 'feedback-archived');

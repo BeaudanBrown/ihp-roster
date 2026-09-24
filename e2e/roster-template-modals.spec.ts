@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { defaultE2ERosterGroupId, ensureRosterLayout, openRoster } from './support/roster';
 import { E2E_TIMEOUT } from './timeouts';
+import { rosterSidePanelShelfToggleDomAttr } from '../frontend/ts/generated/contracts';
 import { gotoWhenReady, runActionUntilRequestStarts, uniqueE2EValue } from './support/runtime';
 import { querySql, runSql } from './support/database';
 
@@ -96,6 +97,10 @@ function currentWindowDayCount(page: Page) {
 }
 
 async function openTemplatesTab(page: Page) {
+    const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+    if (await shelfToggle.isVisible() && await shelfToggle.getAttribute('aria-expanded') === 'false') {
+        await shelfToggle.click();
+    }
     const tab = page.getByRole('tab', { name: 'Templates', exact: true }).first();
     if (!(await tab.isVisible())) {
         const mobilePanelToggle = page.getByRole('button', { name: 'Open Roster tools' });
