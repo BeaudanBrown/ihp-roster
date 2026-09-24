@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from '../timeouts';
+import { timesheetsSidePanelShelfToggleDomAttr } from '../../frontend/ts/generated/contracts';
 import { runSql, sqlString } from './database';
 import { waitForLiveRecovery } from './runtime';
 
@@ -34,6 +35,11 @@ export async function chooseBlankTimesheet(page: Page, preferredStaffName = 'E2E
 
 export async function openTimesheetSettings(page: Page) {
     await waitForLiveRecovery(page, E2E_TIMEOUT.liveUpdate);
+    const shelfToggle = page.locator(`[${timesheetsSidePanelShelfToggleDomAttr}]`);
+    if (await shelfToggle.isVisible() && await shelfToggle.getAttribute('aria-expanded') === 'false') {
+        await shelfToggle.click();
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'true');
+    }
     const settingsTab = page.getByRole('tab', { name: 'Settings' });
     if (!(await settingsTab.isVisible())) {
         const mobilePanelToggle = page.getByRole('button', { name: 'Open Timesheet tools' });
@@ -52,4 +58,5 @@ export async function openTimesheetSettings(page: Page) {
             return showApproved.isVisible();
         }, { timeout: E2E_TIMEOUT.liveUpdate }).toBe(true);
     }
+    await expect(page.locator('#timesheet-side-panel-content')).toContainText('Show approved');
 }

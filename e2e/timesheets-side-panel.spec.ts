@@ -113,10 +113,11 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(page.locator('#timesheet-roster-group-filter')).toHaveCount(0);
     });
 
-    test('renders a Settings-only stacked panel for ordinary staff', async ({ page }) => {
+    test('renders a Settings-only tools shelf for ordinary staff', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        await openTimesheetSettings(page);
 
         const mobilePanelToggle = page.getByRole('button', { name: 'Open Timesheet tools' });
         await expect(mobilePanelToggle).toBeVisible();

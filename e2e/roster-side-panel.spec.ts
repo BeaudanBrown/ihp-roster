@@ -5,6 +5,7 @@ import {
     rosterSidePanelRootDomAttr,
     rosterSidePanelStates,
     rosterSidePanelToggleDomAttr,
+    rosterSidePanelShelfToggleDomAttr,
     rosterSelfServicePanelTabDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { gotoWhenReady } from './support/runtime';
@@ -58,10 +59,10 @@ test.describe('Roster side-panel toggle', () => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/RosterWeeks', '#roster-week-shell');
 
-        const mobilePanelToggle = page.getByRole('button', { name: 'Open Roster tools' });
-        await expect(mobilePanelToggle).toBeVisible();
-        await mobilePanelToggle.click();
-
+        const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
+        await shelfToggle.click();
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'true');
         const quickToolsTab = page.locator(`[${rosterSelfServicePanelTabDomAttr}="quick-tools"]`);
         const settingsTab = page.locator(`[${rosterSelfServicePanelTabDomAttr}="settings"]`);
         await quickToolsTab.click();

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import {
     rosterColumnEditorDomAttr,
     rosterColumnEditStartDomAttr,
+    rosterSidePanelShelfToggleDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
@@ -98,8 +99,11 @@ test.describe('Roster mobile baseline', () => {
             expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
         } finally {
             await page.keyboard.press('Escape');
-            const closeRosterToolsAfterDialog = page.getByRole('button', { name: 'Close Roster tools' });
-            if (await closeRosterToolsAfterDialog.isVisible()) await closeRosterToolsAfterDialog.click();
+            const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+            if (await shelfToggle.isVisible() && await shelfToggle.getAttribute('aria-expanded') === 'true') {
+                await shelfToggle.click();
+                await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
+            }
             if (await publishToggle.isChecked()) await publishToggleRoot.click();
         }
     });
@@ -189,11 +193,22 @@ test.describe('Roster mobile baseline', () => {
                 sidePosition: getComputedStyle(side).position,
                 panelOverflowY: getComputedStyle(panel).overflowY,
                 listOverflowY: getComputedStyle(list).overflowY,
+                paneOverflowY: getComputedStyle(document.querySelector('#roster-staff-panel-staff-pane')!).overflowY,
             };
         });
 
         expect(metrics).not.toBeNull();
         expect(metrics?.sidePosition).toBe('fixed');
+        expect(metrics?.panelOverflowY).toBe('hidden');
+        expect(metrics?.listOverflowY).not.toBe('auto');
+        expect(metrics?.paneOverflowY).toBe('auto');
+        const shelfToggle = page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`);
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
+        await shelfToggle.click();
+        await expect(page.locator('#roster-staff-panel-staff-pane')).toBeVisible();
+        await expectNoHorizontalViewportOverflow(page);
+        await page.keyboard.press('Escape');
+        await expect(shelfToggle).toHaveAttribute('aria-expanded', 'false');
     });
 
     test('keeps the day-row day rail width stable when end times are enabled on phone widths', async ({ page }) => {
