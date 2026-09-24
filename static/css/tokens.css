@@ -4,6 +4,9 @@
     --app-density-space-scale: 1;
     --app-density-control-scale: 1;
     color-scheme: dark;
+    /* SidePanel replaces these viewport fallbacks with measured geometry. */
+    --app-shelf-height: 100dvh;
+    --app-shelf-bottom: 0px;
     --app-shelf-bar-height: max(3rem, var(--app-control-height-lg));
     --app-shelf-bottom: 0px;
     --app-shelf-height: 100dvh;
