@@ -4,6 +4,10 @@ module Web.View.Timesheets.RosterPrefillNew where
 
 import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
+import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAttribute)
+import Application.Helper.FrontendContract.Surface.Runtime (defaultFrontendSurfaceActionRoute,
+                                                            frontendSurfaceActionAttrs)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowUrl)
 import Web.View.Prelude
@@ -20,6 +24,7 @@ newtype RosterPrefillNewView = RosterPrefillNewView
 instance View RosterPrefillNewView where
     html RosterPrefillNewView { rosterPrefillTimesheetRenderModel } =
         renderTimesheetEntryModal
+            GuardNewTimesheet
             ("Rostered " <> timesheetModalTitle operationalDate)
             (timesheetWindowUrl operationalDate inputs.selectedStaffFilterId)
             rosterPrefillTimesheetFormId
@@ -50,8 +55,14 @@ renderRosterPrefillTimesheetForm formMode RosterPrefillTimesheetRenderModel { ro
                 TimesheetFormPresentation
                     { appShellAction = appShellActionByMarker @CreateTimesheetEntryOverlay
                     , formOrigin = RosteredTimesheetForm
-                    , actionUrl = pathTo CreateTimesheetEntryFromRosterShiftAction { rosterSlotId }
+                    , actionUrl
                     , formId = rosterPrefillTimesheetFormId
                     , formMode
+                    , formExtraAttrs = filter ((== surfaceActionDomAttribute) . fst) (frontendSurfaceActionAttrs surfaceAction (defaultFrontendSurfaceActionRoute actionUrl))
                     }
             }
+  where
+    actionUrl = pathTo CreateTimesheetEntryFromRosterShiftAction { rosterSlotId }
+    surfaceAction =
+        TimesheetsAction.createTimesheetEntryFromRosterShiftAction
+            (TimesheetsAction.createTimesheetEntryFromRosterShiftActionFields timesheetFormInputs.timesheetEntry.operationalDate timesheetFormInputs.calendarRevision timesheetFormInputs.selectedStaffFilterId)

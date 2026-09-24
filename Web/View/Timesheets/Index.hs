@@ -299,7 +299,7 @@ renderTimesheetSidePanel view =
             SidePanelCardConfig
                 { sidePanelCardClass = "timesheet-side-panel-card"
                 }
-            (if currentUserIsManager then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view)
+            (if hasManagementMode then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view)
         )
 
 renderManagerTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html

@@ -134,6 +134,14 @@ databaseTests = aroundAll withDatabaseTestContext do
                     filter (\node -> maybe False (Text.isInfixOf "app-modal-footer") (lookup "class" (nodeAttrs node))) (elementNodes emptyTree)
                         `shouldBe` []
 
+        it "retains dismissal guards on direct page dialogs" $ withContext do
+            withCurrentControllerContext do
+                let guard = DialogDismissalGuardConfigValue "timesheet-entry-edit-form" False "Discard unsaved changes?" "Keep editing" "Discard changes"
+                let config = (defaultDialogOverlayConfig "Edit Timesheet" mempty []) { dialogOverlayDismissalGuard = Just guard }
+                tree <- parseRenderedOverlay (renderPageDialogModal "/Timesheets" config)
+                let guardedDialogs = filter (\node -> lookup "data-bepis-dialog-dismissal-guard" (nodeAttrs node) == Just "true") (elementNodes tree)
+                map nodeAttrs guardedDialogs `shouldSatisfy` any (elem ("data-bepis-dialog-mount", "true"))
+
         it "renders confirmation as an explicit dialog with a native loading submit" $ withContext do
             withCurrentControllerContext do
                 let html = renderText (renderConfirmationDialog

@@ -177,7 +177,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved filters = do
                 |> filterWhere (#deletedAt, Nothing)
 
     allManagerEntries <-
-        if hasRole Manager
+        if hasManagementMode
             then baseQuery |> orderByAsc #startsAt |> fetch
             else pure []
     workerEntries <-
@@ -196,7 +196,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved filters = do
             |> filter (not . (hideApproved &&) . (.isApproved))
             |> filter (\entry -> maybe True (== entry.staffId) validStaffFilterId)
     staffPanelEntries <-
-        if hasRole Manager
+        if hasManagementMode
             then buildTimesheetStaffPanelEntries staffMembers rosterGroupEntries
             else pure []
 

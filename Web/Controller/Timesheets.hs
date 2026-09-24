@@ -130,6 +130,7 @@ instance Controller TimesheetsController where
 
     action currentAction@ShowTimesheetStaffContentFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         ensureManagerRole
+        ensureManagementMode
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         windowStart <- timesheetWindowStartForAnchor anchorDate
         filters <- canonicalTimesheetFragmentFilters (timesheetStaffContentFragmentUrl anchorDate)

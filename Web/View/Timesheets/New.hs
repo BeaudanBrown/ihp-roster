@@ -19,6 +19,7 @@ newtype NewView = NewView
 instance View NewView where
     html NewView { newTimesheetRenderModel } =
         renderTimesheetEntryModal
+            GuardNewTimesheet
             (timesheetModalTitle operationalDate)
             (timesheetWindowUrl operationalDate inputs.selectedStaffFilterId)
             newTimesheetFormId
@@ -51,5 +52,6 @@ newTimesheetFormRenderModel formMode NewTimesheetRenderModel { timesheetFormInpu
                 , actionUrl = pathTo CreateTimesheetEntryAction
                 , formId = newTimesheetFormId
                 , formMode
+                , formExtraAttrs = []
                 }
         }

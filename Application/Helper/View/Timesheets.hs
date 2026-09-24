@@ -74,6 +74,7 @@ data TimesheetFormPresentation = TimesheetFormPresentation
     , actionUrl      :: Text
     , formId         :: Text
     , formMode       :: OverlayFormMode
+    , formExtraAttrs :: [(Text, Text)]
     }
 
 data TimesheetFormRenderModel = TimesheetFormRenderModel
@@ -113,7 +114,7 @@ renderTimesheetForm model@TimesheetFormRenderModel { timesheetFormPresentation =
                 ((defaultAppShellActionRoute (actionUrl))
                     { appShellActionRouteExtraAttrs = [ ("id", formId)
                         , ("class", "mt-3")
-                        ]
+                        ] <> formExtraAttrs
                     })
                 (renderTimesheetFormFields model)
         PageOverlayForm -> [hsx|
@@ -397,12 +398,12 @@ renderFieldError entry fieldName =
 hasErrorFor :: TimesheetEntry -> Text -> Bool
 hasErrorFor entry fieldName = isJust (lookup fieldName entry.meta.annotations)
 
-renderTimesheetEntryModal :: Text -> Text -> Text -> Html -> Html
-renderTimesheetEntryModal title closeUrl formId formContent =
-    renderTimesheetEntryModalWithStartButtons title closeUrl formId formContent []
+renderTimesheetEntryModal :: TimesheetDismissalGuardMode -> Text -> Text -> Text -> Html -> Html
+renderTimesheetEntryModal guardMode title closeUrl formId formContent =
+    renderTimesheetEntryModalWithStartButtons guardMode title closeUrl formId formContent []
 
-renderTimesheetEntryModalWithStartButtons :: Text -> Text -> Text -> Html -> [OverlayButton] -> Html
-renderTimesheetEntryModalWithStartButtons title closeUrl formId formContent startButtons =
+renderTimesheetEntryModalWithStartButtons :: TimesheetDismissalGuardMode -> Text -> Text -> Text -> Html -> [OverlayButton] -> Html
+renderTimesheetEntryModalWithStartButtons guardMode title closeUrl formId formContent startButtons =
     renderPageDialogModal
         closeUrl
         (defaultDialogOverlayConfig
@@ -410,6 +411,7 @@ renderTimesheetEntryModalWithStartButtons title closeUrl formId formContent star
             formContent
             (defaultOverlayButtons formId))
             { dialogOverlayStartButtons = startButtons
+            , dialogOverlayDismissalGuard = Just (timesheetDismissalGuardConfig guardMode formId)
             }
 
 renderTimesheetEntryDialog :: TimesheetDismissalGuardMode -> Text -> Text -> Html -> Html

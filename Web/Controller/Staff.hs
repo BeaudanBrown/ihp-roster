@@ -27,9 +27,8 @@ import Application.Helper.View (ConfirmationDialogConfig (..),
                                 OverlayFormMode (HtmxOverlayForm),
                                 ToastOverlayPosition (..),
                                 defaultConfirmationDialogConfig,
-                                defaultDialogOverlayConfig, errorToast,
+                                errorToast,
                                 renderConfirmationDialog,
-                                renderDialogOverlay,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import Application.PayAssignment (selectableStaffAssignmentMode)

@@ -574,7 +574,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift type must stay within roster day venue"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source roster slot must match entry venue and Operational date"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source roster slot must match entry venue, Operational date and roster group"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"

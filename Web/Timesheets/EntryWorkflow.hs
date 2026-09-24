@@ -112,11 +112,10 @@ prepareTimesheetChooser selectedStaffFilterId operationalDate = do
             let blankClassifications = sortOn classificationOrder (Set.toList (Set.fromList (concatMap snd staffClassifications)))
             let defaultStaffFor classification =
                     let matchingStaff = [staff | (staff, classifications) <- staffClassifications, classification `elem` classifications]
-                     in fromMaybe (error "Timesheet classification has no eligible Staff") $
-                            find (\staff -> Just (unpackId staff.id) == selectedStaffFilterId) matchingStaff
-                                <|> (formContext.formCurrentViewerStaffId >>= \staffId -> find ((== staffId) . unpackId . (.id)) matchingStaff)
-                                <|> head matchingStaff
-            let blankChoices = [TimesheetBlankChoice (defaultStaffFor classification) classification | classification <- blankClassifications]
+                     in find (\staff -> Just (unpackId staff.id) == selectedStaffFilterId) matchingStaff
+                            <|> (formContext.formCurrentViewerStaffId >>= \staffId -> find ((== staffId) . unpackId . (.id)) matchingStaff)
+                            <|> listToMaybe matchingStaff
+            let blankChoices = mapMaybe (\classification -> TimesheetBlankChoice <$> defaultStaffFor classification <*> pure classification) blankClassifications
             let staffNames = Map.fromList [(unpackId staff.id, (Text.toCaseFold staff.lastName, Text.toCaseFold staff.firstName)) | staff <- eligibleStaff]
             let currentViewerId = formContext.formCurrentViewerStaffId
             let groupIndex rosterPrefill = Map.findWithDefault maxBound rosterPrefill.prefillRosterGroupId groupOrder
@@ -141,14 +140,13 @@ prepareTimesheetChooser selectedStaffFilterId operationalDate = do
             let chooserSelectedStaffFilter = selectedStaffFilterId
             let chooserCurrentViewerStaff = currentViewerId
             let chooserOperationalDate = operationalDate
-            if null chooserRosterShifts && length chooserBlankChoices == 1
-                then
-                    let soleChoice = fromMaybe (error "sole blank Timesheet choice missing") (head chooserBlankChoices)
-                     in prepareNewTimesheetForm (Just (unpackId soleChoice.blankChoiceStaff.id)) (Just operationalDate) (Just soleChoice.blankChoiceClassification)
-                    >>= \case
-                        Left blocker -> pure (TimesheetChooserBlocked blocker)
-                        Right model -> pure (TimesheetChooserDirectBlank model)
-                else pure (TimesheetChooserRequired TimesheetChooserRenderModel { .. })
+            case (chooserRosterShifts, chooserBlankChoices) of
+                ([], [soleChoice]) ->
+                    prepareNewTimesheetForm (Just (unpackId soleChoice.blankChoiceStaff.id)) (Just operationalDate) (Just soleChoice.blankChoiceClassification)
+                        >>= \case
+                            Left blocker -> pure (TimesheetChooserBlocked blocker)
+                            Right model -> pure (TimesheetChooserDirectBlank model)
+                _ -> pure (TimesheetChooserRequired TimesheetChooserRenderModel { .. })
 
 prepareChosenBlankTimesheetForm :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> Day -> TimesheetRosterGroupClassification -> IO (Maybe (Either TimesheetCreationBlocker NewTimesheetRenderModel))
 prepareChosenBlankTimesheetForm selectedStaffId operationalDate classification =
@@ -176,7 +174,7 @@ prepareNewTimesheetForm selectedStaffFilterId maybeWorkedOn maybeClassification 
                     let defaultStaffId =
                             (formContext.formSelectedStaffFilterId >>= \staffId -> guard (any ((== staffId) . unpackId . (.id)) formContext.formStaffMembers) >> pure staffId)
                                 <|> (formContext.formCurrentViewerStaffId >>= \staffId -> guard (any ((== staffId) . unpackId . (.id)) formContext.formStaffMembers) >> pure staffId)
-                                <|> (unpackId . (.id) <$> head formContext.formStaffMembers)
+                                <|> (unpackId . (.id) <$> listToMaybe formContext.formStaffMembers)
                     let timesheetEntry = entry
                             |> set #venueId (unpackId currentVenueId)
                             |> (\record -> maybe record (\staffId -> set #staffId staffId record) defaultStaffId)

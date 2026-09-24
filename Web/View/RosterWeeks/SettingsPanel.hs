@@ -9,7 +9,8 @@ module Web.View.RosterWeeks.SettingsPanel
     , renderRosterSettingsPanel
     ) where
 
-import Application.Helper.Controller (managerModePreferenceEnabled,
+import Application.Helper.Controller (hasManagementMode,
+                                      managerModePreferenceEnabled,
                                       managerModeToggleEnabled,
                                       managerModeToggleVisible)
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
@@ -58,7 +59,7 @@ renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, st
     <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel">
         {when managerModeToggleVisible (renderRosterManagerModePreferenceForm staffPanelWeekStartDate staffPanelCurrentRosterGroup.id)}
         {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekStartDate staffPanelRosterGroups staffPanelCurrentRosterGroup)}
-        {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
+        {when hasManagementMode $ renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
         {when (staffPanelViewCapabilities.canManageRosterWarnings || staffPanelViewCapabilities.canViewWageEstimates) $
             renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelViewCapabilities staffPanelShowWageEstimates staffPanelShowRosterWarnings staffPanelHighlightOwnLiveShifts)}
         {when staffPanelViewCapabilities.canManageAssignmentFilter $

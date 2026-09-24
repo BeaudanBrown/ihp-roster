@@ -40,12 +40,10 @@ import Application.Helper.SurfaceResource (LiveMutationResult (liveMutationTouch
 import Application.Helper.UserPreferences
 import Application.Helper.View (ConfirmationDialogConfig (..),
                                 ConfirmationDialogTone (ConfirmationDanger),
-                                OverlayButton (OverlayButton, overlayButtonAction, overlayButtonClass, overlayButtonLabel),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 defaultConfirmationDialogConfig,
-                                defaultDialogOverlayConfig,
                                 dialogOverlayMountId,
-                                errorToast, renderConfirmationDialog, renderDialogOverlay,
+                                errorToast, renderConfirmationDialog,
                                 renderDialogOverlayClearOob, renderToastOob,
                                 successToast)
 import qualified Application.RosterNotification as Notification

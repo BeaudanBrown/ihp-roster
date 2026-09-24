@@ -334,6 +334,7 @@ renderGeneratedOverlayFormHiddenField (AppShellFieldValue (fieldName, fieldValue
 renderPageDialogModal :: Text -> DialogOverlayConfig -> Html
 renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass, .. } = [hsx|
     <div class="modal fade overflow-auto show app-page-dialog-modal"
+         {...dialogMountAttrs <> maybe [] dialogDismissalGuardAttrs dialogOverlayDismissalGuard}
          id="modal"
          tabindex="-1"
          role="dialog"

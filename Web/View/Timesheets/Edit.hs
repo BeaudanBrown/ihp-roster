@@ -31,6 +31,7 @@ newtype EditView = EditView
 instance View EditView where
     html EditView { timesheetFormInputs } =
         renderTimesheetEntryModalWithStartButtons
+            GuardChangedTimesheet
             (timesheetModalTitle operationalDate)
             (timesheetWindowUrl operationalDate timesheetFormInputs.selectedStaffFilterId)
             editTimesheetFormId
@@ -62,6 +63,7 @@ editTimesheetFormRenderModel formMode timesheetFormInputs =
                 , actionUrl = pathTo (UpdateTimesheetEntryAction (get #id timesheetFormInputs.timesheetEntry))
                 , formId = editTimesheetFormId
                 , formMode
+                , formExtraAttrs = []
                 }
         }
 

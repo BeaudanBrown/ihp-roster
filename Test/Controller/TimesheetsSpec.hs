@@ -139,6 +139,11 @@ tests = aroundAll withDatabaseTestContext do
                 canonicalResponse `responseBodyShouldContain` "OWN-MANAGER-MODE-ENTRY"
                 canonicalResponse `responseBodyShouldNotContain` "OTHER-MANAGER-MODE-ENTRY"
                 canonicalResponse `responseBodyShouldNotContain` "Manager note"
+                canonicalResponse `responseBodyShouldNotContain` "id=\"timesheet-staff-pane\""
+
+                staffFragmentResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowTimesheetStaffContentFragmentAction { anchorDate = "2025-01-06" }
+                staffFragmentResponse `responseStatusShouldBe` status302
 
                 approvalResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = otherEntry.id }

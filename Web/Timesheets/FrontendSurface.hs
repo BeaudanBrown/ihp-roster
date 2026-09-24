@@ -124,7 +124,7 @@ timesheetsViewerMountedFragments scope mountState =
     filter authorizedForViewer (timesheetsCandidateMountedFragments scope mountState)
   where
     authorizedForViewer fragment =
-        hasRole Manager || isNothing (SurfaceLive.matchTimesheetStaffContentLiveFragment fragment.mountedFragmentKey)
+        hasManagementMode || isNothing (SurfaceLive.matchTimesheetStaffContentLiveFragment fragment.mountedFragmentKey)
 
 withTimesheetCalendarRevision :: Int -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
 withTimesheetCalendarRevision calendarRevision fragment =

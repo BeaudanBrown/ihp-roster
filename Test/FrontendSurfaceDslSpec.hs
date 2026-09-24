@@ -1130,6 +1130,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "switch-roster-group"
                        , "toggle-roster-warnings"
                        , "toggle-roster-wage-estimates"
+                       , "toggle-roster-manager-mode"
                        , "toggle-roster-own-live-shift-highlight"
                        , "sort-roster-week"
                        , "toggle-roster-week-live-status"

@@ -1796,6 +1796,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "roster-manager-mode-toggle"
                 response `responseBodyShouldNotContain` "roster-shift-create-grid"
                 response `responseBodyShouldNotContain` "Templates"
+                response `responseBodyShouldNotContain` "Roster layout"
 
                 settingsFragment <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowRosterSettingsFragmentAction "2025-01-06")
@@ -1803,6 +1804,7 @@ tests = aroundAll withDatabaseTestContext do
                 settingsFragment `responseStatusShouldBe` status200
                 settingsFragment `responseBodyShouldContain` "Unavailability"
                 settingsFragment `responseBodyShouldContain` "roster-manager-mode-toggle"
+                settingsFragment `responseBodyShouldNotContain` "Roster layout"
 
                 deniedResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction AddRosterRowAction { rosterDayId = rosterDay.id }

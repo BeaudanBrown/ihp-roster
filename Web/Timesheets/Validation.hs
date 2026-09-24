@@ -115,7 +115,9 @@ ensureStaffAssignmentAllowedForExisting existingEntry staffId
     | existingEntry.staffId == staffId = pure ()
     | otherwise = do
         ensureStaffAssignmentAllowed staffId
-        matchesClassification <- staffMatchesTimesheetRosterGroup existingEntry.venueId staffId (timesheetRosterGroupClassification existingEntry)
+        matchesClassification <- case timesheetRosterGroupClassification existingEntry of
+            Nothing -> pure False
+            Just classification -> staffMatchesTimesheetRosterGroup existingEntry.venueId staffId classification
         accessDeniedUnless matchesClassification
 
 ensureShiftTypeAllowed :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()

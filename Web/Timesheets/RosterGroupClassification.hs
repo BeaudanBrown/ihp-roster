@@ -1,7 +1,6 @@
 module Web.Timesheets.RosterGroupClassification
     ( TimesheetRosterGroupClassification (..)
     , applyTimesheetRosterGroupClassification
-    , resolveTimesheetRosterGroupForStaff
     , staffMatchesTimesheetRosterGroup
     , validTimesheetRosterGroupClassificationsForStaff
     , timesheetRosterGroupClassification
@@ -16,11 +15,11 @@ data TimesheetRosterGroupClassification
     | TimesheetNoRosterGroup
     deriving (Eq, Ord, Show)
 
-timesheetRosterGroupClassification :: TimesheetEntry -> TimesheetRosterGroupClassification
+timesheetRosterGroupClassification :: TimesheetEntry -> Maybe TimesheetRosterGroupClassification
 timesheetRosterGroupClassification entry = case (entry.rosterGroupClassification, entry.rosterGroupId) of
-    (InRosterGroup, Just rosterGroupId) -> TimesheetInRosterGroup rosterGroupId
-    (NoRosterGroup, Nothing) -> TimesheetNoRosterGroup
-    _ -> error "Database violated Timesheet roster-group classification constraint"
+    (InRosterGroup, Just rosterGroupId) -> Just (TimesheetInRosterGroup rosterGroupId)
+    (NoRosterGroup, Nothing) -> Just TimesheetNoRosterGroup
+    _ -> Nothing
 
 applyTimesheetRosterGroupClassification :: TimesheetRosterGroupClassification -> TimesheetEntry -> TimesheetEntry
 applyTimesheetRosterGroupClassification classification entry = case classification of
@@ -32,15 +31,6 @@ applyTimesheetRosterGroupClassification classification entry = case classificati
         entry
             |> set #rosterGroupClassification NoRosterGroup
             |> set #rosterGroupId Nothing
-
--- Nothing means multiple memberships and therefore requires the pre-form chooser.
-resolveTimesheetRosterGroupForStaff :: (?modelContext :: ModelContext) => UUID -> UUID -> IO (Maybe TimesheetRosterGroupClassification)
-resolveTimesheetRosterGroupForStaff venueId staffId = do
-    groupIds <- activeRosterGroupIdsForStaff venueId staffId
-    pure case groupIds of
-        [] -> Just TimesheetNoRosterGroup
-        [groupId] -> Just (TimesheetInRosterGroup groupId)
-        _ -> Nothing
 
 validTimesheetRosterGroupClassificationsForStaff :: (?modelContext :: ModelContext) => UUID -> UUID -> IO [TimesheetRosterGroupClassification]
 validTimesheetRosterGroupClassificationsForStaff venueId staffId = do
