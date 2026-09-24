@@ -85,7 +85,7 @@ test.describe('Workflow dialog keyboard controls', () => {
         await expect(startTrigger).toBeFocused();
         await startTrigger.click();
         await page.locator(`[${timePickerClearDomAttr}]`).click();
-        await page.keyboard.press('Escape');
+        await expect(startTrigger).toBeFocused();
 
         const workflowDialog = page.getByRole('dialog', { name: 'Timesheet Monday 21/09' });
         await workflowDialog.getByRole('button', { name: 'Save' }).click();

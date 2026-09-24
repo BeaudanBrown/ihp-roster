@@ -241,6 +241,7 @@ test.describe('Generated toggle capability', () => {
         await page.keyboard.press('Escape');
         await expect(page.locator(`#${timePickerModalDomId}`)).toBeHidden();
         await expect(form).toBeVisible();
+        await expect(breakPickerTrigger).toBeFocused();
 
         await form.locator('label[for="hadBreak"]').click();
         await expect(input).not.toBeChecked();

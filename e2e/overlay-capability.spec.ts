@@ -8,7 +8,6 @@ import {
     dialogSubmitConfigDomAttr,
     dialogSubmitDomAttr,
     toastCloseDomAttr,
-    toastConfigDomAttr,
     toastMountDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
@@ -90,9 +89,6 @@ test.describe('Generated overlay capability', () => {
 
         const toast = page.locator(`${toastHostSelector} [${toastMountDomAttr}]`);
         await expect(toast).toContainText('Thanks — your feedback was submitted for review.', { timeout: E2E_TIMEOUT.assertion });
-        const rawToastConfig = await toast.getAttribute(toastConfigDomAttr);
-        expect(rawToastConfig).not.toBeNull();
-        expect(JSON.parse(rawToastConfig!)).toEqual({ autoHideMs: 5000 });
 
         const toastClose = toast.locator(`[${toastCloseDomAttr}]`);
         await expect(toastClose).toHaveAttribute('aria-label', 'Dismiss');

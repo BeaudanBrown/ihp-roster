@@ -105,7 +105,7 @@ test.describe('Venue owner onboarding invites', () => {
 
         await gotoWhenReady(ownerPage, inviteUrl, '#email');
         await expect(ownerPage.locator('body')).toContainText('Account Details');
-        await expect(ownerPage.locator('body')).toContainText('Show shift end times');
+        await expect(ownerPage.getByRole('checkbox', { name: 'Show shift end times', exact: true })).toBeVisible();
         await expect(ownerPage.locator('body')).not.toContainText('Auto-create pending timesheets');
         await expect(ownerPage.locator('#email')).toHaveValue(ownerEmail);
         await expect(ownerPage.locator('#email')).toBeDisabled();

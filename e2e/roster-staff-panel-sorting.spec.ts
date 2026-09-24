@@ -1,6 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
-    pageReadyEvent,
     parseRosterStaffPanelSortRow,
     rosterStaffHighlightSourceDomAttr,
     rosterStaffPanelSortControlDomAttr,
@@ -31,42 +30,6 @@ function compareText(leftValue: string, rightValue: string) {
 
 function sortControl(page: Page, key: 'name' | 'role' | 'shifts') {
     return page.locator(`button[${rosterStaffPanelSortControlDomAttr}="${key}"]`);
-}
-
-async function armAssignedCountLiveRefresh(page: Page, staffKey: string, assignedShifts: number) {
-    await page.evaluate(({ eventName, highlightAttribute, rowAttribute, staffKeyValue, expectedAssignedShifts }) => {
-        const state = window as Window & { __e2eRosterPanelMutationRefreshes?: number };
-        state.__e2eRosterPanelMutationRefreshes = 0;
-        const listener = (event: Event) => {
-            const detail = (event as CustomEvent).detail;
-            const target = detail?.target;
-            if (detail?.source !== 'live-fragment-refetch' || !(target instanceof Element)) return;
-            const row = target.querySelector(`[${rowAttribute}][${highlightAttribute}="${staffKeyValue}"]`);
-            const rawRow = row?.getAttribute(rowAttribute);
-            if (!rawRow) return;
-            try {
-                if (JSON.parse(rawRow).assignedShifts !== expectedAssignedShifts) return;
-            } catch {
-                return;
-            }
-            state.__e2eRosterPanelMutationRefreshes = (state.__e2eRosterPanelMutationRefreshes ?? 0) + 1;
-            if (state.__e2eRosterPanelMutationRefreshes >= 1) document.removeEventListener(eventName, listener);
-        };
-        document.addEventListener(eventName, listener);
-    }, {
-        eventName: pageReadyEvent,
-        highlightAttribute: rosterStaffHighlightSourceDomAttr,
-        rowAttribute: rosterStaffPanelSortRowDomAttr,
-        staffKeyValue: staffKey,
-        expectedAssignedShifts: assignedShifts,
-    });
-}
-
-async function waitForAssignedCountLiveRefresh(page: Page) {
-    await expect.poll(
-        () => page.evaluate(() => (window as Window & { __e2eRosterPanelMutationRefreshes?: number }).__e2eRosterPanelMutationRefreshes ?? 0),
-        { timeout: E2E_TIMEOUT.liveUpdate },
-    ).toBeGreaterThanOrEqual(1);
 }
 
 test.describe('Roster staff panel sorting', () => {
@@ -110,19 +73,18 @@ test.describe('Roster staff panel sorting', () => {
         );
         const targetRaw = await targetRow.getAttribute(rosterStaffPanelSortRowDomAttr);
         expect(targetRaw).toBeTruthy();
-        const targetStaffName = parseRosterStaffPanelSortRow(JSON.parse(targetRaw ?? 'null') as unknown).staffName;
+        const targetStaff = parseRosterStaffPanelSortRow(JSON.parse(targetRaw ?? 'null') as unknown);
+        const targetStaffName = targetStaff.staffName;
+        expect(targetStaff.assignedShifts).toBe(0);
 
-        // The converged actor/durable refresh replaces the authoritative panel
-        // once and resets client-only sort state.
-        await armAssignedCountLiveRefresh(page, targetStaffKey, 1);
+        // Assert the authoritative assignment change, not duplicate actor/passive refetches.
         await assignRosterShiftStaff(page, existingRosterShiftLaunchers(page).first(), targetStaffId);
-        await waitForAssignedCountLiveRefresh(page);
 
         await expect
             .poll(async () => {
                 const rows = await readPanelRows(page);
                 return rows.find((row) => row.staffName === targetStaffName)?.assignedShifts ?? 0;
-            })
+            }, { timeout: E2E_TIMEOUT.liveUpdate })
             .toBe(1);
 
         await sortByShifts.click();
