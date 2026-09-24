@@ -213,7 +213,7 @@ createSuggestedTimesheetEntry context rosterSlotId = do
                                         then pure SuggestionAccessDenied
                                         else
                                             -- Preserve late, role-gated optional approval parsing.
-                                            if hasRole Manager && paramOrDefault @Bool False "approveSuggestion"
+                                            if hasManagementMode && paramOrDefault @Bool False "approveSuggestion"
                                                 then materializeAndApproveTimesheetSuggestionMutation context.timesheetScope suggestion validEntry >>= \case
                                                     Left conflict -> pure (SuggestionCalendarConflict conflict)
                                                     Right (Left failure) -> pure (SuggestionApprovalFailed failure)

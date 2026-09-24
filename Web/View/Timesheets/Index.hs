@@ -5,7 +5,10 @@
 module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (currentUserIsSuperAdmin, currentVenueId,
-                                      isWithinEditWindow)
+                                      hasManagementMode, isWithinEditWindow,
+                                      managerModePreferenceEnabled,
+                                      managerModeToggleEnabled,
+                                      managerModeToggleVisible)
 import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
                                                      OpenRosterStaffEditDialog,
                                                      OpenTimesheetEntryDialog)
@@ -25,7 +28,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionFormWithHiddenFields,
                                                             renderFrontendSurfaceActionLink,
-                                                            renderFrontendSurfaceActionNavigationButton,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
@@ -332,13 +334,14 @@ renderTimesheetSettingsFragment maybeSwapOob view = [hsx|
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, viewFilters, staffMembers, rosterGroups, currentViewerStaffId } = [hsx|
+renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, viewFilters, staffMembers, rosterGroups } = [hsx|
+    {when managerModeToggleVisible (renderTimesheetManagerModePreferenceForm weekStartDate)}
     <div class="timesheet-settings-toggle-grid mb-2">
         {renderTimesheetShowApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
         {renderTimesheetShowSuggestionsPreferenceForm weekStartDate calendarRevision viewFilters showTimesheetSuggestions}
         {when canViewTimesheetWageEstimates (renderTimesheetShowWageEstimatesPreferenceForm weekStartDate calendarRevision viewFilters showTimesheetWageEstimates)}
     </div>
-    {when currentUserIsManager (renderTimesheetFilterForm weekStartDate viewFilters staffMembers rosterGroups currentViewerStaffId)}
+    {when hasManagementMode (renderTimesheetFilterForm weekStartDate viewFilters staffMembers rosterGroups)}
 |]
 
 renderTimesheetStaffPanel :: (?context :: ControllerContext) => [Staff] -> [TimesheetStaffPanelEntry] -> Html
@@ -387,6 +390,33 @@ renderTimesheetStaffPanelEntry staffMembers entry =
                 {renderSidePanelLocateIcon}
             </button>
         |]
+
+renderTimesheetManagerModePreferenceForm :: (?context :: ControllerContext) => Day -> Html
+renderTimesheetManagerModePreferenceForm anchorDate = [hsx|
+    <section class="roster-settings-section mb-3">
+        <h3 class="roster-settings-section-title"><i class="bi bi-person-workspace" aria-hidden="true"></i><span>Manager mode</span></h3>
+        <fieldset disabled={not managerModeToggleEnabled} class="mb-0">
+            {managerModeForm}
+        </fieldset>
+        {managerModeExplanation}
+    </section>
+|]
+  where
+    fields = TimesheetsAction.toggleTimesheetManagerModeActionFields anchorDate managerModePreferenceEnabled
+    managerModeRoute =
+        (timesheetsActionRoute (pathTo ToggleTimesheetManagerModeAction))
+            { actionRouteStandardUrl = Just (pathTo ToggleTimesheetManagerModeAction) }
+    managerModeExplanation
+        | managerModeToggleEnabled = mempty
+        | otherwise = [hsx|<p class="small app-muted mt-2 mb-0">Manager mode stays on because your account has no active linked Staff profile at this venue.</p>|]
+    managerModeForm =
+        renderFrontendSurfaceActionForm
+            (TimesheetsAction.toggleTimesheetManagerModeAction fields)
+            managerModeRoute
+            [hsx|
+                <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
+                {renderTimesheetPreferenceToggle "timesheet-manager-mode-toggle" (surfaceToggleScalarField @Surface.ManagerModeEnabled fields True False) managerModePreferenceEnabled "Manager mode"}
+            |]
 
 renderTimesheetShowApprovedPreferenceForm :: Day -> Int -> TimesheetViewFilters -> Bool -> Html
 renderTimesheetShowApprovedPreferenceForm anchorDate calendarRevision filters hideApproved =
@@ -447,8 +477,8 @@ renderTimesheetFilterHiddenFields fields filters =
         Nothing -> mempty
         Just value -> [hsx|<input type="hidden" name={fieldName} value={tshow value} />|]
 
-renderTimesheetFilterForm :: (?context :: ControllerContext) => Day -> TimesheetViewFilters -> [Staff] -> [RosterGroup] -> Maybe UUID -> Html
-renderTimesheetFilterForm anchorDate filters staffMembers rosterGroups currentViewerStaffId =
+renderTimesheetFilterForm :: (?context :: ControllerContext) => Day -> TimesheetViewFilters -> [Staff] -> [RosterGroup] -> Html
+renderTimesheetFilterForm anchorDate filters staffMembers rosterGroups =
     renderFrontendSurfaceActionForm
         (TimesheetsAction.updateTimesheetFiltersAction fields)
         (timesheetsActionRoute updateUrl)
@@ -457,15 +487,15 @@ renderTimesheetFilterForm anchorDate filters staffMembers rosterGroups currentVi
             }
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
-            {renderTimesheetStaffFilter anchorDate fields filters staffMembers currentViewerStaffId}
+            {renderTimesheetStaffFilter fields filters staffMembers}
             {when (length rosterGroups > 1) (renderTimesheetRosterGroupFilter fields filters.filterRosterGroupId rosterGroups)}
         |]
   where
     updateUrl = timesheetWindowUrlWithFilters anchorDate filters
     fields = TimesheetsAction.updateTimesheetFiltersActionFields anchorDate filters.filterStaffId filters.filterRosterGroupId
 
-renderTimesheetStaffFilter :: Day -> ActionFields TimesheetsAction.UpdateTimesheetFiltersActionOperation -> TimesheetViewFilters -> [Staff] -> Maybe UUID -> Html
-renderTimesheetStaffFilter anchorDate fields filters staffMembers currentViewerStaffId = [hsx|
+renderTimesheetStaffFilter :: ActionFields TimesheetsAction.UpdateTimesheetFiltersActionOperation -> TimesheetViewFilters -> [Staff] -> Html
+renderTimesheetStaffFilter fields filters staffMembers = [hsx|
     <div class="mt-3">
         <label for="timesheet-staff-filter" class="form-label small mb-1">Staff filter</label>
         <div class="timesheet-staff-filter-controls">
@@ -476,23 +506,12 @@ renderTimesheetStaffFilter anchorDate fields filters staffMembers currentViewerS
                 <option value="" selected={isNothing selectedStaffFilterId}>All staff</option>
                 {forEach eligibleStaff renderOption}
             </select>
-            {maybe mempty renderMeButton eligibleViewerStaffId}
         </div>
     </div>
 |]
     where
         selectedStaffFilterId = filters.filterStaffId
         eligibleStaff = filter staffCanProduceTimesheets staffMembers
-        eligibleViewerStaffId = currentViewerStaffId >>= \staffId ->
-            if any ((== staffId) . unpackId . (.id)) eligibleStaff then Just staffId else Nothing
-        renderMeButton staffId =
-            renderFrontendSurfaceActionNavigationButton
-                (TimesheetsAction.updateTimesheetFiltersAction
-                    (TimesheetsAction.updateTimesheetFiltersActionFields anchorDate (Just staffId) filters.filterRosterGroupId))
-                (timesheetsActionRoute (timesheetWindowUrlWithFilters anchorDate filters { filterStaffId = Just staffId }))
-                    { actionRouteExtraAttrs = [("class", "btn btn-sm btn-outline-secondary"), ("title", "Filter to my timesheets")]
-                    }
-                [hsx|Me|]
         staffCanProduceTimesheets staff =
             staffAssignmentAllowsTimesheets
                 (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
@@ -634,7 +653,7 @@ renderSuggestionCard model@TimesheetDayRenderModel { dayCalendarRevision, daySta
     stateFields = TimesheetsAction.createTimesheetEntryFromSuggestionActionFields (timesheetSuggestionOperationalDate suggestion) dayCalendarRevision dayStaffFilterId
     createUrl =
         let baseUrl = createTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId (timesheetSuggestionOperationalDate suggestion) dayStaffFilterId
-         in if currentUserIsManager then appendQueryParams baseUrl [("approveSuggestion", "true")] else baseUrl
+         in if hasManagementMode then appendQueryParams baseUrl [("approveSuggestion", "true")] else baseUrl
     editUrl = newTimesheetEntryFromSuggestionUrl suggestion.suggestionRosterSlotId (timesheetSuggestionOperationalDate suggestion) dayStaffFilterId
     action = TimesheetsAction.createTimesheetEntryFromSuggestionAction stateFields
 
@@ -647,7 +666,7 @@ renderSuggestionCreateAction createUrl action = [hsx|
         renderTimesheetApprovalForm
             action
             createUrl
-            [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">{if currentUserIsManager then ("Approve" :: Text) else "Create"}</button>|]
+            [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">{if hasManagementMode then ("Approve" :: Text) else "Create"}</button>|]
 
 renderSuggestionCardOverlayLink :: (?context :: ControllerContext) => Day -> Text -> Html
 renderSuggestionCardOverlayLink workedOn editUrl =
@@ -672,7 +691,7 @@ renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, da
         (renderApprovalAction entry timingOutcome dayCalendarRevision dayStaffFilterId)
   where
     timingOutcome = Map.findWithDefault (Left (TimesheetTimingInvalid BoundaryShiftShapeInvalid)) (unpackId entry.id) dayTimingByEntryId
-    canEdit = currentUserIsManager || isWithinEditWindow dayToday (timesheetEntryOperationalDate entry) dayEditWindowDays
+    canEdit = hasManagementMode || isWithinEditWindow dayToday (timesheetEntryOperationalDate entry) dayEditWindowDays
     editUrl = editTimesheetEntryUrl (get #id entry) (timesheetEntryOperationalDate entry) dayStaffFilterId
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Text -> Maybe Text -> Html -> Html -> Html
@@ -743,10 +762,10 @@ renderEntryComments :: (?context :: ControllerContext) => TimesheetEntry -> Html
 renderEntryComments entry =
     let staffComment = renderComment "Staff comment" entry.staffComment
         managerNote =
-            if currentUserIsManager
+            if hasManagementMode
                 then renderComment "Manager note" entry.managerNote
                 else mempty
-     in if isNothing entry.staffComment && (not currentUserIsManager || isNothing entry.managerNote)
+     in if isNothing entry.staffComment && (not hasManagementMode || isNothing entry.managerNote)
             then mempty
             else [hsx|<div class="timesheet-entry-comments">{staffComment}{managerNote}</div>|]
 
@@ -763,14 +782,14 @@ renderComment label maybeComment =
 
 renderApprovalAction :: (?context :: ControllerContext) => TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Int -> Maybe UUID -> Html
 renderApprovalAction entry timingOutcome calendarRevision staffFilterId
-    | not currentUserIsManager && entry.isApproved = [hsx|
+    | not hasManagementMode && entry.isApproved = [hsx|
         <button type="button"
                 class="btn btn-sm btn-success timesheet-approval-toggle"
                 disabled>
             Approved
         </button>
     |]
-    | not currentUserIsManager = mempty
+    | not hasManagementMode = mempty
     | entry.isApproved =
         renderTimesheetApprovalForm
             (TimesheetsAction.unapproveTimesheetEntryAction unapproveFields)

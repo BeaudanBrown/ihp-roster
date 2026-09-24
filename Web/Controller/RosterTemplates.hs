@@ -420,7 +420,7 @@ authorizedTemplateActor ::
     (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO RosterTemplateActor
 authorizedTemplateActor = do
-    ensureManagerRole
+    ensureManagerModeAccess
     ensureVenueWritable
     currentRosterTemplateActor
 

@@ -4,7 +4,8 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
-import Application.Helper.ControllerContext (currentUserIsSuperAdmin)
+import Application.Helper.ControllerContext (currentUserIsSuperAdmin,
+                                             hasManagementMode)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
@@ -44,7 +45,7 @@ renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup
             , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
             , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
             }
-        dropzoneAttrs = if currentUserIsManager && maybe False (not . (.windowIsPublished)) maybeRosterWeek
+        dropzoneAttrs = if hasManagementMode && maybe False (not . (.windowIsPublished)) maybeRosterWeek
             then SurfaceInteraction.frontendSurfaceDropzoneRefAttrs rosterDeleteShiftDropzoneRef "delete"
             else []
      in toolbarHtml

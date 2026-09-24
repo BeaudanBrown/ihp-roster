@@ -27,6 +27,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , SwitchRosterGroupActionOperation
     , ToggleRosterAssignmentFiltersActionOperation
     , ToggleRosterDayClosedActionOperation
+    , ToggleRosterManagerModeActionOperation
     , ToggleRosterOwnLiveShiftHighlightActionOperation
     , ToggleRosterStaffScopeActionOperation
     , ToggleRosterWageEstimatesActionOperation
@@ -66,6 +67,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parsePreviewRosterTemplateCaptureActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
+    , parseToggleRosterManagerModeActionParams
     , parseToggleRosterOwnLiveShiftHighlightActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
@@ -87,6 +89,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , toggleRosterAssignmentFiltersActionFields
     , toggleRosterDayClosedAction
     , toggleRosterDayClosedActionFields
+    , toggleRosterManagerModeAction
+    , toggleRosterManagerModeActionFields
     , toggleRosterOwnLiveShiftHighlightAction
     , toggleRosterOwnLiveShiftHighlightActionFields
     , toggleRosterStaffScopeAction
@@ -766,6 +770,37 @@ toggleRosterDayClosedActionEvidence =
 toggleRosterDayClosedAction :: ActionFields ToggleRosterDayClosedActionOperation -> FrontendSurfaceAction
 toggleRosterDayClosedAction =
     frontendSurfaceActionFromEvidence toggleRosterDayClosedActionEvidence
+
+data ToggleRosterManagerModeActionOperation
+
+type instance ActionSurface ToggleRosterManagerModeActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker ToggleRosterManagerModeActionOperation = Types1.ToggleRosterManagerMode
+type instance ActionFieldSpecs ToggleRosterManagerModeActionOperation =
+    '[ 'Field Types1.ManagerModeEnabled 'WireBool
+     ]
+
+toggleRosterManagerModeActionFields ::
+    Bool ->
+    ActionFields ToggleRosterManagerModeActionOperation
+toggleRosterManagerModeActionFields managerModeEnabled =
+    actionFields
+        (surfaceField @Types1.ManagerModeEnabled managerModeEnabled)
+        noSurfaceFields
+
+toggleRosterManagerModeActionEvidence :: ActionEvidence ToggleRosterManagerModeActionOperation
+toggleRosterManagerModeActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterManagerMode" "toggle-roster-manager-mode" [SurfaceIR.FieldIR "ManagerModeEnabled" "managerModeEnabled" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+
+toggleRosterManagerModeAction :: ActionFields ToggleRosterManagerModeActionOperation -> FrontendSurfaceAction
+toggleRosterManagerModeAction =
+    frontendSurfaceActionFromEvidence toggleRosterManagerModeActionEvidence
+
+parseToggleRosterManagerModeActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields ToggleRosterManagerModeActionOperation)
+parseToggleRosterManagerModeActionParams =
+    parseActionParams
+        @ToggleRosterManagerModeActionOperation
 
 data ToggleRosterOwnLiveShiftHighlightActionOperation
 

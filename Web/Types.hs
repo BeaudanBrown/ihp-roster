@@ -82,6 +82,7 @@ data TimesheetsController
     | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction
     | ToggleTimesheetWageEstimatesAction
+    | ToggleTimesheetManagerModeAction
     | NewTimesheetEntryAction
     | CreateTimesheetEntryAction
     | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }
@@ -335,6 +336,7 @@ data RosterWeeksController
     | DropRosterStaffAction
     | UpdateRosterWarningPreferenceAction
     | UpdateRosterWageEstimatePreferenceAction
+    | ToggleRosterManagerModeAction
     | UpdateRosterOwnLiveShiftHighlightPreferenceAction
     | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }

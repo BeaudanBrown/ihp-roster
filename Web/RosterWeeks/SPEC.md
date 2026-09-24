@@ -21,7 +21,16 @@ This document retains cross-module scheduling and state-transition rules.
   to two rows. Existing stored row counts are preserved; copying an existing
   source day preserves its row count, while missing source days use two.
 - Managers, venue admins, owners, and unimpersonated founder support receive
-  capabilities only through server-side checks. During founder impersonation,
+  capabilities only through server-side checks. A global per-user Manager mode
+  preference shared with Timesheets defaults on. Eligible users with active linked
+  Staff may switch it off; missing active linked Staff forces effective mode on
+  without overwriting the preference, and unimpersonated founder support has no
+  switch. With mode off, published rosters for assigned groups remain fully visible
+  and read-only, drafts retain only the hidden placeholder, management mutations
+  are rejected, and Staff inventory/profile access plus self-service tools remain.
+  Group selection retains an authorized requested group, otherwise uses the first
+  assigned active group in configured order; zero groups render a safe empty page
+  with Settings and the switch. During founder impersonation,
   visibility, controls, self-service, profile gates, and private preferences use
   the effective user's Staff identity and venue role; founder authority does not
   bypass them. Staff cannot edit unpublished weeks and must not see draft detail
@@ -151,7 +160,10 @@ server-authorized and transient. Draft wage-source maintenance warnings are
 visible only to platform super admins on both full pages and fragment responses;
 ordinary venue roles retain amounts and calculation errors, not provider warnings.
 
-Managers receive Staff, Templates, and Settings in the shared transient SidePanel.
+Managers receive Staff, Templates, and Settings in the shared transient SidePanel
+while Manager mode is on. With mode off, Staff inventory remains available,
+templates and management controls disappear, and self-service quick tools remain
+in Settings.
 Feature content and authorization remain roster-owned. Its toggle uses
 the shared main-card header location, desktop focus/Escape contract, transient
 visibility, and responsive tools shelf used by Timesheets and manager Unavailability. Published rosters

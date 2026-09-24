@@ -131,7 +131,7 @@ data TimesheetProjectionFragment
 
 canonicalTimesheetFilters :: (?modelContext :: ModelContext, ?context :: ControllerContext) => TimesheetViewFilters -> IO TimesheetViewFilters
 canonicalTimesheetFilters requested
-    | not (hasRole Manager) = pure emptyTimesheetViewFilters
+    | not hasManagementMode = pure emptyTimesheetViewFilters
     | otherwise = do
         staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
         rosterGroups <- fetchActiveTimesheetRosterGroups
@@ -162,7 +162,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved filters = do
 
     maybeCurrentViewerStaff <- fetchCurrentUserStaff
     let validStaffFilterId =
-            if hasRole Manager
+            if hasManagementMode
                 then filters.filterStaffId >>= \staffFilterId ->
                     if any (\staff -> staffCanProduceTimesheets staff && unpackId (get #id staff) == staffFilterId) staffMembers
                         then Just staffFilterId
@@ -181,7 +181,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved filters = do
             then baseQuery |> orderByAsc #startsAt |> fetch
             else pure []
     workerEntries <-
-        if hasRole Manager
+        if hasManagementMode
             then pure []
             else case maybeCurrentViewerStaff of
                 Nothing -> pure []
@@ -190,7 +190,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved filters = do
                         |> filterWhere (#staffId, unpackId (get #id staff))
                         |> orderByAsc #startsAt
                         |> fetch
-    let authorizedEntries = if hasRole Manager then allManagerEntries else workerEntries
+    let authorizedEntries = if hasManagementMode then allManagerEntries else workerEntries
     rosterGroupEntries <- filterTimesheetEntriesByRosterGroup filters.filterRosterGroupId authorizedEntries
     let entries = rosterGroupEntries
             |> filter (not . (hideApproved &&) . (.isApproved))
@@ -268,7 +268,7 @@ fetchTimesheetSuggestionsForWindow windowStart windowEnd filters staffMembers cu
     let linkedRosterSlotIds = Set.fromList (mapMaybe (.sourceRosterSlotId) activeLinkedEntries)
     let linkedActiveStaffIds = Set.fromList (map (unpackId . (.id)) (filter staffCanProduceTimesheets staffMembers))
     let visibleStaffIds =
-            if hasRole Manager
+            if hasManagementMode
                 then maybe linkedActiveStaffIds Set.singleton filters.filterStaffId
                 else maybe Set.empty Set.singleton currentViewerStaffId
     shiftTypes <- fetchShiftTypesForForm
@@ -312,7 +312,7 @@ fetchTimesheetFormContext TimesheetFormReferences { .. } formSelectedStaffFilter
     currentUserStaff <- fetchCurrentUserStaff
     let formCurrentViewerStaffId = unpackId . (.id) <$> currentUserStaff
     formVenueConfig <- fetchVenueConfig
-    let formViewerIsManager = hasRole Manager
+    let formViewerIsManager = hasManagementMode
     pure TimesheetFormContext { .. }
 
 timesheetFormInputsFor :: TimesheetFormContext -> TimesheetEntry -> TimesheetFormInputs
@@ -333,7 +333,7 @@ timesheetFormInputsFor context timesheetEntry =
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffForForm = do
     staffMembers <-
-        if hasRole Manager
+        if hasManagementMode
             then fetchLinkedActiveVenueStaff currentVenueId
             else filter (isJust . (.userId)) . maybeToList <$> fetchCurrentUserStaff
     pure (filter staffCanProduceTimesheets staffMembers)

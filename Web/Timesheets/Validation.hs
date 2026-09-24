@@ -64,7 +64,7 @@ ensureTimesheetVisibility entry =
     if isJust entry.deletedAt
         then accessDeniedUnless False
         else
-            unless (hasRole Manager) do
+            unless hasManagementMode do
                 maybeStaff <- fetchCurrentUserStaff
                 let ownsEntry = maybe False (\staff -> unpackId (get #id staff) == entry.staffId) maybeStaff
                 accessDeniedUnless ownsEntry
@@ -86,7 +86,7 @@ timesheetStaffAssignmentAllowed staffId = do
         |> filterWhere (#id, Id staffId)
         |> fetchOneOrNothing
     let eligible = maybe False (\staff -> isLinkedActiveStaff staff && staffAssignmentAllowsTimesheets (staffPayAssignment staff)) maybeStaff
-    if not eligible || hasRole Manager
+    if not eligible || hasManagementMode
         then pure eligible
         else do
             maybeCurrentStaff <- fetchCurrentUserStaff
@@ -343,7 +343,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
     applyCommentFields originalEntry record =
         let ownsEntry = currentViewerStaffId == Just record.staffId
             staffComment = if ownsEntry then normalizedTextParam "staffComment" else originalEntry.staffComment
-            managerNote = if hasRole Manager then normalizedTextParam "managerNote" else originalEntry.managerNote
+            managerNote = if hasManagementMode then normalizedTextParam "managerNote" else originalEntry.managerNote
          in record
                 |> set #staffComment staffComment
                 |> set #managerNote managerNote

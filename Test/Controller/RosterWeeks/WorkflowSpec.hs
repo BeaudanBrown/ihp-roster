@@ -1768,6 +1768,70 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 unassignedResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
 
+        it "keeps published roster and Staff inventory visible but blocks management actions when Manager mode is off" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Manager Mode Roster Venue"
+                manager <- createUserRecord "roster-manager-mode@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                slotName <- fetchSlotNameRecord venue "Early"
+                _ <- createStaffRecord venue (Just manager) "Morgan" "Manager"
+                otherStaff <- createStaffRecord venue Nothing "Olivia" "Other"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName (Just otherStaff) 0
+
+                toggleResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ToggleRosterManagerModeAction
+                        [ ("anchorDate", "2025-01-06")
+                        , ("managerModeEnabled", "false")
+                        ]
+                toggleResponse `responseStatusShouldBe` status302
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWindowAction "2025-01-06")
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ">Olivia<"
+                response `responseBodyShouldContain` ">Morgan<"
+                response `responseBodyShouldContain` "Unavailability"
+                response `responseBodyShouldContain` "roster-manager-mode-toggle"
+                response `responseBodyShouldNotContain` "roster-shift-create-grid"
+                response `responseBodyShouldNotContain` "Templates"
+
+                settingsFragment <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowRosterSettingsFragmentAction "2025-01-06")
+                        [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
+                settingsFragment `responseStatusShouldBe` status200
+                settingsFragment `responseBodyShouldContain` "Unavailability"
+                settingsFragment `responseBodyShouldContain` "roster-manager-mode-toggle"
+
+                deniedResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction AddRosterRowAction { rosterDayId = rosterDay.id }
+                deniedResponse `responseStatusShouldBe` status302
+                slots <- query @RosterSlot |> filterWhere (#rosterDayId, unpackId rosterDay.id) |> fetchCount
+                slots `shouldBe` 1
+
+        it "renders safe Manager mode Settings when self-service Staff has zero roster groups" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Zero Group Manager Mode Venue"
+                manager <- createUserRecord "roster-manager-mode-zero-group@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue (Just manager) "Zara" "ZeroGroup"
+                now <- getCurrentTime
+                assignments <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                _ <- mapM (updateRecord . set #deletedAt (Just now)) assignments
+                _ <- newRecord @UserPreference
+                    |> set #userId (unpackId manager.id)
+                    |> set #managerModeEnabled False
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWindowAction "2025-01-06")
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "You aren't assigned to a roster group yet."
+                response `responseBodyShouldContain` "Settings"
+                response `responseBodyShouldContain` "roster-manager-mode-toggle"
+
         it "hides roster warning controls and highlights from staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

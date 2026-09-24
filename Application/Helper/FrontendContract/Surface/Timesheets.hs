@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , HideApproved
     , ShowTimesheetSuggestions
     , ShowTimesheetWageEstimates
+    , ManagerModeEnabled
     , StaffFilterId
     , RosterGroupFilterId
     , TimesheetDay
@@ -51,6 +52,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , ToggleTimesheetHideApproved
     , ToggleTimesheetShowSuggestions
     , ToggleTimesheetWageEstimates
+    , ToggleTimesheetManagerMode
     , UpdateTimesheetFilters
     , ApproveTimesheetEntry
     , CreateTimesheetEntryFromSuggestion
@@ -80,6 +82,7 @@ data TimesheetsMountState
 data HideApproved
 data ShowTimesheetSuggestions
 data ShowTimesheetWageEstimates
+data ManagerModeEnabled
 data StaffFilterId
 data RosterGroupFilterId
 
@@ -99,6 +102,7 @@ data UpdateTimesheetFilters
 data ToggleTimesheetHideApproved
 data ToggleTimesheetShowSuggestions
 data ToggleTimesheetWageEstimates
+data ToggleTimesheetManagerMode
 data ApproveTimesheetEntry
 data CreateTimesheetEntryFromSuggestion
 data UnapproveTimesheetEntry
@@ -211,6 +215,14 @@ type TimesheetActionBundle =
          , Field ShowTimesheetWageEstimates 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          , OptionalField RosterGroupFilterId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
+     , Action ToggleTimesheetManagerMode
+        '[ Field AnchorDate 'WireDay
+         , Field ManagerModeEnabled 'WireBool
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap

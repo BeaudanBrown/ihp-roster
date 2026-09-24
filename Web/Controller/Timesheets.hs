@@ -13,7 +13,8 @@ import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApprove
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.EntryWorkflow
-import Web.Timesheets.Filters (TimesheetViewFilters (..))
+import Web.Timesheets.Filters (TimesheetViewFilters (..),
+                               emptyTimesheetViewFilters)
 import Web.Timesheets.FrontendSurface (timesheetsMountStateForFilters)
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
@@ -195,6 +196,22 @@ instance Controller TimesheetsController where
                     then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
                     else redirectToPath (timesheetWindowUrlWithFilters anchorDate filters)
 
+    action currentAction@ToggleTimesheetManagerModeAction = runBepis currentAction BepisPreferenceAction do
+        case TimesheetsAction.parseToggleTimesheetManagerModeActionParams of
+            Left errors -> do
+                reportTimesheetSurfaceRequestErrors errors
+                redirectTo TimesheetsAction
+            Right fields -> do
+                let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
+                updated <- upsertCurrentUserManagerMode (surfaceFieldValue @Surface.ManagerModeEnabled fields)
+                accessDeniedUnless updated
+                let canonicalUrl = timesheetWindowUrlWithFilters anchorDate emptyTimesheetViewFilters
+                if isHtmxRequest
+                    then do
+                        setHeader ("HX-Redirect", cs canonicalUrl)
+                        renderPlain ""
+                    else redirectToPath canonicalUrl
+
     action currentAction@NewTimesheetEntryAction = runBepis currentAction BepisFormAction do
         windowStart <- windowStartFromParamOrCurrent
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
@@ -262,7 +279,7 @@ instance Controller TimesheetsController where
         respondWithTimesheetCompletion context result "Timesheet entry removed" True
 
     action currentAction@ApproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
@@ -272,7 +289,7 @@ instance Controller TimesheetsController where
         reviewTimesheetEntry context ApproveTimesheet timesheetEntry >>= respondWithTimesheetReviewOutcome context
 
     action currentAction@UnapproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisPageAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId

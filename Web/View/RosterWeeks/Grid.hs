@@ -26,6 +26,7 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
+import Application.Helper.Controller (hasManagementMode)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
@@ -145,12 +146,13 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelEntries = gridPanelStaff
                     , staffPanelTemplateLibrary = gridModel.gridTemplateLibrary
                     , staffPanelNotificationPanelData = gridNotificationPanelData
+                    , staffPanelSelfServicePanel = gridStaffSelfServicePanel
                     }
                 else mempty
         layoutBody = [hsx|
             {renderrosterContentLiveFragment gridModel}
             {renderStaffPanelMount}
-            {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
+            {unless currentUserIsManager (renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel)}
         |]
         layout = if rosterHasSidePanel gridModel
             then renderSidePanelLayout rosterSidePanelRenderAttrs SidePanelRegionConfig
@@ -420,7 +422,7 @@ renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColum
 
 rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWindowState -> Bool
 rosterWeekIsEditable maybeRosterWeek =
-    currentUserIsManager && maybe False (not . (.windowIsPublished)) maybeRosterWeek
+    hasManagementMode && maybe False (not . (.windowIsPublished)) maybeRosterWeek
 
 renderRosterColumnEditStartButton :: Bool -> Html
 renderRosterColumnEditStartButton True = [hsx|
@@ -875,7 +877,7 @@ renderDayColumnHeaderControls isEditable calendarRevision rosterDay
 
 renderToggleClosedButton :: (?context :: ControllerContext) => Int -> RosterDay -> Html
 renderToggleClosedButton calendarRevision rosterDay =
-    if currentUserIsManager
+    if hasManagementMode
         then
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
@@ -894,7 +896,7 @@ renderToggleClosedButton calendarRevision rosterDay =
 
 renderAddRowButton :: (?context :: ControllerContext) => Int -> RosterDay -> Html
 renderAddRowButton calendarRevision rosterDay =
-    if currentUserIsManager
+    if hasManagementMode
         then renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.addRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.addRosterRowAction (RosterAction.addRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (AddRosterRowAction rosterDay.id) (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
@@ -908,7 +910,7 @@ renderAddRowButton calendarRevision rosterDay =
 
 renderDeleteLastRowButton :: (?context :: ControllerContext) => Int -> RosterDay -> Int -> Html
 renderDeleteLastRowButton calendarRevision rosterDay rowIndex =
-    if currentUserIsManager
+    if hasManagementMode
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
              in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.removeRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.removeRosterRowAction (RosterAction.removeRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (RemoveRosterRowAction rosterDay.id) (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision) [hsx|

@@ -6,6 +6,7 @@ module Web.View.RosterWeeks.StaffPanel
     , renderrosterStaffPanelLiveFragmentWithSwap
     ) where
 
+import Application.Helper.Controller (hasManagementMode)
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog,
                                                      OpenRosterStaffEditDialog,
                                                      OpenTrialStaffInvitationDialog)
@@ -50,6 +51,7 @@ import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
 import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterSelfServiceQuickTools)
 import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
 renderrosterStaffPanelLiveFragment :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
@@ -93,7 +95,9 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurren
         templatePanelContent = do
             templateLibrary <- panelModel.staffPanelTemplateLibrary
             pure (renderRosterTemplateLibraryFragment panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
-        settingsPanelContent = renderRosterSettingsPanel panelModel
+        settingsPanelContent =
+            maybe mempty renderRosterSelfServiceQuickTools panelModel.staffPanelSelfServicePanel
+                <> renderRosterSettingsPanel panelModel
 
 
 renderRosterStaffPanelShell :: Html -> Html
@@ -148,7 +152,7 @@ renderRosterStaffPanelHeader anchorDate currentRosterGroupId hasMultipleRosterGr
             <h2 class="h5 mb-0">Staff</h2>
         </div>
         <div class="app-side-panel-content-header-actions roster-staff-panel-header-actions">
-            {renderOpenRosterStaffCreateDialogButton anchorDate currentRosterGroupId}
+            {when hasManagementMode (renderOpenRosterStaffCreateDialogButton anchorDate currentRosterGroupId)}
             {when hasMultipleRosterGroups (renderStaffScopeToggle anchorDate currentRosterGroupId panelScope)}
         </div>
     </div>
@@ -331,15 +335,15 @@ renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionC
 
 renderStaffPayConfigurationWarning :: (?context :: ControllerContext) => RosterStaffPanelEntry -> Html
 renderStaffPayConfigurationWarning entry
-    | not currentUserIsManager || not entry.staffPayConfigurationRequired = mempty
+    | not hasManagementMode || not entry.staffPayConfigurationRequired = mempty
     | otherwise = [hsx|<span class="text-warning small" role="img" tabindex="0" title={warningText} aria-label={warningText}>(!)</span>|]
   where
     warningText :: Text
     warningText = "Pay configuration required. A venue admin must choose a default pay rate or “No Timesheets (roster only).”"
 
-renderTrialStaffInviteButton :: Day -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
+renderTrialStaffInviteButton :: (?context :: ControllerContext) => Day -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
 renderTrialStaffInviteButton anchorDate currentRosterGroupId staffDisplayLabel entry
-    | not (isAdoptableTrialStaff entry.staff) = mempty
+    | not hasManagementMode || not (isAdoptableTrialStaff entry.staff) = mempty
     | otherwise =
         renderAppShellActionHtmxControl
             (appShellActionByMarker @OpenTrialStaffInvitationDialog)

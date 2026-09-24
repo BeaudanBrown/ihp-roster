@@ -2,13 +2,16 @@
 
 module Web.View.RosterWeeks.StaffSelfServicePanel
     ( renderRosterStaffSelfServicePanelFragment
+    , renderRosterSelfServiceQuickTools
     , renderRosterSelfServiceSettings
     , rosterStaffSelfServicePanelFragmentId
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
 import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
-import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin)
+import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
+                                      hasManagementMode,
+                                      managerModeToggleVisible)
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterSelfServicePanelTab (..),
                                                                       rosterSelfServicePanelTabAttrs)
@@ -28,6 +31,7 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        timesheetsDaySurfaceImpl)
 import Web.View.Prelude
 import Web.View.RosterWeeks.SettingsPanel (renderRosterGroupSwitcher,
+                                           renderRosterManagerModePreferenceForm,
                                            renderRosterOwnLiveShiftHighlightPreferenceForm)
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
                                   renderDaySection)
@@ -41,7 +45,7 @@ rosterStaffSelfServiceTimesheetSurfaceId = "roster-staff-self-service-timesheet-
 renderRosterStaffSelfServicePanelFragment :: (?context :: ControllerContext) => Maybe RosterStaffSelfServicePanel -> Html
 renderRosterStaffSelfServicePanelFragment Nothing = mempty
 renderRosterStaffSelfServicePanelFragment (Just panel)
-    | currentUserIsManager = mempty
+    | hasManagementMode = mempty
     | currentUserIsUnimpersonatedSuperAdmin = mempty
     | otherwise =
         renderSidePanelPanelRegion rosterSidePanelRenderAttrs SidePanelRegionConfig
@@ -59,27 +63,7 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
                                  role="tabpanel"
                                  aria-labelledby={rosterSelfServiceQuickToolsTabId}
                                  tabindex="0">
-                                <div class="app-side-panel-scroll-body roster-staff-self-service-stack">
-                                    <div class="app-panel roster-quick-tool-panel">
-                                        <div class="app-panel-body p-0 roster-quick-tool-panel-body">
-                                            <div id={rosterStaffSelfServiceTimesheetSurfaceId}
-                                                 class="roster-quick-tool-timesheet">
-                                                {renderFrontendSurfaceMount (timesheetSurface panel) (renderDaySection (timesheetDayModel panel))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="app-panel roster-quick-tool-panel">
-                                        <div class="app-panel-body">
-                                            <div class="app-side-panel-content-header roster-staff-panel-header">
-                                                <div>
-                                                    <h2 class="h5 mb-1">Unavailability</h2>
-                                                    <div class="roster-staff-panel-summary">Add unavailable time</div>
-                                                </div>
-                                            </div>
-                                            {forEach panel.quickToolsStaffMembers (\staff -> renderSelfServiceLeaveFormMount "roster" False staff panel.quickToolsLeaveRequest [])}
-                                        </div>
-                                    </div>
-                                </div>
+                                {renderRosterSelfServiceQuickTools panel}
                             </div>
                             <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
                                  id={rosterSelfServiceSettingsPaneId}
@@ -98,9 +82,31 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
         , SidePanelTabConfig rosterSelfServiceSettingsTabId rosterSelfServiceSettingsPaneId "Settings" "bi bi-sliders" False "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterSelfServiceSettingsTab)
         ]
 
+renderRosterSelfServiceQuickTools :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> Html
+renderRosterSelfServiceQuickTools panel = [hsx|
+    <div class="app-side-panel-scroll-body roster-staff-self-service-stack">
+        <div class="app-panel roster-quick-tool-panel">
+            <div class="app-panel-body p-0 roster-quick-tool-panel-body">
+                <div id={rosterStaffSelfServiceTimesheetSurfaceId} class="roster-quick-tool-timesheet">
+                    {renderFrontendSurfaceMount (timesheetSurface panel) (renderDaySection (timesheetDayModel panel))}
+                </div>
+            </div>
+        </div>
+        <div class="app-panel roster-quick-tool-panel">
+            <div class="app-panel-body">
+                <div class="app-side-panel-content-header roster-staff-panel-header">
+                    <div><h2 class="h5 mb-1">Unavailability</h2><div class="roster-staff-panel-summary">Add unavailable time</div></div>
+                </div>
+                {forEach panel.quickToolsStaffMembers (\staff -> renderSelfServiceLeaveFormMount "roster" False staff panel.quickToolsLeaveRequest [])}
+            </div>
+        </div>
+    </div>
+|]
+
 renderRosterSelfServiceSettings :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> Html
 renderRosterSelfServiceSettings panel = [hsx|
     <div id={surfaceFragmentTargetId @RosterSurface.RosterSurface @RosterSurface.RosterSettingsContent noSurfaceFields} class="roster-settings-stack">
+        {when managerModeToggleVisible (renderRosterManagerModePreferenceForm panel.quickToolsRosterWeekStartDate panel.quickToolsRosterGroupId)}
         {renderRosterGroupSetting panel}
         <section class="roster-settings-section">
             <div class="roster-settings-section-heading">

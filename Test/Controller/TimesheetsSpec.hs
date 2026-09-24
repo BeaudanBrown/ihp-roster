@@ -106,6 +106,69 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
 
+        it "persists one Manager mode preference and applies self-service scope on the next request" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Manager Mode Venue"
+                manager <- createUserRecord "manager-mode-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                managerStaff <- createStaffRecord venue (Just manager) "Morgan" "Manager"
+                otherStaff <- createStaffRecord venue Nothing "Olivia" "Other"
+                _ <- createTimesheetEntryRecord venue managerStaff (fromGregorian 2025 1 7)
+                    >>= updateRecord . set #staffComment (Just "OWN-MANAGER-MODE-ENTRY")
+                otherEntry <- createTimesheetEntryRecord venue otherStaff (fromGregorian 2025 1 7)
+                    >>= updateRecord . set #staffComment (Just "OTHER-MANAGER-MODE-ENTRY")
+
+                toggleResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ToggleTimesheetManagerModeAction
+                        [ ("anchorDate", "2025-01-06")
+                        , ("managerModeEnabled", "false")
+                        ]
+
+                toggleResponse `responseStatusShouldBe` status302
+                preference <- query @UserPreference |> filterWhere (#userId, unpackId manager.id) |> fetchOne
+                preference.managerModeEnabled `shouldBe` False
+
+                pageResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowTimesheetWindowAction "2025-01-06")
+                        [ ("staffFilterId", cs (tshow (unpackId otherStaff.id))) ]
+                pageResponse `responseStatusShouldBe` status302
+                responseHeaders pageResponse `shouldContain` [("Location", "http://localhost/ShowTimesheetWindow?anchorDate=2025-01-06")]
+
+                canonicalResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-06")
+                canonicalResponse `responseStatusShouldBe` status200
+                canonicalResponse `responseBodyShouldContain` "OWN-MANAGER-MODE-ENTRY"
+                canonicalResponse `responseBodyShouldNotContain` "OTHER-MANAGER-MODE-ENTRY"
+                canonicalResponse `responseBodyShouldNotContain` "Manager note"
+
+                approvalResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = otherEntry.id }
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1") ]
+                approvalResponse `responseStatusShouldBe` status302
+                unchangedEntry <- fetch otherEntry.id
+                unchangedEntry.isApproved `shouldBe` False
+
+        it "forces Manager mode on without overwriting a disabled preference when active linked Staff is missing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Forced Manager Mode Venue"
+                manager <- createUserRecord "forced-manager-mode@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createStaffRecord venue (Just manager) "Forced" "Manager"
+                    >>= updateRecord . set #isActive False
+                _ <- newRecord @UserPreference
+                    |> set #userId (unpackId manager.id)
+                    |> set #managerModeEnabled False
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-06")
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Manager mode stays on because your account has no active linked Staff profile"
+                response `responseBodyShouldContain` "timesheet-manager-mode-toggle"
+                preference <- query @UserPreference |> filterWhere (#userId, unpackId manager.id) |> fetchOne
+                preference.managerModeEnabled `shouldBe` False
+
         it "renders a subscribed timesheet shell for authenticated viewers" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"

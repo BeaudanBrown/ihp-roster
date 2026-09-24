@@ -3,9 +3,8 @@
 
 module Application.Helper.RosterGroups where
 
-import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
-                                      currentVenueId, fetchCurrentUserStaff,
-                                      hasRole)
+import Application.Helper.Controller (currentVenueId, effectiveStaffOrNothing,
+                                      hasManagementMode)
 import Application.Helper.Staff (sortStaffForDisplay)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           sortDayNamesForVenueWeek)
@@ -126,11 +125,10 @@ fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
 fetchViewableRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [RosterGroup]
 fetchViewableRosterGroups = do
     activeGroups <- filter (.isActive) <$> fetchCurrentVenueRosterGroups
-    if hasRole Manager || currentUserIsUnimpersonatedSuperAdmin
+    if hasManagementMode
         then pure activeGroups
         else do
-            maybeStaff <- fetchCurrentUserStaff
-            case maybeStaff of
+            case effectiveStaffOrNothing of
                 Nothing -> pure []
                 Just staff -> do
                     assignments <-

@@ -81,6 +81,7 @@ import qualified Test.HostWatchdogSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MarkupRenderingSpec
+import qualified Test.ManagementModeSpec
 import qualified Test.MutationBoundarySpec
 import qualified Test.NotFoundRecoverySpec
 import qualified Test.OperationalIncidentSpec
@@ -496,6 +497,7 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "WageSourceAlert", definitionEstimatedRuntimeSeconds = 0.6, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Communications, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageSourceAlertSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "WageSourceEnforcement", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageSourceEnforcementSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageSourcePolicy", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageSourcePolicySpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "ManagementMode", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.ManagementModeSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PageHelp", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = ProductSupport, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PageHelpSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "ProfileSeed", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Observability, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.ProfileSeedSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "OperatorScript", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = TestInfrastructure, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.OperatorScriptSpec.tests

@@ -31,11 +31,20 @@ data RequestVenueState = RequestVenueState
     , effectiveStaff :: !EffectiveStaffContext
     , returnFallback :: !ImpersonationReturnFallbackContext
     , billingNavigation :: !BillingNavigationContext
+    , managementMode :: !ManagementModeContext
     , privateFeedback :: !Int
     }
 
 -- Navigation facts, not a Stripe client dependency: generators also consume
 -- this context module and must not acquire provider IO through these fields.
+data ManagementModeContext = ManagementModeContext
+    { managementModeEffective :: !Bool
+    , managementModePreferenceEnabled :: !Bool
+    , managementModeToggleVisible :: !Bool
+    , managementModeToggleEnabled :: !Bool
+    }
+    deriving (Eq, Show)
+
 data BillingNavigationContext = BillingNavigationContext
     { ownerBillingNavigationVisible :: !Bool
     , ownerBillingSubscriptionIsLive :: !Bool
@@ -58,6 +67,7 @@ venueRequestStateMiddleware = insertNewIORefVaultMiddleware requestVenueStateKey
     , effectiveStaff = EffectiveStaffContext Nothing
     , returnFallback = ImpersonationReturnFallbackContext False
     , billingNavigation = BillingNavigationContext False False
+    , managementMode = ManagementModeContext False True False False
     , privateFeedback = 0
     }
 
@@ -194,6 +204,22 @@ currentVenueMembershipOrNothing = requestVenueState.membership
 currentVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRoleEnum
 currentVenueRoleOrNothing = requestVenueState.role
 {-# NOINLINE currentVenueRoleOrNothing #-}
+
+currentManagementModeContext :: (?context :: ControllerContext) => ManagementModeContext
+currentManagementModeContext = requestVenueState.managementMode
+{-# NOINLINE currentManagementModeContext #-}
+
+hasManagementMode :: (?context :: ControllerContext) => Bool
+hasManagementMode = currentManagementModeContext.managementModeEffective
+
+managerModeToggleVisible :: (?context :: ControllerContext) => Bool
+managerModeToggleVisible = currentManagementModeContext.managementModeToggleVisible
+
+managerModeToggleEnabled :: (?context :: ControllerContext) => Bool
+managerModeToggleEnabled = currentManagementModeContext.managementModeToggleEnabled
+
+managerModePreferenceEnabled :: (?context :: ControllerContext) => Bool
+managerModePreferenceEnabled = currentManagementModeContext.managementModePreferenceEnabled
 
 currentSupportVenueOptionsOrNothing :: (?context :: ControllerContext) => Maybe [Venue]
 currentSupportVenueOptionsOrNothing =

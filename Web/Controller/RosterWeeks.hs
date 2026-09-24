@@ -86,7 +86,8 @@ import Web.RosterWeeks.FrontendSurface (rosterDuplicateShiftIntentForm,
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterDeleteSlotUrl,
-                              rosterTimelineWindowUrl, rosterWindowUrl)
+                              rosterTimelineWindowUrl, rosterWindowBaseUrl,
+                              rosterWindowUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
 import Web.RosterWeeks.Responses (respondToRosterSlotMutation,
@@ -265,7 +266,7 @@ instance Controller RosterWeeksController where
         case maybeRosterData of
             Nothing -> respondHtmlProfiled mempty
             Just rosterData -> do
-                let canViewTimeline = maybe False (.windowIsPublished) rosterData.rosterWeek || hasRole Manager
+                let canViewTimeline = maybe False (.windowIsPublished) rosterData.rosterWeek || hasManagementMode
                 accessDeniedUnless canViewTimeline
                 let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
                 let rosterGridModel = rosterGridRenderModelFromProjection rosterData
@@ -343,7 +344,7 @@ instance Controller RosterWeeksController where
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
 
     action currentAction@ShowRosterNotificationConfirmationAction = runBepis currentAction BepisFragmentAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         notificationFields <- case RosterAction.parseShowRosterNotificationConfirmationActionParams of
             Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
             Right fields -> pure fields
@@ -368,7 +369,7 @@ instance Controller RosterWeeksController where
         respondHtmlProfiled (renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd expectedCalendarRevision audience latestRun)
 
     action currentAction@CreateRosterNotificationRunAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         notificationFields <- case RosterAction.parseCreateRosterNotificationRunActionParams of
             Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
@@ -440,7 +441,7 @@ instance Controller RosterWeeksController where
         respondHtmlProfiled (fromMaybe mempty rowHtml)
 
     action currentAction@UpdateRosterAssignmentFiltersAction = runBepis currentAction BepisPreferenceAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterActionScope rosterGroup.id
         case RosterAction.parseToggleRosterAssignmentFiltersActionParams of
@@ -461,7 +462,7 @@ instance Controller RosterWeeksController where
                 respondHtmlProfiled mempty
 
     action currentAction@CreateRosterWeekAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -484,7 +485,7 @@ instance Controller RosterWeeksController where
                         redirectToPath targetPath
 
     action currentAction@ShowCopyRosterWeekConfirmationAction = runBepis currentAction BepisFormAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         case RosterAction.parseOpenCopyRosterWeekConfirmationActionParams of
@@ -501,7 +502,7 @@ instance Controller RosterWeeksController where
     action currentAction@CopyRosterWeekAction = runBepis currentAction BepisMutationAction do
         (sourceWindowStart, targetWindowStart) <- rosterCopyActionDates
         venueConfig <- fetchVenueConfig
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         let sourceScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id sourceWindowStart
@@ -557,7 +558,7 @@ instance Controller RosterWeeksController where
                                                             redirectToPath targetPath
 
     action currentAction@ToggleRosterWeekLiveStatusAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -601,7 +602,7 @@ instance Controller RosterWeeksController where
                                 redirectToPath targetPath
 
     action currentAction@CreateRosterWeekSlotDefinitionAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -620,7 +621,7 @@ instance Controller RosterWeeksController where
                     Right mutationResult -> respondToRosterSlotDefinitionSuccess scope mutationResult "Roster column added."
 
     action currentAction@RemoveRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterLane <- query @RosterLane
             |> filterWhere (#id, rosterWeekSlotDefinitionId)
@@ -640,7 +641,7 @@ instance Controller RosterWeeksController where
             Right mutationResult -> respondToRosterSlotDefinitionSuccess scope mutationResult "Roster column removed."
 
     action currentAction@SortRosterWeekAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -659,7 +660,7 @@ instance Controller RosterWeeksController where
                         redirectToRosterWindow scope
 
     action currentAction@ToggleRosterDayClosedAction { rosterDayId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
 
         rosterDay <- fetchRosterDayForMutation rosterDayId
@@ -689,7 +690,7 @@ instance Controller RosterWeeksController where
                         redirectToPath targetPath
 
     action currentAction@AddRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
 
         rosterDay <- fetchRosterDayForMutation rosterDayId
@@ -734,7 +735,7 @@ instance Controller RosterWeeksController where
                                 redirectToRosterWindow scope
 
     action currentAction@RemoveRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
 
         rosterDay <- fetchRosterDayForMutation rosterDayId
@@ -780,7 +781,7 @@ instance Controller RosterWeeksController where
                                 redirectToRosterWindow scope
 
     action currentAction@UpdateRosterLayoutPreferenceAction = runBepis currentAction BepisPreferenceAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
         let requestedLayoutMode =
@@ -810,7 +811,7 @@ instance Controller RosterWeeksController where
                         redirectToRosterWindow scope
 
     action currentAction@MoveRosterShiftToSlotAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -857,7 +858,7 @@ instance Controller RosterWeeksController where
                                                         respondToRosterSlotMove scope mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
 
     action currentAction@MoveRosterTimelineShiftAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -896,7 +897,7 @@ instance Controller RosterWeeksController where
                                         respondToRosterTimelineSlotMove scope mutationResult shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DuplicateRosterShiftToDayAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -947,7 +948,7 @@ instance Controller RosterWeeksController where
                                                                 respondToRosterSlotMutation scope targetRosterDay targetRowIndex False mutationResult "Roster shift duplicated."
 
     action currentAction@DropRosterStaffAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
@@ -977,7 +978,7 @@ instance Controller RosterWeeksController where
                             else respondWithRosterShiftCreateDialogOob scope staffDropRosterDay staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftSelectedAssignment = Just (StaffAssignment staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterActionScope rosterGroup.id
         case RosterAction.parseToggleRosterWarningsActionParams of
@@ -995,6 +996,7 @@ instance Controller RosterWeeksController where
                         redirectToRosterWindow scope
 
     action currentAction@UpdateRosterWageEstimatePreferenceAction = runBepis currentAction BepisPreferenceAction do
+        ensureManagementMode
         accessDeniedUnless (hasRole VenueAdmin)
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterActionScope rosterGroup.id
@@ -1011,6 +1013,28 @@ instance Controller RosterWeeksController where
                     else do
                         setSuccessMessage "Roster wage estimate preference saved."
                         redirectToRosterWindow scope
+
+    action currentAction@ToggleRosterManagerModeAction = runBepis currentAction BepisPreferenceAction do
+        let anchorDate = param @Day "anchorDate"
+        case RosterAction.parseToggleRosterManagerModeActionParams of
+            Left errors -> do
+                let errorMessage = rosterSurfaceRequestErrorMessage errors
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else setErrorMessage errorMessage >> redirectToPath (pathTo ShowRosterWindowAction { anchorDate = tshow anchorDate })
+            Right fields -> do
+                updated <- upsertCurrentUserManagerMode (surfaceFieldValue @Surface.ManagerModeEnabled fields)
+                accessDeniedUnless updated
+                let canonicalUrl =
+                        maybe
+                            (rosterWindowBaseUrl anchorDate)
+                            (rosterWindowUrl anchorDate)
+                            (paramOrNothing @(Id RosterGroup) "rosterGroupId")
+                if isHtmxRequest
+                    then do
+                        setHeader ("HX-Redirect", cs canonicalUrl)
+                        renderPlain ""
+                    else redirectToPath canonicalUrl
 
     action currentAction@UpdateRosterOwnLiveShiftHighlightPreferenceAction = runBepis currentAction BepisPreferenceAction do
         rosterGroup <- resolveRequestedRosterGroup
@@ -1030,7 +1054,7 @@ instance Controller RosterWeeksController where
                         redirectToRosterWindow scope
 
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterDay <- fetchRosterDayForDialog rosterDayId
         scope <- rosterActionScopeForDay rosterDay
@@ -1045,7 +1069,7 @@ instance Controller RosterWeeksController where
                 renderRosterShiftDialogForCreate scope rosterDay slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig)
 
     action currentAction@EditRosterSlotDialogAction { rosterSlotId } = runBepis currentAction BepisDialogAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
@@ -1055,7 +1079,7 @@ instance Controller RosterWeeksController where
         renderRosterShiftDialogForEdit scope rosterSlot rosterDay (rosterShiftDialogValuesFromSlot rosterSlot)
 
     action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         (rosterDay, materializeOnSave) <- fetchRosterDayForCreate rosterDayId
         scope <- rosterMutationScopeForDay rosterDay
@@ -1068,7 +1092,7 @@ instance Controller RosterWeeksController where
             Right mutationResult -> respondToRosterSlotMutation scope rosterDay rowIndex materializeOnSave mutationResult "Roster shift saved."
 
     action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
@@ -1081,7 +1105,7 @@ instance Controller RosterWeeksController where
             Right completion -> respondToRosterShiftEdit scope completion
 
     action currentAction@ShowRosterSlotDeleteConfirmationAction { rosterSlotId } = runBepis currentAction BepisFormAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         case parseAppShellActionParams @OpenRosterSlotDeleteConfirmationDialog of
             Left errors -> respondRosterBadRequest (rosterSurfaceRequestErrorMessage errors)
@@ -1102,7 +1126,7 @@ instance Controller RosterWeeksController where
                     )
 
     action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
+        ensureManagerModeAccess
         ensureVenueWritable
         case parseAppShellActionParams @ConfirmDeleteRosterSlotOverlay of
             Left errors -> respondRosterBadRequest (rosterSurfaceRequestErrorMessage errors)
@@ -1254,6 +1278,7 @@ renderNoRosterGroupPage = do
     setTitle "Roster"
     noRosterGroupPasskeySetupPrompt <- passkeySetupPromptFromSession
     noRosterGroupPasskeyStrongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    noRosterGroupAnchorDate <- utctDay <$> getCurrentTime
     let view = NoRosterGroupView { .. }
     if isHtmxRequest
         then respondHtmlProfiled (renderNoRosterGroupShell view)

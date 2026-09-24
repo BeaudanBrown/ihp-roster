@@ -198,6 +198,7 @@ CREATE TABLE user_preferences (
     timesheet_preferences_initialized_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    manager_mode_enabled BOOLEAN DEFAULT TRUE NOT NULL,
     UNIQUE(user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );

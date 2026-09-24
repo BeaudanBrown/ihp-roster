@@ -52,10 +52,10 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   rather than interpreted as compatibility state. Filters never grant authority.
   The roster-group filter is available only when at least two active current-venue
   groups exist; otherwise roster-group URL state canonicalizes to All roster groups.
-  The staff dropdown is labelled Staff filter. Its Me shortcut immediately selects
-  the effective viewer's current-venue staff record while retaining the week and
-  roster-group filter. It is shown only when that record is among the eligible
-  dropdown options; ordinary staff remain scoped to themselves without a filter.
+  The staff dropdown is labelled Staff filter. Manager mode replaces the former
+  Me shortcut: when mode is off, staff and roster-group filter parameters are
+  ignored and removed from the canonical URL, and the effective viewer is scoped
+  to their own records without a filter.
   Every entry has an immutable closed roster-group classification: a named
   roster group or explicit No roster group. Selecting one roster group retains
   only entries classified to that group and transient suggestions from that
@@ -63,6 +63,14 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   no separate No roster group filter. Cards render `Shift type - Group` and keep
   archived historical group names available as labels without exposing archived
   groups as filter choices.
+- One global per-user Manager mode preference is shared with Roster and defaults
+  on. Manager, admin, and owner users with active linked Staff can change it from
+  the top of Settings. Missing active linked Staff forces effective mode on while
+  leaving the saved preference unchanged; unimpersonated founder support is also
+  forced on without a switch. Impersonation uses only the effective user's role,
+  Staff, and preference. Turning mode off applies worker-equivalent read and write
+  scope, removes management notes and review actions, and turning it back on starts
+  with All staff and All roster groups.
 - Timesheets uses the shared transient SidePanel and the same main-card header,
   desktop focus/Escape behavior, and responsive tools shelf as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory

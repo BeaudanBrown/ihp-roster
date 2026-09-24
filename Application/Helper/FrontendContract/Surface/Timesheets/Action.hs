@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , parseToggleTimesheetHideApprovedActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
     , parseToggleTimesheetWageEstimatesActionParams
+    , parseToggleTimesheetManagerModeActionParams
     , parseUnapproveTimesheetEntryActionParams
     , toggleTimesheetHideApprovedAction
     , toggleTimesheetHideApprovedActionFields
@@ -19,6 +20,9 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , toggleTimesheetShowSuggestionsActionFields
     , toggleTimesheetWageEstimatesAction
     , toggleTimesheetWageEstimatesActionFields
+    , ToggleTimesheetManagerModeActionOperation
+    , toggleTimesheetManagerModeAction
+    , toggleTimesheetManagerModeActionFields
     , unapproveTimesheetEntryAction
     , unapproveTimesheetEntryActionFields
     , updateTimesheetFiltersAction
@@ -38,6 +42,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (
                                                                                 parseToggleTimesheetHideApprovedActionParams,
                                                                                 parseToggleTimesheetShowSuggestionsActionParams,
                                                                                 parseToggleTimesheetWageEstimatesActionParams,
+                                                                                parseToggleTimesheetManagerModeActionParams,
                                                                                 parseUnapproveTimesheetEntryActionParams,
                                                                                 toggleTimesheetHideApprovedAction,
                                                                                 toggleTimesheetHideApprovedActionFields,
@@ -45,6 +50,9 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (
                                                                                 toggleTimesheetShowSuggestionsActionFields,
                                                                                 toggleTimesheetWageEstimatesAction,
                                                                                 toggleTimesheetWageEstimatesActionFields,
+                                                                                ToggleTimesheetManagerModeActionOperation,
+                                                                                toggleTimesheetManagerModeAction,
+                                                                                toggleTimesheetManagerModeActionFields,
                                                                                 unapproveTimesheetEntryAction,
                                                                                 unapproveTimesheetEntryActionFields,
                                                                                 updateTimesheetFiltersAction,

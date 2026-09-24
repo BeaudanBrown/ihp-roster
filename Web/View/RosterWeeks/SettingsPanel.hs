@@ -3,10 +3,15 @@
 
 module Web.View.RosterWeeks.SettingsPanel
     ( renderRosterGroupSwitcher
+    , renderRosterManagerModePreferenceForm
+    , renderRosterManagerModePreferenceFormWithoutGroup
     , renderRosterOwnLiveShiftHighlightPreferenceForm
     , renderRosterSettingsPanel
     ) where
 
+import Application.Helper.Controller (managerModePreferenceEnabled,
+                                      managerModeToggleEnabled,
+                                      managerModeToggleVisible)
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Roster (RosterImageExportStyle (..))
@@ -30,6 +35,7 @@ import Application.RosterNotification (RosterNotificationAudience (..),
 import Web.RosterWeeks.Dom (rosterEmailButtonId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekConfirmationUrl,
+                              rosterManagerModePreferenceUrl,
                               rosterOwnLiveShiftHighlightPreferenceUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWindowBaseUrl,
@@ -48,6 +54,7 @@ rosterWeekShellSyncRoute actionUrl =
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekStartDate, staffPanelCalendarRevision, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelHighlightOwnLiveShifts, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
     <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel">
+        {when managerModeToggleVisible (renderRosterManagerModePreferenceForm staffPanelWeekStartDate staffPanelCurrentRosterGroup.id)}
         {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekStartDate staffPanelRosterGroups staffPanelCurrentRosterGroup)}
         {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
         {when (staffPanelViewCapabilities.canManageRosterWarnings || staffPanelViewCapabilities.canViewWageEstimates) $
@@ -60,6 +67,49 @@ renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, st
             renderRosterSettingsSection "bi-share" "Share roster" (renderRosterShareSection staffPanelRosterWeek staffPanelCurrentRosterGroup staffPanelWeekStartDate staffPanelCalendarRevision staffPanelNotificationPanelData staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode)}
     </div>
 |]
+
+renderRosterManagerModePreferenceForm :: (?context :: ControllerContext) => Day -> Id RosterGroup -> Html
+renderRosterManagerModePreferenceForm anchorDate rosterGroupId =
+    renderRosterManagerModePreferenceFormWithUrl anchorDate (rosterManagerModePreferenceUrl anchorDate rosterGroupId)
+
+renderRosterManagerModePreferenceFormWithoutGroup :: (?context :: ControllerContext) => Day -> Html
+renderRosterManagerModePreferenceFormWithoutGroup anchorDate =
+    renderRosterManagerModePreferenceFormWithUrl anchorDate (appendQueryParams (pathTo ToggleRosterManagerModeAction) [("anchorDate", tshow anchorDate)])
+
+renderRosterManagerModePreferenceFormWithUrl :: (?context :: ControllerContext) => Day -> Text -> Html
+renderRosterManagerModePreferenceFormWithUrl _anchorDate actionUrl =
+    renderRosterSettingsSection "bi-person-workspace" "Manager mode" [hsx|
+        <fieldset disabled={not managerModeToggleEnabled} class="mb-0">
+            {managerModeForm}
+        </fieldset>
+        {managerModeExplanation}
+    |]
+  where
+    fields = RosterAction.toggleRosterManagerModeActionFields managerModePreferenceEnabled
+    managerModeRoute =
+        (rosterWeekShellSyncRoute actionUrl)
+            { actionRouteStandardUrl = Just actionUrl }
+    managerModeForm =
+        renderFrontendSurfaceActionForm
+            (RosterAction.toggleRosterManagerModeAction fields)
+            managerModeRoute
+            [hsx|{renderRosterManagerModeToggle fields managerModePreferenceEnabled}|]
+    managerModeExplanation
+        | managerModeToggleEnabled = mempty
+        | otherwise = [hsx|<p class="small app-muted mt-2 mb-0">Manager mode stays on because your account has no active linked Staff profile at this venue.</p>|]
+
+renderRosterManagerModeToggle :: ActionFields RosterAction.ToggleRosterManagerModeActionOperation -> Bool -> Html
+renderRosterManagerModeToggle fields enabled =
+    renderAppToggleButton $
+        ( defaultAppToggleButtonConfig
+            "roster-manager-mode-toggle"
+            (surfaceToggleScalarField @Surface.ManagerModeEnabled fields True False)
+            enabled
+            [hsx|<span class="small">Manager mode</span>|]
+        )
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 renderRosterSettingsSection :: Text -> Text -> Html -> Html
 renderRosterSettingsSection iconClass title body = [hsx|

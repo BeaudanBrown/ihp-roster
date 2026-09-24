@@ -279,6 +279,7 @@ Application/Helper/LiveUpdate/Internal.hs	production	runtime	Main	Reachable from
 Application/Helper/LiveUpdate/OutboxPruning.hs	production	operational-script-closure	Application.Script.LiveInvalidationOutboxPrune	Reachable from Application.Script.LiveInvalidationOutboxPrune
 Application/Helper/LiveUpdate/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Mail.hs	production	runtime	Main	Reachable from Main
+Application/Helper/ManagementMode.hs	production	runtime	Main	Reachable from Main
 Application/Helper/NominalText.hs	production	runtime	Main	Reachable from Main
 Application/Helper/OpaqueToken.hs	production	runtime	Main	Reachable from Main
 Application/Helper/PasskeyRecoveryCodes.hs	production	runtime	Main	Reachable from Main

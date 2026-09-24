@@ -36,6 +36,7 @@ import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope,
 data NoRosterGroupView = NoRosterGroupView
     { noRosterGroupPasskeySetupPrompt :: Maybe PasskeySetupPromptMode
     , noRosterGroupPasskeyStrongAuthenticationRequired :: Bool
+    , noRosterGroupAnchorDate :: Day
     }
 
 data ShowView = ShowView
@@ -107,6 +108,7 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     , staffPanelEntries                :: [RosterStaffPanelEntry]
     , staffPanelTemplateLibrary        :: Maybe RosterTemplateLibrary
     , staffPanelNotificationPanelData  :: Maybe RosterNotificationPanelData
+    , staffPanelSelfServicePanel       :: Maybe RosterStaffSelfServicePanel
     }
 
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel

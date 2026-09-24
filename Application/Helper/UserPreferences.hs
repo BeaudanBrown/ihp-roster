@@ -24,7 +24,7 @@ module Application.Helper.UserPreferences
 
 import Application.Error.Runtime (throwExternalRuntime)
 import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
-                                      hasRole)
+                                      hasManagementMode)
 import Application.Helper.Hasql (isUniqueViolation)
 import qualified Control.Exception as Exception
 import Generated.Types
@@ -84,7 +84,7 @@ fetchCurrentRosterLayoutMode =
 
 fetchCurrentUserShowRosterWarnings :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserShowRosterWarnings
-    | not (hasRole Manager) = pure False
+    | not hasManagementMode = pure False
     | otherwise = (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool

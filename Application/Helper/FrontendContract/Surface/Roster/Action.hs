@@ -47,6 +47,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , parseToggleRosterOwnLiveShiftHighlightActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
+    , parseToggleRosterManagerModeActionParams
     , parseToggleRosterWarningsActionParams
     , parseToggleRosterWeekLiveStatusActionParams
     , removeRosterRowAction
@@ -70,6 +71,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , ToggleRosterWageEstimatesActionOperation
     , toggleRosterWageEstimatesAction
     , toggleRosterWageEstimatesActionFields
+    , ToggleRosterManagerModeActionOperation
+    , toggleRosterManagerModeAction
+    , toggleRosterManagerModeActionFields
     , ToggleRosterWarningsActionOperation
     , toggleRosterWarningsAction
     , toggleRosterWarningsActionFields
@@ -88,6 +92,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (swit
                                                                             ToggleRosterOwnLiveShiftHighlightActionOperation,
                                                                             ToggleRosterStaffScopeActionOperation,
                                                                             ToggleRosterWageEstimatesActionOperation,
+                                                                            ToggleRosterManagerModeActionOperation,
                                                                             ToggleRosterWarningsActionOperation,
                                                                             ToggleRosterWeekLiveStatusActionOperation,
                                                                             addRosterRowAction,
@@ -128,6 +133,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (swit
                                                                             parseToggleRosterOwnLiveShiftHighlightActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,
                                                                             parseToggleRosterWageEstimatesActionParams,
+                                                                            parseToggleRosterManagerModeActionParams,
                                                                             parseToggleRosterWarningsActionParams,
                                                                             parseToggleRosterWeekLiveStatusActionParams,
                                                                             previewRosterTemplateApplicationAction,
@@ -151,6 +157,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (swit
                                                                             toggleRosterStaffScopeActionParamsPresent,
                                                                             toggleRosterWageEstimatesAction,
                                                                             toggleRosterWageEstimatesActionFields,
+                                                                            toggleRosterManagerModeAction,
+                                                                            toggleRosterManagerModeActionFields,
                                                                             toggleRosterWarningsAction,
                                                                             toggleRosterWarningsActionFields,
                                                                             toggleRosterWeekLiveStatusAction,

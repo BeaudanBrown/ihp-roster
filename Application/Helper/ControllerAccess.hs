@@ -141,6 +141,15 @@ ensureManagerRole = do
     redirectPermissionDeniedUnless (hasRole Manager) "You need manager access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisManagerRole) "manager-role"
 
+ensureManagementMode :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
+ensureManagementMode =
+    redirectPermissionDeniedUnless hasManagementMode "Turn on Manager mode to use management actions."
+
+ensureManagerModeAccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
+ensureManagerModeAccess = do
+    ensureManagerRole
+    ensureManagementMode
+
 ensureAdminRoleAccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IO ()
 ensureAdminRoleAccess = do
     redirectPermissionDeniedUnless (hasRole VenueAdmin) "You need admin access to view that page."

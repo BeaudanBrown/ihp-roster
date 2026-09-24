@@ -73,6 +73,7 @@ instance InitControllerContext WebApplication where
         -- only validated identity may populate venue and impersonation authority.
         initCurrentVenueContext
         initImpersonationContext
+        initManagementModeContext
         initSupportImpersonationOptions
         initBillingNavigationContext
         initFeedbackContext

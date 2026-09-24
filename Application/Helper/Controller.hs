@@ -8,6 +8,7 @@ module Application.Helper.Controller
     , module Application.Helper.WeekBoundaries
     , module Application.Helper.Htmx
     , module Application.Helper.Impersonation
+    , module Application.Helper.ManagementMode
     , module Application.Helper.Audit
     , module Application.VenueRole
     ) where
@@ -19,6 +20,7 @@ import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport
 import Application.Helper.Htmx
 import Application.Helper.Impersonation
+import Application.Helper.ManagementMode
 import Application.Helper.TimeRules
 import Application.Helper.WeekBoundaries
 import Application.VenueRole

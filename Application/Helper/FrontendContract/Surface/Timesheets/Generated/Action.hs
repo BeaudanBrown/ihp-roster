@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , CreateTimesheetEntryFromSuggestionActionOperation
     , NavigateTimesheetWeekActionOperation
     , ToggleTimesheetHideApprovedActionOperation
+    , ToggleTimesheetManagerModeActionOperation
     , ToggleTimesheetShowSuggestionsActionOperation
     , ToggleTimesheetWageEstimatesActionOperation
     , UnapproveTimesheetEntryActionOperation
@@ -24,11 +25,14 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromSuggestionActionParams
     , parseToggleTimesheetHideApprovedActionParams
+    , parseToggleTimesheetManagerModeActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
     , parseToggleTimesheetWageEstimatesActionParams
     , parseUnapproveTimesheetEntryActionParams
     , toggleTimesheetHideApprovedAction
     , toggleTimesheetHideApprovedActionFields
+    , toggleTimesheetManagerModeAction
+    , toggleTimesheetManagerModeActionFields
     , toggleTimesheetShowSuggestionsAction
     , toggleTimesheetShowSuggestionsActionFields
     , toggleTimesheetWageEstimatesAction
@@ -216,6 +220,41 @@ parseToggleTimesheetHideApprovedActionParams ::
 parseToggleTimesheetHideApprovedActionParams =
     parseActionParams
         @ToggleTimesheetHideApprovedActionOperation
+
+data ToggleTimesheetManagerModeActionOperation
+
+type instance ActionSurface ToggleTimesheetManagerModeActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+type instance ActionMarker ToggleTimesheetManagerModeActionOperation = Types1.ToggleTimesheetManagerMode
+type instance ActionFieldSpecs ToggleTimesheetManagerModeActionOperation =
+    '[ 'Field Types1.AnchorDate 'WireDay
+     , 'Field Types1.ManagerModeEnabled 'WireBool
+     ]
+
+toggleTimesheetManagerModeActionFields ::
+    Day ->
+    Bool ->
+    ActionFields ToggleTimesheetManagerModeActionOperation
+toggleTimesheetManagerModeActionFields anchorDate managerModeEnabled =
+    actionFields
+        (surfaceField @Types1.AnchorDate anchorDate)
+        ( surfaceField @Types1.ManagerModeEnabled managerModeEnabled
+            &: noSurfaceFields
+        )
+
+toggleTimesheetManagerModeActionEvidence :: ActionEvidence ToggleTimesheetManagerModeActionOperation
+toggleTimesheetManagerModeActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetManagerMode" "toggle-timesheet-manager-mode" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ManagerModeEnabled" "managerModeEnabled" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+toggleTimesheetManagerModeAction :: ActionFields ToggleTimesheetManagerModeActionOperation -> FrontendSurfaceAction
+toggleTimesheetManagerModeAction =
+    frontendSurfaceActionFromEvidence toggleTimesheetManagerModeActionEvidence
+
+parseToggleTimesheetManagerModeActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields ToggleTimesheetManagerModeActionOperation)
+parseToggleTimesheetManagerModeActionParams =
+    parseActionParams
+        @ToggleTimesheetManagerModeActionOperation
 
 data ToggleTimesheetShowSuggestionsActionOperation
 
