@@ -105,13 +105,15 @@ renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffF
   where
     formId = "delete-timesheet-entry-confirmation-form"
     requestParams = timesheetWindowStateQueryParams (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId <> [("rosterCalendarRevision", tshow calendarRevision)]
+    -- Retain DELETE's query-based calendar context; Cancel's GET form submits
+    -- hidden fields. Neither request duplicates scalars across URL and form.
     deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) requestParams
-    editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id timesheetEntry))) requestParams
+    editUrl = pathTo (EditTimesheetEntryAction (get #id timesheetEntry))
     deleteForm =
         renderAppShellActionForm
             (appShellActionByMarker @DeleteTimesheetEntryOverlay)
             ((defaultAppShellActionRoute deleteUrl)
-                { appShellActionRouteFields = AppShellFieldValue ("_method", "DELETE") : fmap AppShellFieldValue requestParams
+                { appShellActionRouteFields = [AppShellFieldValue ("_method", "DELETE")]
                 , appShellActionRouteExtraAttrs = [("id", formId)]
                 })
             mempty

@@ -6,7 +6,7 @@ import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 import { openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './support/profile';
 import { chooseBlankTimesheet, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
-import { runSql } from './support/database';
+import { querySql, runSql } from './support/database';
 
 function displayDate(isoDate: string): string {
     const [year, month, day] = isoDate.split('-');
@@ -30,9 +30,11 @@ async function login(page: Page) {
 
 const hideApprovedSubmitTitle = 'timesheet submit preserves the disabled Show approved preference';
 const modalDeleteTitle = 'timesheet modal delete supports server confirmation and cancellation without a staff filter';
+const filteredModalDeleteTitle = 'timesheet modal delete preserves a staff filter through confirmation and cancellation';
 const timesheetPreferenceMutators = new Set([
     hideApprovedSubmitTitle,
     modalDeleteTitle,
+    filteredModalDeleteTitle,
 ]);
 
 function resetTimesheetPreferencesForMutator(testTitle: string) {
@@ -274,7 +276,7 @@ test.describe('HTMX submit regressions', () => {
         ).toHaveCount(1);
     });
 
-    test(modalDeleteTitle, async ({ page }) => {
+    for (const withStaffFilter of [false, true]) test(withStaffFilter ? filteredModalDeleteTitle : modalDeleteTitle, async ({ page }) => {
         const deletedEntryId = 'b1000000-0000-0000-0000-000000000091';
         runSql(`
             INSERT INTO timesheet_entries (
@@ -302,13 +304,21 @@ test.describe('HTMX submit regressions', () => {
         `);
 
         await login(page);
-        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        const staffFilterId = withStaffFilter
+            ? querySql(`SELECT staff_id FROM timesheet_entries WHERE id = '${deletedEntryId}'`).trim()
+            : null;
+        await gotoWhenReady(page, staffFilterId ? `/Timesheets?staffFilterId=${staffFilterId}` : '/Timesheets', '#timesheet-week-shell');
+        expect(new URL(page.url()).searchParams.get('staffFilterId')).toBe(staffFilterId);
+        const assertWindowParams = (params: URLSearchParams) => {
+            expect(params.getAll('anchorDate')).toHaveLength(1);
+            expect(params.getAll('rosterCalendarRevision')).toHaveLength(1);
+            expect(params.getAll('staffFilterId')).toEqual(staffFilterId ? [staffFilterId] : []);
+        };
         await openTimesheetSettings(page);
         const showApproved = page.getByRole('switch', { name: 'Show approved' });
         if (!(await showApproved.isChecked())) {
             await showApproved.locator('..').click();
         }
-        expect(new URL(page.url()).searchParams.has('staffFilterId')).toBe(false);
 
         const targetEntry = page.locator(`.timesheet-entry-card:has(a[href*="${deletedEntryId}"])`);
         await expect(targetEntry).toBeVisible();
@@ -338,12 +348,16 @@ test.describe('HTMX submit regressions', () => {
         const confirmationResponse = await confirmationResponsePromise;
         expect(confirmationResponse.status()).toBe(200);
         const confirmationParams = new URL(confirmationResponse.url()).searchParams;
-        expect(confirmationParams.getAll('anchorDate')).toHaveLength(1);
-        expect(confirmationParams.getAll('rosterCalendarRevision')).toHaveLength(1);
-        expect(confirmationParams.has('staffFilterId')).toBe(false);
+        assertWindowParams(confirmationParams);
         await expect(confirmation).toBeVisible();
         await expect(confirmation).toContainText('Delete this timesheet entry? This cannot be undone.');
+        const cancelResponsePromise = page.waitForResponse(response =>
+            response.request().method() === 'GET' && response.url().includes('/EditTimesheetEntry')
+        );
         await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+        const cancelResponse = await cancelResponsePromise;
+        expect(cancelResponse.status()).toBe(200);
+        assertWindowParams(new URL(cancelResponse.url()).searchParams);
         await expect(page.locator('#timesheet-entry-edit-form')).toBeVisible();
         await expect(targetEntry).toBeVisible();
         await page.getByRole('button', { name: 'Delete', exact: true }).click();
@@ -355,6 +369,9 @@ test.describe('HTMX submit regressions', () => {
         await confirmation.getByRole('button', { name: 'Delete', exact: true }).click();
         const deleteResponse = await deleteResponsePromise;
         expect(deleteResponse.status(), await deleteResponse.text()).toBe(200);
+        const deleteParams = new URL(deleteResponse.url()).searchParams;
+        new URLSearchParams(deleteResponse.request().postData() ?? '').forEach((value, key) => deleteParams.append(key, value));
+        assertWindowParams(deleteParams);
         await deleteResponse.finished();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
