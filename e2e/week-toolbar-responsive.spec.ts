@@ -4,6 +4,7 @@ import { loginAs } from './support/session';
 import { openRoster, openRosterSettings } from './support/roster';
 import { resetTimesheetDisplayPreferences } from './support/timesheets';
 import { runSql } from './support/database';
+import { rosterSidePanelShelfToggleDomAttr, timesheetsSidePanelShelfToggleDomAttr } from '../frontend/ts/generated/contracts';
 
 type ToolbarMetrics = {
     quickTop: number;
@@ -13,7 +14,7 @@ type ToolbarMetrics = {
     navigationBottom: number;
     navigationCenterX: number;
     settingsTop: number;
-    settingsRight: number;
+    settingsBottom: number;
     auxiliaryTop: number | null;
     auxiliaryRight: number | null;
     resetTop: number | null;
@@ -64,7 +65,7 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
             navigationBottom: Math.round(navigation.bottom),
             navigationCenterX: Math.round(navigation.left + navigation.width / 2),
             settingsTop: Math.round(settings.top),
-            settingsRight: Math.round(settings.right),
+            settingsBottom: Math.round(settings.bottom),
             auxiliaryTop: auxiliary ? Math.round(auxiliary.top) : null,
             auxiliaryRight: auxiliary ? Math.round(auxiliary.right) : null,
             resetTop: reset ? Math.round(reset.top) : null,
@@ -128,15 +129,15 @@ test.describe('Shared week toolbar responsive layout', () => {
 
         await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
         const roster = await weekToolbarMetrics(page, '[data-week-toolbar="roster"]');
-        expect(Math.abs(roster.quickTop - roster.navigationTop)).toBeLessThanOrEqual(4);
-        expect(Math.abs(roster.settingsTop - roster.navigationTop)).toBeLessThanOrEqual(4);
+        expect(Math.abs((roster.quickTop + roster.quickBottom) / 2 - (roster.navigationTop + roster.navigationBottom) / 2)).toBeLessThanOrEqual(2);
+        expect(Math.abs((roster.settingsTop + roster.settingsBottom) / 2 - (roster.navigationTop + roster.navigationBottom) / 2)).toBeLessThanOrEqual(2);
         if (roster.auxiliaryRight !== null) {
             expect(roster.auxiliaryRight).toBeGreaterThan(roster.toolbarCenterX);
         }
 
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         const timesheets = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
-        expect(Math.abs(timesheets.quickTop - timesheets.navigationTop)).toBeLessThanOrEqual(2);
+        expect(Math.abs((timesheets.quickTop + timesheets.quickBottom) / 2 - (timesheets.navigationTop + timesheets.navigationBottom) / 2)).toBeLessThanOrEqual(2);
         expect(timesheets.settingsTop).toBeGreaterThanOrEqual(timesheets.navigationTop);
         expect(timesheets.settingsTop).toBeLessThanOrEqual(timesheets.navigationBottom);
     });
@@ -151,27 +152,22 @@ test.describe('Shared week toolbar responsive layout', () => {
         await expect(toolbar.locator('[data-week-toolbar-section="primary"]').getByText('Published')).toBeVisible();
         await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();
         await expect(toolbar.getByRole('button', { name: 'Roster settings' })).toHaveCount(0);
-        const settingsTab = page.getByRole('tab', { name: 'Settings', exact: true });
-        if (!(await settingsTab.isVisible())) {
-            await page.getByRole('button', { name: 'Open Roster tools' }).click();
-        }
-        await expect(settingsTab).toBeVisible();
+        await expect(page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`)).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toBeHidden();
         await expect(toolbar.locator('.roster-week-nav-group')).toBeVisible();
         if ((await toolbar.locator('[data-week-toolbar-section="auxiliary"] .roster-wage-summary').count()) > 0) {
             await expect(toolbar.locator('[data-week-toolbar-section="auxiliary"] .roster-wage-summary')).toBeVisible();
         }
 
         const metrics = await weekToolbarMetrics(page, '[data-week-toolbar="roster"]');
-        expect(metrics.resetCenterX).not.toBeNull();
-        expect(metrics.settingsRight).toBeLessThanOrEqual(metrics.toolbarRight - 8);
-        expect(metrics.resetBottom).not.toBeNull();
-        expect(metrics.navigationTop).toBeGreaterThanOrEqual((metrics.resetBottom ?? 0) - 1);
+        // Published and This week share normal flow (and can wrap), above navigation.
+        expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.quickBottom - 1);
         if (metrics.auxiliaryTop !== null) {
             expect(metrics.auxiliaryTop).toBeGreaterThanOrEqual(metrics.navigationBottom - 1);
         }
     });
 
-    test('centres Timesheets mobile reset above week navigation with the Settings panel stacked below', async ({ page }) => {
+    test('centres Timesheets mobile reset above week navigation with Settings in the closed tools shelf', async ({ page }) => {
         test.setTimeout(90_000);
         await page.setViewportSize({ width: 390, height: 844 });
         resetTimesheetDisplayPreferences('e2e-admin@example.com');
@@ -183,8 +179,8 @@ test.describe('Shared week toolbar responsive layout', () => {
         await expect(toolbar.getByRole('button', { name: 'Expand main content' })).toBeHidden();
         await expect(toolbar.locator('.app-week-nav-group')).toBeVisible();
         await expect(toolbar.locator('.timesheet-wage-summary')).toBeVisible();
-        await page.getByRole('button', { name: 'Open Timesheet tools' }).click();
-        await expect(page.getByRole('tab', { name: 'Settings' })).toBeVisible();
+        await expect(page.locator(`[${timesheetsSidePanelShelfToggleDomAttr}]`)).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Settings' })).toBeHidden();
 
         const metrics = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
         expect(metrics.resetCenterX).not.toBeNull();

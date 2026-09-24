@@ -3,6 +3,7 @@ import {
     dialogOverlayMountDomId,
     leaveRequestsLeaveSidePanelDomAttr,
     leaveRequestsLeaveSidePanelPanelDomAttr,
+    leaveRequestsSidePanelShelfToggleDomAttr,
     leaveRequestsLeaveSidePanelStates,
     leaveRequestsLeaveSidePanelTabDomAttr,
     leaveRequestsLeaveSidePanelToggleDomAttr,
@@ -82,6 +83,10 @@ test.describe('Unavailability shared SidePanel', () => {
 
         await page.getByRole('button', { name: 'Open Unavailability tools' }).click();
         const panel = page.locator(`[${leaveRequestsLeaveSidePanelPanelDomAttr}]`);
+        const shelf = page.locator(`[${leaveRequestsSidePanelShelfToggleDomAttr}]`);
+        await expect(shelf).toHaveAttribute('aria-expanded', 'false');
+        await shelf.click();
+        await expect(shelf).toHaveAttribute('aria-expanded', 'true');
         await expect(panel).toBeVisible();
         await expect(page.locator(`[${leaveRequestsLeaveSidePanelTabDomAttr}="staff"]`)).toHaveAttribute('aria-selected', 'true');
         await page.getByRole('tab', { name: 'Settings' }).click();
