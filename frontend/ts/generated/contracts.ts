@@ -389,6 +389,20 @@ export const interactionSessionEndEvent = "bepis:interaction-session-end" as con
 
 export const interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request" as const;
 
+export type WageDisplayModeEnum =
+    "hidden"
+  | "visible_timesheets"
+  | "all_timesheets"
+  | "visible_and_all_timesheets";
+export function isWageDisplayModeEnum(value: unknown): value is WageDisplayModeEnum {
+    return typeof value === "string" && ["hidden", "visible_timesheets", "all_timesheets", "visible_and_all_timesheets"].includes(value);
+}
+
+export function parseWageDisplayModeEnum(value: unknown): WageDisplayModeEnum {
+    if (isWageDisplayModeEnum(value)) return value;
+    throw new Error("Invalid WageDisplayModeEnum");
+}
+
 export type RosterImageExportStyle =
     "colour"
   | "print";

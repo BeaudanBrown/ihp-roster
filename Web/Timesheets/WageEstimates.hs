@@ -1,23 +1,29 @@
 module Web.Timesheets.WageEstimates
-    ( TimesheetWageEstimateSummary (..)
+    ( TimesheetPayAudience (..)
+    , TimesheetWageEstimateSummary (..)
     , TimesheetWageEstimates (..)
-    , canViewTimesheetWageEstimates
+    , canConfigureTimesheetWageEstimates
     , evaluateTimesheetWageEstimates
-    , lookupTimesheetDayWageEstimate
+    , fetchAuthorizedTimesheetWageEntries
+    , lookupTimesheetDayWageEstimates
+    , timesheetPayAudienceFor
+    , timesheetWageEstimateLabel
     ) where
 
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Application.WageEngine (FinalEarningsSummary (..), WageCalculation (..),
                                deriveFinalEarnings)
-import Application.WageEvaluation
 import Application.WageSourceEnforcement (WageEntryOutcome (..),
                                           evaluateDraftWageEntriesAt)
 import Application.WageSourcePolicy (PolicyClock (..))
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Data.Scientific (Scientific)
 import qualified Data.Scientific as Scientific
 import Web.Controller.Prelude
-import Web.Timesheets.Suggestion
+
+data TimesheetPayAudience = PersonalPayAudience | ManagementPayAudience
+    deriving (Eq, Show)
 
 data TimesheetWageEstimateSummary = TimesheetWageEstimateSummary
     { wageEstimateAmount             :: !Scientific
@@ -27,73 +33,94 @@ data TimesheetWageEstimateSummary = TimesheetWageEstimateSummary
     deriving (Eq, Show)
 
 data TimesheetWageEstimates = TimesheetWageEstimates
-    { timesheetWeekWageEstimate :: !TimesheetWageEstimateSummary
-    , timesheetDayWageEstimates :: !(Map.Map Day TimesheetWageEstimateSummary)
+    { timesheetWageDisplayMode       :: !WageDisplayModeEnum
+    , timesheetPayAudience           :: !TimesheetPayAudience
+    , timesheetWeekVisibleEstimate   :: !TimesheetWageEstimateSummary
+    , timesheetWeekAllEstimate       :: !TimesheetWageEstimateSummary
+    , timesheetDayVisibleEstimates   :: !(Map.Map Day TimesheetWageEstimateSummary)
+    , timesheetDayAllEstimates       :: !(Map.Map Day TimesheetWageEstimateSummary)
     }
     deriving (Eq, Show)
 
 data WageEstimateItem = WageEstimateItem
-    { wageEstimateItemDay           :: !Day
-    , wageEstimateItemAmount        :: !(Maybe Scientific)
+    { wageEstimateItemEntryId      :: !(Id TimesheetEntry)
+    , wageEstimateItemDay          :: !Day
+    , wageEstimateItemAmount       :: !(Maybe Scientific)
     , wageEstimateItemSourceWarning :: !Bool
     }
 
-canViewTimesheetWageEstimates :: (?context :: ControllerContext) => Bool
-canViewTimesheetWageEstimates =
-    currentUserIsUnimpersonatedSuperAdmin
-        || effectiveVenueRoleOrNothing `elem` map Just [Worker, VenueAdmin, VenueOwner]
+canConfigureTimesheetWageEstimates :: (?context :: ControllerContext) => Bool
+canConfigureTimesheetWageEstimates =
+    isJust (timesheetPayAudienceFor currentUserIsUnimpersonatedSuperAdmin effectiveVenueRoleOrNothing hasManagementMode (isJust effectiveStaffOrNothing))
 
--- Approved entries consume their sealed calculation. Unapproved entries and
--- transient roster suggestions use the canonical draft evaluation boundary.
+timesheetPayAudienceFor :: Bool -> Maybe VenueRoleEnum -> Bool -> Bool -> Maybe TimesheetPayAudience
+timesheetPayAudienceFor unimpersonatedSupport effectiveRole managementMode hasLinkedStaff
+    | unimpersonatedSupport = Just ManagementPayAudience
+    | managementMode && effectiveRole `elem` map Just [VenueAdmin, VenueOwner] = Just ManagementPayAudience
+    | hasLinkedStaff = Just PersonalPayAudience
+    | otherwise = Nothing
+
+timesheetPayAudienceForCurrentUser :: (?context :: ControllerContext) => Maybe (TimesheetPayAudience, Maybe (Id Staff))
+timesheetPayAudienceForCurrentUser = do
+    audience <- timesheetPayAudienceFor currentUserIsUnimpersonatedSuperAdmin effectiveVenueRoleOrNothing hasManagementMode (isJust effectiveStaffOrNothing)
+    let staffId = case audience of
+            ManagementPayAudience -> Nothing
+            PersonalPayAudience -> (.id) <$> effectiveStaffOrNothing
+    pure (audience, staffId)
+
+fetchAuthorizedTimesheetWageEntries ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO (Maybe (TimesheetPayAudience, [TimesheetEntry]))
+fetchAuthorizedTimesheetWageEntries windowStart windowEndExclusive =
+    case timesheetPayAudienceForCurrentUser of
+        Nothing -> pure Nothing
+        Just (audience, maybeStaffId) -> do
+            let baseQuery =
+                    query @TimesheetEntry
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+                        |> filterWhereLessThan (#operationalDate, windowEndExclusive)
+                        |> filterWhere (#deletedAt, Nothing)
+                scopedQuery = maybe baseQuery (\staffId -> baseQuery |> filterWhere (#staffId, unpackId staffId)) maybeStaffId
+            entries <- scopedQuery |> orderByAsc #startsAt |> fetch
+            pure (Just (audience, entries))
+
 evaluateTimesheetWageEstimates ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    WageDisplayModeEnum ->
+    TimesheetPayAudience ->
     [TimesheetEntry] ->
-    [TimesheetSuggestion] ->
+    [TimesheetEntry] ->
     IO TimesheetWageEstimates
-evaluateTimesheetWageEstimates entries suggestions = do
+evaluateTimesheetWageEstimates displayMode audience visibleEntries allEntries = do
     now <- getCurrentTime
-    entryOutcomes <- evaluateDraftWageEntriesAt (PolicyClock now) entries
-    suggestionOutcomes <- evaluateUnsealedWagesWithPolicy DraftWageEvaluation (map suggestionSubject suggestions)
-    let entryItems = zipWith entryItem entries entryOutcomes
-        suggestionItems = map (suggestionItem suggestionOutcomes) suggestions
-        items = entryItems <> suggestionItems
+    outcomes <- evaluateDraftWageEntriesAt (PolicyClock now) allEntries
+    let items = zipWith entryItem allEntries outcomes
+        visibleIds = Set.fromList (map (.id) visibleEntries)
+        visibleItems = filter (\item -> item.wageEstimateItemEntryId `Set.member` visibleIds) items
     pure TimesheetWageEstimates
-        { timesheetWeekWageEstimate = summarize items
-        , timesheetDayWageEstimates = Map.map summarize (Map.fromListWith (<>) [(item.wageEstimateItemDay, [item]) | item <- items])
+        { timesheetWageDisplayMode = displayMode
+        , timesheetPayAudience = audience
+        , timesheetWeekVisibleEstimate = summarize visibleItems
+        , timesheetWeekAllEstimate = summarize items
+        , timesheetDayVisibleEstimates = summariesByDay visibleItems
+        , timesheetDayAllEstimates = summariesByDay items
         }
   where
     entryItem entry outcome =
         WageEstimateItem
-            { wageEstimateItemDay = timesheetEntryOperationalDate entry
+            { wageEstimateItemEntryId = entry.id
+            , wageEstimateItemDay = timesheetEntryOperationalDate entry
             , wageEstimateItemAmount = calculationAmountFromCalculation <$> eitherToMaybe outcome.outcomeCalculation
             , wageEstimateItemSourceWarning = not entry.isApproved && not (null outcome.outcomeSourceDiagnostics)
             }
-
-    suggestionItem outcomes suggestion =
-        let result = Map.lookup (RosterSlotSubject (unpackId suggestion.suggestionRosterSlotId)) outcomes
-         in WageEstimateItem
-                { wageEstimateItemDay = timesheetSuggestionOperationalDate suggestion
-                , wageEstimateItemAmount = calculationAmount <$> (result >>= eitherToMaybe)
-                , wageEstimateItemSourceWarning = maybe False (either (const False) (not . null . (.evaluatedSourceDiagnostics))) result
-                }
-
     eitherToMaybe = either (const Nothing) Just
 
-suggestionSubject :: (?context :: ControllerContext) => TimesheetSuggestion -> UnsealedWageSubject
-suggestionSubject suggestion =
-    UnsealedWageSubject
-        { wageSubjectKey = RosterSlotSubject (unpackId suggestion.suggestionRosterSlotId)
-        , wageSubjectVenueId = unpackId currentVenueId
-        , wageSubjectStaffId = suggestion.suggestionStaffId
-        , wageSubjectShiftTypeId = suggestion.suggestionShiftTypeId
-        , wageSubjectOperationalDate = suggestion.suggestionOperationalDate
-        , wageSubjectBoundaries = suggestion.suggestionBoundaries
-        , wageSubjectStaffPayVersionId = Nothing
-        , wageSubjectShiftTypePayVersionId = Nothing
-        }
-
-calculationAmount :: WageEvaluationOutcome -> Scientific
-calculationAmount = scientificAmount . (.finalEarningsTotalAmount) . (.evaluatedFinalEarnings)
+summariesByDay :: [WageEstimateItem] -> Map.Map Day TimesheetWageEstimateSummary
+summariesByDay items =
+    Map.map summarize (Map.fromListWith (<>) [(item.wageEstimateItemDay, [item]) | item <- items])
 
 calculationAmountFromCalculation :: WageCalculation -> Scientific
 calculationAmountFromCalculation = scientificAmount . (.finalEarningsTotalAmount) . deriveFinalEarnings . (.earningsComponents)
@@ -109,6 +136,12 @@ summarize items =
         , wageEstimateSourceWarningCount = length (filter (.wageEstimateItemSourceWarning) items)
         }
 
-lookupTimesheetDayWageEstimate :: TimesheetWageEstimates -> Day -> TimesheetWageEstimateSummary
-lookupTimesheetDayWageEstimate estimates day =
-    Map.findWithDefault (summarize []) day estimates.timesheetDayWageEstimates
+lookupTimesheetDayWageEstimates :: TimesheetWageEstimates -> Day -> (TimesheetWageEstimateSummary, TimesheetWageEstimateSummary)
+lookupTimesheetDayWageEstimates estimates day =
+    ( Map.findWithDefault (summarize []) day estimates.timesheetDayVisibleEstimates
+    , Map.findWithDefault (summarize []) day estimates.timesheetDayAllEstimates
+    )
+
+timesheetWageEstimateLabel :: TimesheetPayAudience -> Text
+timesheetWageEstimateLabel PersonalPayAudience   = "Your estimated pay"
+timesheetWageEstimateLabel ManagementPayAudience = "Estimated gross wages"

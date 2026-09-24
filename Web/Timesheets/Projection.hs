@@ -41,7 +41,7 @@ import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetB
 import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowApproved,
                                            userTimesheetShowSuggestions,
-                                           userTimesheetShowWageEstimates)
+                                           userTimesheetWageDisplayMode)
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds,
                                               fetchLinkedActiveVenueStaff)
 import Application.Helper.View.Timesheets (TimesheetFormInputs (..))
@@ -103,7 +103,7 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetCalendarRevision     :: Int
     , timesheetHideApproved         :: Bool
     , timesheetSuggestionsVisible   :: Bool
-    , timesheetShowWageEstimates    :: Bool
+    , timesheetWageDisplayMode      :: WageDisplayModeEnum
     , timesheetWageEstimates        :: !(Maybe TimesheetWageEstimates)
     , timesheetRosterGroups         :: [RosterGroup]
     , timesheetRosterGroupLabels    :: [RosterGroup]
@@ -408,7 +408,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart 
     preferences <- fetchCurrentUserTimesheetPreferences
     let hideApproved = not preferences.userTimesheetShowApproved
     let showTimesheetSuggestions = preferences.userTimesheetShowSuggestions
-    let showWageEstimates = canViewTimesheetWageEstimates && preferences.userTimesheetShowWageEstimates
+    let wageDisplayMode = preferences.userTimesheetWageDisplayMode
     let weekEndDate = addDays (-1) weekEndExclusive
     rosterGroups <- fetchActiveTimesheetRosterGroups
     rosterGroupLabels <- fetchTimesheetRosterGroupLabels
@@ -420,7 +420,15 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart 
             then profileActionSpan "timesheets.fetch_suggestions" (fetchTimesheetSuggestionsForWindow weekStartDate weekEndExclusive filters { filterStaffId = validStaffFilterId } staffMembers currentViewerStaffId)
             else pure []
     shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForProjection
-    wageEstimates <- if showWageEstimates then Just <$> profileActionSpan "timesheets.calculate_wage_estimates" (evaluateTimesheetWageEstimates entries suggestions) else pure Nothing
+    authorizedWageEntries <-
+        if wageDisplayMode == Hidden
+            then pure Nothing
+            else fetchAuthorizedTimesheetWageEntries weekStartDate weekEndExclusive
+    wageEstimates <- case authorizedWageEntries of
+        Nothing -> pure Nothing
+        Just (audience, allPayEntries) ->
+            Just <$> profileActionSpan "timesheets.calculate_wage_estimates"
+                (evaluateTimesheetWageEstimates wageDisplayMode audience entries allPayEntries)
     today <- currentOperationalDayForVenue venueConfig
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
 
@@ -438,7 +446,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart 
             , timesheetCalendarRevision = venueConfig.rosterCalendarRevision
             , timesheetHideApproved = hideApproved
             , timesheetSuggestionsVisible = showTimesheetSuggestions
-            , timesheetShowWageEstimates = showWageEstimates
+            , timesheetWageDisplayMode = wageDisplayMode
             , timesheetWageEstimates = wageEstimates
             , timesheetRosterGroups = rosterGroups
             , timesheetRosterGroupLabels = rosterGroupLabels
@@ -543,7 +551,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingByEntryId, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetRosterGroupLabels, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingByEntryId, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetWageDisplayMode = projectionWageDisplayMode, timesheetWageEstimates, timesheetRosterGroups, timesheetRosterGroupLabels, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
     IndexView
         { entries = timesheetEntries
         , timingByEntryId = timesheetTimingByEntryId
@@ -557,7 +565,7 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingBy
         , calendarRevision = timesheetCalendarRevision
         , hideApproved = timesheetHideApproved
         , showTimesheetSuggestions = timesheetSuggestionsVisible
-        , showTimesheetWageEstimates = timesheetShowWageEstimates
+        , timesheetWageDisplayMode = projectionWageDisplayMode
         , wageEstimates = timesheetWageEstimates
         , rosterGroups = timesheetRosterGroups
         , rosterGroupLabels = timesheetRosterGroupLabels

@@ -9,7 +9,7 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action a
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
                                            upsertCurrentUserTimesheetShowSuggestions,
-                                           upsertCurrentUserTimesheetShowWageEstimates)
+                                           upsertCurrentUserTimesheetWageDisplayMode)
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.EntryWorkflow
@@ -27,7 +27,7 @@ import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
                              timesheetWindowUrlWithFilters)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
-import Web.Timesheets.WageEstimates (canViewTimesheetWageEstimates)
+import Web.Timesheets.WageEstimates (canConfigureTimesheetWageEstimates)
 import Web.View.Timesheets.Edit (renderTimesheetDeleteConfirmation)
 
 reportTimesheetSurfaceRequestErrors ::
@@ -182,7 +182,7 @@ instance Controller TimesheetsController where
                     else redirectToPath (timesheetWindowUrl anchorDate filters.filterStaffId)
 
     action currentAction@ToggleTimesheetWageEstimatesAction = runBepis currentAction BepisMutationAction do
-        accessDeniedUnless canViewTimesheetWageEstimates
+        accessDeniedUnless canConfigureTimesheetWageEstimates
         case TimesheetsAction.parseToggleTimesheetWageEstimatesActionParams of
             Left errors -> do
                 reportTimesheetSurfaceRequestErrors errors
@@ -191,7 +191,8 @@ instance Controller TimesheetsController where
                 let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
                 timesheetScope <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
                 filters <- canonicalTimesheetFilters (TimesheetViewFilters (surfaceFieldValue @Surface.StaffFilterId fields) (surfaceFieldValue @Surface.RosterGroupFilterId fields))
-                upsertCurrentUserTimesheetShowWageEstimates (surfaceFieldValue @Surface.ShowTimesheetWageEstimates fields)
+                accessDeniedUnless canConfigureTimesheetWageEstimates
+                upsertCurrentUserTimesheetWageDisplayMode (surfaceFieldValue @Surface.TimesheetWageDisplayMode fields)
                 if isHtmxRequest
                     then respondWithTimesheetPreferenceUpdate timesheetScope (timesheetsMountStateForFilters filters)
                     else redirectToPath (timesheetWindowUrlWithFilters anchorDate filters)

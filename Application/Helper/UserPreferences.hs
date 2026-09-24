@@ -19,7 +19,7 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserHighlightOwnLiveShifts
     , upsertCurrentUserTimesheetShowApproved
     , upsertCurrentUserTimesheetShowSuggestions
-    , upsertCurrentUserTimesheetShowWageEstimates
+    , upsertCurrentUserTimesheetWageDisplayMode
     ) where
 
 import Application.Error.Runtime (throwExternalRuntime)
@@ -39,7 +39,7 @@ data UserRosterPreferences = UserRosterPreferences
 data UserTimesheetPreferences = UserTimesheetPreferences
     { userTimesheetShowApproved      :: Bool
     , userTimesheetShowSuggestions   :: Bool
-    , userTimesheetShowWageEstimates :: Bool
+    , userTimesheetWageDisplayMode   :: WageDisplayModeEnum
     }
     deriving (Eq, Show)
 
@@ -103,7 +103,7 @@ fetchCurrentUserTimesheetPreferences = do
           -- Timesheets semantics stop at this storage boundary.
           userTimesheetShowApproved = not preferences.hideApproved
         , userTimesheetShowSuggestions = preferences.showTimesheetSuggestions
-        , userTimesheetShowWageEstimates = preferences.showTimesheetWageEstimates
+        , userTimesheetWageDisplayMode = preferences.timesheetWageDisplayMode
         }
 
 fetchOrInitializeCurrentUserTimesheetPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserPreference
@@ -216,14 +216,14 @@ upsertCurrentUserTimesheetShowSuggestions showTimesheetSuggestions = do
         |> set #timesheetPreferencesInitializedAt (Just now)
         |> updateRecord
 
-upsertCurrentUserTimesheetShowWageEstimates ::
+upsertCurrentUserTimesheetWageDisplayMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
+    WageDisplayModeEnum ->
     IO UserPreference
-upsertCurrentUserTimesheetShowWageEstimates showTimesheetWageEstimates = do
+upsertCurrentUserTimesheetWageDisplayMode timesheetWageDisplayMode = do
     preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
     now <- getCurrentTime
     preferences
-        |> set #showTimesheetWageEstimates showTimesheetWageEstimates
+        |> set #timesheetWageDisplayMode timesheetWageDisplayMode
         |> set #timesheetPreferencesInitializedAt (Just now)
         |> updateRecord

@@ -67,6 +67,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
+import qualified Generated.Types as Types3
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -307,7 +308,7 @@ type instance ActionMarker ToggleTimesheetWageEstimatesActionOperation = Types1.
 type instance ActionFieldSpecs ToggleTimesheetWageEstimatesActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
      , 'Field Types1.RosterCalendarRevision 'WireInt
-     , 'Field Types1.ShowTimesheetWageEstimates 'WireBool
+     , 'Field Types1.TimesheetWageDisplayMode ('WireClosed Types3.WageDisplayModeEnum)
      , 'OptionalField Types1.StaffFilterId 'WireUUID
      , 'OptionalField Types1.RosterGroupFilterId 'WireUUID
      ]
@@ -315,15 +316,15 @@ type instance ActionFieldSpecs ToggleTimesheetWageEstimatesActionOperation =
 toggleTimesheetWageEstimatesActionFields ::
     Day ->
     Int ->
-    Bool ->
+    Types3.WageDisplayModeEnum ->
     Maybe UUID.UUID ->
     Maybe UUID.UUID ->
     ActionFields ToggleTimesheetWageEstimatesActionOperation
-toggleTimesheetWageEstimatesActionFields anchorDate rosterCalendarRevision showTimesheetWageEstimates staffFilterId rosterGroupFilterId =
+toggleTimesheetWageEstimatesActionFields anchorDate rosterCalendarRevision timesheetWageDisplayMode staffFilterId rosterGroupFilterId =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
         ( surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
-            &: surfaceField @Types1.ShowTimesheetWageEstimates showTimesheetWageEstimates
+            &: surfaceField @Types1.TimesheetWageDisplayMode timesheetWageDisplayMode
             &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
             &: surfaceOptionalField @Types1.RosterGroupFilterId rosterGroupFilterId
             &: noSurfaceFields
@@ -331,7 +332,7 @@ toggleTimesheetWageEstimatesActionFields anchorDate rosterCalendarRevision showT
 
 toggleTimesheetWageEstimatesActionEvidence :: ActionEvidence ToggleTimesheetWageEstimatesActionOperation
 toggleTimesheetWageEstimatesActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetWageEstimates" "toggle-timesheet-wage-estimates" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ShowTimesheetWageEstimates" "showTimesheetWageEstimates" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetWageEstimates" "toggle-timesheet-wage-estimates" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TimesheetWageDisplayMode" "timesheetWageDisplayMode" (SurfaceIR.WireClosedIR "WageDisplayModeEnum" "Generated.Types" "WageDisplayModeEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 toggleTimesheetWageEstimatesAction :: ActionFields ToggleTimesheetWageEstimatesActionOperation -> FrontendSurfaceAction
 toggleTimesheetWageEstimatesAction =

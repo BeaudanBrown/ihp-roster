@@ -44,9 +44,10 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 
 ## Presentation Preferences And Side Panel
 
-- `Show approved`, `Show suggestions`, and (where authorized) `Show wage estimates`
-  are global per-user preferences and default on when Timesheets preferences are
-  first initialized. They do not enter Bepis-generated Timesheets URLs, fragment
+- `Show approved` and `Show suggestions` are global per-user preferences and
+  default on when Timesheets preferences are first initialized. The independent
+  estimated-pay display mode defaults Hidden. These preferences do not enter
+  Bepis-generated Timesheets URLs, fragment
   requests, or mutation envelopes. The viewed week and authorized manager staff
   and roster-group filters are URL state; additional query fields are ignored
   rather than interpreted as compatibility state. Filters never grant authority.
@@ -129,17 +130,23 @@ venue scope.
 
 ## Wage Estimates, Approval And Payroll
 
-- Wage estimates are an independent global per-user preference, enabled when
-  Timesheets preferences are first initialized. Workers may view their own estimates; venue admins and owners may
-  view authorized staff estimates; supervisors and managers do not receive the
-  control or amounts.
-- The week summary and each day summary aggregate only currently visible cards,
-  so staff and roster-group filtering, Show approved, and Show suggestions all
-  change the total.
-  Approved entries consume sealed immutable ledger facts; unapproved entries
-  and transient suggestions use canonical draft evaluation. Failed calculations
-  remain unavailable and are excluded from the clearly partial total rather
-  than becoming zero. Only platform super admins see draft source warnings.
+- Timesheet wage display is an independent persisted mode: Hidden, Visible
+  timesheets, All timesheets, or Visible timesheets (all timesheets). New users
+  default Hidden. Worker, Supervisor, and Manager roles are always restricted to
+  their effective linked Staff; Admin and Owner receive venue scope only while
+  Manager mode is on, and support impersonation follows the effective actor.
+  Requested Staff filters and highlight pins never grant pay authority.
+- Visible summaries use shown persisted entries after Staff, roster-group, and
+  Show approved filters. All summaries use persisted non-deleted entries in the
+  selected week within pay authority and ignore those presentation filters. Day
+  summaries apply the same rules to that day. Suggestions never contribute.
+  Combined mode renders the visible amount followed by the all amount in
+  parentheses. Failed calculations are excluded rather than treated as zero;
+  visible and overall unavailable counts remain distinct and personal summaries
+  never reveal another Staff member's counts. Personal copy says `Your estimated
+  pay`; venue scope says `Estimated gross wages`. Approved entries consume sealed
+  immutable ledger facts and unapproved entries use canonical draft evaluation.
+  Only platform super admins see draft source warnings.
 - Approval status, actor, timestamp, staff pay version, and shift-type pay
   version change consistently. Fixtures and migrations must never assert only an
   approval boolean.

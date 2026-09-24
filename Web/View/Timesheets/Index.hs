@@ -78,7 +78,7 @@ data IndexView = IndexView
     , calendarRevision         :: Int
     , hideApproved             :: Bool
     , showTimesheetSuggestions :: Bool
-    , showTimesheetWageEstimates :: Bool
+    , timesheetWageDisplayMode   :: WageDisplayModeEnum
     , wageEstimates            :: Maybe TimesheetWageEstimates
     , rosterGroups             :: [RosterGroup]
     , rosterGroupLabels        :: [RosterGroup]
@@ -243,38 +243,47 @@ renderTimesheetWeekHeader weekStartDate today wageEstimates filters =
 
 renderTimesheetWeekWageEstimate :: (?context :: ControllerContext) => Maybe TimesheetWageEstimates -> Html
 renderTimesheetWeekWageEstimate Nothing = mempty
-renderTimesheetWeekWageEstimate (Just estimates) = [hsx|
-    <div class="timesheet-wage-summary" aria-label="Week estimated gross wage">
-        <span class="timesheet-wage-summary-label">Estimated gross wage:</span>
-        <span class="timesheet-wage-summary-total">{formatMoneyAmount summary.wageEstimateAmount}</span>
-        {renderTimesheetWageEstimateAvailability summary}
-        {renderTimesheetWageSourceWarning summary}
-    </div>
-|]
-  where
-    summary = estimates.timesheetWeekWageEstimate
+renderTimesheetWeekWageEstimate (Just estimates) =
+    renderTimesheetWageEstimateSummary "timesheet-wage-summary" estimates estimates.timesheetWeekVisibleEstimate estimates.timesheetWeekAllEstimate
 
 renderTimesheetDayWageEstimate :: (?context :: ControllerContext) => Day -> Maybe TimesheetWageEstimates -> Html
 renderTimesheetDayWageEstimate _ Nothing = mempty
-renderTimesheetDayWageEstimate day (Just estimates) = [hsx|
-    <div class="timesheet-day-wage-summary" aria-label="Day estimated gross wage">
-        <span class="timesheet-day-wage-summary-label">Estimated gross wage</span>
-        <span class="timesheet-day-wage-summary-total">{formatMoneyAmount summary.wageEstimateAmount}</span>
-        {renderTimesheetWageEstimateAvailability summary}
-        {renderTimesheetWageSourceWarning summary}
+renderTimesheetDayWageEstimate day (Just estimates) =
+    let (visibleSummary, allSummary) = lookupTimesheetDayWageEstimates estimates day
+     in renderTimesheetWageEstimateSummary "timesheet-day-wage-summary" estimates visibleSummary allSummary
+
+renderTimesheetWageEstimateSummary :: (?context :: ControllerContext) => Text -> TimesheetWageEstimates -> TimesheetWageEstimateSummary -> TimesheetWageEstimateSummary -> Html
+renderTimesheetWageEstimateSummary cssClass estimates visibleSummary allSummary = [hsx|
+    <div class={cssClass} aria-label={timesheetWageEstimateLabel estimates.timesheetPayAudience}>
+        <span class={cssClass <> "-label"}>{timesheetWageEstimateLabel estimates.timesheetPayAudience}</span>
+        <span class={cssClass <> "-total"}>{renderAmounts estimates.timesheetWageDisplayMode visibleSummary allSummary}</span>
+        {renderTimesheetWageEstimateAvailability estimates.timesheetWageDisplayMode visibleSummary allSummary}
+        {renderTimesheetWageSourceWarning (relevantSummary estimates.timesheetWageDisplayMode visibleSummary allSummary)}
     </div>
 |]
   where
-    summary = lookupTimesheetDayWageEstimate estimates day
+    renderAmounts VisibleTimesheets visible _ = formatMoneyAmount visible.wageEstimateAmount
+    renderAmounts AllTimesheets _ allEntries = formatMoneyAmount allEntries.wageEstimateAmount
+    renderAmounts VisibleAndAllTimesheets visible allEntries = formatMoneyAmount visible.wageEstimateAmount <> " (" <> formatMoneyAmount allEntries.wageEstimateAmount <> ")"
+    renderAmounts Hidden _ _ = ""
+    relevantSummary VisibleTimesheets visible _ = visible
+    relevantSummary AllTimesheets _ allEntries = allEntries
+    relevantSummary VisibleAndAllTimesheets _ allEntries = allEntries
+    relevantSummary Hidden visible _ = visible
 
-renderTimesheetWageEstimateAvailability :: TimesheetWageEstimateSummary -> Html
-renderTimesheetWageEstimateAvailability summary
-    | summary.wageEstimateUnavailableCount == 0 = mempty
-    | otherwise = [hsx|
-        <span class="timesheet-wage-unavailable" role="status">
-            ({tshow summary.wageEstimateUnavailableCount} unavailable)
-        </span>
-    |]
+renderTimesheetWageEstimateAvailability :: WageDisplayModeEnum -> TimesheetWageEstimateSummary -> TimesheetWageEstimateSummary -> Html
+renderTimesheetWageEstimateAvailability mode visibleSummary allSummary =
+    case mode of
+        Hidden -> mempty
+        VisibleTimesheets -> renderCount visibleSummary.wageEstimateUnavailableCount "visible timesheet unavailable" "visible timesheets unavailable"
+        AllTimesheets -> renderCount allSummary.wageEstimateUnavailableCount "timesheet unavailable overall" "timesheets unavailable overall"
+        VisibleAndAllTimesheets ->
+            renderCount visibleSummary.wageEstimateUnavailableCount "visible timesheet unavailable" "visible timesheets unavailable"
+                <> renderCount allSummary.wageEstimateUnavailableCount "timesheet unavailable overall" "timesheets unavailable overall"
+  where
+    renderCount :: Int -> Text -> Text -> Html
+    renderCount 0 _ _ = mempty
+    renderCount count singular plural = [hsx|<span class="timesheet-wage-unavailable" role="status">({tshow count} {if count == 1 then singular else plural})</span>|]
 
 renderTimesheetWageSourceWarning :: (?context :: ControllerContext) => TimesheetWageEstimateSummary -> Html
 renderTimesheetWageSourceWarning summary
@@ -334,12 +343,12 @@ renderTimesheetSettingsFragment maybeSwapOob view = [hsx|
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, viewFilters, staffMembers, rosterGroups } = [hsx|
+renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, showTimesheetSuggestions, timesheetWageDisplayMode, viewFilters, staffMembers, rosterGroups } = [hsx|
     {when managerModeToggleVisible (renderTimesheetManagerModePreferenceForm weekStartDate)}
     <div class="timesheet-settings-toggle-grid mb-2">
         {renderTimesheetShowApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
         {renderTimesheetShowSuggestionsPreferenceForm weekStartDate calendarRevision viewFilters showTimesheetSuggestions}
-        {when canViewTimesheetWageEstimates (renderTimesheetShowWageEstimatesPreferenceForm weekStartDate calendarRevision viewFilters showTimesheetWageEstimates)}
+        {when canConfigureTimesheetWageEstimates (renderTimesheetWageDisplayModePreferenceForm weekStartDate calendarRevision viewFilters timesheetWageDisplayMode)}
     </div>
     {when hasManagementMode (renderTimesheetFilterForm weekStartDate viewFilters staffMembers rosterGroups)}
 |]
@@ -452,8 +461,8 @@ renderTimesheetShowSuggestionsPreferenceForm anchorDate calendarRevision filters
   where
     fields = TimesheetsAction.toggleTimesheetShowSuggestionsActionFields anchorDate calendarRevision showTimesheetSuggestions filters.filterStaffId filters.filterRosterGroupId
 
-renderTimesheetShowWageEstimatesPreferenceForm :: Day -> Int -> TimesheetViewFilters -> Bool -> Html
-renderTimesheetShowWageEstimatesPreferenceForm anchorDate calendarRevision filters showWageEstimates =
+renderTimesheetWageDisplayModePreferenceForm :: Day -> Int -> TimesheetViewFilters -> WageDisplayModeEnum -> Html
+renderTimesheetWageDisplayModePreferenceForm anchorDate calendarRevision filters displayMode =
     renderFrontendSurfaceActionForm
         (TimesheetsAction.toggleTimesheetWageEstimatesAction fields)
         (timesheetsActionRoute (pathTo ToggleTimesheetWageEstimatesAction))
@@ -464,10 +473,19 @@ renderTimesheetShowWageEstimatesPreferenceForm anchorDate calendarRevision filte
             <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
             <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow calendarRevision} />
             {renderTimesheetFilterHiddenFields fields filters}
-            {renderTimesheetPreferenceToggle "timesheet-show-wage-estimates-toggle" (surfaceToggleScalarField @Surface.ShowTimesheetWageEstimates fields True False) showWageEstimates "Show wage estimates"}
+            <label class="form-label small mb-1" for="timesheet-wage-display-mode">Estimated pay</label>
+            <select id="timesheet-wage-display-mode" class="form-select form-select-sm" name={surfaceFieldNameFrom @Surface.TimesheetWageDisplayMode fields} onchange="this.form.requestSubmit();">
+                {forEach wageDisplayModes renderModeOption}
+            </select>
         |]
   where
-    fields = TimesheetsAction.toggleTimesheetWageEstimatesActionFields anchorDate calendarRevision showWageEstimates filters.filterStaffId filters.filterRosterGroupId
+    fields = TimesheetsAction.toggleTimesheetWageEstimatesActionFields anchorDate calendarRevision displayMode filters.filterStaffId filters.filterRosterGroupId
+    wageDisplayModes = [Hidden, VisibleTimesheets, AllTimesheets, VisibleAndAllTimesheets]
+    renderModeOption mode = [hsx|<option value={inputValue mode} selected={mode == displayMode}>{wageDisplayModeLabel mode}</option>|]
+    wageDisplayModeLabel Hidden = "Hidden" :: Text
+    wageDisplayModeLabel VisibleTimesheets = "Visible timesheets"
+    wageDisplayModeLabel AllTimesheets = "All timesheets"
+    wageDisplayModeLabel VisibleAndAllTimesheets = "Visible timesheets (all timesheets)"
 
 renderTimesheetFilterHiddenFields fields filters =
     renderOptionalField (surfaceFieldNameFrom @Surface.StaffFilterId fields) filters.filterStaffId

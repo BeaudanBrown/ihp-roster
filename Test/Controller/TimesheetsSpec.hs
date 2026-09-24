@@ -169,6 +169,107 @@ tests = aroundAll withDatabaseTestContext do
                 preference <- query @UserPreference |> filterWhere (#userId, unpackId manager.id) |> fetchOne
                 preference.managerModeEnabled `shouldBe` False
 
+        it "rejects missing and malformed Timesheet wage display modes without mutation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invalid Wage Display Venue"
+                worker <- createUserRecord "invalid-wage-display@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createStaffRecord venue (Just worker) "Invalid" "Wages"
+
+                forM_ [[], [("timesheetWageDisplayMode", "not-a-mode")]] \modeParams -> do
+                    response <- withUserAndCurrentVenue worker venue.id do
+                        callActionWithParams ToggleTimesheetWageEstimatesAction
+                            ([ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1") ] <> modeParams)
+                    response `responseStatusShouldBe` status302
+                    query @UserPreference |> filterWhere (#userId, unpackId worker.id) |> fetchCount >>= (`shouldBe` 0)
+
+        it "rejects wage display changes when the effective actor has no pay scope" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "No Wage Scope Venue"
+                manager <- createUserRecord "no-wage-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createStaffRecord venue (Just manager) "Inactive" "Manager"
+                    >>= updateRecord . set #isActive False
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ToggleTimesheetWageEstimatesAction
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("timesheetWageDisplayMode", "all_timesheets") ]
+                response `responseStatusShouldBe` status403
+                query @UserPreference |> filterWhere (#userId, unpackId manager.id) |> fetchCount >>= (`shouldBe` 0)
+
+        it "persists the independent Timesheet wage display mode" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Wage Display Preference Venue"
+                worker <- createUserRecord "wage-display-preference@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createStaffRecord venue (Just worker) "Wendy" "Wages"
+
+                response <- withUserAndCurrentVenue worker venue.id do
+                    callActionWithParams ToggleTimesheetWageEstimatesAction
+                        [ ("anchorDate", "2025-01-06")
+                        , ("rosterCalendarRevision", "1")
+                        , ("timesheetWageDisplayMode", "all_timesheets")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                preference <- query @UserPreference |> filterWhere (#userId, unpackId worker.id) |> fetchOne
+                preference.timesheetWageDisplayMode `shouldBe` AllTimesheets
+                preference.showWageEstimates `shouldBe` False
+
+        it "keeps Manager pay personal despite hostile Staff filters" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Personal Manager Wage Venue"
+                manager <- createUserRecord "personal-wage-manager@example.com" "staff" True
+                otherUser <- createUserRecord "personal-wage-other@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue otherUser Worker
+                payItem <- createImportedXeroPayItemRecord venue manager "Personal wage" "personal-wage" 20
+                managerStaff <- createStaffRecord venue (Just manager) "Mia" "Personal"
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just payItem.id)
+                otherStaff <- createStaffRecord venue (Just otherUser) "Otto" "Other"
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just payItem.id)
+                _ <- createTimesheetEntryRecord venue managerStaff (fromGregorian 2025 1 7)
+                _ <- createTimesheetEntryRecord venue otherStaff (fromGregorian 2025 1 7)
+                _ <- newRecord @UserPreference
+                    |> set #userId (unpackId manager.id)
+                    |> set #timesheetWageDisplayMode VisibleAndAllTimesheets
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowTimesheetWindowAction "2025-01-06")
+                        [("staffFilterId", idToParam otherStaff.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Your estimated pay"
+                response `responseBodyShouldContain` "timesheet-wage-summary-total\">$0.00 ($"
+                response `responseBodyShouldContain` "timesheet-day-wage-summary-total\">$0.00 ($"
+                response `responseBodyShouldNotContain` "timesheet unavailable overall"
+
+        it "excludes roster suggestions from personal Timesheet pay estimates" $ withContext do
+            withCleanDb do
+                scenario <- createSuggestionScenario SuggestionScenarioPlan
+                    { suggestionIdentity = SuggestionIdentity "Personal Wage Suggestion Venue" Nothing "personal-wage-worker@example.com" "Pia" "Personal"
+                    , suggestionActor = SuggestionWorker
+                    , suggestionEligibility = PreserveStaffPayDefaults
+                    , suggestionApprovalFacts = NoSuggestionApproval
+                    , suggestionRosterFacts = SuggestionRosterFacts "Lunch" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) 360
+                    }
+                maybePreference <- query @UserPreference |> filterWhere (#userId, unpackId scenario.scenarioActor.id) |> fetchOneOrNothing
+                _ <- case maybePreference of
+                    Just preference -> preference |> set #timesheetWageDisplayMode VisibleTimesheets |> updateRecord
+                    Nothing -> newRecord @UserPreference
+                        |> set #userId (unpackId scenario.scenarioActor.id)
+                        |> set #timesheetWageDisplayMode VisibleTimesheets
+                        |> createRecord
+
+                response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-06")
+
+                response `responseStatusShouldBe` status200
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+                response `responseBodyShouldContain` "Your estimated pay"
+                response `responseBodyShouldContain` "timesheet-wage-summary-total\">$0.00</span>"
+
         it "renders a subscribed timesheet shell for authenticated viewers" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"

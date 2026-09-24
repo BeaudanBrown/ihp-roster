@@ -15,13 +15,14 @@ import Application.Helper.FrontendContract.Surface.Roster (RosterImageExportStyl
                                                            RosterTemplateCaptureAssignmentMode)
 import Generated.Types (FeedbackTypeEnum, RosterLayoutModeEnum,
                         ShiftTypeColourKeyEnum, StaffEmploymentBasisEnum,
-                        VenueRoleEnum)
+                        VenueRoleEnum, WageDisplayModeEnum)
 
 data AppClosedScalars
 
 type ClosedScalarContract =
     Global AppClosedScalars
         '[ ServerSchema (ClosedScalar RosterLayoutModeEnum)
+         , BrowserInboundSchema (ClosedScalar WageDisplayModeEnum)
          , BrowserInboundSchema (ClosedScalar RosterImageExportStyle)
          , ServerSchema (ClosedScalar FeedbackTypeEnum)
          , ServerSchema (ClosedScalar StaffProfileSectionValue)

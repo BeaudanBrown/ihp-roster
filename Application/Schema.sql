@@ -35,6 +35,7 @@
 CREATE TYPE venue_status_enum AS ENUM ('active', 'inactive');
 CREATE TYPE venue_role_enum AS ENUM ('worker', 'supervisor', 'manager', 'venue_admin', 'venue_owner');
 CREATE TYPE platform_role_enum AS ENUM ('super_admin');
+CREATE TYPE wage_display_mode_enum AS ENUM ('hidden', 'visible_timesheets', 'all_timesheets', 'visible_and_all_timesheets');
 CREATE TYPE invitation_status_enum AS ENUM ('pending', 'accepted', 'revoked');
 CREATE TYPE invitation_delivery_status_enum AS ENUM ('queued', 'sent', 'failed');
 CREATE TYPE leave_request_status_enum AS ENUM ('pending', 'approved', 'denied');
@@ -199,6 +200,7 @@ CREATE TABLE user_preferences (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     manager_mode_enabled BOOLEAN DEFAULT TRUE NOT NULL,
+    timesheet_wage_display_mode wage_display_mode_enum DEFAULT 'hidden' NOT NULL,
     UNIQUE(user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );

@@ -5,7 +5,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     ( OperationalDate
     , HideApproved
     , ShowTimesheetSuggestions
-    , ShowTimesheetWageEstimates
+    , TimesheetWageDisplayMode
     , ManagerModeEnabled
     , StaffFilterId
     , RosterGroupFilterId
@@ -68,6 +68,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
+import Generated.Types (WageDisplayModeEnum)
 
 data Timesheets
 
@@ -81,7 +82,7 @@ data RosterCalendarRevision
 data TimesheetsMountState
 data HideApproved
 data ShowTimesheetSuggestions
-data ShowTimesheetWageEstimates
+data TimesheetWageDisplayMode
 data ManagerModeEnabled
 data StaffFilterId
 data RosterGroupFilterId
@@ -212,7 +213,7 @@ type TimesheetActionBundle =
      , Action ToggleTimesheetWageEstimates
         '[ Field AnchorDate 'WireDay
          , Field RosterCalendarRevision 'WireInt
-         , Field ShowTimesheetWageEstimates 'WireBool
+         , Field TimesheetWageDisplayMode ('WireClosed WageDisplayModeEnum)
          , OptionalField StaffFilterId 'WireUUID
          , OptionalField RosterGroupFilterId 'WireUUID
          ]
