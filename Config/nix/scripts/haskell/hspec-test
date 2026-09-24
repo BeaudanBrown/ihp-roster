@@ -158,7 +158,7 @@ ihp_roster_prepare_ghc_build_dir "$VERIFICATION_DIR" "$GHC_OPTS"
 mkdir -p build/Test
 compile_started_at="$(metrics_now)"
 verification_phase compile 0 start
-ghc $GHC_OPTS -main-is Test.HspecMain Test/HspecMain.hs -o build/Test/Main \
+verification_ghc hspec-link 0 $GHC_OPTS -main-is Test.HspecMain Test/HspecMain.hs -o build/Test/Main \
     -odir "$VERIFICATION_DIR/obj" \
     -hidir "$VERIFICATION_DIR/hi" 2>&1 | tee "$STATE_DIR/compile.log"
 verification_phase compile 0 finish

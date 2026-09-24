@@ -282,7 +282,7 @@ mkdir -p "$STATE_DIR/build" "$E2E_BUILD_DIR/bin"
     # each run receives a snapshot so concurrent runs cannot replace its image.
     if [ "$E2E_SERVER_MODE" = compiled ]; then
         verification_phase e2e-app-compile 0 start
-        ghc $GHC_OPTS -main-is Test.E2EAppMain Test/E2EAppMain.hs -o "$E2E_BUILD_DIR/bin/RunE2EApp" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
+        verification_ghc e2e-app-link 0 $GHC_OPTS -main-is Test.E2EAppMain Test/E2EAppMain.hs -o "$E2E_BUILD_DIR/bin/RunE2EApp" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
             7>&- 2>&1 | tee "$STATE_DIR/app-build.log"
         verification_phase e2e-app-compile 0 finish
         cp --reflink=auto "$E2E_BUILD_DIR/bin/RunE2EApp" "$E2E_SERVER_BIN"
@@ -293,12 +293,12 @@ mkdir -p "$STATE_DIR/build" "$E2E_BUILD_DIR/bin"
     # Keep the real worker with local Stripe/Xero boundaries even in non-billing
     # tests: app jobs must never fall through to an external provider.
     verification_phase e2e-worker-compile 0 start
-    ghc $GHC_OPTS -main-is Test.E2EWorkerMain Test/E2EWorkerMain.hs \
+    verification_ghc e2e-worker-link 0 $GHC_OPTS -main-is Test.E2EWorkerMain Test/E2EWorkerMain.hs \
         -o "$E2E_BUILD_DIR/bin/RunE2EWorker" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
         7>&- 2>&1 | tee "$STATE_DIR/worker-build.log"
     verification_phase e2e-worker-compile 0 finish
     verification_phase e2e-stripe-compile 0 start
-    ghc $GHC_OPTS -main-is Test.StripeProcessMockMain Test/StripeProcessMockMain.hs \
+    verification_ghc e2e-stripe-link 0 $GHC_OPTS -main-is Test.StripeProcessMockMain Test/StripeProcessMockMain.hs \
         -o "$E2E_BUILD_DIR/bin/StripeProcessMock" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
         7>&- 2>&1 | tee "$STATE_DIR/stripe-mock-build.log"
     verification_phase e2e-stripe-compile 0 finish

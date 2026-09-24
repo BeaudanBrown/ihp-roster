@@ -16,7 +16,7 @@ PHASES = ('compile', 'hspec-execution', 'database-create', 'database-drop', 'par
           'e2e-app-compile', 'e2e-worker-compile', 'e2e-stripe-compile',
           'e2e-app-startup', 'e2e-worker-startup', 'e2e-stripe-startup',
           'e2e-database-create', 'e2e-database-drop', 'e2e-browser', 'e2e-parallel-run',
-          'e2e-mailhog-startup')
+          'e2e-mailhog-startup', 'hspec-link', 'e2e-app-link', 'e2e-worker-link', 'e2e-stripe-link')
 EDGES = ('start', 'finish', 'fail', 'ready')
 
 

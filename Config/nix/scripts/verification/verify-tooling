@@ -42,7 +42,7 @@ check node --test scripts/frontend-test-registration.test.mjs
 check node --test scripts/documentation/check.test.mjs
 check node --test scripts/migration-enum-commit-boundary.test.mjs
 check node --test scripts/migration-rehearsal-ci.test.mjs
-check node --test scripts/profiling/verification-measure.test.mjs
+check node --test scripts/profiling/verification-measure.test.mjs scripts/profiling/verification-linker.test.mjs
 check node --test scripts/profiling/diagnostic-profile-report.test.mjs
 check node --test scripts/profiling/otel-artifact.test.mjs
 check node --test scripts/observability/query.test.mjs

@@ -156,7 +156,16 @@ banner, sends only QUIT, and neither reads mail bodies nor sends mail. An
 observation timeout leaves startup unfinished; observed producer death records
 failure. With profiling disabled no observer is launched. Browser intervals
 cover the Playwright command, not a separately measured browser-ready boundary.
-Actual linker completion and per-suite reset attribution remain unavailable.
+The opt-in [GHC observer](../../scripts/profiling/verification-ghc.py) records
+actual link-driver launch/completion inside the existing Hspec/E2E compile
+intervals, not timestamps inferred from compiler output. These intervals include
+driver launch/emission overhead; do not add them to enclosing compile durations.
+GHC's `-pgml` hook clears configured linker flags and no-PIE support, so the
+observer restores both from the current compiler settings. Caller-supplied tool
+or settings overrides bypass observation rather than guessing their effective
+configuration. No hook is installed with profiling disabled. A warm build may
+not invoke the linker; absent intervals never mean a measured zero duration.
+Per-suite reset attribution remains unavailable.
 
 ## Request Instrumentation
 
