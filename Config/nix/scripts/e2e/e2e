@@ -336,6 +336,10 @@ run_e2e_shard() {
         export BEPIS_VERIFICATION_SCOPE="$shard_index"
         export TEST_DATABASE_NAME="$shard_db_name"
         export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+        # Playwright publishes transformed JavaScript non-atomically. Parallel
+        # shards must not consume one another's partially written cache entries.
+        # The native run owner retains/disposes this directory with the shard.
+        export PWTEST_CACHE_DIR="$shard_dir/playwright-transform-cache"
         export PLAYWRIGHT_OUTPUT_DIR="$shard_output_dir"
         export PLAYWRIGHT_BLOB_REPORT_DIR="$shard_blob_dir"
         export PLAYWRIGHT_WORKERS=1

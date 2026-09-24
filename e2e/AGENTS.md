@@ -30,6 +30,9 @@ run as complete evidence. `--help` and `--list` start no tooling/runtime service
 Use `--reporter=line` for focused feedback without an HTML-report merge; default
 runs retain durable HTML reports. GHC checks shared executable outputs each run,
 then copies private runtime images rather than relinking unchanged executables.
+Each shard also owns a fresh Playwright transform cache under its native run
+state: parallel writers must not share Playwright's non-atomic cache files.
+Failure retention and successful disposal follow the existing run owner.
 `E2E_SERVER_MODE=dev e2e ...` uses GHCi with the same test-only entrypoint,
 not the ordinary development server; it does not provide IDE hot reload.
 
