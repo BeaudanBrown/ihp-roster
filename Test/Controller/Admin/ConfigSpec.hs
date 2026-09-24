@@ -397,7 +397,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 exportsResponse `responseStatusShouldBe` status200
                 exportsResponse `responseBodyShouldContain` "id=\"admin-exports-fragment\""
-                exportsResponse `responseBodyShouldContain` "data-bepis-surface=\""
+                -- A refetch replaces the target inside its existing mount; a new
+                -- enclosing mount here nests owners and stops subsequent refreshes.
+                exportsResponse `responseBodyShouldNotContain` "data-bepis-surface-config="
                 exportsResponse `responseBodyShouldContain` "admin-exports"
                 exportsResponse `responseBodyShouldContain` "hx-get=\"/NewPayrollWorkbookConfiguration"
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""

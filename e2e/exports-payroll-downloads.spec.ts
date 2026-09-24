@@ -187,6 +187,7 @@ test.describe('Payroll export downloads', () => {
         );
         await deleteEditedDialog.getByRole('button', { name: 'Delete' }).click();
         expect((await editedDeleteResponse).ok()).toBe(true);
+        await expect(deleteEditedDialog).toHaveCount(0);
         await expect(editedRow).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
 
         const refreshedStandardCard = payrollReportCard(page, 'Payroll Workbook');
@@ -198,9 +199,7 @@ test.describe('Payroll export downloads', () => {
         );
         await deleteStandardDialog.getByRole('button', { name: 'Delete' }).click();
         expect((await standardDeleteResponse).ok()).toBe(true);
-        await page.reload();
-        const exportsToggle = page.getByRole('button', { name: 'Exports' });
-        if ((await exportsToggle.getAttribute('aria-expanded')) !== 'true') await exportsToggle.click();
+        await expect(deleteStandardDialog).toHaveCount(0);
         await expect(page.locator('#exports-collapse')).toBeVisible({ timeout: E2E_TIMEOUT.action });
         await expect(page.locator('[data-payroll-workbook-configuration]')).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         await expect(page.getByText('No Payroll Workbook exports configured.')).toBeVisible();

@@ -2,6 +2,7 @@
 
 module Web.View.Admin.Exports
     ( renderExportsSection
+    , renderExportsSectionMount
     , renderExportsSectionFragment
     , renderExportsSectionFragmentWithSwap
     ) where
@@ -29,13 +30,19 @@ import Web.View.Prelude
 adminExportsFragmentId :: Text
 adminExportsFragmentId = surfaceFragmentTargetId @Surface.AdminExportsSurface @Surface.AdminExportsFragment noSurfaceFields
 
+-- The page owns the mount; live responses replace only its inner target.
+renderExportsSectionMount :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
+renderExportsSectionMount selection savedConfigurations =
+    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart)
+        (renderExportsSectionFragment selection savedConfigurations)
+
 renderExportsSectionFragment :: ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
 renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> [SavedPayrollWorkbookConfiguration] -> Html
 renderExportsSectionFragmentWithSwap maybeSwapOob selection savedConfigurations =
-    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentAdminVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
+    [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
             {renderExportsSection selection savedConfigurations}
