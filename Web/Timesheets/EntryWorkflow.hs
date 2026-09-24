@@ -29,6 +29,7 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..))
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (newTimesheetEntryFromSuggestionUrl)
 import Web.Timesheets.Projection
+import Web.Timesheets.RosterGroupClassification
 import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion,
                                   timesheetSuggestionOperationalDate)
 import Web.Timesheets.Validation
@@ -127,7 +128,11 @@ createOrdinaryTimesheetEntry context = do
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
-                    TimesheetCreateCompleted <$> createTimesheetEntryMutation context.timesheetScope timesheetEntry
+                    classification <- resolveTimesheetRosterGroupForStaff timesheetEntry.venueId timesheetEntry.staffId >>= \case
+                        Nothing -> accessDeniedUnless False >> pure TimesheetNoRosterGroup
+                        Just resolved -> pure resolved
+                    let classifiedEntry = applyTimesheetRosterGroupClassification classification timesheetEntry
+                    TimesheetCreateCompleted <$> createTimesheetEntryMutation context.timesheetScope classifiedEntry
 
 editOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> TimesheetEntry -> IO TimesheetEditOutcome
 editOrdinaryTimesheetEntry context existingEntry = do

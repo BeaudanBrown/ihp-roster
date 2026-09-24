@@ -420,6 +420,11 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLive
                         |> filterWhere (#deletedAt, Nothing)
                         |> orderByAsc #startsAt
                         |> fetch
+                quickToolsTimesheetRosterGroupLabels <-
+                    query @RosterGroup
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> orderByAsc #sortOrder
+                        |> fetch
                 quickToolsShiftTypes <- fetchCurrentVenueRosterShiftTypes
                 let quickToolsLeaveRequest = defaultLeaveRequestForOperationalDay operationalDay
                 pure $
@@ -429,6 +434,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLive
                             , quickToolsVenueId = currentVenueId
                             , quickToolsRosterGroupId = scope.rosterWindowRosterGroupId
                             , quickToolsRosterGroups = rosterGroups
+                            , quickToolsTimesheetRosterGroupLabels
                             , quickToolsRosterWeekStartDate = scope.rosterWindowStart
                             , quickToolsTimesheetEntries
                             , quickToolsTimesheetTimingByEntryId = Map.fromList [(unpackId entry.id, decodeTimesheetTiming entry) | entry <- quickToolsTimesheetEntries]

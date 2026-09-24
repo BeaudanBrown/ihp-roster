@@ -495,6 +495,20 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#staffId, unpackId staff.id)
                         |> fetchOne
                 testHadBreak entry `shouldBe` False
+                entry.rosterGroupClassification `shouldBe` InRosterGroup
+                entry.rosterGroupId `shouldSatisfy` isJust
+                rosterGroup <- fetch (Id (fromMaybe (error "classified roster group missing") entry.rosterGroupId) :: Id RosterGroup)
+                now <- getCurrentTime
+                _ <- updateRecord
+                    ( rosterGroup
+                        |> set #isActive False
+                        |> set #archivedAt (Just now)
+                        |> set #archivedByUserId (Just (unpackId superAdmin.id))
+                        |> set #archiveReason (Just "historical label regression")
+                    )
+                page <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-06")
+                page `responseBodyShouldContain` cs ("Ordinary - " <> rosterGroup.name)
 
         it "keeps an after-midnight ad-hoc entry on its explicitly selected Operational day" $ withContext do
             withCleanDb do
@@ -1396,6 +1410,14 @@ tests = aroundAll withDatabaseTestContext do
                 malformedResponse `responseBodyShouldContain` "Had break must be true or false"
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
+                membership <-
+                    query @StaffRosterGroup
+                        |> filterWhere (#staffId, unpackId scenario.scenarioWorker.id)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetchOne
+                now <- getCurrentTime
+                _ <- updateRecord (membership |> set #deletedAt (Just now))
+
                 response <- withUserAndCurrentVenue scenario.scenarioActor scenario.scenarioVenue.id do
                     callActionWithParams CreateTimesheetEntryFromSuggestionAction { rosterSlotId = scenario.scenarioRosterSlot.id }
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
@@ -1415,6 +1437,9 @@ tests = aroundAll withDatabaseTestContext do
                 testBreakMinutes entry `shouldBe` 30
                 entry.isApproved `shouldBe` False
                 entry.sourceRosterSlotId `shouldBe` Just (unpackId scenario.scenarioRosterSlot.id)
+                sourceRosterDay <- fetch (Id scenario.scenarioRosterSlot.rosterDayId :: Id RosterDay)
+                entry.rosterGroupClassification `shouldBe` InRosterGroup
+                entry.rosterGroupId `shouldBe` Just sourceRosterDay.rosterGroupId
                 version <- query @TimesheetEntryVersion |> fetchOne
                 version.payload `shouldBe` Aeson.object
                     [ "source" Aeson..= ("roster_suggestion" :: Text)
@@ -1901,6 +1926,7 @@ tests = aroundAll withDatabaseTestContext do
                     , suggestionApprovalFacts = NoSuggestionApproval
                     , suggestionRosterFacts = SuggestionRosterFacts "Day" "Early" 0 1 (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) 480
                     }
+                sourceRosterDay <- fetch (Id scenario.scenarioRosterSlot.rosterDayId :: Id RosterDay)
                 oldEntry <-
                     newRecord @TimesheetEntry
                         |> set #venueId (unpackId scenario.scenarioVenue.id)
@@ -1911,6 +1937,8 @@ tests = aroundAll withDatabaseTestContext do
                         |> setTestStartTime (TimeOfDay 9 0 0)
                         |> setTestEndTime (TimeOfDay 17 0 0)
                         |> set #sourceRosterSlotId (Just (unpackId scenario.scenarioRosterSlot.id))
+                        |> set #rosterGroupClassification InRosterGroup
+                        |> set #rosterGroupId (Just sourceRosterDay.rosterGroupId)
                         |> createRecord
                 now <- getCurrentTime
                 _ <- updateRecord

@@ -60,6 +60,8 @@ destructive changes:
   assignment migration.
 - `roster-timesheet-suggestion-cutover-runbook.md` — retirement of legacy
   roster-to-Timesheet workers and activation of transient suggestions.
+- `timesheet-roster-group-classification-614-runbook.md` — review and audited
+  operator correction of deterministic historical Timesheet classifications.
 - `timesheet-pay-ledger-234-runbook.md` and
   `haskell-wage-cutover-239-runbook.md` — immutable ledger and wage-authority
   cutover sequence.

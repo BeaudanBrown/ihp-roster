@@ -106,6 +106,7 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetShowWageEstimates    :: Bool
     , timesheetWageEstimates        :: !(Maybe TimesheetWageEstimates)
     , timesheetRosterGroups         :: [RosterGroup]
+    , timesheetRosterGroupLabels    :: [RosterGroup]
     , timesheetFilters              :: TimesheetViewFilters
     , timesheetStaffFilterId        :: Maybe UUID.UUID
     , timesheetCurrentViewerStaffId :: Maybe UUID.UUID
@@ -145,6 +146,13 @@ fetchActiveTimesheetRosterGroups =
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#isActive, True)
         |> filterWhere (#archivedAt, Nothing)
+        |> orderByAsc #sortOrder
+        |> fetch
+
+fetchTimesheetRosterGroupLabels :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [RosterGroup]
+fetchTimesheetRosterGroupLabels =
+    query @RosterGroup
+        |> filterWhere (#venueId, unpackId currentVenueId)
         |> orderByAsc #sortOrder
         |> fetch
 
@@ -196,14 +204,8 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved filters = do
 
 filterTimesheetEntriesByRosterGroup :: (?modelContext :: ModelContext) => Maybe UUID.UUID -> [TimesheetEntry] -> IO [TimesheetEntry]
 filterTimesheetEntriesByRosterGroup Nothing entries = pure entries
-filterTimesheetEntriesByRosterGroup (Just rosterGroupId) entries = do
-    let sourceSlotIds = Set.toList (Set.fromList (mapMaybe (.sourceRosterSlotId) entries))
-    slots <- if null sourceSlotIds then pure [] else query @RosterSlot |> filterWhereIn (#id, map Id sourceSlotIds) |> fetch
-    let dayIds = nub (map (.rosterDayId) slots)
-    days <- if null dayIds then pure [] else query @RosterDay |> filterWhereIn (#id, map Id dayIds) |> filterWhere (#rosterGroupId, rosterGroupId) |> fetch
-    let matchingDayIds = Set.fromList (map (unpackId . (.id)) days)
-    let matchingSlotIds = Set.fromList [unpackId slot.id | slot <- slots, Set.member slot.rosterDayId matchingDayIds]
-    pure (filter (maybe False (`Set.member` matchingSlotIds) . (.sourceRosterSlotId)) entries)
+filterTimesheetEntriesByRosterGroup (Just rosterGroupId) entries =
+    pure (filter ((== Just rosterGroupId) . (.rosterGroupId)) entries)
 
 buildTimesheetStaffPanelEntries :: (?modelContext :: ModelContext, ?context :: ControllerContext) => [Staff] -> [TimesheetEntry] -> IO [TimesheetStaffPanelEntry]
 buildTimesheetStaffPanelEntries staffMembers entries = do
@@ -293,6 +295,7 @@ fetchTimesheetSuggestionsForWindow windowStart windowEnd filters staffMembers cu
             , suggestionOperationalDate = rosterDay.operationalDate
             , suggestionStaffId = staffId
             , suggestionShiftTypeId = shiftTypeId
+            , suggestionRosterGroupId = rosterDay.rosterGroupId
             , suggestionBoundaries
             }
 
@@ -408,6 +411,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart 
     let showWageEstimates = canViewTimesheetWageEstimates && preferences.userTimesheetShowWageEstimates
     let weekEndDate = addDays (-1) weekEndExclusive
     rosterGroups <- fetchActiveTimesheetRosterGroups
+    rosterGroupLabels <- fetchTimesheetRosterGroupLabels
     filters <- canonicalTimesheetFilters (TimesheetViewFilters staffFilterId rosterGroupFilterId)
 
     (entries, staffMembers, validStaffFilterId, currentViewerStaffId, staffPanelEntries) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndExclusive hideApproved filters)
@@ -436,7 +440,8 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart 
             , timesheetSuggestionsVisible = showTimesheetSuggestions
             , timesheetShowWageEstimates = showWageEstimates
             , timesheetWageEstimates = wageEstimates
-            , timesheetRosterGroups = if hasRole Manager then rosterGroups else []
+            , timesheetRosterGroups = rosterGroups
+            , timesheetRosterGroupLabels = rosterGroupLabels
             , timesheetFilters = filters { filterStaffId = validStaffFilterId }
             , timesheetStaffFilterId = validStaffFilterId
             , timesheetCurrentViewerStaffId = currentViewerStaffId
@@ -526,6 +531,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         , daySuggestions = projection.timesheetSuggestions
         , dayStaffMembers = projection.timesheetStaffMembers
         , dayShiftTypes = projection.timesheetShiftTypes
+        , dayRosterGroups = projection.timesheetRosterGroupLabels
         , dayToday = projection.timesheetToday
         , dayEditWindowDays = projection.timesheetEditWindowDays
         , dayWeekStartDate = projection.timesheetWeekStartDate
@@ -537,7 +543,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingByEntryId, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingByEntryId, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetRosterGroupLabels, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
     IndexView
         { entries = timesheetEntries
         , timingByEntryId = timesheetTimingByEntryId
@@ -554,6 +560,7 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingBy
         , showTimesheetWageEstimates = timesheetShowWageEstimates
         , wageEstimates = timesheetWageEstimates
         , rosterGroups = timesheetRosterGroups
+        , rosterGroupLabels = timesheetRosterGroupLabels
         , viewFilters = timesheetFilters
         , selectedStaffFilterId = timesheetStaffFilterId
         , currentViewerStaffId = timesheetCurrentViewerStaffId

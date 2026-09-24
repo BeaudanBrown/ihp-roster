@@ -56,10 +56,13 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   the effective viewer's current-venue staff record while retaining the week and
   roster-group filter. It is shown only when that record is among the eligible
   dropdown options; ordinary staff remain scoped to themselves without a filter.
-  Selecting one roster group
-  retains only entries linked to a source slot in that group and transient
-  suggestions from that group; ad-hoc entries have no group and appear only
-  under All roster groups.
+  Every entry has an immutable closed roster-group classification: a named
+  roster group or explicit No roster group. Selecting one roster group retains
+  only entries classified to that group and transient suggestions from that
+  group. All roster groups includes explicit No roster group entries; there is
+  no separate No roster group filter. Cards render `Shift type - Group` and keep
+  archived historical group names available as labels without exposing archived
+  groups as filter choices.
 - Timesheets uses the shared transient SidePanel and the same main-card header,
   desktop focus/Escape behavior, and responsive tools shelf as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
@@ -98,17 +101,23 @@ venue scope.
   or replace server-side mutation authorization.
 
 - Materialization locks and revalidates the source slot, then snapshots staff,
-  instants, timezone, shift type, automatic break, and immutable source ID.
-  The partial source-slot uniqueness constraint and lock make concurrent retries
-  idempotent.
+  instants, timezone, shift type, automatic break, immutable source ID, and the
+  source roster-group classification. Source classification does not depend on
+  the assigned Staff member's current group memberships. The partial source-slot
+  uniqueness constraint and lock make concurrent retries idempotent.
 - Staff creation and ordinary Save create unapproved entries. Authorized
   managers may atomically materialize and approve; failed approval rolls back
   the new entry completely.
-- Roster edits never mutate an existing Timesheet snapshot. Soft-deleting the
-  entry may make the current source eligible for a new snapshot while retaining
-  deleted history. Ad-hoc entries remain unrelated to suggestions.
+- Roster edits and membership changes never mutate an existing Timesheet
+  snapshot. Soft-deleting the entry may make the current source eligible for a
+  new snapshot while retaining deleted history. Blank entries remain unrelated
+  to suggestions. A blank entry uses No roster group for zero memberships, its
+  sole group for one membership, and requires the pre-form group choice owned by
+  the grouped chooser when multiple memberships exist.
 - Staff cannot reassign roster-derived entries. Managers may correct staff in
-  scope, but source identity and Operational date remain immutable.
+  scope only to Staff currently valid for the immutable classification; edits
+  with unchanged Staff remain valid after membership changes. Source identity,
+  Operational date, and roster-group classification remain immutable.
 
 ## Wage Estimates, Approval And Payroll
 

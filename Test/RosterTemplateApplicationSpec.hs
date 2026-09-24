@@ -48,6 +48,8 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #timezone "Australia/Melbourne"
                     |> set #operationalDate (targetDays !! 0).operationalDate
                     |> set #sourceRosterSlotId (Just (unpackId oldSlot.id))
+                    |> set #rosterGroupClassification InRosterGroup
+                    |> set #rosterGroupId (Just (unpackId rosterGroup.id))
                     |> createRecord
                 membership <- query @StaffRosterGroup
                     |> filterWhere (#staffId, unpackId staff.id)

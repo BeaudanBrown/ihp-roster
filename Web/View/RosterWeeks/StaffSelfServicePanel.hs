@@ -140,6 +140,7 @@ timesheetDayModel panel =
         , daySuggestions = []
         , dayStaffMembers = panel.quickToolsStaffMembers
         , dayShiftTypes = panel.quickToolsShiftTypes
+        , dayRosterGroups = panel.quickToolsTimesheetRosterGroupLabels
         , dayToday = panel.quickToolsOperationalDay
         , dayEditWindowDays = panel.quickToolsTimesheetEditWindowDays
         , dayWeekStartDate = panel.quickToolsTimesheetWeekStartDate

@@ -10,6 +10,7 @@ import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ModelSupport (newRecord, unpackId)
 import IHP.Prelude
+import Web.Timesheets.RosterGroupClassification
 
 -- Suggestions carry the same authoritative boundary value that will be
 -- persisted. Local facts are projections, never a second authority.
@@ -18,6 +19,7 @@ data TimesheetSuggestion = TimesheetSuggestion
     , suggestionOperationalDate :: !Day
     , suggestionStaffId         :: !UUID.UUID
     , suggestionShiftTypeId     :: !UUID.UUID
+    , suggestionRosterGroupId   :: !UUID.UUID
     , suggestionBoundaries      :: !AuthoritativeBoundaries
     }
     deriving (Eq, Show)
@@ -29,6 +31,7 @@ newTimesheetEntryFromSuggestion venueId suggestion =
         |> set #staffId suggestion.suggestionStaffId
         |> set #shiftTypeId suggestion.suggestionShiftTypeId
         |> set #sourceRosterSlotId (Just (unpackId suggestion.suggestionRosterSlotId))
+        |> applyTimesheetRosterGroupClassification (TimesheetInRosterGroup suggestion.suggestionRosterGroupId)
         |> set #operationalDate suggestion.suggestionOperationalDate
         |> applyTimesheetEntryBoundaries suggestion.suggestionBoundaries
 

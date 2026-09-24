@@ -114,6 +114,7 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsVenueId                 :: Id Venue
     , quickToolsRosterGroupId           :: Id RosterGroup
     , quickToolsRosterGroups            :: [RosterGroup]
+    , quickToolsTimesheetRosterGroupLabels :: [RosterGroup]
     , quickToolsRosterWeekStartDate     :: Day
     , quickToolsTimesheetEntries        :: [TimesheetEntry]
     , quickToolsTimesheetTimingByEntryId :: Map UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming)

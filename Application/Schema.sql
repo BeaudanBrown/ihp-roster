@@ -49,6 +49,7 @@ CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_af
 CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
 CREATE TYPE roster_day_publication_state_enum AS ENUM ('draft', 'published');
 CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
+CREATE TYPE roster_timesheet_group_classification_enum AS ENUM ('in_roster_group', 'no_roster_group');
 CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
 CREATE TYPE feedback_lifecycle_enum AS ENUM ('private', 'public', 'archived');
 CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
@@ -1853,12 +1854,15 @@ CREATE TABLE timesheet_entries (
     delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    roster_group_classification roster_timesheet_group_classification_enum DEFAULT 'no_roster_group' NOT NULL,
+    roster_group_id UUID DEFAULT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_pay_version_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_pay_version_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (source_roster_slot_id) REFERENCES roster_slots (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (ends_at > starts_at),
@@ -1867,7 +1871,8 @@ CREATE TABLE timesheet_entries (
     CHECK (timezone = 'Australia/Melbourne'),
     CHECK (staff_comment IS NULL OR char_length(staff_comment) <= 1000),
     CHECK (manager_note IS NULL OR char_length(manager_note) <= 1000),
-    CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))
+    CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL)),
+    CONSTRAINT timesheet_entries_roster_group_classification_check CHECK ((roster_group_classification = 'in_roster_group' AND roster_group_id IS NOT NULL) OR (roster_group_classification = 'no_roster_group' AND roster_group_id IS NULL))
 );
 CREATE TABLE timesheet_pay_calculations (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -2325,6 +2330,7 @@ CREATE UNIQUE INDEX idx_app_jobs_email_delivery_dedupe ON app_jobs (dedupe_key) 
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_starts_at ON timesheet_entries (venue_id, starts_at) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_operational_date ON timesheet_entries (venue_id, operational_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_timesheet_entries_venue_roster_group ON timesheet_entries (venue_id, roster_group_id, operational_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
 CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
 CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;
@@ -2942,6 +2948,16 @@ BEGIN
         RAISE EXCEPTION 'timesheet entry shift_type_pay_version_id must match entry shift type and venue';
     END IF;
 
+    IF NEW.roster_group_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM roster_groups rg
+            WHERE rg.id = NEW.roster_group_id
+                AND rg.venue_id = NEW.venue_id
+        )
+    THEN
+        RAISE EXCEPTION 'timesheet entry roster group must match entry venue';
+    END IF;
+
     IF NEW.source_roster_slot_id IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
@@ -2950,9 +2966,11 @@ BEGIN
             WHERE rs.id = NEW.source_roster_slot_id
                 AND rd.venue_id = NEW.venue_id
                 AND rd.operational_date = NEW.operational_date
+                AND rd.roster_group_id = NEW.roster_group_id
+                AND NEW.roster_group_classification = 'in_roster_group'
         )
     THEN
-        RAISE EXCEPTION 'timesheet entry source roster slot must match entry venue and Operational date';
+        RAISE EXCEPTION 'timesheet entry source roster slot must match entry venue, Operational date and roster group';
     END IF;
 
     RETURN NEW;
@@ -2963,6 +2981,12 @@ CREATE OR REPLACE FUNCTION enforce_roster_derived_timesheet_identity_immutable()
 RETURNS TRIGGER
 AS $$
 BEGIN
+    IF NEW.roster_group_classification IS DISTINCT FROM OLD.roster_group_classification
+        OR NEW.roster_group_id IS DISTINCT FROM OLD.roster_group_id
+    THEN
+        RAISE EXCEPTION 'timesheet roster group classification is immutable';
+    END IF;
+
     IF (OLD.source_roster_slot_id IS NOT NULL OR NEW.source_roster_slot_id IS NOT NULL)
         AND (
             NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id

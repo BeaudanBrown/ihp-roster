@@ -79,6 +79,7 @@ data IndexView = IndexView
     , showTimesheetWageEstimates :: Bool
     , wageEstimates            :: Maybe TimesheetWageEstimates
     , rosterGroups             :: [RosterGroup]
+    , rosterGroupLabels        :: [RosterGroup]
     , viewFilters              :: TimesheetViewFilters
     , selectedStaffFilterId    :: Maybe UUID
     , currentViewerStaffId     :: Maybe UUID
@@ -96,6 +97,7 @@ data TimesheetDayRenderModel = TimesheetDayRenderModel
     , daySuggestions         :: [TimesheetSuggestion]
     , dayStaffMembers        :: [Staff]
     , dayShiftTypes          :: [ShiftType]
+    , dayRosterGroups        :: [RosterGroup]
     , dayToday               :: Day
     , dayEditWindowDays      :: Int
     , dayWeekStartDate       :: Day
@@ -540,13 +542,14 @@ renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
 timesheetDayRenderModel :: IndexView -> Int -> TimesheetDayRenderModel
-timesheetDayRenderModel IndexView { entries, timingByEntryId, suggestions, staffMembers, shiftTypes, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates, selectedStaffFilterId } dayOffset =
+timesheetDayRenderModel IndexView { entries, timingByEntryId, suggestions, staffMembers, shiftTypes, rosterGroupLabels, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates, selectedStaffFilterId } dayOffset =
     TimesheetDayRenderModel
         { dayEntries = entries
         , dayTimingByEntryId = timingByEntryId
         , daySuggestions = suggestions
         , dayStaffMembers = staffMembers
         , dayShiftTypes = shiftTypes
+        , dayRosterGroups = rosterGroupLabels
         , dayToday = today
         , dayEditWindowDays = editWindowDays
         , dayWeekStartDate = weekStartDate
@@ -673,7 +676,7 @@ renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, da
     editUrl = editTimesheetEntryUrl (get #id entry) (timesheetEntryOperationalDate entry) dayStaffFilterId
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Text -> Maybe Text -> Html -> Html -> Html
-renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } entry timingOutcome cardClass suggestionId cardOverlay cardAction =
+renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayRosterGroups } entry timingOutcome cardClass suggestionId cardOverlay cardAction =
     card
   where
     card = [hsx|
@@ -713,9 +716,15 @@ renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } e
             <div class="timesheet-entry-meta">Shift: {renderDuration timing}</div>
             <div class="timesheet-entry-meta timesheet-entry-break-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary timing}</span></div>
         |]
-    shiftTypeLabel = case find (\shiftType -> unpackId (get #id shiftType) == entry.shiftTypeId) dayShiftTypes of
+    shiftTypeLabel = shiftTypeName <> " - " <> rosterGroupName
+    shiftTypeName = case find (\shiftType -> unpackId (get #id shiftType) == entry.shiftTypeId) dayShiftTypes of
         Just shiftType -> shiftType.name
         Nothing        -> "Shift"
+    rosterGroupName = case entry.rosterGroupClassification of
+        NoRosterGroup -> "No roster group"
+        InRosterGroup -> case entry.rosterGroupId >>= \groupId -> find ((== groupId) . unpackId . (.id)) dayRosterGroups of
+            Just rosterGroup -> rosterGroup.name
+            Nothing -> "Roster group"
 
 renderEntryCardOverlayLink :: TimesheetEntry -> Bool -> Text -> Html
 renderEntryCardOverlayLink entry canEdit editUrl

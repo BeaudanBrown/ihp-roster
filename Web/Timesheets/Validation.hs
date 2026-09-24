@@ -30,6 +30,7 @@ import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Prelude
 import Web.Controller.Prelude
+import Web.Timesheets.RosterGroupClassification
 
 -- Thrown under the calendar lock; mutation owners catch only after their
 -- transaction unwinds. Returning Left inside that transaction would not roll back.
@@ -94,7 +95,10 @@ timesheetStaffAssignmentAllowed staffId = do
 ensureStaffAssignmentAllowedForExisting :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> UUID.UUID -> IO ()
 ensureStaffAssignmentAllowedForExisting existingEntry staffId
     | existingEntry.staffId == staffId = pure ()
-    | otherwise = ensureStaffAssignmentAllowed staffId
+    | otherwise = do
+        ensureStaffAssignmentAllowed staffId
+        matchesClassification <- staffMatchesTimesheetRosterGroup existingEntry.venueId staffId (timesheetRosterGroupClassification existingEntry)
+        accessDeniedUnless matchesClassification
 
 ensureShiftTypeAllowed :: (?request :: Request, ?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
 ensureShiftTypeAllowed shiftTypeId = timesheetShiftTypeAllowed shiftTypeId >>= accessDeniedUnless

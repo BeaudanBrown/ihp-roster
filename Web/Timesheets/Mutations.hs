@@ -107,7 +107,9 @@ materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetE
                 && existingEntry.operationalDate == expectedSuggestion.suggestionOperationalDate
                 && existingEntry.startsAt == authoritativeStartsAt expectedSuggestion.suggestionBoundaries
                 && existingEntry.endsAt == authoritativeEndsAt expectedSuggestion.suggestionBoundaries
-                && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries ->
+                && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries
+                && existingEntry.rosterGroupId == Just expectedSuggestion.suggestionRosterGroupId
+                && existingEntry.rosterGroupClassification == InRosterGroup ->
                 pure (Just (existingEntry, False))
             | otherwise -> pure Nothing
         Nothing -> do
