@@ -2,6 +2,8 @@ import {
     dialogBackdropDomAttr,
     dialogBlockingDomAttr,
     dialogCloseDomAttr,
+    dialogDismissalGuardConfigDomAttr,
+    dialogDismissalGuardDomAttr,
     dialogDismissedEvent,
     dialogFocusRegionDomAttr,
     dialogKeyboardDomAttr,
@@ -12,12 +14,15 @@ import {
     navigationLoadingConfigDomAttr,
     navigationLoadingDomAttr,
     pageReadyEvent,
+    parseDialogDismissalGuardConfig,
     parseDialogSubmitConfig,
     parseNavigationLoadingConfig,
+    type DialogDismissalGuardConfig,
     type DialogSubmitConfig,
     type NavigationLoadingConfig,
 } from "./generated/contracts";
 import { createDialogDismissalLifecycle, installPointerDismissFocusCleanup } from "./dialog-overlays/lifecycle";
+import { createUnsavedChangeTracker, normalizedFormSnapshot, validateDismissalGuardConfig, type UnsavedChangeTracker } from "./dialog-overlays/unsaved-guard";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailRoot, detailTarget } from "./shared/lifecycle";
 import { setPageOverlay } from "./shared/page-overlay";
@@ -27,6 +32,7 @@ const dialogKeyboardSelector = `[${dialogKeyboardDomAttr}]`;
 const dialogFocusRegionSelector = `[${dialogFocusRegionDomAttr}]`;
 const dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
 const dialogCloseSelector = `[${dialogCloseDomAttr}]`;
+const dialogDismissalGuardSelector = `[${dialogDismissalGuardDomAttr}]`;
 const navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
 const originalSubmitHtml = new WeakMap<HTMLButtonElement, string>();
 interface DialogLoadingState {
@@ -34,6 +40,18 @@ interface DialogLoadingState {
     loadingPanel: HTMLElement;
     previousAriaBusy: string | null;
     wasBlocking: boolean;
+}
+interface DialogDismissalGuardState {
+    config: DialogDismissalGuardConfig;
+    form: HTMLFormElement;
+    tracker: UnsavedChangeTracker;
+    confirmation: null | {
+        contentChildren: Array<{ element: HTMLElement; hidden: boolean }>;
+        elements: HTMLElement[];
+        previousFocus: HTMLElement | null;
+        originalFocusRegion: HTMLElement | null;
+        previousAriaLabelledBy: string | null;
+    };
 }
 const dialogLoadingStates = new WeakMap<HTMLElement, DialogLoadingState>();
 const checkboxControlledHiddenOptions = new WeakMap<HTMLInputElement, HTMLOptionElement[]>();
@@ -70,6 +88,10 @@ export function parseDialogSubmitConfiguration(raw: string): DialogSubmitConfig 
         throw new Error("DialogSubmitConfig loadingLabel must not be empty");
     }
     return config;
+}
+
+export function parseDialogDismissalGuardConfiguration(raw: string): DialogDismissalGuardConfig {
+    return validateDismissalGuardConfig(parseDialogDismissalGuardConfig(JSON.parse(raw)));
 }
 
 export function parseNavigationLoadingConfiguration(raw: string): NavigationLoadingConfig {
@@ -175,7 +197,26 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
     const overlayOwner = {};
     const bootstrapDialogs = new Set<HTMLElement>();
     const returnFocus = new WeakMap<HTMLElement, HTMLElement | null>();
+    const dismissalGuards = new WeakMap<HTMLElement, DialogDismissalGuardState>();
+    let activeGuardTracker: UnsavedChangeTracker | null = null;
+    let activeGuardFormId: string | null = null;
+    let beforeUnloadInstalled = false;
     let previousModal: HTMLElement | null = null;
+
+    function handleBeforeUnload(event: BeforeUnloadEvent): void {
+        const activeDialog = getActiveDialog();
+        const guard = activeDialog === null ? undefined : dismissalGuards.get(activeDialog);
+        if (guard === undefined || !guard.tracker.isGuarded(normalizedFormSnapshot(guard.form))) return;
+        event.preventDefault();
+        event.returnValue = "";
+    }
+
+    function setBeforeUnloadInstalled(enabled: boolean): void {
+        if (enabled === beforeUnloadInstalled) return;
+        beforeUnloadInstalled = enabled;
+        if (enabled) window.addEventListener("beforeunload", handleBeforeUnload);
+        else window.removeEventListener("beforeunload", handleBeforeUnload);
+    }
 
     function getMount(): HTMLElement | null {
         const mountEl = document.getElementById(mountId);
@@ -229,10 +270,49 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         (firstInvalid ?? autofocus ?? (region ? controls[0] : null) ?? dialog).focus({ preventScroll: true });
     }
 
+    function initializeDismissalGuard(dialog: HTMLElement): void {
+        if (!dialog.matches(dialogDismissalGuardSelector)) {
+            activeGuardTracker = null;
+            activeGuardFormId = null;
+            setBeforeUnloadInstalled(false);
+            return;
+        }
+        const rawConfig = dialog.getAttribute(dialogDismissalGuardConfigDomAttr);
+        try {
+            if (rawConfig === null) throw new Error(`Missing ${dialogDismissalGuardConfigDomAttr}`);
+            const config = parseDialogDismissalGuardConfiguration(rawConfig);
+            const form = document.getElementById(config.formId);
+            if (!(form instanceof HTMLFormElement) || !dialog.contains(form)) {
+                throw new Error(`Dialog dismissal guard form '${config.formId}' is not inside the dialog`);
+            }
+            const tracker = activeGuardTracker !== null && activeGuardFormId === config.formId
+                ? activeGuardTracker
+                : createUnsavedChangeTracker(normalizedFormSnapshot(form), config.guardImmediately);
+            activeGuardTracker = tracker;
+            activeGuardFormId = config.formId;
+            dismissalGuards.set(dialog, { config, form, tracker, confirmation: null });
+            setBeforeUnloadInstalled(true);
+        } catch (error) {
+            activeGuardTracker = null;
+            activeGuardFormId = null;
+            setBeforeUnloadInstalled(false);
+            console.error?.("Invalid generated dialog dismissal guard configuration", {
+                code: "invalid-dialog-dismissal-guard-config",
+                message: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
     function initializeKeyboardDialogs(root: ParentNode): void {
-        if (root instanceof HTMLElement && root.matches(dialogMountSelector)) focusKeyboardDialog(root);
+        if (root instanceof HTMLElement && root.matches(dialogMountSelector)) {
+            initializeDismissalGuard(root);
+            focusKeyboardDialog(root);
+        }
         root.querySelectorAll(dialogMountSelector).forEach((dialog) => {
-            if (dialog instanceof HTMLElement) focusKeyboardDialog(dialog);
+            if (dialog instanceof HTMLElement) {
+                initializeDismissalGuard(dialog);
+                focusKeyboardDialog(dialog);
+            }
         });
     }
 
@@ -329,8 +409,101 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         dialogEl.focus({ preventScroll: true });
     }
 
+    function keepEditing(dialogEl: HTMLElement): void {
+        const state = dismissalGuards.get(dialogEl);
+        if (state?.confirmation === null || state === undefined) return;
+        state.confirmation.elements.forEach((element) => element.remove());
+        state.confirmation.contentChildren.forEach(({ element, hidden }) => {
+            element.hidden = hidden;
+        });
+        const { previousFocus, originalFocusRegion, previousAriaLabelledBy } = state.confirmation;
+        const content = dialogEl.querySelector(":scope > .modal-dialog > .modal-content");
+        if (content instanceof HTMLElement) content.removeAttribute(dialogFocusRegionDomAttr);
+        originalFocusRegion?.setAttribute(dialogFocusRegionDomAttr, "true");
+        if (previousAriaLabelledBy === null) dialogEl.removeAttribute("aria-labelledby");
+        else dialogEl.setAttribute("aria-labelledby", previousAriaLabelledBy);
+        state.confirmation = null;
+        if (previousFocus?.isConnected && dialogEl.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
+        else focusKeyboardDialog(dialogEl);
+    }
+
+    function showDismissalConfirmation(dialogEl: HTMLElement, state: DialogDismissalGuardState): void {
+        if (state.confirmation !== null) return;
+        const content = dialogEl.querySelector(":scope > .modal-dialog > .modal-content");
+        if (!(content instanceof HTMLElement)) return;
+        const contentChildren = Array.from(content.children)
+            .filter(isHTMLElement)
+            .map((element) => ({ element, hidden: element.hidden }));
+        const originalFocusRegion = keyboardFocusRegion(dialogEl);
+        originalFocusRegion?.removeAttribute(dialogFocusRegionDomAttr);
+        content.setAttribute(dialogFocusRegionDomAttr, "true");
+        contentChildren.forEach(({ element }) => { element.hidden = true; });
+
+        const header = document.createElement("div");
+        header.className = "modal-header";
+        const title = document.createElement("h5");
+        title.className = "modal-title";
+        title.id = "dialog-overlay-confirmation-title";
+        title.textContent = state.config.confirmationTitle;
+        const close = document.createElement("button");
+        close.type = "button";
+        close.className = "btn-close";
+        close.setAttribute("aria-label", "Close");
+        header.append(title, close);
+
+        const body = document.createElement("div");
+        body.className = "modal-body";
+        const footer = document.createElement("div");
+        footer.className = "modal-footer app-modal-footer";
+        const actions = document.createElement("div");
+        actions.className = "app-modal-footer-end";
+        const keep = document.createElement("button");
+        keep.type = "button";
+        keep.className = "btn btn-outline-secondary";
+        keep.textContent = state.config.keepEditingLabel;
+        const discard = document.createElement("button");
+        discard.type = "button";
+        discard.className = "btn btn-danger";
+        discard.textContent = state.config.discardLabel;
+        actions.append(keep, discard);
+        footer.append(actions);
+        const elements = [header, body, footer];
+        content.append(...elements);
+        const previousAriaLabelledBy = dialogEl.getAttribute("aria-labelledby");
+        dialogEl.setAttribute("aria-labelledby", title.id);
+        state.confirmation = {
+            contentChildren,
+            elements,
+            previousFocus: isHTMLElement(document.activeElement) ? document.activeElement : null,
+            originalFocusRegion,
+            previousAriaLabelledBy,
+        };
+        close.addEventListener("click", () => keepEditing(dialogEl));
+        keep.addEventListener("click", () => keepEditing(dialogEl));
+        discard.addEventListener("click", () => clearDialog(dialogEl));
+        keep.focus({ preventScroll: true });
+    }
+
+    function requestDialogDismissal(dialogEl: HTMLElement): void {
+        const guard = dismissalGuards.get(dialogEl);
+        if (guard?.confirmation !== null && guard !== undefined) {
+            keepEditing(dialogEl);
+            return;
+        }
+        if (dialogEl.hasAttribute(dialogBlockingDomAttr)) return;
+        if (guard !== undefined && guard.tracker.isGuarded(normalizedFormSnapshot(guard.form))) {
+            showDismissalConfirmation(dialogEl, guard);
+            return;
+        }
+        clearDialog(dialogEl);
+    }
+
     function clearDialog(dialogEl: HTMLElement): void {
         const mountEl = getMount();
+        dismissalGuards.delete(dialogEl);
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
         const eventOwner = mountEl !== null && mountEl.contains(dialogEl) ? mountEl : dialogEl;
         dismissalLifecycle.dismiss(dialogEl, eventOwner);
 
@@ -359,7 +532,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         const closeDialog = closeEl?.closest(dialogMountSelector);
         if (closeEl !== null && isHTMLElement(closeDialog)) {
             event.preventDefault();
-            clearDialog(closeDialog);
+            requestDialogDismissal(closeDialog);
             return;
         }
 
@@ -367,8 +540,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         const backdropDialog = backdropEl?.parentElement?.querySelector(dialogMountSelector);
         if (backdropEl !== null && isHTMLElement(backdropDialog)) {
             event.preventDefault();
-            if (backdropDialog.hasAttribute(dialogBlockingDomAttr)) return;
-            clearDialog(backdropDialog);
+            requestDialogDismissal(backdropDialog);
             return;
         }
 
@@ -377,8 +549,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         const activeDialog = getActiveDialog();
         if (activeDialog !== null && event.target === activeDialog) {
             event.preventDefault();
-            if (activeDialog.hasAttribute(dialogBlockingDomAttr)) return;
-            clearDialog(activeDialog);
+            requestDialogDismissal(activeDialog);
         }
     });
 
@@ -407,6 +578,9 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
             return;
         }
 
+        if (event.key === "Enter" && dismissalGuards.get(activeDialog)?.confirmation !== null
+            && dismissalGuards.get(activeDialog) !== undefined) return;
+
         if (event.key === "Enter" && focusRegion !== null && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
             const target = event.target;
             if (target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return;
@@ -421,7 +595,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (event.key !== "Escape") return;
 
         event.preventDefault();
-        if (!activeDialog.hasAttribute(dialogBlockingDomAttr)) clearDialog(activeDialog);
+        requestDialogDismissal(activeDialog);
     });
 
     document.addEventListener("change", function (event) {
@@ -512,6 +686,11 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         reconcileDialogDismissal(target);
         syncDialogState();
         initializeKeyboardDialogs(target);
+        if (getMountedDialog(target) === null) {
+            activeGuardTracker = null;
+            activeGuardFormId = null;
+            setBeforeUnloadInstalled(false);
+        }
     });
 
     document.addEventListener("htmx:oobAfterSwap", function (event) {
@@ -522,6 +701,11 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         reconcileDialogDismissal(target);
         syncDialogState();
         initializeKeyboardDialogs(target);
+        if (getMountedDialog(target) === null) {
+            activeGuardTracker = null;
+            activeGuardFormId = null;
+            setBeforeUnloadInstalled(false);
+        }
     });
 
     window.addEventListener("pageshow", function (event) {

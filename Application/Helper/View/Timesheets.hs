@@ -2,7 +2,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Application.Helper.View.Timesheets
-    ( TimesheetFormInputs (..)
+    ( TimesheetDismissalGuardMode (..)
+    , TimesheetFormInputs (..)
     , TimesheetFormOrigin (..)
     , TimesheetFormPresentation (..)
     , TimesheetFormRenderModel (..)
@@ -42,6 +43,11 @@ import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerSupport (ControllerContext)
 import IHP.ViewPrelude
+
+data TimesheetDismissalGuardMode
+    = GuardNewTimesheet
+    | GuardChangedTimesheet
+    deriving (Eq, Show)
 
 data TimesheetFormOrigin
     = AdHocTimesheetForm
@@ -402,15 +408,30 @@ renderTimesheetEntryModalWithStartButtons title closeUrl formId formContent star
             { dialogOverlayStartButtons = startButtons
             }
 
-renderTimesheetEntryDialog :: Text -> Text -> Html -> Html
-renderTimesheetEntryDialog title formId formContent =
-    renderTimesheetEntryDialogWithStartButtons title formId formContent []
+renderTimesheetEntryDialog :: TimesheetDismissalGuardMode -> Text -> Text -> Html -> Html
+renderTimesheetEntryDialog guardMode title formId formContent =
+    renderTimesheetEntryDialogWithStartButtons guardMode title formId formContent []
 
-renderTimesheetEntryDialogWithStartButtons :: Text -> Text -> Html -> [OverlayButton] -> Html
-renderTimesheetEntryDialogWithStartButtons title formId formContent startButtons =
+renderTimesheetEntryDialogWithStartButtons :: TimesheetDismissalGuardMode -> Text -> Text -> Html -> [OverlayButton] -> Html
+renderTimesheetEntryDialogWithStartButtons guardMode title formId formContent startButtons =
     renderKeyboardDialogOverlay (defaultDialogOverlayConfig
             title
             formContent
             (defaultOverlayButtons formId))
             { dialogOverlayStartButtons = startButtons
+            , dialogOverlayDismissalGuard = Just (timesheetDismissalGuardConfig guardMode formId)
             }
+
+timesheetDismissalGuardConfig :: TimesheetDismissalGuardMode -> Text -> DialogDismissalGuardConfigValue
+timesheetDismissalGuardConfig guardMode formId =
+    DialogDismissalGuardConfigValue
+        { dismissalGuardFormId = formId
+        , dismissalGuardImmediately = guardMode == GuardNewTimesheet
+        , dismissalGuardConfirmationTitle = case guardMode of
+            GuardNewTimesheet -> "Discard unsaved timesheet?"
+            GuardChangedTimesheet -> "Discard unsaved changes?"
+        , dismissalGuardKeepEditingLabel = "Keep editing"
+        , dismissalGuardDiscardLabel = case guardMode of
+            GuardNewTimesheet -> "Discard timesheet"
+            GuardChangedTimesheet -> "Discard changes"
+        }

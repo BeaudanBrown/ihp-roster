@@ -2,15 +2,23 @@
 
 module Web.View.Timesheets.Edit where
 
-import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay,
+import Application.Helper.FrontendContract.AppShell (AnchorDateField,
+                                                     DeleteTimesheetEntryOverlay,
                                                      EditTimesheetEntryDialog,
                                                      OpenTimesheetDeleteConfirmationDialog,
+                                                     RosterCalendarRevisionField,
+                                                     StaffFilterIdField,
                                                      UpdateTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.AppShell.Request (appShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField,
+                                                           surfaceFieldsText,
+                                                           (&:))
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowStateQueryParams,
                              timesheetWindowUrl)
@@ -37,6 +45,7 @@ editTimesheetFormId = "timesheet-entry-edit-form"
 renderEditTimesheetDialog :: TimesheetFormInputs -> Html
 renderEditTimesheetDialog timesheetFormInputs =
     renderTimesheetEntryDialogWithStartButtons
+        GuardChangedTimesheet
         (timesheetModalTitle (timesheetEntryOperationalDate timesheetFormInputs.timesheetEntry))
         editTimesheetFormId
         (renderTimesheetForm (editTimesheetFormRenderModel HtmxOverlayForm timesheetFormInputs))
@@ -74,8 +83,8 @@ deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
         }
     ]
     where
-        requestParams = timesheetWindowStateQueryParams (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId <> [("rosterCalendarRevision", tshow calendarRevision)]
-        confirmationUrl = appendQueryParams (pathTo (ShowTimesheetEntryDeleteConfirmationAction (get #id timesheetEntry))) requestParams
+        requestParams = timesheetDeleteRequestParams timesheetEntry calendarRevision selectedStaffFilterId
+        confirmationUrl = pathTo (ShowTimesheetEntryDeleteConfirmationAction (get #id timesheetEntry))
 
 renderTimesheetDeleteConfirmation :: (?context :: ControllerContext) => TimesheetEntry -> Int -> Maybe UUID -> Html
 renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffFilterId =
@@ -111,3 +120,13 @@ renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffF
             (defaultAppShellActionRoute editUrl)
             requestParams
         }
+
+timesheetDeleteRequestParams :: TimesheetEntry -> Int -> Maybe UUID -> [(Text, Text)]
+timesheetDeleteRequestParams timesheetEntry calendarRevision selectedStaffFilterId =
+    surfaceFieldsText $
+        appShellActionFields @OpenTimesheetDeleteConfirmationDialog
+            (surfaceField @AnchorDateField (tshow (timesheetEntryOperationalDate timesheetEntry) :: Text))
+            ( surfaceField @RosterCalendarRevisionField (tshow calendarRevision)
+                &: surfaceField @StaffFilterIdField (maybe "" tshow selectedStaffFilterId)
+                &: noSurfaceFields
+            )

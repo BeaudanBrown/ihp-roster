@@ -1,9 +1,11 @@
 import {
+    parseDialogDismissalGuardConfiguration,
     parseDialogSubmitConfiguration,
     parseNavigationLoadingConfiguration,
 } from "../app-dialog-overlays";
 import { parseToastConfiguration } from "../app-toasts";
 import { createDialogDismissalLifecycle, installPointerDismissFocusCleanup } from "../dialog-overlays/lifecycle";
+import { createUnsavedChangeTracker, validateDismissalGuardConfig } from "../dialog-overlays/unsaved-guard";
 import { dialogDismissedEvent, dialogPointerDismissBlurDomAttr } from "../generated/contracts";
 import { MiniElement } from "./mini-dom";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
@@ -12,6 +14,22 @@ test("overlay adapter parses exact generated dialog submit and toast configs", (
     assertDeepEqual(
         parseDialogSubmitConfiguration(JSON.stringify({ loadingLabel: "Saving..." })),
         { loadingLabel: "Saving..." },
+    );
+    assertDeepEqual(
+        parseDialogDismissalGuardConfiguration(JSON.stringify({
+            formId: "timesheet-entry-edit-form",
+            guardImmediately: false,
+            confirmationTitle: "Discard unsaved changes?",
+            keepEditingLabel: "Keep editing",
+            discardLabel: "Discard changes",
+        })),
+        {
+            formId: "timesheet-entry-edit-form",
+            guardImmediately: false,
+            confirmationTitle: "Discard unsaved changes?",
+            keepEditingLabel: "Keep editing",
+            discardLabel: "Discard changes",
+        },
     );
     assertDeepEqual(
         parseNavigationLoadingConfiguration(JSON.stringify({
@@ -27,6 +45,28 @@ test("overlay adapter parses exact generated dialog submit and toast configs", (
         parseToastConfiguration(JSON.stringify({ autoHideMs: 3200 })),
         { autoHideMs: 3200 },
     );
+});
+
+test("unsaved dismissal tracker guards new forms and only normalized edit changes", () => {
+    const changedOnly = createUnsavedChangeTracker('[["startTime","09:00"]]', false);
+    assertEqual(changedOnly.isGuarded('[["startTime","09:00"]]'), false);
+    assertEqual(changedOnly.isGuarded('[["startTime","10:00"]]'), true);
+    assertEqual(changedOnly.isGuarded('[["startTime","09:00"]]'), false);
+
+    const immediate = createUnsavedChangeTracker("[]", true);
+    assertEqual(immediate.isGuarded("[]"), true);
+});
+
+test("unsaved dismissal config rejects empty server-owned form ids and copy", () => {
+    const valid = {
+        formId: "timesheet-entry-edit-form",
+        guardImmediately: false,
+        confirmationTitle: "Discard unsaved changes?",
+        keepEditingLabel: "Keep editing",
+        discardLabel: "Discard changes",
+    };
+    assertDeepEqual(validateDismissalGuardConfig(valid), valid);
+    assertThrows(() => validateDismissalGuardConfig({ ...valid, confirmationTitle: " " }), "confirmationTitle must not be empty");
 });
 
 test("dialog dismissal lifecycle reconciles imperative clears and replacements exactly once", () => {
@@ -155,6 +195,16 @@ test("overlay adapter rejects malformed or semantically invalid generated config
     assertThrows(
         () => parseDialogSubmitConfiguration(JSON.stringify({ loadingLabel: "   " })),
         "loadingLabel must not be empty",
+    );
+    assertThrows(
+        () => parseDialogDismissalGuardConfiguration(JSON.stringify({
+            formId: "form",
+            guardImmediately: false,
+            confirmationTitle: "",
+            keepEditingLabel: "Keep editing",
+            discardLabel: "Discard",
+        })),
+        "confirmationTitle must not be empty",
     );
     assertThrows(
         () => parseNavigationLoadingConfiguration(JSON.stringify({ loadingTitle: "", loadingMessage: "Waiting" })),

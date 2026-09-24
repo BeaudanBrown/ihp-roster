@@ -65,6 +65,7 @@ renderPayrollWorkbookConfigurationDialog availableFamilies anchorDate draft =
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = defaultOverlayButtons editorFormId
         , dialogOverlayDialogClass = "modal-lg"
+        , dialogOverlayDismissalGuard = Nothing
         }
 
 renderEditorForm :: [PayrollWorkbookSheetFamily] -> Day -> PayrollWorkbookConfigurationDraft -> Html

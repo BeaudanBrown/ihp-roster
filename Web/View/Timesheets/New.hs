@@ -34,6 +34,7 @@ newTimesheetFormId = "timesheet-entry-create-form"
 renderNewTimesheetDialog :: NewTimesheetRenderModel -> Html
 renderNewTimesheetDialog newTimesheetRenderModel =
     renderTimesheetEntryDialog
+        GuardNewTimesheet
         (timesheetModalTitle operationalDate)
         newTimesheetFormId
         (renderTimesheetForm (newTimesheetFormRenderModel HtmxOverlayForm newTimesheetRenderModel))

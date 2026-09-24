@@ -6,6 +6,7 @@
 module Application.Helper.View.Overlay
     ( ConfirmationDialogConfig (..)
     , ConfirmationDialogTone (..)
+    , DialogDismissalGuardConfigValue (..)
     , DialogOverlayConfig (..)
     , OverlayButton (..)
     , OverlayButtonAction (..)
@@ -70,11 +71,12 @@ data OverlayButton = OverlayButton
     }
 
 data DialogOverlayConfig = DialogOverlayConfig
-    { dialogOverlayTitle        :: !Text
-    , dialogOverlayBody         :: !Html
-    , dialogOverlayStartButtons :: ![OverlayButton]
-    , dialogOverlayButtons      :: ![OverlayButton]
-    , dialogOverlayDialogClass  :: !Text
+    { dialogOverlayTitle          :: !Text
+    , dialogOverlayBody           :: !Html
+    , dialogOverlayStartButtons   :: ![OverlayButton]
+    , dialogOverlayButtons        :: ![OverlayButton]
+    , dialogOverlayDialogClass    :: !Text
+    , dialogOverlayDismissalGuard :: !(Maybe DialogDismissalGuardConfigValue)
     }
 
 data ConfirmationDialogTone
@@ -115,6 +117,7 @@ defaultDialogOverlayConfig title body buttons = DialogOverlayConfig
     , dialogOverlayStartButtons = []
     , dialogOverlayButtons = buttons
     , dialogOverlayDialogClass = ""
+    , dialogOverlayDismissalGuard = Nothing
     }
 
 dialogOverlayCloseButton :: Text -> OverlayButton
@@ -162,6 +165,7 @@ renderConfirmationDialog ConfirmationDialogConfig
                 }
             ]
         , dialogOverlayDialogClass = confirmationDialogClass
+        , dialogOverlayDismissalGuard = Nothing
         }
 
 confirmationToneButtonClass :: ConfirmationDialogTone -> Text
@@ -183,9 +187,9 @@ renderDialogOverlayWithCloseRole =
     renderDialogOverlayWithOptions [] [(domAttrValue @marker, "true")] False
 
 renderDialogOverlayWithOptions :: [(Text, Text)] -> [(Text, Text)] -> Bool -> DialogOverlayConfig -> Html
-renderDialogOverlayWithOptions mountAttrs closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderDialogOverlayWithOptions mountAttrs closeAttrs keyboardEnabled DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass, dialogOverlayDismissalGuard } = [hsx|
     <div class="modal fade show d-block"
-         {...dialogMountAttrs <> mountAttrs <> if keyboardEnabled then dialogKeyboardAttrs else []}
+         {...dialogMountAttrs <> mountAttrs <> maybe [] dialogDismissalGuardAttrs dialogOverlayDismissalGuard <> if keyboardEnabled then dialogKeyboardAttrs else []}
          tabindex="-1"
          role="dialog"
          aria-modal="true"
@@ -328,7 +332,7 @@ renderGeneratedOverlayFormHiddenField (AppShellFieldValue (fieldName, fieldValue
 |]
 
 renderPageDialogModal :: Text -> DialogOverlayConfig -> Html
-renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass, .. } = [hsx|
     <div class="modal fade overflow-auto show app-page-dialog-modal"
          id="modal"
          tabindex="-1"

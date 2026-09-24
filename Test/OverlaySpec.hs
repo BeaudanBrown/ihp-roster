@@ -4,7 +4,7 @@ module Test.OverlaySpec where
 
 import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime
-import Application.Helper.FrontendContract.Overlay.Runtime (dialogPointerDismissBlurAttrs, navigationLoadingAttrs)
+import Application.Helper.FrontendContract.Overlay.Runtime (DialogDismissalGuardConfigValue (..), dialogDismissalGuardAttrs, dialogPointerDismissBlurAttrs, navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
 import Application.Helper.View.Toast
@@ -31,6 +31,19 @@ pureTests = do
                 `shouldBe`
                     [ ("data-bepis-navigation-loading", "true")
                     , ("data-bepis-navigation-loading-config", "{\"loadingMessage\":\"Please wait while Bepis opens Stripe's secure billing page.\",\"loadingTitle\":\"Opening Stripe\"}")
+                    ]
+
+        it "renders exact generated unsaved-dismissal configuration" do
+            dialogDismissalGuardAttrs DialogDismissalGuardConfigValue
+                { dismissalGuardFormId = "timesheet-entry-edit-form"
+                , dismissalGuardImmediately = False
+                , dismissalGuardConfirmationTitle = "Discard unsaved changes?"
+                , dismissalGuardKeepEditingLabel = "Keep editing"
+                , dismissalGuardDiscardLabel = "Discard changes"
+                }
+                `shouldBe`
+                    [ ("data-bepis-dialog-dismissal-guard", "true")
+                    , ("data-bepis-dialog-dismissal-guard-config", "{\"confirmationTitle\":\"Discard unsaved changes?\",\"discardLabel\":\"Discard changes\",\"formId\":\"timesheet-entry-edit-form\",\"guardImmediately\":false,\"keepEditingLabel\":\"Keep editing\"}")
                     ]
 
 -- Literal expectations deliberately do not call the production attribute builders.
@@ -155,6 +168,21 @@ databaseTests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` Text.isInfixOf "aria-labelledby=\"dialog-overlay-title\""
                 html `shouldSatisfy` not . Text.isInfixOf "data-dialog-overlay"
                 html `shouldSatisfy` not . Text.isInfixOf "data-loading-label"
+
+        it "renders an optional unsaved-dismissal guard on the dialog root" $ withContext do
+            withCurrentControllerContext do
+                let guard = DialogDismissalGuardConfigValue
+                        { dismissalGuardFormId = "edit-form"
+                        , dismissalGuardImmediately = False
+                        , dismissalGuardConfirmationTitle = "Discard unsaved changes?"
+                        , dismissalGuardKeepEditingLabel = "Keep editing"
+                        , dismissalGuardDiscardLabel = "Discard changes"
+                        }
+                    html = renderText (renderKeyboardDialogOverlay dialogConfig
+                        { dialogOverlayDismissalGuard = Just guard })
+
+                html `shouldSatisfy` Text.isInfixOf "data-bepis-dialog-dismissal-guard=\"true\""
+                html `shouldSatisfy` Text.isInfixOf "Discard unsaved changes?"
 
         it "opts keyboard dialogs into one generated content focus region" $ withContext do
             withCurrentControllerContext do

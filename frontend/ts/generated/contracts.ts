@@ -425,6 +425,16 @@ export function parseDialogSubmitConfig(value: unknown): DialogSubmitConfig {
     throw new Error("Invalid DialogSubmitConfig");
 }
 
+export type DialogDismissalGuardConfig = { formId: string; guardImmediately: boolean; confirmationTitle: string; keepEditingLabel: string; discardLabel: string };
+export function isDialogDismissalGuardConfig(value: unknown): value is DialogDismissalGuardConfig {
+    return isRecord(value) && hasExactKeys(value, ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"], ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"]) && (typeof value["formId"] === "string") && (typeof value["guardImmediately"] === "boolean") && (typeof value["confirmationTitle"] === "string") && (typeof value["keepEditingLabel"] === "string") && (typeof value["discardLabel"] === "string");
+}
+
+export function parseDialogDismissalGuardConfig(value: unknown): DialogDismissalGuardConfig {
+    if (isDialogDismissalGuardConfig(value)) return value;
+    throw new Error("Invalid DialogDismissalGuardConfig");
+}
+
 export type NavigationLoadingConfig = { loadingTitle: string; loadingMessage: string };
 export function isNavigationLoadingConfig(value: unknown): value is NavigationLoadingConfig {
     return isRecord(value) && hasExactKeys(value, ["loadingTitle", "loadingMessage"], ["loadingTitle", "loadingMessage"]) && (typeof value["loadingTitle"] === "string") && (typeof value["loadingMessage"] === "string");
@@ -462,6 +472,10 @@ export const dialogCloseDomAttr = "data-bepis-dialog-close" as const;
 export const dialogSubmitDomAttr = "data-bepis-dialog-submit" as const;
 
 export const dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config" as const;
+
+export const dialogDismissalGuardDomAttr = "data-bepis-dialog-dismissal-guard" as const;
+
+export const dialogDismissalGuardConfigDomAttr = "data-bepis-dialog-dismissal-guard-config" as const;
 
 export const dialogBlockingDomAttr = "data-bepis-dialog-blocking" as const;
 

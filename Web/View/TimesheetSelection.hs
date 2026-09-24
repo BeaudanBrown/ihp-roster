@@ -49,6 +49,7 @@ renderTimesheetSelectionDialog config@TimesheetSelectionDialog { selectionDialog
             }
         ]
     , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
+    , dialogOverlayDismissalGuard = Nothing
     }
 
 timesheetSelectionFormAttributes :: [(Text, Text)]

@@ -165,6 +165,13 @@
     if (isDialogSubmitConfig(value)) return value;
     throw new Error("Invalid DialogSubmitConfig");
   }
+  function isDialogDismissalGuardConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"], ["formId", "guardImmediately", "confirmationTitle", "keepEditingLabel", "discardLabel"]) && typeof value["formId"] === "string" && typeof value["guardImmediately"] === "boolean" && typeof value["confirmationTitle"] === "string" && typeof value["keepEditingLabel"] === "string" && typeof value["discardLabel"] === "string";
+  }
+  function parseDialogDismissalGuardConfig(value) {
+    if (isDialogDismissalGuardConfig(value)) return value;
+    throw new Error("Invalid DialogDismissalGuardConfig");
+  }
   function isNavigationLoadingConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["loadingTitle", "loadingMessage"], ["loadingTitle", "loadingMessage"]) && typeof value["loadingTitle"] === "string" && typeof value["loadingMessage"] === "string";
   }
@@ -187,6 +194,8 @@
   var dialogCloseDomAttr = "data-bepis-dialog-close";
   var dialogSubmitDomAttr = "data-bepis-dialog-submit";
   var dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config";
+  var dialogDismissalGuardDomAttr = "data-bepis-dialog-dismissal-guard";
+  var dialogDismissalGuardConfigDomAttr = "data-bepis-dialog-dismissal-guard-config";
   var dialogBlockingDomAttr = "data-bepis-dialog-blocking";
   var dialogKeyboardDomAttr = "data-bepis-dialog-keyboard";
   var dialogFocusRegionDomAttr = "data-bepis-dialog-focus-region";
@@ -5016,12 +5025,41 @@
   enableFrontendSurfaceTabSets();
   enableSidePanels();
 
+  // frontend/ts/dialog-overlays/unsaved-guard.ts
+  function createUnsavedChangeTracker(baselineSnapshot, guardImmediately) {
+    return {
+      baselineSnapshot,
+      isGuarded: (currentSnapshot) => guardImmediately || currentSnapshot !== baselineSnapshot
+    };
+  }
+  function normalizedFormSnapshot(form) {
+    const entries = Array.from(new FormData(form).entries()).map(([name, value], index) => ({
+      name,
+      value: normalizeEntryValue(value),
+      index
+    }));
+    entries.sort((left, right) => left.name.localeCompare(right.name) || left.index - right.index);
+    return JSON.stringify(entries.map(({ name, value }) => [name, value]));
+  }
+  function normalizeEntryValue(value) {
+    if (typeof value === "string") return value.replace(/\r\n?/g, "\n");
+    return JSON.stringify({ name: value.name, size: value.size, type: value.type, lastModified: value.lastModified });
+  }
+  function validateDismissalGuardConfig(config) {
+    if (config.formId.trim().length === 0) throw new Error("DialogDismissalGuardConfig formId must not be empty");
+    if (config.confirmationTitle.trim().length === 0) throw new Error("DialogDismissalGuardConfig confirmationTitle must not be empty");
+    if (config.keepEditingLabel.trim().length === 0) throw new Error("DialogDismissalGuardConfig keepEditingLabel must not be empty");
+    if (config.discardLabel.trim().length === 0) throw new Error("DialogDismissalGuardConfig discardLabel must not be empty");
+    return config;
+  }
+
   // frontend/ts/app-dialog-overlays.ts
   var dialogMountSelector = `[${dialogMountDomAttr}]`;
   var dialogKeyboardSelector = `[${dialogKeyboardDomAttr}]`;
   var dialogFocusRegionSelector = `[${dialogFocusRegionDomAttr}]`;
   var dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
   var dialogCloseSelector = `[${dialogCloseDomAttr}]`;
+  var dialogDismissalGuardSelector = `[${dialogDismissalGuardDomAttr}]`;
   var navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
   var originalSubmitHtml = /* @__PURE__ */ new WeakMap();
   var dialogLoadingStates = /* @__PURE__ */ new WeakMap();
@@ -5054,6 +5092,9 @@
       throw new Error("DialogSubmitConfig loadingLabel must not be empty");
     }
     return config;
+  }
+  function parseDialogDismissalGuardConfiguration(raw) {
+    return validateDismissalGuardConfig(parseDialogDismissalGuardConfig(JSON.parse(raw)));
   }
   function parseNavigationLoadingConfiguration(raw) {
     const config = parseNavigationLoadingConfig(JSON.parse(raw));
@@ -5145,7 +5186,24 @@
     const overlayOwner = {};
     const bootstrapDialogs = /* @__PURE__ */ new Set();
     const returnFocus = /* @__PURE__ */ new WeakMap();
+    const dismissalGuards = /* @__PURE__ */ new WeakMap();
+    let activeGuardTracker = null;
+    let activeGuardFormId = null;
+    let beforeUnloadInstalled = false;
     let previousModal = null;
+    function handleBeforeUnload(event) {
+      const activeDialog = getActiveDialog();
+      const guard = activeDialog === null ? void 0 : dismissalGuards.get(activeDialog);
+      if (guard === void 0 || !guard.tracker.isGuarded(normalizedFormSnapshot(guard.form))) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    function setBeforeUnloadInstalled(enabled) {
+      if (enabled === beforeUnloadInstalled) return;
+      beforeUnloadInstalled = enabled;
+      if (enabled) window.addEventListener("beforeunload", handleBeforeUnload);
+      else window.removeEventListener("beforeunload", handleBeforeUnload);
+    }
     function getMount() {
       const mountEl = document.getElementById(mountId);
       return isHTMLElement(mountEl) ? mountEl : null;
@@ -5190,10 +5248,46 @@
       const autofocus = controls2.find((control) => control.hasAttribute("autofocus"));
       (firstInvalid ?? autofocus ?? (region ? controls2[0] : null) ?? dialog).focus({ preventScroll: true });
     }
+    function initializeDismissalGuard(dialog) {
+      if (!dialog.matches(dialogDismissalGuardSelector)) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
+        return;
+      }
+      const rawConfig = dialog.getAttribute(dialogDismissalGuardConfigDomAttr);
+      try {
+        if (rawConfig === null) throw new Error(`Missing ${dialogDismissalGuardConfigDomAttr}`);
+        const config = parseDialogDismissalGuardConfiguration(rawConfig);
+        const form = document.getElementById(config.formId);
+        if (!(form instanceof HTMLFormElement) || !dialog.contains(form)) {
+          throw new Error(`Dialog dismissal guard form '${config.formId}' is not inside the dialog`);
+        }
+        const tracker = activeGuardTracker !== null && activeGuardFormId === config.formId ? activeGuardTracker : createUnsavedChangeTracker(normalizedFormSnapshot(form), config.guardImmediately);
+        activeGuardTracker = tracker;
+        activeGuardFormId = config.formId;
+        dismissalGuards.set(dialog, { config, form, tracker, confirmation: null });
+        setBeforeUnloadInstalled(true);
+      } catch (error) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
+        console.error?.("Invalid generated dialog dismissal guard configuration", {
+          code: "invalid-dialog-dismissal-guard-config",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
     function initializeKeyboardDialogs(root) {
-      if (root instanceof HTMLElement && root.matches(dialogMountSelector)) focusKeyboardDialog(root);
+      if (root instanceof HTMLElement && root.matches(dialogMountSelector)) {
+        initializeDismissalGuard(root);
+        focusKeyboardDialog(root);
+      }
       root.querySelectorAll(dialogMountSelector).forEach((dialog) => {
-        if (dialog instanceof HTMLElement) focusKeyboardDialog(dialog);
+        if (dialog instanceof HTMLElement) {
+          initializeDismissalGuard(dialog);
+          focusKeyboardDialog(dialog);
+        }
       });
     }
     function getTopModal() {
@@ -5277,8 +5371,96 @@
       syncDialogState();
       dialogEl.focus({ preventScroll: true });
     }
+    function keepEditing(dialogEl) {
+      const state = dismissalGuards.get(dialogEl);
+      if (state?.confirmation === null || state === void 0) return;
+      state.confirmation.elements.forEach((element) => element.remove());
+      state.confirmation.contentChildren.forEach(({ element, hidden }) => {
+        element.hidden = hidden;
+      });
+      const { previousFocus, originalFocusRegion, previousAriaLabelledBy } = state.confirmation;
+      const content = dialogEl.querySelector(":scope > .modal-dialog > .modal-content");
+      if (content instanceof HTMLElement) content.removeAttribute(dialogFocusRegionDomAttr);
+      originalFocusRegion?.setAttribute(dialogFocusRegionDomAttr, "true");
+      if (previousAriaLabelledBy === null) dialogEl.removeAttribute("aria-labelledby");
+      else dialogEl.setAttribute("aria-labelledby", previousAriaLabelledBy);
+      state.confirmation = null;
+      if (previousFocus?.isConnected && dialogEl.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
+      else focusKeyboardDialog(dialogEl);
+    }
+    function showDismissalConfirmation(dialogEl, state) {
+      if (state.confirmation !== null) return;
+      const content = dialogEl.querySelector(":scope > .modal-dialog > .modal-content");
+      if (!(content instanceof HTMLElement)) return;
+      const contentChildren = Array.from(content.children).filter(isHTMLElement).map((element) => ({ element, hidden: element.hidden }));
+      const originalFocusRegion = keyboardFocusRegion(dialogEl);
+      originalFocusRegion?.removeAttribute(dialogFocusRegionDomAttr);
+      content.setAttribute(dialogFocusRegionDomAttr, "true");
+      contentChildren.forEach(({ element }) => {
+        element.hidden = true;
+      });
+      const header = document.createElement("div");
+      header.className = "modal-header";
+      const title = document.createElement("h5");
+      title.className = "modal-title";
+      title.id = "dialog-overlay-confirmation-title";
+      title.textContent = state.config.confirmationTitle;
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "btn-close";
+      close.setAttribute("aria-label", "Close");
+      header.append(title, close);
+      const body = document.createElement("div");
+      body.className = "modal-body";
+      const footer = document.createElement("div");
+      footer.className = "modal-footer app-modal-footer";
+      const actions = document.createElement("div");
+      actions.className = "app-modal-footer-end";
+      const keep = document.createElement("button");
+      keep.type = "button";
+      keep.className = "btn btn-outline-secondary";
+      keep.textContent = state.config.keepEditingLabel;
+      const discard = document.createElement("button");
+      discard.type = "button";
+      discard.className = "btn btn-danger";
+      discard.textContent = state.config.discardLabel;
+      actions.append(keep, discard);
+      footer.append(actions);
+      const elements = [header, body, footer];
+      content.append(...elements);
+      const previousAriaLabelledBy = dialogEl.getAttribute("aria-labelledby");
+      dialogEl.setAttribute("aria-labelledby", title.id);
+      state.confirmation = {
+        contentChildren,
+        elements,
+        previousFocus: isHTMLElement(document.activeElement) ? document.activeElement : null,
+        originalFocusRegion,
+        previousAriaLabelledBy
+      };
+      close.addEventListener("click", () => keepEditing(dialogEl));
+      keep.addEventListener("click", () => keepEditing(dialogEl));
+      discard.addEventListener("click", () => clearDialog(dialogEl));
+      keep.focus({ preventScroll: true });
+    }
+    function requestDialogDismissal(dialogEl) {
+      const guard = dismissalGuards.get(dialogEl);
+      if (guard?.confirmation !== null && guard !== void 0) {
+        keepEditing(dialogEl);
+        return;
+      }
+      if (dialogEl.hasAttribute(dialogBlockingDomAttr)) return;
+      if (guard !== void 0 && guard.tracker.isGuarded(normalizedFormSnapshot(guard.form))) {
+        showDismissalConfirmation(dialogEl, guard);
+        return;
+      }
+      clearDialog(dialogEl);
+    }
     function clearDialog(dialogEl) {
       const mountEl = getMount();
+      dismissalGuards.delete(dialogEl);
+      activeGuardTracker = null;
+      activeGuardFormId = null;
+      setBeforeUnloadInstalled(false);
       const eventOwner = mountEl !== null && mountEl.contains(dialogEl) ? mountEl : dialogEl;
       dismissalLifecycle.dismiss(dialogEl, eventOwner);
       if (mountEl !== null && mountEl.contains(dialogEl)) {
@@ -5302,22 +5484,20 @@
       const closeDialog = closeEl?.closest(dialogMountSelector);
       if (closeEl !== null && isHTMLElement(closeDialog)) {
         event.preventDefault();
-        clearDialog(closeDialog);
+        requestDialogDismissal(closeDialog);
         return;
       }
       const backdropEl = closestHTMLElement(event.target, dialogBackdropSelector);
       const backdropDialog = backdropEl?.parentElement?.querySelector(dialogMountSelector);
       if (backdropEl !== null && isHTMLElement(backdropDialog)) {
         event.preventDefault();
-        if (backdropDialog.hasAttribute(dialogBlockingDomAttr)) return;
-        clearDialog(backdropDialog);
+        requestDialogDismissal(backdropDialog);
         return;
       }
       const activeDialog = getActiveDialog();
       if (activeDialog !== null && event.target === activeDialog) {
         event.preventDefault();
-        if (activeDialog.hasAttribute(dialogBlockingDomAttr)) return;
-        clearDialog(activeDialog);
+        requestDialogDismissal(activeDialog);
       }
     });
     document.addEventListener("keydown", function(event) {
@@ -5341,6 +5521,7 @@
         controls2[nextIndex]?.focus();
         return;
       }
+      if (event.key === "Enter" && dismissalGuards.get(activeDialog)?.confirmation !== null && dismissalGuards.get(activeDialog) !== void 0) return;
       if (event.key === "Enter" && focusRegion !== null && !event.isComposing && !event.ctrlKey && !event.metaKey && !event.altKey) {
         const target = event.target;
         if (target instanceof HTMLTextAreaElement || target instanceof HTMLElement && target.isContentEditable) return;
@@ -5353,7 +5534,7 @@
       }
       if (event.key !== "Escape") return;
       event.preventDefault();
-      if (!activeDialog.hasAttribute(dialogBlockingDomAttr)) clearDialog(activeDialog);
+      requestDialogDismissal(activeDialog);
     });
     document.addEventListener("change", function(event) {
       const target = event.target;
@@ -5431,6 +5612,11 @@
       reconcileDialogDismissal(target);
       syncDialogState();
       initializeKeyboardDialogs(target);
+      if (getMountedDialog(target) === null) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
+      }
     });
     document.addEventListener("htmx:oobAfterSwap", function(event) {
       const target = detailRoot(event, "target");
@@ -5439,6 +5625,11 @@
       reconcileDialogDismissal(target);
       syncDialogState();
       initializeKeyboardDialogs(target);
+      if (getMountedDialog(target) === null) {
+        activeGuardTracker = null;
+        activeGuardFormId = null;
+        setBeforeUnloadInstalled(false);
+      }
     });
     window.addEventListener("pageshow", function(event) {
       const activeDialog = getActiveDialog();

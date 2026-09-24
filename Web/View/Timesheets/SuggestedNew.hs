@@ -34,6 +34,7 @@ suggestedTimesheetFormId = "timesheet-suggestion-create-form"
 renderSuggestedTimesheetDialog :: SuggestedTimesheetRenderModel -> Html
 renderSuggestedTimesheetDialog suggestedTimesheetRenderModel =
     renderTimesheetEntryDialog
+        GuardNewTimesheet
         ("Rostered " <> timesheetModalTitle operationalDate)
         suggestedTimesheetFormId
         (renderSuggestedTimesheetForm HtmxOverlayForm suggestedTimesheetRenderModel)
