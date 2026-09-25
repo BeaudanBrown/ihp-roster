@@ -81,7 +81,6 @@ test.describe('Unavailability shared SidePanel', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await openManagerUnavailability(page);
 
-        await page.getByRole('button', { name: 'Open Unavailability tools' }).click();
         const panel = page.locator(`[${leaveRequestsLeaveSidePanelPanelDomAttr}]`);
         const shelf = page.locator(`[${leaveRequestsSidePanelShelfToggleDomAttr}]`);
         await expect(shelf).toHaveAttribute('aria-expanded', 'false');

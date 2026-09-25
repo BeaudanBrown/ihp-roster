@@ -307,6 +307,7 @@ autofocusTimesheetModel = TimesheetFormRenderModel
         }
     , timesheetFormPresentation = TimesheetFormPresentation
         { appShellAction = appShellActionByMarker @CreateTimesheetEntryOverlay
+        , formSurfaceAction = Nothing
         , formOrigin = AdHocTimesheetForm, actionUrl = "/CreateTimesheetEntry", formId = "focus-form", formMode = HtmxOverlayForm }
     }
   where

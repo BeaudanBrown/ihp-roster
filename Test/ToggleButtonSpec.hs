@@ -45,13 +45,13 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldSatisfy` Text.isInfixOf "data-bepis-toggle-label-state=\"unchecked\">Disabled"
                 html `shouldSatisfy` Text.isInfixOf "type=\"checkbox\""
                 html `shouldSatisfy` not . Text.isInfixOf "checked=\"checked\""
-                html `shouldSatisfy` not . Text.isInfixOf "aria-pressed="
+                html `shouldSatisfy` Text.isInfixOf "aria-pressed=\"false\""
 
                 let checkedHtml = renderText (renderAppToggleButton ((defaultAppToggleStateButtonConfig "checked-state-toggle" (namedBooleanToggleField "enabled") True (HtmlRenderer.toHtml ("Enabled" :: Text)) (HtmlRenderer.toHtml ("Disabled" :: Text))) { appToggleRoleSwitch = True }))
                 checkedHtml `shouldSatisfy` Text.isInfixOf "data-bepis-toggle-label-state=\"checked\">Enabled"
                 checkedHtml `shouldSatisfy` Text.isInfixOf "data-bepis-toggle-label-state=\"unchecked\" hidden=\"hidden\">Disabled"
                 checkedHtml `shouldSatisfy` Text.isInfixOf "type=\"checkbox\" role=\"switch\" aria-checked=\"true\" checked=\"checked\""
-                checkedHtml `shouldSatisfy` not . Text.isInfixOf "aria-pressed="
+                checkedHtml `shouldSatisfy` Text.isInfixOf "aria-pressed=\"true\""
 
         it "keeps presentation state distinct from a typed non-Boolean Action field mapping" $ withContext do
             withCurrentControllerContext do

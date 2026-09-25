@@ -1,13 +1,13 @@
 # Runtime verification iteration
 
-Proposed design for [#579](https://github.com/BeaudanBrown/ihp-roster/issues/579)
-under [epic #576](https://github.com/BeaudanBrown/ihp-roster/issues/576).
-[#580](https://github.com/BeaudanBrown/ihp-roster/issues/580) owns cross-pipeline
-ranking; compiler reuse is covered by
-[the compiler workstream](verification-compiler-evidence.md).
-These options are not implemented. Measurements, benefit bounds, interruptions
-and current status belong to #579; local artifacts remain under
-`.pi/tmp/verify-profile/issue-579/`.
+Unresolved runtime design for
+[epic #598](https://github.com/BeaudanBrown/ihp-roster/issues/598), informed by
+[#579](https://github.com/BeaudanBrown/ihp-roster/issues/579). Compiler reuse is
+covered by [the compiler workstream](verification-compiler-evidence.md).
+The issue graph owns remaining scope and acceptance; historical timings are not
+controls for current code. Preserve current runtime ownership in
+[tooling/README.md](../../tooling/README.md) and the local test guides rather than
+reimplementing it as profiling infrastructure.
 
 ## Ranked design options
 
@@ -44,11 +44,12 @@ Rebalance after wait removal, rather than adding overlapping hypothetical gains.
 
 ### 3. Reuse immutable executables, not runtime state
 
-Apply the compiler workstream's identity/publication protocol to executable
-reuse at `Config/nix/scripts/e2e/e2e`. Copy/reflink validated outputs into private
-run paths; avoid writable hardlinks and replacement of executing binaries.
-Keep this opportunity distinct from runtime lifecycle changes governed by
-`e2e/AGENTS.md` and the managed runtime owners.
+Start from GHC-checked stable executables and private per-run copies/reflinks at
+`Config/nix/scripts/e2e/e2e`. Validate invalidation, concurrency and interruption
+before adding the compiler workstream's additional result-cache protocol.
+Avoid writable hardlinks and replacement of executing binaries. Preserve the
+managed process, port, run-directory and database owners in `e2e/AGENTS.md`;
+additional identity machinery requires measured benefit.
 
 Before selecting a reuse or sequencing change, capture launch-to-ready/failure
 intervals individually for MailHog, Stripe mock, app, worker and browser/shard

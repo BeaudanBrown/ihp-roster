@@ -17,6 +17,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField,
+                                                           surfaceOptionalField,
                                                            surfaceFieldsText,
                                                            (&:))
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
@@ -132,6 +133,6 @@ timesheetDeleteRequestParams timesheetEntry calendarRevision selectedStaffFilter
         appShellActionFields @OpenTimesheetDeleteConfirmationDialog
             (surfaceField @AnchorDateField (tshow (timesheetEntryOperationalDate timesheetEntry) :: Text))
             ( surfaceField @RosterCalendarRevisionField (tshow calendarRevision)
-                &: surfaceField @StaffFilterIdField (maybe "" tshow selectedStaffFilterId)
+                &: surfaceOptionalField @StaffFilterIdField (tshow <$> selectedStaffFilterId)
                 &: noSurfaceFields
             )

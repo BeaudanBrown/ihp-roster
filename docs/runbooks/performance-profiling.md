@@ -164,7 +164,8 @@ App readiness uses the existing login-page probe; Stripe uses Warp's before-main
 callback. Worker readiness observes acknowledged PostgreSQL LISTEN subscriptions,
 not merely a live PID or queued subscription. These are startup observations,
 not continuing health guarantees or new test gates. Worker/Stripe deaths already
-observed at cleanup close unfinished startup intervals only after producer reap;
+observed at cleanup, or explicitly rejected by the runtime launcher, close
+unfinished startup intervals only after the runtime owner confirms termination;
 that timestamp is the observation time, not the exact time of death. Intentional
 cleanup and death after readiness do not become startup failures.
 

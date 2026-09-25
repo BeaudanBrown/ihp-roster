@@ -469,7 +469,7 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "app-toggle-button-input\" type=\"checkbox\" checked=\"checked\""
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-transport=\""
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-config=\""
-                pageResponse `responseBodyShouldNotContain` "aria-pressed="
+                pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""
                 pageResponse `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"input changed delay:600ms, blur changed\""

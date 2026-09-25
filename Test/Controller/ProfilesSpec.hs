@@ -165,7 +165,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "type=\"checkbox\" data-bepis-toggle-input=\"toggle-transport:shiftPreferenceAvailable-1\""
                 response `responseBodyShouldContain` "type=\"checkbox\" checked=\"checked\" data-bepis-toggle-input=\"toggle-transport:shiftPreferenceAvailable-2\""
                 response `responseBodyShouldContain` "app-toggle-button"
-                response `responseBodyShouldNotContain` "aria-pressed="
+                response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "class=\"visually-hidden app-toggle-button-input\" type=\"checkbox\""
                 response `responseBodyShouldNotContain` "<th scope=\"col\">Day</th>"
                 response `responseBodyShouldNotContain` "table-responsive"

@@ -1,11 +1,11 @@
 # Verification remediation acceptance design
 
-Proposed cross-cutting design for
-[#580](https://github.com/BeaudanBrown/ihp-roster/issues/580) in
-[epic #576](https://github.com/BeaudanBrown/ihp-roster/issues/576).
-The issue owns measured ranking, proposed implementation slices, dependencies
-and selection. No performance implementation or gate-policy change is authorized
-by this document. Detailed owner designs remain in the
+Cross-cutting acceptance design for
+[epic #598](https://github.com/BeaudanBrown/ihp-roster/issues/598), informed by
+[#580](https://github.com/BeaudanBrown/ihp-roster/issues/580).
+The issue graph owns implementation scope, dependencies and selection. Current
+owner contracts supersede historical implementation assumptions; this document
+alone authorizes neither new result reuse nor gate-policy changes. Detailed owner designs remain in the
 [compiler](verification-compiler-evidence.md) and
 [runtime](verification-runtime-iteration.md) workstreams.
 
@@ -18,12 +18,13 @@ and static compiler evidence can then be implemented independently. Schedule
 runtime groups only after removing avoidable waits, since their weights change.
 Defer a cross-owner DAG until producer identities and publication are proven.
 
-The first evidence module should belong to strict warnings, behind a small
-interface that resolves inputs, validates/recomputes evidence and returns the
-original owner's result. Callers must not orchestrate lock, hash, publish and
-cleanup operations themselves. Extract shared mechanics only when a second
-real owner needs them. Weeder analysis, generated proofs and executables require
-different manifests and success conditions; avoid one permissive generic cache.
+Use the existing ownership and publication primitives in
+[the independent tooling packages](../../tooling/README.md), not parallel lock,
+hash or publication utilities. Measure each current owner before deciding whether
+additional result reuse is worthwhile; retaining a proven owner unchanged is an
+acceptable outcome. Weeder analysis, generated proofs, strict warnings and
+executables require distinct manifests and success conditions. Shared mechanics
+must not become one permissive success cache.
 
 ## Evidence ownership and publication contracts
 
@@ -74,14 +75,14 @@ lock that its producer needs. Same-key contenders wait and recheck; distinct
 keys must not share writable artifacts. Cancellation must release locks and
 reap owned descendants without deleting another producer's staging area.
 
-Only after serial isolation is proven, experiment with two strict-warning
-workers, private copied/reflinked interfaces/objects/temp roots and frozen
-inputs. Cap GHC jobs and RTS capabilities explicitly; worker count does not
-bound an inherited unbounded compiler job option. A combined 4 GiB experimental
-ceiling is a starting abort limit, not a demonstrated safe production default.
-Record aggregate process-tree/cgroup peaks, not a sum of independently observed
-RSS maxima. Exceeding the limit fails the experiment without publishing evidence;
-resizing requires new measurements. Keep a known-good serial route.
+Do not split the current structured-warning graph into per-subject processes.
+Any later parallel compiler experiment needs a demonstrated benefit, private
+copied/reflinked interfaces/objects/temp roots and frozen inputs. Cap GHC jobs
+and RTS capabilities explicitly; worker count does not bound inherited compiler
+parallelism. Agree an experimental memory ceiling before starting, record
+aggregate process-tree/cgroup peaks rather than summed historical RSS maxima,
+and abort without publication on resource exhaustion. Keep a known-good serial
+route; arbitrary shared graph writers remain prohibited.
 
 Browser/Hspec scheduling changes assign whole independently isolated groups,
 not concurrent examples sharing fixtures. Calculator batching owns one private
@@ -114,7 +115,7 @@ unit test alone cannot prove that a failing compiler/proof is never skipped.
 | Runtime scheduling/login/executable changes | Exact test/project identity sets and retry truth; delayed/missing readiness, stale auth, live acknowledgement/resync and process cleanup fixtures pass |
 | Calculator batching | Real formula/value and save/reopen checks, one cold start, contaminated/hung/invalid document cases and watchdog cleanup |
 | Reset/transaction refactor | Manifest completeness, sequence state, cross-example/venue leakage, pooled connections and committed observers remain protected |
-| Production/package boundary change | Reviewed closure/dependency/executable inventories, tooling exclusion, artifact/size limits and all executable smoke checks remain independent |
+| Production/package boundary change | Reviewed closure/dependency/executable inventories, tooling exclusion, exact current interfaces, static-only artifacts, runtime-link checks and all executable smoke checks remain independent (ADR 0011) |
 | Fast then full | Focused/fast feedback never substitutes for complete Hspec/browser/device/package/schema/migration/billing/deployment authority |
 
 ## Repeatable acceptance budgets
@@ -135,9 +136,10 @@ failed pipeline as a speedup. Follow `docs/runbooks/performance-profiling.md`.
   p95. Percentile claims need a separately sized repeated experiment.
 - Benefit acceptance: targeted owner median improves by at least the larger of
   5% or one second, beyond observed run-to-run noise, without guarantee loss.
-  Static-warning unchanged-hit goal: median at most ten seconds including
-  identity validation. This is a design target requiring measurement, not a
-  promised speedup. Reject or redesign a refactor whose overhead erases benefit.
+  If an additional strict-warning success cache is justified, its unchanged-hit
+  goal is median at most ten seconds including identity validation. This is a
+  design target, not a mandate to cache or a promised speedup. Reject or retain
+  the current owner when a refactor's overhead erases benefit.
 - Non-regression: matched complete fast/full medians must not worsen by more
   than 5%, and observed maxima by more than 10%; affected miss/output-cold owner
   paths get the same relative limits with a one-second measurement allowance.
@@ -146,7 +148,10 @@ failed pipeline as a speedup. Follow `docs/runbooks/performance-profiling.md`.
   128 MiB above control, as well as explicit experiment/host headroom limits.
   Parallelism exceeding that budget needs operator-approved evidence and revised
   limits, not silent acceptance. No production durability or test selection
-  change may be used to satisfy a performance target.
+  change may be used to satisfy a performance target. Compare the same current
+  command contract on both arms: historical `verify-fast` timings included
+  authorities now assigned to focused commands or `verify-full`, so their removal
+  must not be presented as an implementation speedup.
 - Required gates must all pass, with no new retries/flakes, suppressed failures,
   skipped tests or reduced device/fixture membership. If a control flakes,
   record the failure and resolve/classify it before claiming clean acceptance;
@@ -168,10 +173,12 @@ and diagnostics where possible. Never wipe shared caches/databases as rollback;
 only owner-scoped disposable state may be removed through its lifecycle. The
 new gate is not release authority until all required checks pass.
 
-Production closure/budget reconciliation, remote-builder health and stable
-measurement conditions are prerequisites to complete-pipeline acceptance, not
-performance shortcuts. They require independent reviewed changes or explicit
-labelled local-builder policy; do not silently raise budgets or disable builders.
+A successful structural production/full control under
+[ADR 0011](../adr/0011-structural-production-checks-not-footprint-budgets.md),
+remote-builder health and stable measurement conditions are prerequisites to
+complete-pipeline acceptance. Historical footprint-budget reconciliation is not
+required. Builder changes need explicit labelled policy; do not silently disable
+builders or weaken the current packaging authorities.
 Unsafe reset eligibility, precise per-process readiness attribution and parallel
 compiler memory feasibility remain proof obligations, not assumed savings.
 Per-subject warning invalidation and a cross-owner DAG should follow conservative

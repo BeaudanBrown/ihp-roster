@@ -1,201 +1,124 @@
 # Reusable compiler verification evidence
 
-Proposed design for [#578](https://github.com/BeaudanBrown/ihp-roster/issues/578),
-within [epic #576](https://github.com/BeaudanBrown/ihp-roster/issues/576).
-[#580](https://github.com/BeaudanBrown/ihp-roster/issues/580) owns the eventual
-cross-pipeline ranking; runtime orchestration remains with
-[#579](https://github.com/BeaudanBrown/ihp-roster/issues/579).
-These are recommendations, not implemented caches or permission to skip gates.
+Unresolved compiler design for
+[epic #598](https://github.com/BeaudanBrown/ihp-roster/issues/598), informed by
+[#578](https://github.com/BeaudanBrown/ihp-roster/issues/578). Current compiler
+and packaging authority lives in [Config/nix/README.md](../../Config/nix/README.md);
+shared lifecycle/publication ownership lives in
+[tooling/README.md](../../tooling/README.md). The issue graph owns scope,
+measurements and decisions to implement or retain an owner unchanged.
 
-## Evidence and confidence
+Historical investigation timings describe different code, selection and cache
+states. They are not the control for a new refactor. Re-establish a successful
+matched control using the [acceptance design](verification-remediation-plan.md).
+A candidate cache is not permission to skip gates.
 
-The [baseline](../archive/verification-performance-baseline-2026-09-16.md)
-provides serial stage boundaries on a contended host. #578 retains the bounded
-follow-up probe results and failures; raw diagnostic artifacts remain under
-`.pi/tmp/verify-profile/issue-578/`. No controlled before/after pipeline
-improvement has been measured. Existing compiler fixtures validate today's
-semantics, not a future cache or parallel scheduler.
+## Candidate boundaries
 
-The critical isolation constraint is that a fresh private output directory
-alone is insufficient: GHC must still resolve every dependency interface.
-Private copies of a prepared graph are a candidate, but require complete
-inventory and serial/parallel equivalence tests before adoption.
+### Strict warning success
 
-## Candidate boundaries and benefit bounds
+Preserve the forced `--make` graph and ownership-filtered structured diagnostics
+of `application-warnings`. Do not restore per-subject compiler processes or
+promote generated warnings to application authority. Existing compiler fixtures
+must retain cold/warm, instance-import, generated-exclusion, malformed-diagnostic
+and warning-policy coverage.
 
-### Strict warning success, before parallelism
+Measure the current owner before considering a complete-success cache in
+[#601](https://github.com/BeaudanBrown/ihp-roster/issues/601). A justified no-change
+outcome is preferable to a cache whose identity and validation overhead erase
+its benefit. If reuse is warranted, begin with complete whole-input success;
+per-subject invalidation and parallel compiler orchestration remain deferred.
+An option/dependency stamp written before compilation cannot certify success.
 
-The owner is `Config/nix/scripts/haskell/application-warnings`; option/build
-preparation is in `Config/nix/scripts/lib/ghc.sh`. Keep the dependency pass and
-strict one-shot subject semantics on a miss. `ghc-options.sha256` describes
-compiler options, is written before compilation, and cannot certify success.
-Warning flags alone do not force already-built subjects. Multi-subject forced
-`-c` can produce duplicate instances; forced `--make` can grant generated code
-warning authority. Neither is an acceptable shortcut.
+### Generated proof validation
 
-Start with a conservative whole-input successful-evidence key. An exact hit
-could avoid most of the observed 376–403s stage, minus generation, inventory,
-input-hashing and evidence-validation costs. This is an upper opportunity bound,
-not a demonstrated saving; “seconds” for an unchanged run remains a hypothesis.
-A relevant edit initially invalidates the entire certificate. Source-closure
-or per-subject certificates should follow only after proving dependency and
-Template Haskell invalidation. Repeated package/interface loading and TH work
-are plausible components of one-shot cost; no allocation/TH breakdown was
-measured, so do not attribute all 376s to compiler process startup.
+[#602](https://github.com/BeaudanBrown/ihp-roster/issues/602) must distinguish
+persistent dependency reuse from proof success. Every managed module and private
+proof still goes to GHC on every invocation; negative fixtures retain complete
+selection and attributed expected/rejected diagnostics. Unexpected compilation
+success or an unrelated compiler error must fail the negative-fixture owner.
 
-For changed runs, consider a two-worker experiment only after a successful
-serial baseline using frozen input snapshots. Each worker needs a private
-interface/object/temp tree (copy/reflink, never writable hardlinks), preserving
-one subject per session. The probe validates only serial private copies, not
-parallel equivalence across the full inventory. Bound the dependency build
-separately: inherited options contain bare `-j`, so worker count alone is not a
-CPU budget. Begin with two workers, explicit one-capability/one-job limits and
-a combined 4 GiB experiment ceiling with headroom; abort without evidence on
-resource exhaustion. Those are conservative experiment limits, not measured
-production defaults. Measure per-worker and aggregate peak memory before
-raising them. Two workers can at best halve the parallelizable portion, not
-the whole stage, and may lose to memory/I/O contention. Serial execution remains
-the fallback, with no weaker warnings.
+Temporary subject paths are not persistent compiler configuration. Prove that
+GHC sees fresh generated subjects despite reuse of unchanged dependencies;
+changed output bytes, missing/stale/extra outputs and unsafe proofs must be
+observed. Identity for any additional result reuse must include the actual
+generator/formatter, generated bytes, compiler/package closure and dependencies.
+Audit generated, ignored and untracked inputs, schema changes and deletions;
+do not treat an explicit inventory as automatically complete.
 
-### Stable generated proof inputs, without skipping proofs
+Use existing `bepis-artifacts` ownership rather than creating parallel locks or
+publication utilities. Each application owner still defines its own inputs,
+outputs, validation and success meaning. Generation freshness is not strict
+compiler or proof success, and graph overlap does not authorize shared writable
+interfaces between independent compiler owners.
 
-`frontend/surface-adapters-check` adds a fresh `mktemp` directory to GHC options;
-`ihp_roster_prepare_verification_cache` hashes that string. Every new path
-invalidates its persistent dependency cache. The same helper hashes contents
-of every tracked file, so a prose edit also invalidates adapter and
-`frontend/surface-compile-fail-check` caches. Generated and untracked inputs
-are not fully represented. This is not proof of an existing false pass: both
-owners still submit all selected subjects to GHC on every call.
+### Weeder analysis
 
-Prefer a workspace-scoped, locked, content-addressed generated/proof tree with
-stable logical module paths. Identity must cover generator binary/source,
-formatter, generated module/proof contents, flags, compiler/package closure and
-dependencies. Do not simply strip random paths out of the key: GHC's own source
-path/interface semantics must agree. Generate into staging, format, validate
-all managed modules/private proofs, check missing/stale/extra managed outputs,
-then compare/publish atomically. Negative fixtures retain the complete default
-selection and per-fixture expected/rejected diagnostics; their batching already
-amortizes GHC startup. An expected compile failure alone is not a passed gate.
+[#603](https://github.com/BeaudanBrown/ihp-roster/issues/603) retains the complete
+GHC HIE sweep, stale-HIE removal, canonical policy and baseline. Optional
+`weeder-check --advisory` work must remain separate from default gate cost.
+Measure canonical and advisory opportunities independently; do not attribute
+removed advisory execution as a future cache saving.
 
-The warm focused frontend command was 128.61 recorder seconds. Its validation
-marker was 23.49s and the negative-fixture marker 79.42s: about 55.93s contains
-adapter validation and intervening work. That interval is an upper bound on
-this cache opportunity, not time all removable; freshness generation, formatting,
-comparison and proof checking remain. Full's 117.95s tooling-package stage
-mixes build/evaluation/generation/validation and is not additive to the focused
-frontend total. Stable paths are a high-confidence defect finding; realized
-speedup and GHC recompilation behavior need the complete adapter/proof tests.
+Reuse analysis only after validating exact source/HIE sets and bytes, root
+ownership, baseline, tool identity and analysis implementation. Canonical success
+cannot certify advisory provenance; advisory success cannot replace the gate.
+Failed capture, source mutation or interrupted analysis leaves reports unavailable.
+Never relabel an old revision/dirty snapshot as fresh. Retain `unused-types=false`,
+narrow reason-bearing roots and conservative category/unknown caveats.
 
-Generation manifests in `frontend/generated-state-lib` and
-`haskell/generated-state-lib` are existing freshness optimizations, not strict
-compiler certificates. Preserve their locks. Hash actual generated outputs for
-proof identity rather than trusting HEAD, tracked files, or the schema marker
-alone. Multiple code-generation/build graphs have distinct flags and authority;
-do not share writable interfaces between typecheck, warnings, generator builds
-and Weeder merely because their source sets overlap.
+### Executables and production boundaries
 
-### Reuse Weeder analysis, not stale HIE
+[#606](https://github.com/BeaudanBrown/ihp-roster/issues/606) starts from GHC-checked
+stable executable outputs and per-run copies/reflinks. Validate linked-input
+invalidation, writer serialization, interrupted publication and private running
+images before adding another cache. Never reuse runtime results, processes,
+ports or database fixtures. Link completion is not a compile interval or a
+"Linking" start message; the [runtime design](verification-runtime-iteration.md)
+owns those distinctions.
 
-`haskell/weeder-check` owns the complete app/test/script/generated sweep, stale
-HIE deletion, canonical policy and baseline. `scripts/weeder-reachability.py`
-owns the five advisory comparisons. The baseline full stage was 251.19s;
-follow-up retained-HIE analysis took 63.42s total. These observations have
-different compilation/cache/host state: subtracting them does not yield a
-measured compiler cost or saving.
-
-Keep the complete GHC sweep and exact source/HIE inventory checks. Consider
-caching analysis after a completed sweep when HIE bytes, source bytes, policy,
-root ownership, baseline, tool versions and analysis implementation all match.
-Keep canonical result and advisory provenance distinct. A canonical hit cannot
-certify an advisory whose inventory/policy changed, nor can advisory success
-replace the blocking baseline gate. The measured advisory opportunity is at
-most about 53s per matched retained-HIE observation, minus validation overhead;
-caching canonical analysis might avoid another 11s. No blanket roots, omitted
-modules or stale baseline entries are proposed.
-
-Reports must remain unavailable after failed capture/interrupted analysis;
-unchanged bytes may reuse analysis, but revision/dirty/capture metadata must
-accurately describe current validated inputs rather than relabel old success.
-Input changes during capture, compile or analysis must fail closed. Preserve
-`unused-types=false`, narrow reason-bearing roots and category/unknown caveats.
-
-### Executable reuse and Nix boundaries
-
-`e2e/e2e` already reuses the object/interface graph but puts app, worker and
-Stripe-mock binaries under a new run-state directory, provoking relinking.
-Baseline focused E2E reached completed linking at 22.67s/17.93s; these include
-wrapper/preparation time, not isolated linker cost. Reuse only content-identified
-immutable binaries, copied/reflinked into private run state; never share running
-processes, ports, database fixtures or mutable executable outputs. #579 owns
-measuring link-only versus startup/reset/test costs and validating runtime
-isolation. Do not promise that the entire 30s focused command disappears.
-
-Nix already has explicit production/tooling source filters and separate schema
-identity; see `Config/nix/README.md` and ADR 0007. Prefer the existing package
-handoff in `verify-full` rather than rebuilding generators in later stages.
-Two matching derivation evaluations per package show 2.6–2.9s evaluation cost,
-not hundreds of seconds. The baseline's two remote SSH failures, substitution
-and local build work were not separately timed. Do not treat the whole 251.37s
-production stage as cacheable evaluation overhead or silently disable builders.
-No further build was needed to investigate this boundary.
-
-A future content-aware closure-diff workflow could make intentional production
-growth easier to review, but must retain explicit package/executable ownership,
-tooling exclusion, artifact kinds/byte ceilings and smoke authority required by
-ADR 0007. Exact count policy changes need their own approval; a stale count does
-not imply a broken binary, nor does a smoke pass justify unreviewed closure
-growth. Specific reconciliation findings belong to #578, not this design.
+Production follows [ADR 0011](../adr/0011-structural-production-checks-not-footprint-budgets.md):
+retain source/dependency/executable ownership, tooling isolation, complete current
+interfaces, static-only artifacts, runtime-link checks and all executable smoke
+checks. Historical count and byte ceilings are not release authority. Keep
+builder/network policy explicit and failures separate from measured local work;
+do not silently disable remote builders to obtain a faster control.
 
 ## Successful-evidence protocol to prove
 
-A future implementation must distinguish disposable dependency caches from
-successful verification certificates. Recommended common requirements:
+These requirements apply if a result cache is justified, not to every disposable
+dependency cache:
 
-- Key a versioned manifest by purpose, exact subject paths and content,
-  inventory/classification, generated/untracked dependency contents, deletions,
-  compiler executable/platform, package DB/unit IDs and dependency closure,
-  effective flags, include/CPP/plugin inputs, relevant environment, scripts and
-  warning/root/fixture policy. GHC's numeric version alone is insufficient.
-- Include schema/generator/formatter inputs and TH `addDependentFile` inputs.
-  Audit TH file/environment reads; if the closure cannot be proven, disable
-  reuse for that case. A Git diff hash is provenance, not a cache identity.
-- Generate/resolve dependencies before capturing identity. Freeze the input
-  snapshot for the producer or hold the appropriate generation/build locks;
-  recheck identity before atomic publication. Before/after checks alone cannot
-  exclude transient change-and-restore races in a mutable tree.
-- Use workspace/purpose/key-scoped ownership and locks. Acquire once, recheck
-  after waiting, never run simultaneous `bin/in-env` wrappers. Existing cache
-  helper `flock` protects its purpose root; options-only build preparation has
-  no such lock. Do not assume every current compiler owner is concurrency-safe.
-- Publish one immutable, complete certificate only after every required subject
-  passes, with output hashes and diagnostic provenance. Precompile stamps,
-  partial files, kills, failures and resource aborts publish no success. Preserve
-  unrelated immutable successful keys without presenting them as current.
-- Readers validate completeness and identity under the same protocol. Missing,
-  corrupt or schema-incompatible evidence means recompute, not success. Keep
-  explicit cache-miss reasons and lock timing to distinguish useful reuse from
-  hidden serialization. Runtime test outcomes never inherit static certificates.
+- Use owner-specific, versioned identities covering exact subject paths/content,
+  inventories, generated/ignored/untracked dependencies, additions/deletions,
+  compiler executable/platform, package DB/unit IDs and native closure, effective
+  flags, include/CPP/plugin inputs, relevant environment, scripts and policy.
+  GHC's numeric version, HEAD or a Git diff hash alone is insufficient.
+- Resolve generation first. Include schema/generator/formatter and TH file or
+  environment dependencies. Unknown closure means recomputation, not a certificate.
+- Freeze producer inputs or use an equivalent locked protocol preventing transient
+  edit-and-restore races. Before/after hashes alone are insufficient.
+- Use workspace/purpose/key-scoped ownership and documented lock ordering. Recheck
+  after waiting; serialize shared graph writers. Never run concurrent outer
+  `bin/in-env` entries. Do not assume options-only preparation is writer-safe.
+- Publish immutable complete evidence only after every subject passes, with output
+  integrity and diagnostic provenance. Precompile stamps, kills, partial writes,
+  actual failures and resource aborts publish no success.
+- Readers validate identity, completeness and integrity. Missing/corrupt evidence
+  recomputes; a real producer failure fails rather than retrying until green.
+  Preserve unrelated successful keys without presenting them as current.
+- Retain explicit miss/invalid/lock/failure/reuse reasons, an uncached route and
+  shadow parity. Runtime execution never inherits a static certificate.
 
-## Acceptance experiments for a future implementation
+## Acceptance
 
-| Boundary | Required regression experiment |
-|---|---|
-| Strict authority | Existing real-GHC warning fixtures cold and warm; instance imports, partial selectors/dot/update/patterns, unused imports and generated exclusions |
-| Source closure | Change subject, transitive dependency, generated/untracked input, schema, inventory add/delete/rename and TH-dependent file; every affected result invalidates |
-| Environment | Same GHC version with different package DB/compiler build, flags, plugins, policy or generator; no stale hit |
-| Stable paths | Same generated bytes in fresh temp locations preserve semantic cache identity; changed proof bytes miss and unsafe proof fails |
-| Negative authority | All registered fixtures still run or have complete valid evidence; unexpected success/wrong diagnostic/missing attribution fails |
-| Publication | Kill at generation/compile/analysis/publish boundaries, corrupt/delete output or certificate, edit during capture; no false success |
-| Concurrency | Two same-key callers serialize/recheck; different keys isolate all writable paths; serial/parallel full-inventory diagnostics agree |
-| Weeder | Complete inventory and fresh sweep; added/deleted module/HIE, changed root/baseline, interrupted advisory and conservative category provenance fixtures |
-| Runtime/package | Immutable executable identity changes with linked inputs; disposable services unchanged; source filters, budgets and all packaged smoke checks retained |
-| Performance | At least three matched successful runs per state, quiet host, command-only timing, per-process/aggregate memory, hit/miss/lock reasons; report all failures |
+Use the [cross-owner regression matrix and budgets](verification-remediation-plan.md),
+including real compiler mutation/negative fixtures, complete membership,
+publication interruption/corruption, same-key contention and isolated different-key
+writers. Preserve complete canonical authorities and compare current controls,
+not historical stage totals. Record both analysis and compilation costs; report
+unavailable attribution and every failure honestly.
 
-A failed optimization must fall back to the original complete owner, not a
-reduced gate. Implementation acceptance must also rerun affected canonical
-verification; these bounded investigation probes are not substitutes.
-
-Living-document owners if implemented: `Config/nix/README.md` for compiler and
-package contracts, `docs/runbooks/performance-profiling.md` for measurement,
-and `e2e/README.md` for executable/runtime isolation. Retire this workstream
-when unresolved design has moved to those owners or a superseding decision.
+A failed optimization retains the complete current owner. Retire this workstream
+when unresolved design has moved to the living owners or a superseding decision;
+GitHub remains the scope and completion tracker.

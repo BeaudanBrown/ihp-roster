@@ -117,7 +117,6 @@ test.describe('Timesheets shared SidePanel', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
-        await openTimesheetSettings(page);
 
         const mobilePanelToggle = page.getByRole('button', { name: 'Open Timesheet tools' });
         await expect(mobilePanelToggle).toBeVisible();
