@@ -9,6 +9,7 @@ module Bepis.Tooling.Artifacts
     , runArtifactsCommand
     ) where
 
+import Bepis.Tooling.Artifacts.Command (runOwnedCommand)
 import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock, withExclusiveLock, withSharedLock, writeFileAtomic)
 import Control.Exception (Exception, IOException, catch, throwIO)
 import Data.Bits ((.&.))
@@ -26,7 +27,7 @@ import System.FilePath (isAbsolute, makeRelative, normalise, splitDirectories, t
 import System.IO (hPutStrLn, stderr)
 import System.Posix.Files (fileMode, fileOwner, fileSize, getFileStatus, ownerModes, setFileMode)
 import System.Posix.User (getEffectiveUserID)
-import System.Process (CreateProcess (cwd, env), createProcess, proc, readCreateProcessWithExitCode, waitForProcess)
+import System.Process (CreateProcess (cwd, env), proc, readCreateProcessWithExitCode)
 
 newtype ArtifactError = ArtifactError (Int, String) deriving (Show)
 instance Exception ArtifactError
@@ -601,9 +602,8 @@ runCommand root command = do
 
 runCommandWithEnvironment :: FilePath -> [(String, String)] -> [String] -> IO ()
 runCommandWithEnvironment root environment (command:arguments) = do
-    (_, _, _, processHandle) <- createProcess (proc command arguments) {cwd = Just root, env = Just environment}
-        `catch` (\exception -> unavailable exception)
-    status <- waitForProcess processHandle
+    status <- runOwnedCommand (proc command arguments) {cwd = Just root, env = Just environment}
+        `catch` unavailable
     unless (status == ExitSuccess) (exitWith status)
   where
     unavailable :: IOException -> IO value
@@ -613,9 +613,8 @@ runCommandWithEnvironment _ _ [] = failure 64 "missing command"
 runCommandStatus :: FilePath -> [String] -> IO ExitCode
 runCommandStatus root (command:arguments) = do
     let selectedCwd = if null root then Nothing else Just root
-    (_, _, _, processHandle) <- createProcess (proc command arguments) {cwd = selectedCwd}
-        `catch` (\exception -> unavailable exception)
-    waitForProcess processHandle
+    runOwnedCommand (proc command arguments) {cwd = selectedCwd}
+        `catch` unavailable
   where
     unavailable :: IOException -> IO value
     unavailable _ = failure 69 ("required command is unavailable: " <> command)

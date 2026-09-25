@@ -13,6 +13,8 @@ library
     hs-source-dirs: src
     exposed-modules:
         Bepis.Tooling.Artifacts
+    other-modules: Bepis.Tooling.Artifacts.Command
+    c-sources: cbits/command.c
     build-depends:
         aeson,
         base >=4.18 && <5,

@@ -81,6 +81,19 @@ Git creation/check and registry publication phases separately; initialization
 runs unlocked. Publication rechecks conflicts and retained identities so retries
 and concurrent identical requests cannot claim competing slots.
 
+Artifact foreground mutation commands run in a private process group. The native
+owner forwards INT/TERM, allows two seconds for graceful termination, then
+escalates to KILL and waits for remaining live group members before releasing
+its lock. Cancellation remains exit 130/143 even if a child returns success.
+An exited direct child is observed without reaping until cleanup finishes,
+reserving the group identity while descendants are stopped. Normal leader exit
+also cleans up leftover group members. Lock descriptors remain close-on-exec.
+Uninterruptible kernel tasks retain ownership rather than falsely claiming cleanup.
+These commands must not detach writers into other sessions/groups. Uncatchable
+supervisor KILL is outside this cooperative cancellation guarantee; this primitive
+alone is not a crash-safe successful-result certificate. Regression fixtures:
+`bash ./bin/in-env python3 scripts/artifact-command.test.py`.
+
 PostgreSQL maintenance fails fast on operator reset/seed contention. Hspec uses
 `maintenance-run --wait` for shared schema-template publication only; each shard
 clones its independent database after that lock is released.
