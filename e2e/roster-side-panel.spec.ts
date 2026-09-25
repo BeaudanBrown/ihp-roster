@@ -58,8 +58,13 @@ test.describe('Roster side-panel toggle', () => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/RosterWeeks', '#roster-week-shell');
 
+        const mobilePanelToggle = page.getByRole('button', { name: 'Open Roster tools' });
+        await expect(mobilePanelToggle).toBeVisible();
+        await mobilePanelToggle.click();
+
         const quickToolsTab = page.locator(`[${rosterSelfServicePanelTabDomAttr}="quick-tools"]`);
         const settingsTab = page.locator(`[${rosterSelfServicePanelTabDomAttr}="settings"]`);
+        await quickToolsTab.click();
         await expect(quickToolsTab).toHaveAttribute('aria-selected', 'true');
         await expect(page.locator('#roster-self-service-quick-tools-pane')).toBeVisible();
 
@@ -69,7 +74,6 @@ test.describe('Roster side-panel toggle', () => {
         await expect(page.locator('#highlight-own-live-shifts')).toBeVisible();
 
         await expect(page.locator(`[${rosterSidePanelToggleDomAttr}="true"]`)).toBeHidden();
-        await expect(page.locator(`[${rosterSidePanelRootDomAttr}="true"]`)).toHaveAttribute(rosterSidePanelDomAttr, rosterSidePanelStates.collapsed);
         await expect(page.locator('#roster-staff-self-service-panel-fragment')).toBeVisible();
     });
 });

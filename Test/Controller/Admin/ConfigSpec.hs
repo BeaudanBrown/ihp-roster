@@ -463,7 +463,7 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "name=\"isActive\" value=\"true\""
                 pageResponse `responseBodyShouldContain` "type=\"hidden\" name=\"isActive\" value=\"false\""
                 pageResponse `responseBodyShouldContain` ("id=\"shift-type-active-" <> tshow shiftType.id <> "\"")
-                pageResponse `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
+                pageResponse `responseBodyShouldContain` "app-toggle-button"
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-transport=\""
                 pageResponse `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""

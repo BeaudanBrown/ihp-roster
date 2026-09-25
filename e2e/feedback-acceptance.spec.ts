@@ -11,7 +11,7 @@ const archivedId = 'fb507000-0000-4000-8000-000000000003';
 const voterEmail = 'e2e-507-cross-venue@example.com';
 
 test('complete moderated journey preserves private data and private-only live activity', async ({ page, browser }, testInfo) => {
-    test.setTimeout(E2E_TIMEOUT.slowTest);
+    test.setTimeout(E2E_TIMEOUT.feedbackJourneyTest);
     const title = uniqueE2EValue('E2E Feedback journey');
     runSql(`
         INSERT INTO users (id, email, password_hash, user_role, is_profile_completed, email_verified_at)
@@ -79,7 +79,8 @@ test('complete moderated journey preserves private data and private-only live ac
         await founder.getByLabel('Description', { exact: true }).fill('Editorially reviewed shared improvement.');
         await founder.getByRole('button', { name: 'Save', exact: true }).click();
         await expect(founder.locator('#dialog-overlay-mount')).toBeEmpty();
-        await management.getByRole('button', { name: 'Confirm archive', exact: true }).click();
+        await management.getByRole('button', { name: 'Archive', exact: true }).click();
+        await founder.getByRole('dialog', { name: 'Archive feedback?' }).getByRole('button', { name: 'Archive', exact: true }).click();
         await management.getByRole('button', { name: 'Restore', exact: true }).click();
         await management.getByRole('button', { name: 'Publish', exact: true }).click();
         await expect(voter.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toBeVisible();
@@ -102,8 +103,10 @@ test('complete moderated journey preserves private data and private-only live ac
         await founder.getByRole('button', { name: 'Save', exact: true }).click();
         await expect(voter.locator('#feedback-cards')).toContainText('Public revision preserves votes.');
         await expect(authorVote).toHaveAttribute('aria-pressed', 'true');
-        await management.locator('summary').filter({ hasText: /^Archive$/ }).click();
-        await management.getByRole('button', { name: 'Confirm archive', exact: true }).click();
+        await management.getByRole('button', { name: 'Archive', exact: true }).click();
+        const archiveDialog = founder.getByRole('dialog', { name: 'Archive feedback?' });
+        await expect(archiveDialog).toContainText('All votes will be removed.');
+        await archiveDialog.getByRole('button', { name: 'Archive', exact: true }).click();
         await expect(voter.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         expect(querySql(`SELECT count(*) FROM feedback_votes WHERE feedback_item_id = '${itemId}'`)).toBe('0');
         await screenshot(founder, 'feedback-archived');

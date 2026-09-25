@@ -7905,6 +7905,7 @@
     const transportState = toggleTransportState(toggleTargetForChecked(config, checked));
     transport.value = transportState.value;
     transport.disabled = transportState.disabled;
+    control.input.closest(`[${toggleRootDomAttr}]`)?.setAttribute("aria-pressed", String(checked));
     if (input.getAttribute("role") === "switch") {
       input.setAttribute("aria-checked", String(checked));
     }

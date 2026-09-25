@@ -5,7 +5,7 @@ import { defaultE2ERosterGroupId } from './support/roster';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 import { openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './support/profile';
-import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { chooseBlankTimesheet, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 import { runSql } from './support/database';
 
 function displayDate(isoDate: string): string {
@@ -28,7 +28,7 @@ async function login(page: Page) {
     await expect(page.locator('#roster-week-shell')).toBeVisible();
 }
 
-const hideApprovedSubmitTitle = 'timesheet submit preserves the enabled Hide approved preference';
+const hideApprovedSubmitTitle = 'timesheet submit preserves the disabled Show approved preference';
 const modalDeleteTitle = 'timesheet modal delete prompts for confirmation once';
 const timesheetPreferenceMutators = new Set([
     hideApprovedSubmitTitle,
@@ -219,7 +219,7 @@ test.describe('HTMX submit regressions', () => {
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         await page.locator('[data-timesheet-day-add="true"]').first().click();
-        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
+        await chooseBlankTimesheet(page);
         await page.selectOption('#staffId', { label: 'E2E Manager' });
         await page.locator('input[name="startTime"]').evaluate((input, value) => {
             (input as HTMLInputElement).value = value as string;
@@ -246,14 +246,14 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const hideApproved = page.getByRole('checkbox', { name: 'Hide approved' });
-        if (!(await hideApproved.isChecked())) {
-            await hideApproved.locator('..').click();
+        const showApproved = page.getByRole('switch', { name: 'Show approved' });
+        if (await showApproved.isChecked()) {
+            await showApproved.locator('..').click();
         }
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
 
         await page.locator('[data-timesheet-day-add="true"]').first().click();
-        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
+        await chooseBlankTimesheet(page);
         await page.selectOption('#staffId', { label: 'E2E Manager' });
         await page.locator('input[name="startTime"]').evaluate((input, value) => {
             (input as HTMLInputElement).value = value as string;
@@ -303,9 +303,9 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const hideApproved = page.getByRole('checkbox', { name: 'Hide approved' });
-        if (await hideApproved.isChecked()) {
-            await hideApproved.locator('..').click();
+        const showApproved = page.getByRole('switch', { name: 'Show approved' });
+        if (!(await showApproved.isChecked())) {
+            await showApproved.locator('..').click();
         }
 
         const targetEntry = page.locator(`.timesheet-entry-card:has(a[href*="${deletedEntryId}"])`);
@@ -323,27 +323,19 @@ test.describe('HTMX submit regressions', () => {
         await editLink.click();
         await expect(page.locator('#timesheet-entry-edit-form')).toBeVisible();
 
-        await page.evaluate(() => {
-            (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls = 0;
-            window.confirm = () => {
-                (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls =
-                    ((window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0) + 1;
-                return true;
-            };
-        });
+        await page.getByRole('button', { name: 'Delete' }).click();
+        const confirmationDialog = page.getByRole('dialog', { name: 'Delete timesheet entry?' });
+        await expect(confirmationDialog).toBeVisible();
 
         const deleteResponsePromise = page.waitForResponse((response) =>
             response.request().method() === 'DELETE' && response.url().includes('/DeleteTimesheetEntry')
         );
-        await page.getByRole('button', { name: 'Delete' }).click();
+        await confirmationDialog.getByRole('button', { name: 'Delete' }).click();
         const deleteResponse = await deleteResponsePromise;
         expect(deleteResponse.status(), await deleteResponse.text()).toBe(200);
         await deleteResponse.finished();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
         await expect(updatedDaySection.locator(`.timesheet-entry-card a[href*="${deletedEntryId}"]`)).toHaveCount(0);
-        await expect
-            .poll(() => page.evaluate(() => (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0))
-            .toBe(1);
     });
 });

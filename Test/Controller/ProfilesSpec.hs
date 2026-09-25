@@ -162,7 +162,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ">Mon<"
                 response `responseBodyShouldContain` "shift-preference-availability-button"
                 response `responseBodyShouldContain` "timesheet-approval-toggle"
-                response `responseBodyShouldContain` "btn-outline-success"
                 response `responseBodyShouldContain` "app-toggle-button"
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "class=\"visually-hidden app-toggle-button-input\" type=\"checkbox\""

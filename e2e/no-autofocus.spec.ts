@@ -4,6 +4,7 @@ import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 import { webauthnBaseURL } from './support/passkeys';
+import { chooseBlankTimesheet } from './support/timesheets';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -55,6 +56,7 @@ test.describe('No automatic focus', () => {
 
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
+        await chooseBlankTimesheet(page);
         const form = page.locator('#timesheet-entry-create-form');
         await expect(form).toBeVisible();
         await expect(form.locator(`[${timePickerTriggerDomAttr}]`).first()).toBeFocused();

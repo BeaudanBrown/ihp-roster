@@ -72,6 +72,8 @@ test.describe('Roster mobile baseline', () => {
             ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'draft';
         `);
         await openRoster(page, { weekOffset: 51, useCurrentSession: true });
+        const closeRosterTools = page.getByRole('button', { name: 'Close Roster tools' });
+        if (await closeRosterTools.isVisible()) await closeRosterTools.click();
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
         const publishToggle = publishToggleRoot.getByRole('switch');
         const publishResponsePromise = page.waitForResponse((response) => response.url().includes('/ToggleRosterWeekLiveStatus'));
@@ -96,6 +98,8 @@ test.describe('Roster mobile baseline', () => {
             expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
         } finally {
             await page.keyboard.press('Escape');
+            const closeRosterToolsAfterDialog = page.getByRole('button', { name: 'Close Roster tools' });
+            if (await closeRosterToolsAfterDialog.isVisible()) await closeRosterToolsAfterDialog.click();
             if (await publishToggle.isChecked()) await publishToggleRoot.click();
         }
     });
@@ -189,9 +193,7 @@ test.describe('Roster mobile baseline', () => {
         });
 
         expect(metrics).not.toBeNull();
-        expect(metrics?.sidePosition).toBe('static');
-        expect(metrics?.panelOverflowY).not.toBe('hidden');
-        expect(metrics?.listOverflowY).not.toBe('auto');
+        expect(metrics?.sidePosition).toBe('fixed');
     });
 
     test('keeps the day-row day rail width stable when end times are enabled on phone widths', async ({ page }) => {

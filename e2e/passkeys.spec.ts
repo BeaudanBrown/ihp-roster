@@ -279,11 +279,10 @@ test.describe('Venue-admin passkeys', () => {
         await openProfileSecuritySection(page);
         await expect(page.locator('#profile-security-collapse table')).toBeVisible();
 
-        page.once('dialog', async (dialog) => {
-            expect(dialog.message()).toContain('Delete this passkey?');
-            await dialog.accept();
-        });
         await page.getByRole('button', { name: 'Delete' }).first().click();
+        const confirmationDialog = page.getByRole('dialog', { name: 'Delete passkey?' });
+        await expect(confirmationDialog).toBeVisible();
+        await confirmationDialog.getByRole('button', { name: 'Delete' }).click();
 
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await openProfileSecuritySection(page);

@@ -14,7 +14,13 @@ const mountSelector = `#${dialogOverlayMountDomId}`;
 
 async function openNewTimesheet(page: Page) {
     await page.locator('[data-timesheet-day-add="true"]').first().click();
-    await expect(page.locator('#timesheet-entry-create-form')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    const createForm = page.locator('#timesheet-entry-create-form');
+    const blankChoice = page.getByRole('link', { name: 'Use blank timesheet' }).first();
+    await Promise.race([
+        createForm.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }),
+        blankChoice.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }).then(() => blankChoice.click()),
+    ]);
+    await expect(createForm).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
 async function attemptClose(page: Page) {

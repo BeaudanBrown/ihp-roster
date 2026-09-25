@@ -17,7 +17,7 @@ import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 import { openRoster } from './support/roster';
-import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { chooseBlankTimesheet, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 import { runSql } from './support/database';
 
 async function uniqueToggleIds(page: Page) {
@@ -186,29 +186,29 @@ test.describe('Generated toggle capability', () => {
         const scopeWindowStart = mountConfig.scopeKey.split(':')[2];
         expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('anchorDate') === scopeWindowStart)).toBe(true);
         await openTimesheetSettings(page);
-        let hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
-        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        let showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
+        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
 
         let requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
             && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
             && request.postData()?.includes('hideApproved=true') === true,
         );
-        await hideApprovedRoot.click();
+        await showApprovedRoot.click();
         const toggleResponse = await (await requestPromise).response();
         expect(toggleResponse?.ok()).toBe(true);
         await toggleResponse?.finished();
         await page.reload();
         await openTimesheetSettings(page);
-        hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
-        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
+        showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
+        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
 
         requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
             && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
             && request.postData()?.includes('hideApproved=false') === true,
         );
-        await hideApprovedRoot.click();
+        await showApprovedRoot.click();
         await requestPromise;
     });
 
@@ -216,6 +216,7 @@ test.describe('Generated toggle capability', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
+        await chooseBlankTimesheet(page);
         const form = page.locator('#timesheet-entry-create-form');
         await expect(form).toBeVisible();
 
@@ -242,7 +243,7 @@ test.describe('Generated toggle capability', () => {
         await expect(page.locator(`#${timePickerModalDomId}`)).toBeHidden();
         await expect(form).toBeVisible();
 
-        await input.press('Space');
+        await form.locator('label[for="hadBreak"]').click();
         await expect(input).not.toBeChecked();
         await expect(transport).toHaveValue('false');
         await expect(breakRegion).toBeDisabled();

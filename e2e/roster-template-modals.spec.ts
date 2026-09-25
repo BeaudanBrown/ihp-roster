@@ -97,6 +97,10 @@ function currentWindowDayCount(page: Page) {
 
 async function openTemplatesTab(page: Page) {
     const tab = page.getByRole('tab', { name: 'Templates', exact: true }).first();
+    if (!(await tab.isVisible())) {
+        const mobilePanelToggle = page.getByRole('button', { name: 'Open Roster tools' });
+        if (await mobilePanelToggle.isVisible()) await mobilePanelToggle.click();
+    }
     await expect(tab).toBeVisible();
     await tab.click();
     await expect(tab).toHaveAttribute('aria-selected', 'true');

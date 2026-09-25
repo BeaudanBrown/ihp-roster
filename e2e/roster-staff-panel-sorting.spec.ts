@@ -50,7 +50,7 @@ async function armAssignedCountLiveRefresh(page: Page, staffKey: string, assigne
                 return;
             }
             state.__e2eRosterPanelMutationRefreshes = (state.__e2eRosterPanelMutationRefreshes ?? 0) + 1;
-            if (state.__e2eRosterPanelMutationRefreshes >= 2) document.removeEventListener(eventName, listener);
+            if (state.__e2eRosterPanelMutationRefreshes >= 1) document.removeEventListener(eventName, listener);
         };
         document.addEventListener(eventName, listener);
     }, {
@@ -66,7 +66,7 @@ async function waitForAssignedCountLiveRefresh(page: Page) {
     await expect.poll(
         () => page.evaluate(() => (window as Window & { __e2eRosterPanelMutationRefreshes?: number }).__e2eRosterPanelMutationRefreshes ?? 0),
         { timeout: E2E_TIMEOUT.liveUpdate },
-    ).toBeGreaterThanOrEqual(2);
+    ).toBeGreaterThanOrEqual(1);
 }
 
 test.describe('Roster staff panel sorting', () => {
@@ -112,8 +112,8 @@ test.describe('Roster staff panel sorting', () => {
         expect(targetRaw).toBeTruthy();
         const targetStaffName = parseRosterStaffPanelSortRow(JSON.parse(targetRaw ?? 'null') as unknown).staffName;
 
-        // The actor path and durable invalidation each replace the authoritative
-        // panel; either replacement resets client-only sort state.
+        // The converged actor/durable refresh replaces the authoritative panel
+        // once and resets client-only sort state.
         await armAssignedCountLiveRefresh(page, targetStaffKey, 1);
         await assignRosterShiftStaff(page, existingRosterShiftLaunchers(page).first(), targetStaffId);
         await waitForAssignedCountLiveRefresh(page);

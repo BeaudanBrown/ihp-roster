@@ -80,6 +80,7 @@ test.describe('Unavailability shared SidePanel', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await openManagerUnavailability(page);
 
+        await page.getByRole('button', { name: 'Open Unavailability tools' }).click();
         const panel = page.locator(`[${leaveRequestsLeaveSidePanelPanelDomAttr}]`);
         await expect(panel).toBeVisible();
         await expect(page.locator(`[${leaveRequestsLeaveSidePanelTabDomAttr}="staff"]`)).toHaveAttribute('aria-selected', 'true');
@@ -87,5 +88,6 @@ test.describe('Unavailability shared SidePanel', () => {
         await expect(page.locator('#unavailability-blackouts')).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
         await expect(page.locator(`[${leaveRequestsLeaveSidePanelToggleDomAttr}]`)).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Close Unavailability tools' })).toBeVisible();
     });
 });

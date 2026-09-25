@@ -5,6 +5,8 @@
     --app-density-control-scale: 1;
     color-scheme: dark;
     --app-shelf-bar-height: max(3rem, var(--app-control-height-lg));
+    --app-shelf-bottom: 0px;
+    --app-shelf-height: 100dvh;
     --app-shelf-z-index: 1030;
     --app-shelf-header-z-index: 1031;
 

@@ -63,7 +63,7 @@ defaultAppToggleStateButtonConfig inputId fieldBinding checked checkedLabel unch
 
 renderAppToggleButton :: AppToggleButtonConfig -> Html
 renderAppToggleButton config@AppToggleButtonConfig { .. } =
-    [hsx|<label class={appToggleButtonClasses config} for={appToggleInputId} {...[(toggleDom.toggleRootAttribute, transportKey)]}>{renderAppToggleTransport config}{renderAppToggleInput config}{renderAppToggleContent (appToggleUsesSwitch config) (renderAppToggleLabel appToggleChecked appToggleLabel)}</label>|]
+    [hsx|<label class={appToggleButtonClasses config} for={appToggleInputId} aria-pressed={boolAttr appToggleChecked} {...[(toggleDom.toggleRootAttribute, transportKey)]}>{renderAppToggleTransport config}{renderAppToggleInput config}{renderAppToggleContent (appToggleUsesSwitch config) (renderAppToggleLabel appToggleChecked appToggleLabel)}</label>|]
   where
     toggleDom = canonicalToggleDomAttributes
     transportKey = toggleTransportKey appToggleInputId

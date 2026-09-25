@@ -4,9 +4,6 @@ module Web.View.Timesheets.RosterPrefillNew where
 
 import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
-import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAttribute)
-import Application.Helper.FrontendContract.Surface.Runtime (defaultFrontendSurfaceActionRoute,
-                                                            frontendSurfaceActionAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowUrl)
@@ -58,7 +55,7 @@ renderRosterPrefillTimesheetForm formMode RosterPrefillTimesheetRenderModel { ro
                     , actionUrl
                     , formId = rosterPrefillTimesheetFormId
                     , formMode
-                    , formExtraAttrs = filter ((== surfaceActionDomAttribute) . fst) (frontendSurfaceActionAttrs surfaceAction (defaultFrontendSurfaceActionRoute actionUrl))
+                    , formSurfaceAction = Just surfaceAction
                     }
             }
   where

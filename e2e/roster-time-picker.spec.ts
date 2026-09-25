@@ -132,7 +132,7 @@ test.describe('Roster Time Picker', () => {
         await expect(page.locator(modalSelector)).toBeHidden();
         await expect(hiddenInput).toHaveValue('06:15');
 
-        await page.keyboard.press('Escape');
+        await dialog.getByRole('button', { name: 'Close' }).click();
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
     });
 

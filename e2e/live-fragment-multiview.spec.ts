@@ -11,7 +11,7 @@ import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 import { openProfileLeaveSection, setFlatpickrDate } from './support/profile';
 import { openRoster } from './support/roster';
-import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { chooseBlankTimesheet, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 import { runSql } from './support/database';
 
 const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
@@ -36,9 +36,9 @@ async function loginWorker(page: Page) {
 
 async function showApprovedTimesheets(page: Page) {
     await openTimesheetSettings(page);
-    const hideApproved = page.locator('label', { hasText: 'Hide approved' });
-    if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
-        await hideApproved.click();
+    const showApproved = page.locator('label', { hasText: 'Show approved' });
+    if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
+        await showApproved.click();
     }
 }
 
@@ -73,6 +73,7 @@ async function createProfileLeaveRequest(page: Page, note: string, startDate: st
 
 async function createTimesheet(page: Page, startTime: string, endTime: string, staffComment?: string) {
     await page.locator('[data-timesheet-day-add="true"]').first().click();
+    await chooseBlankTimesheet(page);
     if (staffComment !== undefined) {
         await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
         await page.fill('textarea[name="staffComment"]', staffComment);
@@ -94,6 +95,7 @@ function cleanupManagerApprovalEntry() {
 
 async function createTimesheetForDaySection(page: Page, operationalDate: string, startTime: string, endTime: string) {
     await page.locator(`[data-timesheet-operational-date="${operationalDate}"] [data-timesheet-day-add="true"]`).click();
+    await chooseBlankTimesheet(page);
     await fillAndSaveTimesheetDialog(page, startTime, endTime);
 }
 
@@ -396,10 +398,10 @@ test.describe('Live fragment multi-view coverage', () => {
         await expect(actorPrefill).toHaveCount(1);
         await expect(actorPrefill).toContainText(renderedRange);
         await expect(actorPrefill.locator('.timesheet-shape-bar')).toHaveCount(1);
-        await expect(actorPrefill.getByRole('link', { name: 'Use this shift', exact: true })).toBeVisible();
+        await expect(actorPrefill.getByRole('link', { name: 'Use this roster shift', exact: true })).toBeVisible();
         await expect(actorPrefill).not.toContainText('Approve');
 
-        await actorPrefill.getByRole('link', { name: 'Use this shift', exact: true }).click();
+        await actorPrefill.getByRole('link', { name: 'Use this roster shift', exact: true }).click();
         await expect(actorPage.locator('#timesheet-roster-prefill-create-form')).toBeVisible();
         await expect(actorPage.locator('#timesheet-roster-prefill-create-form select[name="staffId"]')).toHaveCount(0);
         await actorPage.getByRole('button', { name: 'Save', exact: true }).click();

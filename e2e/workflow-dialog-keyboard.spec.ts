@@ -8,6 +8,7 @@ import {
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, runActionUntilRequestStarts } from './support/runtime';
 import { loginAs } from './support/session';
+import { chooseBlankTimesheet } from './support/timesheets';
 
 async function submitTimesheetDialogWithEnter(page: Page, form: Locator) {
     const response = await runActionUntilRequestStarts(page, (request) =>
@@ -27,6 +28,7 @@ test.describe('Workflow dialog keyboard controls', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
+        await chooseBlankTimesheet(page);
 
         const dialogMount = page.locator(`#${dialogOverlayMountDomId}`);
         const form = dialogMount.locator('#timesheet-entry-create-form');
@@ -75,6 +77,7 @@ test.describe('Workflow dialog keyboard controls', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
+        await chooseBlankTimesheet(page);
 
         const dialogMount = page.locator(`#${dialogOverlayMountDomId}`);
         const form = dialogMount.locator('#timesheet-entry-create-form');
@@ -82,13 +85,18 @@ test.describe('Workflow dialog keyboard controls', () => {
         await expect(startTrigger).toBeFocused();
         await startTrigger.click();
         await page.locator(`[${timePickerClearDomAttr}]`).click();
+        await page.keyboard.press('Escape');
 
-        await submitTimesheetDialogWithEnter(page, form);
+        const workflowDialog = page.getByRole('dialog', { name: 'Timesheet Monday 21/09' });
+        await workflowDialog.getByRole('button', { name: 'Save' }).click();
 
-        const invalidStart = dialogMount.locator('#timesheet-entry-create-form').locator(`[${timePickerTriggerDomAttr}]`).first();
+        const invalidStart = page.getByRole('dialog', { name: 'Timesheet Monday 21/09' }).locator(`[${timePickerTriggerDomAttr}]`).first();
         await expect(invalidStart).toHaveAttribute('aria-invalid', 'true');
         await expect(invalidStart).toBeFocused();
         await page.keyboard.press('Escape');
+        const discardDialog = page.getByRole('dialog', { name: 'Discard unsaved timesheet?' });
+        await expect(discardDialog).toBeVisible();
+        await discardDialog.getByRole('button', { name: 'Discard timesheet' }).click();
         await expect(dialogMount).toBeEmpty({ timeout: E2E_TIMEOUT.action });
     });
 });

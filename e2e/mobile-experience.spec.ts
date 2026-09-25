@@ -7,7 +7,7 @@ import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 import { openNewLeaveRequestDialog } from './support/profile';
 import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
-import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { chooseBlankTimesheet, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -243,7 +243,7 @@ test.describe('Mobile experience smoke', () => {
         const addBar = page.locator('[data-timesheet-day-add="true"]').first();
         await expect(addBar).toBeVisible();
         await addBar.click();
-        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
+        await chooseBlankTimesheet(page);
         await expectDialogToFitViewport(page, `#${dialogOverlayMountDomId} .modal-dialog, #${dialogOverlayMountDomId} [role="dialog"]`);
     });
 
@@ -325,7 +325,7 @@ test.describe('Mobile experience smoke', () => {
         const centeredDayAddBar = page.locator('[data-timesheet-operational-date]').nth(1).locator('[data-timesheet-day-add="true"]');
         await expect(centeredDayAddBar).toBeVisible();
         await centeredDayAddBar.click();
-        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
+        await chooseBlankTimesheet(page);
     });
 
     test('timesheet day snapping lets the newest quick scroll win', async ({ page }) => {
@@ -503,6 +503,8 @@ test.describe('Mobile experience smoke', () => {
         await expect(page.locator('#timesheet-week-toolbar')).toBeVisible();
         const afterFilterScroll = await readScroll();
         expect(Math.abs(afterFilterScroll - beforeFilterScroll)).toBeLessThanOrEqual(2);
+        const closeTimesheetTools = page.getByRole('button', { name: 'Close Timesheet tools' });
+        if (await closeTimesheetTools.isVisible()) await closeTimesheetTools.click();
 
         const beforeWeekScroll = await setScroll();
         const previousAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
@@ -524,11 +526,6 @@ test.describe('Mobile experience smoke', () => {
     test(timesheetMobileActionsTitle, async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
-        await openTimesheetSettings(page);
-        const hideApproved = page.getByRole('checkbox', { name: 'Hide approved' });
-        if (await hideApproved.isChecked()) {
-            await hideApproved.locator('..').click();
-        }
 
         const approvedEntry = page.locator('[data-timesheet-entry-approved="true"]').first();
         const pendingEntry = page.locator('[data-timesheet-entry-approved="false"]').first();

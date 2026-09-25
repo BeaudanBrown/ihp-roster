@@ -249,8 +249,8 @@ renderTimesheetDayWageEstimate day (Just estimates) =
 renderTimesheetWageEstimateSummary :: (?context :: ControllerContext) => Text -> TimesheetWageEstimates -> TimesheetWageEstimateSummary -> TimesheetWageEstimateSummary -> Html
 renderTimesheetWageEstimateSummary cssClass estimates visibleSummary allSummary = [hsx|
     <div class={cssClass} aria-label={timesheetWageEstimateLabel estimates.timesheetPayAudience}>
-        <span class={cssClass <> "-label"}>{timesheetWageEstimateLabel estimates.timesheetPayAudience}</span>
-        <span class={cssClass <> "-total"}>{renderAmounts estimates.timesheetWageDisplayMode visibleSummary allSummary}</span>
+        <span class="timesheet-wage-estimate-label">{timesheetWageEstimateLabel estimates.timesheetPayAudience}</span>
+        <span class="timesheet-wage-estimate-total">{renderAmounts estimates.timesheetWageDisplayMode visibleSummary allSummary}</span>
         {renderTimesheetWageEstimateAvailability estimates.timesheetWageDisplayMode visibleSummary allSummary}
         {renderTimesheetWageSourceWarning (relevantSummary estimates.timesheetWageDisplayMode visibleSummary allSummary)}
     </div>

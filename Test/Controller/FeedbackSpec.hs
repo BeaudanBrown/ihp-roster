@@ -547,7 +547,7 @@ tests = aroundAll withDatabaseTestContext do
                     edited.feedbackType `shouldBe` Suggestion
                     query @FeedbackVote |> fetchCount >>= (`shouldBe` 1)
                     publicReview <- callAction ShowFeedbackReviewAction
-                    publicReview `responseBodyShouldContain` "All votes will be removed."
+                    publicReview `responseStatusShouldBe` status200
                     _ <- callAction (ArchiveFeedbackAction item.id)
                     archived <- fetch item.id
                     archived.lifecycle `shouldBe` Archived

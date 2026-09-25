@@ -9,7 +9,7 @@ const itemId = 'fb505000-0000-4000-8000-000000000001';
 const title = 'E2E moderated feedback';
 
 test('moderates Feedback with actor and passive plain-fragment refreshes', async ({ page, browser }, testInfo) => {
-    test.setTimeout(E2E_TIMEOUT.slowTest);
+    test.setTimeout(E2E_TIMEOUT.feedbackJourneyTest);
     runSql(`
         DELETE FROM user_feedback_items WHERE id = '${itemId}';
         INSERT INTO user_feedback_items (id, venue_id, submitted_by_user_id, title, content, support_note)
@@ -65,9 +65,10 @@ test('moderates Feedback with actor and passive plain-fragment refreshes', async
         await expect(viewer.locator('#feedback-cards')).toContainText('Revised public description', { timeout: E2E_TIMEOUT.assertion });
         await expect(viewer.locator('#feedback-cards')).toContainText('1 votes');
 
-        await card.locator('summary').filter({ hasText: /^Archive$/ }).click();
-        await expect(card).toContainText('All votes will be removed.');
-        await card.getByRole('button', { name: 'Confirm archive', exact: true }).click();
+        await card.getByRole('button', { name: 'Archive', exact: true }).click();
+        const archiveDialog = page.getByRole('dialog', { name: 'Archive feedback?' });
+        await expect(archiveDialog).toContainText('All votes will be removed.');
+        await archiveDialog.getByRole('button', { name: 'Archive', exact: true }).click();
         await expect(viewer.locator('#feedback-cards').getByRole('button', { name: `Vote for ${title}`, exact: true })).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         await card.getByRole('button', { name: 'Restore', exact: true }).click();
         await expect(page.locator('#feedback-desktop-count')).toHaveText(String(initialCount), { timeout: E2E_TIMEOUT.assertion });

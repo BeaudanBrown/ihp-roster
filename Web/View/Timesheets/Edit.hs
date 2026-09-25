@@ -63,7 +63,7 @@ editTimesheetFormRenderModel formMode timesheetFormInputs =
                 , actionUrl = pathTo (UpdateTimesheetEntryAction (get #id timesheetFormInputs.timesheetEntry))
                 , formId = editTimesheetFormId
                 , formMode
-                , formExtraAttrs = []
+                , formSurfaceAction = Nothing
                 }
         }
 

@@ -28,7 +28,7 @@
 .app-week-toolbar-quick {
     grid-area: quick;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.5rem;
     align-items: center;
     justify-content: flex-start;
@@ -81,6 +81,7 @@
     /* Keep Published and This week in normal flow; wrap controls, not labels. */
     .app-week-toolbar-roster .app-week-toolbar-quick {
         display: flex;
+        flex-wrap: wrap;
     }
 
     .app-week-toolbar-roster .app-week-toolbar-primary {

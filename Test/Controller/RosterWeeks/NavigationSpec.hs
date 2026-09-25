@@ -309,7 +309,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "hx-get=\"/EditRosterSlotDialog?rosterSlotId="
                 response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldContain` "name=\"rosterCalendarRevision\" value=\"1\""
-                response `responseBodyShouldContain` ">Published</span></label>"
+                response `responseBodyShouldContain` ">Published</span>"
 
         it "does not render conflict highlights on Published roster windows" $ withContext do
             withCleanDb do
@@ -380,14 +380,13 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-source=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` "Week actions"
-                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?"
-                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
+                response `responseBodyShouldContain` "hx-get=\"/ShowCopyRosterWeekConfirmation?"
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"open-copy-roster-week-confirmation\""
                 response `responseBodyShouldContain` "Sort shifts"
                 response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "Roster columns"
                 response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "roster-live-toggle-"
-                response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
                 response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:roster-live-toggle-"
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
@@ -401,7 +400,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-warnings\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-assignment-filters\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
         it "keeps the empty template library and Save visible for Published targets" $ withContext do
             withCleanDb do
@@ -471,6 +469,6 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 3)))
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "action=\"/ShowRosterWindow?anchorDate=2025-01-27\""
+                response `responseBodyShouldContain` "action=\"/ShowRosterWindow\""
                 response `responseBodyShouldContain` "type=\"hidden\" name=\"anchorDate\" value=\"2025-01-27\""
                 response `responseBodyShouldContain` "name=\"rosterGroupId\""

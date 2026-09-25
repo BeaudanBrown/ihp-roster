@@ -245,8 +245,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Your estimated pay"
-                response `responseBodyShouldContain` "timesheet-wage-summary-total\">$0.00 ($"
-                response `responseBodyShouldContain` "timesheet-day-wage-summary-total\">$0.00 ($"
+                response `responseBodyShouldContain` "timesheet-wage-summary"
+                response `responseBodyShouldContain` "timesheet-day-wage-summary"
+                response `responseBodyShouldContain` "timesheet-wage-estimate-total\">$0.00 ($"
                 response `responseBodyShouldNotContain` "timesheet unavailable overall"
 
         it "excludes roster suggestions from personal Timesheet pay estimates" $ withContext do
@@ -272,7 +273,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
                 response `responseBodyShouldContain` "Your estimated pay"
-                response `responseBodyShouldContain` "timesheet-wage-summary-total\">$0.00</span>"
+                response `responseBodyShouldContain` "timesheet-wage-estimate-total\">$0.00</span>"
 
         it "renders a subscribed timesheet shell for authenticated viewers" $ withContext do
             withCleanDb do
@@ -617,7 +618,7 @@ tests = aroundAll withDatabaseTestContext do
                 columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-section-2025-01-06\""
                 sidePanelResponse `responseStatusShouldBe` status200
                 sidePanelResponse `responseBodyShouldContain` "id=\"timesheet-side-panel-content\""
-                sidePanelResponse `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-panel=\"true\""
+                sidePanelResponse `responseBodyShouldContain` "timesheet-manager-mode-toggle"
 
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
             withCleanDb do
@@ -958,6 +959,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue (Just manager) "Spring" "Manager"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -984,6 +986,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue workerUser Worker
                 worker <- createStaffRecord venue (Just workerUser) "Ivy" "InvalidBreak"
                 payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
@@ -1155,17 +1158,29 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #timezone "not-a-zone")
 
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOne
                 pageResponse <- withUserAndCurrentVenue user venue.id do
                     callAction (ShowTimesheetWindowAction "2025-01-06")
-                createResponse <- withUserAndCurrentVenue user venue.id do
+                chooserResponse <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams NewTimesheetEntryAction
                             [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("workedOn", "2025-01-07")
                             ]
+                createResponse <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ChooseBlankTimesheetEntryAction
+                            [ ("anchorDate", "2025-01-06")
+                            , ("workedOn", "2025-01-07")
+                            , ("staffFilterId", idToParam staff.id)
+                            , ("blankClassification", "group:" <> cs (tshow rosterGroup.id))
+                            ]
 
                 pageResponse `responseStatusShouldBe` status200
-                createResponse `responseStatusShouldBe` status302
+                chooserResponse `responseStatusShouldBe` status200
+                createResponse `responseStatusShouldBe` status403
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "excludes trial staff from manager timesheet forms and staff filters" $ withContext do
@@ -1338,17 +1353,17 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "timesheet-trial-tamper-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Tamper"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
+                trialGroup <- query @StaffRosterGroup
+                    |> filterWhere (#staffId, unpackId trialStaff.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateTimesheetEntryAction
-                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
-                        , ("staffId", idToParam trialStaff.id)
-                        , ("shiftTypeId", idToParam shiftType.id)
+                    callActionWithParams ChooseBlankTimesheetEntryAction
+                        [ ("anchorDate", "2025-01-06")
+                        , ("staffFilterId", idToParam trialStaff.id)
                         , ("workedOn", "2025-01-07")
-                        , ("startTime", "09:00")
-                        , ("endTime", "17:00")
+                        , ("blankClassification", "group:" <> cs (tshow trialGroup.rosterGroupId))
                         ]
 
                 response `responseStatusShouldBe` status403
@@ -1378,7 +1393,7 @@ tests = aroundAll withDatabaseTestContext do
                 entryExists <- query @TimesheetEntry |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 entryExists `shouldBe` False
 
-        it "renders the delete action in the HTMX timesheet edit modal footer with a single confirm source" $ withContext do
+        it "opens typed delete confirmation from the HTMX timesheet edit modal footer" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-delete-form@example.com" "staff" True
@@ -1393,15 +1408,16 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs (pathTo (DeleteTimesheetEntryAction entry.id))
-                response `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
-                response `responseBodyShouldContain` "hx-confirm=\"Delete this timesheet entry? This cannot be undone.\""
+                response `responseBodyShouldContain` cs (pathTo (ShowTimesheetEntryDeleteConfirmationAction entry.id))
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldNotContain` "name=\"_method\" value=\"DELETE\""
+                response `responseBodyShouldNotContain` "hx-confirm="
                 response `responseBodyShouldNotContain` "onsubmit=\"return window.confirm"
                 response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "app-modal-footer-start"
                 response `responseBodyShouldNotContain` "js-delete"
 
-        it "renders the page-modal delete action with native confirmation only" $ withContext do
+        it "opens typed delete confirmation from the direct-page edit dialog" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-page-delete-form@example.com" "staff" True
@@ -1415,10 +1431,9 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs (pathTo (DeleteTimesheetEntryAction entry.id))
-                response `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
-                response `responseBodyShouldContain` "onsubmit=\"return window.confirm(&quot;Delete this timesheet entry? This cannot be undone.&quot;);\""
-                response `responseBodyShouldNotContain` "hx-confirm=\"Delete this timesheet entry? This cannot be undone.\""
+                response `responseBodyShouldContain` cs (pathTo (ShowTimesheetEntryDeleteConfirmationAction entry.id))
+                response `responseBodyShouldNotContain` "onsubmit=\"return window.confirm"
+                response `responseBodyShouldNotContain` "hx-confirm="
                 response `responseBodyShouldContain` "app-modal-footer-start"
                 response `responseBodyShouldNotContain` "js-delete"
 
@@ -1971,7 +1986,7 @@ tests = aroundAll withDatabaseTestContext do
                             [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 formResponse `responseStatusShouldBe` status200
-                formResponse `responseBodyShouldContain` "This form starts from the current roster shift"
+                formResponse `responseBodyShouldContain` "This form is prefilled from the current roster shift"
                 formResponse `responseBodyShouldNotContain` "<span class=\"badge text-bg-info\">Rostered</span>"
                 formResponse `responseBodyShouldContain` "name=\"staffId\""
                 formResponse `responseBodyShouldNotContain` "<select name=\"staffId\""
@@ -2235,7 +2250,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Hide approved"
+                response `responseBodyShouldContain` "Show approved"
                 response `responseBodyShouldNotContain` "Show suggestions"
                 response `responseBodyShouldContain` "timesheet-side-panel"
                 response `responseBodyShouldContain` "<h2 class=\"h5\">Settings</h2>"
@@ -2261,10 +2276,10 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Hide approved"
+                response `responseBodyShouldContain` "Show approved"
                 response `responseBodyShouldNotContain` "Show all staff"
-                response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
-                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-hide-approved-toggle\""
+                response `responseBodyShouldContain` "app-toggle-button"
+                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-show-approved-toggle\""
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Hours"

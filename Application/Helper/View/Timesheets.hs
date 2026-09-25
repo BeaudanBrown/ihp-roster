@@ -28,7 +28,11 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAttribute)
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
+import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
+                                                                    frontendSurfaceActionIR)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
@@ -73,8 +77,8 @@ data TimesheetFormPresentation = TimesheetFormPresentation
     , formOrigin     :: TimesheetFormOrigin
     , actionUrl      :: Text
     , formId         :: Text
-    , formMode       :: OverlayFormMode
-    , formExtraAttrs :: [(Text, Text)]
+    , formMode          :: OverlayFormMode
+    , formSurfaceAction :: Maybe FrontendSurfaceAction
     }
 
 data TimesheetFormRenderModel = TimesheetFormRenderModel
@@ -114,7 +118,7 @@ renderTimesheetForm model@TimesheetFormRenderModel { timesheetFormPresentation =
                 ((defaultAppShellActionRoute (actionUrl))
                     { appShellActionRouteExtraAttrs = [ ("id", formId)
                         , ("class", "mt-3")
-                        ] <> formExtraAttrs
+                        ] <> maybe [] surfaceActionMarkerAttrs formSurfaceAction
                     })
                 (renderTimesheetFormFields model)
         PageOverlayForm -> [hsx|
@@ -125,6 +129,9 @@ renderTimesheetForm model@TimesheetFormRenderModel { timesheetFormPresentation =
                 {renderTimesheetFormFields model}
             </form>
         |]
+  where
+    surfaceActionMarkerAttrs action =
+        [(surfaceActionDomAttribute, SurfaceIR.htmxActionMarker (frontendSurfaceActionIR action))]
 
 renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormRenderModel -> Html
 renderTimesheetFormFields model@TimesheetFormRenderModel

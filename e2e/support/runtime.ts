@@ -68,7 +68,11 @@ async function installLiveRecoveryTracker(page: Page) {
     });
 }
 
-export async function waitForLiveRecovery(page: Page, timeoutMs = E2E_TIMEOUT.navigation) {
+export async function waitForLiveRecovery(
+    page: Page,
+    timeoutMs: number = E2E_TIMEOUT.navigation,
+    settleMs: number = E2E_TIMEOUT.labelGeometrySettle,
+) {
     const expectedScopeKeys = await page.locator(`[${surfaceConfigDomAttr}]`).evaluateAll((elements, configAttribute) =>
         Array.from(new Set(elements.flatMap((element) => {
             const rawConfig = element.getAttribute(configAttribute);
@@ -82,15 +86,15 @@ export async function waitForLiveRecovery(page: Page, timeoutMs = E2E_TIMEOUT.na
         }))), surfaceConfigDomAttr);
     if (expectedScopeKeys.length === 0) return;
 
-    await expect.poll(() => page.evaluate((scopeKeys) => {
+    await expect.poll(() => page.evaluate(({ scopeKeys, settleMs }) => {
         const tracker = (window as LiveRecoveryTrackerWindow).__bepisE2ELiveRecovery;
         return Boolean(
             tracker
             && scopeKeys.every((scopeKey) => tracker.acknowledgedScopeKeys.includes(scopeKey))
             && tracker.activeHtmxRequests === 0
-            && performance.now() - tracker.lastHtmxActivityAt >= 100
+            && performance.now() - tracker.lastHtmxActivityAt >= settleMs
         );
-    }, expectedScopeKeys), { timeout: timeoutMs }).toBe(true);
+    }, { scopeKeys: expectedScopeKeys, settleMs }), { timeout: timeoutMs }).toBe(true);
 }
 
 export async function gotoWhenReady(page: Page, path: string, readySelector: string, timeoutMs = E2E_TIMEOUT.navigation) {

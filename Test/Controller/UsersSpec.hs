@@ -167,7 +167,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "disabled=\"disabled\""
                 response `responseBodyShouldNotContain` "id=\"staff-email\""
                 response `responseBodyShouldNotContain` "id=\"invite-email\""
-                response `responseBodyShouldContain` "Show shift end times in roster"
+                response `responseBodyShouldContain` "Show shift end times"
                 response `responseBodyShouldNotContain` "Auto-create pending timesheets"
                 response `responseBodyShouldNotContain` "autoTimesheetCreationEnabled"
                 response `responseBodyShouldNotContain` "venue-timezone"

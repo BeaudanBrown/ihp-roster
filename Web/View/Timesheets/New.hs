@@ -52,6 +52,6 @@ newTimesheetFormRenderModel formMode NewTimesheetRenderModel { timesheetFormInpu
                 , actionUrl = pathTo CreateTimesheetEntryAction
                 , formId = newTimesheetFormId
                 , formMode
-                , formExtraAttrs = []
+                , formSurfaceAction = Nothing
                 }
         }

@@ -118,6 +118,10 @@ test.describe('Timesheets shared SidePanel', () => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
+        const mobilePanelToggle = page.getByRole('button', { name: 'Open Timesheet tools' });
+        await expect(mobilePanelToggle).toBeVisible();
+        await mobilePanelToggle.click();
+
         const panel = page.locator(`[${timesheetsTimesheetSidePanelPanelDomAttr}]`);
         await expect(panel).toBeVisible();
         await expect(panel.getByRole('heading', { name: 'Settings' })).toBeVisible();

@@ -73,14 +73,12 @@
     white-space: nowrap;
 }
 
-.timesheet-wage-summary-label,
-.timesheet-day-wage-summary-label {
+.timesheet-wage-estimate-label {
     color: var(--app-muted);
     font-weight: 700;
 }
 
-.timesheet-wage-summary-total,
-.timesheet-day-wage-summary-total {
+.timesheet-wage-estimate-total {
     font-variant-numeric: tabular-nums;
 }
 

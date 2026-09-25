@@ -12,6 +12,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       passkeyVerifiedUserSessionKey)
 import Application.Helper.Authentication (bepisAuthenticationMiddleware)
 import Application.Helper.ControllerContext (initCurrentVenueContext, venueRequestStateMiddleware)
+import Application.Helper.ManagementMode (initManagementModeContext)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
@@ -391,6 +392,7 @@ withCurrentControllerContext action = do
     let ?request = request
     initCurrentVenueContext
     initImpersonationContext
+    initManagementModeContext
     action
 
 -- Preserve the fixture session vault while applying the real app auth boundary.

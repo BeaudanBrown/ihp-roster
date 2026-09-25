@@ -10,6 +10,7 @@ import {
     shiftExportWeek,
 } from './support/exports';
 import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
+import { runSql } from './support/database';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -17,6 +18,32 @@ test.describe('Payroll export downloads', () => {
     test.setTimeout(E2E_TIMEOUT.test);
 
     test('venue admin creates, edits, generates, and deletes ordered Payroll Workbook exports', async ({ page }, testInfo) => {
+        test.setTimeout(E2E_TIMEOUT.payrollWorkflowTest);
+        runSql(`
+            DELETE FROM payroll_workbook_configurations
+            WHERE name IN ('Wages then Summary', 'Hours then Wages');
+            INSERT INTO payroll_workbook_configurations
+                (id, venue_id, name, definition_version, revision, created_by_user_id, created_at, updated_at)
+            VALUES
+                ('a1000000-0000-0000-0000-000000000801', 'a1000000-0000-0000-0000-000000000001',
+                 'Payroll Workbook', 1, 0, 'a0000000-0000-0000-0000-000000000003', NOW(), NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                venue_id = EXCLUDED.venue_id,
+                name = EXCLUDED.name,
+                definition_version = EXCLUDED.definition_version,
+                revision = EXCLUDED.revision,
+                created_by_user_id = EXCLUDED.created_by_user_id,
+                updated_at = NOW();
+            DELETE FROM payroll_workbook_configuration_families
+            WHERE configuration_id = 'a1000000-0000-0000-0000-000000000801';
+            INSERT INTO payroll_workbook_configuration_families (id, configuration_id, family_key, position)
+            VALUES
+                ('a1000000-0000-0000-0000-000000000811', 'a1000000-0000-0000-0000-000000000801', 'summary', 0),
+                ('a1000000-0000-0000-0000-000000000812', 'a1000000-0000-0000-0000-000000000801', 'employee-pay-bucket-hours', 1),
+                ('a1000000-0000-0000-0000-000000000813', 'a1000000-0000-0000-0000-000000000801', 'shift-type-hours', 2),
+                ('a1000000-0000-0000-0000-000000000814', 'a1000000-0000-0000-0000-000000000801', 'employee-pay-bucket-wages', 3),
+                ('a1000000-0000-0000-0000-000000000815', 'a1000000-0000-0000-0000-000000000801', 'shift-type-wages', 4);
+        `);
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
@@ -106,7 +133,13 @@ test.describe('Payroll export downloads', () => {
         await addDialog.getByRole('button', { name: 'Add Summary' }).click();
         await addDialog.getByRole('button', { name: 'Add Wages by Shift Type' }).click();
         await addDialog.getByRole('button', { name: 'Move Wages by Shift Type up' }).click();
+        const createSaveResponse = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/CreatePayrollWorkbookConfiguration')
+        );
         await addDialog.getByRole('button', { name: 'Save' }).click();
+        expect((await createSaveResponse).ok()).toBe(true);
+        await page.reload();
+        await gotoExports(page);
 
         const configurationRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Wages then Summary' });
         await expect(configurationRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
@@ -135,6 +168,8 @@ test.describe('Payroll export downloads', () => {
         );
         await editDialog.getByRole('button', { name: 'Save' }).click();
         expect((await editSaveResponse).ok()).toBe(true);
+        await page.reload();
+        await gotoExports(page);
 
         const editedRow = page.locator('[data-payroll-workbook-configuration]').filter({ hasText: 'Hours then Wages' });
         await expect(editedRow).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
@@ -147,19 +182,23 @@ test.describe('Payroll export downloads', () => {
         const deleteEditedForm = deleteEditedDialog.locator('form');
         await expect(deleteEditedForm).toHaveCount(1);
         await expect(deleteEditedForm).toHaveAttribute('action', /DeletePayrollWorkbookConfiguration/);
-        const editedDeleteRedirect = page.waitForResponse((response) => response.request().isNavigationRequest() && response.url().includes('/Admin?showExports=true'), { timeout: E2E_TIMEOUT.assertion });
+        const editedDeleteResponse = page.waitForResponse((response) =>
+            response.request().method() === 'DELETE' && response.url().includes('/DeletePayrollWorkbookConfiguration')
+        );
         await deleteEditedDialog.getByRole('button', { name: 'Delete' }).click();
-        await editedDeleteRedirect;
-        await gotoExports(page);
+        expect((await editedDeleteResponse).ok()).toBe(true);
         await expect(editedRow).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
 
         const refreshedStandardCard = payrollReportCard(page, 'Payroll Workbook');
         await refreshedStandardCard.getByRole('button', { name: 'Delete' }).click();
         const deleteStandardDialog = page.getByRole('dialog', { name: 'Delete export' });
         await expect(deleteStandardDialog).toContainText('Payroll Workbook');
-        const standardDeleteRedirect = page.waitForResponse((response) => response.request().isNavigationRequest() && response.url().includes('/Admin?showExports=true'), { timeout: E2E_TIMEOUT.assertion });
+        const standardDeleteResponse = page.waitForResponse((response) =>
+            response.request().method() === 'DELETE' && response.url().includes('/DeletePayrollWorkbookConfiguration')
+        );
         await deleteStandardDialog.getByRole('button', { name: 'Delete' }).click();
-        await standardDeleteRedirect;
+        expect((await standardDeleteResponse).ok()).toBe(true);
+        await page.reload();
         const exportsToggle = page.getByRole('button', { name: 'Exports' });
         if ((await exportsToggle.getAttribute('aria-expanded')) !== 'true') await exportsToggle.click();
         await expect(page.locator('#exports-collapse')).toBeVisible({ timeout: E2E_TIMEOUT.action });

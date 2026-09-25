@@ -124,6 +124,17 @@ if [ "$E2E_SHARDS" -lt 1 ] || [ "$E2E_SHARDS" -gt 8 ]; then
     echo "E2E_SHARDS must be between 1 and 8 so the locked runtime port block remains disjoint" >&2
     exit 1
 fi
+E2E_SHARD_TIMEOUT_SECONDS="${E2E_SHARD_TIMEOUT_SECONDS:-600}"
+case "$E2E_SHARD_TIMEOUT_SECONDS" in
+    ""|*[!0-9]*)
+        echo "E2E_SHARD_TIMEOUT_SECONDS must be a positive integer, got: $E2E_SHARD_TIMEOUT_SECONDS" >&2
+        exit 1
+        ;;
+esac
+if [ "$E2E_SHARD_TIMEOUT_SECONDS" -lt 1 ]; then
+    echo "E2E_SHARD_TIMEOUT_SECONDS must be positive" >&2
+    exit 1
+fi
 runner_binary="${BEPIS_RUNNERS_BINARY:-$("${BEPIS_TOOLING_LAUNCHER:-$PWD/bin/tooling-run}" runners --print-binary)}"
 "$runner_binary" e2e-plan --run-id "$E2E_RUN_ID" --shards "$E2E_SHARDS" \
     --max-shards "$E2E_SHARDS_MAX" --pool-size "$HASQL_POOL_SIZE" --database "$BASE_E2E_DATABASE_NAME" >/dev/null
@@ -380,8 +391,14 @@ SQL
                 echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
                 echo "E2E database: $TEST_DATABASE_NAME"
                 local test_status=0
-                playwright test --shard="$shard_index/$E2E_SHARDS" "$@" \
+                # Let timeout own a process group so a wedged browser or
+                # Playwright child cannot survive the shard deadline.
+                timeout --signal=TERM --kill-after=30s "${E2E_SHARD_TIMEOUT_SECONDS}s" \
+                    playwright test --shard="$shard_index/$E2E_SHARDS" "$@" \
                     7>&- || test_status=$?
+                if [ "$test_status" -eq 124 ] || [ "$test_status" -eq 137 ]; then
+                    echo "E2E shard $shard_index/$E2E_SHARDS exceeded ${E2E_SHARD_TIMEOUT_SECONDS}s; terminated Playwright process group" >&2
+                fi
                 if ! bepis_runtime_observe "$worker_pid_file" e2e-worker >/dev/null; then
                     echo "E2E shard $shard_index/$E2E_SHARDS worker exited during tests" >&2
                     tail -n 80 "$worker_log" >&2 || true

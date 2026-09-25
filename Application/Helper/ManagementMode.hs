@@ -14,19 +14,22 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 initManagementModeContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-initManagementModeContext = do
-    maybePreference <-
-        query @UserPreference
-            |> filterWhere (#userId, unpackId effectiveCurrentUser.id)
-            |> fetchOneOrNothing
-    let preferenceEnabled = maybe True (.managerModeEnabled) maybePreference
-    let managementMode =
-            managementModeContextFor
-                currentUserIsUnimpersonatedSuperAdmin
-                effectiveVenueRoleOrNothing
-                (isJust effectiveStaffOrNothing)
-                preferenceEnabled
-    managementMode `seq` modifyRequestVenueState (\state -> state { managementMode })
+initManagementModeContext =
+    case withRequestContext (currentUserOrNothing @User) of
+        Nothing -> pure ()
+        Just _ -> do
+            maybePreference <-
+                query @UserPreference
+                    |> filterWhere (#userId, unpackId effectiveCurrentUser.id)
+                    |> fetchOneOrNothing
+            let preferenceEnabled = maybe True (.managerModeEnabled) maybePreference
+            let managementMode =
+                    managementModeContextFor
+                        currentUserIsUnimpersonatedSuperAdmin
+                        effectiveVenueRoleOrNothing
+                        (isJust effectiveStaffOrNothing)
+                        preferenceEnabled
+            managementMode `seq` modifyRequestVenueState (\state -> state { managementMode })
 
 managementModeContextFor :: Bool -> Maybe VenueRoleEnum -> Bool -> Bool -> ManagementModeContext
 managementModeContextFor unimpersonatedSupport effectiveRole hasActiveLinkedStaff preferenceEnabled =

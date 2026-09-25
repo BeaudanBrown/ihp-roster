@@ -92,7 +92,7 @@ test.describe('Generated overlay capability', () => {
         await expect(toast).toContainText('Thanks — your feedback was submitted for review.', { timeout: E2E_TIMEOUT.assertion });
         const rawToastConfig = await toast.getAttribute(toastConfigDomAttr);
         expect(rawToastConfig).not.toBeNull();
-        expect(JSON.parse(rawToastConfig!)).toEqual({ autoHideMs: 3200 });
+        expect(JSON.parse(rawToastConfig!)).toEqual({ autoHideMs: 5000 });
 
         const toastClose = toast.locator(`[${toastCloseDomAttr}]`);
         await expect(toastClose).toHaveAttribute('aria-label', 'Dismiss');
