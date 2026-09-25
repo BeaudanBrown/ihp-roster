@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,13 +58,15 @@ cp inputs/Proof.hs "$2/Proof.hs"
     execFileSync('git', ['init', '-q'], { cwd: root });
     const identity = execFileSync(artifacts, ['digest', '--truncate', '12', root], { encoding: 'utf8' }).trim();
     const cache = join(root, 'cache', identity, 'surface-adapter-validation');
-    const run = () => {
-        const result = spawnSync('bash', [join(scripts, 'frontend/surface-adapters-check')], {
-            cwd: root, encoding: 'utf8', timeout: 60_000,
-            env: { ...process.env, FRONTEND_REPO_ROOT: root, BEPIS_SCRIPTS_ROOT: scripts,
-                FRONTEND_CONTRACT_TOOLS_ROOT: join(root, 'tools'), IHP_ROSTER_ARTIFACTS_BINARY: artifacts,
-                BEPIS_GHC_CACHE_PARENT: join(root, 'cache') },
-        });
+    const options = (environment = {}) => ({
+        cwd: root, encoding: 'utf8', timeout: 60_000,
+        env: { ...process.env, FRONTEND_REPO_ROOT: root, BEPIS_SCRIPTS_ROOT: scripts,
+            FRONTEND_CONTRACT_TOOLS_ROOT: join(root, 'tools'), IHP_ROSTER_ARTIFACTS_BINARY: artifacts,
+            BEPIS_GHC_CACHE_PARENT: join(root, 'cache'), ...environment },
+    });
+    const start = () => spawn('bash', [join(scripts, 'frontend/surface-adapters-check')], { ...options(), detached: true });
+    const run = (environment = {}) => {
+        const result = spawnSync('bash', [join(scripts, 'frontend/surface-adapters-check')], options(environment));
         assert.ifError(result.error);
         return result;
     };
@@ -72,7 +74,7 @@ cp inputs/Proof.hs "$2/Proof.hs"
         const result = run();
         assert.equal(result.status, 0, result.stdout + result.stderr);
     };
-    return { root, cache, run, passes };
+    return { root, cache, run, passes, start };
 }
 
 test('fresh adapter stages reuse unchanged dependencies, but still compile each new proof and dependency edit', (t) => {
@@ -97,6 +99,115 @@ test('fresh adapter stages reuse unchanged dependencies, but still compile each 
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /Couldn't match expected type/);
 });
+
+for (const [path, module, include] of [
+    ['Config/Dependency.hs', 'Config.Dependency', ''],
+    ['build/Generated/Dependency.hs', 'Generated.Dependency', '-ibuild'],
+]) {
+    test(`ignored/transitive ${module} edits invalidate dependencies even with preserved source time`, (t) => {
+        const { root, cache, run, passes } = fixture(t);
+        put(root, 'Makefile', `print-ghc-options:\n\t@echo "-i. ${include} -O0"\n`);
+        put(root, path, `module ${module} where\ndependency :: Int\ndependency = 1\n`);
+        put(root, 'Application/Dependency.hs', `module Application.Dependency (dependency) where\nimport ${module} (dependency)\n`);
+        passes();
+        const originalFingerprint = readFileSync(join(cache, 'fingerprint.json'), 'utf8');
+        const times = statSync(join(root, path));
+        put(root, path, `module ${module} where\ndependency :: Bool\ndependency = True\n`);
+        utimesSync(join(root, path), times.atime, times.mtime);
+        const result = run();
+        assert.notEqual(result.status, 0, 'changed transitive bytes must fail the fresh managed/proof compile');
+        assert.match(result.stderr, /Couldn't match expected type/);
+        assert.notEqual(readFileSync(join(cache, 'fingerprint.json'), 'utf8'), originalFingerprint);
+    });
+}
+
+test('unrelated prose does not reset dependencies; additions, deletions and schema bytes do', (t) => {
+    const { root, cache, passes } = fixture(t);
+    passes();
+    let stamp = readFileSync(join(cache, 'fingerprint.json'), 'utf8');
+    put(root, 'docs/note.md', 'unrelated prose');
+    passes();
+    assert.equal(readFileSync(join(cache, 'fingerprint.json'), 'utf8'), stamp);
+    for (const action of [
+        () => put(root, 'Application/Untracked.hs', 'module Application.Untracked where\n'),
+        () => rmSync(join(root, 'Application/Untracked.hs')),
+        () => put(root, 'Application/Schema.sql', 'CREATE TABLE fixture (id INT);'),
+        () => put(root, 'Config/nix/scripts/lib/ghc.sh', readFileSync(join(root, 'Config/nix/scripts/lib/ghc.sh'), 'utf8') + '\n# changed policy\n'),
+    ]) {
+        action();
+        passes();
+        const next = readFileSync(join(cache, 'fingerprint.json'), 'utf8');
+        assert.notEqual(next, stamp);
+        stamp = next;
+    }
+});
+
+test('interrupted private proof compilation cannot become reused proof success', async (t) => {
+    const { root, run, passes, start } = fixture(t);
+    passes();
+    put(root, 'inputs/Proof.hs', `{-# LANGUAGE TemplateHaskell #-}
+module Proof where
+import qualified Language.Haskell.TH as TH
+import qualified Control.Concurrent as Concurrent
+import Application.Helper.FrontendContract.Surface.Fixture.Generated.Action (value)
+$(TH.runIO (writeFile "proof-started" "ready" >> Concurrent.threadDelay 30000000) >> pure [])
+check :: Int
+check = value
+`);
+    const child = start();
+    let output = '';
+    child.stdout.on('data', (data) => { output += data; });
+    child.stderr.on('data', (data) => { output += data; });
+    const finished = new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    try {
+        const deadline = Date.now() + 10_000;
+        while (!existsSync(join(root, 'proof-started'))) {
+            assert.ok(child.exitCode === null && Date.now() < deadline, output);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+    } finally {
+        process.kill(-child.pid, 'SIGTERM');
+        const result = await finished;
+        assert.ok(result.code !== 0 || result.signal !== null, output);
+    }
+    put(root, 'inputs/Proof.hs', proof.replace('check :: Int', 'check :: Bool'));
+    const result = run();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Couldn't match expected type/);
+    put(root, 'inputs/Proof.hs', proof);
+    passes();
+});
+
+test('same-version compiler wrapper changes cannot retain an old dependency identity', (t) => {
+    const { root, cache, run } = fixture(t);
+    const ghc = execFileSync('bash', ['-c', 'command -v ghc'], { encoding: 'utf8' }).trim();
+    const path = join(root, 'compiler/ghc');
+    put(root, 'compiler/ghc', `#!/usr/bin/env bash\nexec '${ghc}' "$@"\n`);
+    chmodSync(path, 0o755);
+    const environment = { PATH: `${dirname(path)}:${process.env.PATH}` };
+    let result = run(environment);
+    assert.equal(result.status, 0, result.stderr);
+    const stamp = readFileSync(join(cache, 'fingerprint.json'), 'utf8');
+    writeFileSync(path, readFileSync(path, 'utf8') + '# compiler wrapper configuration changed\n');
+    result = run(environment);
+    assert.equal(result.status, 0, result.stderr);
+    assert.notEqual(readFileSync(join(cache, 'fingerprint.json'), 'utf8'), stamp);
+});
+
+for (const kind of ['missing', 'extra']) {
+    test(`${kind} managed output cannot inherit successful proofs`, (t) => {
+        const { root, run, passes } = fixture(t);
+        passes();
+        if (kind === 'missing') rmSync(join(root, managed));
+        else put(root, managed.replace('Action.hs', 'Extra.hs'), generated.replace('.Action where', '.Extra where'));
+        const result = run();
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, kind === 'missing' ? /missing generated module/ : /stale generated module/);
+    });
+}
 
 test('typecorrect but stale generated output still fails exact comparison', (t) => {
     const { root, run, passes } = fixture(t);

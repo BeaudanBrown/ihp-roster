@@ -312,6 +312,15 @@ emission through packaged binaries. Adapter validation reuses the locked
 compiler dependency cache, not generated results: each invocation renders and
 compiles fresh modules/private proofs and compares the exact managed output.
 Temporary staging paths must not invalidate unchanged dependency configuration.
+The dependency inventory includes authored/untracked Application, Web and Config
+sources plus ignored schema modules under `build/Generated`, schema SQL, effective
+options, compiler executable bytes/configuration and package database metadata.
+These conservative invalidation inputs are not proof-success certificates. GHC
+still validates every fresh subject and its dependencies; changed/missing/extra
+managed bytes and interrupted or invalid private proofs cannot inherit success.
+The compiler-probe metadata assumes the normal immutable Nix package closure;
+it does not certify arbitrary undeclared TH inputs or external mutable libraries.
+Real-owner regressions live in `scripts/surface-adapter-check.test.mjs`.
 In `verify-full`, the later single
 `production-package-smoke` traversal proves the optimized production closure
 does not reference this tooling output. Generated repository artifacts are
