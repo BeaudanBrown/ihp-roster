@@ -107,6 +107,7 @@ if [ "${1:-}" = "--probe" ]; then
 fi
 mkdir -p "$DEVENV_AGENT_STATE_DIR"
 env | sort >"$DEVENV_AGENT_STATE_DIR/runtime.env"
+printf '%s\n' 'fixture app compilation output'
 sleep 300 &
 printf '%s\n' "$!" >"$DEVENV_AGENT_STATE_DIR/start-child.pid"
 wait
@@ -115,6 +116,7 @@ cat >"$fake_bin/dev-worker" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$DATABASE_URL" >"$DEVENV_AGENT_STATE_DIR/worker-database"
+printf '%s\n' 'fixture worker compilation output'
 sleep 300 &
 printf '%s\n' "$!" >"$DEVENV_AGENT_STATE_DIR/worker-child.pid"
 wait
@@ -290,6 +292,15 @@ kill -0 "$foreground_child_pid" 2>/dev/null || fail "foreground app child was no
 [ -f "$epic_state/worker-child.pid" ] || fail "foreground worker did not start"
 worker_child_pid="$(cat "$epic_state/worker-child.pid")"
 kill -0 "$worker_child_pid" 2>/dev/null || fail "foreground worker child was not alive"
+for _ in $(seq 1 100); do
+    if grep -q '\[app\] fixture app compilation output' "$fixture_root/foreground.log" \
+        && grep -q '\[worker\] fixture worker compilation output' "$fixture_root/foreground.log"; then
+        break
+    fi
+    sleep 0.05
+done
+assert_contains "$(cat "$fixture_root/foreground.log")" "[app] fixture app compilation output"
+assert_contains "$(cat "$fixture_root/foreground.log")" "[worker] fixture worker compilation output"
 }
 launch_foreground
 assert_contains "$(cat "$epic_state/worker-database")" "$fixture_root/postgres-$epic_id/socket"

@@ -38,6 +38,7 @@ APP_PID=""
 WORKER_PID=""
 FRONTEND_WATCH_PID=""
 FRONTEND_GENERATED_WATCH_PID=""
+LOG_STREAM_PIDS=()
 MAILHOG_STARTED=0
 POSTGRES_STARTED=0
 MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
@@ -55,6 +56,11 @@ if existing_status="$(bepis_runtime_observe "$PID_FILE" devenv 2>/dev/null)"; th
 fi
 bepis_runtime_adopt "$PID_FILE" devenv "$BASHPID"
 cleanup() {
+    local stream_pid
+    for stream_pid in "${LOG_STREAM_PIDS[@]}"; do
+        kill "$stream_pid" >/dev/null 2>&1 || true
+        wait "$stream_pid" 2>/dev/null || true
+    done
     bepis_runtime_stop_invocation "$WORKER_PID_FILE" worker 2000 >/dev/null 2>&1 || true
     bepis_runtime_stop_invocation "$APP_PID_FILE" app 2000 >/dev/null 2>&1 || true
     bepis_runtime_stop_invocation "$FRONTEND_WATCH_PID_FILE" frontend-watch 2000 >/dev/null 2>&1 || true
@@ -135,6 +141,24 @@ if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
     POSTGRES_STARTED=1
 fi
 
+log_size() {
+    local path="$1"
+    if [ -f "$path" ] && [ ! -L "$path" ]; then
+        stat -c %s -- "$path"
+    else
+        printf '0\n'
+    fi
+}
+
+stream_log() {
+    local label="$1" path="$2" offset="$3" owner_pid="$BASHPID"
+    (
+        tail --pid="$owner_pid" -c "+$((offset + 1))" -F -- "$path" 2>/dev/null \
+            | sed -u "s/^/[$label] /"
+    ) &
+    LOG_STREAM_PIDS+=("$!")
+}
+
 if curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
     echo "App server already running at $APP_HEALTH_URL; stop it before starting the foreground stack." >&2
     exit 75
@@ -150,6 +174,7 @@ else
         echo "Tracing env: OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
         echo "Grafana Explore: http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore"
     fi
+    app_log_offset="$(log_size "$LOG_FILE")"
     app_result="$(bepis_runtime_start_result "$APP_PID_FILE" "$LOG_FILE" app start)"
     APP_PID="$(bepis_runtime_result_value "$app_result" pid)"
 fi
@@ -157,8 +182,18 @@ fi
 # Run the same registered AppJob consumers as production, using this workspace's
 # database and service configuration. Both just dev and just ddev enter here.
 echo "Starting background job worker for slot $BEPIS_WORKSPACE_SLOT..."
-worker_result="$(bepis_runtime_start_result "$WORKER_PID_FILE" "$STATE_DIR/worker.log" worker dev-worker)"
+worker_log="$STATE_DIR/worker.log"
+worker_log_offset="$(log_size "$worker_log")"
+worker_result="$(bepis_runtime_start_result "$WORKER_PID_FILE" "$worker_log" worker dev-worker)"
 WORKER_PID="$(bepis_runtime_result_value "$worker_result" pid)"
+
+# Runtime ownership keeps child processes detached and writes durable logs. A
+# foreground launcher should still provide the interactive compiler/runtime
+# feedback it historically exposed. Start from the pre-launch byte offsets so
+# output emitted before tail attaches is not lost and retained history is not
+# replayed.
+if [ -n "$APP_PID" ]; then stream_log app "$LOG_FILE" "$app_log_offset"; fi
+stream_log worker "$worker_log" "$worker_log_offset"
 
 # Do not leave a healthy-looking web server running without its job consumer.
 # Detached children publish ownership evidence; this foreground owner observes
