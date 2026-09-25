@@ -147,7 +147,24 @@ warnings stay outside application authority. Forcing the graph prevents warm
 interfaces from hiding warnings, while `--make` avoids duplicate instances from
 multi-file `-c`. Real compiler fixtures retain cold/warm, generated-dependency
 and instance-import regressions. No separate warning cache or per-module GHC
-processes are needed.
+processes are needed. The native artifact owner serializes the entire warning
+pass, including option preparation and diagnostic consumption, for one canonical
+output directory. Missing warning attribution is malformed evidence, not a
+reason to silently classify a warning as generated. Different output directories
+remain independent. No stamp written before compilation certifies strict success.
+
+At the post-staging #601 control (revision `f5efca62`, 586 owned subjects), seven
+warm runs measured median 90.010s / observed maximum 94.721s; three fresh-output
+runs measured 90.595s / 94.785s, retaining Nix/package/OS caches. This is material
+cost, not evidence of a safe cache speedup. Retain the forced graph rather than
+introduce an unproved complete-success certificate: the real-GHC fixtures show
+that Template Haskell file and environment changes must invalidate success even
+when module bytes are unchanged. A future result cache must first prove frozen
+inputs and complete compiler/TH/environment identity; the existing option stamp
+and source inventory do not do so. The unchanged-hit target does not apply while
+there is no success cache. Tests also cover deletion, compiler failure, malformed
+diagnostics, warning-policy overrides and concurrent callers; cooperative
+cancellation is owned by [the native artifact tool](../../tooling/README.md#lock-ownership).
 
 `typed-error-boundary-check` scans the same owned inventory with HLint's
 unchanged project restriction policy, disabling only shipped rewrite hints

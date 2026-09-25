@@ -3,7 +3,18 @@ set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
 
-build_dir="${APPLICATION_WARNINGS_BUILD_DIR:-$(ihp_roster_verification_build_dir)/application-warnings}"
+build_dir="$(realpath -m "${APPLICATION_WARNINGS_BUILD_DIR:-$(ihp_roster_verification_build_dir)/application-warnings}")"
+# Serialize preparation, compilation and diagnostic consumption as one owner.
+# The internal re-entry is not a cached-success path: it always runs GHC.
+case "${1:-}" in
+    "")
+        ihp_roster_prepare_artifacts
+        exec "$IHP_ROSTER_ARTIFACTS_BINARY" lock-exec --lock "$build_dir.owner.lock" -- \
+            bash "$0" --owned-pass
+        ;;
+    --owned-pass) ;;
+    *) echo "application-warnings: unexpected argument" >&2; exit 64 ;;
+esac
 base_ghc_opts="$(ihp_roster_ghc_opts)"
 # IHP routes and wire sums require constructor-local record labels. Reject
 # partial accesses (including getField/record-dot), not those declarations.
@@ -36,6 +47,9 @@ owned="$(printf '%s\n' "${app_sources[@]}" | jq -R . | jq -s .)"
 warnings="$(jq -rs --argjson owned "$owned" '
     .[] | if (.messageClass | type) != "string" or (.doc | type) != "string" then error("unsupported GHC diagnostic") else . end
     | select(.messageClass | startswith("MCDiagnostic SevWarning"))
+    | if (.span.file | type) != "string" or .span.file == ""
+        or (.span.startLine | type) != "number" or (.span.startCol | type) != "number"
+      then error("unsupported GHC diagnostic span") else . end
     | select(.span.file as $file | $owned | index($file))
     | "\(.span.file):\(.span.startLine):\(.span.startCol): \(.messageClass)\n\(.doc)"
 ' "$diagnostics")"
