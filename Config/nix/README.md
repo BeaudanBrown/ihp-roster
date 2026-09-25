@@ -198,8 +198,12 @@ hashes; it is not a call-path report or evidence that every test seam is dead.
 Framework-generated executable mains have no value mapping in the executable
 inventory and remain explicitly qualified, rather than inventing one.
 
-Source changes during compilation/analysis, missing or deleted-module HIE, and
-scanner errors replace old success with an unavailable report. Freshness relies
+Source/HIE additions or changes during compilation/analysis, missing or
+deleted-module HIE, baseline/analysis/tool executable drift, changed revision or
+dirty provenance, and scanner errors replace old success with an unavailable
+report. Capture provenance is retained, never relabelled from publication-time
+HEAD. Compiler/Weeder executable identity assumes the normal immutable Nix
+closure; it is not an arbitrary mutable external-input success certificate. Freshness relies
 on the owner's completed GHC sweep and unchanged source content across it, not
 mtime ordering: GHC can retain HIE for touched but byte-identical source. The
 snapshot/report helpers are phases of that owner, not a substitute for running

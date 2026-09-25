@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,7 +48,7 @@ function fixture(t) {
     put(root, 'Config/nix/weeder-baseline.tsv', '# deliberately empty\n');
     copyFileSync(join(repo, 'weeder.toml'), join(root, 'weeder.toml'));
     mkdirSync(join(root, 'scripts'));
-    symlinkSync(advisory, join(root, 'scripts/weeder-reachability.py'));
+    copyFileSync(advisory, join(root, 'scripts/weeder-reachability.py'));
     // Stub only unrelated model generation. The complete gate, source sweep,
     // GHC, Weeder, canonical root policy and baseline policy all run for real.
     put(root, 'helpers/haskell/generated-ensure', 'exit 0\n');
@@ -63,13 +63,13 @@ function fixture(t) {
     return root;
 }
 
-function runGate(root, args = []) {
+function runGate(root, args = [], extra = {}) {
     const result = spawnSync('bash', [gate, ...args], {
         cwd: root, encoding: 'utf8', timeout: 120_000,
         env: { ...process.env, BEPIS_SCRIPTS_ROOT: join(root, 'helpers'),
             IHP_ROSTER_ARTIFACTS_BINARY: artifactsBinary,
             IHP_ROSTER_GHC_CACHE_INVENTORY: join(repo, 'Config/nix/scripts/haskell/verification-cache-inputs'),
-            WEEDER_BUILD_DIR: join(root, 'cache') },
+            WEEDER_BUILD_DIR: join(root, 'cache'), ...extra },
     });
     assert.ifError(result.error);
     return result;
@@ -79,8 +79,12 @@ function report(root) {
     return JSON.parse(readFileSync(join(root, 'cache/reachability-advisory.json'), 'utf8'));
 }
 
-function rerun(root) {
-    command(root, 'python3', [advisory, 'report', '--snapshot', join(root, 'cache/reachability-inputs.json'), '--hie', join(root, 'cache/hie'), '--full-output', join(root, 'cache/weeder-output.txt'), '--output', join(root, 'cache/reachability-advisory.json')]);
+function reportArgs(root) {
+    return [join(root, 'scripts/weeder-reachability.py'), 'report', '--snapshot', join(root, 'cache/reachability-inputs.json'), '--hie', join(root, 'cache/hie'), '--full-output', join(root, 'cache/weeder-output.txt'), '--output', join(root, 'cache/reachability-advisory.json')];
+}
+
+function rerun(root, extra = {}) {
+    command(root, 'python3', reportArgs(root), extra);
     return report(root);
 }
 
@@ -152,8 +156,80 @@ test('byte-identical source touches do not invalidate compiler evidence', (t) =>
     assert.deepEqual(after.inputHashes, before.inputHashes);
 });
 
+function weederAdapter(root, body = '') {
+    const real = execFileSync('bash', ['-c', 'command -v weeder'], { encoding: 'utf8' }).trim();
+    put(root, 'tools/weeder', `#!/usr/bin/env bash\n${body.replaceAll('@REAL@', JSON.stringify(real))}\nexec ${JSON.stringify(real)} "$@"\n`);
+    chmodSync(join(root, 'tools/weeder'), 0o755);
+    return { PATH: `${join(root, 'tools')}:${process.env.PATH}` };
+}
+
+test('changed Weeder executable cannot relabel captured compiler evidence', (t) => {
+    const root = fixture(t);
+    const result = rerun(root, weederAdapter(root));
+    assert.equal(result.status, 'unavailable');
+    assert.match(result.reason, /toolchain changed/);
+});
+
+test('HIE added during the final analysis makes publication unavailable', (t) => {
+    const root = fixture(t);
+    const environment = weederAdapter(root, `
+@REAL@ "$@"
+status=$?
+if [[ "$*" == *"/development.toml"* ]]; then
+    cp cache/hie/Application/Shared.hie cache/hie/AddedDuringAnalysis.hie
+fi
+exit "$status"
+`);
+    const result = runGate(root, ['--advisory'], environment);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(report(root).status, 'unavailable');
+    assert.match(report(root).reason, /HIE inventory changed/);
+});
+
+test('interrupted analysis cannot leave prior advisory success visible', async (t) => {
+    const root = fixture(t);
+    const environment = weederAdapter(root, `
+if [[ -n "\${WEEDER_FIXTURE_HOLD:-}" ]]; then
+    touch "$WEEDER_FIXTURE_HOLD"
+    sleep 30
+fi
+`);
+    const prepared = runGate(root, ['--advisory'], environment);
+    assert.equal(prepared.status, 0, prepared.stdout + prepared.stderr);
+    assert.equal(report(root).status, 'fresh');
+    const marker = join(root, 'cache/analysis-started');
+    // Existing native command owner forwards cancellation and reaps its private
+    // process group; do not strand a compiler/analysis child in fixture cleanup.
+    const child = spawn(artifactsBinary, ['lock-exec', '--lock', join(root, 'cache/report.lock'), '--', 'python3', ...reportArgs(root)], {
+        cwd: root, env: { ...process.env, ...environment, WEEDER_FIXTURE_HOLD: marker },
+    });
+    let output = '';
+    child.stdout.on('data', (data) => { output += data; });
+    child.stderr.on('data', (data) => { output += data; });
+    const finished = new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', (code) => resolve(code));
+    });
+    try {
+        const deadline = Date.now() + 10_000;
+        while (!existsSync(marker)) {
+            assert.ok(child.exitCode === null && Date.now() < deadline, output);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+    } finally {
+        child.kill('SIGTERM');
+        assert.equal(await finished, 143, output);
+    }
+    assert.equal(report(root).status, 'unavailable');
+    assert.match(report(root).reason, /analysis in progress/);
+});
+
 for (const [name, change] of [
     ['source changed since sweep', (root) => appendFileSync(join(root, 'Application/Shared.hs'), '\n')],
+    ['source added after sweep', (root) => put(root, 'Application/Added.hs', 'module Application.Added where\nadded :: Int\nadded = 1\n')],
+    ['analysis changed since sweep', (root) => appendFileSync(join(root, 'scripts/weeder-reachability.py'), '\n# changed analysis\n')],
+    ['baseline changed since sweep', (root) => appendFileSync(join(root, 'Config/nix/weeder-baseline.tsv'), '# changed\n')],
+    ['revision changed since sweep', (root) => command(root, 'git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm', 'new revision'])],
     ['deleted source', (root) => rmSync(join(root, 'Application/Shared.hs'))],
     ['deleted worker source', (root) => rmSync(join(root, 'WorkerMain.hs'))],
     ['missing HIE', (root) => rmSync(join(root, 'cache/hie/Application/Shared.hie'))],
