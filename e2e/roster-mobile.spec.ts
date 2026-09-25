@@ -627,32 +627,36 @@ test.describe('Roster mobile baseline', () => {
 
         const sampleCount = Math.min(await launchers.count(), 3);
         for (let index = 0; index < sampleCount; index += 1) {
-            const launcher = launchers.nth(index);
-            await launcher.scrollIntoViewIfNeeded();
+            // Live fragments can replace a launcher during scroll stability checks.
+            // Re-resolve this read-only geometry assertion, never a business action.
+            await expect(async () => {
+                const launcher = launchers.nth(index);
+                await launcher.scrollIntoViewIfNeeded();
 
-            const reachable = await launcher.evaluate((element) => {
-                if (!(element instanceof HTMLElement)) {
-                    throw new Error('Expected roster launcher to be an HTMLElement');
-                }
+                const reachable = await launcher.evaluate((element) => {
+                    if (!(element instanceof HTMLElement)) {
+                        throw new Error('Expected roster launcher to be an HTMLElement');
+                    }
 
-                const scroller = element.closest('.roster-slots-scroller');
-                if (!(scroller instanceof HTMLElement)) {
-                    throw new Error('Expected roster launcher to live in the slot scroller');
-                }
+                    const scroller = element.closest('.roster-slots-scroller');
+                    if (!(scroller instanceof HTMLElement)) {
+                        throw new Error('Expected roster launcher to live in the slot scroller');
+                    }
 
-                element.scrollIntoView({ block: 'nearest', inline: 'center' });
-                const rect = element.getBoundingClientRect();
-                const scrollerRect = scroller.getBoundingClientRect();
-                const visibleLeft = Math.max(rect.left, scrollerRect.left, 0);
-                const visibleRight = Math.min(rect.right, scrollerRect.right, window.innerWidth);
+                    element.scrollIntoView({ block: 'nearest', inline: 'center' });
+                    const rect = element.getBoundingClientRect();
+                    const scrollerRect = scroller.getBoundingClientRect();
+                    const visibleLeft = Math.max(rect.left, scrollerRect.left, 0);
+                    const visibleRight = Math.min(rect.right, scrollerRect.right, window.innerWidth);
 
-                return {
-                    visibleWidth: Math.round(Math.max(0, visibleRight - visibleLeft)),
-                };
-            });
+                    return {
+                        visibleWidth: Math.round(Math.max(0, visibleRight - visibleLeft)),
+                    };
+                });
 
-            expect(reachable.visibleWidth).toBeGreaterThan(20);
-            await expectNoHorizontalViewportOverflow(page);
+                expect(reachable.visibleWidth).toBeGreaterThan(20);
+                await expectNoHorizontalViewportOverflow(page);
+            }).toPass({ timeout: E2E_TIMEOUT.assertion });
         }
     });
 });
