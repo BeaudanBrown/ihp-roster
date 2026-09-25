@@ -182,12 +182,60 @@ test('service readiness is a recorded boundary distinct from merely starting a p
     assert.equal(inspect(output).status, 0);
 });
 
+test('E2E launch rejection publishes failure only after owner stop succeeds', (t) => {
+    const source = readFileSync(new URL('../../Config/nix/scripts/e2e/e2e', import.meta.url), 'utf8');
+    const shard = source.slice(source.indexOf('run_e2e_shard() {'), source.indexOf('\nverification_phase e2e-parallel-run 0 start'));
+    const parent = source.slice(source.indexOf('cleanup_parent() {'), source.indexOf('\ntrap cleanup_parent EXIT'));
+    const mailhogStart = source.slice(source.indexOf('verification_phase e2e-mailhog-startup 0 start'), source.indexOf('\nif [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ]; then', source.indexOf('MAILHOG_STARTED=1')));
+    for (const [label, mode] of [['e2e-server', 'compiled'], ['e2e-server', 'dev'], ['e2e-mailhog', 'compiled']]) {
+        for (const stopFails of [false, true]) {
+            const root = dirname(fixture(t));
+            const trace = join(root, 'events');
+            const result = spawnSync('bash', ['-c', `set -eu
+                shard_pids=()
+                PARENT_CLEANED=0 MAILHOG_STARTED=0 MAILHOG_START_FAILED=0
+                MAILHOG_OBSERVER_PID='' LIFECYCLE_LOCKED=0 RUN_SUCCEEDED=0
+                test-db-reset() { :; }
+                find_e2e_port() { echo 10000; }
+                bepis_runtime_adopt() { :; }
+                bepis_runtime_observe() { return 1; }
+                bepis_runtime_start() {
+                    if [ "$3" = "$FAULT_LABEL" ]; then return 71; fi
+                    echo 123 >"$1"
+                }
+                bepis_runtime_stop() {
+                    echo "stop:$2" >>"$TRACE"
+                    if [ "$2" = "$FAULT_LABEL" ] && [ "$STOP_FAILS" = 1 ]; then return 73; fi
+                }
+                verification_phase() { echo "phase:$*" >>"$TRACE"; }
+                publish_failure_diagnostics() { :; }
+                ${label === 'e2e-server' ? `${shard}\nrun_e2e_shard 1\nwait "\${shard_pids[0]}"` : `${parent}\ntrap cleanup_parent EXIT\n${mailhogStart}`}
+            `], { encoding: 'utf8', timeout: 5000, env: {
+                ...process.env, STATE_DIR: root, TRACE: trace, FAULT_LABEL: label,
+                STOP_FAILS: stopFails ? '1' : '0', E2E_SERVER_MODE: mode,
+                BEPIS_VERIFICATION_EVENTS: root, TEST_KEEP_DATABASES: '1',
+                BASE_E2E_DATABASE_NAME: 'fixture', E2E_RUN_ID: 'fixture', TEST_DB_SOCKET: root,
+                E2E_WORKER_BIN: '/fixture', E2E_SERVER_BIN: '/fixture', E2E_STRIPE_MOCK_BIN: '/fixture',
+                E2E_PORT_BASE: '10000', E2E_SHARDS: '1', BEPIS_MAILHOG_ROOT: root,
+                MAILHOG_LOG: join(root, 'mailhog.log'), MAILHOG_SMTP_PORT: '10000', MAILHOG_PORT: '10001',
+            } });
+            assert.equal(result.status, stopFails ? 73 : 71, result.stderr);
+            const events = readFileSync(trace, 'utf8').trim().split('\n');
+            const phase = label === 'e2e-server' ? 'e2e-app-startup 1' : 'e2e-mailhog-startup 0';
+            assert.ok(events.includes(`phase:${phase} start`));
+            const failed = events.indexOf(`phase:${phase} fail --if-unfinished`);
+            if (stopFails) assert.equal(failed, -1, events.join('\n'));
+            else assert.ok(failed > events.indexOf(`stop:${label}`), events.join('\n'));
+        }
+    }
+});
+
 test('reaped service failures close only unfinished startup intervals', (t) => {
     const output = fixture(t);
-    const result = run(output, `import subprocess,sys\nbase=[sys.executable,'-S',${JSON.stringify(recorder)},'event']\nfor phase,scope,ready in [('e2e-worker-startup',1,False),('e2e-stripe-startup',1,False),('e2e-stripe-startup',2,True)]:\n args=base+['--phase',phase,'--scope',str(scope)]\n subprocess.run(args+['--edge','start'],check=True)\n producer=subprocess.Popen([sys.executable,'-c','pass']); producer.wait()\n if ready: subprocess.run(args+['--edge','ready'],check=True)\n for _ in range(2): subprocess.run(args+['--edge','fail','--if-unfinished'],check=True)`);
+    const result = run(output, `import subprocess,sys\nbase=[sys.executable,'-S',${JSON.stringify(recorder)},'event']\nfor phase,scope,ready in [('e2e-worker-startup',1,False),('e2e-stripe-startup',1,False),('e2e-stripe-startup',2,True),('e2e-app-startup',3,False),('e2e-app-startup',4,True),('e2e-mailhog-startup',0,False)]: \n args=base+['--phase',phase,'--scope',str(scope)]\n subprocess.run(args+['--edge','start'],check=True)\n producer=subprocess.Popen([sys.executable,'-c','pass']); producer.wait()\n if ready: subprocess.run(args+['--edge','ready'],check=True)\n for _ in range(2): subprocess.run(args+['--edge','fail','--if-unfinished'],check=True)`);
     assert.equal(result.status, 0, result.stderr);
     const phases = JSON.parse(readFileSync(join(output, 'phases.json')));
-    assert.deepEqual(phases.intervals.map((item) => item.status), ['failed', 'failed', 'ready']);
+    assert.deepEqual(phases.intervals.map((item) => item.status), ['failed', 'failed', 'ready', 'failed', 'ready', 'failed']);
     assert.equal(inspect(output).status, 0);
 });
 

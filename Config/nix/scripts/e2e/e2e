@@ -146,6 +146,7 @@ PARENT_CLEANED=0
 RUN_SUCCEEDED=0
 FAILURE_PUBLISHED=0
 MAILHOG_STARTED=0
+MAILHOG_START_FAILED=0
 MAILHOG_OBSERVER_PID=""
 LIFECYCLE_LOCKED=0
 postgres_root=""
@@ -186,6 +187,9 @@ cleanup_parent() {
     fi
     if [ "$MAILHOG_STARTED" = 1 ]; then
         bepis_runtime_stop "$STATE_DIR/mailhog.pid" e2e-mailhog 2000 >/dev/null
+        if [ "$MAILHOG_START_FAILED" = 1 ]; then
+            verification_phase e2e-mailhog-startup 0 fail --if-unfinished
+        fi
     fi
     if [ "$LIFECYCLE_LOCKED" = 1 ]; then
         exec 7>&-
@@ -239,7 +243,11 @@ bepis_runtime_start "$STATE_DIR/mailhog.pid" "$MAILHOG_LOG" e2e-mailhog \
     "${BEPIS_MAILHOG_ROOT:?}/bin/MailHog" \
     -smtp-bind-addr "127.0.0.1:$MAILHOG_SMTP_PORT" \
     -ui-bind-addr "127.0.0.1:$MAILHOG_PORT" \
-    -api-bind-addr "127.0.0.1:$MAILHOG_PORT" >/dev/null
+    -api-bind-addr "127.0.0.1:$MAILHOG_PORT" >/dev/null || {
+        startup_status=$?
+        MAILHOG_START_FAILED=1
+        exit "$startup_status"
+    }
 if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ]; then
     # Observe both listeners without adding a readiness gate, sending mail or
     # touching fixtures. The single-process observer is reaped by the owner.
@@ -350,14 +358,15 @@ run_e2e_shard() {
         export PLAYWRIGHT_FULLY_PARALLEL=0
         export E2E_XERO_FIXTURE="$shard_dir/xero-fixture.json"
         export E2E_XERO_SEED_BIN="$E2E_WORKER_BIN"
-        local worker_start_failed=0 stripe_start_failed=0
+        local worker_start_failed=0 stripe_start_failed=0 app_start_failed=0
 
         cleanup() {
             trap '' INT TERM
             # Observe before intentional termination. Only a known PID with no
             # live owner/group is death evidence; absent/invalid evidence is not.
-            local worker_observation="" stripe_observation=""
+            local worker_observation="" stripe_observation="" app_observation=""
             if [ -n "${BEPIS_VERIFICATION_EVENTS:-}" ]; then
+                app_observation="$(bepis_runtime_observe "$shard_pid_file" e2e-server 2>/dev/null || true)"
                 worker_observation="$(bepis_runtime_observe "$worker_pid_file" e2e-worker 2>/dev/null || true)"
                 stripe_observation="$(bepis_runtime_observe "$shard_dir/stripe-mock.pid" e2e-stripe-mock 2>/dev/null || true)"
             fi
@@ -368,6 +377,10 @@ run_e2e_shard() {
             bepis_runtime_stop "$shard_pid_file" e2e-server 2000 >/dev/null
             # Publish only after the runtime owner has confirmed termination:
             # no producer can now race this conditional event. Preserve ready.
+            case "$app_start_failed:$app_observation" in
+                1:*|0:pid=[0-9]*' alive=false owned=false reason='*)
+                    verification_phase e2e-app-startup "$shard_index" fail --if-unfinished ;;
+            esac
             case "$worker_start_failed:$worker_observation" in
                 1:*|0:pid=[0-9]*' alive=false owned=false reason='*)
                     verification_phase e2e-worker-startup "$shard_index" fail --if-unfinished ;;
@@ -427,10 +440,18 @@ SQL
         verification_phase e2e-app-startup "$shard_index" start
         if [ "$E2E_SERVER_MODE" = "compiled" ]; then
             PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" IHP_BROWSER=echo \
-                bepis_runtime_start "$shard_pid_file" "$shard_log" e2e-server "$E2E_SERVER_BIN" >/dev/null
+                bepis_runtime_start "$shard_pid_file" "$shard_log" e2e-server "$E2E_SERVER_BIN" >/dev/null || {
+                    local startup_status=$?
+                    app_start_failed=1
+                    exit "$startup_status"
+                }
         else
             PORT="$shard_port" APP_BASE_URL="http://127.0.0.1:$shard_port" \
-                bepis_runtime_start "$shard_pid_file" "$shard_log" e2e-server test-e2e-server >/dev/null
+                bepis_runtime_start "$shard_pid_file" "$shard_log" e2e-server test-e2e-server >/dev/null || {
+                    local startup_status=$?
+                    app_start_failed=1
+                    exit "$startup_status"
+                }
         fi
         local server_pid
         server_pid="$(cat "$shard_pid_file")"
@@ -469,7 +490,7 @@ SQL
             fi
 
             if ! bepis_runtime_observe "$shard_pid_file" e2e-server >/dev/null; then
-                verification_phase e2e-app-startup "$shard_index" fail
+                app_start_failed=1
                 echo "E2E shard $shard_index/$E2E_SHARDS app server failed to start" >&2
                 tail -n 80 "$shard_log" >&2 || true
                 exit 1
@@ -478,7 +499,7 @@ SQL
             sleep 1
         done
 
-        verification_phase e2e-app-startup "$shard_index" fail
+        app_start_failed=1
         echo "Timed out waiting for E2E shard $shard_index/$E2E_SHARDS app server" >&2
         tail -n 80 "$shard_log" >&2 || true
         exit 1
