@@ -21,6 +21,7 @@ import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
 import System.FilePath (takeDirectory)
 import System.IO (hClose, hIsClosed, openBinaryTempFile)
+import System.IO.Temp (withSystemTempDirectory)
 import System.Process (readProcessWithExitCode)
 import Test.Hspec
 import Test.Support.PayrollWorkbook
@@ -252,26 +253,30 @@ tests = do
                 createDirectoryIfMissing True artifactDirectory
                 LBS.writeFile (artifactDirectory <> "/payroll_workbook-default.xlsx") defaultBytes
                 LBS.writeFile (artifactDirectory <> "/payroll_workbook-wages-summary.xlsx") configuredBytes
-            assertLibreOfficeFormulaValues defaultBytes
-                [ "Summary 2025-01-06\tC2\t1.5"
-                , "Hours Mon 2025-01-06\tC2\t1.5"
-                , "Hours Mon 2025-01-06\tB3\t1.5"
-                , "Hours Mon 2025-01-06\tC3\t1.5"
-                , "Shift Type Hours Mon 2025-01-06\tC2\t1"
-                , "Shift Type Hours Mon 2025-01-06\tB3\t1"
-                , "Shift Type Hours Mon 2025-01-06\tC3\t1"
-                , "Wages Mon 2025-01-06\tC2\t45"
-                , "Wages Mon 2025-01-06\tB3\t45"
-                , "Wages Mon 2025-01-06\tC3\t45"
-                , "Shift Type Wages Mon 2025-01-06\tC2\t45"
-                , "Shift Type Wages Mon 2025-01-06\tB3\t45"
-                , "Shift Type Wages Mon 2025-01-06\tC3\t45"
-                ]
-            assertLibreOfficeFormulaValues configuredBytes
-                [ "Shift Type Wages Mon 2025-01-06\tC2\t45"
-                , "Shift Type Wages Mon 2025-01-06\tB3\t45"
-                , "Shift Type Wages Mon 2025-01-06\tC3\t45"
-                , "Summary 2025-01-06\tC2\t1.5"
+            assertLibreOfficeBatchFormulaValues
+                [ ( defaultBytes
+                  , [ "Summary 2025-01-06\tC2\t1.5"
+                    , "Hours Mon 2025-01-06\tC2\t1.5"
+                    , "Hours Mon 2025-01-06\tB3\t1.5"
+                    , "Hours Mon 2025-01-06\tC3\t1.5"
+                    , "Shift Type Hours Mon 2025-01-06\tC2\t1"
+                    , "Shift Type Hours Mon 2025-01-06\tB3\t1"
+                    , "Shift Type Hours Mon 2025-01-06\tC3\t1"
+                    , "Wages Mon 2025-01-06\tC2\t45"
+                    , "Wages Mon 2025-01-06\tB3\t45"
+                    , "Wages Mon 2025-01-06\tC3\t45"
+                    , "Shift Type Wages Mon 2025-01-06\tC2\t45"
+                    , "Shift Type Wages Mon 2025-01-06\tB3\t45"
+                    , "Shift Type Wages Mon 2025-01-06\tC3\t45"
+                    ]
+                  )
+                , ( configuredBytes
+                  , [ "Shift Type Wages Mon 2025-01-06\tC2\t45"
+                    , "Shift Type Wages Mon 2025-01-06\tB3\t45"
+                    , "Shift Type Wages Mon 2025-01-06\tC3\t45"
+                    , "Summary 2025-01-06\tC2\t1.5"
+                    ]
+                  )
                 ]
 
         it "renders shift-type Hours and Wages from shared facts with blank zero details and formula totals" do
@@ -631,15 +636,30 @@ assertLibreOfficeFormulaValues workbookBytes expectedFormulaValues = do
         (\(workbookPath, workbookHandle) -> do
             LBS.hPut workbookHandle workbookBytes
             hClose workbookHandle
-            (exitCode, standardOutput, standardError) <-
-                readProcessWithExitCode
-                    "timeout"
-                    (["--kill-after=5s", "40s", "python3", "Config/nix/scripts/payroll-workbook/libreoffice-recalculate.py", workbookPath] <> expectedFormulaValues)
-                    ""
-            case exitCode of
-                ExitSuccess -> standardOutput `shouldContain` "LibreOffice formula reconciliation passed"
-                ExitFailure _ -> expectationFailure (standardOutput <> standardError)
+            runLibreOfficeChecks (workbookPath : expectedFormulaValues)
         )
+
+-- Only the two variants within one example share a process. Other examples keep
+-- their cold-start assertions; no calculator state crosses example boundaries.
+assertLibreOfficeBatchFormulaValues :: [(LBS.ByteString, [String])] -> IO ()
+assertLibreOfficeBatchFormulaValues documents =
+    withSystemTempDirectory "bepis-payroll-workbook-batch" \directory -> do
+        arguments <- forM (zip [0 :: Int ..] documents) \(index, (bytes, expectations)) -> do
+            let path = directory <> "/case-" <> cs (show index) <> ".xlsx"
+            LBS.writeFile path bytes
+            pure ((if index == 0 then [] else ["--next"]) <> (path : expectations))
+        runLibreOfficeChecks (concat arguments)
+
+runLibreOfficeChecks :: [String] -> IO ()
+runLibreOfficeChecks arguments = do
+    (exitCode, standardOutput, standardError) <-
+        readProcessWithExitCode
+            "timeout"
+            (["--kill-after=5s", "40s", "python3", "Config/nix/scripts/payroll-workbook/libreoffice-recalculate.py"] <> arguments)
+            ""
+    case exitCode of
+        ExitSuccess -> standardOutput `shouldContain` "LibreOffice formula reconciliation passed"
+        ExitFailure _ -> expectationFailure (standardOutput <> standardError)
 
 textValues :: PayrollWorkbookSheet -> [Text]
 textValues sheet = [value | PayrollWorkbookCell { value = PayrollWorkbookText value } <- sheet.cells]

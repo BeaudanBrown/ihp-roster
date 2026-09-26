@@ -138,6 +138,22 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
+## Calculator Compatibility Verification
+
+`payroll-workbook/libreoffice-recalculate.py` accepts one workbook and formula
+expectations, with optional `--next` separated cases (maximum four). A batch uses
+one private LibreOffice profile, but calculates, saves XLSX, reopens and verifies
+each document independently; all document components must close before the next
+case. Failures, including between documents or during cleanup, fail the command.
+The existing 30-second watchdog covers the entire batch, including startup;
+individual documents cannot extend it. The caller retains its 40-second outer
+bound and escalation. Workbook inputs are not modified.
+
+Only the two configured variants inside one PayrollWorkbook example share this
+lifecycle. Other calculator examples still start cold; no resource crosses Hspec
+example boundaries and no existing assertion/tier membership is removed. Real
+Calc adversarial fixtures and the startup/deadline fixtures run in `verify-tooling`.
+
 ## Shared Verification Compiler Ownership
 
 Typecheck, Hspec, E2E and local architecture generation share the incremental
