@@ -140,8 +140,10 @@ type for observability checks; it must never enter deployment host imports.
 
 ## Verification Group Durations
 
-Complete, argument-free multi-shard E2E runs discover current membership and ask
-`bepis-runners e2e-groups` to assign whole file/project groups by advisory duration.
+E2E defaults to legacy native Playwright sharding (`E2E_GROUPING=legacy`).
+The opt-in experiment `E2E_GROUPING=duration` makes complete, argument-free
+multi-shard runs discover current membership and ask `bepis-runners e2e-groups`
+to assign whole file/project groups by advisory duration.
 `Config/nix/e2e-duration-baseline.json` retains training provenance, not a test
 manifest or success cache. New groups receive conservative estimates; changed
 counts scale estimates; stale estimates cannot select or omit tests. Native
@@ -150,10 +152,17 @@ unchanged. Group plans/selectors accompany durable reports and failures. Each
 shard owns a distinct blob filename, including when Playwright receives
 `--test-list` instead of `--shard`.
 
-`E2E_GROUPING=legacy` selects the prior grouping for matched controls or rollback.
 Focused/custom-argument invocations retain native Playwright sharding. Whole-file
 assignment alone does not establish fixture independence: retain exact full/fast
 membership and clean repeated acceptance, including fixture-order controls.
+
+The #605 browser outcome is no default scheduling change. Complete full/fast
+preflights passed, but repeated matched acceptance was rejected after a staff-save
+response timeout required a retry. Scoped diagnosis did not reproduce that
+failure and later full diagnostics exposed distinct browser failures. Neither
+clean subsets nor subsequent passing diagnostics establish accepted benefit or
+resolve those failures. Retain the opt-in policy, regression fixtures and rejected
+evidence; do not promote duration grouping without fresh complete acceptance.
 
 Hspec retains whole-suite grouping and source order. Advisory runtime weights
 use inclusive native example-callback observations, not reset-only sums; suite

@@ -223,11 +223,11 @@ trap 'exit 130' INT TERM
 
 # Discovery/execution remain Playwright-owned. The native runner only assigns
 # whole file/project groups; focused/custom invocations retain native sharding.
-case "${E2E_GROUPING:-duration}" in
+case "${E2E_GROUPING:-legacy}" in
     duration|legacy) ;;
     *) echo "E2E_GROUPING must be duration or legacy" >&2; exit 64 ;;
 esac
-if [ "$#" -eq 0 ] && [ "$E2E_SHARDS" -gt 1 ] && [ "${E2E_GROUPING:-duration}" = duration ]; then
+if [ "$#" -eq 0 ] && [ "$E2E_SHARDS" -gt 1 ] && [ "${E2E_GROUPING:-legacy}" = duration ]; then
     verification_phase e2e-group-plan 0 start
     playwright test --list --reporter=json >"$STATE_DIR/browser-inventory.json"
     "$runner_binary" e2e-groups --shards "$E2E_SHARDS" \
