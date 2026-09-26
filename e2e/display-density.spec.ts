@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { defaultE2ERosterGroupId } from './support/roster';
+import { defaultE2ERosterGroupId, ensureRosterLayout } from './support/roster';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
 
@@ -81,6 +81,7 @@ test.describe('Display density tokens', () => {
         expect(normal.controlHeight).toBeLessThan(large.controlHeight);
 
         await gotoWhenReady(page, `/RosterWeeks?rosterGroupId=${defaultE2ERosterGroupId}`, '#roster-week-shell');
+        await ensureRosterLayout(page, 'day_rows');
         const rosterMetrics = [];
         for (const density of ['compact', 'normal', 'large'] as const) {
             await setDensity(page, density);

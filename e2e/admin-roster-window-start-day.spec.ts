@@ -41,7 +41,7 @@ test.describe('Roster window start day setting', () => {
 
     test('immediately normalizes Draft days and never restores publication', async ({ page }) => {
         const originalPublishedIds: string[] = querySql(`SELECT id FROM roster_days WHERE venue_id = '${venueId}' AND publication_state = 'published'`).split('\n').filter(Boolean);
-        const [originalStartDay, originalRevision] = querySql(`SELECT roster_week_starts_on || '|' || roster_calendar_revision FROM venue_config WHERE venue_id = '${venueId}'`).split('|');
+        const originalStartDay = querySql(`SELECT roster_week_starts_on FROM venue_config WHERE venue_id = '${venueId}'`);
 
         try {
             runSql(`UPDATE venue_config SET roster_week_starts_on = 1 WHERE venue_id = '${venueId}'`);
@@ -86,19 +86,19 @@ test.describe('Roster window start day setting', () => {
                 if (state === 'draft') expect(reversedStates[index]).toBe('draft');
             });
         } finally {
+            // Restore configuration without rewinding the committed calendar clock.
+            const revisionBeforeCleanup = Number(querySql(`SELECT roster_calendar_revision FROM venue_config WHERE venue_id = '${venueId}'`));
             runSql(`
                 BEGIN;
                 UPDATE roster_days SET publication_state = 'draft' WHERE venue_id = '${venueId}';
                 ${originalPublishedIds.length > 0 ? `UPDATE roster_days SET publication_state = 'published' WHERE id IN (${originalPublishedIds.map((id) => `'${id}'`).join(',')});` : ''}
                 UPDATE roster_groups SET is_active = FALSE WHERE id = '${fixtureGroupId}';
-                ALTER TABLE venue_config DISABLE TRIGGER advance_roster_calendar_revision;
                 UPDATE venue_config
-                SET roster_week_starts_on = ${Number(originalStartDay)},
-                    roster_calendar_revision = ${Number(originalRevision)}
+                SET roster_week_starts_on = ${Number(originalStartDay)}
                 WHERE venue_id = '${venueId}';
-                ALTER TABLE venue_config ENABLE TRIGGER advance_roster_calendar_revision;
                 COMMIT;
             `);
+            expect(Number(querySql(`SELECT roster_calendar_revision FROM venue_config WHERE venue_id = '${venueId}'`))).toBeGreaterThanOrEqual(revisionBeforeCleanup);
         }
     });
 });

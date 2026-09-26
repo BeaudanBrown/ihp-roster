@@ -57,6 +57,7 @@ Put `*.spec.ts` under `e2e/`. Import the narrowest owner under `e2e/support/`:
 - `timesheets.ts` and `profile.ts` — their focused settings/profile workflows
 - `responsive.ts` — navigation and viewport geometry assertions
 - `exports.ts` — report navigation, downloads, and CSV parsing
+- `xero.ts` — native per-example Xero venue/provider fixtures and scoped job cleanup
 
 Shared session state belongs only to `session.ts`; live recovery belongs only to
 `runtime.ts`. Import modules directly—never add an index, compatibility facade,

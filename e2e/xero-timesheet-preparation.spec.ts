@@ -1,32 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { test as base, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './support/passkeys';
 import { querySql, runSql, sqlString } from './support/database';
 
-interface XeroFixture {
-    venueId: string;
-    connectionId: string;
-    tenantId: string;
-    email: string;
-    periodKey: string;
-}
-
-// The Haskell builder supplies real sealed approvals and a matching provider
-// snapshot to both E2E processes. Each example owns a new venue and owner.
-const test = base.extend<{ xero: XeroFixture }>({
-    xero: async ({}, use) => {
-        const seedBinary = process.env.E2E_XERO_SEED_BIN;
-        if (!seedBinary) throw new Error('Use the E2E runner for Xero browser fixtures');
-        const fixture: XeroFixture = JSON.parse(execFileSync(seedBinary, ['seed-xero'], { encoding: 'utf8' }));
-        try {
-            await use(fixture);
-        } finally {
-            runSql(`DELETE FROM app_jobs WHERE job_kind = 'xero_reference_sync' AND related_id = ${sqlString(fixture.connectionId)} AND status <> 'job_status_running';`);
-        }
-    },
-});
+import { test, type XeroFixture } from './support/xero';
 
 test.use({ baseURL: webauthnBaseURL });
 
