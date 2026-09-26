@@ -138,6 +138,30 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
+## Reset Isolation Eligibility
+
+Keep the closed `Application.Fixture.Reset` manifest and its
+`TRUNCATE ... RESTART IDENTITY CASCADE` contract. Suite metadata saying committed
+visibility is unnecessary does not prove rollback eligibility. `withCleanDb`
+accepts an already-bound `IO` action: wrapping that value in a transaction can
+leave writes on its original pool. The normal venue fixture starts its own
+transaction, which IHP does not allow to nest. Controller mocking also rebuilds
+middleware from its own `MockContext`; rebinding one model context is insufficient.
+
+No blanket rollback reset was adopted. Representative high-reset controller
+suites retain their existing fixtures, transaction boundaries, provider mocks,
+listeners and cross-venue assertions. A future narrower seam needs demonstrated
+connection ownership, observer/side-effect isolation, constraint/savepoint and
+sequence semantics, exception/cancellation cleanup, and measured benefit—not
+metadata alone or aggregate reset time presented as critical-path savings.
+
+`Test.ResetIsolationSpec` exercises real bound/captured writes, independent
+observers, nested fixture rejection, transactional test-only DDL and typed
+constraint/aborted-transaction failures. It also preserves the current unowned
+live-invalidation sequence behavior: neither rollback nor `RESTART IDENTITY`
+rewinds that sequence. Context lifecycle tests retain exception/async cleanup
+coverage; `fixture-reset-manifest-test` remains the complete manifest authority.
+
 ## Calculator Compatibility Verification
 
 `payroll-workbook/libreoffice-recalculate.py` accepts one workbook and formula
