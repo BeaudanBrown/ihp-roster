@@ -5,7 +5,8 @@
 module Bepis.Tooling.Runners.BrowserGroups (planBrowserGroups) where
 
 import Control.Monad (unless, when)
-import Data.Aeson (FromJSON (..), Value, eitherDecodeStrict', object, withObject, (.:), (.:?), (.!=), (.=))
+import Data.Aeson (FromJSON (..), Value, eitherDecodeStrict', object,
+                   withObject, (.!=), (.:), (.:?), (.=))
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString as ByteString
 import Data.Char (isAlphaNum)

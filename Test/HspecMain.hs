@@ -6,8 +6,8 @@ import System.Environment (getArgs, lookupEnv, setEnv)
 import Test.Hspec
 
 import qualified Test.BaselineProbe as BaselineProbe
-import qualified Test.Suite as TestSuite
 import qualified Test.ResetMetrics as ResetMetrics
+import qualified Test.Suite as TestSuite
 
 main :: IO ()
 main = do

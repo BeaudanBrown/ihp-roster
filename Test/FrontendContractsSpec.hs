@@ -315,7 +315,7 @@ tests = describe "Frontend contract generator foundation" do
         forM_ [calendar, calendar <> [("staffFilterId", Just "00000000-0000-0000-0000-000000000001")]] \params ->
             case parse params of
                 Left errors -> expectationFailure (cs (show errors))
-                Right _ -> pure ()
+                Right _     -> pure ()
         forM_ [take 1 calendar, drop 1 calendar, calendar <> take 1 calendar, calendar <> drop 1 calendar,
                calendar <> [("staffFilterId", Just ""), ("staffFilterId", Just "")]] \params ->
             case parse params of

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bepis.Tooling.Runners (runRunnersCommand, safeDatabase, validRunId) where
@@ -23,7 +23,8 @@ import Numeric (showHex)
 import System.Directory
 import System.Environment (getArgs, getEnvironment, lookupEnv)
 import System.Exit (ExitCode (..), exitWith)
-import System.FilePath (isAbsolute, normalise, splitDirectories, takeDirectory, (</>))
+import System.FilePath (isAbsolute, normalise, splitDirectories, takeDirectory,
+                        (</>))
 import qualified System.IO
 import System.IO.Error (isDoesNotExistError)
 import System.Posix.Files
@@ -37,10 +38,10 @@ newtype RunnerFailure = RunnerFailure (Int, String) deriving (Show)
 instance Exception RunnerFailure
 
 data RootMarker = RootMarker
-    { version :: Int
-    , uid :: Integer
+    { version   :: Int
+    , uid       :: Integer
     , workspace :: FilePath
-    , family :: String
+    , family    :: String
     } deriving (Eq, Show, Generic)
 instance ToJSON RootMarker
 instance FromJSON RootMarker
@@ -51,14 +52,14 @@ runRunnersCommand = (getArgs >>= dispatch) `catch` handleFailure
     handleFailure (RunnerFailure (status, message)) = putStrLnErr ("bepis-runners: " <> message) >> exitWith (ExitFailure status)
 
 dispatch :: [String] -> IO ()
-dispatch ["id"] = freshRunId >>= putStrLn
-dispatch ("hspec-plan":arguments) = hspecPlan arguments
-dispatch ("e2e-plan":arguments) = e2ePlan arguments
-dispatch ("e2e-groups":arguments) = e2eGroups arguments
+dispatch ["id"]                     = freshRunId >>= putStrLn
+dispatch ("hspec-plan":arguments)   = hspecPlan arguments
+dispatch ("e2e-plan":arguments)     = e2ePlan arguments
+dispatch ("e2e-groups":arguments)   = e2eGroups arguments
 dispatch ("profile-plan":arguments) = profilePlan arguments
-dispatch ("run":arguments) = parseRun arguments >>= runOwned
-dispatch ["help"] = putStrLn usage
-dispatch _ = reject 64 usage
+dispatch ("run":arguments)          = parseRun arguments >>= runOwned
+dispatch ["help"]                   = putStrLn usage
+dispatch _                          = reject 64 usage
 
 usage :: String
 usage = unlines
@@ -276,7 +277,7 @@ withPortLease lockRoot action = select [0..199]
             if available then Just <$> action (20000 + slot) else pure Nothing
         case acquired of
             Just (Just value) -> pure value
-            _ -> select rest
+            _                 -> select rest
 
 portsAvailable :: Int -> IO Bool
 portsAvailable slot = and <$> mapM canBind [20000 + slot, 22000 + slot * 2, 22001 + slot * 2]
@@ -316,7 +317,7 @@ waitPolling handle = do
     status <- getProcessExitCode handle
     case status of
         Just finished -> pure finished
-        Nothing -> threadDelay 100000 >> waitPolling handle
+        Nothing       -> threadDelay 100000 >> waitPolling handle
 
 withSignalForwarding :: ProcessHandle -> IO ExitCode -> IO ExitCode
 withSignalForwarding handle action = do
@@ -351,7 +352,7 @@ retainFailure (Just artifact) state familyPath runId status = do
     writeFileAtomic (artifact </> "runner-failure.json") (Lazy.toStrict (encode (object
         ["family" .= familyPath, "runId" .= runId, "state" .= state, "exitCode" .= exitNumber status])))
   where
-    exitNumber ExitSuccess = 0 :: Int
+    exitNumber ExitSuccess          = 0 :: Int
     exitNumber (ExitFailure number) = number
 
 ensureMarker :: FilePath -> RootMarker -> IO ()

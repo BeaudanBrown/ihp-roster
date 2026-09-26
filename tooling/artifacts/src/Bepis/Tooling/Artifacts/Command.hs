@@ -5,7 +5,8 @@
 module Bepis.Tooling.Artifacts.Command (runOwnedCommand) where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (IOException, bracket, catch, mask, onException, uninterruptibleMask_)
+import Control.Exception (IOException, bracket, catch, mask, onException,
+                          uninterruptibleMask_)
 import Control.Monad (filterM, unless, void)
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Char (isDigit)
@@ -16,9 +17,11 @@ import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (listDirectory)
 import System.Exit (ExitCode (..))
 import System.IO.Error (isDoesNotExistError)
-import System.Posix.Signals (Handler (Catch), Signal, installHandler, sigINT, sigKILL, sigTERM, signalProcessGroup)
+import System.Posix.Signals (Handler (Catch), Signal, installHandler, sigINT,
+                             sigKILL, sigTERM, signalProcessGroup)
 import System.Posix.Types (ProcessID)
-import System.Process (CreateProcess (create_group), createProcess, getPid, waitForProcess)
+import System.Process (CreateProcess (create_group), createProcess, getPid,
+                       waitForProcess)
 import Text.Read (readMaybe)
 
 -- WNOWAIT keeps the direct child (and thus its process-group ID) reserved even
@@ -60,8 +63,8 @@ runOwnedCommand command = mask $ \restore -> do
             latest <- readIORef interrupted
             pure $ case latest of
                 Just signal | signal == sigINT -> ExitFailure 130
-                Just _ -> ExitFailure 143
-                Nothing -> status
+                Just _                         -> ExitFailure 143
+                Nothing                        -> status
 
 stopGroup :: ProcessID -> Signal -> IO ()
 stopGroup pid firstSignal = do

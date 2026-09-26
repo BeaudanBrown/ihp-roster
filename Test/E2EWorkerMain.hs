@@ -6,8 +6,8 @@ import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
 import Control.Monad (void)
 import Control.Monad.Trans.Resource (allocate)
-import Data.IORef (readIORef)
 import qualified Data.HashMap.Strict as HashMap
+import Data.IORef (readIORef)
 import qualified Data.Set as Set
 import IHP.Job.Runner
 import IHP.Job.Types (JobWorker (..))

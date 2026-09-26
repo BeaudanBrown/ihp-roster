@@ -1,8 +1,8 @@
 module Test.PayrollWorkbookSpec where
 
 import Application.Helper.Export.PayrollWorkbook
-import Application.Helper.Export.Render (payrollWorkbookFileName)
 import Application.Helper.Export.PayrollWorkbookModel
+import Application.Helper.Export.Render (payrollWorkbookFileName)
 import Application.Helper.Export.Types
 import qualified "zip-archive" Codec.Archive.Zip as Zip
 import qualified Codec.Xlsx as Xlsx

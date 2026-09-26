@@ -5,13 +5,14 @@ import qualified Application.Fixture.PayrollFixtures as Payroll
 import qualified Application.Fixture.Reset as FixtureReset
 import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts,
                                                sealApprovedFixtureCalculation)
+import Application.Helper.Authentication (bepisAuthenticationMiddleware)
 import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
                                       initImpersonationContext,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
-import Application.Helper.Authentication (bepisAuthenticationMiddleware)
-import Application.Helper.ControllerContext (initCurrentVenueContext, venueRequestStateMiddleware)
+import Application.Helper.ControllerContext (initCurrentVenueContext,
+                                             venueRequestStateMiddleware)
 import Application.Helper.ManagementMode (initManagementModeContext)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
@@ -49,10 +50,10 @@ import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
-import IHP.Test.Mocking
 import IHP.Server (initMiddlewareStack)
-import qualified Network.HTTP.Types as HTTP
+import IHP.Test.Mocking
 import Network.HTTP.Types (Status, status200)
+import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import Network.Wai.Internal (ResponseReceived (..))

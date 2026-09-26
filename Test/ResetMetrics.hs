@@ -1,11 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 
 -- Process-local diagnostics. No SQL, scheduling or fixture cleanup ownership.
 module Test.ResetMetrics (withResetMetrics, withResetSuite, measureReset) where
 
-import Prelude
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.MVar
 import Control.Exception
@@ -18,6 +17,7 @@ import Data.IORef
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GHC.Clock (getMonotonicTimeNSec)
+import Prelude
 import System.Environment (lookupEnv)
 import System.FilePath ((</>))
 import System.IO (hClose)
@@ -29,8 +29,8 @@ data Counters = Counters !Integer !Integer !Integer !Integer
 
 data ResetState = ResetState
     { threadSuites :: !(Map.Map ThreadId String)
-    , totals :: !(Map.Map (Maybe String) Counters)
-    , overflow :: !Bool
+    , totals       :: !(Map.Map (Maybe String) Counters)
+    , overflow     :: !Bool
     }
 
 type Recorder = (Set.Set String, MVar ResetState)

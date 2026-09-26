@@ -28,9 +28,9 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import IHP.ModelSupport (inputValue, sqlExecDiscardResult)
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -39,7 +39,8 @@ import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
-                                  projectedRosterDayId, rosterWindowScopeForAnchor,
+                                  projectedRosterDayId,
+                                  rosterWindowScopeForAnchor,
                                   rosterWindowTarget)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
                             rosterDaySectionDomId, rosterGridFrameFragmentId,
@@ -57,13 +58,14 @@ import Web.RosterWeeks.Service (RosterCopyError (..), RosterCopyFault (..),
                                 withRosterCopyTransaction)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftDialogSubmission (..),
                                       RosterShiftEditCompletion (..),
-                                      editRosterShift,
                                       applyValidatedRosterShift,
+                                      editRosterShift,
                                       validateRosterShiftDialogSubmission)
 import Web.Routes
 import Web.Timesheets.Projection (fetchTimesheetRosterPrefillForRosterSlot)
 import Web.Types
-import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..), rosterShiftDialogValuesFromSlot)
+import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..),
+                                         rosterShiftDialogValuesFromSlot)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do

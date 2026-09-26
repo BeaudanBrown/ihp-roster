@@ -39,19 +39,19 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID
 import Generated.Types
-import Test.Support.Response (captureStoppedResponses)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import IHP.ModelSupport (inputValue, sqlExecDiscardResult)
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
 import Test.Support.Concurrency (runConcurrentActionsImmediately)
+import Test.Support.Response (captureStoppedResponses)
 import Test.Support.SurfaceContract
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
@@ -74,7 +74,7 @@ import Web.Timesheets.Projection (TimesheetFormContext (..),
                                   noReferencedTimesheetOptions)
 import Web.Timesheets.Responses (requireTimesheetCalendarResult)
 import Web.Timesheets.RosterPrefill (TimesheetRosterPrefill (..),
-                                  newTimesheetEntryFromRosterPrefill)
+                                     newTimesheetEntryFromRosterPrefill)
 import Web.Timesheets.Validation (TimesheetCalendarConflict (..),
                                   prepareTimesheetEdit)
 import Web.Types
@@ -3006,7 +3006,7 @@ data SuggestionRosterFacts = SuggestionRosterFacts
     , suggestionSlotName        :: Text
     , suggestionWeekOffset      :: Int
     , suggestionDayOffset       :: Int
-    , prefillOperationalDate :: Day
+    , prefillOperationalDate    :: Day
     , suggestionStartTime       :: TimeOfDay
     , suggestionEndTime         :: TimeOfDay
     , suggestionDurationMinutes :: Int

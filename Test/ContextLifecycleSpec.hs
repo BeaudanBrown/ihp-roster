@@ -2,7 +2,8 @@ module Test.ContextLifecycleSpec where
 
 import Control.Concurrent (forkFinally, newEmptyMVar, putMVar, readMVar,
                            takeMVar, threadDelay, throwTo)
-import Control.Exception (AsyncException (ThreadKilled), IOException, bracket, try)
+import Control.Exception (AsyncException (ThreadKilled), IOException, bracket,
+                          try)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import IHP.ModelSupport (unsafeSqlQueryScalar, unsafeSqlQuerySingleRow)
 import IHP.Prelude

@@ -54,10 +54,10 @@ data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
     | OverlaySubmitFormLoadingAction
-        { overlaySubmitFormId :: !Text
+        { overlaySubmitFormId       :: !Text
         , overlaySubmitLoadingLabel :: !Text
-        , overlaySubmitEnabled :: !Bool
-        , overlaySubmitExtraAttrs :: ![(Text, Text)]
+        , overlaySubmitEnabled      :: !Bool
+        , overlaySubmitExtraAttrs   :: ![(Text, Text)]
         }
     | OverlayNavigateAction !Text
     | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !Text !Text

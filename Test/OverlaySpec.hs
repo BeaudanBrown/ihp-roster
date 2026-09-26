@@ -2,27 +2,31 @@
 
 module Test.OverlaySpec where
 
-import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay, DeleteTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay,
+                                                     DeleteTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime
-import Application.Helper.FrontendContract.Overlay.Runtime (DialogDismissalGuardConfigValue (..), dialogDismissalGuardAttrs, dialogPointerDismissBlurAttrs, navigationLoadingAttrs)
+import Application.Helper.FrontendContract.Overlay.Runtime (DialogDismissalGuardConfigValue (..),
+                                                            dialogDismissalGuardAttrs,
+                                                            dialogPointerDismissBlurAttrs,
+                                                            navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
-import Application.Helper.View.Toast
 import Application.Helper.View.Timesheets
-import Generated.Types
-import IHP.ModelSupport
-import Web.View.RosterWeeks.ShiftDialog
+import Application.Helper.View.Toast
 import Config
-import qualified Data.Text as Text
 import qualified Data.List as List
+import qualified Data.Text as Text
+import Generated.Types
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 import qualified IHP.HSX.Parser as Hsx
+import IHP.ModelSupport
 import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import IHP.HSX.Markup (Html)
-import qualified IHP.HSX.Markup as HtmlRenderer
 import Text.Megaparsec.Pos (initialPos)
+import Web.View.RosterWeeks.ShiftDialog
 
 pureTests :: Spec
 pureTests = do
@@ -90,7 +94,7 @@ elementNodes _ = []
 
 nodeName :: Hsx.Node -> Text
 nodeName (Hsx.Node name _ _ _) = name
-nodeName _ = ""
+nodeName _                     = ""
 
 nodeAttrs :: Hsx.Node -> [(Text, Text)]
 nodeAttrs (Hsx.Node _ attrs _ _) = List.sort [(name, value) | Hsx.StaticAttribute name (Hsx.TextValue value) <- attrs]
@@ -110,7 +114,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         let config = defaultDialogOverlayConfig "Buttons" mempty [OverlayButton "Action" "contract-button" action]
                         tree <- parseRenderedOverlay (case closeUrl of
-                            Nothing -> renderDialogOverlay config
+                            Nothing  -> renderDialogOverlay config
                             Just url -> renderPageDialogModal url config)
                         let controls = filter (\node -> lookup "class" (nodeAttrs node) == Just "contract-button") (elementNodes tree)
                         map (\node -> (nodeName node, nodeAttrs node, nodeText node)) controls
@@ -127,13 +131,13 @@ databaseTests = aroundAll withDatabaseTestContext do
                             [OverlayButton "Cancel" "contract-button" OverlayCloseAction, OverlayButton "Save" "contract-button" (OverlaySubmitFormAction "edit-form")])
                             { dialogOverlayStartButtons = [OverlayButton "First" "contract-button" (OverlayNavigateAction "/first"), OverlayButton "Second" "contract-button" (OverlayNavigateAction "/second")] }
                     tree <- parseRenderedOverlay (case closeUrl of
-                        Nothing -> renderDialogOverlay config
+                        Nothing  -> renderDialogOverlay config
                         Just url -> renderPageDialogModal url config)
                     map nodeText (filter (\node -> lookup "class" (nodeAttrs node) == Just "contract-button") (elementNodes tree))
                         `shouldBe` ["First", "Second", "Cancel", "Save"]
                     let emptyConfig = defaultDialogOverlayConfig "Empty" mempty []
                     emptyTree <- parseRenderedOverlay (case closeUrl of
-                        Nothing -> renderDialogOverlay emptyConfig
+                        Nothing  -> renderDialogOverlay emptyConfig
                         Just url -> renderPageDialogModal url emptyConfig)
                     filter (\node -> maybe False (Text.isInfixOf "app-modal-footer") (lookup "class" (nodeAttrs node))) (elementNodes emptyTree)
                         `shouldBe` []

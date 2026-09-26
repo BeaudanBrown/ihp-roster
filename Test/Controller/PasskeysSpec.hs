@@ -34,9 +34,9 @@ import IHP.AuthSupport.Authentication (verifyPassword)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status

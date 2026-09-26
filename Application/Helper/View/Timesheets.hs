@@ -73,10 +73,10 @@ data TimesheetFormInputs = TimesheetFormInputs
     }
 
 data TimesheetFormPresentation = TimesheetFormPresentation
-    { appShellAction :: AppShellActionIR
-    , formOrigin     :: TimesheetFormOrigin
-    , actionUrl      :: Text
-    , formId         :: Text
+    { appShellAction    :: AppShellActionIR
+    , formOrigin        :: TimesheetFormOrigin
+    , actionUrl         :: Text
+    , formId            :: Text
     , formMode          :: OverlayFormMode
     , formSurfaceAction :: Maybe FrontendSurfaceAction
     }
@@ -469,10 +469,10 @@ timesheetDismissalGuardConfig guardMode formId =
         { dismissalGuardFormId = formId
         , dismissalGuardImmediately = guardMode == GuardNewTimesheet
         , dismissalGuardConfirmationTitle = case guardMode of
-            GuardNewTimesheet -> "Discard unsaved timesheet?"
+            GuardNewTimesheet     -> "Discard unsaved timesheet?"
             GuardChangedTimesheet -> "Discard unsaved changes?"
         , dismissalGuardKeepEditingLabel = "Keep editing"
         , dismissalGuardDiscardLabel = case guardMode of
-            GuardNewTimesheet -> "Discard timesheet"
+            GuardNewTimesheet     -> "Discard timesheet"
             GuardChangedTimesheet -> "Discard changes"
         }

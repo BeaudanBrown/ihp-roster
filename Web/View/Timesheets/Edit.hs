@@ -17,8 +17,8 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField,
-                                                           surfaceOptionalField,
                                                            surfaceFieldsText,
+                                                           surfaceOptionalField,
                                                            (&:))
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowStateQueryParams,

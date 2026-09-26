@@ -11,12 +11,12 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import Application.Helper.View.ToggleButton
 import Config
 import qualified Data.Text as Text
+import IHP.HSX.Markup (Html)
+import qualified IHP.HSX.Markup as HtmlRenderer
 import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import IHP.HSX.Markup (Html)
-import qualified IHP.HSX.Markup as HtmlRenderer
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do

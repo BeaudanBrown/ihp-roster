@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bepis.Tooling.Artifacts
@@ -10,24 +10,32 @@ module Bepis.Tooling.Artifacts
     ) where
 
 import Bepis.Tooling.Artifacts.Command (runOwnedCommand)
-import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock, withExclusiveLock, withSharedLock, writeFileAtomic)
+import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock, withExclusiveLock,
+                                     withSharedLock, writeFileAtomic)
 import Control.Exception (Exception, IOException, catch, throwIO)
-import Data.Bits ((.&.))
 import Control.Monad (filterM, forM, forM_, unless, when)
 import Crypto.Hash.SHA256 (hash)
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), Value, eitherDecodeStrict', encode, object, withObject, (.:), (.=))
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), Value,
+                   eitherDecodeStrict', encode, object, withObject, (.:), (.=))
+import Data.Bits ((.&.))
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as ByteString8
 import qualified Data.ByteString.Lazy.Char8 as LazyByteString
 import Data.List (isPrefixOf, sort, sortOn)
-import System.Directory (canonicalizePath, copyFile, createDirectory, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, pathIsSymbolicLink, removeDirectoryRecursive, renameDirectory)
+import System.Directory (canonicalizePath, copyFile, createDirectory,
+                         createDirectoryIfMissing, doesDirectoryExist,
+                         doesFileExist, listDirectory, pathIsSymbolicLink,
+                         removeDirectoryRecursive, renameDirectory)
 import System.Environment (getArgs, getEnvironment)
 import System.Exit (ExitCode (..), exitWith)
-import System.FilePath (isAbsolute, makeRelative, normalise, splitDirectories, takeDirectory, takeExtension, (</>))
+import System.FilePath (isAbsolute, makeRelative, normalise, splitDirectories,
+                        takeDirectory, takeExtension, (</>))
 import System.IO (hPutStrLn, stderr)
-import System.Posix.Files (fileMode, fileOwner, fileSize, getFileStatus, ownerModes, setFileMode)
+import System.Posix.Files (fileMode, fileOwner, fileSize, getFileStatus,
+                           ownerModes, setFileMode)
 import System.Posix.User (getEffectiveUserID)
-import System.Process (CreateProcess (cwd, env), proc, readCreateProcessWithExitCode)
+import System.Process (CreateProcess (cwd, env), proc,
+                       readCreateProcessWithExitCode)
 
 newtype ArtifactError = ArtifactError (Int, String) deriving (Show)
 instance Exception ArtifactError
@@ -47,16 +55,16 @@ instance FromJSON Manifest where
 data Entry = FileEntry FilePath | ValueEntry String String deriving (Eq, Show)
 
 data CacheOptions = CacheOptions
-    { cacheAction :: String
+    { cacheAction    :: String
     , cacheWorkspace :: FilePath
-    , cacheParent :: FilePath
-    , cacheApply :: Bool
-    , cacheCommand :: [String]
+    , cacheParent    :: FilePath
+    , cacheApply     :: Bool
+    , cacheCommand   :: [String]
     }
 
 data CacheMarker = CacheMarker
-    { cacheMarkerUid :: Int
-    , cacheMarkerWorkspace :: FilePath
+    { cacheMarkerUid         :: Int
+    , cacheMarkerWorkspace   :: FilePath
     , cacheMarkerWorkspaceId :: String
     } deriving (Eq, Show)
 
@@ -108,9 +116,9 @@ runCache options = case cacheAction options of
 
 data CachePaths = CachePaths
     { cachePathWorkspace :: FilePath
-    , cachePathId :: String
-    , cachePathRoot :: FilePath
-    , cacheXdg :: FilePath
+    , cachePathId        :: String
+    , cachePathRoot      :: FilePath
+    , cacheXdg           :: FilePath
     , cacheLifecycleLock :: FilePath
     }
 
@@ -282,13 +290,13 @@ directoryBytes root = do
     pure (sum sizes)
 
 data GenerateOptions = GenerateOptions
-    { generateMode :: String
-    , generateRoot :: FilePath
-    , generateLock :: FilePath
+    { generateMode     :: String
+    , generateRoot     :: FilePath
+    , generateLock     :: FilePath
     , generateManifest :: FilePath
-    , inputCommand :: FilePath
-    , outputCommand :: FilePath
-    , generator :: [String]
+    , inputCommand     :: FilePath
+    , outputCommand    :: FilePath
+    , generator        :: [String]
     }
 
 runArtifactsCommand :: IO ()
@@ -364,11 +372,11 @@ runGenerate options = withExclusiveLock (generateLock options) $ do
             putStrLn "published"
 
 data PublishOptions = PublishOptions
-    { publishStage :: FilePath
-    , publishRoot :: FilePath
-    , managedRelative :: FilePath
-    , generatedMarker :: String
-    , recoveryRoot :: FilePath
+    { publishStage     :: FilePath
+    , publishRoot      :: FilePath
+    , managedRelative  :: FilePath
+    , generatedMarker  :: String
+    , recoveryRoot     :: FilePath
     , validatorCommand :: [String]
     }
 
@@ -564,7 +572,7 @@ parseInventory input = traverse parseLine (filter (not . null) (lines input))
 hashInventory :: FilePath -> [Entry] -> IO String
 hashInventory root entries = hex . hash . ByteString.concat <$> mapM render (sortOn identity entries)
   where
-    identity (FileEntry path) = "path\0" <> path
+    identity (FileEntry path)         = "path\0" <> path
     identity (ValueEntry label value) = "value\0" <> label <> "\0" <> value
     render (ValueEntry label value) = pure (bytes ["value", label, value])
     render (FileEntry path) = do
