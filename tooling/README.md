@@ -70,6 +70,23 @@ invalidates its dependent workspace derivation; workspace changes do not alter
 core, and unrelated repository/tool-family changes alter neither. The production
 source allowlist excludes the complete `tooling/` tree.
 
+## Browser grouping policy
+
+`runners e2e-groups --shards N --inventory FILE --durations FILE` is a pure
+assignment command: Playwright JSON discovery supplies current membership;
+versioned duration estimates influence placement only. It assigns indivisible
+file/project groups longest-first with stable lexical/index tie-breaking, up to
+eight shards, and emits selectors for Playwright's native `--test-list`.
+Unknown groups use 3 seconds per test; changed counts scale the prior estimate.
+Stale duration entries cannot create or remove tests. Invalid/duplicate discovery,
+unsafe selectors, empty shards and unsupported repeated/dependent projects fail
+closed. The command does not start processes or own runtime lifecycle.
+
+`python3 scripts/e2e-grouping.test.py` exercises this public command and pinned
+Playwright serial hooks, fixture cleanup, normal retries/flaky reporting and final
+failure status. Grouping estimates and retrospective balance are not speedups;
+actual adoption requires complete current-tier measurement.
+
 ## Lock ownership
 
 Workspace registry mutations use `<git-common-dir>/bepis/epic-worktrees/registry.lock`.

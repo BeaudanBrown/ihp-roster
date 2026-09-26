@@ -4,6 +4,7 @@
 module Bepis.Tooling.Runners (runRunnersCommand, safeDatabase, validRunId) where
 
 import Bepis.Tooling.Core.OwnedFile (tryWithExclusiveLock, writeFileAtomic)
+import Bepis.Tooling.Runners.BrowserGroups (planBrowserGroups)
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, IOException, bracket, catch, throwIO)
 import Control.Monad (unless, when)
@@ -14,6 +15,7 @@ import qualified Data.ByteString.Char8 as ByteString8
 import qualified Data.ByteString.Lazy.Char8 as Lazy
 import Data.Char (isAlphaNum)
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.List (sort)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import GHC.Generics (Generic)
 import qualified Network.Socket as Socket
@@ -52,6 +54,7 @@ dispatch :: [String] -> IO ()
 dispatch ["id"] = freshRunId >>= putStrLn
 dispatch ("hspec-plan":arguments) = hspecPlan arguments
 dispatch ("e2e-plan":arguments) = e2ePlan arguments
+dispatch ("e2e-groups":arguments) = e2eGroups arguments
 dispatch ("profile-plan":arguments) = profilePlan arguments
 dispatch ("run":arguments) = parseRun arguments >>= runOwned
 dispatch ["help"] = putStrLn usage
@@ -62,6 +65,7 @@ usage = unlines
     [ "usage: bepis-runners id"
     , "       bepis-runners hspec-plan --lane LANE --feedback LANE --shards N --max-shards N --database NAME"
     , "       bepis-runners e2e-plan --run-id ID --shards N --max-shards N --pool-size N --database NAME"
+    , "       bepis-runners e2e-groups --shards N --inventory FILE --durations FILE"
     , "       bepis-runners profile-plan --kind KIND --scenario NAME --rate N --duration D --vus N [--max-vus N]"
     , "       bepis-runners run --family FAMILY --workspace PATH --run-id ID [--artifact-dir PATH] [--retain-success] -- COMMAND..."
     ]
@@ -109,6 +113,24 @@ e2ePlan arguments = do
     unless (safeDatabase 16 database) (reject 64 "unsafe E2E database base name")
     Lazy.putStrLn (encode (object ["runId" .= runId, "shards" .= shards, "maxShards" .= maximumShards,
         "poolSize" .= pool, "database" .= database]))
+
+e2eGroups :: [String] -> IO ()
+e2eGroups arguments = do
+    options <- parsePairs arguments
+    unless (sort (map fst options) == ["durations", "inventory", "shards"])
+        (reject 64 "e2e-groups requires exactly --shards, --inventory and --durations")
+    shards <- positive "shards" options
+    inventory <- required "inventory" options >>= boundedInput
+    durations <- required "durations" options >>= boundedInput
+    plan <- either (reject 64) pure (planBrowserGroups shards inventory durations)
+    Lazy.putStrLn (encode plan)
+  where
+    boundedInput path = do
+        size <- getFileSize path
+        when (size > 16 * 1024 * 1024) (reject 64 "browser policy input exceeds 16 MiB")
+        bytes <- ByteString.readFile path
+        when (ByteString.length bytes > 16 * 1024 * 1024) (reject 64 "browser policy input grew beyond 16 MiB")
+        pure bytes
 
 profilePlan :: [String] -> IO ()
 profilePlan arguments = do
