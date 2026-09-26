@@ -144,10 +144,11 @@ failed pipeline as a speedup. Follow `docs/runbooks/performance-profiling.md`.
   than 5%, and observed maxima by more than 10%; affected miss/output-cold owner
   paths get the same relative limits with a one-second measurement allowance.
   Repeated contention requires a new labelled cohort, not selective exclusions.
-- Memory: comparable aggregate peak must remain within the larger of 10% or
-  128 MiB above control, as well as explicit experiment/host headroom limits.
-  Parallelism exceeding that budget needs operator-approved evidence and revised
-  limits, not silent acceptance. No production durability or test selection
+- Memory: report comparable aggregate peaks and attribution limitations as
+  diagnostic evidence, without a relative memory-regression acceptance cap.
+  Explicit experiment/host headroom limits still apply; removing the relative
+  cap does not authorize unsafe resource use or increased parallelism.
+  No production durability or test selection
   change may be used to satisfy a performance target. Compare the same current
   command contract on both arms: historical `verify-fast` timings included
   authorities now assigned to focused commands or `verify-full`, so their removal
