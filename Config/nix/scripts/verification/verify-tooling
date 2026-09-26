@@ -36,6 +36,7 @@ check weeder-policy-test
 check node --test scripts/application-warnings.test.mjs
 check python3 scripts/artifact-command.test.py
 check python3 scripts/verification-build.test.py
+check python3 scripts/verification-sequencing.test.py
 check python3 scripts/e2e-grouping.test.py
 check node --test scripts/typed-error-boundary.test.mjs scripts/weeder-reachability.test.mjs
 check bash "${BEPIS_SCRIPTS_ROOT:?}/frontend/surface-adapter-publication-test"
