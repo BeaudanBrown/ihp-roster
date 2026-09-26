@@ -43,7 +43,7 @@ RELEVANT_PROCESS_MARKERS = (
     "/k6 ",
 )
 SUITE_PATTERN = re.compile(
-    r'^\s*(?:\[|,)\s*(pureSuite|databaseSuite)\s+[\s\S]*?SuiteDefinition\s*\{([\s\S]*?)\}\s+([A-Za-z][A-Za-z0-9_.]+)\.(tests|pureTests|databaseTests)\s*$',
+    r'^\s*(?:\[|,)\s*(pureSuite(?:WithTools)?|databaseSuite)\s+[\s\S]*?SuiteDefinition\s*\{([\s\S]*?)\}\s+([A-Za-z][A-Za-z0-9_.]+)\.(tests|pureTests|databaseTests)\s*$',
     re.MULTILINE,
 )
 SUITE_LABEL_PATTERN = re.compile(r'definitionLabel\s*=\s*"([^"]+)"')
@@ -821,7 +821,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
 
     header = (
         "label\tdatabase\tclean-state\tcommitted-visibility\tfeedback\t"
-        "invariant-family\testimated-seconds\tfixture-cost\texternal-mocks\towned-invariants\tpartial-invariants"
+        "invariant-family\testimated-seconds\tfixture-cost\texternal-mocks\texternal-tools\towned-invariants\tpartial-invariants"
     )
     lines = completed.stdout.splitlines()
     try:
@@ -834,7 +834,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
         if not line.strip():
             continue
         fields = line.split("\t")
-        if len(fields) != 11:
+        if len(fields) != 12:
             raise RuntimeError(f"invalid suite metadata row: {line}")
         (
             label,
@@ -846,6 +846,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
             estimated_seconds,
             fixture_cost,
             external_mocks,
+            external_tools,
             owned_invariants,
             partial_invariants,
         ) = fields
@@ -858,6 +859,7 @@ def parse_metadata_report(runner: Path) -> dict[str, dict[str, Any]]:
             "estimatedRuntimeSeconds": float(estimated_seconds),
             "fixtureCost": fixture_cost,
             "externalMocks": [] if external_mocks == "none" else external_mocks.split(","),
+            "externalTools": [] if external_tools == "none" else external_tools.split(","),
             "ownedInvariants": [] if owned_invariants == "none" else owned_invariants.split(","),
             "partialInvariants": [] if partial_invariants == "none" else partial_invariants.split(","),
         }
@@ -897,7 +899,7 @@ def parse_registry(runner: Path) -> list[dict[str, Any]]:
         metadata = reported_metadata.get(label)
         if metadata is None:
             raise RuntimeError(f"suite source entry is missing from metadata report: {label}")
-        expected_kind = "pure" if constructor == "pureSuite" else "database"
+        expected_kind = "pure" if constructor.startswith("pureSuite") else "database"
         if metadata["kind"] != expected_kind:
             raise RuntimeError(
                 f"suite kind differs between source constructor and metadata report: "
@@ -941,6 +943,7 @@ def parse_registry(runner: Path) -> list[dict[str, Any]]:
                 "estimatedRuntimeSeconds": metadata["estimatedRuntimeSeconds"],
                 "fixtureCost": metadata["fixtureCost"],
                 "externalMocks": metadata["externalMocks"],
+                "externalTools": metadata["externalTools"],
                 "ownedInvariants": metadata["ownedInvariants"],
                 "partialInvariants": metadata["partialInvariants"],
                 "withCleanDbCallSites": clean_db_call_sites,
@@ -1039,7 +1042,7 @@ def inventory_from_runner(args: argparse.Namespace, runner: Path, output_path: P
         raise RuntimeError(f"inventory did not execute these suites: {missing}")
 
     inventory = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "sourceCommit": run_capture(["git", "rev-parse", "HEAD"]).get("output", ""),
         "totals": {
             "suites": total,
@@ -1093,6 +1096,7 @@ def inventory_from_runner(args: argparse.Namespace, runner: Path, output_path: P
             "estimatedRuntimeSeconds",
             "fixtureCost",
             "externalMocks",
+            "externalTools",
             "ownedInvariants",
             "partialInvariants",
             "exampleCount",

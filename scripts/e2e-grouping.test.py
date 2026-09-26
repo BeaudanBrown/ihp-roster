@@ -123,6 +123,36 @@ test('retry remains visible',async({},info)=>{expect(process.env.GROUPING_ALWAYS
         self.assertEqual(json.loads(result.stdout)['stats']['unexpected'], 1)
         self.assertEqual(list(self.root.glob('*.state')), [])
 
+    def test_real_blob_merge_retains_every_selector_group_and_retry(self):
+        module = str(Path(os.environ['E2E_PLAYWRIGHT_NODE_MODULES']) / '@playwright/test/index.js')
+        config = self.root / 'playwright.config.cjs'
+        config.write_text("module.exports={testDir:__dirname,workers:1,retries:1,reporter:'blob'};")
+        (self.root / 'first.spec.cjs').write_text(f"const {{test}}=require({json.dumps(module)});test('first',()=>{{}});")
+        (self.root / 'second.spec.cjs').write_text(f"const {{test,expect}}=require({json.dumps(module)});test('second',async({{}},info)=>{{expect(info.retry).toBe(1);}});")
+        for owned in [False, True]:
+            merged = self.root / ('owned' if owned else 'collision-control')
+            merged.mkdir()
+            for index, name in enumerate(['first', 'second'], 1):
+                selection = self.root / f'{name}.txt'
+                selection.write_text(f'{name}.spec.cjs\n')
+                output = self.root / f'blob-{owned}-{index}'
+                env = dict(os.environ, PLAYWRIGHT_BLOB_OUTPUT_DIR=str(output))
+                for key in ['PLAYWRIGHT_BLOB_OUTPUT_FILE', 'PLAYWRIGHT_BLOB_OUTPUT_NAME']:
+                    env.pop(key, None)
+                if owned:
+                    env['PLAYWRIGHT_BLOB_OUTPUT_FILE'] = str(output / f'report-shard-{index}.zip')
+                result = subprocess.run(['playwright', 'test', '--config', str(config), '--test-list', str(selection)], cwd=self.root, env=env, text=True, capture_output=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                blobs = list(output.glob('*.zip'))
+                self.assertEqual(len(blobs), 1)
+                (merged / blobs[0].name).write_bytes(blobs[0].read_bytes())
+            # Demonstrate the real rejected primitive, not just a synthetic name.
+            self.assertEqual(len(list(merged.glob('*.zip'))), 2 if owned else 1)
+            result = subprocess.run(['playwright', 'merge-reports', '--reporter=json', str(merged)], cwd=self.root, text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            stats = json.loads(result.stdout)['stats']
+            self.assertEqual((stats['expected'], stats['flaky'], stats['unexpected'], stats['skipped']), (1 if owned else 0, 1, 0, 0))
+
 
 if __name__ == '__main__':
     unittest.main()

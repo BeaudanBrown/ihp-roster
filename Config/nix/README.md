@@ -138,6 +138,28 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
+## Verification Group Durations
+
+Complete, argument-free multi-shard E2E runs discover current membership and ask
+`bepis-runners e2e-groups` to assign whole file/project groups by advisory duration.
+`Config/nix/e2e-duration-baseline.json` retains training provenance, not a test
+manifest or success cache. New groups receive conservative estimates; changed
+counts scale estimates; stale estimates cannot select or omit tests. Native
+run/database/port/process ownership, hooks, serial suites and retries remain
+unchanged. Group plans/selectors accompany durable reports and failures. Each
+shard owns a distinct blob filename, including when Playwright receives
+`--test-list` instead of `--shard`.
+
+`E2E_GROUPING=legacy` selects the prior grouping for matched controls or rollback.
+Focused/custom-argument invocations retain native Playwright sharding. Whole-file
+assignment alone does not establish fixture independence: retain exact full/fast
+membership and clean repeated acceptance, including fixture-order controls.
+
+Hspec retains whole-suite grouping and source order. Advisory runtime weights
+use inclusive native example-callback observations, not reset-only sums; suite
+context startup/teardown remains separate. Runtime and memory acceptance uses
+complete real executions, never the scheduler's predicted load.
+
 ## Reset Isolation Eligibility
 
 Keep the closed `Application.Fixture.Reset` manifest and its
@@ -177,6 +199,8 @@ Only the two configured variants inside one PayrollWorkbook example share this
 lifecycle. Other calculator examples still start cold; no resource crosses Hspec
 example boundaries and no existing assertion/tier membership is removed. Real
 Calc adversarial fixtures and the startup/deadline fixtures run in `verify-tooling`.
+Suite metadata separately records real `externalTools`: PayrollWorkbook remains
+pure/BroadAcceptance with `LibreOfficeCalc`, not an HTTP/provider mock.
 
 ## Shared Verification Compiler Ownership
 

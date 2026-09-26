@@ -189,13 +189,19 @@ configuration. No hook is installed with profiling disabled. A warm build may
 not invoke the linker; absent intervals never mean a measured zero duration.
 `resets.json` contains bounded, process-local Hspec aggregates by registered suite
 and shard: attempts, failures and monotonic elapsed nanoseconds, including failed
-reset attempts. The reset SQL and cleanup policy are unchanged. A native counter
+reset attempts. Schema version 2 additionally records
+`exampleDurationNanoseconds`: inclusive example callback time, including reset,
+fixture, application and external-tool work, even for no-reset or failed
+callbacks. Suite context startup/teardown is excluded; nested counters overlap
+and must not be added together. Version 1 remains readable but has no callback
+duration. The reset SQL and cleanup policy are unchanged. A native counter
 is updated per reset; one aggregate publisher runs at shard completion, never a
 Python process per reset. Thread-local suite scopes are not guessed for spawned
 threads: unscoped work is explicit. Missing/crashed producers remain unavailable
 or partial, not zero. A successfully published empty aggregate is observed zero.
-These are sums of reset work, not wall-clock critical paths; do not sum shard
-maxima. The separate legacy `HSPEC_METRICS_DIR` raw-line diagnostics are unchanged
+These are sums of reset or callback work, not wall-clock critical paths; do not
+sum shard maxima. Callback medians can train advisory suite weights, but only
+matched complete-tier runs establish scheduling benefit. The separate legacy `HSPEC_METRICS_DIR` raw-line diagnostics are unchanged
 and must have identical settings in both measurement arms.
 
 ## Request Instrumentation

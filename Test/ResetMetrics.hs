@@ -25,7 +25,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified System.Process as Process
 import Text.Read (readMaybe)
 
-data Counters = Counters !Integer !Integer !Integer
+data Counters = Counters !Integer !Integer !Integer !Integer
 
 data ResetState = ResetState
     { threadSuites :: !(Map.Map ThreadId String)
@@ -65,7 +65,8 @@ withResetSuite label action = do
     case recorder of
         Just (labels, state) | Set.member label labels -> do
             thread <- myThreadId
-            bracket (enter state thread) (leave state thread) (const action)
+            started <- getMonotonicTimeNSec
+            bracket (enter state thread) (leave state thread started) (const action)
         _ -> action
   where
     enter state thread = modifyMVar state $ \snapshot ->
@@ -73,8 +74,15 @@ withResetSuite label action = do
         in if Map.size (threadSuites snapshot) >= 256 && previous == Nothing
             then pure (snapshot { overflow = True }, previous)
             else pure (snapshot { threadSuites = Map.insert thread label (threadSuites snapshot) }, previous)
-    leave state thread previous = modifyMVar_ state $ \snapshot -> pure snapshot
-        { threadSuites = maybe (Map.delete thread) (Map.insert thread) previous (threadSuites snapshot) }
+    leave state thread started previous = do
+        finished <- getMonotonicTimeNSec
+        modifyMVar_ state $ \snapshot ->
+            let Counters count failures resetDuration exampleDuration = Map.findWithDefault (Counters 0 0 0 0) (Just label) (totals snapshot)
+                updated = Counters count failures resetDuration (exampleDuration + toInteger (finished - started))
+            in pure snapshot
+                { threadSuites = maybe (Map.delete thread) (Map.insert thread) previous (threadSuites snapshot)
+                , totals = Map.insert (Just label) updated (totals snapshot)
+                }
 
 measureReset :: forall a. IO a -> IO a
 measureReset action = do
@@ -88,15 +96,18 @@ measureReset action = do
             finished <- getMonotonicTimeNSec
             modifyMVar_ state $ \snapshot ->
                 let label = Map.lookup thread (threadSuites snapshot)
-                    Counters count failures duration = Map.findWithDefault (Counters 0 0 0) label (totals snapshot)
+                    Counters count failures duration exampleDuration = Map.findWithDefault (Counters 0 0 0 0) label (totals snapshot)
                     failed = either (const 1) (const 0) result
-                    updated = Counters (count + 1) (failures + failed) (duration + toInteger (finished - started))
+                    updated = Counters (count + 1) (failures + failed) (duration + toInteger (finished - started)) exampleDuration
                 in pure snapshot { totals = Map.insert label updated (totals snapshot) }
             either throwIO pure result
 
 counterFields :: Counters -> [Pair]
-counterFields (Counters count failures duration) =
-    [ "attempts" .= count, "failures" .= failures, "durationNanoseconds" .= duration ]
+counterFields (Counters count failures duration exampleDuration) =
+    [ "attempts" .= count, "failures" .= failures, "durationNanoseconds" .= duration
+    -- Summed inclusive example callbacks, not reset time or whole-suite startup.
+    , "exampleDurationNanoseconds" .= exampleDuration
+    ]
 
 publish :: ResetState -> IO ()
 publish snapshot = do
@@ -106,12 +117,12 @@ publish snapshot = do
         (Just scriptsRoot, Just shard) | shard >= 0 && shard <= 65535 -> do
             let report :: Value
                 report = object
-                    [ "schemaVersion" .= (1 :: Int)
+                    [ "schemaVersion" .= (2 :: Int)
                     , "scope" .= shard
                     , "overflow" .= overflow snapshot
                     , "suites" .= [object (("suite" .= label) : counterFields counters)
                                   | (Just label, counters) <- Map.toAscList (totals snapshot)]
-                    , "unattributed" .= object (counterFields (Map.findWithDefault (Counters 0 0 0) Nothing (totals snapshot)))
+                    , "unattributed" .= object (counterFields (Map.findWithDefault (Counters 0 0 0 0) Nothing (totals snapshot)))
                     ]
             Process.withCreateProcess
                 ((Process.proc "python3" ["-S", scriptsRoot </> "../../../scripts/profiling/verification-measure.py", "reset-summary"])

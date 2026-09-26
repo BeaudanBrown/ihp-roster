@@ -168,6 +168,7 @@ publish_failure_diagnostics() {
     local shard_dir shard_name
     mkdir -p "$failure_dir"
     cp "$STATE_DIR"/*.log "$failure_dir/" 2>/dev/null || true
+    cp "$STATE_DIR"/browser-groups.json "$STATE_DIR"/browser-shard-*.txt "$failure_dir/" 2>/dev/null || true
     for shard_dir in "$STATE_DIR"/shard-*; do
         [ -d "$shard_dir" ] || continue
         shard_name="${shard_dir##*/}"
@@ -219,6 +220,27 @@ cleanup_parent() {
 }
 trap cleanup_parent EXIT
 trap 'exit 130' INT TERM
+
+# Discovery/execution remain Playwright-owned. The native runner only assigns
+# whole file/project groups; focused/custom invocations retain native sharding.
+case "${E2E_GROUPING:-duration}" in
+    duration|legacy) ;;
+    *) echo "E2E_GROUPING must be duration or legacy" >&2; exit 64 ;;
+esac
+if [ "$#" -eq 0 ] && [ "$E2E_SHARDS" -gt 1 ] && [ "${E2E_GROUPING:-duration}" = duration ]; then
+    verification_phase e2e-group-plan 0 start
+    playwright test --list --reporter=json >"$STATE_DIR/browser-inventory.json"
+    "$runner_binary" e2e-groups --shards "$E2E_SHARDS" \
+        --inventory "$STATE_DIR/browser-inventory.json" \
+        --durations "$PWD/Config/nix/e2e-duration-baseline.json" >"$STATE_DIR/browser-groups.tmp"
+    mv "$STATE_DIR/browser-groups.tmp" "$STATE_DIR/browser-groups.json"
+    for shard_index in $(seq 1 "$E2E_SHARDS"); do
+        jq -er --argjson index "$shard_index" \
+            '.shards[] | select(.index == $index) | .selectors[]' \
+            "$STATE_DIR/browser-groups.json" >"$STATE_DIR/browser-shard-$shard_index.txt"
+    done
+    verification_phase e2e-group-plan 0 finish
+fi
 
 if [ "$E2E_POSTGRES_MODE" = managed ]; then
     # A cold disposable profile has no root yet. Ask the manager to establish
@@ -334,6 +356,9 @@ run_e2e_shard() {
         export PWTEST_CACHE_DIR="$shard_dir/playwright-transform-cache"
         export PLAYWRIGHT_OUTPUT_DIR="$shard_output_dir"
         export PLAYWRIGHT_BLOB_REPORT_DIR="$shard_blob_dir"
+        # --test-list does not contribute to Playwright's default blob filename.
+        # Keep every native shard distinct when its reports are collected.
+        export PLAYWRIGHT_BLOB_OUTPUT_FILE="$shard_blob_dir/report-shard-$shard_index.zip"
         export PLAYWRIGHT_WORKERS=1
         export PLAYWRIGHT_FULLY_PARALLEL=0
         export E2E_XERO_FIXTURE="$shard_dir/xero-fixture.json"
@@ -457,11 +482,15 @@ SQL
                 echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
                 echo "E2E database: $TEST_DATABASE_NAME"
                 local test_status=0
+                local selection_args=(--shard="$shard_index/$E2E_SHARDS")
+                if [ -f "$STATE_DIR/browser-shard-$shard_index.txt" ]; then
+                    selection_args=(--test-list "$STATE_DIR/browser-shard-$shard_index.txt")
+                fi
                 verification_phase e2e-browser "$shard_index" start
                 # Let timeout own a process group so a wedged browser or
                 # Playwright child cannot survive the shard deadline.
                 timeout --signal=TERM --kill-after=30s "${E2E_SHARD_TIMEOUT_SECONDS}s" \
-                    playwright test --shard="$shard_index/$E2E_SHARDS" "$@" \
+                    playwright test "${selection_args[@]}" "$@" \
                     7>&- || test_status=$?
                 if [ "$test_status" -eq 124 ] || [ "$test_status" -eq 137 ]; then
                     echo "E2E shard $shard_index/$E2E_SHARDS exceeded ${E2E_SHARD_TIMEOUT_SECONDS}s; terminated Playwright process group" >&2
@@ -528,6 +557,9 @@ if [ -n "$(find "$MERGED_BLOB_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null)"
     artifact_dir="$ARTIFACT_ROOT/$E2E_RUN_ID"
     mkdir -p "$artifact_dir"
     cp -a "$MERGED_HTML_DIR" "$artifact_dir/playwright-report"
+    if [ -f "$STATE_DIR/browser-groups.json" ]; then
+        cp "$STATE_DIR"/browser-groups.json "$STATE_DIR"/browser-shard-*.txt "$artifact_dir/"
+    fi
     ln -sfn "$artifact_dir/playwright-report" "$ARTIFACT_ROOT/latest-report"
 fi
 

@@ -17,10 +17,10 @@ function run(output, code, options = {}) {
     { encoding: 'utf8', timeout: 10_000, ...options });
 }
 
-test('shared compiler ownership and private-copy phases remain distinct observations', (t) => {
+test('compiler ownership, private-copy and browser-group preparation remain distinct observations', (t) => {
     const output = fixture(t);
     const phases = ['typecheck-build-lock', 'hspec-build-lock', 'architecture-build-lock',
-        'e2e-app-copy', 'e2e-worker-copy', 'e2e-stripe-copy'];
+        'e2e-app-copy', 'e2e-worker-copy', 'e2e-stripe-copy', 'e2e-group-plan'];
     const result = run(output, `import subprocess
 for phase in ${JSON.stringify(phases)}:
     for edge in ['start', 'finish']:

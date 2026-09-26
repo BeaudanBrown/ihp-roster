@@ -4,6 +4,7 @@ module Test.Suite.Metadata
     , CleanStateRequirement (..)
     , CommittedVisibilityRequirement (..)
     , ExternalMock (..)
+    , ExternalTool (..)
     , FeedbackLane (..)
     , FeedbackSelection (..)
     , FixtureCost (..)
@@ -79,6 +80,9 @@ data FixtureCost
 data ExternalMock
     = StripeTransportMock
     | XeroHttpMock
+    deriving (Eq, Ord, Show)
+
+data ExternalTool = LibreOfficeCalc
     deriving (Eq, Ord, Show)
 
 data InvariantFamily
@@ -159,6 +163,7 @@ data SuiteMetadata = SuiteMetadata
     , invariantFamily                      :: InvariantFamily
     , fixtureCost                          :: FixtureCost
     , externalMocks                        :: [ExternalMock]
+    , externalTools                        :: [ExternalTool]
     , ownedAcceptanceInvariants            :: [AcceptanceInvariant]
     , partiallyCoveredAcceptanceInvariants :: [AcceptanceInvariant]
     }
@@ -174,6 +179,7 @@ suiteMetadataFromDefinition isolation definition =
         , invariantFamily = definition.definitionInvariantFamily
         , fixtureCost = definition.definitionFixtureCost
         , externalMocks = definition.definitionExternalMocks
+        , externalTools = []
         , ownedAcceptanceInvariants = definition.definitionOwnedInvariants
         , partiallyCoveredAcceptanceInvariants = definition.definitionPartialInvariants
         }
@@ -267,6 +273,7 @@ validateSuiteMetadata metadata =
         <> overlappingInvariantDiagnostics
         <> partialShapeDiagnostics
         <> duplicateMockDiagnostics
+        <> duplicateToolDiagnostics
   where
     label = cs metadata.suiteLabel :: Text
     emptyLabelDiagnostic =
@@ -299,6 +306,9 @@ validateSuiteMetadata metadata =
     duplicateMockDiagnostics =
         duplicateValues metadata.externalMocks
             |> map (\mock -> label <> ": duplicate external mock requirement: " <> tshow mock)
+    duplicateToolDiagnostics =
+        duplicateValues metadata.externalTools
+            |> map (\tool -> label <> ": duplicate external tool requirement: " <> tshow tool)
 
 matchesTestLane :: TestLane -> SuiteMetadata -> Bool
 matchesTestLane lane metadata =

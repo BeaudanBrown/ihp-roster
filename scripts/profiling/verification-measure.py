@@ -15,7 +15,7 @@ MAX_PHASE_EVENTS = 256
 PHASES = ('compile', 'hspec-execution', 'database-create', 'database-drop', 'parallel-run',
           'e2e-app-compile', 'e2e-worker-compile', 'e2e-stripe-compile',
           'e2e-app-startup', 'e2e-worker-startup', 'e2e-stripe-startup',
-          'e2e-database-create', 'e2e-database-drop', 'e2e-browser', 'e2e-parallel-run',
+          'e2e-database-create', 'e2e-database-drop', 'e2e-browser', 'e2e-parallel-run', 'e2e-group-plan',
           'e2e-mailhog-startup', 'hspec-link', 'e2e-app-link', 'e2e-worker-link', 'e2e-stripe-link')
 OBSERVATIONS = ('ghc-dependency-manifest-reused', 'ghc-dependency-manifest-reset',
                 'ghc-build-options-reused', 'ghc-build-options-reset',
@@ -286,18 +286,21 @@ def validate_reset_summary(value):
     import re
 
     if (not isinstance(value, dict) or set(value) != {'schemaVersion', 'scope', 'overflow', 'suites', 'unattributed'}
-            or type(value['schemaVersion']) is not int or value['schemaVersion'] != 1
+            or type(value['schemaVersion']) is not int or value['schemaVersion'] not in (1, 2)
             or type(value['scope']) is not int or not 0 <= value['scope'] <= 65535
             or type(value['overflow']) is not bool or value['overflow']
             or not isinstance(value['suites'], list) or len(value['suites']) > 256):
         raise ValueError('invalid reset summary')
+    counters = ('attempts', 'failures', 'durationNanoseconds')
+    if value['schemaVersion'] == 2:
+        counters += ('exampleDurationNanoseconds',)
     labels = set()
     for row in [*value['suites'], value['unattributed']]:
         named = row is not value['unattributed']
         if (not isinstance(row, dict)
-                or set(row) != ({'suite'} if named else set()) | {'attempts', 'failures', 'durationNanoseconds'}
+                or set(row) != ({'suite'} if named else set()) | set(counters)
                 or any(type(row[key]) is not int or not 0 <= row[key] <= 10**18
-                       for key in ('attempts', 'failures', 'durationNanoseconds'))
+                       for key in counters)
                 or row['failures'] > row['attempts']
                 or (row['attempts'] == 0 and row['durationNanoseconds'] != 0)):
             raise ValueError('invalid reset counters')

@@ -30,7 +30,7 @@ import Control.Exception
 import Control.Monad
 import Test.ResetMetrics
 main :: IO ()
-main = withResetMetrics ["Alpha", "Beta"] $ do
+main = withResetMetrics ["Alpha", "Beta", "NoReset"] $ do
     done <- newEmptyMVar
     forM_ ["Alpha", "Beta"] $ \\name -> forkIO $ do
         withResetSuite name $ replicateM_ 100 (measureReset (pure ()))
@@ -40,6 +40,10 @@ main = withResetMetrics ["Alpha", "Beta"] $ do
         withResetSuite "Beta" $ measureReset (pure ())
         _ <- try (measureReset (ioError (userError "private-error"))) :: IO (Either IOException ())
         pure ()
+    failed <- try (withResetSuite "NoReset" (threadDelay 1000 >> ioError (userError "private-example"))) :: IO (Either IOException ())
+    case failed of
+        Left _ -> pure ()
+        Right _ -> error "callback exception was lost"
     measureReset (pure ())
 `);
     const binary = join(root, 'fixture');
@@ -52,17 +56,21 @@ main = withResetMetrics ["Alpha", "Beta"] $ do
     assert.equal(result.status, 0, result.stderr);
     assert.equal(command(['inspect', output]).status, 0);
     const raw = readFileSync(join(output, 'resets.json'), 'utf8');
-    assert.doesNotMatch(raw, /private-error/);
+    assert.doesNotMatch(raw, /private-error|private-example/);
     const report = JSON.parse(raw);
     assert.equal(report.state, 'observed');
     assert.deepEqual(report.missingScopes, []);
     const summaries = report.summaries;
     assert.equal(summaries.length, 1);
     assert.equal(summaries[0].scope, 1);
+    assert.equal(summaries[0].schemaVersion, 2);
     assert.deepEqual(summaries[0].suites.map(({ suite, attempts, failures }) => ({ suite, attempts, failures })),
-        [{ suite: 'Alpha', attempts: 101, failures: 1 }, { suite: 'Beta', attempts: 101, failures: 0 }]);
+        [{ suite: 'Alpha', attempts: 101, failures: 1 }, { suite: 'Beta', attempts: 101, failures: 0 },
+            { suite: 'NoReset', attempts: 0, failures: 0 }]);
     assert.equal(summaries[0].unattributed.attempts, 1);
-    assert.ok(summaries[0].suites.every((suite) => suite.durationNanoseconds > 0));
+    assert.ok(summaries[0].suites.filter((suite) => suite.attempts > 0).every((suite) => suite.durationNanoseconds > 0));
+    assert.ok(summaries[0].suites.every((suite) => suite.exampleDurationNanoseconds > 0));
+    assert.equal(summaries[0].suites.find((suite) => suite.suite === 'NoReset').durationNanoseconds, 0);
 });
 
 test('concurrent aggregate publishers retain every scope; successful empty producers mean observed zero', (t) => {
@@ -100,6 +108,10 @@ sys.exit(9)
 test('malformed, duplicate, overflowing and tampered reset evidence cannot certify measurement', (t) => {
     const root = fixture(t);
     const bad = [
+        { ...summary(1), schemaVersion: 2 },
+        { ...summary(1), unattributed: { ...zero, exampleDurationNanoseconds: 1 } },
+        ...[-1, true, 1.5, 10 ** 19].map((duration) => ({ ...summary(1), schemaVersion: 2,
+            unattributed: { ...zero, exampleDurationNanoseconds: duration } })),
         { ...summary(1), scope: true },
         { ...summary(1), overflow: true },
         { ...summary(1), unattributed: { ...zero, attempts: -1 } },
