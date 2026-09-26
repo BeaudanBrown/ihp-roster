@@ -20,7 +20,9 @@ PHASES = ('compile', 'hspec-execution', 'database-create', 'database-drop', 'par
 OBSERVATIONS = ('ghc-dependency-manifest-reused', 'ghc-dependency-manifest-reset',
                 'ghc-build-options-reused', 'ghc-build-options-reset',
                 'ghc-link-observation-unavailable', 'generation-current', 'generation-regenerated')
-PHASES += ('ghc-dependency-lock', 'e2e-build-lock', 'e2e-postgres-lock') + OBSERVATIONS
+PHASES += ('ghc-dependency-lock', 'e2e-build-lock', 'e2e-postgres-lock',
+           'typecheck-build-lock', 'hspec-build-lock', 'architecture-build-lock',
+           'e2e-app-copy', 'e2e-worker-copy', 'e2e-stripe-copy') + OBSERVATIONS
 EDGES = ('start', 'finish', 'fail', 'ready', 'observe')
 
 

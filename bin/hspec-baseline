@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOCK = Path("/tmp/bepis-exclusive-performance.lock")
 RELEVANT_PROCESS_MARKERS = (
     "build/Test/Main",
+    "/bin/HspecMain",
     "build/TestCoverage/Main",
     "hspec-test",
     "hspec-pure",
@@ -983,6 +984,23 @@ def generate_inventory(args: argparse.Namespace) -> int:
     if not runner.exists():
         raise RuntimeError(f"Hspec runner does not exist: {runner}")
 
+    # Inventory is a reader too: pin one image, then release graph ownership
+    # before executing its many dry-run selections.
+    with tempfile.TemporaryDirectory(prefix="bepis-hspec-inventory-") as directory:
+        snapshot = Path(directory) / "Main"
+        if runner.name == "HspecMain" and runner.parent.name == "bin":
+            graph = runner.parent.parent.resolve()
+            with Path(str(graph) + ".owner.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_SH)
+                shutil.copy2(runner, snapshot)
+        else:
+            # Explicit custom runners are caller-owned images, not publications
+            # in the canonical shared graph.
+            shutil.copy2(runner, snapshot)
+        return inventory_from_runner(args, snapshot, output_path)
+
+
+def inventory_from_runner(args: argparse.Namespace, runner: Path, output_path: Path | None) -> int:
     suites = parse_registry(runner)
     by_label = {suite["label"]: suite for suite in suites}
     total = len(suites)
@@ -1152,7 +1170,7 @@ def parser() -> argparse.ArgumentParser:
     )
     inventory.add_argument("--output", help="write generated structural JSON here")
     inventory.add_argument("--check", help="validate structural fields in a committed inventory")
-    inventory.add_argument("--runner", default="build/Test/Main")
+    inventory.add_argument("--runner", default=str(Path(os.environ.get("VERIFICATION_BUILD_DIR", "build/Verification")) / "bin/HspecMain"))
     inventory.add_argument("--skip-compile", action="store_true")
     inventory.add_argument("--compile-timeout", type=float, default=600)
     inventory.set_defaults(function=generate_inventory)

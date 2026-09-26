@@ -154,14 +154,9 @@ ln -sfn "$legacy_state" "$STATE_ROOT/latest"
 
 GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
 VERIFICATION_DIR="$(ihp_roster_verification_build_dir)"
-ihp_roster_prepare_ghc_build_dir "$VERIFICATION_DIR" "$GHC_OPTS"
-mkdir -p build/Test
 compile_started_at="$(metrics_now)"
-verification_phase compile 0 start
-verification_ghc hspec-link 0 $GHC_OPTS -main-is Test.HspecMain Test/HspecMain.hs -o build/Test/Main \
-    -odir "$VERIFICATION_DIR/obj" \
-    -hidir "$VERIFICATION_DIR/hi" 2>&1 | tee "$STATE_DIR/compile.log"
-verification_phase compile 0 finish
+bash "$BEPIS_SCRIPTS_ROOT/haskell/ghc-build-run" "$VERIFICATION_DIR" "$GHC_OPTS" hspec-build-lock -- \
+    bash "$BEPIS_SCRIPTS_ROOT/haskell/hspec-build-image" "$VERIFICATION_DIR" "$STATE_DIR" "$GHC_OPTS"
 compile_finished_at="$(metrics_now)"
 record_phase "compile" 0 "$compile_started_at" "$compile_finished_at"
 
@@ -189,7 +184,7 @@ if [ "$TEST_SHARDS" -eq 1 ]; then
     execution_started_at="$(metrics_now)"
     verification_phase hspec-execution 1 start
     set +e
-    build/Test/Main "$@" 2>&1 | tee "$STATE_DIR/shard-1.log"
+    "$STATE_DIR/build/Main" "$@" 2>&1 | tee "$STATE_DIR/shard-1.log"
     status="${PIPESTATUS[0]}"
     set -e
     execution_finished_at="$(metrics_now)"
@@ -259,7 +254,7 @@ SQL
 
         execution_started_at="$(metrics_now)"
         verification_phase hspec-execution "$shard_index" start
-        if build/Test/Main "$@"; then
+        if "$STATE_DIR/build/Main" "$@"; then
             status=0
         else
             status=$?

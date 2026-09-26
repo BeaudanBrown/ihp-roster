@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Invoked by ghc-build-run; the runtime consumes only its private snapshot.
+verification_dir="$1"
+state_dir="$2"
+ghc_opts="$3"
+# shellcheck source=../lib/verification.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/verification.sh"
+mkdir -p "$verification_dir/bin" "$state_dir/build"
+verification_phase compile 0 start
+# shellcheck disable=SC2086 # ghc_opts is an intentional argument vector.
+verification_ghc hspec-link 0 $ghc_opts -main-is Test.HspecMain Test/HspecMain.hs -o "$verification_dir/bin/HspecMain" \
+    -odir "$verification_dir/obj" -hidir "$verification_dir/hi" 2>&1 | tee "$state_dir/compile.log"
+verification_phase compile 0 finish
+cp --reflink=auto "$verification_dir/bin/HspecMain" "$state_dir/build/Main"

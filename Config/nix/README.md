@@ -138,6 +138,26 @@ storage/retention migration is deliberately outside this upgrade's scope.
 `tests/production-evaluation-config.nix` supplies an evaluation-only filesystem
 type for observability checks; it must never enter deployment host imports.
 
+## Shared Verification Compiler Ownership
+
+Typecheck, Hspec, E2E and local architecture generation share the incremental
+verification graph. `haskell/ghc-build-run` acquires the same canonical sibling
+`.owner.lock` through native artifact command ownership before option preparation,
+compilation or private image copying. Cancellation retains ownership until the
+command's children stop. It does not lock source editing or certify complete
+compiler/TH/native input identity; GHC remains the freshness authority under the
+normal immutable Nix toolchain/package closure.
+
+Hspec's stable image lives at `build/Verification/bin/HspecMain` (or beneath
+`VERIFICATION_BUILD_DIR`); `hspec-baseline inventory` follows that default. Hspec,
+E2E and the local architecture generator execute independent copies after the
+build lease ends, never writable hardlinks to an image another build can replace.
+Packaged architecture generation remains independent. Runtime test results are
+not cached, and runtime/database ownership and isolation are unchanged. The
+normal serial-writer recommendation still applies outside these coordinated
+shared-graph owners. `scripts/verification-build.test.py` exercises real GHC,
+linked native inputs, private snapshots, contention and interrupted publication.
+
 ## Compiler Warning And Reachability Evidence
 
 `application-warnings` forces one GHC `--make` graph and filters structured

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+owned=0
+if [ "${1:-}" = --owned ]; then owned=1; shift; fi
+if [ "$#" -lt 5 ] || [ "$4" != -- ]; then
+    echo 'Usage: ghc-build-run DIRECTORY OPTIONS LOCK_PHASE -- COMMAND [ARGS...]' >&2
+    exit 64
+fi
+build_dir="$(realpath -m "$1")"
+ghc_opts="$2"
+lock_phase="$3"
+shift 4
+# shellcheck source=../lib/ghc.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/ghc.sh"
+# shellcheck source=../lib/verification.sh
+. "${BEPIS_SCRIPTS_ROOT:?}/lib/verification.sh"
+if [ "$owned" -eq 0 ]; then
+    # The lock is outside the resettable graph. Every shared graph writer uses
+    # this same canonical path; runtime execution is not part of this lease.
+    mkdir -p "$(dirname "$build_dir")"
+    ihp_roster_prepare_artifacts
+    verification_phase "$lock_phase" 0 start
+    exec "$IHP_ROSTER_ARTIFACTS_BINARY" lock-exec --lock "$build_dir.owner.lock" -- \
+        bash "$0" --owned "$build_dir" "$ghc_opts" "$lock_phase" -- "$@"
+fi
+verification_phase "$lock_phase" 0 finish
+# Native command ownership retains the lock through child cancellation/reaping.
+# Preparation is a writer too, and must never run before acquisition.
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$ghc_opts"
+exec "$@"

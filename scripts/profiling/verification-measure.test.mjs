@@ -17,6 +17,23 @@ function run(output, code, options = {}) {
     { encoding: 'utf8', timeout: 10_000, ...options });
 }
 
+test('shared compiler ownership and private-copy phases remain distinct observations', (t) => {
+    const output = fixture(t);
+    const phases = ['typecheck-build-lock', 'hspec-build-lock', 'architecture-build-lock',
+        'e2e-app-copy', 'e2e-worker-copy', 'e2e-stripe-copy'];
+    const result = run(output, `import subprocess
+for phase in ${JSON.stringify(phases)}:
+    for edge in ['start', 'finish']:
+        subprocess.run(['python3', ${JSON.stringify(recorder)}, 'event', '--phase', phase, '--scope', '0', '--edge', edge], check=True)
+`);
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stderr, /capture failed/);
+    const evidence = JSON.parse(readFileSync(join(output, 'phases.json'), 'utf8'));
+    assert.deepEqual(evidence.intervals.map((interval) => interval.phase), phases);
+    assert.ok(evidence.intervals.every((interval) => interval.status === 'finished'));
+    assert.equal(inspect(output).status, 0);
+});
+
 test('records real command duration and exit without persisting arguments or output', (t) => {
     const output = fixture(t);
     const secret = 'private-fixture-value-not-for-artifacts';

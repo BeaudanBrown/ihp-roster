@@ -292,42 +292,11 @@ E2E_SERVER_MODE="${E2E_SERVER_MODE:-compiled}"
 
 E2E_BUILD_DIR="$(ihp_roster_verification_build_dir)"
 GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
-ihp_roster_prepare_ghc_build_dir "$E2E_BUILD_DIR" "$GHC_OPTS"
 E2E_SERVER_BIN="$STATE_DIR/build/RunE2EApp"
 E2E_WORKER_BIN="$STATE_DIR/build/RunE2EWorker"
 E2E_STRIPE_MOCK_BIN="$STATE_DIR/build/StripeProcessMock"
-mkdir -p "$STATE_DIR/build" "$E2E_BUILD_DIR/bin"
-(
-    verification_phase e2e-build-lock 0 start
-    flock 9
-    verification_phase e2e-build-lock 0 finish
-    # GHC remains the freshness authority. Stable outputs avoid unchanged links;
-    # each run receives a snapshot so concurrent runs cannot replace its image.
-    if [ "$E2E_SERVER_MODE" = compiled ]; then
-        verification_phase e2e-app-compile 0 start
-        verification_ghc e2e-app-link 0 $GHC_OPTS -main-is Test.E2EAppMain Test/E2EAppMain.hs -o "$E2E_BUILD_DIR/bin/RunE2EApp" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
-            7>&- 2>&1 | tee "$STATE_DIR/app-build.log"
-        verification_phase e2e-app-compile 0 finish
-        cp --reflink=auto "$E2E_BUILD_DIR/bin/RunE2EApp" "$E2E_SERVER_BIN"
-    elif [ "$E2E_SERVER_MODE" != dev ]; then
-        echo "E2E_SERVER_MODE must be compiled or dev, got: $E2E_SERVER_MODE" >&2
-        exit 1
-    fi
-    # Keep the real worker with local Stripe/Xero boundaries even in non-billing
-    # tests: app jobs must never fall through to an external provider.
-    verification_phase e2e-worker-compile 0 start
-    verification_ghc e2e-worker-link 0 $GHC_OPTS -main-is Test.E2EWorkerMain Test/E2EWorkerMain.hs \
-        -o "$E2E_BUILD_DIR/bin/RunE2EWorker" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
-        7>&- 2>&1 | tee "$STATE_DIR/worker-build.log"
-    verification_phase e2e-worker-compile 0 finish
-    verification_phase e2e-stripe-compile 0 start
-    verification_ghc e2e-stripe-link 0 $GHC_OPTS -main-is Test.StripeProcessMockMain Test/StripeProcessMockMain.hs \
-        -o "$E2E_BUILD_DIR/bin/StripeProcessMock" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
-        7>&- 2>&1 | tee "$STATE_DIR/stripe-mock-build.log"
-    verification_phase e2e-stripe-compile 0 finish
-    cp --reflink=auto "$E2E_BUILD_DIR/bin/RunE2EWorker" "$E2E_WORKER_BIN"
-    cp --reflink=auto "$E2E_BUILD_DIR/bin/StripeProcessMock" "$E2E_STRIPE_MOCK_BIN"
-) 9>"$E2E_BUILD_DIR/e2e-build.lock"
+bash "$BEPIS_SCRIPTS_ROOT/haskell/ghc-build-run" "$E2E_BUILD_DIR" "$GHC_OPTS" e2e-build-lock -- \
+    bash "$BEPIS_SCRIPTS_ROOT/e2e/build-images" "$E2E_BUILD_DIR" "$STATE_DIR" "$E2E_SERVER_MODE" "$GHC_OPTS"
 
 find_e2e_port() {
     local start_port="$1"
