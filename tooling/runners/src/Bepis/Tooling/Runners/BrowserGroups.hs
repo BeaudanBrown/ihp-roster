@@ -10,6 +10,7 @@ import Data.Aeson (FromJSON (..), Value, eitherDecodeStrict', object,
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString as ByteString
 import Data.Char (isAlphaNum)
+import qualified Data.Foldable as Foldable
 import Data.List (groupBy, minimumBy, nub, sort, sortOn)
 import Data.Ord (Down (..), comparing)
 import System.FilePath (isAbsolute, normalise, splitDirectories, takeExtension)
@@ -88,7 +89,7 @@ planBrowserGroups count inventoryBytes durationBytes = do
         groups = map (makeGroup durations) grouped
     unless (length groups >= count) (Left "not enough whole groups for requested shards")
     let ordered = sortOn (\(Group key _ milliseconds) -> (Down milliseconds, key)) groups
-        shards = foldl' assign [Shard index 0 [] | index <- [1..count]] ordered
+        shards = Foldable.foldl' assign [Shard index 0 [] | index <- [1..count]] ordered
     pure (object ["schemaVersion" .= (1 :: Int), "testCount" .= length identities,
         "groupCount" .= length groups, "shards" .= map renderShard shards])
   where
