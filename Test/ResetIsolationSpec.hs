@@ -1,11 +1,12 @@
 module Test.ResetIsolationSpec where
 
-import Control.Exception (ErrorCall, IOException, SomeException, displayException, try)
-import Data.Either (isLeft)
+import Control.Exception (ErrorCall, IOException, displayException, try)
 import qualified Data.Text as Text
 import Generated.Types
+import qualified Hasql.Errors as Hasql
 import IHP.ControllerPrelude
 import IHP.ModelSupport (unsafeSqlExecDiscardResult, unsafeSqlQueryScalar)
+import IHP.ModelSupport.Types (HasqlSessionError (..))
 import IHP.Test.Mocking (withContext)
 import System.IO.Error (ioeGetErrorString)
 import Test.Hspec
@@ -85,12 +86,10 @@ tests = aroundAll withDatabaseTestContext do
                 result :: Either IOException () <- try do
                     withTransaction do
                         _ <- createUserRecord "constraint-reset@example.com" "staff" True
-                        duplicate :: Either SomeException User <- try (createUserRecord "constraint-reset@example.com" "staff" True)
-                        duplicate `shouldSatisfy` isLeft
-                        aborted :: Either SomeException Int <- try (query @User |> fetchCount)
-                        case aborted of
-                            Left exception -> cs (displayException exception) `shouldSatisfy` Text.isInfixOf "current transaction is aborted"
-                            Right _ -> expectationFailure "constraint failure did not abort the bound transaction"
+                        duplicate :: Either HasqlSessionError User <- try (createUserRecord "constraint-reset@example.com" "staff" True)
+                        either sqlState (const Nothing) duplicate `shouldBe` Just "23505"
+                        aborted :: Either HasqlSessionError Int <- try (query @User |> fetchCount)
+                        either sqlState (const Nothing) aborted `shouldBe` Just "25P02"
                         ioError (userError "rollback probe")
                 assertProbeFailure result
                 query @User |> fetchCount >>= (`shouldBe` 0)
@@ -105,6 +104,14 @@ nextInvalidationSequence =
 probeTableExists :: (?modelContext :: ModelContext) => IO Bool
 probeTableExists =
     unsafeSqlQueryScalar "SELECT to_regclass('bepis_reset_rollback_probe') IS NOT NULL" ()
+
+sqlState :: HasqlSessionError -> Maybe Text
+sqlState (HasqlSessionError exception) = case exception of
+    Hasql.StatementSessionError _ _ _ _ _ (Hasql.ServerStatementError serverError) -> serverCode serverError
+    Hasql.ScriptSessionError _ serverError -> serverCode serverError
+    _ -> Nothing
+  where
+    serverCode (Hasql.ServerError code _ _ _ _) = Just (cs code)
 
 assertProbeFailure :: Either IOException () -> Expectation
 assertProbeFailure result =
