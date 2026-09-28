@@ -436,7 +436,10 @@ respondWithPreparationPeriodSelection ::
     (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Either Text XeroTimesheetPreparationView ->
     IO ResponseReceived
-respondWithPreparationPeriodSelection = respondWithPreparationDialog
+respondWithPreparationPeriodSelection (Right view)
+    | isHtmxRequest && not (null view.preparationUnapprovedTimesheets) =
+        respondHtml (renderXeroUnapprovedTimesheetsConfirmation view)
+respondWithPreparationPeriodSelection result = respondWithPreparationDialog result
 
 respondWithPreparationDialog ::
     (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

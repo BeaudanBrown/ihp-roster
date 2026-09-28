@@ -3,6 +3,7 @@
 
 module Web.View.Admin.Xero.TimesheetPreparation
     ( renderXeroProblemTimesheetApprovalRefreshConfirmation
+    , renderXeroUnapprovedTimesheetsConfirmation
     , renderXeroTimesheetPreparationStaffStep
     , renderXeroTimesheetPreparationPeriodStep
     , renderXeroTimesheetPreparationPayItemsStep
@@ -25,6 +26,7 @@ module Web.View.Admin.Xero.TimesheetPreparation
 
 import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
+                                                     ConfirmXeroTimesheetPreparationSubmissionOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
                                                      ExpectedActiveCalculationIdField,
                                                      ExpectedApprovalTimestampField,
@@ -48,6 +50,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfac
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
+import Application.VenueTime.Model (decodeTimesheetTiming,
+                                    timesheetTimingEndTime,
+                                    timesheetTimingStartTime)
 import Application.Xero.ReferenceTrust (XeroReferenceSyncProgressFacts (..))
 import Application.Xero.ReferenceTrust.Presentation
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
@@ -205,6 +210,61 @@ renderXeroPreparationPeriodForm view =
         appShellActionFields @SelectXeroTimesheetPreparationPeriodOverlay
             (surfaceField @PeriodKeyField "")
             noSurfaceFields
+
+renderXeroUnapprovedTimesheetsConfirmation :: XeroTimesheetPreparationView -> Html
+renderXeroUnapprovedTimesheetsConfirmation view =
+    renderConfirmationDialog
+        (defaultConfirmationDialogConfig
+            "Unapproved timesheets in this pay period"
+            confirmationBody
+            formId
+            confirmationForm)
+            { confirmationDialogApproveLabel = "Continue anyway"
+            , confirmationDialogApproveTone = ConfirmationWarning
+            , confirmationDialogLoadingLabel = "Continuing…"
+            }
+  where
+    formId = "confirm-xero-unapproved-timesheets-form"
+    confirmationForm =
+        renderXeroPreparationOverlayForm
+            (noAppShellActionFields @ConfirmXeroTimesheetPreparationSubmissionOverlay)
+            (pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id))
+            [("id", formId)]
+            mempty
+    rows = view.preparationUnapprovedTimesheets
+    visibleRows = take 8 rows
+    remainingCount = length rows - length visibleRows
+    confirmationBody = [hsx|
+        <div class="d-flex flex-column gap-3">
+            <div class="alert alert-warning mb-0">
+                These timesheets are unapproved and will not be uploaded to Xero. Continue with the approved timesheets only?
+            </div>
+            <ul class="list-group">
+                {forEach visibleRows renderUnapprovedTimesheetRow}
+            </ul>
+            {remainingRowsMessage}
+        </div>
+    |]
+    remainingRowsMessage
+        | remainingCount > 0 = [hsx|<p class="small app-muted mb-0">And {remainingCount} more unapproved timesheets.</p>|]
+        | otherwise = mempty
+
+renderUnapprovedTimesheetRow :: XeroUnapprovedTimesheetView -> Html
+renderUnapprovedTimesheetRow row = [hsx|
+    <li class="list-group-item d-flex flex-column flex-sm-row justify-content-between gap-1">
+        <span class="fw-semibold">{staffName}</span>
+        <span>{formatDateDisplay entry.operationalDate} · {timeLabel}</span>
+    </li>
+|]
+  where
+    entry = row.unapprovedTimesheetEntry
+    staffName = case row.unapprovedTimesheetStaff of
+        Just staff -> staff.firstName <> " " <> staff.lastName
+        Nothing -> "Unknown staff"
+    timeLabel = case decodeTimesheetTiming entry of
+        Left _ -> "Time unavailable"
+        Right timing -> formatClock (timesheetTimingStartTime timing) <> "–" <> formatClock (timesheetTimingEndTime timing)
+    formatClock = Text.pack . formatTime defaultTimeLocale "%-I:%M %p"
 
 renderXeroTimesheetPreparationPayItemsStep :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationPayItemsStep view =

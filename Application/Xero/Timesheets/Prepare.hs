@@ -202,7 +202,25 @@ loadPreparationView run connection decisions readiness = do
     let selectedEntries = case preparationReadinessRequest run [] of
             Left _ -> []
             Right request -> either (const []) (\value -> value) (validateTimesheetSelection run.venueId request.readinessPeriodStart request.readinessPeriodEnd request.readinessSelection candidates)
-    let baseReadinessView = preparationReadinessView run readiness
+    unapprovedEntries <- case selectedPreparationPeriod run of
+        Left _ -> pure []
+        Right period ->
+            filter (not . (.isApproved))
+                <$> fetchPeriodTimesheetEntries (Id run.venueId) period.selectedPreparationPeriodStart period.selectedPreparationPeriodEnd
+    unapprovedStaff <-
+        if null unapprovedEntries
+            then pure []
+            else query @Staff
+                |> filterWhereIn (#id, map (Id . (.staffId)) unapprovedEntries)
+                |> fetch
+    let unapprovedTimesheets =
+            map
+                (\entry -> XeroUnapprovedTimesheetView
+                    { unapprovedTimesheetEntry = entry
+                    , unapprovedTimesheetStaff = find ((== entry.staffId) . unpackId . (.id)) unapprovedStaff
+                    })
+                unapprovedEntries
+        baseReadinessView = preparationReadinessView run readiness
         issueEntryIds =
             mapMaybe (.timesheetIssueTimesheetEntryId)
                 (baseReadinessView.timesheetReadinessBlockers <> baseReadinessView.timesheetReadinessWarnings)
@@ -277,6 +295,7 @@ loadPreparationView run connection decisions readiness = do
                 , preparationStaffStepApproved = staffStepApproved
                 , preparationCanSubmit = canSubmit
                 , preparationSelectedEntries = selectedEntries
+                , preparationUnapprovedTimesheets = unapprovedTimesheets
                 , preparationPreviewRows = submissionPreviewRows
                 , preparationSubmissionRun = maybeSubmissionRun
                 }

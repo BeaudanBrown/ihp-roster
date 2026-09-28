@@ -240,10 +240,13 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   This is a Bepis workflow gate, not authority to edit a processed timesheet or
   a way to target an individual same-period run. Selecting
   a period initializes an explicit approved-entry selection; changing periods
-  resets it. Any required account setup follows the period step, then the shift
-  checklist opens directly with no separate Choose shifts launcher. The checklist
-  is the final confirmation: its Confirm and submit action validates and saves
-  the selection, then submits without another confirmation dialog. Older Continue
+  resets it. Immediately after period selection, any unapproved Timesheets in that
+  period trigger a warning confirmation with a concise affected-entry list; the
+  owner must explicitly continue knowing those entries will be excluded. Any
+  required account setup follows, then the shift checklist opens directly with no
+  separate Choose shifts launcher. The checklist remains the final submission
+  confirmation: its Confirm and submit action validates and saves the selection,
+  then submits without another confirmation dialog. Older Continue
   actions remain save-only; retired submission endpoints reopen preparation and
   cannot write to Xero. Approval repairs or changed selections require fresh
   checklist confirmation rather than authorizing changed facts implicitly.

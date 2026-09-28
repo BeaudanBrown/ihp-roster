@@ -3,6 +3,7 @@ module Application.Helper.XeroTimesheetReadiness
     , XeroReadinessSeverity (..)
     , XeroTimesheetReadiness (..)
     , XeroTimesheetReadinessRequest (..)
+    , fetchPeriodTimesheetEntries
     , fetchPreviousConnectionImportedEntryIds
     , readinessBlockerCodes
     , validateXeroTimesheetReadiness

@@ -191,6 +191,12 @@ xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumSubmitted = 
 xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumFailed = XeroPreparationFailed
 xeroPreparationStateFromStatus Cancelled = XeroPreparationFailed
 
+data XeroUnapprovedTimesheetView = XeroUnapprovedTimesheetView
+    { unapprovedTimesheetEntry :: TimesheetEntry
+    , unapprovedTimesheetStaff :: Maybe Staff
+    }
+    deriving (Eq, Show)
+
 data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     { preparationRun                         :: XeroTimesheetPreparationRun
     , preparationState                       :: XeroTimesheetPreparationState
@@ -209,6 +215,7 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationStaffStepApproved           :: Bool
     , preparationCanSubmit                   :: Bool
     , preparationSelectedEntries             :: [TimesheetEntry]
+    , preparationUnapprovedTimesheets         :: [XeroUnapprovedTimesheetView]
     , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]
     , preparationSubmissionRun               :: Maybe XeroSubmissionRun
     }
