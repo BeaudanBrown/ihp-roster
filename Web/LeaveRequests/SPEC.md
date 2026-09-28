@@ -5,7 +5,8 @@
 - Records are venue- and staff-scoped. Backing status is `pending`, `approved`,
   or `denied`; lifecycle transitions append event/audit provenance rather than
   silently deleting reviewed history. Staff may soft-delete only their own pending
-  requests from Profile; approved and denied history remains read-only.
+  requests from Profile; approved and denied history retains a visible disabled
+  Delete action and remains read-only.
 - `end_date` is exclusive. A one-day unavailable period is `[day, day + 1)`.
 - Staff-facing copy uses **Unavailability**, **Unavailable period**, and **Add
   unavailable time** while the backing schema retains leave terminology.
