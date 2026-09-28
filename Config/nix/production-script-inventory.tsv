@@ -2,6 +2,7 @@ script	packaging	category	consumer	reason
 BackfillTimesheetPayLedger	production	migration-recovery	Config/nix/modules/ihp-roster.nix	Required by the deployed wage-cutover service and pay-ledger recovery runbook
 BillingReconciliationSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed Stripe reconciliation timer
 BootstrapAccount	production	deployment-maintenance	Config/nix/modules/ihp-roster.nix	Required by the deployed one-shot account bootstrap service
+DataVicProbe	development	integration-probe	bin/datavic-probe	Read-only v2 holiday candidate probe; no refresh cutover or database writes
 FwcMapdRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed FWC MAPD refresh timer
 GenerateBepisArchitectureContracts	development	architecture-generator	Config/nix/scripts/architecture/contracts	Repository architecture generation only; runnable from the development shell
 GenerateFrontendContracts	development	contract-generator	Config/nix/scripts/frontend/contracts	Checked frontend contract generation only; runnable from the development shell

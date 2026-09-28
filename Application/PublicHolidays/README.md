@@ -1,5 +1,47 @@
 # Public holiday source authority
 
+## Read-only v2 candidate client (not activated)
+
+`Client.hs` implements authenticated Developer.Vic Important Dates v2 reads.
+`DATAVIC_KEY` is read from the environment and sent only in the `apikey` header
+at the fixed HTTPS gateway; `DATAVIC_SECRET` is not used. HTTP errors are reduced
+to safe typed outcomes; redirects are disabled so credentials cannot follow a
+provider redirect. Transport has a 30-second response timeout and a 1 MiB body
+limit. No per-client retries: future worker integration must retain job-owned
+retry policy rather than nesting retry loops.
+
+The client requests each distinct year separately with inclusive `from_date` /
+`to_date` bounds, PUBLIC_HOLIDAY type, page 1 and limit 100. It accepts at most
+four requested years. Annual count/metadata disagreement fails closed; it never
+follows provider pagination links. Live unfiltered pages returned the complete
+collection repeatedly. Empty provider UUIDs remain absent IDs; provenance uses
+the credential-free annual request URI, not a fabricated record source.
+
+Validation rejects malformed/non-ISO/out-of-year/wrong-type rows, duplicate
+identities and IDs, empty/partial responses, and the known Sunday-valued Easter
+Monday defect. These structural checks do **not** certify complete official year
+coverage or catch every semantically wrong date. A successfully returned calendar
+is a candidate only. In particular, 2025/2027/2028 require official-calendar review.
+2026 is additionally compared to the reviewed snapshot by the probe and tests.
+
+Run the read-only probe (loads `.env` through the normal wrapper):
+
+```bash
+bash ./bin/in-env bash ./bin/datavic-probe 2026
+bash ./bin/in-env bash ./bin/datavic-probe 2027
+bash ./bin/in-env hspec-test --match 'DataVic v2 read-only candidate client'
+```
+
+The probe never starts an IHP database context, imports dates, or renews freshness.
+2027 currently exits unsuccessfully because upstream Easter Monday is wrong.
+Evidence fixtures and their source notes live in
+`Test/Fixtures/wage-sources/datavic-v2/`. Both client and probe are development-only
+until cutover. `Sync.hs`, scheduled jobs, deployment credentials, database guards
+and the reviewed override are intentionally unchanged. Worker wiring, production
+packaging and activation belong to the separately approved cutover.
+
+## Active source and override
+
 `Sync.hs` owns DataVic ingestion. `Override.hs` owns the temporary reviewed VIC
 2026 snapshot, complete-calendar validation and validity window. The normal
 `public_holidays` table remains the sole date lookup for wage calculation;

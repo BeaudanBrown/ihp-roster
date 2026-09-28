@@ -353,6 +353,7 @@ Application/Operator/Error.hs	production	operational-script-closure	Application.
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Client.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/PublicHolidays/Coverage.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Job.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Override.hs	production	runtime	Main	Reachable from Main
@@ -370,6 +371,7 @@ Application/RosterTemplates/Mutations.hs	production	runtime	Main	Reachable from 
 Application/Script/BackfillTimesheetPayLedger.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/Script/BillingReconciliationSweep.hs	production	operational-script-closure	Application.Script.BillingReconciliationSweep	Reachable from Application.Script.BillingReconciliationSweep
 Application/Script/BootstrapAccount.hs	production	operational-script-closure	Application.Script.BootstrapAccount	Reachable from Application.Script.BootstrapAccount
+Application/Script/DataVicProbe.hs	development	integration-probe	-	Read-only v2 holiday candidate probe; no refresh cutover or database writes
 Application/Script/FwcMapdRefreshSweep.hs	production	operational-script-closure	Application.Script.FwcMapdRefreshSweep	Reachable from Application.Script.FwcMapdRefreshSweep
 Application/Script/GenerateBepisArchitectureContracts.hs	development	architecture-generator	-	Repository architecture generation only; runnable from the development shell
 Application/Script/GenerateFrontendContracts.hs	development	contract-generator	-	Checked frontend contract generation only; runnable from the development shell
