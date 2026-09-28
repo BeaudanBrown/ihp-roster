@@ -24,9 +24,9 @@ Read this before editing timesheet controllers, views, or helpers.
 - Roster-prefill candidates are transient projection values; persist only an
   explicitly created `TimesheetEntry` with immutable source provenance.
 - Roster-prefill chooser cards must use the same parameterized `renderTimesheetCard` markup as
-  persisted entries. Their prefill class owns the accent border/tint
-  and `Use this shift` action; do not add approval controls, a status badge, or parallel card HTML,
-  typography, shape bars, or interaction behavior.
+  persisted entries. Their prefill class owns the accent border/tint, and the whole card is the
+  accessible selection link; do not add a separate action button, approval controls, a status badge,
+  or parallel card HTML, typography, shape bars, or interaction behavior.
 - Use IHP form helpers plus explicit server-side checks for required fields.
 - When changing visible timesheet entry, week navigation, approval, provenance, or role-specific review behavior, update the `timesheets` topic in `Application.Helper.View.PageHelp`.
 

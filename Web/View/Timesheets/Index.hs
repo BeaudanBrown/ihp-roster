@@ -338,8 +338,8 @@ renderTimesheetSettingsFragment maybeSwapOob view = [hsx|
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
 renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, timesheetWageDisplayMode, viewFilters, staffMembers, rosterGroups } = [hsx|
-    {when managerModeToggleVisible (renderTimesheetManagerModePreferenceForm weekStartDate)}
     <div class="timesheet-settings-toggle-grid mb-2">
+        {when managerModeToggleVisible (renderTimesheetManagerModePreferenceForm weekStartDate)}
         {renderTimesheetShowApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
         {when canConfigureTimesheetWageEstimates (renderTimesheetWageDisplayModePreferenceForm weekStartDate calendarRevision viewFilters timesheetWageDisplayMode)}
     </div>
@@ -395,13 +395,12 @@ renderTimesheetStaffPanelEntry staffMembers entry =
 
 renderTimesheetManagerModePreferenceForm :: (?context :: ControllerContext) => Day -> Html
 renderTimesheetManagerModePreferenceForm anchorDate = [hsx|
-    <section class="roster-settings-section mb-3">
-        <h3 class="roster-settings-section-title"><i class="bi bi-person-workspace" aria-hidden="true"></i><span>Manager mode</span></h3>
+    <div class="timesheet-settings-toggle">
         <fieldset disabled={not managerModeToggleEnabled} class="mb-0">
             {managerModeForm}
         </fieldset>
         {managerModeExplanation}
-    </section>
+    </div>
 |]
   where
     fields = TimesheetsAction.toggleTimesheetManagerModeActionFields anchorDate managerModePreferenceEnabled
@@ -417,7 +416,7 @@ renderTimesheetManagerModePreferenceForm anchorDate = [hsx|
             managerModeRoute
             [hsx|
                 <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
-                {renderTimesheetPreferenceToggle "timesheet-manager-mode-toggle" (surfaceToggleScalarField @Surface.ManagerModeEnabled fields True False) managerModePreferenceEnabled "Manager mode"}
+                {renderTimesheetToggleButton "timesheet-manager-mode-toggle" (surfaceToggleScalarField @Surface.ManagerModeEnabled fields True False) managerModePreferenceEnabled "Manager mode"}
             |]
 
 renderTimesheetShowApprovedPreferenceForm :: Day -> Int -> TimesheetViewFilters -> Bool -> Html

@@ -110,14 +110,14 @@ renderGroupHeading model maybeGroup
 
 renderShiftChoice :: (?context :: ControllerContext) => TimesheetChooserRenderModel -> TimesheetRosterPrefill -> Html
 renderShiftChoice TimesheetChooserRenderModel { .. } rosterPrefill =
-    renderTimesheetCard dayModel entry (decodeTimesheetTiming entry) "timesheet-entry-card timesheet-prefill-card" (Just (tshow rosterPrefill.prefillRosterSlotId)) mempty action
+    renderTimesheetCard dayModel entry (decodeTimesheetTiming entry) "timesheet-entry-card timesheet-prefill-card" (Just (tshow rosterPrefill.prefillRosterSlotId)) cardLink mempty
   where
     entry = newTimesheetEntryFromRosterPrefill (unpackId currentVenueId) rosterPrefill
     actionUrl = newTimesheetEntryFromRosterPrefillUrl rosterPrefill.prefillRosterSlotId chooserOperationalDate chooserSelectedStaffFilter
-    action = renderAppShellActionLink
+    cardLink = renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
-        ((defaultAppShellActionRoute actionUrl) { appShellActionRouteExtraAttrs = [("class", "btn btn-sm btn-outline-success position-relative"), ("aria-label", "Use this roster shift")] })
-        [hsx|Use this shift|]
+        ((defaultAppShellActionRoute actionUrl) { appShellActionRouteExtraAttrs = [("class", "timesheet-entry-card-link"), ("aria-label", "Use this roster shift")] })
+        mempty
     dayModel = TimesheetDayRenderModel
         { dayEntries = []
         , dayTimingByEntryId = Map.empty
@@ -151,17 +151,7 @@ renderBlankGroup model (maybeGroup, choices) = [hsx|
 |]
 
 renderBlankChoice :: (?context :: ControllerContext) => TimesheetChooserRenderModel -> TimesheetBlankChoice -> Html
-renderBlankChoice TimesheetChooserRenderModel { .. } choice = [hsx|
-    <article class="timesheet-entry-card timesheet-blank-choice-card">
-        <div class="timesheet-entry-main">
-            <div class="timesheet-entry-identity">
-                <div class="timesheet-entry-staff-name">{choice.blankChoiceStaff.firstName} {choice.blankChoiceStaff.lastName}</div>
-                <div class="timesheet-entry-shift-type">Blank timesheet</div>
-            </div>
-            <div class="timesheet-entry-actions">{action}</div>
-        </div>
-    </article>
-|]
+renderBlankChoice TimesheetChooserRenderModel { .. } choice = action
   where
     actionUrl = appendQueryParams
         (pathTo ChooseBlankTimesheetEntryAction)
@@ -172,8 +162,8 @@ renderBlankChoice TimesheetChooserRenderModel { .. } choice = [hsx|
         ]
     action = renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
-        ((defaultAppShellActionRoute actionUrl) { appShellActionRouteExtraAttrs = [("class", "btn btn-sm btn-outline-primary position-relative"), ("aria-label", "Use blank timesheet")] })
-        [hsx|Use blank timesheet|]
+        ((defaultAppShellActionRoute actionUrl) { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-primary w-100"), ("aria-label", "Blank timesheet")] })
+        [hsx|Blank timesheet|]
 
 classificationValue :: TimesheetRosterGroupClassification -> Text
 classificationValue TimesheetNoRosterGroup = "none"

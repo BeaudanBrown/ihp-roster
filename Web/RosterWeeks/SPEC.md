@@ -23,8 +23,9 @@ This document retains cross-module scheduling and state-transition rules.
 - Managers, venue admins, owners, and unimpersonated founder support receive
   capabilities only through server-side checks. A global per-user Manager mode
   preference shared with Timesheets defaults on. Eligible users with active linked
-  Staff may switch it off; missing active linked Staff forces effective mode on
-  without overwriting the preference, and unimpersonated founder support has no
+  Staff may switch it off from the ordinary toggle that remains the first control
+  in Settings; missing active linked Staff forces effective mode on without
+  overwriting the preference, and unimpersonated founder support has no
   switch. With mode off, published rosters for assigned groups remain fully visible
   and read-only, drafts retain only the hidden placeholder, management mutations
   are rejected, and Staff inventory/profile access plus self-service tools remain.
@@ -160,8 +161,9 @@ Worker, Supervisor, and Manager roles always receive only their effective linked
 Staff's authorized visible shifts. Admin and Owner receive selected-group venue
 totals in Manager mode and personal totals while it is off. Unimpersonated
 support receives selected-group venue totals; impersonation follows the effective
-actor. Missing eligible linked Staff means no personal estimate. Staff highlight
-pins and assignment filters never alter wage scope or totals, and no wage request
+actor. Missing eligible linked Staff means no personal estimate. Day-column totals
+are labelled `Expected pay` outside Manager mode and `Wages` within Manager mode.
+Staff highlight pins and assignment filters never alter wage scope or totals, and no wage request
 decoration exists. Draft wage-source maintenance warnings are visible only to
 platform super admins on both full pages and fragment responses; ordinary venue
 roles retain amounts and calculation errors, not provider warnings.

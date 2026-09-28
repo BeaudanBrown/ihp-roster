@@ -298,17 +298,20 @@ renderDayRowsWageAmount (Just prediction) date =
             </div>
         |]
 
-renderDayColumnWageEstimate :: Maybe RosterWagePrediction -> Day -> Html
+renderDayColumnWageEstimate :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Day -> Html
 renderDayColumnWageEstimate Nothing _ = mempty
 renderDayColumnWageEstimate (Just prediction) date =
     case lookupRosterWagePredictionDayByDate prediction date of
         Nothing -> mempty
         Just dayPrediction -> [hsx|
-            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label="Wages for day">
-                <span class="roster-day-wage-label">Wages</span>
+            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label={wageLabel <> " for day"}>
+                <span class="roster-day-wage-label">{wageLabel}</span>
                 <span>{formatMoneyAmount dayPrediction.predictionDayTotal}</span>
             </div>
         |]
+  where
+    wageLabel :: Text
+    wageLabel = if hasManagementMode then "Wages" else "Expected pay"
 
 rosterSlotsHorizontalSnapConfig :: HorizontalSnapConfig
 rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroupProperty

@@ -1517,12 +1517,12 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Other staff shifts"
                 response `responseBodyShouldContain` "Blank timesheet"
                 response `responseBodyShouldContain` "Rita Rostered"
-                response `responseBodyShouldContain` "Zoe Other"
+                response `responseBodyShouldContain` "class=\"btn btn-outline-primary w-100\" aria-label=\"Blank timesheet\""
                 response `responseBodyShouldContain` "Late service"
                 response `responseBodyShouldContain` cs ("data-timesheet-roster-prefill-id=\"" <> tshow rosterSlot.id <> "\"")
                 response `responseBodyShouldContain` "class=\"timesheet-entry-card timesheet-prefill-card\""
                 response `responseBodyShouldContain` cs (pathTo NewTimesheetEntryFromRosterShiftAction { rosterSlotId = rosterSlot.id })
-                response `responseBodyShouldContain` ">Use this shift</a>"
+                response `responseBodyShouldContain` "class=\"timesheet-entry-card-link\" aria-label=\"Use this roster shift\""
                 response `responseBodyShouldNotContain` ">Approve</button>"
                 response `responseBodyShouldNotContain` "Estimated gross wages"
                 workerResponse `responseStatusShouldBe` status200

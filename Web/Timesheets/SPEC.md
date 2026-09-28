@@ -67,7 +67,8 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   groups as filter choices.
 - One global per-user Manager mode preference is shared with Roster and defaults
   on. Manager, admin, and owner users with active linked Staff can change it from
-  the top of Settings. Missing active linked Staff forces effective mode on while
+  the ordinary toggle that remains the first control in Settings. Missing active
+  linked Staff forces effective mode on while
   leaving the saved preference unchanged; unimpersonated founder support is also
   forced on without a switch. Impersonation uses only the effective user's role,
   Staff, and preference. Turning mode off applies worker-equivalent read and write
@@ -102,12 +103,12 @@ background rows or grace period. Their day follows the source Roster day's
 explicit Operational date independently of the local start calendar date. Staff
 see only their own; management sees its normal venue Staff scope.
 
-Blank cards bind both default Staff and immutable classification before opening
-the form. They expose only classification-valid Staff options. The chooser is
-bypassed only when its complete contents are exactly one blank choice and no
-roster shift; one roster shift always retains explicit source selection. Chooser
-cards have `Use this shift` or `Use blank timesheet` actions and no pay or
-approval controls.
+Blank choices bind both default Staff and immutable classification before opening
+the form. They expose only classification-valid Staff options as full-width
+`Blank timesheet` buttons. The chooser is bypassed only when its complete contents
+are exactly one blank choice and no roster shift; one roster shift always retains
+explicit source selection. A roster shift's whole card is its accessible selection
+link. Chooser cards have no pay or approval controls.
 
 ## Materialization And History
 

@@ -80,13 +80,14 @@ renderRosterManagerModePreferenceFormWithoutGroup anchorDate =
     renderRosterManagerModePreferenceFormWithUrl anchorDate (appendQueryParams (pathTo ToggleRosterManagerModeAction) [("anchorDate", tshow anchorDate)])
 
 renderRosterManagerModePreferenceFormWithUrl :: (?context :: ControllerContext) => Day -> Text -> Html
-renderRosterManagerModePreferenceFormWithUrl _anchorDate actionUrl =
-    renderRosterSettingsSection "bi-person-workspace" "Manager mode" [hsx|
+renderRosterManagerModePreferenceFormWithUrl _anchorDate actionUrl = [hsx|
+    <div>
         <fieldset disabled={not managerModeToggleEnabled} class="mb-0">
             {managerModeForm}
         </fieldset>
         {managerModeExplanation}
-    |]
+    </div>
+|]
   where
     fields = RosterAction.toggleRosterManagerModeActionFields managerModePreferenceEnabled
     managerModeRoute =
