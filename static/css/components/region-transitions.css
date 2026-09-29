@@ -1,3 +1,8 @@
+/* Pending content remains readable and interactive; request lifetime owns this class. */
+.app-region-pending {
+    opacity: 0.78;
+}
+
 .app-region-transition {
     --app-region-transition-duration: var(--app-motion-duration-arrival);
     --app-region-transition-easing: var(--app-motion-easing-arrival);

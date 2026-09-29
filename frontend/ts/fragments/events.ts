@@ -7,6 +7,8 @@ import {
     type UiRegionLifecycleEvent,
 } from "../generated/contracts";
 
+import type { RegionFeedbackPolicy } from "./policy";
+
 export type UiRegionErrorKind = "response-error" | "send-error" | "timeout";
 
 export type UiRegionLifecycleDetail = {
@@ -16,6 +18,7 @@ export type UiRegionLifecycleDetail = {
     source: HTMLElement | null;
     target: HTMLElement | null;
     originalEvent: Event;
+    feedbackPolicy?: RegionFeedbackPolicy;
     errorKind?: UiRegionErrorKind;
 };
 

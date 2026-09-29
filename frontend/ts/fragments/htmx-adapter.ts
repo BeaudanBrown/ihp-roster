@@ -3,6 +3,13 @@ import { isHTMLElement } from "../shared/dom";
 import { detailRoot, detailTarget } from "../shared/lifecycle";
 import { closestUiRegionFragment } from "./dom";
 import { emitUiRegionLifecycleEvent, type UiRegionErrorKind } from "./events";
+import { isBackgroundRegionRequest, regionFeedbackPolicy, type RegionFeedbackPolicy } from "./policy";
+
+const requestPolicies = new WeakMap<XMLHttpRequest, RegionFeedbackPolicy>();
+
+export function htmxRequestDetail(event: Event): { xhr?: XMLHttpRequest; requestConfig?: { triggeringEvent?: Event }; target?: HTMLElement; elt?: HTMLElement } {
+    return (event as CustomEvent).detail ?? {};
+}
 
 type HtmxRegionEventSpec = {
     htmxEventName: string;
@@ -37,14 +44,23 @@ export function htmxRegionEventTarget(event: Event): HTMLElement | null {
 
 export function regionFromHtmxEvent(event: Event): HTMLElement | null {
     const source = htmxRegionEventSource(event);
-    return closestUiRegionFragment(htmxRegionEventTarget(event))
-        || closestUiRegionFragment(source?.isConnected ? source : null);
+    // afterSwap/afterSettle carry the old target and the newly inserted elt.
+    if (event.type === "htmx:afterSwap" || event.type === "htmx:afterSettle") {
+        return closestUiRegionFragment(source?.isConnected ? source : null);
+    }
+    return closestUiRegionFragment(htmxRegionEventTarget(event));
 }
 
 export function dispatchRegionLifecycleFromHtmx(event: Event, spec: HtmxRegionEventSpec): void {
     const region = regionFromHtmxEvent(event);
     if (region === null) return;
 
+    const request = htmxRequestDetail(event);
+    if (spec.lifecycleEvent === "request-start" && request.xhr) {
+        requestPolicies.set(request.xhr, regionFeedbackPolicy(region,
+            isBackgroundRegionRequest(htmxRegionEventSource(event), request.requestConfig?.triggeringEvent)));
+    }
+    const feedbackPolicy = request.xhr ? requestPolicies.get(request.xhr) : undefined;
     emitUiRegionLifecycleEvent(region, {
         lifecycleEvent: spec.lifecycleEvent,
         htmxEventName: spec.htmxEventName,
@@ -52,6 +68,7 @@ export function dispatchRegionLifecycleFromHtmx(event: Event, spec: HtmxRegionEv
         source: htmxRegionEventSource(event),
         target: htmxRegionEventTarget(event),
         originalEvent: event,
+        feedbackPolicy,
         ...(spec.errorKind ? { errorKind: spec.errorKind } : {}),
     });
 }

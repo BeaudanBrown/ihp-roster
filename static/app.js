@@ -222,6 +222,11 @@
   var lazySurfaceDomAttr = "data-bepis-lazy-surface";
   var lazyRetryDomAttr = "data-bepis-lazy-retry";
   var regionTransitionDomAttr = "data-bepis-region-transition";
+  function isUiRegionLoadingPolicy(value) {
+    return typeof value === "string" && ["dim", "quiet", "shared-status"].includes(value);
+  }
+  var regionLoadingDomAttr = "data-bepis-region-loading";
+  var regionBackgroundDomAttr = "data-bepis-region-background";
   function isInteractionFieldPresence(value) {
     return typeof value === "string" && ["required", "optional"].includes(value);
   }
@@ -2016,7 +2021,27 @@
     }));
   }
 
+  // frontend/ts/fragments/policy.ts
+  function isBackgroundRegionRequest(source, triggeringEvent) {
+    if (source?.closest(`[${regionBackgroundDomAttr}="true"]`)) return true;
+    return !triggeringEvent || ["load", "revealed", "intersect", "every"].includes(triggeringEvent.type);
+  }
+  function regionFeedbackPolicy(region, background) {
+    if (background) return { loading: "quiet", arrival: "none" };
+    const loading = region.getAttribute(regionLoadingDomAttr);
+    const arrival = region.getAttribute(regionTransitionDomAttr);
+    if (loading !== null && !isUiRegionLoadingPolicy(loading) || arrival !== null && !isUiRegionTransitionProfile(arrival)) {
+      console.error("Invalid UI region feedback policy", region);
+      return { loading: "quiet", arrival: "none" };
+    }
+    return { loading: loading ?? "dim", arrival: arrival ?? "fade" };
+  }
+
   // frontend/ts/fragments/htmx-adapter.ts
+  var requestPolicies = /* @__PURE__ */ new WeakMap();
+  function htmxRequestDetail(event) {
+    return event.detail ?? {};
+  }
   function regionLifecycleEvent(value) {
     if (isUiRegionLifecycleEvent(value)) return value;
     throw new Error(`Invalid generated UI region lifecycle event: ${value}`);
@@ -2040,11 +2065,22 @@
   }
   function regionFromHtmxEvent(event) {
     const source = htmxRegionEventSource(event);
-    return closestUiRegionFragment(htmxRegionEventTarget(event)) || closestUiRegionFragment(source?.isConnected ? source : null);
+    if (event.type === "htmx:afterSwap" || event.type === "htmx:afterSettle") {
+      return closestUiRegionFragment(source?.isConnected ? source : null);
+    }
+    return closestUiRegionFragment(htmxRegionEventTarget(event));
   }
   function dispatchRegionLifecycleFromHtmx(event, spec) {
     const region = regionFromHtmxEvent(event);
     if (region === null) return;
+    const request = htmxRequestDetail(event);
+    if (spec.lifecycleEvent === "request-start" && request.xhr) {
+      requestPolicies.set(request.xhr, regionFeedbackPolicy(
+        region,
+        isBackgroundRegionRequest(htmxRegionEventSource(event), request.requestConfig?.triggeringEvent)
+      ));
+    }
+    const feedbackPolicy = request.xhr ? requestPolicies.get(request.xhr) : void 0;
     emitUiRegionLifecycleEvent(region, {
       lifecycleEvent: spec.lifecycleEvent,
       htmxEventName: spec.htmxEventName,
@@ -2052,6 +2088,7 @@
       source: htmxRegionEventSource(event),
       target: htmxRegionEventTarget(event),
       originalEvent: event,
+      feedbackPolicy,
       ...spec.errorKind ? { errorKind: spec.errorKind } : {}
     });
   }
@@ -2130,6 +2167,104 @@
       root.removeEventListener(regionAfterSwapEvent, onAfterSwap);
       root.removeEventListener(regionSettleEvent, onDone);
       root.removeEventListener(regionErrorEvent, onDone);
+    };
+  }
+
+  // frontend/ts/fragments/feedback.ts
+  var pendingClass = "app-region-pending";
+  var delayMs = 150;
+  function createRegionFeedback(onSharedStatus = () => void 0) {
+    const pending = /* @__PURE__ */ new Map();
+    const painted = /* @__PURE__ */ new Set();
+    function paint() {
+      const regions = new Set(Array.from(pending.values()).filter((entry) => entry.visible && entry.region.isConnected).map((entry) => entry.region));
+      for (const region of painted) region.classList.remove(pendingClass);
+      painted.clear();
+      for (const region of regions) {
+        if (Array.from(regions).some((other) => other !== region && other.contains(region))) continue;
+        region.classList.add(pendingClass);
+        painted.add(region);
+      }
+      onSharedStatus(Array.from(pending.values()).some((entry) => entry.visible && entry.region.isConnected && entry.policy.loading === "shared-status"));
+    }
+    function finish(xhr) {
+      const entry = pending.get(xhr);
+      if (!entry) return;
+      pending.delete(xhr);
+      clearTimeout(entry.timer);
+      entry.dispose();
+      paint();
+    }
+    return {
+      start(xhr, region, policy) {
+        if (pending.has(xhr) || policy.loading === "quiet" || !region.isConnected) return;
+        const done = () => finish(xhr);
+        xhr.addEventListener("loadend", done);
+        const entry = {
+          region,
+          policy,
+          visible: false,
+          dispose: () => xhr.removeEventListener("loadend", done),
+          timer: setTimeout(() => {
+            if (!entry.region.isConnected) {
+              finish(xhr);
+              return;
+            }
+            entry.visible = true;
+            paint();
+          }, delayMs)
+        };
+        pending.set(xhr, entry);
+      },
+      finish,
+      replace(previous, next) {
+        for (const entry of pending.values()) {
+          if (entry.region === previous) entry.region = next;
+        }
+        paint();
+      },
+      prune() {
+        for (const [xhr, entry] of pending) if (!entry.region.isConnected) finish(xhr);
+      },
+      stop() {
+        for (const xhr of pending.keys()) finish(xhr);
+      }
+    };
+  }
+  function enableRegionFeedback(root = document, onSharedStatus) {
+    const feedback = createRegionFeedback(onSharedStatus);
+    const onStart = (event) => {
+      const detail = event.detail;
+      const { xhr } = htmxRequestDetail(detail.originalEvent);
+      if (!xhr || !detail.feedbackPolicy) return;
+      feedback.start(xhr, detail.region, detail.feedbackPolicy);
+      queueMicrotask(() => {
+        if (detail.originalEvent.defaultPrevented) feedback.finish(xhr);
+      });
+    };
+    const onSwap = (event) => {
+      const detail = event.detail;
+      const previous = htmxRequestDetail(detail.originalEvent).target;
+      if (previous && previous !== detail.region && previous.id === detail.region.id) {
+        feedback.replace(previous, detail.region);
+      }
+    };
+    const onDone = (event) => {
+      const { xhr } = htmxRequestDetail(event);
+      if (xhr) feedback.finish(xhr);
+    };
+    const terminalEvents = ["htmx:afterRequest", "htmx:sendAbort", "htmx:sendError", "htmx:timeout", "htmx:swapError", "htmx:onLoadError"];
+    root.addEventListener(regionRequestStartEvent, onStart);
+    root.addEventListener(regionAfterSwapEvent, onSwap);
+    terminalEvents.forEach((name) => root.addEventListener(name, onDone));
+    const observer2 = new MutationObserver(() => feedback.prune());
+    observer2.observe(root, { childList: true, subtree: true });
+    return () => {
+      observer2.disconnect();
+      root.removeEventListener(regionRequestStartEvent, onStart);
+      root.removeEventListener(regionAfterSwapEvent, onSwap);
+      terminalEvents.forEach((name) => root.removeEventListener(name, onDone));
+      feedback.stop();
     };
   }
 
@@ -2446,12 +2581,12 @@
       if (reconnectTimer) return;
       reconnectAttempt += 1;
       const cappedAttempt = Math.min(reconnectAttempt, 6);
-      const delayMs = Math.floor(Math.random() * Math.min(250 * 2 ** cappedAttempt, 1e4));
-      diagnostics.emitDebugEvent("reconnect_scheduled", { attempt: reconnectAttempt, delayMs });
+      const delayMs2 = Math.floor(Math.random() * Math.min(250 * 2 ** cappedAttempt, 1e4));
+      diagnostics.emitDebugEvent("reconnect_scheduled", { attempt: reconnectAttempt, delayMs: delayMs2 });
       reconnectTimer = targetWindow.setTimeout(() => {
         reconnectTimer = null;
         requestSync();
-      }, delayMs);
+      }, delayMs2);
     }
     function close() {
       if (reconnectTimer) targetWindow.clearTimeout(reconnectTimer);
@@ -3277,6 +3412,7 @@
   // frontend/ts/app-live-updates.ts
   enableHtmxUiRegionEventAdapter();
   enableUiRegionTransitions();
+  enableRegionFeedback();
   enableLazySurfaceErrorHandling();
   enableLiveUpdateRuntime();
 
@@ -6679,7 +6815,7 @@
   }
   function defaultScheduler() {
     return {
-      setTimeout: (handler, delayMs) => window.setTimeout(handler, delayMs),
+      setTimeout: (handler, delayMs2) => window.setTimeout(handler, delayMs2),
       clearTimeout: (timerId) => window.clearTimeout(timerId)
     };
   }
