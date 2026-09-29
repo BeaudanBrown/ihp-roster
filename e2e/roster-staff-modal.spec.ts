@@ -259,6 +259,9 @@ test.describe('Roster Staff Modal', () => {
             await staffEntry.click();
             await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
 
+            // This is a save/live-refresh test, not an interaction during Bootstrap's
+            // expanding accordion. Wait for stable geometry before editing/submitting.
+            await expect(modalMount.locator('.collapsing')).toHaveCount(0);
             const staffEditForm = modalMount.locator('#staff-edit-form:visible');
             await staffEditForm.locator('#payRateSelection').selectOption(`award:${awardLevelId}`);
             const updateResponsePromise = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes('/UpdateStaff'));
