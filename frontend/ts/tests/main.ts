@@ -11,6 +11,7 @@ import "./interaction-runtime.test";
 import "./shared.test";
 import "./region-policy.test";
 import "./region-feedback.test";
+import "./region-arrivals.test";
 import "./navigation-writes.test";
 import "./toggle.test";
 import "./checkbox-lists.test";

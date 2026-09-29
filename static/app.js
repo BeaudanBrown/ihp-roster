@@ -2106,69 +2106,68 @@
   }
 
   // frontend/ts/fragments/transitions.ts
-  var transitionProfiles = ["fade", "fade-slide", "panel"];
-  var transitionPhaseClasses = ["app-region-transition-before-swap", "app-region-transition-after-swap"];
-  var transitionProfileClasses = transitionProfiles.map((profile) => regionTransitionProfileClass(profile));
-  function regionTransitionProfile(region) {
-    const rawProfile = region.getAttribute(regionTransitionDomAttr);
-    return isUiRegionTransitionProfile(rawProfile) ? rawProfile : "none";
-  }
-  function regionTransitionProfileClass(profile) {
-    return `app-region-transition-${profile}`;
-  }
+  var arrivalClasses = ["app-region-transition", "app-region-transition-fade", "app-region-transition-fade-slide", "app-region-transition-panel", "app-region-transition-after-swap"];
   function prefersReducedMotion() {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
-  function shouldAnimateRegionTransition(profile, reducedMotion = prefersReducedMotion()) {
-    return profile !== "none" && !reducedMotion;
-  }
-  function clearRegionTransitionClasses(region) {
-    region.classList.remove("app-region-transition", ...transitionProfileClasses, ...transitionPhaseClasses);
-  }
-  function applyRegionTransitionPhase(region, phase, reducedMotion = prefersReducedMotion()) {
-    const profile = regionTransitionProfile(region);
-    clearRegionTransitionClasses(region);
-    if (!shouldAnimateRegionTransition(profile, reducedMotion)) return false;
-    region.classList.add(
-      "app-region-transition",
-      regionTransitionProfileClass(profile),
-      `app-region-transition-${phase}`
-    );
-    return true;
-  }
-  function lifecycleDetail(event) {
-    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
-    const detail = event.detail;
-    if (detail === null || typeof detail !== "object") return null;
-    const record = detail;
-    return record.region instanceof HTMLElement ? record : null;
+  function createRegionArrivals() {
+    const generations = /* @__PURE__ */ new WeakMap();
+    const active = /* @__PURE__ */ new Set();
+    function clear(region) {
+      generations.delete(region);
+      active.delete(region);
+      region.classList.remove(...arrivalClasses);
+    }
+    return {
+      clear,
+      start(region, profile, reducedMotion = prefersReducedMotion()) {
+        clear(region);
+        if (profile === "none" || reducedMotion || !region.isConnected) return;
+        const generation = {};
+        generations.set(region, generation);
+        active.add(region);
+        region.classList.add("app-region-transition", `app-region-transition-${profile}`, "app-region-transition-after-swap");
+        const animations = typeof region.getAnimations === "function" ? region.getAnimations().filter((animation) => "animationName" in animation && String(animation.animationName).startsWith("app-region-")) : [];
+        const done = () => {
+          if (generations.get(region) === generation) clear(region);
+        };
+        if (!animations.length) done();
+        else void Promise.allSettled(animations.map((animation) => animation.finished)).then(done);
+      },
+      prune() {
+        for (const region of active) if (!region.isConnected) clear(region);
+      },
+      stop() {
+        for (const region of active) clear(region);
+      }
+    };
   }
   function enableUiRegionTransitions(root = document) {
-    const onBeforeSwap = (event) => {
-      const detail = lifecycleDetail(event);
-      if (detail === null) return;
-      applyRegionTransitionPhase(detail.region, "before-swap");
-    };
+    const arrivals = createRegionArrivals();
+    const replacements = /* @__PURE__ */ new WeakMap();
     const onAfterSwap = (event) => {
-      const detail = lifecycleDetail(event);
-      if (detail === null) return;
-      applyRegionTransitionPhase(detail.region, "after-swap");
+      const detail = event.detail;
+      arrivals.clear(detail.region);
+      replacements.set(detail.region, detail.originalEvent);
     };
-    const onDone = (event) => {
-      const detail = lifecycleDetail(event);
-      if (detail === null) return;
-      clearRegionTransitionClasses(detail.region);
+    const onSettle = (event) => {
+      const detail = event.detail;
+      const swap = replacements.get(detail.region);
+      if (!swap) return;
+      const swapXhr = swap.detail?.xhr;
+      if (swapXhr !== detail.originalEvent.detail?.xhr) return;
+      replacements.delete(detail.region);
+      arrivals.start(detail.region, detail.feedbackPolicy?.arrival ?? "none");
     };
-    root.addEventListener(regionBeforeSwapEvent, onBeforeSwap);
     root.addEventListener(regionAfterSwapEvent, onAfterSwap);
-    root.addEventListener(regionSettleEvent, onDone);
-    root.addEventListener(regionErrorEvent, onDone);
-    return function disableUiRegionTransitions() {
-      root.removeEventListener(regionBeforeSwapEvent, onBeforeSwap);
+    root.addEventListener(regionSettleEvent, onSettle);
+    const observer2 = new MutationObserver(() => arrivals.prune());
+    observer2.observe(root, { childList: true, subtree: true });
+    return () => {
+      observer2.disconnect();
       root.removeEventListener(regionAfterSwapEvent, onAfterSwap);
-      root.removeEventListener(regionSettleEvent, onDone);
-      root.removeEventListener(regionErrorEvent, onDone);
+      root.removeEventListener(regionSettleEvent, onSettle);
+      arrivals.stop();
     };
   }
 

@@ -1,4 +1,4 @@
-/* Pending content remains readable and interactive; request lifetime owns this class. */
+/* Pending content stays readable and interactive. Request lifetime owns this class. */
 .app-region-pending {
     opacity: 0.78;
 }
@@ -6,43 +6,16 @@
 .app-region-transition {
     --app-region-transition-duration: var(--app-motion-duration-arrival);
     --app-region-transition-easing: var(--app-motion-easing-arrival);
-    will-change: opacity, transform;
-}
-
-.app-region-transition-fade.app-region-transition-before-swap {
-    opacity: 0.72;
-    transition: opacity var(--app-region-transition-duration) var(--app-region-transition-easing);
 }
 
 .app-region-transition-fade.app-region-transition-after-swap {
     animation: app-region-fade-in var(--app-region-transition-duration) var(--app-region-transition-easing);
 }
 
-.app-region-transition-fade-slide.app-region-transition-before-swap {
-    opacity: 0.72;
-    transform: translateY(0.25rem);
-    transition:
-        opacity var(--app-region-transition-duration) var(--app-region-transition-easing),
-        transform var(--app-region-transition-duration) var(--app-region-transition-easing);
-}
-
+/* Retained explicit profiles; automatic arrival uses the non-directional fade. */
 .app-region-transition-fade-slide.app-region-transition-after-swap,
 .app-region-transition-panel.app-region-transition-after-swap {
     animation: app-region-fade-slide-in var(--app-motion-duration-arrival-slide) var(--app-region-transition-easing);
-}
-
-.app-region-transition-panel {
-    --app-region-transition-duration: var(--app-motion-duration-panel);
-}
-
-.app-region-transition-panel.app-region-transition-before-swap {
-    opacity: 0.78;
-    transform: translateY(0.375rem);
-    box-shadow: var(--app-shadow-sm);
-    transition:
-        opacity var(--app-region-transition-duration) var(--app-region-transition-easing),
-        transform var(--app-region-transition-duration) var(--app-region-transition-easing),
-        box-shadow var(--app-region-transition-duration) var(--app-region-transition-easing);
 }
 
 @keyframes app-region-fade-in {
@@ -63,11 +36,8 @@
 
 @media (prefers-reduced-motion: reduce) {
     .app-region-transition,
-    .app-region-transition-fade.app-region-transition-before-swap,
     .app-region-transition-fade.app-region-transition-after-swap,
-    .app-region-transition-fade-slide.app-region-transition-before-swap,
     .app-region-transition-fade-slide.app-region-transition-after-swap,
-    .app-region-transition-panel.app-region-transition-before-swap,
     .app-region-transition-panel.app-region-transition-after-swap {
         animation: none;
         transition: none;
