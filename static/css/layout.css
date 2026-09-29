@@ -156,6 +156,7 @@ a:not(.btn):hover {
 }
 
 .app-header {
+    position: relative;
     background-color: var(--app-header-bg);
     border-color: var(--app-border) !important;
     backdrop-filter: blur(6px);

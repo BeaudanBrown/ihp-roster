@@ -13,6 +13,7 @@ import {
     requestLoadingStatusDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { gotoWhenReady } from './support/runtime';
+import { loginAs } from './support/session';
 
 type HtmxWindow = Window & { htmx?: { process: (element: HTMLElement) => void } };
 
@@ -203,6 +204,45 @@ test.describe('Declarative UI region capabilities', () => {
             expect(requests).toEqual(['write', 'one', 'two']);
         } finally { releaseWrite(); releaseFirst(); }
     });
+
+    for (const outcome of ['error', 'abort'] as const) {
+        test(`real HTMX ${outcome} clears dimming and the below-header status`, async ({ page }) => {
+            await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+            let release!: () => void;
+            const held = new Promise<void>(resolve => { release = resolve; });
+            await page.route('**/MotionTerminal', async route => {
+                await held;
+                await route.fulfill({ status: 500, body: 'Expected test failure' });
+            });
+            await page.evaluate(({ fragment, loading }) => {
+                document.body.insertAdjacentHTML('beforeend', `
+                    <section id="motion-terminal" ${fragment}="true" ${loading}="shared-status">Original</section>
+                    <button id="motion-terminal-button" hx-get="/MotionTerminal" hx-target="#motion-terminal">Request</button>`);
+                (window as HtmxWindow).htmx!.process(document.body);
+            }, { fragment: fragmentDomAttr, loading: regionLoadingDomAttr });
+            try {
+                await page.locator('#motion-terminal-button').click();
+                await expect(page.locator('#motion-terminal')).toHaveClass(/app-region-pending/);
+                const status = page.locator(`[${requestLoadingStatusDomAttr}]`);
+                await expect(status).toBeVisible();
+                // Verify real authenticated placement, not merely CSS visibility.
+                await page.evaluate(() => window.scrollTo(0, 0));
+                const placement = await status.evaluate(host => {
+                    const box = host.getBoundingClientRect();
+                    const header = host.closest('header')!.getBoundingClientRect();
+                    return { top: box.top, bottom: box.bottom, headerBottom: header.bottom, viewport: window.innerHeight };
+                });
+                expect(placement.top).toBeGreaterThanOrEqual(placement.headerBottom);
+                expect(placement.top - placement.headerBottom).toBeLessThan(32);
+                expect(placement.bottom).toBeLessThanOrEqual(placement.viewport);
+                if (outcome === 'abort') await page.locator('#motion-terminal-button').dispatchEvent('htmx:abort');
+                else release();
+                await expect(page.locator('#motion-terminal')).not.toHaveClass(/app-region-pending/);
+                await expect(status).toBeHidden();
+                await expect(page.locator('#motion-terminal')).toHaveText('Original');
+            } finally { release(); }
+        });
+    }
 
     test('background HTMX loading remains quiet even with explicit shared status', async ({ page }) => {
         await openRuntimePage(page);
