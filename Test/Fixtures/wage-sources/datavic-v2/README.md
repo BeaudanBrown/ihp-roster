@@ -12,9 +12,11 @@ The provider dates are not corrected or inferred.
 
 - `2026.json`: all 14 date/name pairs match the reviewed Business Victoria snapshot
   in `Application/PublicHolidays/Override.hs` (including 26 and 28 December).
-- `2027.json`: known-invalid evidence. Easter Monday is still `2027-03-28`
-  (Sunday), not Monday 29 March. The client must reject it. AFL Friday is absent;
-  this fixture is not evidence of complete official 2027 coverage.
+- `2027.json`: provider evidence with a known calendar discrepancy. Easter Monday
+  is `2027-03-28` (Sunday), not Monday 29 March. The client accepts the government
+  response and preserves that date unchanged; it does not enforce holiday-specific
+  calendar rules. AFL Friday is absent; this fixture is not evidence of complete
+  official 2027 coverage.
 
 Published specification: Developer.Vic catalogue, **Victorian Government -
 Important Dates API 2.0.0**, API ID `3f3482a0-6562-4bdb-92db-ee4163455956`.
@@ -25,5 +27,5 @@ filtered queries avoid that observed repetition; the client rejects annual
 pagination/count disagreement rather than trusting provider links.
 
 Source attribution: Victorian Government / Business Victoria; API documentation
-specifies CC BY 4.0. Official calendar comparison and operator-approved cutover
-remain required; fixtures do not authorize database changes.
+specifies CC BY 4.0. Operator-approved cutover remains required; fixtures do not
+authorize database changes.

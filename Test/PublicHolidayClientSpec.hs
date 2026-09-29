@@ -8,6 +8,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
 import Data.Either (isLeft)
+import Data.Time.Calendar (fromGregorian)
 import qualified Network.HTTP.Client as HTTP
 import Test.Hspec
 
@@ -37,9 +38,15 @@ tests = describe "DataVic v2 read-only candidate client" do
                 map (.sourceId) dates `shouldBe` replicate 14 Nothing
                 map (.sourceUrl) dates `shouldSatisfy` all (== "https://wovg-community.gateway.prod.api.vic.gov.au/vicgov/v2.0/dates?type=PUBLIC_HOLIDAY&from_date=2026-01-01&to_date=2026-12-31&limit=100&page=1&sort=date:asc")
 
-    it "rejects the actual wrong Easter Monday 2027 instead of silently fixing it" do
+    it "accepts the government's 2027 calendar and preserves its Sunday-valued Easter Monday" do
         body <- fixture 2027
-        decodeDataVicYear 2027 body `shouldBe` Left DataVicInvalidCalendar
+        result <- fetchDataVicYearsWith (\_ -> pure (Right (200, body))) "key" [2027]
+        case result of
+            Right [(2027, dates)] -> do
+                length dates `shouldBe` 14
+                map (.date) (filter (\entry -> entry.name == "Easter Monday") dates)
+                    `shouldBe` [fromGregorian 2027 3 28]
+            _ -> expectationFailure ("Expected accepted 2027 calendar, got " <> cs (tshow result))
 
     it "rejects malformed, empty, partial, oversized and repeated-page responses" do
         let r = row "2026-01-01" "New Year's Day" "PUBLIC_HOLIDAY" ""
@@ -66,7 +73,7 @@ tests = describe "DataVic v2 read-only candidate client" do
         decodeDataVicYear 2026 (response 2 1 100 [r,r]) `shouldBe` Left DataVicInvalidCalendar
         decodeDataVicYear 2026 (response 2 1 100 [r,other]) `shouldBe` Left DataVicInvalidCalendar
 
-    it "accepts a corrected Monday without pinning the wrong provider value" do
+    it "also accepts a provider revision to Monday without pinning the earlier value" do
         let monday = row "2027-03-29" "Easter Monday" "PUBLIC_HOLIDAY" ""
         decodeDataVicYear 2027 (response 1 1 100 [monday]) `shouldSatisfy` not . isLeft
 
@@ -101,7 +108,7 @@ tests = describe "DataVic v2 read-only candidate client" do
 
     it "returns no partial candidate when the next year is invalid; stops before later years" do
         good <- fixture 2026
-        bad <- fixture 2027
+        let bad = response 1 1 100 [row "2027-02-30" "Provider holiday" "PUBLIC_HOLIDAY" ""]
         calls <- newIORef (0 :: Int)
         let send request = do
                 modifyIORef' calls (+1)

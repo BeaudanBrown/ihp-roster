@@ -18,11 +18,12 @@ collection repeatedly. Empty provider UUIDs remain absent IDs; provenance uses
 the credential-free annual request URI, not a fabricated record source.
 
 Validation rejects malformed/non-ISO/out-of-year/wrong-type rows, duplicate
-identities and IDs, empty/partial responses, and the known Sunday-valued Easter
-Monday defect. These structural checks do **not** certify complete official year
-coverage or catch every semantically wrong date. A successfully returned calendar
-is a candidate only. In particular, 2025/2027/2028 require official-calendar review.
-2026 is additionally compared to the reviewed snapshot by the probe and tests.
+identities and IDs, and empty/partial responses. Government holiday dates are
+authoritative: the client neither checks holiday-specific weekday rules nor
+corrects provider dates. Structural checks do **not** certify complete official
+year coverage. The client remains a read-only candidate pending approved cutover.
+2026 is additionally compared to the reviewed snapshot by the probe and tests,
+not by client validation.
 
 Run the read-only probe (loads `.env` through the normal wrapper):
 
@@ -33,7 +34,8 @@ bash ./bin/in-env hspec-test --match 'DataVic v2 read-only candidate client'
 ```
 
 The probe never starts an IHP database context, imports dates, or renews freshness.
-2027 currently exits unsuccessfully because upstream Easter Monday is wrong.
+The captured 2027 response is accepted unchanged, including its Sunday-valued
+Easter Monday; this discrepancy is evidence, not a client rejection rule.
 Evidence fixtures and their source notes live in
 `Test/Fixtures/wage-sources/datavic-v2/`. Both client and probe are development-only
 until cutover. `Sync.hs`, scheduled jobs, deployment credentials, database guards

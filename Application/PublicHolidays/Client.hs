@@ -18,7 +18,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Traversable (traverse)
 import Data.Time.Calendar (toGregorian)
-import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (getGlobalManager)
@@ -140,13 +139,11 @@ decodeDataVicYear year body = do
     decodeRow (DateRow rawDate rawName kind uuid description) = do
         day <- maybe (Left DataVicInvalidCalendar) Right (parseTimeM True defaultTimeLocale "%Y-%m-%d" (Text.unpack rawDate) :: Maybe Day)
         let (actualYear, _, _) = toGregorian day
-            (_, _, weekday) = toWeekDate day
             name = Text.strip rawName
         unless (actualYear == year && Text.pack (formatTime defaultTimeLocale "%Y-%m-%d" day) == rawDate
             && kind == "PUBLIC_HOLIDAY" && not (Text.null name)) (Left DataVicInvalidCalendar)
-        -- Observed upstream defect: Easter Monday 2027 is published as Sunday
-        -- 28 March. Fail closed; do not silently correct government data.
-        when (Text.toCaseFold name == "easter monday" && weekday /= 1) (Left DataVicInvalidCalendar)
+        -- Government dates are authoritative: validate representation and query
+        -- scope, not holiday-specific calendar rules, and never correct dates.
         pure DataVicDate
             { date = day, name, sourceId = nonBlank uuid, description = nonBlank description
             , sourceUrl = Text.pack endpoint <> "?type=PUBLIC_HOLIDAY&from_date=" <> tshow year <> "-01-01&to_date=" <> tshow year <> "-12-31&limit=100&page=1&sort=date:asc"
