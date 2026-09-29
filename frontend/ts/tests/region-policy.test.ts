@@ -20,6 +20,6 @@ test("background origin overrides presentation preferences without consulting ti
         assertEqual(isBackgroundRegionRequest(null, new Event(type)), true);
     }
     assertEqual(isBackgroundRegionRequest(null, new Event("click")), false);
-    const source = { closest: (selector: string) => selector === `[${regionBackgroundDomAttr}="true"]` ? {} : null } as unknown as HTMLElement;
+    const source = { closest: (selector: string) => selector === `[${regionBackgroundDomAttr}]` ? { getAttribute: () => "true" } : null } as unknown as HTMLElement;
     assertEqual(isBackgroundRegionRequest(source, new Event("change")), true);
 });

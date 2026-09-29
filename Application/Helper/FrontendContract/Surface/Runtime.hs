@@ -312,6 +312,7 @@ renderFrontendSurfaceLazyFragmentWithConfig config fragment placeholder =
             , ("class", Text.unwords (config.lazyFragmentRootClasses <> config.lazyFragmentPlaceholderClasses <> placeholderKindClasses))
             , (uiAttrs.uiRegionFragmentAttribute, uiRegionFragmentEnabledValue)
             , (uiAttrs.uiRegionLazySurfaceAttribute, uiRegionFragmentEnabledValue)
+            , (uiAttrs.uiRegionBackgroundAttribute, uiRegionFragmentEnabledValue)
             , (uiAttrs.uiRegionLazyFragmentAttribute, fragment.mountedFragmentName)
             , (uiAttrs.uiRegionLazyRetryAttribute, if config.lazyFragmentRetryEnabled then uiRegionFragmentEnabledValue else "false")
             ]

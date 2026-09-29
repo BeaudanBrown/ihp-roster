@@ -1,4 +1,4 @@
-import { lazySurfaceDomAttr, lazyRetryDomAttr, regionRequestStartEvent, regionErrorEvent } from "../generated/contracts";
+import { lazySurfaceDomAttr, lazyRetryDomAttr, regionRequestStartEvent, regionErrorEvent, regionBackgroundDomAttr } from "../generated/contracts";
 import type { UiRegionLifecycleDetail } from "../fragments/events";
 import { closestHTMLElement, isHTMLElement } from "../shared/dom";
 
@@ -50,6 +50,7 @@ export function renderLazySurfaceError(surface: HTMLElement, message = "We could
 
     const retryButton = document.createElement("button");
     retryButton.type = "button";
+    retryButton.setAttribute(regionBackgroundDomAttr, "false");
     retryButton.className = "btn btn-sm btn-outline-light app-lazy-surface-retry";
     retryButton.textContent = "Retry";
     retryButton.setAttribute("hx-get", retryUrl);

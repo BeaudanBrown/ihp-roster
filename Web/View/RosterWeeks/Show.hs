@@ -1,6 +1,6 @@
 module Web.View.RosterWeeks.Show where
 
-import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
+import Application.Helper.UiRegion (UiRegionLoadingPolicy (..))
 
 import Application.Helper.Controller (currentUserIsImpersonating,
                                       managerModeToggleVisible)
@@ -83,8 +83,7 @@ renderRosterWeekShell ShowView { rosterPageGridModel, .. } =
         shell = [hsx|
             <section id={rosterWeekShellId}
                      hx-history-elt="true"
-                     {...uiRegionNavigationWriteBarrierAttrs}
-                     {...uiRegionTransitionAttrs UiRegionTransitionFade}>
+                     {...uiRegionLoadingAttrs UiRegionLoadingSharedStatus}>
                 {renderFrontendSurfaceMount rosterSurface page}
             </section>
         |]

@@ -151,7 +151,7 @@ addRosterRowActionFields rosterCalendarRevision =
 
 addRosterRowActionEvidence :: ActionEvidence AddRosterRowActionOperation
 addRosterRowActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "AddRosterRow" "add-roster-row" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "AddRosterRow" "add-roster-row" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 addRosterRowAction :: ActionFields AddRosterRowActionOperation -> FrontendSurfaceAction
 addRosterRowAction =
@@ -229,7 +229,7 @@ copyRosterWeekActionFields rosterCalendarRevision copyStartOccurrence copyEndOcc
 
 copyRosterWeekActionEvidence :: ActionEvidence CopyRosterWeekActionOperation
 copyRosterWeekActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CopyRosterWeek" "copy-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CopyStartOccurrence" "copyStartOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CopyEndOccurrence" "copyEndOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "CopyRosterWeek" "copy-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CopyStartOccurrence" "copyStartOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CopyEndOccurrence" "copyEndOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 copyRosterWeekAction :: ActionFields CopyRosterWeekActionOperation -> FrontendSurfaceAction
 copyRosterWeekAction =
@@ -351,7 +351,7 @@ createRosterWeekSlotDefinitionActionFields rosterCalendarRevision =
 
 createRosterWeekSlotDefinitionActionEvidence :: ActionEvidence CreateRosterWeekSlotDefinitionActionOperation
 createRosterWeekSlotDefinitionActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterWeekSlotDefinition" "create-roster-week-slot-definition" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterWeekSlotDefinition" "create-roster-week-slot-definition" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 createRosterWeekSlotDefinitionAction :: ActionFields CreateRosterWeekSlotDefinitionActionOperation -> FrontendSurfaceAction
 createRosterWeekSlotDefinitionAction =
@@ -394,7 +394,7 @@ deleteRosterWeekSlotDefinitionActionFields rosterCalendarRevision =
 
 deleteRosterWeekSlotDefinitionActionEvidence :: ActionEvidence DeleteRosterWeekSlotDefinitionActionOperation
 deleteRosterWeekSlotDefinitionActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "DeleteRosterWeekSlotDefinition" "delete-roster-week-slot-definition" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "DeleteRosterWeekSlotDefinition" "delete-roster-week-slot-definition" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 deleteRosterWeekSlotDefinitionAction :: ActionFields DeleteRosterWeekSlotDefinitionActionOperation -> FrontendSurfaceAction
 deleteRosterWeekSlotDefinitionAction =
@@ -607,7 +607,7 @@ removeRosterRowActionFields rosterCalendarRevision =
 
 removeRosterRowActionEvidence :: ActionEvidence RemoveRosterRowActionOperation
 removeRosterRowActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "RemoveRosterRow" "remove-roster-row" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "RemoveRosterRow" "remove-roster-row" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 removeRosterRowAction :: ActionFields RemoveRosterRowActionOperation -> FrontendSurfaceAction
 removeRosterRowAction =
@@ -672,7 +672,7 @@ sortRosterWeekActionFields rosterCalendarRevision =
 
 sortRosterWeekActionEvidence :: ActionEvidence SortRosterWeekActionOperation
 sortRosterWeekActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "SortRosterWeek" "sort-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "SortRosterWeek" "sort-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 sortRosterWeekAction :: ActionFields SortRosterWeekActionOperation -> FrontendSurfaceAction
 sortRosterWeekAction =
@@ -734,7 +734,7 @@ toggleRosterAssignmentFiltersActionFields hideStaffAtIdealShifts hideStaffUnavai
 
 toggleRosterAssignmentFiltersActionEvidence :: ActionEvidence ToggleRosterAssignmentFiltersActionOperation
 toggleRosterAssignmentFiltersActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterAssignmentFilters" "toggle-roster-assignment-filters" [SurfaceIR.FieldIR "HideStaffAtIdealShifts" "hideStaffAtIdealShifts" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideStaffUnavailable" "hideStaffUnavailable" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideStaffOnApprovedLeave" "hideStaffOnApprovedLeave" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideStaffAlreadyAssignedToday" "hideStaffAlreadyAssignedToday" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterAssignmentFilters" "toggle-roster-assignment-filters" [SurfaceIR.FieldIR "HideStaffAtIdealShifts" "hideStaffAtIdealShifts" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideStaffUnavailable" "hideStaffUnavailable" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideStaffOnApprovedLeave" "hideStaffOnApprovedLeave" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideStaffAlreadyAssignedToday" "hideStaffAlreadyAssignedToday" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterAssignmentFiltersAction :: ActionFields ToggleRosterAssignmentFiltersActionOperation -> FrontendSurfaceAction
 toggleRosterAssignmentFiltersAction =
@@ -765,7 +765,7 @@ toggleRosterDayClosedActionFields rosterCalendarRevision =
 
 toggleRosterDayClosedActionEvidence :: ActionEvidence ToggleRosterDayClosedActionOperation
 toggleRosterDayClosedActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterDayClosed" "toggle-roster-day-closed" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterDayClosed" "toggle-roster-day-closed" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterDayClosedAction :: ActionFields ToggleRosterDayClosedActionOperation -> FrontendSurfaceAction
 toggleRosterDayClosedAction =
@@ -789,7 +789,7 @@ toggleRosterManagerModeActionFields managerModeEnabled =
 
 toggleRosterManagerModeActionEvidence :: ActionEvidence ToggleRosterManagerModeActionOperation
 toggleRosterManagerModeActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterManagerMode" "toggle-roster-manager-mode" [SurfaceIR.FieldIR "ManagerModeEnabled" "managerModeEnabled" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterManagerMode" "toggle-roster-manager-mode" [SurfaceIR.FieldIR "ManagerModeEnabled" "managerModeEnabled" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterManagerModeAction :: ActionFields ToggleRosterManagerModeActionOperation -> FrontendSurfaceAction
 toggleRosterManagerModeAction =
@@ -820,7 +820,7 @@ toggleRosterOwnLiveShiftHighlightActionFields highlightOwnLiveShifts =
 
 toggleRosterOwnLiveShiftHighlightActionEvidence :: ActionEvidence ToggleRosterOwnLiveShiftHighlightActionOperation
 toggleRosterOwnLiveShiftHighlightActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterOwnLiveShiftHighlight" "toggle-roster-own-live-shift-highlight" [SurfaceIR.FieldIR "HighlightOwnLiveShifts" "highlightOwnLiveShifts" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterOwnLiveShiftHighlight" "toggle-roster-own-live-shift-highlight" [SurfaceIR.FieldIR "HighlightOwnLiveShifts" "highlightOwnLiveShifts" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterOwnLiveShiftHighlightAction :: ActionFields ToggleRosterOwnLiveShiftHighlightActionOperation -> FrontendSurfaceAction
 toggleRosterOwnLiveShiftHighlightAction =
@@ -889,7 +889,7 @@ toggleRosterWageEstimatesActionFields showWageEstimates =
 
 toggleRosterWageEstimatesActionEvidence :: ActionEvidence ToggleRosterWageEstimatesActionOperation
 toggleRosterWageEstimatesActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWageEstimates" "toggle-roster-wage-estimates" [SurfaceIR.FieldIR "ShowWageEstimates" "showWageEstimates" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWageEstimates" "toggle-roster-wage-estimates" [SurfaceIR.FieldIR "ShowWageEstimates" "showWageEstimates" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterWageEstimatesAction :: ActionFields ToggleRosterWageEstimatesActionOperation -> FrontendSurfaceAction
 toggleRosterWageEstimatesAction =
@@ -920,7 +920,7 @@ toggleRosterWarningsActionFields showRosterWarnings =
 
 toggleRosterWarningsActionEvidence :: ActionEvidence ToggleRosterWarningsActionOperation
 toggleRosterWarningsActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWarnings" "toggle-roster-warnings" [SurfaceIR.FieldIR "ShowRosterWarnings" "showRosterWarnings" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWarnings" "toggle-roster-warnings" [SurfaceIR.FieldIR "ShowRosterWarnings" "showRosterWarnings" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterWarningsAction :: ActionFields ToggleRosterWarningsActionOperation -> FrontendSurfaceAction
 toggleRosterWarningsAction =
@@ -955,7 +955,7 @@ toggleRosterWeekLiveStatusActionFields isLive rosterCalendarRevision =
 
 toggleRosterWeekLiveStatusActionEvidence :: ActionEvidence ToggleRosterWeekLiveStatusActionOperation
 toggleRosterWeekLiveStatusActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWeekLiveStatus" "toggle-roster-week-live-status" [SurfaceIR.FieldIR "IsLive" "isLive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:queue all" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWeekLiveStatus" "toggle-roster-week-live-status" [SurfaceIR.FieldIR "IsLive" "isLive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterWeekLiveStatusAction :: ActionFields ToggleRosterWeekLiveStatusActionOperation -> FrontendSurfaceAction
 toggleRosterWeekLiveStatusAction =

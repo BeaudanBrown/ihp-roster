@@ -11,7 +11,8 @@ export type RegionFeedbackPolicy = {
 
 // Origins, not request duration, distinguish initial/background work from input.
 export function isBackgroundRegionRequest(source: HTMLElement | null, triggeringEvent?: Event): boolean {
-    if (source?.closest(`[${regionBackgroundDomAttr}="true"]`)) return true;
+    const declaredOrigin = source?.closest(`[${regionBackgroundDomAttr}]`)?.getAttribute(regionBackgroundDomAttr);
+    if (declaredOrigin === "true") return true;
     return !triggeringEvent || ["load", "revealed", "intersect", "every"].includes(triggeringEvent.type);
 }
 
