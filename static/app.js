@@ -4797,10 +4797,10 @@
     let shelfFocus = null;
     let header = null;
     let headerObserver = null;
-    let shelfAnimation = null;
+    let shelfMotion = null;
     function cancelSlide() {
-      shelfAnimation?.cancel();
-      shelfAnimation = null;
+      shelfMotion?.panel.classList.remove("app-shelf-motion");
+      shelfMotion = null;
     }
     function shelves() {
       return rootsWithin(document).flatMap((candidate) => {
@@ -4851,8 +4851,8 @@
       if (style.getPropertyValue("--app-shelf-height") !== height || style.getPropertyValue("--app-shelf-bottom") !== bottomInset) {
         cancelSlide();
       }
-      style.setProperty("--app-shelf-height", height);
-      style.setProperty("--app-shelf-bottom", bottomInset);
+      if (style.getPropertyValue("--app-shelf-height") !== height) style.setProperty("--app-shelf-height", height);
+      if (style.getPropertyValue("--app-shelf-bottom") !== bottomInset) style.setProperty("--app-shelf-bottom", bottomInset);
     }
     function reconcile() {
       if (document.body === null) return;
@@ -4881,27 +4881,21 @@
       updateGeometry();
     }
     function changeVisibility(shelf, open) {
-      const before = shelf.panel.getBoundingClientRect().height;
-      const beforeBottom = getComputedStyle(shelf.panel).bottom;
-      cancelSlide();
+      updateGeometry();
+      if (shelfMotion && shelfMotion.panel !== shelf.panel) cancelSlide();
+      const animate = mobile.matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const motion = { panel: shelf.panel, generation: {} };
+      shelfMotion = animate ? motion : null;
+      shelf.panel.classList.toggle("app-shelf-motion", animate);
       setOpen(shelf, open);
       reconcile();
-      if (!mobile.matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const after = shelf.panel.getBoundingClientRect().height;
-      const afterBottom = getComputedStyle(shelf.panel).bottom;
-      if (before === after && beforeBottom === afterBottom) return;
-      const animation = shelf.panel.animate([
-        { height: `${before}px`, bottom: beforeBottom },
-        { height: `${after}px`, bottom: afterBottom }
-      ], {
-        duration: 220,
-        easing: "ease"
-      });
-      shelfAnimation = animation;
-      void animation.finished.then(() => {
-        if (shelfAnimation === animation) shelfAnimation = null;
-      }, () => {
-      });
+      if (!animate || shelfMotion !== motion) return;
+      const transitions = shelf.panel.getAnimations().filter((animation) => "transitionProperty" in animation && animation.transitionProperty === "transform");
+      const done = () => {
+        if (shelfMotion === motion) cancelSlide();
+      };
+      if (!transitions.length) done();
+      else void Promise.allSettled(transitions.map((animation) => animation.finished)).then(done);
     }
     function close(shelf, returnFocus = true) {
       changeVisibility(shelf, false);

@@ -300,11 +300,11 @@ function installResponsiveShelves(): void {
     let shelfFocus: HTMLElement | null = null;
     let header: HTMLElement | null = null;
     let headerObserver: ResizeObserver | null = null;
-    let shelfAnimation: Animation | null = null;
+    let shelfMotion: { panel: HTMLElement; generation: object } | null = null;
 
     function cancelSlide(): void {
-        shelfAnimation?.cancel();
-        shelfAnimation = null;
+        shelfMotion?.panel.classList.remove("app-shelf-motion");
+        shelfMotion = null;
     }
 
     function shelves(): Shelf[] {
@@ -369,8 +369,8 @@ function installResponsiveShelves(): void {
             // visibility changes animate. The closed bar never uses this geometry.
             cancelSlide();
         }
-        style.setProperty("--app-shelf-height", height);
-        style.setProperty("--app-shelf-bottom", bottomInset);
+        if (style.getPropertyValue("--app-shelf-height") !== height) style.setProperty("--app-shelf-height", height);
+        if (style.getPropertyValue("--app-shelf-bottom") !== bottomInset) style.setProperty("--app-shelf-bottom", bottomInset);
     }
 
     function reconcile(): void {
@@ -402,26 +402,21 @@ function installResponsiveShelves(): void {
     }
 
     function changeVisibility(shelf: Shelf, open: boolean): void {
-        const before = shelf.panel.getBoundingClientRect().height;
-        const beforeBottom = getComputedStyle(shelf.panel).bottom;
-        cancelSlide();
+        updateGeometry();
+        if (shelfMotion && shelfMotion.panel !== shelf.panel) cancelSlide();
+        const animate = mobile.matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const motion = { panel: shelf.panel, generation: {} };
+        shelfMotion = animate ? motion : null;
+        shelf.panel.classList.toggle("app-shelf-motion", animate);
         setOpen(shelf, open);
+        // Isolation and focus state take effect now, never after a motion frame.
         reconcile();
-        if (!mobile.matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        const after = shelf.panel.getBoundingClientRect().height;
-        const afterBottom = getComputedStyle(shelf.panel).bottom;
-        if (before === after && beforeBottom === afterBottom) return;
-        const animation = shelf.panel.animate([
-            { height: `${before}px`, bottom: beforeBottom },
-            { height: `${after}px`, bottom: afterBottom },
-        ], {
-            duration: 220,
-            easing: "ease",
-        });
-        shelfAnimation = animation;
-        void animation.finished.then(() => {
-            if (shelfAnimation === animation) shelfAnimation = null;
-        }, () => { /* Geometry changes or a subsequent toggle cancelled it. */ });
+        if (!animate || shelfMotion !== motion) return;
+        const transitions = shelf.panel.getAnimations().filter((animation) =>
+            "transitionProperty" in animation && animation.transitionProperty === "transform");
+        const done = () => { if (shelfMotion === motion) cancelSlide(); };
+        if (!transitions.length) done();
+        else void Promise.allSettled(transitions.map((animation) => animation.finished)).then(done);
     }
 
     function close(shelf: Shelf, returnFocus = true): void {

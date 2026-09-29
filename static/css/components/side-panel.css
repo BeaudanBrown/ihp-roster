@@ -443,7 +443,8 @@
         z-index: var(--app-shelf-z-index);
         inset-inline: 0;
         bottom: 0;
-        height: calc(var(--app-shelf-bar-height) + env(safe-area-inset-bottom));
+        height: var(--app-shelf-height, 100dvh);
+        transform: translateY(calc(100% - var(--app-shelf-bar-height) - env(safe-area-inset-bottom)));
         width: 100%;
         max-height: none;
         margin: 0;
@@ -455,9 +456,13 @@
         /* Viewport changes must never animate the closed footer's position. */
     }
 
+    .app-side-panel-region.app-shelf-motion {
+        transition: transform var(--app-motion-duration-shelf) var(--app-motion-easing-standard);
+    }
+
     .app-side-panel-layout.is-shelf-open > .app-side-panel-region {
         bottom: var(--app-shelf-bottom, 0px);
-        height: var(--app-shelf-height, 100dvh);
+        transform: translateY(0);
     }
 
     .app-side-panel-shelf-bar {
@@ -502,10 +507,11 @@
         overflow: hidden;
         padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         visibility: hidden;
-        transition: visibility var(--app-motion-duration-shelf);
+        /* Keep content visible during closing motion, but inert immediately. */
     }
 
-    .is-shelf-open > .app-side-panel-region > .app-side-panel-shelf-content {
+    .is-shelf-open > .app-side-panel-region > .app-side-panel-shelf-content,
+    .app-side-panel-region.app-shelf-motion > .app-side-panel-shelf-content {
         visibility: visible;
     }
 
@@ -551,6 +557,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .app-side-panel-region,
+    .app-side-panel-region.app-shelf-motion,
     .app-side-panel-shelf-bar i,
     .app-side-panel-shelf-content {
         transition: none;
