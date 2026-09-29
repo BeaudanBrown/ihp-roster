@@ -46,7 +46,7 @@ export function regionFromHtmxEvent(event: Event): HTMLElement | null {
     const source = htmxRegionEventSource(event);
     // afterSwap/afterSettle carry the old target and the newly inserted elt.
     if (event.type === "htmx:afterSwap" || event.type === "htmx:afterSettle") {
-        return closestUiRegionFragment(source?.isConnected ? source : null);
+        return closestUiRegionFragment(source?.isConnected ? source : htmxRegionEventTarget(event));
     }
     return closestUiRegionFragment(htmxRegionEventTarget(event));
 }

@@ -2068,7 +2068,7 @@
   function regionFromHtmxEvent(event) {
     const source = htmxRegionEventSource(event);
     if (event.type === "htmx:afterSwap" || event.type === "htmx:afterSettle") {
-      return closestUiRegionFragment(source?.isConnected ? source : null);
+      return closestUiRegionFragment(source?.isConnected ? source : htmxRegionEventTarget(event));
     }
     return closestUiRegionFragment(htmxRegionEventTarget(event));
   }
