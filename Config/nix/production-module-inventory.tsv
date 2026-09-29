@@ -353,13 +353,14 @@ Application/Operator/Error.hs	production	operational-script-closure	Application.
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Client.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/PublicHolidays/Client.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Coverage.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Job.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Job.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/PublicHolidays/Override.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/OverrideIncident.hs	production	operational-script-closure	Application.Script.PublicHolidayRefreshSweep	Reachable from Application.Script.PublicHolidayRefreshSweep
+Application/PublicHolidays/OverrideIncident.hs	production	operational-script-closure	Application.Script.PublicHolidayShadowSweep	Reachable from Application.Script.PublicHolidayShadowSweep
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
-Application/PublicHolidays/Sync.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Shadow.hs	production	runtime	Main	Reachable from Main
+Application/PublicHolidays/Sync.hs	production	runtime	WorkerMain	Reachable from WorkerMain
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Email.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Mutations.hs	production	runtime	Main	Reachable from Main
@@ -380,6 +381,7 @@ Application/Script/LiveInvalidationOutboxPrune.hs	production	operational-script-
 Application/Script/Prelude.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/Script/ProfileLiveInvalidation.hs	development	performance-probe	-	Low-rate profiling probe only; runnable from the development shell
 Application/Script/PublicHolidayRefreshSweep.hs	production	operational-script-closure	Application.Script.PublicHolidayRefreshSweep	Reachable from Application.Script.PublicHolidayRefreshSweep
+Application/Script/PublicHolidayShadowSweep.hs	production	operational-script-closure	Application.Script.PublicHolidayShadowSweep	Reachable from Application.Script.PublicHolidayShadowSweep
 Application/Script/RsaReminderSweep.hs	production	operational-script-closure	Application.Script.RsaReminderSweep	Reachable from Application.Script.RsaReminderSweep
 Application/Script/SeedDev.hs	development	development-seed	-	Destructive local development seed only; runnable from the development shell
 Application/Script/SeedPayrollFixture.hs	development	development-fixture	-	Manual fixture entry point with no deployment consumer

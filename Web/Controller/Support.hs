@@ -20,9 +20,9 @@ import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
                                             fetchPublicHolidayCoverage)
-import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
-                                       publicHolidayRefreshJobDedupeKey,
-                                       publicHolidayRefreshJobKind)
+import Application.PublicHolidays.Shadow (enqueuePublicHolidayShadowJob,
+                                          publicHolidayShadowJobDedupeKey,
+                                          publicHolidayShadowJobKind)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnosticError (..),
@@ -223,13 +223,15 @@ instance Controller SupportController where
 
     action currentAction@CreatePublicHolidayRefreshJobAction = runBepis currentAction BepisMutationAction do
         enqueueResult <- liveMutationValue <$> withDurableLiveMutation "support.public_holidays.enqueue" do
-            result <- enqueuePublicHolidayRefreshJob (Just (unpackId currentUser.id))
+            -- Keep the existing typed form route, but it can only enqueue the
+            -- isolated shadow job. There is no anonymous import action.
+            result <- enqueuePublicHolidayShadowJob (Just (unpackId currentUser.id))
             pure (liveMutationResult result [supportPublicHolidaysResource])
         case enqueueResult of
             EnqueuedAppJob _ ->
-                setSuccessMessage "Public holiday refresh queued."
+                setSuccessMessage "Public holiday shadow fetch queued. No dates will be imported."
             ExistingActiveAppJob _ ->
-                setSuccessMessage "Public holiday refresh is already queued or running."
+                setSuccessMessage "Public holiday shadow fetch is already queued or running."
         respondToPublicHolidayRefresh
 
     action currentAction@CreateSupportEmailResendAction { emailDeliveryJobId } = runBepis currentAction BepisMutationAction do
@@ -364,8 +366,8 @@ fetchPublicHolidaySectionData ::
     IO ([PublicHolidayCoverageYear], Maybe AppJob, Maybe AppJob)
 fetchPublicHolidaySectionData = do
     publicHolidayCoverage <- fetchPublicHolidayCoverage
-    latestPublicHolidayRefreshJob <- fetchLatestAppJobByKind publicHolidayRefreshJobKind
-    activePublicHolidayRefreshJob <- fetchActiveAppJobByDedupeKey publicHolidayRefreshJobDedupeKey
+    latestPublicHolidayRefreshJob <- fetchLatestAppJobByKind publicHolidayShadowJobKind
+    activePublicHolidayRefreshJob <- fetchActiveAppJobByDedupeKey publicHolidayShadowJobDedupeKey
     pure (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
 
 supportCanAddPasskey :: (?context :: ControllerContext) => [Passkey] -> IO Bool

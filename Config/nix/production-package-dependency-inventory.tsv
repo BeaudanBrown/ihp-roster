@@ -119,6 +119,7 @@ IHP.Server	ihp	Main.hs via Main
 IHP.ViewPrelude	ihp	Web/View/Layout.hs via Main
 IHP.ViewSupport	ihp	Application/Helper/Profiling.hs via Main
 Network.HTTP.Client	http-client	Application/Billing/Stripe.hs via Main
+Network.HTTP.Client.TLS	http-client-tls	Application/PublicHolidays/Client.hs via Main
 Network.HTTP.Simple	http-conduit	Application/Billing/Stripe.hs via Main
 Network.HTTP.Types	http-types	Application/Helper/Profiling.hs via Main
 Network.HTTP.Types.Header	http-types	Application/Helper/Telemetry.hs via Main

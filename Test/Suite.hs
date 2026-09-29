@@ -98,6 +98,7 @@ import qualified Test.ProfileSeedSpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidayClientSpec
 import qualified Test.PublicHolidayOverrideSpec
+import qualified Test.PublicHolidayShadowSpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.PwaInstallSpec
 import qualified Test.ResendWebhookSpec
@@ -515,6 +516,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "Profiling", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Observability, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.ProfilingSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "NotFoundRecovery", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.NotFoundRecoverySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "Telemetry", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Observability, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.TelemetrySpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "PublicHolidayShadow", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PublicHolidayShadowSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PublicHolidayClient", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PublicHolidayClientSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PublicHolidayOverride.Policy", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PublicHolidayOverrideSpec.pureTests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "PublicHolidayOverride.Persistence", definitionEstimatedRuntimeSeconds = 0.8, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P2, P3], definitionPartialInvariants = []} Test.PublicHolidayOverrideSpec.databaseTests

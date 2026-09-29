@@ -6,6 +6,7 @@ BillingReconciliationSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/
 BootstrapAccount	deployment-maintenance	Config/nix/modules/ihp-roster.nix	/bin/BootstrapAccount	One-shot deployment account bootstrap executable
 FwcMapdRefreshSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/FwcMapdRefreshSweep	FWC MAPD refresh timer executable
 LiveInvalidationOutboxPrune	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/LiveInvalidationOutboxPrune	Durable live-invalidation outbox pruning timer executable
+PublicHolidayShadowSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/PublicHolidayShadowSweep	Read-only holiday shadow timer executable
 PublicHolidayRefreshSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/PublicHolidayRefreshSweep	Public-holiday refresh timer executable
 RsaReminderSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/RsaReminderSweep	Roster shift acknowledgement reminder timer executable
 XeroKeepaliveSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/XeroKeepaliveSweep	Xero keepalive timer executable

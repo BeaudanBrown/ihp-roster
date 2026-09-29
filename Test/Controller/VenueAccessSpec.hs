@@ -19,6 +19,7 @@ import Application.Helper.LiveUpdate
 import Application.Helper.VenueScopedQueries (fetchActiveVenueMembershipsByUserIds)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
+import Application.PublicHolidays.Shadow (publicHolidayShadowJobKind)
 import Config
 import Data.Coerce (coerce)
 import qualified Data.Serialize as Serialize
@@ -26,13 +27,13 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
 import Generated.Types
-import IHP.ControllerSupport (ControllerContext)
 import IHP.ControllerPrelude
+import IHP.ControllerSupport (ControllerContext)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Hspec
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.Prelude
-import IHP.Hspec
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
@@ -457,7 +458,7 @@ tests = aroundAll withDatabaseTestContext do
                 jobCount <- query @AppJob |> filterWhere (#jobKind, fwcMapdRefreshJobKind) |> fetchCount
                 jobCount `shouldBe` 0
 
-        it "deduplicates active public holiday refresh jobs" $ withContext do
+        it "deduplicates active public holiday shadow jobs without enqueuing anonymous imports" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-dedupe@example.com" "staff" (Just SuperAdmin) True
@@ -469,8 +470,9 @@ tests = aroundAll withDatabaseTestContext do
                     callAction CreatePublicHolidayRefreshJobAction
 
                 response `responseStatusShouldBe` status302
-                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount
+                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayShadowJobKind) |> fetchCount
                 jobCount `shouldBe` 1
+                query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount >>= (`shouldBe` 0)
 
         it "returns the public holiday section for HTMX public holiday refresh submissions" $ withContext do
             withCleanDb do
@@ -484,7 +486,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"support-public-holidays\""
-                response `responseBodyShouldContain` "Refresh queued/running"
+                response `responseBodyShouldContain` "Shadow fetch queued/running"
+                response `responseBodyShouldContain` "no dates imported"
                 response `responseBodyShouldContain` "hx-post=\"/CreatePublicHolidayRefreshJob\""
 
         it "denies public holiday refresh creation to ordinary venue admins" $ withContext do
@@ -498,7 +501,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
-                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount
+                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayShadowJobKind) |> fetchCount
                 jobCount `shouldBe` 0
 
         it "lets super-admin create a venue owner onboarding invitation" $ withContext do
