@@ -13,6 +13,8 @@ import qualified Application.Helper.FrontendContract.Passkey as Passkey
 import Application.Helper.View.Overlay
 import Application.Helper.View.Timesheets
 import Application.Helper.View.Toast
+import Application.Helper.View.UiRegion
+import Application.Helper.UiRegion
 import Config
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -31,6 +33,14 @@ import Web.View.RosterWeeks.ShiftDialog
 pureTests :: Spec
 pureTests = do
     describe "Overlay contract attributes" do
+        it "keeps region loading and arrival overrides independent" do
+            uiRegionLoadingAttrs UiRegionLoadingSharedStatus `shouldBe`
+                [("data-bepis-fragment", "true"), ("data-bepis-region-loading", "shared-status")]
+            uiRegionLoadingAttrs UiRegionLoadingQuiet `shouldBe`
+                [("data-bepis-fragment", "true"), ("data-bepis-region-loading", "quiet")]
+            uiRegionTransitionAttrs UiRegionTransitionNone `shouldBe`
+                [("data-bepis-fragment", "true"), ("data-bepis-region-transition", "none")]
+
         it "renders the exact generated pointer-dismiss opt-in role" do
             dialogPointerDismissBlurAttrs `shouldBe` [("data-bepis-dialog-pointer-dismiss-blur", "true")]
 
@@ -108,6 +118,16 @@ nodeText _ = ""
 databaseTests :: Spec
 databaseTests = aroundAll withDatabaseTestContext do
     describe "Overlay render helpers" do
+        it "renders one initially hidden request-controlled status without toast dismissal" $ withContext do
+            withCurrentControllerContext do
+                tree <- parseRenderedOverlay renderRequestLoadingStatus
+                let nodes = elementNodes tree
+                length (filter (\node -> lookup "data-bepis-request-loading-status" (nodeAttrs node) == Just "true") nodes) `shouldBe` 1
+                length (filter (\node -> lookup "role" (nodeAttrs node) == Just "status") nodes) `shouldBe` 1
+                any (\node -> lookup "hidden" (nodeAttrs node) == Just "hidden") nodes `shouldBe` True
+                filter ((== "button") . nodeName) nodes `shouldBe` []
+                any (\node -> isJust (lookup "data-bepis-toast-mount" (nodeAttrs node))) nodes `shouldBe` False
+
         forM_ [("mounted", Nothing), ("page", Just "/close")] \(contextName, closeUrl) -> do
             forM_ (buttonCases (isJust closeUrl)) \(caseName, action, expectedTag, expectedAttrs, expectedForms, expectedFields) ->
                 it (cs (contextName <> " " <> caseName <> " retains exact control and form attributes")) $ withContext do

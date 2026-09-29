@@ -3,6 +3,8 @@ import {
     rosterColumnEditorDomAttr,
     rosterColumnEditStartDomAttr,
     rosterSidePanelShelfToggleDomAttr,
+    rosterSidePanelPanelDomAttr,
+    rosterSidePanelShelfDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
@@ -57,6 +59,59 @@ test.describe('Roster mobile baseline', () => {
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expect(page.locator('#roster-content')).toBeVisible();
         await expect(page.locator('.roster-grid')).toBeVisible();
+    });
+
+    test('shelf motion preserves immediate isolation, reverses safely and uses transform frames', async ({ page }, testInfo) => {
+        const metrics = await page.evaluate(async ({ toggleAttr, panelAttr, contentAttr }) => {
+            const bar = document.querySelector<HTMLButtonElement>(`[${toggleAttr}]`)!;
+            const panel = document.querySelector<HTMLElement>(`[${panelAttr}]`)!;
+            const content = document.querySelector<HTMLElement>(`[${contentAttr}="true"]`)!;
+            const main = document.getElementById('roster-content')!;
+            const frame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
+            await frame();
+            const heightBefore = panel.getBoundingClientRect().height;
+            bar.click();
+            const isolatedImmediately = !!main.closest('[inert]');
+            const openContentInert = content.inert;
+            const keys = panel.getAnimations().flatMap((animation) =>
+                (animation.effect as KeyframeEffect).getKeyframes().flatMap((keyframe) => Object.keys(keyframe)));
+            const times: number[] = [];
+            let previous = await frame();
+            for (let index = 0; index < 20; index++) {
+                const now = await frame();
+                times.push(now - previous);
+                previous = now;
+            }
+            const heightAfter = panel.getBoundingClientRect().height;
+            // Reverse in successive frames, without waiting for motion to finish.
+            bar.click();
+            const closedContentInert = content.inert;
+            await frame();
+            bar.click();
+            await frame();
+            bar.click();
+            await Promise.allSettled(panel.getAnimations().map((animation) => animation.finished));
+            return { isolatedImmediately, openContentInert, closedContentInert, keys, heightBefore, heightAfter, times,
+                expanded: bar.getAttribute('aria-expanded'), locked: document.body.classList.contains('app-shelf-scroll-locked'),
+                staleMotion: panel.classList.contains('app-shelf-motion') };
+        }, { toggleAttr: rosterSidePanelShelfToggleDomAttr, panelAttr: rosterSidePanelPanelDomAttr, contentAttr: rosterSidePanelShelfDomAttr });
+        await testInfo.attach('shelf-frame-timing', { body: JSON.stringify(metrics), contentType: 'application/json' });
+        expect(metrics.isolatedImmediately).toBe(true);
+        expect(metrics.openContentInert).toBe(false);
+        expect(metrics.closedContentInert).toBe(true);
+        expect(metrics.keys).toContain('transform');
+        expect(metrics.keys).not.toContain('height');
+        expect(metrics.keys).not.toContain('bottom');
+        expect(Math.abs(metrics.heightAfter - metrics.heightBefore)).toBeLessThan(1);
+        expect(metrics.expanded).toBe('false');
+        expect(metrics.locked).toBe(false);
+        await expect(page.locator(`[${rosterSidePanelPanelDomAttr}]`)).not.toHaveClass(/app-shelf-motion/);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`).click();
+        await expect(page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`)).toHaveAttribute('aria-expanded', 'true');
+        expect(await page.locator(`[${rosterSidePanelPanelDomAttr}]`).evaluate((panel) => panel.getAnimations().length)).toBe(0);
+        await page.keyboard.press('Escape');
+        await expect(page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`)).toBeFocused();
     });
 
     test('fits the Published roster email confirmation within the viewport', async ({ page }) => {
