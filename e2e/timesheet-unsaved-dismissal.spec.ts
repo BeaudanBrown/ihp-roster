@@ -9,18 +9,13 @@ import {
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
+import { chooseBlankTimesheet } from './support/timesheets';
 
 const mountSelector = `#${dialogOverlayMountDomId}`;
 
 async function openNewTimesheet(page: Page) {
     await page.locator('[data-timesheet-day-add="true"]').first().click();
-    const createForm = page.locator('#timesheet-entry-create-form');
-    const blankChoice = page.getByRole('link', { name: 'Use blank timesheet' }).first();
-    await Promise.race([
-        createForm.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }),
-        blankChoice.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }).then(() => blankChoice.click()),
-    ]);
-    await expect(createForm).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await chooseBlankTimesheet(page);
 }
 
 async function attemptClose(page: Page) {

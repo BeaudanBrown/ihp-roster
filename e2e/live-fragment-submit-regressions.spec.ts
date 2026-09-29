@@ -221,7 +221,7 @@ test.describe('HTMX submit regressions', () => {
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         await page.locator('[data-timesheet-day-add="true"]').first().click();
-        await chooseBlankTimesheet(page);
+        await chooseBlankTimesheet(page, defaultE2ERosterGroupId);
         await page.selectOption('#staffId', { label: 'E2E Manager' });
         await page.locator('input[name="startTime"]').evaluate((input, value) => {
             (input as HTMLInputElement).value = value as string;
@@ -256,7 +256,7 @@ test.describe('HTMX submit regressions', () => {
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
 
         await page.locator('[data-timesheet-day-add="true"]').first().click();
-        await chooseBlankTimesheet(page);
+        await chooseBlankTimesheet(page, defaultE2ERosterGroupId);
         await page.selectOption('#staffId', { label: 'E2E Manager' });
         await page.locator('input[name="startTime"]').evaluate((input, value) => {
             (input as HTMLInputElement).value = value as string;

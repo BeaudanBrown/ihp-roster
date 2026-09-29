@@ -20,9 +20,13 @@ export function resetTimesheetDisplayPreferences(emails: string | string[]) {
     `);
 }
 
-export async function chooseBlankTimesheet(page: Page) {
+export async function chooseBlankTimesheet(page: Page, rosterGroupId?: string) {
     const createForm = page.locator('#timesheet-entry-create-form');
-    const blankChoice = page.getByRole('link', { name: 'Blank timesheet', exact: true }).first();
+    const choices = page.getByRole('link', { name: 'Blank timesheet', exact: true });
+    // Staff availability is constrained by the classification selected in the chooser.
+    const blankChoice = (rosterGroupId
+        ? choices.and(page.locator(`[href*="blankClassification=${encodeURIComponent(`group:${rosterGroupId}`)}"]`))
+        : choices).first();
     await Promise.race([
         createForm.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }),
         blankChoice.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }).then(async () => {
