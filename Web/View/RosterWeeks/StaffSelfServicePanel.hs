@@ -3,23 +3,18 @@
 module Web.View.RosterWeeks.StaffSelfServicePanel
     ( renderRosterStaffSelfServicePanelFragment
     , renderRosterSelfServiceQuickTools
-    , renderRosterSelfServiceSettings
     , rosterStaffSelfServicePanelFragmentId
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
-import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
-                                      hasManagementMode,
-                                      managerModeToggleVisible)
+                                      hasManagementMode)
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterSelfServicePanelTab (..),
                                                                       rosterSelfServicePanelTabAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
-import Application.Helper.FrontendContract.Surface.Values (surfaceFragmentTargetId, noSurfaceFields)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveFormMount)
 import Web.RosterWeeks.Dom (rosterSelfServiceQuickToolsPaneId,
                             rosterSelfServiceQuickToolsTabId,
@@ -30,9 +25,7 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsDaySurfaceImpl)
 import Web.View.Prelude
-import Web.View.RosterWeeks.SettingsPanel (renderRosterGroupSwitcher,
-                                           renderRosterManagerModePreferenceForm,
-                                           renderRosterOwnLiveShiftHighlightPreferenceForm)
+import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
                                   renderDaySection)
 
@@ -70,7 +63,7 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
                                  role="tabpanel"
                                  aria-labelledby={rosterSelfServiceSettingsTabId}
                                  tabindex="0">
-                                {renderRosterSelfServiceSettings panel}
+                                {renderRosterSettingsPanel panel.quickToolsSettings}
                             </div>
                         </div>
                     </div>
@@ -102,39 +95,6 @@ renderRosterSelfServiceQuickTools panel = [hsx|
         </div>
     </div>
 |]
-
-renderRosterSelfServiceSettings :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> Html
-renderRosterSelfServiceSettings panel = [hsx|
-    <div id={surfaceFragmentTargetId @RosterSurface.RosterSurface @RosterSurface.RosterSettingsContent noSurfaceFields} class="roster-settings-stack">
-        {when managerModeToggleVisible (renderRosterManagerModePreferenceForm panel.quickToolsRosterWeekStartDate panel.quickToolsRosterGroupId)}
-        {renderRosterGroupSetting panel}
-        <section class="roster-settings-section">
-            <div class="roster-settings-section-heading">
-                <i class="bi bi-eye" aria-hidden="true"></i>
-                <h2 class="h6 mb-0">Display</h2>
-            </div>
-            {renderRosterOwnLiveShiftHighlightPreferenceForm panel.quickToolsRosterWeekStartDate panel.quickToolsRosterGroupId panel.quickToolsHighlightOwnLiveShifts}
-        </section>
-    </div>
-|]
-
-renderRosterGroupSetting :: RosterStaffSelfServicePanel -> Html
-renderRosterGroupSetting panel
-    | length panel.quickToolsRosterGroups <= 1 = mempty
-    | otherwise = [hsx|
-        <section class="roster-settings-section">
-            <div class="roster-settings-section-heading">
-                <i class="bi bi-people" aria-hidden="true"></i>
-                <h2 class="h6 mb-0">Roster group</h2>
-            </div>
-            {renderRosterGroupSwitcher panel.quickToolsRosterWeekStartDate panel.quickToolsRosterGroups currentRosterGroup}
-        </section>
-    |]
-  where
-    currentRosterGroup =
-        fromMaybe
-            (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "current roster group missing")
-            (find ((== panel.quickToolsRosterGroupId) . (.id)) panel.quickToolsRosterGroups)
 
 timesheetDayModel :: RosterStaffSelfServicePanel -> TimesheetDayRenderModel
 timesheetDayModel panel =

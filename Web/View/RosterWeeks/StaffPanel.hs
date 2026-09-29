@@ -50,7 +50,7 @@ import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelRenderModel (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
-import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
+import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel, rosterSettingsFromStaffPanel)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterSelfServiceQuickTools)
 import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
@@ -97,7 +97,7 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurren
             pure (renderRosterTemplateLibraryFragment panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
         settingsPanelContent =
             maybe mempty renderRosterSelfServiceQuickTools panelModel.staffPanelSelfServicePanel
-                <> renderRosterSettingsPanel panelModel
+                <> renderRosterSettingsPanel (rosterSettingsFromStaffPanel panelModel)
 
 
 renderRosterStaffPanelShell :: Html -> Html

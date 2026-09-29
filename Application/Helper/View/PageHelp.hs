@@ -202,7 +202,7 @@ pageHelpTopics =
         , section HelpStaffOnly "Staff"
             [ iconItem HelpStaffOnly "bi-chevron-left" "Week controls" "Check your roster" "Use the arrow controls to find the week you need, then review your listed shifts."
             , iconItem HelpStaffOnly "bi-person-plus" "OPEN shifts" "Recognize unfilled shifts" "OPEN means the Published shift has not been assigned yet. It is visible to everyone on the roster but does not belong to you unless a roster editor assigns it to you."
-            , iconItem HelpStaffOnly "bi-lightning" "Quick tools" "Record work or unavailability" "Use Quick tools for today's Timesheet entry and unavailable time. Use the Settings tab to control your own-shift highlight."
+            , iconItem HelpStaffOnly "bi-lightning" "Quick tools" "Record work or unavailability" "Use Quick tools for today's Timesheet entry and unavailable time. Use Settings > Display to control your own-shift highlight and enable Show my expected pay for your own shifts."
             , iconItem HelpStaffOnly "bi-calendar-x" "Missing shifts" "Find missing shifts" "If a future roster is not ready yet, it may not show all shifts. Check again later or ask a manager."
             , iconItem HelpStaffOnly "bi-chat-left-text" "Ask manager" "Ask for changes" "Contact a manager if something looks wrong or you need a roster change."
             ]

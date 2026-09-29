@@ -50,9 +50,8 @@ import Web.RosterWeeks.WageEstimates (rosterPayAudienceForCurrentUser,
                                       rosterWageSlotsForAudience)
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
-import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterSelfServiceQuickTools,
-                                                    renderRosterSelfServiceSettings)
+import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel, rosterSettingsFromStaffPanel)
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterSelfServiceQuickTools)
 
 shouldShowRosterWageEstimates :: (?context :: ControllerContext) => Bool -> Bool
 shouldShowRosterWageEstimates userShowWageEstimates =
@@ -118,9 +117,9 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
                         let panelModel = rosterStaffPanelRenderModelFromProjection RosterStaffPanelCurrentGroup projection
                          in Just
                                 ( maybe mempty renderRosterSelfServiceQuickTools panelModel.staffPanelSelfServicePanel
-                                    <> renderRosterSettingsPanel panelModel
+                                    <> renderRosterSettingsPanel (rosterSettingsFromStaffPanel panelModel)
                                 )
-                    else renderRosterSelfServiceSettings <$> projection.staffSelfServicePanel
+                    else (renderRosterSettingsPanel . (.quickToolsSettings)) <$> projection.staffSelfServicePanel
         RosterProjectionDaySection rosterDayId ->
             rosterData >>= \projection ->
                 if isHiddenDraftForCurrentUser projection.rosterWeek
@@ -379,7 +378,7 @@ fetchRosterRenderData scope = do
                         _ -> Nothing
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries panelStaffMembers visibleSlots)
             notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate rosterDays
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLiveShifts)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig scope (personalRosterSettings scope rosterGroups currentRosterGroup showWageEstimates showRosterWarnings highlightOwnLiveShifts))
             slotConflicts <-
                 if maybe False (.windowIsPublished) rosterWeek
                     then pure []
@@ -408,8 +407,21 @@ fetchRosterPanelTemplateLibrary rosterGroup
     | not hasManagementMode = pure Nothing
     | otherwise = currentRosterTemplateActor >>= (`fetchRosterTemplateLibrary` rosterGroup)
 
-fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> [RosterGroup] -> RosterWindowScope -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
-fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLiveShifts
+personalRosterSettings :: (?context :: ControllerContext) => RosterWindowScope -> [RosterGroup] -> RosterGroup -> Bool -> Bool -> Bool -> RosterSettingsRenderModel
+personalRosterSettings scope rosterGroups currentRosterGroup showWageEstimates showRosterWarnings highlightOwnLiveShifts =
+    RosterSettingsRenderModel
+        { settingsWeekStartDate = scope.rosterWindowStart
+        , settingsRosterGroups = rosterGroups
+        , settingsCurrentRosterGroup = currentRosterGroup
+        , settingsViewCapabilities = buildRosterViewCapabilities Nothing
+        , settingsShowWageEstimates = showWageEstimates
+        , settingsShowRosterWarnings = showRosterWarnings
+        , settingsHighlightOwnLiveShifts = highlightOwnLiveShifts
+        , settingsManagement = Nothing
+        }
+
+fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> RosterWindowScope -> RosterSettingsRenderModel -> IO (Maybe RosterStaffSelfServicePanel)
+fetchRosterStaffSelfServicePanel venueConfig scope settings
     | hasManagementMode = pure Nothing
     | currentUserIsUnimpersonatedSuperAdmin = pure Nothing
     | otherwise = do
@@ -440,7 +452,6 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLive
                             { quickToolsLeaveRequest
                             , quickToolsVenueId = currentVenueId
                             , quickToolsRosterGroupId = scope.rosterWindowRosterGroupId
-                            , quickToolsRosterGroups = rosterGroups
                             , quickToolsTimesheetRosterGroupLabels
                             , quickToolsRosterWeekStartDate = scope.rosterWindowStart
                             , quickToolsTimesheetEntries
@@ -451,7 +462,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLive
                             , quickToolsTimesheetWeekStartDate = timesheetWeekStartDate
                             , quickToolsCalendarRevision = venueConfig.rosterCalendarRevision
                             , quickToolsTimesheetEditWindowDays = venueConfig.staffTimesheetEditWindowDays
-                            , quickToolsHighlightOwnLiveShifts = highlightOwnLiveShifts
+                            , quickToolsSettings = settings
                             }
 
 fetchVisibleRosterWeek :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Maybe RosterWindowState)
@@ -589,7 +600,7 @@ fetchVisibleRosterStaffPanelRenderModel panelScope scope = do
                 RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
             profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers facts.baseVisibleSlots)
     notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate (maybe [] (.baseRosterDays) baseFacts)
-    staffSelfServicePanel <- fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLiveShifts
+    staffSelfServicePanel <- fetchRosterStaffSelfServicePanel venueConfig scope (personalRosterSettings scope rosterGroups currentRosterGroup (shouldShowRosterWageEstimates userShowWageEstimates) showRosterWarnings highlightOwnLiveShifts)
     pure RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeek
         , staffPanelWeekStartDate = weekStartDate

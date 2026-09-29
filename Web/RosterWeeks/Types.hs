@@ -9,6 +9,8 @@ module Web.RosterWeeks.Types
     , RosterRenderIndexes (..)
     , RosterRowRenderModel (..)
     , RosterStaffPanelScope (..)
+    , RosterSettingsRenderModel (..)
+    , RosterManagementSettings (..)
     , RosterStaffPanelRenderModel (..)
     , RosterStaffSelfServicePanel (..)
     , RosterStaffPanelEntry (..)
@@ -91,6 +93,27 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     , staffPayConfigurationRequired :: Bool
     }
 
+-- Shared by both panel containers and their settings fragment responses.
+data RosterSettingsRenderModel = RosterSettingsRenderModel
+    { settingsWeekStartDate :: Day
+    , settingsRosterGroups :: [RosterGroup]
+    , settingsCurrentRosterGroup :: RosterGroup
+    , settingsViewCapabilities :: RosterViewCapabilities
+    , settingsShowWageEstimates :: Bool
+    , settingsShowRosterWarnings :: Bool
+    , settingsHighlightOwnLiveShifts :: Bool
+    , settingsManagement :: Maybe RosterManagementSettings
+    }
+
+data RosterManagementSettings = RosterManagementSettings
+    { settingsRosterWeek :: Maybe RosterWindowState
+    , settingsCalendarRevision :: Int
+    , settingsAssignmentFilters :: RosterAssignmentFilters
+    , settingsRosterLayoutMode :: RosterLayoutModeEnum
+    , settingsViewMode :: RosterGridViewMode
+    , settingsNotificationPanelData :: Maybe RosterNotificationPanelData
+    }
+
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     { staffPanelRosterWeek             :: Maybe RosterWindowState
     , staffPanelWeekStartDate          :: Day
@@ -115,7 +138,6 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     { quickToolsLeaveRequest            :: LeaveRequest
     , quickToolsVenueId                 :: Id Venue
     , quickToolsRosterGroupId           :: Id RosterGroup
-    , quickToolsRosterGroups            :: [RosterGroup]
     , quickToolsTimesheetRosterGroupLabels :: [RosterGroup]
     , quickToolsRosterWeekStartDate     :: Day
     , quickToolsTimesheetEntries        :: [TimesheetEntry]
@@ -126,7 +148,7 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsTimesheetWeekStartDate  :: Day
     , quickToolsCalendarRevision        :: Int
     , quickToolsTimesheetEditWindowDays :: Int
-    , quickToolsHighlightOwnLiveShifts  :: Bool
+    , quickToolsSettings               :: RosterSettingsRenderModel
     }
 
 data RosterAssignmentFilters = RosterAssignmentFilters

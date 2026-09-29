@@ -157,6 +157,11 @@ direct read model. Timeline lane/overlap geometry is display-only and never
 redefines persisted `row_index`. Roster wage estimates use the same canonical
 unsealed boundary as a Timesheet roster-prefill candidate; roster-only shifts contribute
 neither totals nor errors. The independently persisted toggle defaults off.
+Staff and management panel containers share one settings renderer and settings
+model, including full-page and settings-fragment responses. Settings > Display
+includes `Show my expected pay` for eligible linked Staff, including impersonated
+Staff, alongside own-shift highlighting. Management-only sections remain optional
+and capability-gated; preference endpoints independently authorize changes.
 Worker, Supervisor, and Manager roles always receive only their effective linked
 Staff's authorized visible shifts. Admin and Owner receive selected-group venue
 totals in Manager mode and personal totals while it is off. Unimpersonated

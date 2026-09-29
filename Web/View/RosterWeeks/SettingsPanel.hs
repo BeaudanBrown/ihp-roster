@@ -7,6 +7,7 @@ module Web.View.RosterWeeks.SettingsPanel
     , renderRosterManagerModePreferenceFormWithoutGroup
     , renderRosterOwnLiveShiftHighlightPreferenceForm
     , renderRosterSettingsPanel
+    , rosterSettingsFromStaffPanel
     ) where
 
 import Application.Helper.Controller (hasManagementMode,
@@ -46,6 +47,8 @@ import Web.RosterWeeks.WageEstimates (RosterPayAudience (..),
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterGridViewMode (..),
                               RosterStaffPanelRenderModel (..),
+                              RosterSettingsRenderModel (..),
+                              RosterManagementSettings (..),
                               RosterViewCapabilities (..),
                               RosterWindowState (..))
 import Web.View.Prelude
@@ -54,21 +57,44 @@ rosterWeekShellSyncRoute :: Text -> FrontendSurfaceActionRoute
 rosterWeekShellSyncRoute actionUrl =
     (defaultFrontendSurfaceActionRoute (actionUrl))
 
-renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekStartDate, staffPanelCalendarRevision, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelHighlightOwnLiveShifts, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
-    <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel">
-        {when managerModeToggleVisible (renderRosterManagerModePreferenceForm staffPanelWeekStartDate staffPanelCurrentRosterGroup.id)}
-        {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekStartDate staffPanelRosterGroups staffPanelCurrentRosterGroup)}
-        {when hasManagementMode $ renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
-        {when (staffPanelViewCapabilities.canManageRosterWarnings || staffPanelViewCapabilities.canViewWageEstimates) $
-            renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelViewCapabilities staffPanelShowWageEstimates staffPanelShowRosterWarnings staffPanelHighlightOwnLiveShifts)}
-        {when staffPanelViewCapabilities.canManageAssignmentFilter $
-            renderRosterSettingsSection "bi-shield-check" "Prevent assignment" (renderRosterAssignmentFiltersSection staffPanelWeekStartDate staffPanelCurrentRosterGroup.id staffPanelAssignmentFilters)}
-        {when (staffPanelViewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm staffPanelRosterWeek staffPanelViewCapabilities) $
-            renderRosterSettingsSection "bi-lightning-charge" "Week actions" (renderRosterWeekActions staffPanelRosterWeek staffPanelWeekStartDate staffPanelCalendarRevision staffPanelCurrentRosterGroup.id staffPanelViewCapabilities)}
-        {when (isJust staffPanelNotificationPanelData || shouldShowRosterExport staffPanelRosterWeek staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode) $
-            renderRosterSettingsSection "bi-share" "Share roster" (renderRosterShareSection staffPanelRosterWeek staffPanelCurrentRosterGroup staffPanelWeekStartDate staffPanelCalendarRevision staffPanelNotificationPanelData staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode)}
+rosterSettingsFromStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> RosterSettingsRenderModel
+rosterSettingsFromStaffPanel panel = RosterSettingsRenderModel
+    { settingsWeekStartDate = panel.staffPanelWeekStartDate
+    , settingsRosterGroups = panel.staffPanelRosterGroups
+    , settingsCurrentRosterGroup = panel.staffPanelCurrentRosterGroup
+    , settingsViewCapabilities = panel.staffPanelViewCapabilities
+    , settingsShowWageEstimates = panel.staffPanelShowWageEstimates
+    , settingsShowRosterWarnings = panel.staffPanelShowRosterWarnings
+    , settingsHighlightOwnLiveShifts = panel.staffPanelHighlightOwnLiveShifts
+    , settingsManagement = if not hasManagementMode then Nothing else Just RosterManagementSettings
+        { settingsRosterWeek = panel.staffPanelRosterWeek
+        , settingsCalendarRevision = panel.staffPanelCalendarRevision
+        , settingsAssignmentFilters = panel.staffPanelAssignmentFilters
+        , settingsRosterLayoutMode = panel.staffPanelRosterLayoutMode
+        , settingsViewMode = panel.staffPanelViewMode
+        , settingsNotificationPanelData = panel.staffPanelNotificationPanelData
+        }
+    }
+
+renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterSettingsRenderModel -> Html
+renderRosterSettingsPanel settings@RosterSettingsRenderModel { settingsWeekStartDate, settingsRosterGroups, settingsCurrentRosterGroup, settingsViewCapabilities, settingsShowWageEstimates, settingsShowRosterWarnings, settingsHighlightOwnLiveShifts, settingsManagement } = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel roster-settings-stack">
+        {when managerModeToggleVisible (renderRosterManagerModePreferenceForm settingsWeekStartDate settingsCurrentRosterGroup.id)}
+        {when (length settingsRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher settingsWeekStartDate settingsRosterGroups settingsCurrentRosterGroup)}
+        {forEach settingsManagement (\management -> renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection settingsWeekStartDate settingsCurrentRosterGroup.id management.settingsRosterLayoutMode management.settingsViewMode))}
+        {renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection settingsWeekStartDate settingsCurrentRosterGroup.id settingsViewCapabilities settingsShowWageEstimates settingsShowRosterWarnings settingsHighlightOwnLiveShifts)}
+        {forEach settingsManagement (renderRosterManagementSettings settings)}
     </div>
+|]
+
+renderRosterManagementSettings :: (?context :: ControllerContext) => RosterSettingsRenderModel -> RosterManagementSettings -> Html
+renderRosterManagementSettings RosterSettingsRenderModel { settingsWeekStartDate, settingsCurrentRosterGroup, settingsViewCapabilities } RosterManagementSettings { settingsRosterWeek, settingsCalendarRevision, settingsAssignmentFilters, settingsRosterLayoutMode, settingsViewMode, settingsNotificationPanelData } = [hsx|
+    {when settingsViewCapabilities.canManageAssignmentFilter $
+        renderRosterSettingsSection "bi-shield-check" "Prevent assignment" (renderRosterAssignmentFiltersSection settingsWeekStartDate settingsCurrentRosterGroup.id settingsAssignmentFilters)}
+    {when (settingsViewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm settingsRosterWeek settingsViewCapabilities) $
+        renderRosterSettingsSection "bi-lightning-charge" "Week actions" (renderRosterWeekActions settingsRosterWeek settingsWeekStartDate settingsCalendarRevision settingsCurrentRosterGroup.id settingsViewCapabilities)}
+    {when (isJust settingsNotificationPanelData || shouldShowRosterExport settingsRosterWeek settingsViewCapabilities settingsRosterLayoutMode settingsViewMode) $
+        renderRosterSettingsSection "bi-share" "Share roster" (renderRosterShareSection settingsRosterWeek settingsCurrentRosterGroup settingsWeekStartDate settingsCalendarRevision settingsNotificationPanelData settingsViewCapabilities settingsRosterLayoutMode settingsViewMode)}
 |]
 
 renderRosterManagerModePreferenceForm :: (?context :: ControllerContext) => Day -> Id RosterGroup -> Html
