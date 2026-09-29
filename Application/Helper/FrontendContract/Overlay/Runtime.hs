@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , dialogSubmitAttrs
     , navigationLoadingAttrs
     , toastCloseAttrs
+    , requestLoadingStatusAttrs
     , toastMountAttrs
     ) where
 
@@ -127,6 +128,9 @@ toastMountAttrs :: Int -> [(Text, Text)]
 toastMountAttrs autoHideMs =
     roleAttrs canonicalOverlayDom.overlayToastMountAttribute
         <> [(canonicalOverlayDom.overlayToastConfigAttribute, toastConfigJson autoHideMs)]
+
+requestLoadingStatusAttrs :: [(Text, Text)]
+requestLoadingStatusAttrs = roleAttrs (domAttrValue @Contract.RequestLoadingStatus)
 
 toastCloseAttrs :: [(Text, Text)]
 toastCloseAttrs = roleAttrs canonicalOverlayDom.overlayToastCloseAttribute

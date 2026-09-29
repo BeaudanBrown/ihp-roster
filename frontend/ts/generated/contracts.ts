@@ -509,6 +509,8 @@ export const toastCloseDomAttr = "data-bepis-toast-close" as const;
 
 export const toastConfigDomAttr = "data-bepis-toast-config" as const;
 
+export const requestLoadingStatusDomAttr = "data-bepis-request-loading-status" as const;
+
 export const appNavigationHeaderDomAttr = "data-bepis-app-navigation-header" as const;
 
 export const appPageContentDomAttr = "data-bepis-app-page-content" as const;

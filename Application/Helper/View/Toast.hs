@@ -85,6 +85,16 @@ renderToastOverlay toast = [hsx|
     </div>
 |]
 
+-- Toast presentation only: request feedback, not auto-hide/dismissal, owns this host.
+renderRequestLoadingStatus :: Html
+renderRequestLoadingStatus = [hsx|
+    <div class="app-toast-host app-toast-host-center app-loading-status-host" hidden="hidden" {...requestLoadingStatusAttrs}>
+        <div class="app-toast" role="status" aria-live="polite" aria-atomic="true">
+            <div class="app-toast-body">Loading…</div>
+        </div>
+    </div>
+|]
+
 renderToastCopy :: ToastOverlayConfig -> Html
 renderToastCopy toast =
     case toast.toastOverlayTitle of

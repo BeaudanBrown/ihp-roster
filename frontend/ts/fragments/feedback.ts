@@ -46,7 +46,10 @@ export function createRegionFeedback(onSharedStatus: (visible: boolean) => void 
             const done = () => finish(xhr);
             xhr.addEventListener("loadend", done);
             const entry: PendingRequest = {
-                region, policy, visible: false,
+                region, policy,
+                // Once shown, don't blink off while a newer contributor is still pending.
+                visible: Array.from(pending.values()).some((entry) => entry.visible &&
+                    (entry.region === region || (policy.loading === "shared-status" && entry.policy.loading === "shared-status"))),
                 dispose: () => xhr.removeEventListener("loadend", done),
                 timer: setTimeout(() => {
                     if (!entry.region.isConnected) { finish(xhr); return; }
@@ -55,6 +58,7 @@ export function createRegionFeedback(onSharedStatus: (visible: boolean) => void 
                 }, delayMs),
             };
             pending.set(xhr, entry);
+            if (entry.visible) paint();
         },
         finish,
         replace(previous: HTMLElement, next: HTMLElement): void {

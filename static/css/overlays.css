@@ -216,6 +216,21 @@
     transition: opacity var(--app-motion-duration-panel) var(--app-motion-easing-standard), transform var(--app-motion-duration-panel) var(--app-motion-easing-standard);
 }
 
+/* Header-relative placement follows its real height without JS geometry. */
+.app-toast-host.app-loading-status-host {
+    position: absolute;
+    top: calc(100% + var(--app-space-2));
+    bottom: auto;
+}
+
+.app-loading-status-host[hidden] {
+    display: none;
+}
+
+.app-loading-status-host .app-toast {
+    pointer-events: none;
+}
+
 .app-toast-success {
     border-color: var(--app-success-border);
 }

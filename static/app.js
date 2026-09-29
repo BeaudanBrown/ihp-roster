@@ -205,6 +205,7 @@
   var toastMountDomAttr = "data-bepis-toast-mount";
   var toastCloseDomAttr = "data-bepis-toast-close";
   var toastConfigDomAttr = "data-bepis-toast-config";
+  var requestLoadingStatusDomAttr = "data-bepis-request-loading-status";
   var appNavigationHeaderDomAttr = "data-bepis-app-navigation-header";
   var appPageContentDomAttr = "data-bepis-app-page-content";
   function isUiRegionTransitionProfile(value) {
@@ -2203,7 +2204,8 @@
         const entry = {
           region,
           policy,
-          visible: false,
+          // Once shown, don't blink off while a newer contributor is still pending.
+          visible: Array.from(pending.values()).some((entry2) => entry2.visible && (entry2.region === region || policy.loading === "shared-status" && entry2.policy.loading === "shared-status")),
           dispose: () => xhr.removeEventListener("loadend", done),
           timer: setTimeout(() => {
             if (!entry.region.isConnected) {
@@ -2215,6 +2217,7 @@
           }, delayMs)
         };
         pending.set(xhr, entry);
+        if (entry.visible) paint();
       },
       finish,
       replace(previous, next) {
@@ -3412,7 +3415,10 @@
   // frontend/ts/app-live-updates.ts
   enableHtmxUiRegionEventAdapter();
   enableUiRegionTransitions();
-  enableRegionFeedback();
+  enableRegionFeedback(document, (visible) => {
+    const status = document.querySelector(`[${requestLoadingStatusDomAttr}]`);
+    if (status) status.hidden = !visible;
+  });
   enableLazySurfaceErrorHandling();
   enableLiveUpdateRuntime();
 

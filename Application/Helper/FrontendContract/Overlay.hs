@@ -33,6 +33,7 @@ module Application.Helper.FrontendContract.Overlay
     , NavigationLoading
     , ToastMount
     , ToastClose
+    , RequestLoadingStatus
     ) where
 
 import Application.Helper.FrontendContract.DSL
@@ -75,6 +76,7 @@ data DialogPointerDismissBlur
 data NavigationLoading
 data ToastMount
 data ToastClose
+data RequestLoadingStatus
 
 type OverlayContract =
     Global Overlay
@@ -115,4 +117,5 @@ type OverlayContract =
          , DomAttr ToastMount
          , DomAttr ToastClose
          , DomAttr ToastConfig
+         , DomAttr RequestLoadingStatus
          ]

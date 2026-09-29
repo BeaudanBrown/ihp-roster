@@ -83,6 +83,7 @@ renderAppHeader =
                         <span class="navbar-toggler-icon"></span>
                     </button>
                 </nav>
+                {renderRequestLoadingStatus}
             </header>
             <div class="offcanvas offcanvas-start app-mobile-nav d-xl-none" tabindex="-1" id="app-mobile-nav" aria-labelledby="app-mobile-nav-title">
                 <div class="offcanvas-header app-mobile-nav-header">
