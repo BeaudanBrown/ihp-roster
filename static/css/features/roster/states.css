@@ -107,7 +107,7 @@
         inset 0 1px 0 color-mix(in srgb, var(--app-white) 12%, transparent),
         inset 0 -1px 0 color-mix(in srgb, var(--app-bg) 22%, transparent);
     text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent);
-    transition: box-shadow 140ms ease;
+    transition: box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 @media (hover: hover) {

@@ -1,5 +1,14 @@
 /* App-wide design tokens. Add semantic variables here before component CSS. */
 :root {
+    /* Shared presentation timings; lifecycle code must not assume these durations. */
+    --app-motion-duration-fast: 120ms;
+    --app-motion-duration-control: 140ms;
+    --app-motion-duration-arrival: 160ms;
+    --app-motion-duration-arrival-slide: 180ms;
+    --app-motion-duration-panel: 200ms;
+    --app-motion-duration-shelf: 220ms;
+    --app-motion-easing-standard: ease;
+    --app-motion-easing-arrival: ease-out;
     --app-density-font-scale: 1;
     --app-density-space-scale: 1;
     --app-density-control-scale: 1;

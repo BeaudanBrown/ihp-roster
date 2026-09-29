@@ -111,7 +111,7 @@ article.roster-shift-card.is-roster-shift-open {
 .roster-shift-card.roster-shift-launcher {
     cursor: pointer;
     outline: none;
-    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, background 140ms ease;
+    transition: border-color var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard), transform var(--app-motion-duration-control) var(--app-motion-easing-standard), background var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .roster-shift-card-create {

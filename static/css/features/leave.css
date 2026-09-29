@@ -88,7 +88,7 @@
 .leave-request-row {
     padding: 0.7rem 0;
     border-bottom: 1px solid var(--app-border-alpha-70);
-    transition: background-color 140ms ease, box-shadow 140ms ease;
+    transition: background-color var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .leave-request-row.is-linked-highlight-member {

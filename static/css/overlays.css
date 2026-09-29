@@ -213,7 +213,7 @@
     box-shadow: 0 0.9rem 2rem var(--app-shadow-lg-raw);
     transform: translateY(0);
     opacity: 1;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity var(--app-motion-duration-panel) var(--app-motion-easing-standard), transform var(--app-motion-duration-panel) var(--app-motion-easing-standard);
 }
 
 .app-toast-success {

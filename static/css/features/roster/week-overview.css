@@ -69,7 +69,7 @@
     background: var(--app-white-alpha-02);
     color: var(--app-text);
     font-weight: 700;
-    transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+    transition: background-color var(--app-motion-duration-fast) var(--app-motion-easing-standard), border-color var(--app-motion-duration-fast) var(--app-motion-easing-standard), transform var(--app-motion-duration-fast) var(--app-motion-easing-standard);
 }
 
 .roster-week-overview-day:hover,

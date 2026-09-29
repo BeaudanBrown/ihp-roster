@@ -34,7 +34,7 @@
 
 .roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"] {
     position: relative;
-    transition: background 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+    transition: background var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard), border-color var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"]::after {
@@ -47,7 +47,7 @@
     background: color-mix(in srgb, var(--bs-danger) 8%, transparent);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 140ms ease, background 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+    transition: opacity var(--app-motion-duration-control) var(--app-motion-easing-standard), background var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard), border-color var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 html[data-bepis-active-source-ref="shift-drag-source"] .roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"]::after {

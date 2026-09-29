@@ -181,7 +181,7 @@
     padding: 0.6rem;
     min-height: 8.35rem;
     overflow: hidden;
-    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, background 140ms ease;
+    transition: border-color var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard), transform var(--app-motion-duration-control) var(--app-motion-easing-standard), background var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .timesheet-prefill-card {

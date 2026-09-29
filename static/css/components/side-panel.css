@@ -56,7 +56,7 @@
     padding-inline: var(--app-space-2);
     white-space: nowrap;
     gap: 0;
-    transition: flex-grow 200ms ease;
+    transition: flex-grow var(--app-motion-duration-panel) var(--app-motion-easing-standard);
     border-radius: 0.55rem !important;
     color: var(--app-muted);
     font-size: var(--text-sm);
@@ -100,7 +100,7 @@
     text-overflow: ellipsis;
     opacity: 0;
     margin-inline-start: 0;
-    transition: max-width 200ms ease, margin-inline-start 200ms ease, opacity 200ms ease;
+    transition: max-width var(--app-motion-duration-panel) var(--app-motion-easing-standard), margin-inline-start var(--app-motion-duration-panel) var(--app-motion-easing-standard), opacity var(--app-motion-duration-panel) var(--app-motion-easing-standard);
 }
 
 .app-side-panel-tab.active .app-side-panel-tab-label {
@@ -259,7 +259,7 @@
 .app-side-panel-entry {
     background: var(--app-white-alpha-015);
     cursor: pointer;
-    transition: background-color 140ms ease, box-shadow 140ms ease;
+    transition: background-color var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .app-side-panel-entry th,
@@ -490,7 +490,7 @@
     }
 
     .app-side-panel-shelf-bar i {
-        transition: transform 220ms ease;
+        transition: transform var(--app-motion-duration-shelf) var(--app-motion-easing-standard);
     }
 
     .is-shelf-open > .app-side-panel-region > .app-side-panel-shelf-bar i {
@@ -502,7 +502,7 @@
         overflow: hidden;
         padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         visibility: hidden;
-        transition: visibility 220ms;
+        transition: visibility var(--app-motion-duration-shelf);
     }
 
     .is-shelf-open > .app-side-panel-region > .app-side-panel-shelf-content {

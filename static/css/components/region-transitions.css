@@ -1,6 +1,6 @@
 .app-region-transition {
-    --app-region-transition-duration: 160ms;
-    --app-region-transition-easing: ease-out;
+    --app-region-transition-duration: var(--app-motion-duration-arrival);
+    --app-region-transition-easing: var(--app-motion-easing-arrival);
     will-change: opacity, transform;
 }
 
@@ -23,11 +23,11 @@
 
 .app-region-transition-fade-slide.app-region-transition-after-swap,
 .app-region-transition-panel.app-region-transition-after-swap {
-    animation: app-region-fade-slide-in 180ms var(--app-region-transition-easing);
+    animation: app-region-fade-slide-in var(--app-motion-duration-arrival-slide) var(--app-region-transition-easing);
 }
 
 .app-region-transition-panel {
-    --app-region-transition-duration: 200ms;
+    --app-region-transition-duration: var(--app-motion-duration-panel);
 }
 
 .app-region-transition-panel.app-region-transition-before-swap {

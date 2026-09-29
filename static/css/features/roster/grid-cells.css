@@ -75,7 +75,7 @@
     grid-column: 1 / -1;
     grid-template-columns: subgrid;
     position: relative;
-    transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+    transition: border-color var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard), background var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .roster-grid .roster-shift-create-plus-overlay {
@@ -91,7 +91,7 @@
     opacity: 0;
     pointer-events: none;
     text-align: center;
-    transition: opacity 140ms ease;
+    transition: opacity var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .roster-grid .roster-shift-create-unit:hover .roster-shift-create-plus-overlay,
@@ -137,7 +137,7 @@
     position: relative;
     cursor: pointer;
     outline: none;
-    transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+    transition: background var(--app-motion-duration-control) var(--app-motion-easing-standard), box-shadow var(--app-motion-duration-control) var(--app-motion-easing-standard), transform var(--app-motion-duration-control) var(--app-motion-easing-standard);
 }
 
 .roster-grid .roster-shift-launcher:hover,
