@@ -135,6 +135,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileSecuritySection
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileLeaveSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffDetailsSection
+     , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPayWarningSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPreferencesSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffVisibleUnavailabilityBlackouts
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffLeaveSection

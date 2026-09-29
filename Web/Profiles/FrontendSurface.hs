@@ -69,6 +69,7 @@ staffSurfaceScope scope =
 staffCandidateMountedFragments :: StaffScopeValue -> [FrontendSurfaceMountedFragment]
 staffCandidateMountedFragments scope =
     [ staffDetailsMountedFragment scope
+    , staffPayWarningMountedFragment scope
     , staffPreferencesMountedFragment scope
     , staffVisibleUnavailabilityBlackoutsMountedFragment
     , staffLeaveMountedFragment scope
@@ -82,6 +83,14 @@ staffDetailsMountedFragment scope =
         noSurfaceFields
         noSurfaceFields
         (staffSectionFragmentUrl scope "profile")
+        FrontendSurfaceDirtyForm
+
+staffPayWarningMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
+staffPayWarningMountedFragment scope =
+    frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffPayWarningSection
+        noSurfaceFields
+        noSurfaceFields
+        (staffSectionFragmentUrl scope "pay-warning")
         FrontendSurfaceReplace
 
 staffPreferencesMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
@@ -90,7 +99,7 @@ staffPreferencesMountedFragment scope =
         noSurfaceFields
         noSurfaceFields
         (staffSectionFragmentUrl scope "preferences")
-        FrontendSurfaceReplace
+        FrontendSurfaceDirtyForm
 
 staffVisibleUnavailabilityBlackoutsMountedFragment :: FrontendSurfaceMountedFragment
 staffVisibleUnavailabilityBlackoutsMountedFragment =
@@ -133,7 +142,7 @@ profileDetailsMountedFragment =
         noSurfaceFields
         noSurfaceFields
         (profileSectionFragmentUrl "profile")
-        FrontendSurfaceReplace
+        FrontendSurfaceDirtyForm
 
 profilePreferencesMountedFragment :: FrontendSurfaceMountedFragment
 profilePreferencesMountedFragment =
@@ -141,7 +150,7 @@ profilePreferencesMountedFragment =
         noSurfaceFields
         noSurfaceFields
         (profileSectionFragmentUrl "preferences")
-        FrontendSurfaceReplace
+        FrontendSurfaceDirtyForm
 
 profileSecurityMountedFragment :: FrontendSurfaceMountedFragment
 profileSecurityMountedFragment =

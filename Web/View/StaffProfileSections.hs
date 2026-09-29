@@ -25,7 +25,7 @@ data StaffProfileAccordionSection = StaffProfileAccordionSection
     { staffProfileSectionKey     :: Text
     , staffProfileSectionId      :: Text
     , staffProfileSectionTitle   :: Text
-    , staffProfileSectionWarning :: Maybe Text
+    , staffProfileSectionWarning :: Maybe (Text, Maybe Text)
     , staffProfileSectionBody    :: Html
     }
 
@@ -71,9 +71,9 @@ renderStaffProfileAccordion StaffProfileAccordionConfig { .. } = [hsx|
 |]
 
 renderStaffProfileAccordionSection :: Text -> Text -> StaffProfileAccordionSection -> Html
-renderStaffProfileAccordionSection accordionId openSection StaffProfileAccordionSection { .. } =
+renderStaffProfileAccordionSection accordionId openSection section@StaffProfileAccordionSection { .. } =
     renderAppAccordionItem AppAccordionItemConfig
-        { appAccordionItemId = staffProfileSectionId
+        { appAccordionItemId = staffProfileSectionId <> "-shell"
         , appAccordionItemParentId = accordionId
         , appAccordionItemTitle = staffProfileSectionTitle
         , appAccordionItemIsOpen = openSection == staffProfileSectionKey
@@ -81,10 +81,23 @@ renderStaffProfileAccordionSection accordionId openSection StaffProfileAccordion
         , appAccordionItemBodyClass = ""
         , appAccordionItemButtonContent = [hsx|
             <span class="fw-semibold">{staffProfileSectionTitle}</span>
-            {forEach staffProfileSectionWarning renderStaffProfileSectionWarning}
+            {forEach staffProfileSectionWarning (uncurry renderStaffProfileSectionWarningFragment)}
         |]
-        , appAccordionItemBody = staffProfileSectionBody
+        , appAccordionItemBody = renderStaffProfileSectionContent section
         }
+
+-- Live and validation responses replace content, never Bootstrap's shell.
+renderStaffProfileSectionContent :: StaffProfileAccordionSection -> Html
+renderStaffProfileSectionContent StaffProfileAccordionSection { .. } = [hsx|
+    <div id={staffProfileSectionId}>
+        {staffProfileSectionBody}
+    </div>
+|]
+
+renderStaffProfileSectionWarningFragment :: Text -> Maybe Text -> Html
+renderStaffProfileSectionWarningFragment targetId warning = [hsx|
+    <span id={targetId}>{forEach warning renderStaffProfileSectionWarning}</span>
+|]
 
 renderStaffProfileSectionWarning :: Text -> Html
 renderStaffProfileSectionWarning warningText = [hsx|

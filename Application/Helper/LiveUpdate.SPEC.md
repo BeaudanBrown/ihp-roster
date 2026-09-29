@@ -119,6 +119,21 @@ region never loses focus to an earlier request's initiator; removed controls do
 not redirect focus to unrelated same-ID nodes. Reconnect/version-gap resync uses
 the same path and protection.
 
+Editable fragments may opt into dirty-form protection through their mounted
+runtime descriptor. Background refreshes defer while any owned form is dirty,
+has validation errors, or has an outstanding submission—even after focus leaves
+the form. Deferred work retains invalidation, not response HTML, and refetches
+when safe. A successful response explicitly acknowledges the submitted snapshot;
+HTTP success alone is not an acknowledgement. Newer edits remain dirty, and an
+older validation response cannot replace them. Validation replaces only the
+submitted section. Form state belongs to the concrete DOM lifetime and is not
+transferred to a reopened dialog. Existing per-form HTMX synchronization remains
+the write-ordering authority; this protection does not cancel or reorder writes.
+
+Staff/Profile accordions keep their Bootstrap shells outside live targets.
+Editable content and changing header warnings use separate targets so freshness
+does not change expansion state or require replacing an unrelated form.
+
 UI-region lifecycle is opt-in only for server-declared fragment roots. Ordinary
 forms, dialogs/pickers/toasts, navigation swaps, autosave controls, and one-off
 HTMX snippets do not become regions without a typed Haskell fragment contract.

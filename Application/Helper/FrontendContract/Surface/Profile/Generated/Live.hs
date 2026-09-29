@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.Surface.Profile.Generated.Live
     , matchStaffDetailsSectionLiveFragment
     , matchStaffLeaveSectionLiveFragment
     , matchStaffLiveScope
+    , matchStaffPayWarningSectionLiveFragment
     , matchStaffPreferencesSectionLiveFragment
     , matchStaffVisibleUnavailabilityBlackoutsLiveFragment
     , profileDetailsSectionLiveFragment
@@ -21,6 +22,7 @@ module Application.Helper.FrontendContract.Surface.Profile.Generated.Live
     , staffDetailsSectionLiveFragment
     , staffLeaveSectionLiveFragment
     , staffLiveScope
+    , staffPayWarningSectionLiveFragment
     , staffPreferencesSectionLiveFragment
     , staffVisibleUnavailabilityBlackoutsLiveFragment
     ) where
@@ -154,6 +156,19 @@ matchStaffLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.StaffAdapterFamily)
         @Types1.StaffScope
+
+staffPayWarningSectionLiveFragment :: SurfaceFragmentKey
+staffPayWarningSectionLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.StaffAdapterFamily)
+        @Types1.StaffPayWarningSection
+        noSurfaceFields
+
+matchStaffPayWarningSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchStaffPayWarningSectionLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.StaffAdapterFamily)
+        @Types1.StaffPayWarningSection
 
 staffPreferencesSectionLiveFragment :: SurfaceFragmentKey
 staffPreferencesSectionLiveFragment =

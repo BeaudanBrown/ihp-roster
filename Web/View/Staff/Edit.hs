@@ -191,7 +191,7 @@ renderStaffEditBody formMode staffEditBodyContext@StaffEditBodyRenderContext { s
                         { staffProfileSectionKey = "profile"
                         , staffProfileSectionId = staffProfileDetailsSectionId
                         , staffProfileSectionTitle = "Profile Details"
-                        , staffProfileSectionWarning = if staffPayConfigurationRequired then Just staffPayConfigurationWarningText else Nothing
+                        , staffProfileSectionWarning = Just (staffPayWarningFragmentId, staffPayWarning staffPayConfigurationRequired)
                         , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
                         }
                     , StaffProfileAccordionSection
@@ -278,10 +278,19 @@ renderStaffEditSectionFragment formMode staffEditContext =
                 { staffProfileSectionKey = "profile"
                 , staffProfileSectionId = staffProfileDetailsSectionId
                 , staffProfileSectionTitle = "Profile Details"
-                , staffProfileSectionWarning = if staffPayConfigurationRequired then Just staffPayConfigurationWarningText else Nothing
+                , staffProfileSectionWarning = Just (staffPayWarningFragmentId, staffPayWarning staffPayConfigurationRequired)
                 , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
                 }
-     in renderStaffProfileAccordionSection staffSectionsAccordionId section.staffProfileSectionKey section
+     in renderStaffProfileSectionContent section
+
+staffPayWarningFragmentId :: Text
+staffPayWarningFragmentId = surfaceFragmentTargetId @Surface.StaffSurface @Surface.StaffPayWarningSection noSurfaceFields
+
+staffPayWarning :: Bool -> Maybe Text
+staffPayWarning required = if required then Just staffPayConfigurationWarningText else Nothing
+
+renderStaffPayWarningFragment :: Bool -> Html
+renderStaffPayWarningFragment = renderStaffProfileSectionWarningFragment staffPayWarningFragmentId . staffPayWarning
 
 staffLeaveRequestFormFragmentId :: Text
 staffLeaveRequestFormFragmentId = "staff-leave-request-form-fragment"

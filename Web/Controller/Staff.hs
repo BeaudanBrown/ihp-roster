@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequest
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
                                                                     rosterWeekResource)
+import Application.Helper.FrontendContract.Surface.Runtime (frontendSurfaceFormSavedHeader)
 import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
@@ -170,7 +171,9 @@ instance Controller StaffController where
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
         let staffEditContext = StaffEditRenderContext { .. }
-        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staffEditContext)
+        if paramOrDefault @Text "" "section" == "pay-warning"
+            then respondHtml (renderStaffPayWarningFragment staffPayConfigurationRequired)
+            else respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staffEditContext)
 
     action currentAction@UpdateStaffAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -229,11 +232,12 @@ instance Controller StaffController where
                             , staffCredentialControlsAllowed
                             }
                  in if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staffEditBodyContext)
+                        then respondHtml (renderStaffEditSectionFragment HtmxOverlayForm renderedStaffEditContext)
                         else render EditView { .. }
         let respondStaffUpdateSuccess mutationResult successMessage =
                 if isHtmxRequest
                     then do
+                        setHeader (fromString (cs frontendSurfaceFormSavedHeader), "true")
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
                         let rosterWindowScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate
                         let windowStart = rosterWindowScope.rosterWindowStart
@@ -266,7 +270,7 @@ instance Controller StaffController where
                         setErrorMessage preferenceError
                         renderStaffEditResponse staff currentSelectedRosterGroupIds selectedShiftPreferences
                     Right submittedSelections -> do
-                        updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections Nothing Nothing >>= \case
+                        updateStaffShiftPreferences staff submittedSelections >>= \case
                             Nothing -> do
                                 setErrorMessage "This staff member is no longer active."
                                 renderStaffEditResponse originalStaff currentSelectedRosterGroupIds selectedShiftPreferences
@@ -288,7 +292,7 @@ instance Controller StaffController where
                             Right validStaff ->
                                 case (maybeSelectedRosterGroupIds, maybeSubmittedVenueRole, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                                     (Just selectedRosterGroupIds, Just submittedVenueRole, Just _, Just _) -> do
-                                        updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences maybeVenueMembership submittedVenueRole >>= \case
+                                        updateStaffMember originalStaff validStaff selectedRosterGroupIds maybeVenueMembership submittedVenueRole >>= \case
                                             Nothing -> do
                                                 setErrorMessage "This staff member is no longer active."
                                                 renderStaffEditResponse originalStaff currentSelectedRosterGroupIds selectedShiftPreferences

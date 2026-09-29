@@ -10,6 +10,7 @@ module Web.Staff.Mutations
     , staffUpdateTouchedResources
     , staffXeroPayItemScopeChanged
     , updateStaffMember
+    , updateStaffShiftPreferences
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
@@ -404,8 +405,25 @@ staffCreateTouchedResources staff =
     , staffPreferencesResource (unpackId staff.id)
     ]
 
-updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (Maybe (LiveMutationResult Staff))
-updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections maybeMembership maybeVenueRole =
+-- Preference-only saves must not rewrite a stale profile or group assignment.
+updateStaffShiftPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> [ShiftPreferenceSelection] -> IO (Maybe (LiveMutationResult Staff))
+updateStaffShiftPreferences staff submittedSelections =
+    withDurableLiveMutationOutcome (fmap (\result -> ("staff.preferences.update", result.liveMutationTouchedResources))) do
+        fmap join $ withStaffOperationalLocksInCurrentTransaction [unpackId staff.id] do
+            lockedStaff <- fetch staff.id
+            if not lockedStaff.isActive || isJust lockedStaff.archivedAt
+                then pure Nothing
+                else do
+                    replaceStaffShiftPreferences lockedStaff submittedSelections
+                    groupIds <- fetchStaffRosterGroupIds lockedStaff
+                    let resources =
+                            [ leaveAvailabilityWarningsResource lockedStaff.venueId
+                            , staffPreferencesResource (unpackId lockedStaff.id)
+                            ] <> activeRosterResourcesForStaffGroups lockedStaff.venueId [] groupIds
+                    pure (Just (liveMutationResult lockedStaff resources))
+
+updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (Maybe (LiveMutationResult Staff))
+updateStaffMember originalStaff staff selectedRosterGroupIds maybeMembership maybeVenueRole =
     withDurableLiveMutationOutcome publicationFor do
         previousRosterGroupIds <- fetchStaffRosterGroupIds originalStaff
         maybeUpdatedStaff <- fmap join $ withStaffOperationalLocksInCurrentTransaction [unpackId originalStaff.id] do
@@ -415,7 +433,6 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
                 else do
                     updatedStaff <- staff |> updateRecord
                     syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
-                    replaceStaffShiftPreferences updatedStaff submittedSelections
                     when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
                         today <- utctDay <$> getCurrentTime
                         void (ensureStaffPayVersionForStaff authenticatedCurrentUser.id updatedStaff today)
@@ -443,7 +460,6 @@ staffUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 staffUpdateTouchedResources staff =
     [ leaveAvailabilityWarningsResource staff.venueId
     , staffProfileResource (unpackId staff.id)
-    , staffPreferencesResource (unpackId staff.id)
     ]
 
 staffRosterGroupResources :: UUID -> [(UUID, UUID, Day, Day, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]

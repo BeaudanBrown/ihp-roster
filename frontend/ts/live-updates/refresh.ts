@@ -2,6 +2,8 @@ import { surfaceConfigDomAttr } from "../generated/contracts";
 import { resolveLiveFragmentInteractionConflict, type ActiveInteractionSessionTracker } from "../interaction/live-conflicts";
 import type { createLiveUpdateDiagnostics } from "./diagnostics";
 import { createFocusedFieldProtection } from "./focus";
+import { createDirtyFormProtection } from "./forms";
+import { readFrontendSurfaceMountElement } from "./mount";
 import { decorateSurfaceFragmentRequest } from "./request-context";
 import type { LiveUpdateFragmentWithState } from "./runtime-types";
 
@@ -9,6 +11,8 @@ export type LiveFragmentRefresher = {
     activateOwner(ownerEl: HTMLElement): void;
     disposeOwner(ownerEl: HTMLElement): void;
     markProtectionChanged(target: Element): void;
+    formChanged(target: Element): void;
+    handleFormEvent(event: Event): void;
     request(fragment: LiveUpdateFragmentWithState): void;
     flushInteractionDeferredFragmentsWithoutActiveSessions(): void;
     flushFocusedFragmentsWithoutActiveInputs(): void;
@@ -43,12 +47,23 @@ export function createLiveFragmentRefresher(options: {
     const { targetWindow, targetDocument, diagnostics, activeInteractionSessions } = options;
     const { beginPerfSpan, endPerfSpan, emitDebugEvent } = diagnostics;
     const focus = createFocusedFieldProtection(targetWindow, targetDocument);
+    const forms = createDirtyFormProtection(targetDocument, (ownerEl, targetId) => {
+        const fragment = readFrontendSurfaceMountElement(ownerEl)?.fragments.find((candidate) => candidate.targetId === targetId);
+        if (fragment) request({ ...fragment, ownerEl });
+    });
     const ownerStates = new Map<HTMLElement, OwnerRefreshState>();
     let generation = 1;
     let stopped = false;
 
     function activateOwner(ownerEl: HTMLElement): void {
         if (stopped) return;
+        for (const fragment of readFrontendSurfaceMountElement(ownerEl)?.fragments ?? []) {
+            const target = targetDocument.getElementById(fragment.targetId);
+            if (fragment.protection.kind === "dirty-form" && target instanceof HTMLElement
+                && target.closest(`[${surfaceConfigDomAttr}]`) === ownerEl) {
+                forms.register(ownerEl, target, fragment.protection);
+            }
+        }
         const existing = ownerStates.get(ownerEl);
         if (existing) {
             existing.active = true;
@@ -183,6 +198,10 @@ export function createLiveFragmentRefresher(options: {
         const target = resolveOwnedTarget(fragment);
         if (!target || !requestIsCurrent(state, fragment.targetId, slot)) {
             endPerfSpan(perfSpan, { outcome: "stale_before_fetch" });
+            return;
+        }
+        if (deferForCurrentProtection(state, slot, fragment, target)) {
+            endPerfSpan(perfSpan, { outcome: "deferred_before_fetch" });
             return;
         }
         function fenceForCurrentProtection(stage: "response" | "body", status: number): boolean {
@@ -329,7 +348,7 @@ export function createLiveFragmentRefresher(options: {
         }
 
         clearInteractionDeferredFragment(state, fragment.targetId);
-        if (fragment.protection.kind === "focused-field" && focus.hasProtectedActiveInput(target, fragment)) {
+        if (isFormProtected(target, fragment) || focus.hasProtectedActiveInput(target, fragment)) {
             state.pendingFocused.set(fragment.targetId, focus.captureDeferredState(target, fragment));
             if (slot) slot.next = null;
             targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
@@ -340,6 +359,10 @@ export function createLiveFragmentRefresher(options: {
 
         state.pendingFocused.delete(fragment.targetId);
         return false;
+    }
+
+    function isFormProtected(target: HTMLElement, fragment: LiveUpdateFragmentWithState): boolean {
+        return fragment.protection.kind === "dirty-form" && forms.protectedTarget(target, fragment.ownerEl);
     }
 
     function request(fragment: LiveUpdateFragmentWithState): void {
@@ -382,7 +405,7 @@ export function createLiveFragmentRefresher(options: {
             Array.from(state.pendingFocused.entries()).forEach(([targetId, fragment]) => {
                 const target = resolveOwnedTarget(fragment);
                 if (target && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
-                if (!target || !focus.hasProtectedActiveInput(target, fragment)) {
+                if (!target || (!isFormProtected(target, fragment) && !focus.hasProtectedActiveInput(target, fragment))) {
                     state.pendingFocused.delete(targetId);
                     emitDebugEvent("deferred_fragment_flush", { targetId, reason: "inactive_input" });
                     queueFragment(fragment);
@@ -402,6 +425,14 @@ export function createLiveFragmentRefresher(options: {
         activateOwner,
         disposeOwner,
         markProtectionChanged,
+        formChanged(target) {
+            forms.changed(target);
+            markProtectionChanged(target);
+        },
+        handleFormEvent(event) {
+            if (event.type === "htmx:afterSwap") forms.afterSwap(event);
+            else forms.handleEvent(event);
+        },
         request,
         flushInteractionDeferredFragmentsWithoutActiveSessions,
         flushFocusedFragmentsWithoutActiveInputs,

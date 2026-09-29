@@ -13,7 +13,8 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Application.Helper.FrontendContract.Surface.Runtime
-    ( FrontendSurfaceFocusedFieldProtectionConfig (..)
+    ( frontendSurfaceFormSavedHeader
+    , FrontendSurfaceFocusedFieldProtectionConfig (..)
     , FrontendSurfaceLazyFragmentConfig (..)
     , FrontendSurfaceLazyFragmentDefaults (..)
     , FrontendSurfaceActionRoute (..)
@@ -211,7 +212,12 @@ data FrontendSurfaceFocusedFieldProtectionConfig = FrontendSurfaceFocusedFieldPr
 data FrontendSurfaceProtection
     = FrontendSurfaceReplace
     | FrontendSurfaceFocusedFieldConfig !FrontendSurfaceFocusedFieldProtectionConfig
+    | FrontendSurfaceDirtyForm
     deriving (Eq, Show)
+
+-- Explicit acknowledgement: an HTTP 200 may instead contain validation errors.
+frontendSurfaceFormSavedHeader :: Text
+frontendSurfaceFormSavedHeader = "X-Bepis-Form-Saved"
 
 frontendSurfaceMountedFragmentFor ::
     forall spec marker.
@@ -648,6 +654,11 @@ mountedFragmentToJson fragment =
 
 protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 protectionToJson = \case
+    FrontendSurfaceDirtyForm ->
+        Aeson.object
+            [ "kind" Aeson..= ("dirty-form" :: Text)
+            , "savedHeader" Aeson..= frontendSurfaceFormSavedHeader
+            ]
     FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("replace" :: Text)]
     FrontendSurfaceFocusedFieldConfig config ->
         Aeson.object
