@@ -114,6 +114,44 @@ test.describe('Roster mobile baseline', () => {
         await expect(page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`)).toBeFocused();
     });
 
+    test('shelf snaps to simulated keyboard insets and real viewport resize', async ({ page }) => {
+        const geometry = await page.evaluate(async ({ toggleAttr, panelAttr }) => {
+            const bar = document.querySelector<HTMLButtonElement>(`[${toggleAttr}]`)!;
+            const panel = document.querySelector<HTMLElement>(`[${panelAttr}]`)!;
+            const viewport = window.visualViewport!;
+            const height = viewport.height;
+            const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+            bar.click();
+            // Chromium headless has no software keyboard: exercise its visual
+            // viewport resize boundary explicitly, without changing layout size.
+            Object.defineProperty(viewport, 'height', { configurable: true, value: height - 240 });
+            try {
+                viewport.dispatchEvent(new Event('resize'));
+                const motionCancelled = !panel.classList.contains('app-shelf-motion') && !panel.getAnimations().some(animation => 'transitionProperty' in animation && animation.transitionProperty === 'transform');
+                await frame();
+                return { motionCancelled, bottom: panel.getBoundingClientRect().bottom,
+                    expectedBottom: viewport.offsetTop + viewport.height,
+                    locked: document.documentElement.classList.contains('app-page-scroll-locked') };
+            } finally {
+                Reflect.deleteProperty(viewport, 'height');
+                viewport.dispatchEvent(new Event('resize'));
+            }
+        }, { toggleAttr: rosterSidePanelShelfToggleDomAttr, panelAttr: rosterSidePanelPanelDomAttr });
+        expect(geometry.motionCancelled, JSON.stringify(geometry)).toBe(true);
+        expect(geometry.locked).toBe(true);
+        expect(Math.abs(geometry.bottom - geometry.expectedBottom)).toBeLessThan(2);
+        const viewport = page.viewportSize()!;
+        await page.setViewportSize({ width: viewport.width, height: viewport.height - 120 });
+        await expect.poll(() => page.locator(`[${rosterSidePanelPanelDomAttr}]`).evaluate(panel => {
+            const viewport = window.visualViewport!;
+            return Math.abs(panel.getBoundingClientRect().bottom - viewport.offsetTop - viewport.height);
+        })).toBeLessThan(2);
+        await expect(page.locator(`[${rosterSidePanelPanelDomAttr}]`)).not.toHaveClass(/app-shelf-motion/);
+        await page.keyboard.press('Escape');
+        await expect(page.locator(`[${rosterSidePanelShelfToggleDomAttr}]`)).toBeFocused();
+        expect(await page.evaluate(() => document.documentElement.classList.contains('app-page-scroll-locked'))).toBe(false);
+    });
+
     test('fits the Published roster email confirmation within the viewport', async ({ page }) => {
         runSql(`
             INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)

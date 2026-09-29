@@ -453,6 +453,8 @@
         border-top: 1px solid var(--app-border-strong);
         border-radius: var(--app-radius-md) var(--app-radius-md) 0 0;
         box-shadow: 0 -0.5rem 1.5rem var(--app-shadow-xl-raw);
+        /* Removing the motion class must cancel an already-running transform. */
+        transition: none;
         /* Viewport changes must never animate the closed footer's position. */
     }
 
