@@ -207,6 +207,7 @@ type LeaveRequestsSurface =
             '[ Field ArchivePage 'WireInt ]
             '[ 'HtmxMethod 'HtmxGet
              , 'HtmxTarget ('HtmxId LeaveArchivePageContent)
+             , 'HtmxSync ('HtmxSyncOn ('HtmxId LeaveArchivePageContent) 'HtmxSyncReplace)
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlTrue
              ]

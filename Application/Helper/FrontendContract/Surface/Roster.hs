@@ -620,28 +620,28 @@ type RosterActionBundle =
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action ToggleRosterWageEstimates
         '[ Field ShowWageEstimates 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action ToggleRosterManagerMode
         '[ Field ManagerModeEnabled 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action ToggleRosterOwnLiveShiftHighlight
         '[ Field HighlightOwnLiveShifts 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action SortRosterWeek
         '[ Field RosterCalendarRevision 'WireInt ]
@@ -649,7 +649,7 @@ type RosterActionBundle =
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action ToggleRosterWeekLiveStatus
         '[ Field IsLive 'WireBool
@@ -659,7 +659,7 @@ type RosterActionBundle =
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action ShowRosterNotificationConfirmation
         '[ Field RosterGroupId 'WireUUID
@@ -690,7 +690,7 @@ type RosterActionBundle =
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action OpenCopyRosterWeekConfirmation
         '[ Field RosterCalendarRevision 'WireInt ]
@@ -705,7 +705,7 @@ type RosterActionBundle =
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action CreateRosterWeekSlotDefinition
         '[ Field RosterCalendarRevision 'WireInt ]
@@ -713,7 +713,7 @@ type RosterActionBundle =
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action DeleteRosterWeekSlotDefinition
         '[ Field RosterCalendarRevision 'WireInt ]
@@ -721,28 +721,28 @@ type RosterActionBundle =
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action ToggleRosterDayClosed
         '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action AddRosterRow
         '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action RemoveRosterRow
         '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
-         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncQueueAll)
          ]
      , Action ApplyRosterTemplateApplication
         '[ Field TemplateId 'WireUUID
@@ -812,6 +812,7 @@ type RosterActionBundle =
         '[ Field StaffScope ('WireClosed RosterStaffScopeValue) ]
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId RosterStaffPanelFragment)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterStaffPanelFragment) 'HtmxSyncReplace)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]

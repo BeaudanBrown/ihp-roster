@@ -228,6 +228,7 @@
   }
   var regionLoadingDomAttr = "data-bepis-region-loading";
   var regionBackgroundDomAttr = "data-bepis-region-background";
+  var navigationWriteBarrierDomAttr = "data-bepis-navigation-write-barrier";
   function isInteractionFieldPresence(value) {
     return typeof value === "string" && ["required", "optional"].includes(value);
   }
@@ -2271,6 +2272,63 @@
     };
   }
 
+  // frontend/ts/fragments/navigation-writes.ts
+  function enableNavigationWriteBarrier(root = document) {
+    const writes = /* @__PURE__ */ new Map();
+    const reads = /* @__PURE__ */ new Map();
+    const waiting = /* @__PURE__ */ new Map();
+    let stopped = false;
+    const detail = (event) => event.detail ?? {};
+    const isRead = (verb) => verb?.toLowerCase() === "get" || verb?.toLowerCase() === "head";
+    const guarded = (target) => target?.getAttribute(navigationWriteBarrierDomAttr) === "true";
+    function drain() {
+      queueMicrotask(() => {
+        if (stopped || writes.size) return;
+        for (const [target, request] of waiting) {
+          waiting.delete(target);
+          if (target.isConnected && request.source.isConnected) request.resume();
+        }
+      });
+    }
+    const onConfirm = (event) => {
+      const request = detail(event);
+      if (event.defaultPrevented) return;
+      if (isRead(request.verb)) {
+        if (!guarded(request.target) || !writes.size || !request.target || !request.elt || !request.issueRequest) return;
+        event.preventDefault();
+        const issueRequest = request.issueRequest;
+        waiting.set(request.target, { source: request.elt, resume: () => issueRequest(false) });
+      } else if (request.verb) {
+        for (const xhr of reads.keys()) xhr.abort();
+      }
+    };
+    const onSend = (event) => {
+      const request = detail(event);
+      const xhr = request.xhr;
+      if (!xhr || !request.requestConfig?.verb) return;
+      const read = isRead(request.requestConfig.verb);
+      if (read && !guarded(request.target)) return;
+      const active = read ? reads : writes;
+      if (active.has(xhr)) return;
+      const finish = () => {
+        xhr.removeEventListener("loadend", finish);
+        active.delete(xhr);
+        if (!read) drain();
+      };
+      active.set(xhr, finish);
+      xhr.addEventListener("loadend", finish, { once: true });
+    };
+    root.addEventListener("htmx:confirm", onConfirm);
+    root.addEventListener("htmx:beforeSend", onSend);
+    return () => {
+      stopped = true;
+      waiting.clear();
+      for (const dispose of [...reads.values(), ...writes.values()]) dispose();
+      root.removeEventListener("htmx:confirm", onConfirm);
+      root.removeEventListener("htmx:beforeSend", onSend);
+    };
+  }
+
   // frontend/ts/live-updates/lazy-surface.ts
   var lazySurfaceSelector = `[${lazySurfaceDomAttr}="true"]`;
   var lazySurfaceRetrySelector = `[${lazySurfaceDomAttr}="true"][${lazyRetryDomAttr}="true"]`;
@@ -3413,6 +3471,7 @@
   }
 
   // frontend/ts/app-live-updates.ts
+  enableNavigationWriteBarrier();
   enableHtmxUiRegionEventAdapter();
   enableUiRegionTransitions();
   enableRegionFeedback(document, (visible) => {

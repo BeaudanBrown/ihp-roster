@@ -564,6 +564,8 @@ export const regionLoadingDomAttr = "data-bepis-region-loading" as const;
 
 export const regionBackgroundDomAttr = "data-bepis-region-background" as const;
 
+export const navigationWriteBarrierDomAttr = "data-bepis-navigation-write-barrier" as const;
+
 export type InteractionActivationTrigger =
     "click"
   | "change"

@@ -560,7 +560,7 @@ showXeroTimesheetPreparationStaffMappingsActionFields showMatched editStaffId =
 
 showXeroTimesheetPreparationStaffMappingsActionEvidence :: ActionEvidence ShowXeroTimesheetPreparationStaffMappingsActionOperation
 showXeroTimesheetPreparationStaffMappingsActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ShowXeroTimesheetPreparationStaffMappings" "show-xero-timesheet-preparation-staff-mappings" [SurfaceIR.FieldIR "ShowMatched" "showMatched" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EditStaffId" "editStaffId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#xero-preparation-staff-mappings" ["xero-preparation-staff-mappings"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ShowXeroTimesheetPreparationStaffMappings" "show-xero-timesheet-preparation-staff-mappings" [SurfaceIR.FieldIR "ShowMatched" "showMatched" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "EditStaffId" "editStaffId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#xero-preparation-staff-mappings:replace" ["xero-preparation-staff-mappings"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#xero-preparation-staff-mappings" ["xero-preparation-staff-mappings"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
 
 showXeroTimesheetPreparationStaffMappingsAction :: ActionFields ShowXeroTimesheetPreparationStaffMappingsActionOperation -> FrontendSurfaceAction
 showXeroTimesheetPreparationStaffMappingsAction =
@@ -610,7 +610,7 @@ toggleInactiveRosterGroupsActionFields showInactiveRosterGroups =
 
 toggleInactiveRosterGroupsActionEvidence :: ActionEvidence ToggleInactiveRosterGroupsActionOperation
 toggleInactiveRosterGroupsActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleInactiveRosterGroups" "toggle-inactive-roster-groups" [SurfaceIR.FieldIR "ShowInactiveRosterGroups" "showInactiveRosterGroups" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-roster-groups-fragment" ["admin-roster-groups-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleInactiveRosterGroups" "toggle-inactive-roster-groups" [SurfaceIR.FieldIR "ShowInactiveRosterGroups" "showInactiveRosterGroups" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-roster-groups-fragment:replace" ["admin-roster-groups-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-roster-groups-fragment" ["admin-roster-groups-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 toggleInactiveRosterGroupsAction :: ActionFields ToggleInactiveRosterGroupsActionOperation -> FrontendSurfaceAction
 toggleInactiveRosterGroupsAction =
@@ -648,7 +648,7 @@ toggleInactiveShiftTypesActionFields showInactiveShiftTypes =
 
 toggleInactiveShiftTypesActionEvidence :: ActionEvidence ToggleInactiveShiftTypesActionOperation
 toggleInactiveShiftTypesActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleInactiveShiftTypes" "toggle-inactive-shift-types" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleInactiveShiftTypes" "toggle-inactive-shift-types" [SurfaceIR.FieldIR "ShowInactiveShiftTypes" "showInactiveShiftTypes" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment:replace" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-shift-types-fragment" ["admin-shift-types-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" []))])
 
 toggleInactiveShiftTypesAction :: ActionFields ToggleInactiveShiftTypesActionOperation -> FrontendSurfaceAction
 toggleInactiveShiftTypesAction =

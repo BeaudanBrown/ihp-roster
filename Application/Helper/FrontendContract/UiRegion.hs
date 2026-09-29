@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.UiRegion
     , SharedStatus
     , RegionLoading
     , RegionBackground
+    , NavigationWriteBarrier
     , UiRegionLifecycleEvent
     , RequestStart
     , BeforeSwap
@@ -50,6 +51,7 @@ data Quiet
 data SharedStatus
 data RegionLoading
 data RegionBackground
+data NavigationWriteBarrier
 
 data UiRegionLifecycleEvent
 data RequestStart
@@ -87,4 +89,5 @@ type UiRegionContract =
          , BrowserGuardSchema (Enum UiRegionLoadingPolicy '[Dim, Quiet, SharedStatus])
          , DomAttr RegionLoading
          , DomAttr RegionBackground
+         , DomAttr NavigationWriteBarrier
          ]

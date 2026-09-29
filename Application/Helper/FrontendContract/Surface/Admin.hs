@@ -391,6 +391,7 @@ type AdminShiftTypesSurface =
          , Action ToggleInactiveShiftTypes
             '[ Field ShowInactiveShiftTypes 'WireBool ]
             '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxSync ('HtmxSyncOn ('HtmxId AdminShiftTypesFragment) 'HtmxSyncReplace)
              , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
              , 'HtmxSwap 'HtmxOuterHTML
              ]
@@ -441,6 +442,7 @@ type AdminRosterGroupsSurface =
          , Action ToggleInactiveRosterGroups
             '[ Field ShowInactiveRosterGroups 'WireBool ]
             '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxSync ('HtmxSyncOn ('HtmxId AdminRosterGroupsFragment) 'HtmxSyncReplace)
              , 'HtmxTarget ('HtmxId AdminRosterGroupsFragment)
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
@@ -473,6 +475,7 @@ type AdminXeroSurface =
              , OptionalField EditStaffId 'WireUUID
              ]
             '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxSync ('HtmxSyncOn ('HtmxId XeroPreparationStaffMappings) 'HtmxSyncReplace)
              , 'HtmxTarget ('HtmxId XeroPreparationStaffMappings)
              , 'HtmxSwap 'HtmxOuterHTML
              ]

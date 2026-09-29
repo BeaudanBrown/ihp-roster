@@ -94,7 +94,7 @@ archiveLeaveRequestsPageActionFields archivePage =
 
 archiveLeaveRequestsPageActionEvidence :: ActionEvidence ArchiveLeaveRequestsPageActionOperation
 archiveLeaveRequestsPageActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ArchiveLeaveRequestsPage" "archive-leave-requests-page" [SurfaceIR.FieldIR "ArchivePage" "archivePage" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#leave-archive-page-content" ["leave-archive-page-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "ArchiveLeaveRequestsPage" "archive-leave-requests-page" [SurfaceIR.FieldIR "ArchivePage" "archivePage" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#leave-archive-page-content" ["leave-archive-page-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#leave-archive-page-content:replace" ["leave-archive-page-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR)])
 
 archiveLeaveRequestsPageAction :: ActionFields ArchiveLeaveRequestsPageActionOperation -> FrontendSurfaceAction
 archiveLeaveRequestsPageAction =
