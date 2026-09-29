@@ -9,6 +9,12 @@ module Application.Helper.FrontendContract.UiRegion
     , Fade
     , FadeSlide
     , Panel
+    , UiRegionLoadingPolicy
+    , Dim
+    , Quiet
+    , SharedStatus
+    , RegionLoading
+    , RegionBackground
     , UiRegionLifecycleEvent
     , RequestStart
     , BeforeSwap
@@ -36,6 +42,14 @@ data None
 data Fade
 data FadeSlide
 data Panel
+
+-- Loading and arrival are independent: RegionTransition remains the arrival override.
+data UiRegionLoadingPolicy
+data Dim
+data Quiet
+data SharedStatus
+data RegionLoading
+data RegionBackground
 
 data UiRegionLifecycleEvent
 data RequestStart
@@ -70,4 +84,7 @@ type UiRegionContract =
          , ServerDomAttr LazyFragment
          , DomAttr LazyRetry
          , DomAttr RegionTransition
+         , BrowserGuardSchema (Enum UiRegionLoadingPolicy '[Dim, Quiet, SharedStatus])
+         , DomAttr RegionLoading
+         , DomAttr RegionBackground
          ]

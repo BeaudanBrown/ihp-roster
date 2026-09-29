@@ -9,6 +9,7 @@ import "./roster-week-overview.test";
 import "./interaction-contracts.test";
 import "./interaction-runtime.test";
 import "./shared.test";
+import "./region-policy.test";
 import "./toggle.test";
 import "./checkbox-lists.test";
 import "./time-picker.test";

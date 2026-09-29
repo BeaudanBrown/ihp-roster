@@ -1887,11 +1887,108 @@
     onAppPageReady(initPasskeys);
   })();
 
+  // frontend/ts/live-updates/mount.ts
+  function parseFrontendSurfaceSubscriptionConfig(value) {
+    let config;
+    try {
+      config = parseFrontendSurfaceMountConfig(value);
+    } catch {
+      return null;
+    }
+    if (!config.subscription) return null;
+    const resyncFragments = config.fragments.filter((fragment) => isFrontendSurfaceLiveFragmentName(config.surface, fragment.fragmentKey.kind));
+    if (resyncFragments.length === 0) return null;
+    return {
+      scope: config.subscription.scope,
+      scopeKey: config.scopeKey,
+      socketPath: `/${liveUpdateSocketPath}`,
+      resyncFragments,
+      renderedDependencyWatermark: config.subscription.renderedDependencyWatermark
+    };
+  }
+  function readFrontendSurfaceMountElement(ownerEl, reportError2) {
+    const rawConfig = ownerEl.getAttribute(surfaceConfigDomAttr);
+    if (!rawConfig) return null;
+    let config;
+    try {
+      config = parseFrontendSurfaceMountConfig(JSON.parse(rawConfig));
+    } catch (error) {
+      reportError2?.(ownerEl, error instanceof Error ? error : new Error(String(error)));
+      return null;
+    }
+    const ownerSurface = ownerEl.getAttribute(surfaceDomAttr);
+    if (!frontendSurfaceMountMatchesOwnerSurface(config, ownerSurface)) {
+      reportError2?.(ownerEl, new Error(`FrontendSurface DOM/config mismatch: ${ownerSurface ?? "missing"} != ${config.surface}`));
+      return null;
+    }
+    return config;
+  }
+  function frontendSurfaceMountMatchesOwnerSurface(config, ownerSurface) {
+    return ownerSurface === config.surface;
+  }
+  function frontendSurfaceInstanceId(config) {
+    return `${config.surface}:${config.scopeKey}:${config.mountKey}`;
+  }
+  function scanFrontendSurfaceMountInstances(root, reportError2) {
+    const scanRoot = root ?? (typeof document !== "undefined" ? document : null);
+    if (!scanRoot) return [];
+    const instances = [];
+    scanRoot.querySelectorAll(`[${surfaceConfigDomAttr}]`).forEach((ownerEl) => {
+      if (!(ownerEl instanceof HTMLElement)) return;
+      const config = readFrontendSurfaceMountElement(ownerEl, reportError2);
+      if (!config) return;
+      instances.push({
+        instanceId: frontendSurfaceInstanceId(config),
+        surface: config.surface,
+        scopeKey: config.scopeKey,
+        mountKey: config.mountKey,
+        depth: surfaceMountDepth(ownerEl),
+        ownerEl
+      });
+    });
+    return instances;
+  }
+  function reconcileFrontendSurfaceInstances(activeInstances, currentInstances) {
+    const currentById = /* @__PURE__ */ new Map();
+    currentInstances.forEach((instance) => currentById.set(instance.instanceId, instance));
+    const removed = [];
+    activeInstances.forEach((instance, instanceId) => {
+      const current = currentById.get(instanceId);
+      if (!current || current.ownerEl !== instance.ownerEl) removed.push(instance);
+    });
+    const added = [];
+    const retained = [];
+    currentById.forEach((instance, instanceId) => {
+      const active = activeInstances.get(instanceId);
+      if (active?.ownerEl === instance.ownerEl) retained.push(active);
+      else added.push(instance);
+    });
+    removed.sort((left, right) => right.depth - left.depth);
+    return { added, removed, retained };
+  }
+  function surfaceMountDepth(ownerEl) {
+    let depth = 0;
+    let current = ownerEl.parentElement;
+    while (current) {
+      if (current.hasAttribute(surfaceConfigDomAttr)) depth += 1;
+      current = current.parentElement;
+    }
+    return depth;
+  }
+
   // frontend/ts/fragments/dom.ts
   var uiRegionFragmentSelector = `[${fragmentDomAttr}="true"]`;
   function closestUiRegionFragment(value) {
     if (isHTMLElement(value)) {
       if (value.matches(uiRegionFragmentSelector)) return value;
+      const mount = closestHTMLElement(value, `[${surfaceDomAttr}]`);
+      const config = mount && readFrontendSurfaceMountElement(mount, (_owner, error) => console.error(error));
+      if (config) {
+        for (let current = value; current && mount.contains(current); current = current.parentElement) {
+          if (config.fragments.some((fragment) => fragment.targetId === current?.id)) return current;
+          if (current === mount) break;
+        }
+      }
       return closestHTMLElement(value, uiRegionFragmentSelector);
     }
     return closestHTMLElement(value, uiRegionFragmentSelector);
@@ -2245,95 +2342,6 @@
       });
     });
     return resolved;
-  }
-
-  // frontend/ts/live-updates/mount.ts
-  function parseFrontendSurfaceSubscriptionConfig(value) {
-    let config;
-    try {
-      config = parseFrontendSurfaceMountConfig(value);
-    } catch {
-      return null;
-    }
-    if (!config.subscription) return null;
-    const resyncFragments = config.fragments.filter((fragment) => isFrontendSurfaceLiveFragmentName(config.surface, fragment.fragmentKey.kind));
-    if (resyncFragments.length === 0) return null;
-    return {
-      scope: config.subscription.scope,
-      scopeKey: config.scopeKey,
-      socketPath: `/${liveUpdateSocketPath}`,
-      resyncFragments,
-      renderedDependencyWatermark: config.subscription.renderedDependencyWatermark
-    };
-  }
-  function readFrontendSurfaceMountElement(ownerEl, reportError2) {
-    const rawConfig = ownerEl.getAttribute(surfaceConfigDomAttr);
-    if (!rawConfig) return null;
-    let config;
-    try {
-      config = parseFrontendSurfaceMountConfig(JSON.parse(rawConfig));
-    } catch (error) {
-      reportError2?.(ownerEl, error instanceof Error ? error : new Error(String(error)));
-      return null;
-    }
-    const ownerSurface = ownerEl.getAttribute(surfaceDomAttr);
-    if (!frontendSurfaceMountMatchesOwnerSurface(config, ownerSurface)) {
-      reportError2?.(ownerEl, new Error(`FrontendSurface DOM/config mismatch: ${ownerSurface ?? "missing"} != ${config.surface}`));
-      return null;
-    }
-    return config;
-  }
-  function frontendSurfaceMountMatchesOwnerSurface(config, ownerSurface) {
-    return ownerSurface === config.surface;
-  }
-  function frontendSurfaceInstanceId(config) {
-    return `${config.surface}:${config.scopeKey}:${config.mountKey}`;
-  }
-  function scanFrontendSurfaceMountInstances(root, reportError2) {
-    const scanRoot = root ?? (typeof document !== "undefined" ? document : null);
-    if (!scanRoot) return [];
-    const instances = [];
-    scanRoot.querySelectorAll(`[${surfaceConfigDomAttr}]`).forEach((ownerEl) => {
-      if (!(ownerEl instanceof HTMLElement)) return;
-      const config = readFrontendSurfaceMountElement(ownerEl, reportError2);
-      if (!config) return;
-      instances.push({
-        instanceId: frontendSurfaceInstanceId(config),
-        surface: config.surface,
-        scopeKey: config.scopeKey,
-        mountKey: config.mountKey,
-        depth: surfaceMountDepth(ownerEl),
-        ownerEl
-      });
-    });
-    return instances;
-  }
-  function reconcileFrontendSurfaceInstances(activeInstances, currentInstances) {
-    const currentById = /* @__PURE__ */ new Map();
-    currentInstances.forEach((instance) => currentById.set(instance.instanceId, instance));
-    const removed = [];
-    activeInstances.forEach((instance, instanceId) => {
-      const current = currentById.get(instanceId);
-      if (!current || current.ownerEl !== instance.ownerEl) removed.push(instance);
-    });
-    const added = [];
-    const retained = [];
-    currentById.forEach((instance, instanceId) => {
-      const active = activeInstances.get(instanceId);
-      if (active?.ownerEl === instance.ownerEl) retained.push(active);
-      else added.push(instance);
-    });
-    removed.sort((left, right) => right.depth - left.depth);
-    return { added, removed, retained };
-  }
-  function surfaceMountDepth(ownerEl) {
-    let depth = 0;
-    let current = ownerEl.parentElement;
-    while (current) {
-      if (current.hasAttribute(surfaceConfigDomAttr)) depth += 1;
-      current = current.parentElement;
-    }
-    return depth;
   }
 
   // frontend/ts/live-updates/subscription.ts

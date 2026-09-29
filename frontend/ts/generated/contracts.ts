@@ -550,6 +550,18 @@ export const lazyRetryDomAttr = "data-bepis-lazy-retry" as const;
 
 export const regionTransitionDomAttr = "data-bepis-region-transition" as const;
 
+export type UiRegionLoadingPolicy =
+    "dim"
+  | "quiet"
+  | "shared-status";
+export function isUiRegionLoadingPolicy(value: unknown): value is UiRegionLoadingPolicy {
+    return typeof value === "string" && ["dim", "quiet", "shared-status"].includes(value);
+}
+
+export const regionLoadingDomAttr = "data-bepis-region-loading" as const;
+
+export const regionBackgroundDomAttr = "data-bepis-region-background" as const;
+
 export type InteractionActivationTrigger =
     "click"
   | "change"

@@ -4,6 +4,8 @@ module Application.Helper.UiRegion
     ( UiRegionDomAttributes (..)
     , UiRegionLifecycleEvent (..)
     , UiRegionTransitionProfile (..)
+    , UiRegionLoadingPolicy (..)
+    , uiRegionLoadingPolicyText
     , canonicalUiRegionDomAttributes
     , uiRegionFragmentEnabledValue
     , uiRegionTransitionProfileText
@@ -23,6 +25,8 @@ data UiRegionDomAttributes = UiRegionDomAttributes
     , uiRegionLazyFragmentAttribute :: !Text
     , uiRegionLazyRetryAttribute    :: !Text
     , uiRegionTransitionAttribute   :: !Text
+    , uiRegionLoadingAttribute      :: !Text
+    , uiRegionBackgroundAttribute   :: !Text
     }
     deriving (Eq, Show, Generic)
 
@@ -32,6 +36,18 @@ data UiRegionTransitionProfile
     | UiRegionTransitionFadeSlide
     | UiRegionTransitionPanel
     deriving (Eq, Show, Generic)
+
+data UiRegionLoadingPolicy
+    = UiRegionLoadingDim
+    | UiRegionLoadingQuiet
+    | UiRegionLoadingSharedStatus
+    deriving (Eq, Show, Generic)
+
+uiRegionLoadingPolicyText :: UiRegionLoadingPolicy -> Text
+uiRegionLoadingPolicyText = \case
+    UiRegionLoadingDim -> enumLiteralValue @Contract.UiRegionLoadingPolicy @Contract.Dim
+    UiRegionLoadingQuiet -> enumLiteralValue @Contract.UiRegionLoadingPolicy @Contract.Quiet
+    UiRegionLoadingSharedStatus -> enumLiteralValue @Contract.UiRegionLoadingPolicy @Contract.SharedStatus
 
 data UiRegionLifecycleEvent
     = UiRegionRequestStart
@@ -49,6 +65,8 @@ canonicalUiRegionDomAttributes =
         , uiRegionLazyFragmentAttribute = domAttrValue @Contract.LazyFragment
         , uiRegionLazyRetryAttribute = domAttrValue @Contract.LazyRetry
         , uiRegionTransitionAttribute = domAttrValue @Contract.RegionTransition
+        , uiRegionLoadingAttribute = domAttrValue @Contract.RegionLoading
+        , uiRegionBackgroundAttribute = domAttrValue @Contract.RegionBackground
         }
 
 uiRegionFragmentEnabledValue :: Text
