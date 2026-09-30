@@ -100,7 +100,6 @@
     .app-week-toolbar-timesheets {
         grid-template-areas:
             ". top-spacer settings"
-            "primary primary primary"
             "navigation navigation navigation"
             "auxiliary auxiliary auxiliary";
     }
@@ -126,7 +125,7 @@
     }
 
     .app-week-toolbar-timesheets .app-week-toolbar-primary {
-        justify-content: center;
+        display: none;
     }
 
     .app-week-toolbar-reset {

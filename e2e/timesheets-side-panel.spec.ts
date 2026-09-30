@@ -12,7 +12,7 @@ import { defaultE2ERosterGroupId } from './support/roster';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
-import { openTimesheetFilterSection, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { openTimesheetFilters, openTimesheetFilterSection, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 import { runSql } from './support/database';
 
 const secondRosterGroupId = 'a1000000-0000-0000-0000-000000000213';
@@ -110,8 +110,8 @@ test.describe('Timesheets shared SidePanel', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, `/Timesheets?rosterGroupFilterIds=${defaultE2ERosterGroupId}`, '#timesheet-week-shell');
         await expect(page).toHaveURL(/\/ShowTimesheetWindow\?anchorDate=\d{4}-\d{2}-\d{2}$/);
-        await page.locator('#timesheet-filters-button').click();
-        await expect(page.locator(`#${dialogOverlayMountDomId} summary`, { hasText: 'Roster groups' })).toHaveCount(0);
+        await openTimesheetFilters(page);
+        await expect(page.locator(`#${dialogOverlayMountDomId}`).getByRole('button', { name: 'Roster groups', exact: true })).toHaveCount(0);
     });
 
     test('renders a Settings-only tools shelf for ordinary staff', async ({ page }) => {
@@ -129,8 +129,7 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(panel.getByRole('tab')).toHaveCount(0);
         await expect(panel.locator(`[${timesheetsTimesheetStaffHighlightSourceDomAttr}]`)).toHaveCount(0);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelToggleDomAttr}]`)).toBeHidden();
-        await page.getByRole('button', { name: 'Close Timesheet tools', exact: true }).click();
-        await page.locator('#timesheet-filters-button').click();
-        await expect(page.locator(`#${dialogOverlayMountDomId} summary`, { hasText: 'Roster groups' })).toHaveCount(0);
+        await openTimesheetFilters(page);
+        await expect(page.locator(`#${dialogOverlayMountDomId}`).getByRole('button', { name: 'Roster groups', exact: true })).toHaveCount(0);
     });
 });

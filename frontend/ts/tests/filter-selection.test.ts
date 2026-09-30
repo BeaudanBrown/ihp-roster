@@ -1,4 +1,4 @@
-import { updateFilterSelection } from '../app-filter-selection';
+import { clipFilterSelectionOptions, updateFilterSelection } from '../app-filter-selection';
 import * as C from '../generated/contracts';
 import { assertEqual, test } from './harness';
 
@@ -19,10 +19,9 @@ class Node {
         ]);
     }
 }
-class Details extends Node {}
 class Checkbox extends Node { type = 'checkbox'; checked = false; }
 function fixture() {
-    const root = new Details([C.filterSelectionSectionDomAttr]);
+    const root = new Node([C.filterSelectionSectionDomAttr]);
     const first = new Checkbox([C.filterSelectionItemDomAttr]);
     const second = new Checkbox([C.filterSelectionItemDomAttr]);
     const all = new Node([C.filterSelectionAllDomAttr]);
@@ -33,7 +32,7 @@ function fixture() {
     return { root, first, second, all, selected, count, clear };
 }
 function withDom(run: () => void): void {
-    const classes = { HTMLElement: Node, HTMLDetailsElement: Details, HTMLInputElement: Checkbox };
+    const classes = { HTMLElement: Node, HTMLInputElement: Checkbox, CSS: { escape: (value: string) => value } };
     const saved = Object.keys(classes).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
     try {
         for (const [key, value] of Object.entries(classes)) Object.defineProperty(globalThis, key, { configurable: true, value });
@@ -46,6 +45,28 @@ function withDom(run: () => void): void {
     }
 }
 const update = (node: Node) => updateFilterSelection(node as unknown as Element);
+
+test('filter options clip below the sticky heading and restore at their resting position', () => withDom(() => {
+    let top = -100;
+    const button = Object.assign(new Node(), {
+        getAttribute: () => 'choices',
+        getBoundingClientRect: () => ({ bottom: 50 }),
+    });
+    const content = Object.assign(new Node(), {
+        style: { clipPath: '' },
+        getBoundingClientRect: () => ({ top, height: 400 }),
+    });
+    const section = { querySelector: (selector: string) => selector === 'button[aria-controls]' ? button : content };
+    const clip = () => clipFilterSelectionOptions(section as unknown as Element);
+    clip();
+    assertEqual(content.style.clipPath, 'inset(150px 0 0)');
+    top = 50;
+    clip();
+    assertEqual(content.style.clipPath, '');
+    top = -500;
+    clip();
+    assertEqual(content.style.clipPath, 'inset(400px 0 0)');
+}));
 
 test('filter selection updates count and All from native checkboxes without submitting', () => withDom(() => {
     const f = fixture();

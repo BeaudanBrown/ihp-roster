@@ -85,13 +85,18 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   contains every active Timesheet-eligible staff member independently of card
   filters. Its counts include persisted entries only, ignore the staff card
   filter and Show approved, and reflect selected roster groups and shift types.
-- Toolbar Filters opens one modal with independently collapsible sections and
-  summaries. Managers start collapsed; staff's sole Shift types section opens
-  expanded. One modal body scrolls; the current section header sticks without
-  stacking and Apply/Cancel remain visible. There is no search. Section Clear
+- Filters and adjacent Clear filters live in the right-hand Settings panel, not
+  the week toolbar. Filters opens one modal using the shared app accordion with
+  independently collapsible sections and summaries. Managers start collapsed;
+  staff's sole Shift types section opens expanded. One modal body scrolls; the
+  sections retain the modal's normal padding both at rest and while sticky.
+  Scrolling options are clipped below the current header, so neither content nor
+  the moving card's decoration shows above it or through its rounded corners. Headers do not stack and Apply/Cancel remain visible. Options
+  reuse staff-list row styling, including hover and keyboard-focus highlights.
+  There is no search. Section Clear
   changes only the draft; Apply replaces the week shell and closes the modal.
-  Cancel, Escape and backdrop dismiss silently and discard the draft. Toolbar
-  Clear filters applies immediately without changing week or saved preferences.
+  Cancel, Escape and backdrop dismiss silently and discard the draft.
+  Clear filters in Settings applies immediately without changing week or saved preferences.
   Empty days with active filters say "No timesheets match your filters".
 - Untouched new blank forms dismiss silently, including after reverting all
   changes to their initial values. Changed blank/edit forms require confirmation;

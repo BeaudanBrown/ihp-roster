@@ -33,15 +33,19 @@ export async function chooseBlankTimesheet(page: Page, preferredStaffName = 'E2E
     await expect(createForm).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
+export async function openTimesheetFilters(page: Page) {
+    await openTimesheetSettings(page);
+    await page.locator('#timesheet-side-panel-content #timesheet-filters-button').click();
+}
+
 export async function openTimesheetFilterSection(page: Page, label: 'Staff' | 'Shift types' | 'Roster groups') {
     const modal = page.locator(`#${dialogOverlayMountDomId}`);
     if (!(await modal.getByRole('dialog').count())) {
-        const closeShelf = page.getByRole('button', { name: 'Close Timesheet tools', exact: true });
-        if (await closeShelf.isVisible()) await closeShelf.click();
-        await page.locator('#timesheet-filters-button').click();
+        await openTimesheetFilters(page);
     }
-    const section = modal.locator(`[${filterSelectionSectionDomAttr}]`).filter({ has: page.locator('summary', { hasText: label }) });
-    if (await section.getAttribute('open') === null) await section.locator('summary').click();
+    const section = modal.locator(`[${filterSelectionSectionDomAttr}]`).filter({ has: page.getByRole('button', { name: label, exact: true }) });
+    const toggle = section.getByRole('button', { name: label, exact: true });
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
     return section;
 }
 

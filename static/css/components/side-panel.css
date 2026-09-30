@@ -270,8 +270,16 @@
     vertical-align: middle;
 }
 
-.app-side-panel-entry:hover,
+@media (hover: hover) and (pointer: fine) {
+    .app-side-panel-entry:hover {
+        background: var(--app-accent-softer);
+        box-shadow: inset 3px 0 0 var(--app-accent);
+        outline: none;
+    }
+}
+
 .app-side-panel-entry:focus-visible,
+.app-side-panel-entry:has(:focus-visible),
 .app-side-panel-entry.is-linked-highlight-source {
     background: var(--app-accent-softer);
     box-shadow: inset 3px 0 0 var(--app-accent);

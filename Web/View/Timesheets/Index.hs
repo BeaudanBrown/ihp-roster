@@ -221,7 +221,7 @@ renderTimesheetWeekHeader weekStartDate today wageEstimates filters =
         , weekToolbarRootAttrs = []
         , weekToolbarAriaLabel = "Timesheet week controls"
         , weekToolbarExtraClass = "timesheet-week-header app-side-panel-header"
-        , weekToolbarPrimary = renderTimesheetFilterButtons weekStartDate filters
+        , weekToolbarPrimary = mempty
         , weekToolbarReset = renderTimesheetWeekNavigationLink "This week" (timesheetWindowUrlWithFilters today filters) today filters
         , weekToolbarNavigation = renderWeekNavigationGroup WeekNavigationConfig
             { weekNavigationAriaLabel = "Timesheet week navigation"
@@ -346,7 +346,7 @@ renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApprove
         {renderTimesheetShowApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
         {when canConfigureTimesheetWageEstimates (renderTimesheetWageDisplayModePreferenceForm weekStartDate calendarRevision viewFilters timesheetWageDisplayMode)}
     </div>
-
+    {renderTimesheetFilterButtons weekStartDate viewFilters}
 |]
 
 renderTimesheetStaffPanel :: (?context :: ControllerContext) => [Staff] -> [TimesheetStaffPanelEntry] -> Html
@@ -519,8 +519,8 @@ renderTimesheetFilterForm mode IndexView { weekStartDate = anchorDate, viewFilte
     renderForm body = case mode of
         HtmxOverlayForm -> renderFrontendSurfaceActionForm
             (TimesheetsAction.updateTimesheetFiltersAction fields)
-            ((timesheetsActionRoute updateUrl) { actionRouteStandardUrl = Just updateUrl, actionRouteExtraAttrs = [("id", "timesheet-filters-form")] }) body
-        PageOverlayForm -> [hsx|<form id="timesheet-filters-form" method="GET" action={updateUrl}>{body}</form>|]
+            ((timesheetsActionRoute updateUrl) { actionRouteStandardUrl = Just updateUrl, actionRouteExtraAttrs = [("id", "timesheet-filters-form"), ("class", "accordion")] }) body
+        PageOverlayForm -> [hsx|<form id="timesheet-filters-form" class="accordion" method="GET" action={updateUrl}>{body}</form>|]
     fields = TimesheetsAction.updateTimesheetFiltersActionFields anchorDate (Just filters.filterStaffIds) (Just filters.filterRosterGroupIds) (Just filters.filterShiftTypeIds)
     staffOptions = [FilterSelectionOption (tshow staff.id) (staff.firstName <> " " <> staff.lastName) (not staff.isActive || isJust staff.archivedAt) | staff <- staffMembers]
     shiftOptions = [FilterSelectionOption (tshow shift.id) shift.name (not shift.isActive || isJust shift.archivedAt) | shift <- shiftTypes]
