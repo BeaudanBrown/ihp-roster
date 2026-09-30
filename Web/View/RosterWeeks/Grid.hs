@@ -137,7 +137,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelAssignmentFilters = gridModel.gridAssignmentFilters
                     , staffPanelViewCapabilities = gridModel.gridViewCapabilities
                     , staffPanelRosterLayoutMode = gridModel.gridRosterLayoutMode
-                    , staffPanelShowWageEstimates = gridModel.gridShowWageEstimates
+                    , staffPanelRosterPayDisplayMode = gridModel.gridRosterPayDisplayMode
                     , staffPanelShowRosterWarnings = gridModel.gridShowRosterWarnings
                     , staffPanelHighlightOwnLiveShifts = gridModel.gridHighlightOwnLiveShifts
                     , staffPanelViewMode = gridViewMode
@@ -218,7 +218,7 @@ renderrosterGridFrameLiveFragment =
     renderrosterGridFrameLiveFragmentWithSwap Nothing
 
 renderrosterGridFrameLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekStartDate, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates, gridShowRosterWarnings, gridViewMode } =
+renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekStartDate, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterPayDisplayMode, gridShowRosterWarnings, gridViewMode } =
     let slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         rosterIsHiddenDraft = isNothing gridRosterWeek
         isTimelineLayout = case gridViewMode of
@@ -247,7 +247,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
                     else []}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              {...rosterColumnEditorAttrs RosterColumnEditingInactive}
-             data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
+             data-roster-wages={if gridRosterPayDisplayMode == RosterPayDaily && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              {...if not rosterIsHiddenDraft && not isTimelineLayout && not isDayColumnsLayout then rosterImageExportProjectionAttrs else []}>
             {gridBody}
@@ -256,7 +256,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
      in frameHtml
 
 rosterDayRenderModelFromGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDayRenderModel
-rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridRosterCalendarRevision, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
+rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridRosterCalendarRevision, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridRosterPayDisplayMode, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
     RosterDayRenderModel
         { dayIsEditable = rosterWeekIsEditable gridRosterWeek
         , daySlotNames = gridSlotNames
@@ -271,7 +271,7 @@ rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignm
         , dayRosterLayoutMode = gridRosterLayoutMode
         , dayRosterEndTimesEnabled = gridRosterEndTimesEnabled
         , dayRosterWagePrediction = gridRosterWagePrediction
-        , dayShowWageEstimates = gridShowWageEstimates
+        , dayRosterPayDisplayMode = gridRosterPayDisplayMode
         , dayShowRosterWarnings = gridShowRosterWarnings
         , dayPublicHolidays = gridPublicHolidays
         , dayPublishAttempted = gridPublishAttempted
@@ -322,7 +322,7 @@ rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroup
 renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWindowState -> [RosterWindowLane] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
     {renderrosterDayRailLiveFragment slotColumnsAreEditable dayModel rosterDays}
-    {when dayModel.dayShowWageEstimates (renderrosterWageRailLiveFragment dayModel rosterDays)}
+    {when (dayModel.dayRosterPayDisplayMode == RosterPayDaily) (renderrosterWageRailLiveFragment dayModel rosterDays)}
     {renderrosterSlotsGridLiveFragment endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays}
 |]
 
@@ -618,12 +618,16 @@ renderrosterWageRailLiveFragment =
 renderrosterWageRailLiveFragmentWithSwap :: Maybe Text -> RosterDayRenderModel -> [RosterDay] -> Html
 renderrosterWageRailLiveFragmentWithSwap maybeSwapOob dayModel rosterDays = [hsx|
     <div id={rosterWageRailFragmentId} class="roster-wage-rail" aria-label="Roster wages" hx-swap-oob={maybeSwapOob}>
+        {when (dayModel.dayRosterPayDisplayMode == RosterPayDaily) contents}
+    </div>
+|]
+  where
+    contents = [hsx|
         <div class="roster-wage-rail-head">Wages</div>
         <div class="roster-wage-rail-body">
             {forEach rosterDays (renderRosterWageRailSection dayModel)}
         </div>
-    </div>
-|]
+    |]
 
 renderRosterWageRailSection :: RosterDayRenderModel -> RosterDay -> Html
 renderRosterWageRailSection RosterDayRenderModel { dayWeekStartDate, dayAllSlots, dayRenderIndexes, dayRosterWagePrediction } rosterDay =
@@ -682,7 +686,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                         {renderTimelineLink rosterDay}
                     </div>
                     <div class="roster-day-column-wage-slot">
-                        {renderDayColumnWageEstimate dayRosterWagePrediction date}
+                        {when (dayModel.dayRosterPayDisplayMode == RosterPayDaily) (renderDayColumnWageEstimate dayRosterWagePrediction date)}
                     </div>
                     <div class="roster-day-column-control-slot">
                         {renderDayColumnHeaderControls dayIsEditable dayModel.dayCalendarRevision rosterDay}

@@ -202,7 +202,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterCalendarRevision
     , ShowRosterWarnings
     , IsLive
-    , ShowWageEstimates
+    , RosterPayDisplayMode
     , ManagerModeEnabled
     , HighlightOwnLiveShifts
     , HideStaffAtIdealShifts
@@ -217,6 +217,7 @@ import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.Interaction
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import Generated.Types (RosterLayoutModeEnum)
+import qualified Generated.Types as Model
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 
@@ -456,7 +457,7 @@ data OuterHTML
 data ShowRosterWarnings
 data HighlightOwnLiveShifts
 data IsLive
-data ShowWageEstimates
+data RosterPayDisplayMode
 data ManagerModeEnabled
 data HideStaffAtIdealShifts
 data HideStaffUnavailable
@@ -623,7 +624,7 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action ToggleRosterWageEstimates
-        '[ Field ShowWageEstimates 'WireBool ]
+        '[ Field RosterPayDisplayMode ('WireClosed Model.RosterPayDisplayMode) ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse

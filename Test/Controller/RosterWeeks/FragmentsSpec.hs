@@ -147,7 +147,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterWageEstimatePreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("showWageEstimates", "true")]
+                            [("anchorDate", "2025-01-06"), ("rosterPayDisplayMode", "roster_pay_daily")]
                 layoutResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams

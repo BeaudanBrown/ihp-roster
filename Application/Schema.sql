@@ -35,6 +35,7 @@
 CREATE TYPE venue_status_enum AS ENUM ('active', 'inactive');
 CREATE TYPE venue_role_enum AS ENUM ('worker', 'supervisor', 'manager', 'venue_admin', 'venue_owner');
 CREATE TYPE platform_role_enum AS ENUM ('super_admin');
+CREATE TYPE roster_pay_display_mode AS ENUM ('roster_pay_hidden', 'roster_pay_total', 'roster_pay_daily');
 CREATE TYPE wage_display_mode_enum AS ENUM ('hidden', 'visible_timesheets', 'all_timesheets', 'visible_and_all_timesheets');
 CREATE TYPE invitation_status_enum AS ENUM ('pending', 'accepted', 'revoked');
 CREATE TYPE invitation_delivery_status_enum AS ENUM ('queued', 'sent', 'failed');
@@ -192,6 +193,7 @@ CREATE TABLE user_preferences (
     roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL,
     show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL,
     show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL,
+    roster_pay_display_mode roster_pay_display_mode DEFAULT 'roster_pay_hidden' NOT NULL,
     show_timesheet_wage_estimates BOOLEAN DEFAULT TRUE NOT NULL,
     highlight_own_live_shifts BOOLEAN DEFAULT TRUE NOT NULL,
     hide_approved BOOLEAN DEFAULT FALSE NOT NULL,

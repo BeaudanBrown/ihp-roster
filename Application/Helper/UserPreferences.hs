@@ -7,7 +7,7 @@ module Application.Helper.UserPreferences
     , fetchCurrentRosterLayoutMode
     , fetchCurrentUserRosterPreferences
     , fetchCurrentUserShowRosterWarnings
-    , fetchCurrentUserShowWageEstimates
+    , fetchCurrentUserRosterPayDisplayMode
     , fetchCurrentUserHighlightOwnLiveShifts
     , fetchCurrentUserTimesheetPreferences
     , rosterLayoutModeIsDayColumns
@@ -15,7 +15,7 @@ module Application.Helper.UserPreferences
     , rosterLayoutModeValue
     , rosterLayoutModes
     , upsertCurrentUserShowRosterWarnings
-    , upsertCurrentUserShowWageEstimates
+    , upsertCurrentUserRosterPayDisplayMode
     , upsertCurrentUserHighlightOwnLiveShifts
     , upsertCurrentUserTimesheetShowApproved
     , upsertCurrentUserTimesheetWageDisplayMode
@@ -31,7 +31,7 @@ import IHP.ControllerPrelude
 
 data UserRosterPreferences = UserRosterPreferences
     { userShowRosterWarnings     :: Bool
-    , userShowWageEstimates      :: Bool
+    , userRosterPayDisplayMode      :: RosterPayDisplayMode
     , userHighlightOwnLiveShifts :: Bool
     }
 
@@ -47,7 +47,7 @@ normaliseUserRosterPreferences maybePreferences =
         { -- Legacy column name is inverted for roster warning highlights: TRUE keeps
           -- conflict highlighting hidden, preserving the default disabled state.
           userShowRosterWarnings = maybe False (\preferences -> not preferences.showShiftTypeHighlights) maybePreferences
-        , userShowWageEstimates = maybe False (.showWageEstimates) maybePreferences
+        , userRosterPayDisplayMode = maybe RosterPayHidden (.rosterPayDisplayMode) maybePreferences
         , userHighlightOwnLiveShifts = maybe True (.highlightOwnLiveShifts) maybePreferences
         }
 
@@ -85,9 +85,9 @@ fetchCurrentUserShowRosterWarnings
     | not hasManagementMode = pure False
     | otherwise = (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
 
-fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
-fetchCurrentUserShowWageEstimates =
-    (.userShowWageEstimates) <$> fetchCurrentUserRosterPreferences
+fetchCurrentUserRosterPayDisplayMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterPayDisplayMode
+fetchCurrentUserRosterPayDisplayMode =
+    (.userRosterPayDisplayMode) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserHighlightOwnLiveShifts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserHighlightOwnLiveShifts =
@@ -155,21 +155,23 @@ upsertCurrentUserShowRosterWarnings showRosterWarnings = do
                 |> set #showShiftTypeHighlights hideRosterWarnings
                 |> createRecord
 
-upsertCurrentUserShowWageEstimates ::
+upsertCurrentUserRosterPayDisplayMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
+    RosterPayDisplayMode ->
     IO UserPreference
-upsertCurrentUserShowWageEstimates showWageEstimates = do
+upsertCurrentUserRosterPayDisplayMode rosterPayDisplayMode = do
     maybePreferences <- fetchCurrentUserPreferenceRecord
     case maybePreferences of
         Just preferences ->
             preferences
-                |> set #showWageEstimates showWageEstimates
+                |> set #rosterPayDisplayMode rosterPayDisplayMode
+                |> set #showWageEstimates (rosterPayDisplayMode /= RosterPayHidden)
                 |> updateRecord
         Nothing ->
             newRecord @UserPreference
                 |> set #userId (unpackId effectiveCurrentUser.id)
-                |> set #showWageEstimates showWageEstimates
+                |> set #rosterPayDisplayMode rosterPayDisplayMode
+                |> set #showWageEstimates (rosterPayDisplayMode /= RosterPayHidden)
                 |> createRecord
 
 upsertCurrentUserHighlightOwnLiveShifts ::

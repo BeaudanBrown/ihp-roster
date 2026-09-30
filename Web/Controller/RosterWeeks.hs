@@ -1005,7 +1005,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else setErrorMessage errorMessage >> redirectToRosterWindow scope
             Right fields -> do
-                _ <- upsertCurrentUserShowWageEstimates (surfaceFieldValue @Surface.ShowWageEstimates fields)
+                _ <- upsertCurrentUserRosterPayDisplayMode (surfaceFieldValue @Surface.RosterPayDisplayMode fields)
                 if isHtmxRequest
                     then respondWithRosterFragmentsUpdate scope (rosterGridStructuralFragments <> [RosterProjectionSettings]) (successToast "Roster wage estimate preference saved.")
                     else do

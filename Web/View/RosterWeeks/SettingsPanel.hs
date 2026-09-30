@@ -63,7 +63,7 @@ rosterSettingsFromStaffPanel panel = RosterSettingsRenderModel
     , settingsRosterGroups = panel.staffPanelRosterGroups
     , settingsCurrentRosterGroup = panel.staffPanelCurrentRosterGroup
     , settingsViewCapabilities = panel.staffPanelViewCapabilities
-    , settingsShowWageEstimates = panel.staffPanelShowWageEstimates
+    , settingsRosterPayDisplayMode = panel.staffPanelRosterPayDisplayMode
     , settingsShowRosterWarnings = panel.staffPanelShowRosterWarnings
     , settingsHighlightOwnLiveShifts = panel.staffPanelHighlightOwnLiveShifts
     , settingsManagement = if not hasManagementMode then Nothing else Just RosterManagementSettings
@@ -77,12 +77,12 @@ rosterSettingsFromStaffPanel panel = RosterSettingsRenderModel
     }
 
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterSettingsRenderModel -> Html
-renderRosterSettingsPanel settings@RosterSettingsRenderModel { settingsWeekStartDate, settingsRosterGroups, settingsCurrentRosterGroup, settingsViewCapabilities, settingsShowWageEstimates, settingsShowRosterWarnings, settingsHighlightOwnLiveShifts, settingsManagement } = [hsx|
+renderRosterSettingsPanel settings@RosterSettingsRenderModel { settingsWeekStartDate, settingsRosterGroups, settingsCurrentRosterGroup, settingsViewCapabilities, settingsRosterPayDisplayMode, settingsShowRosterWarnings, settingsHighlightOwnLiveShifts, settingsManagement } = [hsx|
     <div id={surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterSettingsContent noSurfaceFields} class="roster-settings-panel roster-settings-stack">
         {when managerModeToggleVisible (renderRosterManagerModePreferenceForm settingsWeekStartDate settingsCurrentRosterGroup.id)}
         {when (length settingsRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher settingsWeekStartDate settingsRosterGroups settingsCurrentRosterGroup)}
         {forEach settingsManagement (\management -> renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection settingsWeekStartDate settingsCurrentRosterGroup.id management.settingsRosterLayoutMode management.settingsViewMode))}
-        {renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection settingsWeekStartDate settingsCurrentRosterGroup.id settingsViewCapabilities settingsShowWageEstimates settingsShowRosterWarnings settingsHighlightOwnLiveShifts)}
+        {renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection settingsWeekStartDate settingsCurrentRosterGroup.id settingsViewCapabilities settingsRosterPayDisplayMode settingsShowRosterWarnings settingsHighlightOwnLiveShifts)}
         {forEach settingsManagement (renderRosterManagementSettings settings)}
     </div>
 |]
@@ -208,11 +208,11 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 
-renderRosterDisplayPreferencesSection :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Bool -> Html
-renderRosterDisplayPreferencesSection anchorDate rosterGroupId viewCapabilities showWageEstimates showRosterWarnings highlightOwnLiveShifts = [hsx|
+renderRosterDisplayPreferencesSection :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterViewCapabilities -> RosterPayDisplayMode -> Bool -> Bool -> Html
+renderRosterDisplayPreferencesSection anchorDate rosterGroupId viewCapabilities rosterPayDisplayMode showRosterWarnings highlightOwnLiveShifts = [hsx|
     <div class="roster-settings-toggle-grid">
         {when viewCapabilities.canManageRosterWarnings (renderRosterWarningPreferenceForm anchorDate rosterGroupId showRosterWarnings)}
-        {renderRosterWageEstimatePreferenceForm anchorDate rosterGroupId viewCapabilities showWageEstimates}
+        {renderRosterWageEstimatePreferenceForm anchorDate rosterGroupId viewCapabilities rosterPayDisplayMode}
         {renderRosterOwnLiveShiftHighlightPreferenceForm anchorDate rosterGroupId highlightOwnLiveShifts}
     </div>
 |]
@@ -241,8 +241,8 @@ renderRosterWarningPreferenceForm anchorDate rosterGroupId showRosterWarnings =
   where
     fields = RosterAction.toggleRosterWarningsActionFields showRosterWarnings
 
-renderRosterWageEstimatePreferenceForm :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Html
-renderRosterWageEstimatePreferenceForm anchorDate rosterGroupId viewCapabilities showWageEstimates
+renderRosterWageEstimatePreferenceForm :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterViewCapabilities -> RosterPayDisplayMode -> Html
+renderRosterWageEstimatePreferenceForm anchorDate rosterGroupId viewCapabilities rosterPayDisplayMode
     | not viewCapabilities.canViewWageEstimates = mempty
     | otherwise =
         renderFrontendSurfaceActionForm
@@ -251,9 +251,9 @@ renderRosterWageEstimatePreferenceForm anchorDate rosterGroupId viewCapabilities
                 { actionRouteStandardUrl = Just (rosterWageEstimatePreferenceUrl anchorDate rosterGroupId)
                 , actionRouteExtraAttrs = [("class", "mb-0")]
                 }
-            [hsx|<div class="roster-display-toggle">{renderRosterWageEstimateToggle fields showWageEstimates}</div>|]
+            [hsx|<div class="roster-display-toggle">{renderRosterWageEstimateToggle fields rosterPayDisplayMode}</div>|]
   where
-    fields = RosterAction.toggleRosterWageEstimatesActionFields showWageEstimates
+    fields = RosterAction.toggleRosterWageEstimatesActionFields rosterPayDisplayMode
 
 renderRosterOwnLiveShiftHighlightToggle :: ActionFields RosterAction.ToggleRosterOwnLiveShiftHighlightActionOperation -> Bool -> Html
 renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
@@ -281,23 +281,22 @@ renderRosterWarningToggle fields showRosterWarnings =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-renderRosterWageEstimateToggle :: ActionFields RosterAction.ToggleRosterWageEstimatesActionOperation -> Bool -> Html
-renderRosterWageEstimateToggle fields showWageEstimates =
-    renderAppToggleButton $
-        ( defaultAppToggleButtonConfig
-            "show-wage-estimates"
-            (surfaceToggleScalarField @Surface.ShowWageEstimates fields True False)
-            showWageEstimates
-            [hsx|<span class="small">{rosterWageToggleLabel}</span>|]
-        )
-            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
-            , appToggleSubmitPolicy = ToggleSubmitImmediate
-            }
+renderRosterWageEstimateToggle :: (?context :: ControllerContext) => ActionFields RosterAction.ToggleRosterWageEstimatesActionOperation -> RosterPayDisplayMode -> Html
+renderRosterWageEstimateToggle fields displayMode = [hsx|
+    <label class="form-label small" for="roster-pay-display-mode">{label}</label>
+    <select id="roster-pay-display-mode" class="form-select form-select-sm" name={surfaceFieldNameFrom @Surface.RosterPayDisplayMode fields} onchange="this.form.requestSubmit();">
+        {forEach [RosterPayHidden, RosterPayTotal, RosterPayDaily] renderOption}
+    </select>
+|]
   where
-    rosterWageToggleLabel :: Text
-    rosterWageToggleLabel = case fst <$> rosterPayAudienceForCurrentUser of
-        Just ManagementRosterPayAudience -> "Show expected wage estimates"
-        _ -> "Show my expected pay"
+    label :: Text
+    label = case fst <$> rosterPayAudienceForCurrentUser of
+        Just ManagementRosterPayAudience -> "Expected wages"
+        _ -> "Expected pay"
+    renderOption mode = [hsx|<option value={inputValue mode} selected={mode == displayMode}>{modeLabel mode}</option>|]
+    modeLabel RosterPayHidden = "Hidden" :: Text
+    modeLabel RosterPayTotal = "Total only"
+    modeLabel RosterPayDaily = "Daily + total"
 
 renderRosterAssignmentFiltersSection :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterAssignmentFilters -> Html
 renderRosterAssignmentFiltersSection anchorDate rosterGroupId filters =

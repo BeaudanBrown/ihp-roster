@@ -130,6 +130,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
+import qualified Generated.Types as Types3
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -876,20 +877,20 @@ data ToggleRosterWageEstimatesActionOperation
 type instance ActionSurface ToggleRosterWageEstimatesActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterWageEstimatesActionOperation = Types1.ToggleRosterWageEstimates
 type instance ActionFieldSpecs ToggleRosterWageEstimatesActionOperation =
-    '[ 'Field Types1.ShowWageEstimates 'WireBool
+    '[ 'Field Types1.RosterPayDisplayMode ('WireClosed Types3.RosterPayDisplayMode)
      ]
 
 toggleRosterWageEstimatesActionFields ::
-    Bool ->
+    Types3.RosterPayDisplayMode ->
     ActionFields ToggleRosterWageEstimatesActionOperation
-toggleRosterWageEstimatesActionFields showWageEstimates =
+toggleRosterWageEstimatesActionFields rosterPayDisplayMode =
     actionFields
-        (surfaceField @Types1.ShowWageEstimates showWageEstimates)
+        (surfaceField @Types1.RosterPayDisplayMode rosterPayDisplayMode)
         noSurfaceFields
 
 toggleRosterWageEstimatesActionEvidence :: ActionEvidence ToggleRosterWageEstimatesActionOperation
 toggleRosterWageEstimatesActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWageEstimates" "toggle-roster-wage-estimates" [SurfaceIR.FieldIR "ShowWageEstimates" "showWageEstimates" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWageEstimates" "toggle-roster-wage-estimates" [SurfaceIR.FieldIR "RosterPayDisplayMode" "rosterPayDisplayMode" (SurfaceIR.WireClosedIR "RosterPayDisplayMode" "Generated.Types" "RosterPayDisplayMode") SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterWageEstimatesAction :: ActionFields ToggleRosterWageEstimatesActionOperation -> FrontendSurfaceAction
 toggleRosterWageEstimatesAction =

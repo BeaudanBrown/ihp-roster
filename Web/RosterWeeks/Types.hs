@@ -99,7 +99,7 @@ data RosterSettingsRenderModel = RosterSettingsRenderModel
     , settingsRosterGroups :: [RosterGroup]
     , settingsCurrentRosterGroup :: RosterGroup
     , settingsViewCapabilities :: RosterViewCapabilities
-    , settingsShowWageEstimates :: Bool
+    , settingsRosterPayDisplayMode :: RosterPayDisplayMode
     , settingsShowRosterWarnings :: Bool
     , settingsHighlightOwnLiveShifts :: Bool
     , settingsManagement :: Maybe RosterManagementSettings
@@ -123,7 +123,7 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     , staffPanelAssignmentFilters      :: RosterAssignmentFilters
     , staffPanelViewCapabilities       :: RosterViewCapabilities
     , staffPanelRosterLayoutMode       :: RosterLayoutModeEnum
-    , staffPanelShowWageEstimates      :: Bool
+    , staffPanelRosterPayDisplayMode      :: RosterPayDisplayMode
     , staffPanelShowRosterWarnings     :: Bool
     , staffPanelHighlightOwnLiveShifts :: Bool
     , staffPanelViewMode               :: RosterGridViewMode
@@ -191,7 +191,7 @@ data RosterRenderData = RosterRenderData
     , rosterTimePickerStartMinute        :: Int
     , rosterTimePickerFinalSelectableMinute :: Int
     , rosterWagePrediction               :: Maybe RosterWagePrediction
-    , showWageEstimates     :: Bool
+    , rosterPayDisplayMode     :: RosterPayDisplayMode
     , showRosterWarnings    :: Bool
     , highlightOwnLiveShifts :: Bool
     , currentViewerStaffKey :: Maybe Text
@@ -223,7 +223,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRosterTimePickerStartMinute        :: Int
     , gridRosterTimePickerFinalSelectableMinute :: Int
     , gridRosterWagePrediction               :: Maybe RosterWagePrediction
-    , gridShowWageEstimates     :: Bool
+    , gridRosterPayDisplayMode     :: RosterPayDisplayMode
     , gridShowRosterWarnings    :: Bool
     , gridHighlightOwnLiveShifts :: Bool
     , gridCurrentViewerStaffKey :: Maybe Text
@@ -247,7 +247,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayRosterLayoutMode      :: RosterLayoutModeEnum
     , dayRosterEndTimesEnabled :: Bool
     , dayRosterWagePrediction  :: Maybe RosterWagePrediction
-    , dayShowWageEstimates     :: Bool
+    , dayRosterPayDisplayMode     :: RosterPayDisplayMode
     , dayShowRosterWarnings    :: Bool
     , dayPublicHolidays        :: Map Day Text
     , dayPublishAttempted      :: Bool
