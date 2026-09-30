@@ -15,7 +15,7 @@ const mountSelector = `#${dialogOverlayMountDomId}`;
 async function openNewTimesheet(page: Page) {
     await page.locator('[data-timesheet-day-add="true"]').first().click();
     const createForm = page.locator('#timesheet-entry-create-form');
-    const blankChoice = page.getByRole('link', { name: 'Use blank timesheet' }).first();
+    const blankChoice = page.getByRole('link', { name: 'Blank timesheet', exact: true }).first();
     await Promise.race([
         createForm.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }),
         blankChoice.waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action }).then(() => blankChoice.click()),
@@ -38,6 +38,23 @@ test.describe('Timesheet unsaved dismissal guard', () => {
     test.beforeEach(async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+    });
+
+    test('untouched and reverted blank Timesheets close silently', async ({ page }) => {
+        await openNewTimesheet(page);
+        expect(await beforeUnloadIsGuarded(page)).toBe(false);
+        await attemptClose(page);
+        await expect(page.locator(mountSelector)).toBeEmpty();
+
+        await openNewTimesheet(page);
+        const comment = page.locator('#timesheet-entry-create-form textarea').first();
+        const original = await comment.inputValue();
+        await comment.fill(`${original} changed`);
+        expect(await beforeUnloadIsGuarded(page)).toBe(true);
+        await comment.fill(original);
+        expect(await beforeUnloadIsGuarded(page)).toBe(false);
+        await page.keyboard.press('Escape');
+        await expect(page.locator(mountSelector)).toBeEmpty();
     });
 
     test('new Timesheets retain values until explicit discard across every dismissal path', async ({ page }) => {
@@ -113,6 +130,7 @@ test.describe('Timesheet unsaved dismissal guard', () => {
 
         await openNewTimesheet(page);
         form = page.locator('#timesheet-entry-create-form');
+        await form.locator('textarea').first().fill('Retain through validation');
         await form.locator(`[${timePickerTriggerDomAttr}]`).first().click();
         await page.locator(`[${timePickerClearDomAttr}]`).click();
         await page.getByRole('button', { name: 'Save' }).click();

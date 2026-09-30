@@ -19,7 +19,7 @@ newtype NewView = NewView
 instance View NewView where
     html NewView { newTimesheetRenderModel } =
         renderTimesheetEntryModal
-            GuardNewTimesheet
+            GuardBlankTimesheet
             (timesheetModalTitle operationalDate)
             (timesheetWindowUrl operationalDate inputs.selectedStaffFilterId)
             newTimesheetFormId
@@ -34,7 +34,7 @@ newTimesheetFormId = "timesheet-entry-create-form"
 renderNewTimesheetDialog :: NewTimesheetRenderModel -> Html
 renderNewTimesheetDialog newTimesheetRenderModel =
     renderTimesheetEntryDialog
-        GuardNewTimesheet
+        GuardBlankTimesheet
         (timesheetModalTitle operationalDate)
         newTimesheetFormId
         (renderTimesheetForm (newTimesheetFormRenderModel HtmxOverlayForm newTimesheetRenderModel))

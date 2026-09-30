@@ -50,6 +50,7 @@ import IHP.ViewPrelude
 
 data TimesheetDismissalGuardMode
     = GuardNewTimesheet
+    | GuardBlankTimesheet
     | GuardChangedTimesheet
     deriving (Eq, Show)
 
@@ -470,9 +471,11 @@ timesheetDismissalGuardConfig guardMode formId =
         , dismissalGuardImmediately = guardMode == GuardNewTimesheet
         , dismissalGuardConfirmationTitle = case guardMode of
             GuardNewTimesheet     -> "Discard unsaved timesheet?"
+            GuardBlankTimesheet   -> "Discard unsaved timesheet?"
             GuardChangedTimesheet -> "Discard unsaved changes?"
         , dismissalGuardKeepEditingLabel = "Keep editing"
         , dismissalGuardDiscardLabel = case guardMode of
             GuardNewTimesheet     -> "Discard timesheet"
+            GuardBlankTimesheet   -> "Discard timesheet"
             GuardChangedTimesheet -> "Discard changes"
         }
