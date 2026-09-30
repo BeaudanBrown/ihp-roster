@@ -193,7 +193,6 @@ CREATE TABLE user_preferences (
     roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL,
     show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL,
     show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL,
-    roster_pay_display_mode roster_pay_display_mode DEFAULT 'roster_pay_hidden' NOT NULL,
     show_timesheet_wage_estimates BOOLEAN DEFAULT TRUE NOT NULL,
     highlight_own_live_shifts BOOLEAN DEFAULT TRUE NOT NULL,
     hide_approved BOOLEAN DEFAULT FALSE NOT NULL,
@@ -203,6 +202,7 @@ CREATE TABLE user_preferences (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     manager_mode_enabled BOOLEAN DEFAULT TRUE NOT NULL,
     timesheet_wage_display_mode wage_display_mode_enum DEFAULT 'hidden' NOT NULL,
+    roster_pay_display_mode roster_pay_display_mode DEFAULT 'roster_pay_hidden' NOT NULL,
     UNIQUE(user_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
