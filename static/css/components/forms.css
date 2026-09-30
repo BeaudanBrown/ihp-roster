@@ -1,5 +1,49 @@
 /* Shared form sizing, dense controls, headings, form width, and muted helper. */
 
+/* Deferred filters share the dialog body's single scrollport. */
+.app-filter-section {
+    border-bottom: 1px solid var(--app-border);
+}
+
+.app-filter-section-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--app-surface);
+    padding: var(--app-space-3);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.app-filter-section-header > span {
+    margin-inline-start: var(--app-space-2);
+}
+
+.app-filter-section-options {
+    display: grid;
+    gap: var(--app-space-2);
+    padding: var(--app-space-3);
+}
+
+.app-filter-section-options > button {
+    justify-self: start;
+}
+
+.app-filter-option {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    padding: var(--app-space-2);
+    min-height: var(--app-control-height-md);
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.app-filter-option > input {
+    flex-shrink: 0;
+    margin: 0;
+}
+
 /* Shared export/Xero selection: native full-row labels with aligned columns. */
 .timesheet-selection-columns {
     display: grid;

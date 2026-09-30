@@ -24,7 +24,7 @@ owns lifecycle/access invocation, staged request adaptation and response selecti
 Frontend contracts come from the registered Timesheets Surface and shared
 Overlay, Toggle, TimePicker, SidePanel, and linked-highlight capabilities; views
 and TypeScript must not restate them. Show-approved is a global user preference;
-authorized manager Staff and roster-group filtering remain canonical URL state.
+multi-select Staff, shift-type, and roster-group filtering remain canonical URL state.
 The day `+` chooser deliberately ignores those presentation filters while loading
 its complete authorized candidate set.
 

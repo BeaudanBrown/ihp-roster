@@ -13,12 +13,13 @@ module Web.Timesheets.Paths
     , timesheetWindowStateQueryParamsWithFilters
     , timesheetWindowUrl
     , timesheetWindowUrlWithFilters
-    , withTimesheetRosterGroupFilter
+    , withTimesheetFilters
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
-import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
-import Application.Helper.Url (appendQueryParams, replaceQueryParams)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
+import Application.Helper.Url (replaceQueryParams)
 import Generated.Types
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
@@ -28,7 +29,7 @@ import Web.Types
 
 timesheetWindowUrl :: Day -> Maybe UUID -> Text
 timesheetWindowUrl anchorDate staffFilterId =
-    timesheetWindowUrlWithFilters anchorDate (TimesheetViewFilters staffFilterId Nothing)
+    timesheetWindowUrlWithFilters anchorDate (TimesheetViewFilters (maybeToList staffFilterId) [] [])
 
 timesheetWindowUrlWithFilters :: Day -> TimesheetViewFilters -> Text
 timesheetWindowUrlWithFilters anchorDate filters =
@@ -36,9 +37,17 @@ timesheetWindowUrlWithFilters anchorDate filters =
         (pathTo (ShowTimesheetWindowAction (tshow anchorDate)))
         (timesheetWindowStateQueryParamsWithFilters anchorDate filters)
 
-withTimesheetRosterGroupFilter :: Maybe UUID -> Text -> Text
-withTimesheetRosterGroupFilter rosterGroupFilterId url =
-    appendQueryParams url [("rosterGroupFilterId", tshow groupId) | groupId <- maybeToList rosterGroupFilterId]
+withTimesheetFilters :: TimesheetViewFilters -> Text -> Text
+withTimesheetFilters filters url = replaceQueryParams url (timesheetFilterQueryParams filters)
+
+timesheetFilterQueryParams :: TimesheetViewFilters -> [(Text, Text)]
+timesheetFilterQueryParams filters =
+    values (surfaceFieldNameFrom @Surface.StaffFilterIds fields) filters.filterStaffIds
+        <> values (surfaceFieldNameFrom @Surface.RosterGroupFilterIds fields) filters.filterRosterGroupIds
+        <> values (surfaceFieldNameFrom @Surface.ShiftTypeFilterIds fields) filters.filterShiftTypeIds
+  where
+    fields = TimesheetsAction.navigateTimesheetWeekActionFields (ModifiedJulianDay 0) (Just filters.filterStaffIds) (Just filters.filterRosterGroupIds) (Just filters.filterShiftTypeIds)
+    values key ids = (key, "") : [(key, tshow value) | value <- ids]
 
 timesheetToolbarFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl anchorDate staffFilterId =
@@ -90,8 +99,10 @@ editTimesheetEntryUrl timesheetEntryId anchorDate staffFilterId =
 
 timesheetWindowStateQueryParams :: Day -> Maybe UUID -> [(Text, Text)]
 timesheetWindowStateQueryParams anchorDate staffFilterId =
-    timesheetWindowStateQueryParamsWithFilters anchorDate (TimesheetViewFilters staffFilterId Nothing)
+    timesheetWindowStateQueryParamsWithFilters anchorDate (TimesheetViewFilters (maybeToList staffFilterId) [] [])
 
 timesheetWindowStateQueryParamsWithFilters :: Day -> TimesheetViewFilters -> [(Text, Text)]
 timesheetWindowStateQueryParamsWithFilters anchorDate filters =
-    surfaceFieldsText (TimesheetsAction.navigateTimesheetWeekActionFields anchorDate filters.filterStaffId filters.filterRosterGroupId)
+    (surfaceFieldNameFrom @Surface.AnchorDate fields, tshow anchorDate) : timesheetFilterQueryParams filters
+  where
+    fields = TimesheetsAction.navigateTimesheetWeekActionFields anchorDate (Just filters.filterStaffIds) (Just filters.filterRosterGroupIds) (Just filters.filterShiftTypeIds)

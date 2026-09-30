@@ -26,6 +26,7 @@ import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
 import Text.Megaparsec.Pos (initialPos)
+import Web.Timesheets.Filters (emptyTimesheetViewFilters)
 import Web.View.RosterWeeks.ShiftDialog
 
 pureTests :: Spec
@@ -149,6 +150,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                 tree <- parseRenderedOverlay (renderPageDialogModal "/Timesheets" config)
                 let guardedDialogs = filter (\node -> lookup "data-bepis-dialog-dismissal-guard" (nodeAttrs node) == Just "true") (elementNodes tree)
                 map nodeAttrs guardedDialogs `shouldSatisfy` any (elem ("data-bepis-dialog-mount", "true"))
+                map nodeAttrs guardedDialogs `shouldSatisfy` all (elem ("aria-modal", "true"))
+                map nodeAttrs guardedDialogs `shouldSatisfy` all (notElem ("aria-hidden", "true"))
 
         forM_ [1, 15] \step ->
             forM_ autofocusCases \(label, failures, manager, ownEntry, origin, hasBreak, expected) ->
@@ -306,7 +309,8 @@ autofocusTimesheetModel = TimesheetFormRenderModel
         { timesheetEntry = (newRecord @TimesheetEntry)
             { startsAt = UTCTime day 0, endsAt = UTCTime day (8 * 3600)
             , timezone = "Australia/Melbourne", operationalDate = day }
-        , staffMembers = [], shiftTypes = [], calendarRevision = 0, selectedStaffFilterId = Nothing
+        , staffMembers = [], shiftTypes = [], calendarRevision = 0
+                                , viewFilters = emptyTimesheetViewFilters
         , currentViewerStaffId = Nothing, pickerStart = "00:00", pickerEnd = "23:45", pickerStep = 15, viewerIsManager = False
         }
     , timesheetFormPresentation = TimesheetFormPresentation

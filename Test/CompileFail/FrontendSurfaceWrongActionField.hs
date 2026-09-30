@@ -14,7 +14,9 @@ import IHP.Prelude
 fields :: SurfaceFields (SurfaceActionFieldSpecs Timesheets.TimesheetsSurface Timesheets.NavigateTimesheetWeek)
 fields =
     surfaceField @Timesheets.AnchorDate (error "fixture date")
-        &: surfaceOptionalField @Timesheets.StaffFilterId Nothing
+        &: surfaceOptionalField @Timesheets.StaffFilterIds Nothing
+        &: surfaceOptionalField @Timesheets.RosterGroupFilterIds Nothing
+        &: surfaceOptionalField @Timesheets.ShiftTypeFilterIds Nothing
         &: noSurfaceFields
 
 wrongActionField = surfaceFieldNameFrom @Roster.RosterGroupId fields

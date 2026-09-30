@@ -23,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , navigateTimesheetWeekActionFields
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromRosterShiftActionParams
+    , parseNavigateTimesheetWeekActionParams
     , parseToggleTimesheetHideApprovedActionParams
     , parseToggleTimesheetManagerModeActionParams
     , parseToggleTimesheetWageEstimatesActionParams
@@ -74,25 +75,31 @@ type instance ActionMarker ApproveTimesheetEntryActionOperation = Types1.Approve
 type instance ActionFieldSpecs ApproveTimesheetEntryActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
      , 'Field Types1.RosterCalendarRevision 'WireInt
-     , 'OptionalField Types1.StaffFilterId 'WireUUID
+     , 'OptionalField Types1.StaffFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.RosterGroupFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 approveTimesheetEntryActionFields ::
     Day ->
     Int ->
-    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields ApproveTimesheetEntryActionOperation
-approveTimesheetEntryActionFields anchorDate rosterCalendarRevision staffFilterId =
+approveTimesheetEntryActionFields anchorDate rosterCalendarRevision staffFilterIds rosterGroupFilterIds shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
         ( surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: surfaceOptionalField @Types1.StaffFilterIds staffFilterIds
+            &: surfaceOptionalField @Types1.RosterGroupFilterIds rosterGroupFilterIds
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 approveTimesheetEntryActionEvidence :: ActionEvidence ApproveTimesheetEntryActionOperation
 approveTimesheetEntryActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ApproveTimesheetEntry" "approve-timesheet-entry" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "ApproveTimesheetEntry" "approve-timesheet-entry" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterIds" "staffFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterIds" "rosterGroupFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 approveTimesheetEntryAction :: ActionFields ApproveTimesheetEntryActionOperation -> FrontendSurfaceAction
 approveTimesheetEntryAction =
@@ -112,25 +119,31 @@ type instance ActionMarker CreateTimesheetEntryFromRosterShiftActionOperation = 
 type instance ActionFieldSpecs CreateTimesheetEntryFromRosterShiftActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
      , 'Field Types1.RosterCalendarRevision 'WireInt
-     , 'OptionalField Types1.StaffFilterId 'WireUUID
+     , 'OptionalField Types1.StaffFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.RosterGroupFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 createTimesheetEntryFromRosterShiftActionFields ::
     Day ->
     Int ->
-    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields CreateTimesheetEntryFromRosterShiftActionOperation
-createTimesheetEntryFromRosterShiftActionFields anchorDate rosterCalendarRevision staffFilterId =
+createTimesheetEntryFromRosterShiftActionFields anchorDate rosterCalendarRevision staffFilterIds rosterGroupFilterIds shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
         ( surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: surfaceOptionalField @Types1.StaffFilterIds staffFilterIds
+            &: surfaceOptionalField @Types1.RosterGroupFilterIds rosterGroupFilterIds
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 createTimesheetEntryFromRosterShiftActionEvidence :: ActionEvidence CreateTimesheetEntryFromRosterShiftActionOperation
 createTimesheetEntryFromRosterShiftActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateTimesheetEntryFromRosterShift" "create-timesheet-entry-from-roster-shift" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateTimesheetEntryFromRosterShift" "create-timesheet-entry-from-roster-shift" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterIds" "staffFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterIds" "rosterGroupFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 createTimesheetEntryFromRosterShiftAction :: ActionFields CreateTimesheetEntryFromRosterShiftActionOperation -> FrontendSurfaceAction
 createTimesheetEntryFromRosterShiftAction =
@@ -149,30 +162,40 @@ type instance ActionSurface NavigateTimesheetWeekActionOperation = AdapterSurfac
 type instance ActionMarker NavigateTimesheetWeekActionOperation = Types1.NavigateTimesheetWeek
 type instance ActionFieldSpecs NavigateTimesheetWeekActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
-     , 'OptionalField Types1.StaffFilterId 'WireUUID
-     , 'OptionalField Types1.RosterGroupFilterId 'WireUUID
+     , 'OptionalField Types1.StaffFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.RosterGroupFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 navigateTimesheetWeekActionFields ::
     Day ->
-    Maybe UUID.UUID ->
-    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields NavigateTimesheetWeekActionOperation
-navigateTimesheetWeekActionFields anchorDate staffFilterId rosterGroupFilterId =
+navigateTimesheetWeekActionFields anchorDate staffFilterIds rosterGroupFilterIds shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
-        ( surfaceOptionalField @Types1.StaffFilterId staffFilterId
-            &: surfaceOptionalField @Types1.RosterGroupFilterId rosterGroupFilterId
+        ( surfaceOptionalField @Types1.StaffFilterIds staffFilterIds
+            &: surfaceOptionalField @Types1.RosterGroupFilterIds rosterGroupFilterIds
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 navigateTimesheetWeekActionEvidence :: ActionEvidence NavigateTimesheetWeekActionOperation
 navigateTimesheetWeekActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "NavigateTimesheetWeek" "navigate-timesheet-week" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#timesheet-week-shell" ["timesheet-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "NavigateTimesheetWeek" "navigate-timesheet-week" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterIds" "staffFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterIds" "rosterGroupFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#timesheet-week-shell" ["timesheet-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))])
 
 navigateTimesheetWeekAction :: ActionFields NavigateTimesheetWeekActionOperation -> FrontendSurfaceAction
 navigateTimesheetWeekAction =
     frontendSurfaceActionFromEvidence navigateTimesheetWeekActionEvidence
+
+parseNavigateTimesheetWeekActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields NavigateTimesheetWeekActionOperation)
+parseNavigateTimesheetWeekActionParams =
+    parseActionParams
+        @NavigateTimesheetWeekActionOperation
 
 data ToggleTimesheetHideApprovedActionOperation
 
@@ -182,30 +205,33 @@ type instance ActionFieldSpecs ToggleTimesheetHideApprovedActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
      , 'Field Types1.RosterCalendarRevision 'WireInt
      , 'Field Types1.HideApproved 'WireBool
-     , 'OptionalField Types1.StaffFilterId 'WireUUID
-     , 'OptionalField Types1.RosterGroupFilterId 'WireUUID
+     , 'OptionalField Types1.StaffFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.RosterGroupFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 toggleTimesheetHideApprovedActionFields ::
     Day ->
     Int ->
     Bool ->
-    Maybe UUID.UUID ->
-    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields ToggleTimesheetHideApprovedActionOperation
-toggleTimesheetHideApprovedActionFields anchorDate rosterCalendarRevision hideApproved staffFilterId rosterGroupFilterId =
+toggleTimesheetHideApprovedActionFields anchorDate rosterCalendarRevision hideApproved staffFilterIds rosterGroupFilterIds shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
         ( surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: surfaceField @Types1.HideApproved hideApproved
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
-            &: surfaceOptionalField @Types1.RosterGroupFilterId rosterGroupFilterId
+            &: surfaceOptionalField @Types1.StaffFilterIds staffFilterIds
+            &: surfaceOptionalField @Types1.RosterGroupFilterIds rosterGroupFilterIds
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 toggleTimesheetHideApprovedActionEvidence :: ActionEvidence ToggleTimesheetHideApprovedActionOperation
 toggleTimesheetHideApprovedActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetHideApproved" "toggle-timesheet-hide-approved" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideApproved" "hideApproved" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetHideApproved" "toggle-timesheet-hide-approved" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideApproved" "hideApproved" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterIds" "staffFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterIds" "rosterGroupFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 toggleTimesheetHideApprovedAction :: ActionFields ToggleTimesheetHideApprovedActionOperation -> FrontendSurfaceAction
 toggleTimesheetHideApprovedAction =
@@ -225,22 +251,25 @@ type instance ActionMarker ToggleTimesheetManagerModeActionOperation = Types1.To
 type instance ActionFieldSpecs ToggleTimesheetManagerModeActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
      , 'Field Types1.ManagerModeEnabled 'WireBool
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 toggleTimesheetManagerModeActionFields ::
     Day ->
     Bool ->
+    Maybe [UUID.UUID] ->
     ActionFields ToggleTimesheetManagerModeActionOperation
-toggleTimesheetManagerModeActionFields anchorDate managerModeEnabled =
+toggleTimesheetManagerModeActionFields anchorDate managerModeEnabled shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
         ( surfaceField @Types1.ManagerModeEnabled managerModeEnabled
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 toggleTimesheetManagerModeActionEvidence :: ActionEvidence ToggleTimesheetManagerModeActionOperation
 toggleTimesheetManagerModeActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetManagerMode" "toggle-timesheet-manager-mode" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ManagerModeEnabled" "managerModeEnabled" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetManagerMode" "toggle-timesheet-manager-mode" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ManagerModeEnabled" "managerModeEnabled" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 toggleTimesheetManagerModeAction :: ActionFields ToggleTimesheetManagerModeActionOperation -> FrontendSurfaceAction
 toggleTimesheetManagerModeAction =
@@ -261,30 +290,33 @@ type instance ActionFieldSpecs ToggleTimesheetWageEstimatesActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
      , 'Field Types1.RosterCalendarRevision 'WireInt
      , 'Field Types1.TimesheetWageDisplayMode ('WireClosed Types3.WageDisplayModeEnum)
-     , 'OptionalField Types1.StaffFilterId 'WireUUID
-     , 'OptionalField Types1.RosterGroupFilterId 'WireUUID
+     , 'OptionalField Types1.StaffFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.RosterGroupFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 toggleTimesheetWageEstimatesActionFields ::
     Day ->
     Int ->
     Types3.WageDisplayModeEnum ->
-    Maybe UUID.UUID ->
-    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields ToggleTimesheetWageEstimatesActionOperation
-toggleTimesheetWageEstimatesActionFields anchorDate rosterCalendarRevision timesheetWageDisplayMode staffFilterId rosterGroupFilterId =
+toggleTimesheetWageEstimatesActionFields anchorDate rosterCalendarRevision timesheetWageDisplayMode staffFilterIds rosterGroupFilterIds shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
         ( surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: surfaceField @Types1.TimesheetWageDisplayMode timesheetWageDisplayMode
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
-            &: surfaceOptionalField @Types1.RosterGroupFilterId rosterGroupFilterId
+            &: surfaceOptionalField @Types1.StaffFilterIds staffFilterIds
+            &: surfaceOptionalField @Types1.RosterGroupFilterIds rosterGroupFilterIds
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 toggleTimesheetWageEstimatesActionEvidence :: ActionEvidence ToggleTimesheetWageEstimatesActionOperation
 toggleTimesheetWageEstimatesActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetWageEstimates" "toggle-timesheet-wage-estimates" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TimesheetWageDisplayMode" "timesheetWageDisplayMode" (SurfaceIR.WireClosedIR "WageDisplayModeEnum" "Generated.Types" "WageDisplayModeEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetWageEstimates" "toggle-timesheet-wage-estimates" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TimesheetWageDisplayMode" "timesheetWageDisplayMode" (SurfaceIR.WireClosedIR "WageDisplayModeEnum" "Generated.Types" "WageDisplayModeEnum") SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterIds" "staffFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterIds" "rosterGroupFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 toggleTimesheetWageEstimatesAction :: ActionFields ToggleTimesheetWageEstimatesActionOperation -> FrontendSurfaceAction
 toggleTimesheetWageEstimatesAction =
@@ -304,25 +336,31 @@ type instance ActionMarker UnapproveTimesheetEntryActionOperation = Types1.Unapp
 type instance ActionFieldSpecs UnapproveTimesheetEntryActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
      , 'Field Types1.RosterCalendarRevision 'WireInt
-     , 'OptionalField Types1.StaffFilterId 'WireUUID
+     , 'OptionalField Types1.StaffFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.RosterGroupFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 unapproveTimesheetEntryActionFields ::
     Day ->
     Int ->
-    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields UnapproveTimesheetEntryActionOperation
-unapproveTimesheetEntryActionFields anchorDate rosterCalendarRevision staffFilterId =
+unapproveTimesheetEntryActionFields anchorDate rosterCalendarRevision staffFilterIds rosterGroupFilterIds shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
         ( surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
-            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: surfaceOptionalField @Types1.StaffFilterIds staffFilterIds
+            &: surfaceOptionalField @Types1.RosterGroupFilterIds rosterGroupFilterIds
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 unapproveTimesheetEntryActionEvidence :: ActionEvidence UnapproveTimesheetEntryActionOperation
 unapproveTimesheetEntryActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UnapproveTimesheetEntry" "unapprove-timesheet-entry" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "UnapproveTimesheetEntry" "unapprove-timesheet-entry" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterIds" "staffFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterIds" "rosterGroupFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
 unapproveTimesheetEntryAction :: ActionFields UnapproveTimesheetEntryActionOperation -> FrontendSurfaceAction
 unapproveTimesheetEntryAction =
@@ -341,26 +379,29 @@ type instance ActionSurface UpdateTimesheetFiltersActionOperation = AdapterSurfa
 type instance ActionMarker UpdateTimesheetFiltersActionOperation = Types1.UpdateTimesheetFilters
 type instance ActionFieldSpecs UpdateTimesheetFiltersActionOperation =
     '[ 'Field Types1.AnchorDate 'WireDay
-     , 'OptionalField Types1.StaffFilterId 'WireUUID
-     , 'OptionalField Types1.RosterGroupFilterId 'WireUUID
+     , 'OptionalField Types1.StaffFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.RosterGroupFilterIds ('WireList 'WireUUID)
+     , 'OptionalField Types1.ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 updateTimesheetFiltersActionFields ::
     Day ->
-    Maybe UUID.UUID ->
-    Maybe UUID.UUID ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
     ActionFields UpdateTimesheetFiltersActionOperation
-updateTimesheetFiltersActionFields anchorDate staffFilterId rosterGroupFilterId =
+updateTimesheetFiltersActionFields anchorDate staffFilterIds rosterGroupFilterIds shiftTypeFilterIds =
     actionFields
         (surfaceField @Types1.AnchorDate anchorDate)
-        ( surfaceOptionalField @Types1.StaffFilterId staffFilterId
-            &: surfaceOptionalField @Types1.RosterGroupFilterId rosterGroupFilterId
+        ( surfaceOptionalField @Types1.StaffFilterIds staffFilterIds
+            &: surfaceOptionalField @Types1.RosterGroupFilterIds rosterGroupFilterIds
+            &: surfaceOptionalField @Types1.ShiftTypeFilterIds shiftTypeFilterIds
             &: noSurfaceFields
         )
 
 updateTimesheetFiltersActionEvidence :: ActionEvidence UpdateTimesheetFiltersActionOperation
 updateTimesheetFiltersActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UpdateTimesheetFilters" "update-timesheet-filters" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#timesheet-week-shell" ["timesheet-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateTimesheetFilters" "update-timesheet-filters" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterIds" "staffFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterIds" "rosterGroupFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ShiftTypeFilterIds" "shiftTypeFilterIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#timesheet-week-shell" ["timesheet-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#timesheet-week-shell:replace" ["timesheet-week-shell"]))])
 
 updateTimesheetFiltersAction :: ActionFields UpdateTimesheetFiltersActionOperation -> FrontendSurfaceAction
 updateTimesheetFiltersAction =

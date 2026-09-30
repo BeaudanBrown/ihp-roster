@@ -6,8 +6,9 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , HideApproved
     , TimesheetWageDisplayMode
     , ManagerModeEnabled
-    , StaffFilterId
-    , RosterGroupFilterId
+    , StaffFilterIds
+    , RosterGroupFilterIds
+    , ShiftTypeFilterIds
     , TimesheetDay
     , TimesheetDayColumns
     , TimesheetDaySection
@@ -81,8 +82,9 @@ data TimesheetsMountState
 data HideApproved
 data TimesheetWageDisplayMode
 data ManagerModeEnabled
-data StaffFilterId
-data RosterGroupFilterId
+data StaffFilterIds
+data RosterGroupFilterIds
+data ShiftTypeFilterIds
 
 data TimesheetToolbar
 data TimesheetWeekToolbar
@@ -155,18 +157,22 @@ type TimesheetScopeBundle =
          ]
         '[ 'Authorize 'CurrentVenue '[ VenueId ] ]
      , MountState TimesheetsMountState
-        '[ Field StaffFilterId ('WireOptional 'WireUUID)
-         , Field RosterGroupFilterId ('WireOptional 'WireUUID)
+        '[ Field StaffFilterIds ('WireList 'WireUUID)
+         , Field RosterGroupFilterIds ('WireList 'WireUUID)
+         , Field ShiftTypeFilterIds ('WireList 'WireUUID)
          ]
+     ]
+
+type TimesheetFilterFields =
+    '[ OptionalField StaffFilterIds ('WireList 'WireUUID)
+     , OptionalField RosterGroupFilterIds ('WireList 'WireUUID)
+     , OptionalField ShiftTypeFilterIds ('WireList 'WireUUID)
      ]
 
 type TimesheetActionBundle =
     '[ DomToken TimesheetWeekShell
      , Action NavigateTimesheetWeek
-        '[ Field AnchorDate 'WireDay
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId TimesheetWeekShell)
          , 'HtmxSwap 'HtmxOuterHTML
@@ -174,34 +180,21 @@ type TimesheetActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
      , Action UpdateTimesheetFilters
-        '[ Field AnchorDate 'WireDay
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId TimesheetWeekShell)
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlTrue
-         , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
+         , 'HtmxSync ('HtmxSyncOn ('HtmxId TimesheetWeekShell) 'HtmxSyncReplace)
          ]
      , Action ToggleTimesheetHideApproved
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , Field HideApproved 'WireBool
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': Field HideApproved 'WireBool ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action ToggleTimesheetWageEstimates
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , Field TimesheetWageDisplayMode ('WireClosed WageDisplayModeEnum)
-         , OptionalField StaffFilterId 'WireUUID
-         , OptionalField RosterGroupFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': Field TimesheetWageDisplayMode ('WireClosed WageDisplayModeEnum) ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
@@ -209,34 +202,26 @@ type TimesheetActionBundle =
      , Action ToggleTimesheetManagerMode
         '[ Field AnchorDate 'WireDay
          , Field ManagerModeEnabled 'WireBool
+         , OptionalField ShiftTypeFilterIds ('WireList 'WireUUID)
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action CreateTimesheetEntryFromRosterShift
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , OptionalField StaffFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action ApproveTimesheetEntry
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , OptionalField StaffFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action UnapproveTimesheetEntry
-        '[ Field AnchorDate 'WireDay
-         , Field RosterCalendarRevision 'WireInt
-         , OptionalField StaffFilterId 'WireUUID
-         ]
+        (Field AnchorDate 'WireDay ': Field RosterCalendarRevision 'WireInt ': TimesheetFilterFields)
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse

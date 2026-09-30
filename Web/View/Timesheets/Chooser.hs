@@ -11,8 +11,10 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
 import Application.VenueTime.Model (decodeTimesheetTiming)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Web.Timesheets.Filters (TimesheetViewFilters)
 import Web.Timesheets.Paths (newTimesheetEntryFromRosterPrefillUrl,
-                             timesheetWindowUrl)
+                             timesheetWindowUrlWithFilters,
+                             withTimesheetFilters)
 import Web.Timesheets.RosterGroupClassification
 import Web.Timesheets.RosterPrefill
 import Web.View.Prelude
@@ -25,15 +27,15 @@ data TimesheetBlankChoice = TimesheetBlankChoice
     }
 
 data TimesheetChooserRenderModel = TimesheetChooserRenderModel
-    { chooserOperationalDate     :: !Day
-    , chooserRosterShifts        :: ![TimesheetRosterPrefill]
-    , chooserBlankChoices        :: ![TimesheetBlankChoice]
-    , chooserStaffMembers        :: ![Staff]
-    , chooserShiftTypes          :: ![ShiftType]
-    , chooserRosterGroups        :: ![RosterGroup]
-    , chooserCalendarRevision    :: !Int
-    , chooserSelectedStaffFilter :: !(Maybe UUID)
-    , chooserCurrentViewerStaff  :: !(Maybe UUID)
+    { chooserOperationalDate    :: !Day
+    , chooserRosterShifts       :: ![TimesheetRosterPrefill]
+    , chooserBlankChoices       :: ![TimesheetBlankChoice]
+    , chooserStaffMembers       :: ![Staff]
+    , chooserShiftTypes         :: ![ShiftType]
+    , chooserRosterGroups       :: ![RosterGroup]
+    , chooserCalendarRevision   :: !Int
+    , chooserViewFilters        :: !TimesheetViewFilters
+    , chooserCurrentViewerStaff :: !(Maybe UUID)
     }
 
 newtype TimesheetChooserView = TimesheetChooserView
@@ -43,7 +45,7 @@ newtype TimesheetChooserView = TimesheetChooserView
 instance View TimesheetChooserView where
     html TimesheetChooserView { timesheetChooserRenderModel } =
         renderPageDialogModal
-            (timesheetWindowUrl timesheetChooserRenderModel.chooserOperationalDate timesheetChooserRenderModel.chooserSelectedStaffFilter)
+            (timesheetWindowUrlWithFilters timesheetChooserRenderModel.chooserOperationalDate timesheetChooserRenderModel.chooserViewFilters)
             (chooserDialogConfig timesheetChooserRenderModel)
 
 renderTimesheetChooserDialog :: (?context :: ControllerContext) => TimesheetChooserRenderModel -> Html
@@ -113,7 +115,7 @@ renderShiftChoice TimesheetChooserRenderModel { .. } rosterPrefill =
     renderTimesheetCard dayModel entry (decodeTimesheetTiming entry) "timesheet-entry-card timesheet-prefill-card" (Just (tshow rosterPrefill.prefillRosterSlotId)) cardLink mempty
   where
     entry = newTimesheetEntryFromRosterPrefill (unpackId currentVenueId) rosterPrefill
-    actionUrl = newTimesheetEntryFromRosterPrefillUrl rosterPrefill.prefillRosterSlotId chooserOperationalDate chooserSelectedStaffFilter
+    actionUrl = withTimesheetFilters chooserViewFilters (newTimesheetEntryFromRosterPrefillUrl rosterPrefill.prefillRosterSlotId chooserOperationalDate Nothing)
     cardLink = renderAppShellActionLink
         (appShellActionByMarker @OpenTimesheetEntryDialog)
         ((defaultAppShellActionRoute actionUrl) { appShellActionRouteExtraAttrs = [("class", "timesheet-entry-card-link"), ("aria-label", "Use this roster shift")] })
@@ -128,8 +130,7 @@ renderShiftChoice TimesheetChooserRenderModel { .. } rosterPrefill =
         , dayEditWindowDays = 0
         , dayWeekStartDate = chooserOperationalDate
         , dayCalendarRevision = chooserCalendarRevision
-        , dayStaffFilterId = chooserSelectedStaffFilter
-        , dayRosterGroupFilterId = Nothing
+        , dayViewFilters = chooserViewFilters
         , dayWageEstimates = Nothing
         , dayOffset = 0
         }
@@ -153,7 +154,7 @@ renderBlankGroup model (maybeGroup, choices) = [hsx|
 renderBlankChoice :: (?context :: ControllerContext) => TimesheetChooserRenderModel -> TimesheetBlankChoice -> Html
 renderBlankChoice TimesheetChooserRenderModel { .. } choice = action
   where
-    actionUrl = appendQueryParams
+    actionUrl = withTimesheetFilters chooserViewFilters $ appendQueryParams
         (pathTo ChooseBlankTimesheetEntryAction)
         [ ("anchorDate", tshow chooserOperationalDate)
         , ("workedOn", tshow chooserOperationalDate)
@@ -166,7 +167,7 @@ renderBlankChoice TimesheetChooserRenderModel { .. } choice = action
         [hsx|Blank timesheet|]
 
 classificationValue :: TimesheetRosterGroupClassification -> Text
-classificationValue TimesheetNoRosterGroup = "none"
+classificationValue TimesheetNoRosterGroup           = "none"
 classificationValue (TimesheetInRosterGroup groupId) = "group:" <> tshow groupId
 
 chooserSpansMultipleClassifications :: TimesheetChooserRenderModel -> Bool

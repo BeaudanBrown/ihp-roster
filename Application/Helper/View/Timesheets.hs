@@ -47,6 +47,7 @@ import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerSupport (ControllerContext)
 import IHP.ViewPrelude
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
 
 data TimesheetDismissalGuardMode
     = GuardNewTimesheet
@@ -61,16 +62,16 @@ data TimesheetFormOrigin
     deriving (Eq, Show)
 
 data TimesheetFormInputs = TimesheetFormInputs
-    { timesheetEntry        :: TimesheetEntry
-    , staffMembers          :: [Staff]
-    , shiftTypes            :: [ShiftType]
-    , calendarRevision      :: Int
-    , selectedStaffFilterId :: Maybe UUID
-    , currentViewerStaffId  :: Maybe UUID
-    , pickerStart           :: Text
-    , pickerEnd             :: Text
-    , pickerStep            :: Int
-    , viewerIsManager       :: Bool
+    { timesheetEntry       :: TimesheetEntry
+    , staffMembers         :: [Staff]
+    , shiftTypes           :: [ShiftType]
+    , calendarRevision     :: Int
+    , viewFilters          :: TimesheetViewFilters
+    , currentViewerStaffId :: Maybe UUID
+    , pickerStart          :: Text
+    , pickerEnd            :: Text
+    , pickerStep           :: Int
+    , viewerIsManager      :: Bool
     }
 
 data TimesheetFormPresentation = TimesheetFormPresentation
@@ -141,7 +142,9 @@ renderTimesheetFormFields model@TimesheetFormRenderModel
         } = [hsx|
     <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate stateFields} value={surfaceWireText @'WireDay timesheetEntry.operationalDate} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision stateFields} value={tshow calendarRevision} />
-    <input type="hidden" name={surfaceFieldNameFrom @Surface.StaffFilterId stateFields} value={maybe "" tshow selectedStaffFilterId} />
+    {forEach viewFilters.filterStaffIds (renderFilterValue (surfaceFieldNameFrom @Surface.StaffFilterIds stateFields))}
+    {forEach viewFilters.filterRosterGroupIds (renderFilterValue (surfaceFieldNameFrom @Surface.RosterGroupFilterIds stateFields))}
+    {forEach viewFilters.filterShiftTypeIds (renderFilterValue (surfaceFieldNameFrom @Surface.ShiftTypeFilterIds stateFields))}
     <input type="hidden" name="rosterGroupClassification" value={classificationValue} />
     <input type="hidden" name="rosterGroupId" value={maybe "" tshow timesheetEntry.rosterGroupId} />
     {renderTimesheetFormOriginNotice formOrigin}
@@ -186,7 +189,8 @@ renderTimesheetFormFields model@TimesheetFormRenderModel
                 , timePickerInvalid = hasErrorFor timesheetEntry annotationField
                 }
         stateFields =
-            TimesheetsAction.createTimesheetEntryFromRosterShiftActionFields timesheetEntry.operationalDate calendarRevision selectedStaffFilterId
+            TimesheetsAction.createTimesheetEntryFromRosterShiftActionFields timesheetEntry.operationalDate calendarRevision (Just viewFilters.filterStaffIds) (Just viewFilters.filterRosterGroupIds) (Just viewFilters.filterShiftTypeIds)
+        renderFilterValue name value = [hsx|<input type="hidden" name={name} value={tshow value} />|]
         classificationValue = case timesheetEntry.rosterGroupClassification of
             InRosterGroup -> "in_roster_group" :: Text
             NoRosterGroup -> "no_roster_group"

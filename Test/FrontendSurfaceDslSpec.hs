@@ -42,13 +42,13 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
+import qualified IHP.HSX.Markup as HtmlRenderer
+import IHP.HSX.MarkupQQ (hsx)
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 import Test.Hspec
 import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
-import qualified IHP.HSX.Markup as HtmlRenderer
-import IHP.HSX.MarkupQQ (hsx)
 
 data TestLoad
 data TestPanel
@@ -631,8 +631,8 @@ tests = describe "FrontendSurface DSL foundation" do
                 ]
         surfaceFieldsText scopeFields
             `shouldBe` [("venueId", "11111111-1111-1111-1111-111111111111"), ("windowStartDate", "2025-01-20"), ("windowEndDate", "2025-01-27"), ("rosterCalendarRevision", "2")]
-        let absentOptionalFields :: SurfaceFields '[ 'OptionalField TimesheetsSurface.StaffFilterId 'WireUUID]
-            absentOptionalFields = surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing &: noSurfaceFields
+        let absentOptionalFields :: SurfaceFields '[ 'OptionalField RequestFilterId 'WireUUID]
+            absentOptionalFields = surfaceOptionalField @RequestFilterId Nothing &: noSurfaceFields
         surfaceFieldsJson absentOptionalFields `shouldBe` Aeson.object []
         surfaceFieldsText absentOptionalFields `shouldBe` []
         let nullFields :: SurfaceFields '[ 'NullableField NullableTestField 'WireText]
@@ -651,8 +651,9 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` "fixture:~null"
         let actionFields =
                 surfaceField @TimesheetsSurface.AnchorDate (fromGregorian 2025 1 20)
-                    &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
-                    &: surfaceOptionalField @TimesheetsSurface.RosterGroupFilterId Nothing
+                    &: surfaceOptionalField @TimesheetsSurface.StaffFilterIds Nothing
+                    &: surfaceOptionalField @TimesheetsSurface.RosterGroupFilterIds Nothing
+                    &: surfaceOptionalField @TimesheetsSurface.ShiftTypeFilterIds Nothing
                     &: noSurfaceFields
                 :: SurfaceFields (SurfaceActionFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.NavigateTimesheetWeek)
         surfaceFieldNameFrom @TimesheetsSurface.AnchorDate actionFields `shouldBe` "anchorDate"
@@ -773,8 +774,9 @@ tests = describe "FrontendSurface DSL foundation" do
                         &: surfaceField @TimesheetsSurface.RosterCalendarRevision (1 :: Int)
                         &: noSurfaceFields
                     )
-                    ( surfaceField @TimesheetsSurface.StaffFilterId Nothing
-                        &: surfaceField @TimesheetsSurface.RosterGroupFilterId Nothing
+                    ( surfaceField @TimesheetsSurface.StaffFilterIds []
+                        &: surfaceField @TimesheetsSurface.RosterGroupFilterIds []
+                        &: surfaceField @TimesheetsSurface.ShiftTypeFilterIds []
                         &: noSurfaceFields
                     )
                     [fragment]
@@ -949,8 +951,9 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.mountStateFields)
             |> fmap (map (\field -> (field.fieldName, field.fieldWire)))
             `shouldBe` Just
-                [ ("staffFilterId", WireOptionalIR WireUuidIR)
-                , ("rosterGroupFilterId", WireOptionalIR WireUuidIR)
+                [ ("staffFilterIds", WireListIR WireUuidIR)
+                , ("rosterGroupFilterIds", WireListIR WireUuidIR)
+                , ("shiftTypeFilterIds", WireListIR WireUuidIR)
                 ]
         let navigateAction = fromMaybe (error "missing navigate action") (find ((== "navigate-timesheet-week") . (.htmxActionName)) surface.surfaceHtmxActions)
         navigateAction.htmxActionOptions

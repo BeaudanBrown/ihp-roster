@@ -8,6 +8,8 @@ wrongActionOperation :: FrontendSurfaceAction
 wrongActionOperation =
     TimesheetsAction.approveTimesheetEntryAction
         ( TimesheetsAction.navigateTimesheetWeekActionFields
-            0
+            (fromGregorian 2025 1 6)
+            Nothing
+            Nothing
             Nothing
         )

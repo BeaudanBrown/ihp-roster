@@ -1,11 +1,11 @@
 module Test.SurfaceDependencySpec where
 
 import Application.Feedback.LiveUpdates
-import Application.Helper.FrontendContract.Surface.Feedback.Live
-import Application.Helper.FrontendContract.Surface.Feedback.Resource
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
+import Application.Helper.FrontendContract.Surface.Feedback.Live
+import Application.Helper.FrontendContract.Surface.Feedback.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource
@@ -106,7 +106,7 @@ tests = do
         it "selects affected timesheet fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
-            let mountState = TimesheetsMountStateValue Nothing Nothing
+            let mountState = TimesheetsMountStateValue (TimesheetViewFilters [] [] [])
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
             let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId (addDays 4 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
             let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
@@ -133,7 +133,7 @@ tests = do
             let staffId = fromWords 2 0 0 0
             let rosterGroupId = fromWords 3 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
-            let mountState = timesheetsMountStateForFilters (TimesheetViewFilters (Just staffId) (Just rosterGroupId))
+            let mountState = timesheetsMountStateForFilters (TimesheetViewFilters [staffId] [rosterGroupId] [])
             let scope = timesheetsSurfaceScope scopeValue
             let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState
             let duplicatedMount = mountedFragments <> mountedFragments
@@ -147,9 +147,9 @@ tests = do
             actorFragmentKeys `shouldBe` concatMap (.targetFragments) passiveTargets
             actorFragmentKeys `shouldBe` [TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 2))]
             map (.mountedFragmentUrl) mountedFragments
-                `shouldSatisfy` all (Text.isInfixOf ("staffFilterId=" <> tshow staffId))
+                `shouldSatisfy` all (Text.isInfixOf ("staffFilterIds=" <> tshow staffId))
             map (.mountedFragmentUrl) mountedFragments
-                `shouldSatisfy` all (Text.isInfixOf ("rosterGroupFilterId=" <> tshow rosterGroupId))
+                `shouldSatisfy` all (Text.isInfixOf ("rosterGroupFilterIds=" <> tshow rosterGroupId))
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0

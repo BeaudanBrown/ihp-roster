@@ -23,7 +23,8 @@ module Web.Timesheets.EntryWorkflow
 import Application.Error.Types (AppError)
 import Application.Helper.SurfaceResource (LiveMutationResult)
 import Application.Helper.View.Timesheets (TimesheetFormInputs)
-import Application.PayAssignment (StaffPayAssignment (..), staffAssignmentSuppressesTimesheets)
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffAssignmentSuppressesTimesheets)
 import Application.VenueTime.Model
 import Control.Monad (filterM, guard)
 import qualified Data.Map.Strict as Map
@@ -38,9 +39,9 @@ import Web.Timesheets.Paths (newTimesheetEntryFromRosterPrefillUrl)
 import Web.Timesheets.Projection
 import Web.Timesheets.RosterGroupClassification
 import Web.Timesheets.RosterPrefill (newTimesheetEntryFromRosterPrefill,
-                                  timesheetRosterPrefillEndTime,
-                                  timesheetRosterPrefillOperationalDate,
-                                  timesheetRosterPrefillStartTime)
+                                     timesheetRosterPrefillEndTime,
+                                     timesheetRosterPrefillOperationalDate,
+                                     timesheetRosterPrefillStartTime)
 import Web.Timesheets.Validation
 import Web.View.Timesheets.Chooser (TimesheetBlankChoice (..),
                                     TimesheetChooserRenderModel (..))
@@ -137,7 +138,7 @@ prepareTimesheetChooser selectedStaffFilterId operationalDate = do
             let chooserShiftTypes = formContext.formShiftTypes
             let chooserRosterGroups = rosterGroups
             let chooserCalendarRevision = formContext.formVenueConfig.rosterCalendarRevision
-            let chooserSelectedStaffFilter = selectedStaffFilterId
+            let chooserViewFilters = formContext.formViewFilters
             let chooserCurrentViewerStaff = currentViewerId
             let chooserOperationalDate = operationalDate
             case (chooserRosterShifts, chooserBlankChoices) of
@@ -202,7 +203,7 @@ unavailableTimesheetStaffBlocker formContext
 
 createOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> IO TimesheetCreateOutcome
 createOrdinaryTimesheetEntry context = do
-    let selectedStaffFilterId = context.timesheetFilters.filterStaffId
+    let selectedStaffFilterId = listToMaybe context.timesheetFilters.filterStaffIds
     submittedClassification <- submittedTimesheetRosterGroupClassification
     baseFormContext <- fetchTimesheetFormContext noReferencedTimesheetOptions selectedStaffFilterId
     formContext <- constrainFormContextToClassification baseFormContext submittedClassification
@@ -234,7 +235,7 @@ createOrdinaryTimesheetEntry context = do
 
 editOrdinaryTimesheetEntry :: (?respond :: Respond, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetRequestContext -> TimesheetEntry -> IO TimesheetEditOutcome
 editOrdinaryTimesheetEntry context existingEntry = do
-    formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor existingEntry) context.timesheetFilters.filterStaffId
+    formContext <- fetchTimesheetFormContext (timesheetFormReferencesFor existingEntry) (listToMaybe context.timesheetFilters.filterStaffIds)
     prepareTimesheetEdit formContext.formVenueConfig formContext.formCurrentViewerStaffId existingEntry >>= \case
         Left timesheetEntry -> pure (TimesheetEditInvalid (timesheetFormInputsFor formContext timesheetEntry))
         Right intent -> TimesheetEditCompleted <$> updateTimesheetEntryMutation context.timesheetScope intent
@@ -285,7 +286,7 @@ createRosterPrefillTimesheetEntry context rosterSlotId = do
     fetchTimesheetRosterPrefillForRosterSlot rosterSlotId >>= \case
         Nothing -> pure RosterPrefillUnavailable
         Just rosterPrefill -> do
-            baseFormContext <- fetchTimesheetFormContext noReferencedTimesheetOptions context.timesheetFilters.filterStaffId
+            baseFormContext <- fetchTimesheetFormContext noReferencedTimesheetOptions (listToMaybe context.timesheetFilters.filterStaffIds)
             formContext <- constrainFormContextToClassification baseFormContext (Just (TimesheetInRosterGroup rosterPrefill.prefillRosterGroupId))
             let venueConfig = formContext.formVenueConfig
             case validatePersistedTimezone venueConfig.timezone of

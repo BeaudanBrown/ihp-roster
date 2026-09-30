@@ -341,7 +341,7 @@ renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogO
          tabindex="-1"
          role="dialog"
          aria-labelledby="modal-title"
-         aria-hidden="true"
+         aria-modal="true"
          onclick="if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()">
         <div class={classes [("modal-dialog", True), (dialogOverlayDialogClass, not (Text.null dialogOverlayDialogClass))]}
              role="document"

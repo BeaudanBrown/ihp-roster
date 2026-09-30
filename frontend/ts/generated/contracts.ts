@@ -1058,6 +1058,18 @@ export const xeroCandidateFilterConfigDomAttr = "data-bepis-xero-candidate-filte
 
 export const xeroCandidateFilterEmptyDomAttr = "data-bepis-xero-candidate-filter-empty" as const;
 
+export const filterSelectionSectionDomAttr = "data-bepis-filter-selection-section" as const;
+
+export const filterSelectionItemDomAttr = "data-bepis-filter-selection-item" as const;
+
+export const filterSelectionClearDomAttr = "data-bepis-filter-selection-clear" as const;
+
+export const filterSelectionAllDomAttr = "data-bepis-filter-selection-all" as const;
+
+export const filterSelectionSelectedDomAttr = "data-bepis-filter-selection-selected" as const;
+
+export const filterSelectionCountDomAttr = "data-bepis-filter-selection-count" as const;
+
 export const liveUpdateSocketPath = "live-updates" as const;
 
 export const surfaceConfigDomAttr = "data-bepis-surface-config" as const;
@@ -1529,8 +1541,9 @@ export function isAdminXeroAdminXeroStaffMappingsWaitFragmentFragmentParams(valu
 }
 
 export type VenueId = FrontendContractUuid;
-export type StaffFilterId = FrontendContractUuid;
-export type RosterGroupFilterId = FrontendContractUuid;
+export type StaffFilterIds = FrontendContractUuid;
+export type RosterGroupFilterIds = FrontendContractUuid;
+export type ShiftTypeFilterIds = FrontendContractUuid;
 export type RosterGroupId = FrontendContractUuid;
 export type RosterDayId = FrontendContractUuid;
 export type TemplateId = FrontendContractUuid;

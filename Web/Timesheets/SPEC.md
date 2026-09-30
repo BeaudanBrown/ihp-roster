@@ -49,22 +49,27 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   is absent. The independent
   estimated-pay display mode defaults Hidden. These preferences do not enter
   Bepis-generated Timesheets URLs, fragment
-  requests, or mutation envelopes. The viewed week and authorized manager staff
+  requests, or mutation envelopes. The viewed week and authorized Staff, shift-type,
   and roster-group filters are URL state; additional query fields are ignored
   rather than interpreted as compatibility state. Filters never grant authority.
-  The roster-group filter is available only when at least two active current-venue
-  groups exist; otherwise roster-group URL state canonicalizes to All roster groups.
-  The staff dropdown is labelled Staff filter. Manager mode replaces the former
-  Me shortcut: when mode is off, staff and roster-group filter parameters are
-  ignored and removed from the canonical URL, and the effective viewer is scoped
-  to their own records without a filter.
+  Staff, shift types, and roster groups are multi-select URL filters: OR within
+  each category, AND between categories, and an empty selection means All.
+  Shift-type filtering is available to everyone; Staff and roster groups require
+  Manager mode. Options are alphabetical active current-venue items plus historical
+  items referenced by the full authorized, non-deleted week before presentation
+  filters (including Show approved). Historical choices are labelled and disappear
+  when absent from another week; their selections are removed silently.
+  The roster-group category appears only with at least two available groups;
+  otherwise its state canonicalizes to All. When Manager mode is off, Staff and
+  roster-group parameters are removed, but shift-type selections remain and the
+  effective viewer is scoped to their own records.
   Every entry has an immutable closed roster-group classification: a named
   roster group or explicit No roster group. Selecting one roster group retains
   only entries classified to that group. The pre-form chooser ignores these
   presentation filters. All roster groups includes explicit No roster group entries; there is
   no separate No roster group filter. Cards render `Shift type - Group` and keep
   archived historical group names available as labels without exposing archived
-  groups as filter choices.
+  groups outside their historical weeks as filter choices.
 - One global per-user Manager mode preference is shared with Roster and defaults
   on. Manager, admin, and owner users with active linked Staff can change it from
   the ordinary toggle that remains the first control in Settings. Missing active
@@ -79,7 +84,18 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
   contains every active Timesheet-eligible staff member independently of card
   filters. Its counts include persisted entries only, ignore the staff card
-  filter, and reflect the selected roster group.
+  filter and Show approved, and reflect selected roster groups and shift types.
+- Toolbar Filters opens one modal with independently collapsible sections and
+  summaries. Managers start collapsed; staff's sole Shift types section opens
+  expanded. One modal body scrolls; the current section header sticks without
+  stacking and Apply/Cancel remain visible. There is no search. Section Clear
+  changes only the draft; Apply replaces the week shell and closes the modal.
+  Cancel, Escape and backdrop dismiss silently and discard the draft. Toolbar
+  Clear filters applies immediately without changing week or saved preferences.
+  Empty days with active filters say "No timesheets match your filters".
+- Untouched new blank forms dismiss silently, including after reverting all
+  changes to their initial values. Changed blank/edit forms require confirmation;
+  roster-prefilled new forms always confirm, since source selection is not saving.
 - Manager row hover/focus highlights matching persisted entry cards;
   pinning keeps that presentation relationship. Keyboard row activation opens
   the existing staff profile dialog. Highlight and pin state never alter URLs or
@@ -143,14 +159,14 @@ link. Chooser cards have no pay or approval controls.
 
 ## Wage Estimates, Approval And Payroll
 
-- Timesheet wage display is an independent persisted mode: Hidden, Visible
-  timesheets, All timesheets, or Visible timesheets (all timesheets). New users
+- Timesheet wage display is an independent persisted mode: Hidden, Filtered
+  timesheets, All timesheets, or Filtered timesheets (all timesheets). New users
   default Hidden. Worker, Supervisor, and Manager roles are always restricted to
   their effective linked Staff; Admin and Owner receive venue scope only while
   Manager mode is on, and support impersonation follows the effective actor.
   Requested Staff filters and highlight pins never grant pay authority.
-- Visible summaries use shown persisted entries after Staff, roster-group, and
-  Show approved filters. All summaries use persisted non-deleted entries in the
+- Filtered summaries use shown persisted entries after Staff, shift-type,
+  roster-group, and Show approved filters. All summaries use persisted non-deleted entries in the
   selected week within pay authority and ignore those presentation filters. Day
   summaries apply the same rules to that day. Roster-prefill candidates never contribute.
   Combined mode renders the visible amount followed by the all amount in
@@ -181,8 +197,8 @@ scopes. Week/filter requests use the Surface-declared shell synchronization.
 Filter navigation replaces the scope-bearing shell so fragment URLs, hidden action
 fields, and canonical URL state move together. The shared same-feature HTMX
 lifecycle keeps an open tools shelf on its selected tab and restores its scroll
-position. Fragment GETs and their canonical redirects retain both authorized
-staff and roster-group filters; a refresh must not silently return All groups.
+position. Fragment GETs and their canonical redirects retain all authorized
+multi-select categories; a refresh must not silently reset selections.
 
 Legacy automatic roster-to-Timesheet jobs remain retired: publication creates no
 entry, the compatibility toggle stays false, and historical jobs remain audit

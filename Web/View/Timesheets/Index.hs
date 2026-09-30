@@ -11,10 +11,11 @@ import Application.Helper.Controller (currentUserIsSuperAdmin,
                                       managerModeToggleVisible)
 import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
                                                      OpenRosterStaffEditDialog,
-                                                     OpenTimesheetEntryDialog)
+                                                     OpenTimesheetEntryDialog,
+                                                     OpenTimesheetFiltersDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
                                                              appShellActionAttrs,
+                                                             appShellActionByMarker,
                                                              defaultAppShellActionRoute,
                                                              renderAppShellActionLink)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
@@ -40,18 +41,19 @@ import Application.Helper.FrontendContract.Surface.Timesheets.StaffPanel (Timesh
                                                                           timesheetStaffPanelSortRowAttrs)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.RosterWagePrediction (formatMoneyAmount)
-import Application.PayAssignment (StaffPayAssignment (..),
-                                  staffAssignmentAllowsTimesheets)
+import Application.Helper.View.FilterSelection
 import Application.VenueRole (parseVenueRole, venueRoleLabel)
 import Application.VenueTime.Model
 import Data.Fixed (Pico)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Web.Timesheets.Filters (TimesheetViewFilters (..))
+import Web.Timesheets.Filters (TimesheetViewFilters (..),
+                               activeTimesheetFilterCount,
+                               emptyTimesheetViewFilters)
 import Web.Timesheets.FrontendSurface (timesheetStaffCardsLinkedHighlight)
-import Web.Timesheets.Paths (editTimesheetEntryUrl,
-                             newTimesheetEntryUrl,
-                             timesheetWindowUrlWithFilters)
+import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
+                             timesheetWindowUrlWithFilters,
+                             withTimesheetFilters)
 import Web.Timesheets.WageEstimates
 import Web.View.Prelude
 
@@ -78,7 +80,6 @@ data IndexView = IndexView
     , rosterGroups             :: [RosterGroup]
     , rosterGroupLabels        :: [RosterGroup]
     , viewFilters              :: TimesheetViewFilters
-    , selectedStaffFilterId    :: Maybe UUID
     , currentViewerStaffId     :: Maybe UUID
     , staffPanelEntries        :: [TimesheetStaffPanelEntry]
     , frontendSurfaceImpl      :: Maybe (SurfaceImpl Surface.TimesheetsSurface)
@@ -98,8 +99,7 @@ data TimesheetDayRenderModel = TimesheetDayRenderModel
     , dayEditWindowDays      :: Int
     , dayWeekStartDate       :: Day
     , dayCalendarRevision    :: Int
-    , dayStaffFilterId       :: Maybe UUID
-    , dayRosterGroupFilterId :: Maybe UUID
+    , dayViewFilters         :: TimesheetViewFilters
     , dayWageEstimates       :: Maybe TimesheetWageEstimates
     , dayOffset              :: Int
     }
@@ -203,13 +203,16 @@ renderTimesheetWeekNavigationLink :: Text -> Text -> Day -> TimesheetViewFilters
 renderTimesheetWeekNavigationLink label url anchorDate filters =
     renderFrontendSurfaceActionLink
         ( TimesheetsAction.navigateTimesheetWeekAction
-            (TimesheetsAction.navigateTimesheetWeekActionFields anchorDate filters.filterStaffId filters.filterRosterGroupId)
+            (TimesheetsAction.navigateTimesheetWeekActionFields anchorDate (nonEmpty filters.filterStaffIds) (nonEmpty filters.filterRosterGroupIds) (nonEmpty filters.filterShiftTypeIds))
         )
         (timesheetsActionRoute url)
             { actionRouteStandardUrl = Just url
             , actionRouteExtraAttrs = [("class", weekNavigationButtonClass "")]
             }
         [hsx|{label}|]
+  where
+    nonEmpty []     = Nothing
+    nonEmpty values = Just values
 
 renderTimesheetWeekHeader :: (?context :: ControllerContext) => Day -> Day -> Maybe TimesheetWageEstimates -> TimesheetViewFilters -> Html
 renderTimesheetWeekHeader weekStartDate today wageEstimates filters =
@@ -218,7 +221,7 @@ renderTimesheetWeekHeader weekStartDate today wageEstimates filters =
         , weekToolbarRootAttrs = []
         , weekToolbarAriaLabel = "Timesheet week controls"
         , weekToolbarExtraClass = "timesheet-week-header app-side-panel-header"
-        , weekToolbarPrimary = mempty
+        , weekToolbarPrimary = renderTimesheetFilterButtons weekStartDate filters
         , weekToolbarReset = renderTimesheetWeekNavigationLink "This week" (timesheetWindowUrlWithFilters today filters) today filters
         , weekToolbarNavigation = renderWeekNavigationGroup WeekNavigationConfig
             { weekNavigationAriaLabel = "Timesheet week navigation"
@@ -260,19 +263,19 @@ renderTimesheetWageEstimateSummary cssClass estimates visibleSummary allSummary 
     renderAmounts AllTimesheets _ allEntries = formatMoneyAmount allEntries.wageEstimateAmount
     renderAmounts VisibleAndAllTimesheets visible allEntries = formatMoneyAmount visible.wageEstimateAmount <> " (" <> formatMoneyAmount allEntries.wageEstimateAmount <> ")"
     renderAmounts Hidden _ _ = ""
-    relevantSummary VisibleTimesheets visible _ = visible
-    relevantSummary AllTimesheets _ allEntries = allEntries
+    relevantSummary VisibleTimesheets visible _          = visible
+    relevantSummary AllTimesheets _ allEntries           = allEntries
     relevantSummary VisibleAndAllTimesheets _ allEntries = allEntries
-    relevantSummary Hidden visible _ = visible
+    relevantSummary Hidden visible _                     = visible
 
 renderTimesheetWageEstimateAvailability :: WageDisplayModeEnum -> TimesheetWageEstimateSummary -> TimesheetWageEstimateSummary -> Html
 renderTimesheetWageEstimateAvailability mode visibleSummary allSummary =
     case mode of
         Hidden -> mempty
-        VisibleTimesheets -> renderCount visibleSummary.wageEstimateUnavailableCount "visible timesheet unavailable" "visible timesheets unavailable"
+        VisibleTimesheets -> renderCount visibleSummary.wageEstimateUnavailableCount "filtered timesheet unavailable" "filtered timesheets unavailable"
         AllTimesheets -> renderCount allSummary.wageEstimateUnavailableCount "timesheet unavailable overall" "timesheets unavailable overall"
         VisibleAndAllTimesheets ->
-            renderCount visibleSummary.wageEstimateUnavailableCount "visible timesheet unavailable" "visible timesheets unavailable"
+            renderCount visibleSummary.wageEstimateUnavailableCount "filtered timesheet unavailable" "filtered timesheets unavailable"
                 <> renderCount allSummary.wageEstimateUnavailableCount "timesheet unavailable overall" "timesheets unavailable overall"
   where
     renderCount :: Int -> Text -> Text -> Html
@@ -337,13 +340,13 @@ renderTimesheetSettingsFragment maybeSwapOob view = [hsx|
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, timesheetWageDisplayMode, viewFilters, staffMembers, rosterGroups } = [hsx|
+renderTimesheetSettings IndexView { weekStartDate, calendarRevision, hideApproved, timesheetWageDisplayMode, viewFilters } = [hsx|
     <div class="timesheet-settings-toggle-grid mb-2">
-        {when managerModeToggleVisible (renderTimesheetManagerModePreferenceForm weekStartDate)}
+        {when managerModeToggleVisible (renderTimesheetManagerModePreferenceForm weekStartDate viewFilters)}
         {renderTimesheetShowApprovedPreferenceForm weekStartDate calendarRevision viewFilters hideApproved}
         {when canConfigureTimesheetWageEstimates (renderTimesheetWageDisplayModePreferenceForm weekStartDate calendarRevision viewFilters timesheetWageDisplayMode)}
     </div>
-    {when hasManagementMode (renderTimesheetFilterForm weekStartDate viewFilters staffMembers rosterGroups)}
+
 |]
 
 renderTimesheetStaffPanel :: (?context :: ControllerContext) => [Staff] -> [TimesheetStaffPanelEntry] -> Html
@@ -393,8 +396,8 @@ renderTimesheetStaffPanelEntry staffMembers entry =
             </button>
         |]
 
-renderTimesheetManagerModePreferenceForm :: (?context :: ControllerContext) => Day -> Html
-renderTimesheetManagerModePreferenceForm anchorDate = [hsx|
+renderTimesheetManagerModePreferenceForm :: (?context :: ControllerContext) => Day -> TimesheetViewFilters -> Html
+renderTimesheetManagerModePreferenceForm anchorDate filters = [hsx|
     <div class="timesheet-settings-toggle">
         <fieldset disabled={not managerModeToggleEnabled} class="mb-0">
             {managerModeForm}
@@ -403,19 +406,21 @@ renderTimesheetManagerModePreferenceForm anchorDate = [hsx|
     </div>
 |]
   where
-    fields = TimesheetsAction.toggleTimesheetManagerModeActionFields anchorDate managerModePreferenceEnabled
+    fields = TimesheetsAction.toggleTimesheetManagerModeActionFields anchorDate managerModePreferenceEnabled (Just filters.filterShiftTypeIds)
     managerModeRoute =
         (timesheetsActionRoute (pathTo ToggleTimesheetManagerModeAction))
             { actionRouteStandardUrl = Just (pathTo ToggleTimesheetManagerModeAction) }
     managerModeExplanation
         | managerModeToggleEnabled = mempty
         | otherwise = [hsx|<p class="small app-muted mt-2 mb-0">Manager mode stays on because your account has no active linked Staff profile at this venue.</p>|]
+    renderShiftFilter value = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.ShiftTypeFilterIds fields} value={tshow value} />|]
     managerModeForm =
         renderFrontendSurfaceActionForm
             (TimesheetsAction.toggleTimesheetManagerModeAction fields)
             managerModeRoute
             [hsx|
                 <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
+                {forEach filters.filterShiftTypeIds renderShiftFilter}
                 {renderTimesheetToggleButton "timesheet-manager-mode-toggle" (surfaceToggleScalarField @Surface.ManagerModeEnabled fields True False) managerModePreferenceEnabled "Manager mode"}
             |]
 
@@ -434,7 +439,7 @@ renderTimesheetShowApprovedPreferenceForm anchorDate calendarRevision filters hi
             {renderTimesheetPreferenceToggle "timesheet-show-approved-toggle" (surfaceToggleScalarField @Surface.HideApproved fields False True) (not hideApproved) "Show approved"}
         |]
   where
-    fields = TimesheetsAction.toggleTimesheetHideApprovedActionFields anchorDate calendarRevision hideApproved filters.filterStaffId filters.filterRosterGroupId
+    fields = TimesheetsAction.toggleTimesheetHideApprovedActionFields anchorDate calendarRevision hideApproved (Just filters.filterStaffIds) (Just filters.filterRosterGroupIds) (Just filters.filterShiftTypeIds)
 
 renderTimesheetWageDisplayModePreferenceForm :: Day -> Int -> TimesheetViewFilters -> WageDisplayModeEnum -> Html
 renderTimesheetWageDisplayModePreferenceForm anchorDate calendarRevision filters displayMode =
@@ -454,85 +459,72 @@ renderTimesheetWageDisplayModePreferenceForm anchorDate calendarRevision filters
             </select>
         |]
   where
-    fields = TimesheetsAction.toggleTimesheetWageEstimatesActionFields anchorDate calendarRevision displayMode filters.filterStaffId filters.filterRosterGroupId
+    fields = TimesheetsAction.toggleTimesheetWageEstimatesActionFields anchorDate calendarRevision displayMode (Just filters.filterStaffIds) (Just filters.filterRosterGroupIds) (Just filters.filterShiftTypeIds)
     wageDisplayModes = [Hidden, VisibleTimesheets, AllTimesheets, VisibleAndAllTimesheets]
     renderModeOption mode = [hsx|<option value={inputValue mode} selected={mode == displayMode}>{wageDisplayModeLabel mode}</option>|]
     wageDisplayModeLabel Hidden = "Hidden" :: Text
-    wageDisplayModeLabel VisibleTimesheets = "Visible timesheets"
+    wageDisplayModeLabel VisibleTimesheets = "Filtered timesheets"
     wageDisplayModeLabel AllTimesheets = "All timesheets"
-    wageDisplayModeLabel VisibleAndAllTimesheets = "Visible timesheets (all timesheets)"
+    wageDisplayModeLabel VisibleAndAllTimesheets = "Filtered timesheets (all timesheets)"
 
 renderTimesheetFilterHiddenFields fields filters =
-    renderOptionalField (surfaceFieldNameFrom @Surface.StaffFilterId fields) filters.filterStaffId
-        <> renderOptionalField (surfaceFieldNameFrom @Surface.RosterGroupFilterId fields) filters.filterRosterGroupId
+    renderValues (surfaceFieldNameFrom @Surface.StaffFilterIds fields) filters.filterStaffIds
+        <> renderValues (surfaceFieldNameFrom @Surface.RosterGroupFilterIds fields) filters.filterRosterGroupIds
+        <> renderValues (surfaceFieldNameFrom @Surface.ShiftTypeFilterIds fields) filters.filterShiftTypeIds
   where
-    renderOptionalField fieldName = \case
-        Nothing -> mempty
-        Just value -> [hsx|<input type="hidden" name={fieldName} value={tshow value} />|]
+    renderValues fieldName values = forEach values (\value -> [hsx|<input type="hidden" name={fieldName} value={tshow value} />|])
 
-renderTimesheetFilterForm :: (?context :: ControllerContext) => Day -> TimesheetViewFilters -> [Staff] -> [RosterGroup] -> Html
-renderTimesheetFilterForm anchorDate filters staffMembers rosterGroups =
-    renderFrontendSurfaceActionForm
-        (TimesheetsAction.updateTimesheetFiltersAction fields)
-        (timesheetsActionRoute updateUrl)
-            { actionRouteStandardUrl = Just updateUrl
-            , actionRouteExtraAttrs = [("class", "px-1 py-1")]
-            }
-        [hsx|
-            <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={surfaceWireText @'WireDay anchorDate} />
-            {renderTimesheetStaffFilter fields filters staffMembers}
-            {when (length rosterGroups > 1) (renderTimesheetRosterGroupFilter fields filters.filterRosterGroupId rosterGroups)}
+renderTimesheetFilterButtons :: Day -> TimesheetViewFilters -> Html
+renderTimesheetFilterButtons anchorDate filters = [hsx|
+    <div class="d-flex gap-2 flex-wrap">
+        {openButton}
+        {clearButton}
+    </div>
+|]
+  where
+    count = activeTimesheetFilterCount filters
+    label = if count == 0 then "Filters" else "Filters · " <> tshow count
+    openButton = renderAppShellActionLink (appShellActionByMarker @OpenTimesheetFiltersDialog)
+        ((defaultAppShellActionRoute modalUrl) { appShellActionRouteExtraAttrs = [("class", "btn btn-outline-secondary"), ("id", "timesheet-filters-button")] })
+        [hsx|{label}|]
+    clearButton = if count == 0 then [hsx|<button type="button" class="btn btn-outline-secondary" disabled>Clear filters</button>|]
+        else renderTimesheetWeekNavigationLink "Clear filters" (timesheetWindowUrlWithFilters anchorDate emptyTimesheetViewFilters) anchorDate emptyTimesheetViewFilters
+    modalUrl = withTimesheetFilters filters (pathTo (ShowTimesheetFiltersAction (tshow anchorDate)))
+
+newtype TimesheetFiltersView = TimesheetFiltersView { filtersIndexView :: IndexView }
+
+instance View TimesheetFiltersView where
+    html TimesheetFiltersView { filtersIndexView = view } =
+        renderPageDialogModal (timesheetWindowUrlWithFilters view.weekStartDate view.viewFilters) (timesheetFiltersDialogConfig PageOverlayForm view)
+
+renderTimesheetFiltersDialog :: (?context :: ControllerContext) => IndexView -> Html
+renderTimesheetFiltersDialog view =
+    renderDialogOverlay (timesheetFiltersDialogConfig HtmxOverlayForm view)
+
+timesheetFiltersDialogConfig :: (?context :: ControllerContext) => OverlayFormMode -> IndexView -> DialogOverlayConfig
+timesheetFiltersDialogConfig mode view =
+    defaultDialogOverlayConfig "Filters" (renderTimesheetFilterForm mode view)
+        [dialogOverlayCloseButton "Cancel", dialogOverlaySubmitButton "Apply" "timesheet-filters-form"]
+
+renderTimesheetFilterForm :: (?context :: ControllerContext) => OverlayFormMode -> IndexView -> Html
+renderTimesheetFilterForm mode IndexView { weekStartDate = anchorDate, viewFilters = filters, staffMembers, shiftTypes, rosterGroups } =
+    renderForm [hsx|
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={tshow anchorDate} />
+            {when hasManagementMode (renderFilterSelectionSection "Staff" (surfaceFieldNameFrom @Surface.StaffFilterIds fields) False (map tshow filters.filterStaffIds) staffOptions)}
+            {renderFilterSelectionSection "Shift types" (surfaceFieldNameFrom @Surface.ShiftTypeFilterIds fields) (not hasManagementMode) (map tshow filters.filterShiftTypeIds) shiftOptions}
+            {when (hasManagementMode && length rosterGroups > 1) (renderFilterSelectionSection "Roster groups" (surfaceFieldNameFrom @Surface.RosterGroupFilterIds fields) False (map tshow filters.filterRosterGroupIds) groupOptions)}
         |]
   where
-    updateUrl = timesheetWindowUrlWithFilters anchorDate filters
-    fields = TimesheetsAction.updateTimesheetFiltersActionFields anchorDate filters.filterStaffId filters.filterRosterGroupId
-
-renderTimesheetStaffFilter :: ActionFields TimesheetsAction.UpdateTimesheetFiltersActionOperation -> TimesheetViewFilters -> [Staff] -> Html
-renderTimesheetStaffFilter fields filters staffMembers = [hsx|
-    <div class="mt-3">
-        <label for="timesheet-staff-filter" class="form-label small mb-1">Staff filter</label>
-        <div class="timesheet-staff-filter-controls">
-            <select id="timesheet-staff-filter"
-                    name={surfaceFieldNameFrom @Surface.StaffFilterId fields}
-                    class="form-select form-select-sm"
-                    onchange="this.form.requestSubmit();">
-                <option value="" selected={isNothing selectedStaffFilterId}>All staff</option>
-                {forEach eligibleStaff renderOption}
-            </select>
-        </div>
-    </div>
-|]
-    where
-        selectedStaffFilterId = filters.filterStaffId
-        eligibleStaff = filter staffCanProduceTimesheets staffMembers
-        staffCanProduceTimesheets staff =
-            staffAssignmentAllowsTimesheets
-                (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
-        renderOption staff =
-            let staffId = unpackId (get #id staff)
-             in [hsx|
-                <option value={tshow staffId} selected={selectedStaffFilterId == Just staffId}>
-                    {staff.firstName} {staff.lastName}
-                </option>
-            |]
-
-renderTimesheetRosterGroupFilter :: ActionFields TimesheetsAction.UpdateTimesheetFiltersActionOperation -> Maybe UUID -> [RosterGroup] -> Html
-renderTimesheetRosterGroupFilter fields selectedRosterGroupId groups = [hsx|
-    <div class="mt-3">
-        <label for="timesheet-roster-group-filter" class="form-label small mb-1">Roster group</label>
-        <select id="timesheet-roster-group-filter"
-                name={surfaceFieldNameFrom @Surface.RosterGroupFilterId fields}
-                class="form-select form-select-sm"
-                onchange="this.form.requestSubmit();">
-            <option value="" selected={isNothing selectedRosterGroupId}>All roster groups</option>
-            {forEach groups renderOption}
-        </select>
-    </div>
-|]
-  where
-    renderOption group = [hsx|
-        <option value={tshow (unpackId group.id)} selected={selectedRosterGroupId == Just (unpackId group.id)}>{group.name}</option>
-    |]
+    updateUrl = timesheetWindowUrlWithFilters anchorDate emptyTimesheetViewFilters
+    renderForm body = case mode of
+        HtmxOverlayForm -> renderFrontendSurfaceActionForm
+            (TimesheetsAction.updateTimesheetFiltersAction fields)
+            ((timesheetsActionRoute updateUrl) { actionRouteStandardUrl = Just updateUrl, actionRouteExtraAttrs = [("id", "timesheet-filters-form")] }) body
+        PageOverlayForm -> [hsx|<form id="timesheet-filters-form" method="GET" action={updateUrl}>{body}</form>|]
+    fields = TimesheetsAction.updateTimesheetFiltersActionFields anchorDate (Just filters.filterStaffIds) (Just filters.filterRosterGroupIds) (Just filters.filterShiftTypeIds)
+    staffOptions = [FilterSelectionOption (tshow staff.id) (staff.firstName <> " " <> staff.lastName) (not staff.isActive || isJust staff.archivedAt) | staff <- staffMembers]
+    shiftOptions = [FilterSelectionOption (tshow shift.id) shift.name (not shift.isActive || isJust shift.archivedAt) | shift <- shiftTypes]
+    groupOptions = [FilterSelectionOption (tshow group.id) group.name (not group.isActive || isJust group.archivedAt) | group <- rosterGroups]
 
 renderTimesheetPreferenceToggle :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
 renderTimesheetPreferenceToggle inputId binding isChecked label = [hsx|
@@ -554,7 +546,7 @@ renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
 timesheetDayRenderModel :: IndexView -> Int -> TimesheetDayRenderModel
-timesheetDayRenderModel IndexView { entries, timingByEntryId, staffMembers, shiftTypes, rosterGroupLabels, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates, selectedStaffFilterId } dayOffset =
+timesheetDayRenderModel IndexView { entries, timingByEntryId, staffMembers, shiftTypes, rosterGroupLabels, today, editWindowDays, weekStartDate, calendarRevision, viewFilters, wageEstimates } dayOffset =
     TimesheetDayRenderModel
         { dayEntries = entries
         , dayTimingByEntryId = timingByEntryId
@@ -565,8 +557,7 @@ timesheetDayRenderModel IndexView { entries, timingByEntryId, staffMembers, shif
         , dayEditWindowDays = editWindowDays
         , dayWeekStartDate = weekStartDate
         , dayCalendarRevision = calendarRevision
-        , dayStaffFilterId = selectedStaffFilterId
-        , dayRosterGroupFilterId = viewFilters.filterRosterGroupId
+        , dayViewFilters = viewFilters
         , dayWageEstimates = wageEstimates
         , dayOffset
         }
@@ -576,7 +567,7 @@ renderDaySection =
     renderDaySectionWithSwap Nothing
 
 renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> TimesheetDayRenderModel -> Html
-renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, dayWeekStartDate, dayStaffFilterId, dayWageEstimates, dayOffset } = [hsx|
+renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, dayWeekStartDate, dayWageEstimates, dayOffset } = [hsx|
     <section id={timesheetDaySectionDomId dayDate}
              class="timesheet-day-panel app-horizontal-panel"
              data-timesheet-operational-date={surfaceWireText @'WireDay dayDate}
@@ -597,7 +588,7 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
         dayEntriesForDate = filter ((== dayDate) . timesheetEntryOperationalDate) dayEntries
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
         weekdayShortLabel = Text.pack (formatTime defaultTimeLocale "%a" dayDate)
-        newEntryUrl = newTimesheetEntryUrl dayDate dayDate dayStaffFilterId
+        newEntryUrl = withTimesheetFilters model.dayViewFilters (newTimesheetEntryUrl dayDate dayDate Nothing)
 
 renderNewEntryOverlayLink :: Text -> Text -> Text -> Day -> Html
 renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate =
@@ -621,7 +612,7 @@ timesheetDaySectionDomId operationalDate =
 
 renderDayEntries :: (?context :: ControllerContext) => TimesheetDayRenderModel -> [TimesheetEntry] -> Html
 renderDayEntries model dayEntries
-    | null dayEntries = [hsx|<p class="timesheet-day-empty app-muted mb-0">No entries for this day.</p>|]
+    | null dayEntries = [hsx|<p class="timesheet-day-empty app-muted mb-0">{if activeTimesheetFilterCount model.dayViewFilters > 0 then "No timesheets match your filters" else "No entries for this day." :: Text}</p>|]
     | otherwise = [hsx|
         <div class="timesheet-entry-list">
             {forEach dayEntries (renderEntryCard model)}
@@ -629,7 +620,7 @@ renderDayEntries model dayEntries
     |]
 
 renderEntryCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Html
-renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, dayEditWindowDays, dayCalendarRevision, dayStaffFilterId } entry =
+renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, dayEditWindowDays, dayCalendarRevision } entry =
     renderTimesheetCard
         model
         entry
@@ -637,11 +628,11 @@ renderEntryCard model@TimesheetDayRenderModel { dayTimingByEntryId, dayToday, da
         "timesheet-entry-card"
         Nothing
         (renderEntryCardOverlayLink entry canEdit editUrl)
-        (renderApprovalAction entry timingOutcome dayCalendarRevision dayStaffFilterId)
+        (renderApprovalAction entry timingOutcome dayCalendarRevision model.dayViewFilters)
   where
     timingOutcome = Map.findWithDefault (Left (TimesheetTimingInvalid BoundaryShiftShapeInvalid)) (unpackId entry.id) dayTimingByEntryId
     canEdit = hasManagementMode || isWithinEditWindow dayToday (timesheetEntryOperationalDate entry) dayEditWindowDays
-    editUrl = editTimesheetEntryUrl (get #id entry) (timesheetEntryOperationalDate entry) dayStaffFilterId
+    editUrl = withTimesheetFilters model.dayViewFilters (editTimesheetEntryUrl (get #id entry) (timesheetEntryOperationalDate entry) Nothing)
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Text -> Maybe Text -> Html -> Html -> Html
 renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayRosterGroups } entry timingOutcome cardClass rosterPrefillId cardOverlay cardAction =
@@ -692,7 +683,7 @@ renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, da
         NoRosterGroup -> "No roster group"
         InRosterGroup -> case entry.rosterGroupId >>= \groupId -> find ((== groupId) . unpackId . (.id)) dayRosterGroups of
             Just rosterGroup -> rosterGroup.name
-            Nothing -> "Roster group"
+            Nothing          -> "Roster group"
 
 renderEntryCardOverlayLink :: TimesheetEntry -> Bool -> Text -> Html
 renderEntryCardOverlayLink entry canEdit editUrl
@@ -729,7 +720,7 @@ renderComment label maybeComment =
             </div>
         |]
 
-renderApprovalAction :: (?context :: ControllerContext) => TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Int -> Maybe UUID -> Html
+renderApprovalAction :: (?context :: ControllerContext) => TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming -> Int -> TimesheetViewFilters -> Html
 renderApprovalAction entry timingOutcome calendarRevision staffFilterId
     | not hasManagementMode && entry.isApproved = [hsx|
         <button type="button"
@@ -756,8 +747,8 @@ renderApprovalAction entry timingOutcome calendarRevision staffFilterId
     timingIsInvalid = case timingOutcome of
         Left _  -> True
         Right _ -> False
-    approveFields = TimesheetsAction.approveTimesheetEntryActionFields (timesheetEntryOperationalDate entry) calendarRevision staffFilterId
-    unapproveFields = TimesheetsAction.unapproveTimesheetEntryActionFields (timesheetEntryOperationalDate entry) calendarRevision staffFilterId
+    approveFields = TimesheetsAction.approveTimesheetEntryActionFields (timesheetEntryOperationalDate entry) calendarRevision (Just staffFilterId.filterStaffIds) (Just staffFilterId.filterRosterGroupIds) (Just staffFilterId.filterShiftTypeIds)
+    unapproveFields = TimesheetsAction.unapproveTimesheetEntryActionFields (timesheetEntryOperationalDate entry) calendarRevision (Just staffFilterId.filterStaffIds) (Just staffFilterId.filterRosterGroupIds) (Just staffFilterId.filterShiftTypeIds)
 
 renderTimesheetApprovalForm :: FrontendSurfaceAction -> Text -> Html -> Html
 renderTimesheetApprovalForm action actionUrl button =

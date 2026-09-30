@@ -22,6 +22,8 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Admin
 import Application.Helper.FrontendContract.Surface.Admin.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Billing as Billing
 import Application.Helper.FrontendContract.Surface.Billing.HaskellAdapter
+import qualified Application.Helper.FrontendContract.Surface.Feedback as Feedback
+import Application.Helper.FrontendContract.Surface.Feedback.HaskellAdapter
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (SurfaceAdapterKind (..))
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequests
@@ -32,8 +34,6 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import Application.Helper.FrontendContract.Surface.SelfServiceLeave.HaskellAdapter
-import qualified Application.Helper.FrontendContract.Surface.Feedback as Feedback
-import Application.Helper.FrontendContract.Surface.Feedback.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Support as Support
 import Application.Helper.FrontendContract.Surface.Support.HaskellAdapter
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Timesheets
@@ -197,8 +197,7 @@ type RegisteredSurfaceResourceAdapterHomes =
 
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
-    [ surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek
-        (requestAdapterOperationsWithoutParser "The endpoint consumes the routed week offset and canonical optional staff filter rather than a complete Surface request envelope")
+    [ surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters
         (requestAdapterOperationsWithoutParser "The shared navigation endpoint cannot distinguish this filter form from week navigation at the request boundary")
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetHideApproved allRequestAdapterOperations

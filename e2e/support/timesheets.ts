@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from '../timeouts';
-import { timesheetsSidePanelShelfToggleDomAttr } from '../../frontend/ts/generated/contracts';
+import { dialogOverlayMountDomId, filterSelectionSectionDomAttr, timesheetsSidePanelShelfToggleDomAttr } from '../../frontend/ts/generated/contracts';
 import { runSql, sqlString } from './database';
 import { waitForLiveRecovery } from './runtime';
 
@@ -31,6 +31,18 @@ export async function chooseBlankTimesheet(page: Page, preferredStaffName = 'E2E
         }),
     ]);
     await expect(createForm).toBeVisible({ timeout: E2E_TIMEOUT.action });
+}
+
+export async function openTimesheetFilterSection(page: Page, label: 'Staff' | 'Shift types' | 'Roster groups') {
+    const modal = page.locator(`#${dialogOverlayMountDomId}`);
+    if (!(await modal.getByRole('dialog').count())) {
+        const closeShelf = page.getByRole('button', { name: 'Close Timesheet tools', exact: true });
+        if (await closeShelf.isVisible()) await closeShelf.click();
+        await page.locator('#timesheet-filters-button').click();
+    }
+    const section = modal.locator(`[${filterSelectionSectionDomAttr}]`).filter({ has: page.locator('summary', { hasText: label }) });
+    if (await section.getAttribute('open') === null) await section.locator('summary').click();
+    return section;
 }
 
 export async function openTimesheetSettings(page: Page) {

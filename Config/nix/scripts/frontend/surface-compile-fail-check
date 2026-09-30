@@ -363,7 +363,7 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteAction.hs" \
     "FrontendSurface field list is incomplete" \
-    "Missing next field: Timesheets.StaffFilterId :: optional WireUUID"
+    "Missing next field: Timesheets.StaffFilterIds :: optional WireList (WireUUID)"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionWireType.hs" \

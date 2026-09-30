@@ -45,6 +45,7 @@ module Application.Helper.FrontendContract.AppShell
     , ContentField
     , FeedbackTitleField
     , OpenTimesheetEntryDialog
+    , OpenTimesheetFiltersDialog
     , EditTimesheetEntryDialog
     , CreateTimesheetEntryOverlay
     , UpdateTimesheetEntryOverlay
@@ -179,6 +180,7 @@ data ContentField
 data FeedbackTitleField
 
 data OpenTimesheetEntryDialog
+data OpenTimesheetFiltersDialog
 data EditTimesheetEntryDialog
 data CreateTimesheetEntryOverlay
 data UpdateTimesheetEntryOverlay
@@ -335,6 +337,13 @@ type AppShellContract =
              , Field FeedbackTitleField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellPost
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
+         , AppShellAction OpenTimesheetFiltersDialog
+            '[]
+            '[ AppShellHtmxMethod 'AppShellGet
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse

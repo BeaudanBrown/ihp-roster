@@ -110,6 +110,7 @@ Application/Helper/FrontendContract/Contracts.hs	development	build-tooling	-	Gen
 Application/Helper/FrontendContract/Core.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/DSL.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Error.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/FilterSelection.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/HorizontalScroll.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/HorizontalScroll/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Htmx.hs	production	runtime	Main	Reachable from Main
@@ -315,6 +316,7 @@ Application/Helper/View.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Audience.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Awards.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Chrome.hs	production	runtime	Main	Reachable from Main
+Application/Helper/View/FilterSelection.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Format.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Leave.hs	production	runtime	Main	Reachable from Main
 Application/Helper/View/Oob.hs	production	runtime	Main	Reachable from Main

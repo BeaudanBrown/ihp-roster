@@ -56,6 +56,8 @@ import Test.Support.SurfaceContract
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
+import Web.Timesheets.Filters (TimesheetViewFilters (..),
+                               emptyTimesheetViewFilters)
 import Web.Timesheets.FrontendSurface
 import Web.Timesheets.Mutations (TimesheetMaterializationKind (..),
                                  approveTimesheetEntryMutation,
@@ -69,6 +71,7 @@ import Web.Timesheets.Projection (TimesheetFormContext (..),
                                   TimesheetFormReferences (..),
                                   TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
+                                  canonicalTimesheetFilters,
                                   fetchTimesheetFormContext,
                                   fetchTimesheetRosterPrefillForRosterSlot,
                                   noReferencedTimesheetOptions)
@@ -83,6 +86,78 @@ import qualified Web.View.Timesheets.Index as TimesheetsView
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "TimesheetsController" do
+        it "filters cards by multiple staff and shift types together" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Multi filters"
+                manager <- createUserRecord "multi-filters@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                alice <- createStaffRecord venue (Just manager) "Alice" "Filters"
+                bob <- createStaffRecord venue Nothing "Bob" "Filters"
+                carol <- createStaffRecord venue Nothing "Carol" "Filters"
+                level <- createPayLevelRecord venue "Multi level"
+                bar <- createShiftTypeRecord venue level "Bar"
+                kitchen <- createShiftTypeRecord venue level "Kitchen"
+                other <- createShiftTypeRecord venue level "Other"
+                forM_ [(alice, bar, "MATCH-ALICE"), (bob, kitchen, "MATCH-BOB"), (carol, bar, "EXCLUDED-STAFF"), (alice, other, "EXCLUDED-SHIFT")] \(staff, shift, comment) -> do
+                    entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                    updateRecord (entry |> set #shiftTypeId (unpackId shift.id) |> set #staffComment (Just comment))
+                let staffParams = [("staffFilterIds", cs (tshow staffId)) | staffId <- sort [alice.id, bob.id]]
+                let shiftParams = [("shiftTypeFilterIds", cs (tshow shiftId)) | shiftId <- sort [bar.id, kitchen.id]]
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowTimesheetWindowAction "2025-01-06") (("anchorDate", "2025-01-06") : staffParams <> shiftParams)
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "MATCH-ALICE"
+                response `responseBodyShouldContain` "MATCH-BOB"
+                response `responseBodyShouldNotContain` "EXCLUDED-STAFF"
+                response `responseBodyShouldNotContain` "EXCLUDED-SHIFT"
+                response `responseBodyShouldContain` "No timesheets match your filters"
+
+        it "offers active plus week-local historical filters and rejects cross-venue choices" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Historical filters"
+                manager <- createUserRecord "historical-filters@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue (Just manager) "Archived" "Person"
+                level <- createPayLevelRecord venue "Filters level"
+                activeShift <- createShiftTypeRecord venue level "Active shift"
+                historicalShift <- createShiftTypeRecord venue level "Historical shift"
+                historicalGroup <- newRecord @RosterGroup |> set #venueId (unpackId venue.id) |> set #name "Historical group" |> createRecord
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                _ <- newRecord @TimesheetEntry
+                    |> set #venueId (unpackId venue.id)
+                    |> set #staffId (unpackId staff.id)
+                    |> set #shiftTypeId (unpackId historicalShift.id)
+                    |> set #operationalDate entry.operationalDate
+                    |> set #startsAt entry.startsAt
+                    |> set #endsAt entry.endsAt
+                    |> set #timezone entry.timezone
+                    |> set #rosterGroupClassification InRosterGroup
+                    |> set #rosterGroupId (Just (unpackId historicalGroup.id))
+                    |> createRecord
+                _ <- updateRecord (staff |> set #isActive False)
+                _ <- updateRecord (historicalShift |> set #isActive False)
+                _ <- updateRecord (historicalGroup |> set #isActive False)
+                otherVenue <- createVenueWithConfig "Foreign filters"
+                foreignStaff <- createStaffRecord otherVenue Nothing "Foreign" "Person"
+                foreignShift <- createShiftTypeRecord otherVenue level "Foreign shift"
+                let requested = TimesheetViewFilters [unpackId staff.id, unpackId foreignStaff.id] [unpackId historicalGroup.id] [unpackId historicalShift.id, unpackId foreignShift.id]
+                (historical, nextWeek) <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        (,) <$> canonicalTimesheetFilters (fromGregorian 2025 1 6) requested
+                            <*> canonicalTimesheetFilters (fromGregorian 2025 1 13) requested
+                historical `shouldBe` TimesheetViewFilters [unpackId staff.id] [unpackId historicalGroup.id] [unpackId historicalShift.id]
+                nextWeek `shouldBe` emptyTimesheetViewFilters
+                modal <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ShowTimesheetFiltersAction "2025-01-06")
+                modal `responseBodyShouldContain` "Active shift"
+                modal `responseBodyShouldContain` "Historical shift"
+                modal `responseBodyShouldContain` "Historical group"
+                modal `responseBodyShouldContain` "Archived Person"
+                modal `responseBodyShouldNotContain` "Foreign shift"
+                modal `responseBodyShouldNotContain` "Foreign Person"
+                activeShift.isActive `shouldBe` True
+
         it "redirects unauthenticated users through shared controller middleware" $ withContext do
             let entryId = Id "00000000-0000-0000-0000-000000000000"
             actionResponsesShouldHaveStatus status302
@@ -129,7 +204,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 pageResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowTimesheetWindowAction "2025-01-06")
-                        [ ("staffFilterId", cs (tshow (unpackId otherStaff.id))) ]
+                        [ ("anchorDate", "2025-01-06"), ("staffFilterIds", cs (tshow (unpackId otherStaff.id))) ]
                 pageResponse `responseStatusShouldBe` status302
                 responseHeaders pageResponse `shouldContain` [("Location", "http://localhost/ShowTimesheetWindow?anchorDate=2025-01-06")]
 
@@ -241,7 +316,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowTimesheetWindowAction "2025-01-06")
-                        [("staffFilterId", idToParam otherStaff.id)]
+                        [("staffFilterIds", idToParam otherStaff.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Your estimated pay"
@@ -285,7 +360,7 @@ tests = aroundAll withDatabaseTestContext do
                 (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
-                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue emptyTimesheetViewFilters
                         let impl = timesheetsSurfaceImpl scope mountState
                         response <- callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         pure (response, impl.surfaceImplMountConfig, impl.surfaceImplMountConfig.mountFragments)
@@ -324,7 +399,7 @@ tests = aroundAll withDatabaseTestContext do
                 location `shouldSatisfy` maybe False (Text.isInfixOf ("anchorDate=" <> tshow operationalToday))
                 unauthorizedFilterResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 4)))
-                        [("staffFilterId", idToParam staff.id)]
+                        [("anchorDate", "2025-02-03"), ("staffFilterIds", idToParam staff.id)]
                 unauthorizedFilterResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders unauthorizedFilterResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2025-02-03"
@@ -385,7 +460,7 @@ tests = aroundAll withDatabaseTestContext do
             withCurrentControllerContext do
                 let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
                 let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWindowStart = testAnchorForOffset (2 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (2 )), timesheetCalendarRevision = 1}
-                let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
+                let mountState = TimesheetsMountStateValue emptyTimesheetViewFilters
                 let impl = timesheetsSurfaceImpl scope mountState
                 let mountConfig = impl.surfaceImplMountConfig
                 let fragmentKeys = map (.mountedFragmentKey) mountConfig.mountFragments
@@ -396,8 +471,9 @@ tests = aroundAll withDatabaseTestContext do
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
                 mountConfig.mountScopeKey `shouldBe` "timesheets:00000000-0000-0000-0000-000000000123:2025-01-20:2025-01-27:1"
                 mountConfig.mountState `shouldBe` Aeson.object
-                    [ "staffFilterId" Aeson..= (Nothing :: Maybe Text)
-                    , "rosterGroupFilterId" Aeson..= (Nothing :: Maybe Text)
+                    [ "staffFilterIds" Aeson..= ([] :: [Text])
+                    , "rosterGroupFilterIds" Aeson..= ([] :: [Text])
+                    , "shiftTypeFilterIds" Aeson..= ([] :: [Text])
                     ]
                 fragmentKeys
                     `shouldBe` [ TimesheetsLive.timesheetToolbarLiveFragment
@@ -564,7 +640,7 @@ tests = aroundAll withDatabaseTestContext do
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
-                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue emptyTimesheetViewFilters
                         let daySectionRef =
                                 timesheetsCandidateMountedFragments scope mountState
                                     |> find (\fragment -> fragment.mountedFragmentKey == TimesheetsLive.timesheetDaySectionLiveFragment (testAnchorForOffset 0))
@@ -1185,7 +1261,7 @@ tests = aroundAll withDatabaseTestContext do
                 createResponse `responseStatusShouldBe` status403
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
-        it "excludes trial staff from manager timesheet forms and staff filters" $ withContext do
+        it "excludes trial staff from manager timesheet forms and staff overview" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Trial Exclusion Venue"
                 manager <- createUserRecord "timesheet-trial-manager@example.com" "staff" True
@@ -1213,7 +1289,7 @@ tests = aroundAll withDatabaseTestContext do
                 formResponse `responseBodyShouldContain` cs (tshow linkedStaff.id)
                 formResponse `responseBodyShouldNotContain` cs (tshow trialStaff.id)
                 weekResponse `responseStatusShouldBe` status200
-                weekResponse `responseBodyShouldContain` "Linked Worker"
+                weekResponse `responseBodyShouldContain` cs (tshow linkedStaff.id)
                 weekResponse `responseBodyShouldNotContain` "Trial Worker"
                 weekResponse `responseBodyShouldNotContain` cs (tshow trialStaff.id)
 
@@ -1406,7 +1482,7 @@ tests = aroundAll withDatabaseTestContext do
                     _ <- makeStaffTimesheetProducing payLevel staff
                     entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
                     let params = [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
-                            <> [("staffFilterId", cs (tshow (unpackId staff.id))) | filtered]
+                            <> [("staffFilterIds", cs (tshow (unpackId staff.id))) | filtered]
 
                     response <- withUserAndCurrentVenue user venue.id do
                         withRequestHeaders (if isHtmx then [("HX-Request", "true")] else []) do
@@ -2302,7 +2378,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("staffFilterId", idToParam workerA.id)]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("staffFilterIds", idToParam workerA.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "timesheet-side-panel"
@@ -2316,7 +2392,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-staff-highlight-member=\"staff:"
                 response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-staff-highlight-pin=\"staff:"
                 response `responseBodyShouldContain` "Ava Counted"
-                response `responseBodyShouldContain` "Bea Unfiltered"
+                response `responseBodyShouldContain` cs ("staff:" <> tshow workerB.id)
                 response `responseBodyShouldContain` "timesheet-staff-count-total\">2</span>"
                 response `responseBodyShouldContain` "timesheet-staff-count-approved\">(1)</span>"
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
@@ -2335,13 +2411,13 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
-                        , ("staffFilterId", idToParam staff.id)
+                        , ("staffFilterIds", idToParam staff.id)
                         ]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldNotContain` "data-live-update-url="
-                response `responseBodyShouldContain` cs ("staffFilterId=" <> tshow staff.id)
+                response `responseBodyShouldContain` cs ("staffFilterIds=" <> tshow staff.id)
 
         it "filters manager timesheet views to a selected staff member" $ withContext do
             withCleanDb do
@@ -2363,17 +2439,17 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
-                        , ("staffFilterId", idToParam workerA.id)
+                        , ("staffFilterIds", idToParam workerA.id)
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "name=\"staffFilterId\""
+                response `responseBodyShouldContain` "name=\"staffFilterIds\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Filter"
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Bea Filter"
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate="
-                response `responseBodyShouldContain` cs ("&amp;staffFilterId=" <> tshow workerA.id <> "\"")
-                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWindow?anchorDate=2024-12-30&amp;staffFilterId=" <> tshow workerA.id)
-                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWindow?anchorDate=2025-01-13&amp;staffFilterId=" <> tshow workerA.id)
+                response `responseBodyShouldContain` cs ("&amp;staffFilterIds=" <> tshow workerA.id <> "\"")
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2024-12-30&amp;staffFilterIds="
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-13&amp;staffFilterIds="
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
                 response `responseBodyShouldContain` "data-bepis-dialog-pointer-dismiss-blur=\"true\""
                 response `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entryA.id))
@@ -2425,8 +2501,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "href=\"/Timesheets\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-13\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWindow?anchorDate=2025-01-27\""
-                response `responseBodyShouldContain` "action=\"/ShowTimesheetWindow\""
-                response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWindow\""
+                response `responseBodyShouldContain` "id=\"timesheet-filters-button\""
+                response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetFilters?anchorDate=2025-01-20\""
                 response `responseBodyShouldContain` "name=\"anchorDate\" value=\"2025-01-20\""
                 response `responseBodyShouldNotContain` "<form method=\"get\" action=\"/ShowTimesheetWindow?anchorDate="
                 response `responseBodyShouldNotContain` "action=\"/ShowTimesheetWindow\" hx-get=\"/ShowTimesheetWindow?anchorDate="

@@ -100,6 +100,7 @@
     .app-week-toolbar-timesheets {
         grid-template-areas:
             ". top-spacer settings"
+            "primary primary primary"
             "navigation navigation navigation"
             "auxiliary auxiliary auxiliary";
     }
@@ -125,7 +126,7 @@
     }
 
     .app-week-toolbar-timesheets .app-week-toolbar-primary {
-        display: none;
+        justify-content: center;
     }
 
     .app-week-toolbar-reset {
@@ -163,39 +164,5 @@
         display: inline-flex;
         width: 100%;
         justify-content: center;
-    }
-}
-
-@media (min-width: 576px) and (max-width: 991.98px) {
-    .app-week-toolbar-timesheets {
-        grid-template-areas: "quick navigation end";
-        min-height: 4.5rem;
-    }
-
-    .app-week-toolbar-timesheets .app-week-toolbar-quick {
-        grid-area: quick;
-        display: flex;
-    }
-
-    .app-week-toolbar-timesheets .app-week-toolbar-reset {
-        grid-column: auto;
-        grid-row: auto;
-        justify-self: auto;
-        width: auto;
-        pointer-events: auto;
-    }
-
-    .app-week-toolbar-timesheets .app-week-toolbar-end {
-        grid-area: end;
-        display: flex;
-    }
-
-    .app-week-toolbar-timesheets .app-week-toolbar-settings {
-        grid-area: auto;
-    }
-
-    .app-week-toolbar-timesheets .app-week-toolbar-aux {
-        grid-area: auto;
-        display: inline-flex;
     }
 }

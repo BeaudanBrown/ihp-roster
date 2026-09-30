@@ -5,7 +5,7 @@ module Web.View.Timesheets.New where
 import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
-import Web.Timesheets.Paths (timesheetWindowUrl)
+import Web.Timesheets.Paths (timesheetWindowUrlWithFilters)
 import Web.View.Prelude
 
 newtype NewTimesheetRenderModel = NewTimesheetRenderModel
@@ -21,7 +21,7 @@ instance View NewView where
         renderTimesheetEntryModal
             GuardBlankTimesheet
             (timesheetModalTitle operationalDate)
-            (timesheetWindowUrl operationalDate inputs.selectedStaffFilterId)
+            (timesheetWindowUrlWithFilters operationalDate inputs.viewFilters)
             newTimesheetFormId
             (renderTimesheetForm (newTimesheetFormRenderModel PageOverlayForm newTimesheetRenderModel))
       where

@@ -21,8 +21,9 @@ import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceOptionalField,
                                                            (&:))
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
-import Web.Timesheets.Paths (timesheetWindowStateQueryParams,
-                             timesheetWindowUrl)
+import Web.Timesheets.Filters (TimesheetViewFilters)
+import Web.Timesheets.Paths (timesheetWindowStateQueryParamsWithFilters,
+                             timesheetWindowUrlWithFilters)
 import Web.View.Prelude
 
 newtype EditView = EditView
@@ -34,10 +35,10 @@ instance View EditView where
         renderTimesheetEntryModalWithStartButtons
             GuardChangedTimesheet
             (timesheetModalTitle operationalDate)
-            (timesheetWindowUrl operationalDate timesheetFormInputs.selectedStaffFilterId)
+            (timesheetWindowUrlWithFilters operationalDate timesheetFormInputs.viewFilters)
             editTimesheetFormId
             (renderTimesheetForm (editTimesheetFormRenderModel PageOverlayForm timesheetFormInputs))
-            (deleteButtonsFor timesheetFormInputs.timesheetEntry timesheetFormInputs.calendarRevision timesheetFormInputs.selectedStaffFilterId)
+            (deleteButtonsFor timesheetFormInputs.timesheetEntry timesheetFormInputs.calendarRevision timesheetFormInputs.viewFilters)
       where
         operationalDate = timesheetEntryOperationalDate timesheetFormInputs.timesheetEntry
 
@@ -51,7 +52,7 @@ renderEditTimesheetDialog timesheetFormInputs =
         (timesheetModalTitle (timesheetEntryOperationalDate timesheetFormInputs.timesheetEntry))
         editTimesheetFormId
         (renderTimesheetForm (editTimesheetFormRenderModel HtmxOverlayForm timesheetFormInputs))
-        (deleteButtonsFor timesheetFormInputs.timesheetEntry timesheetFormInputs.calendarRevision timesheetFormInputs.selectedStaffFilterId)
+        (deleteButtonsFor timesheetFormInputs.timesheetEntry timesheetFormInputs.calendarRevision timesheetFormInputs.viewFilters)
 
 editTimesheetFormRenderModel :: OverlayFormMode -> TimesheetFormInputs -> TimesheetFormRenderModel
 editTimesheetFormRenderModel formMode timesheetFormInputs =
@@ -73,7 +74,7 @@ timesheetEntryFormOrigin timesheetEntry
     | isJust timesheetEntry.sourceRosterSlotId = RosteredTimesheetEntryForm
     | otherwise = AdHocTimesheetForm
 
-deleteButtonsFor :: TimesheetEntry -> Int -> Maybe UUID -> [OverlayButton]
+deleteButtonsFor :: TimesheetEntry -> Int -> TimesheetViewFilters -> [OverlayButton]
 deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
     [ OverlayButton
         { overlayButtonLabel = "Delete"
@@ -90,7 +91,7 @@ deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
         -- The form submits calendar/filter fields; the GET URL must not duplicate them.
         confirmationUrl = pathTo (ShowTimesheetEntryDeleteConfirmationAction (get #id timesheetEntry))
 
-renderTimesheetDeleteConfirmation :: (?context :: ControllerContext) => TimesheetEntry -> Int -> Maybe UUID -> Html
+renderTimesheetDeleteConfirmation :: (?context :: ControllerContext) => TimesheetEntry -> Int -> TimesheetViewFilters -> Html
 renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffFilterId =
     renderConfirmationDialog
         (defaultConfirmationDialogConfig
@@ -105,7 +106,7 @@ renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffF
             }
   where
     formId = "delete-timesheet-entry-confirmation-form"
-    requestParams = timesheetWindowStateQueryParams (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId <> [("rosterCalendarRevision", tshow calendarRevision)]
+    requestParams = filter (not . null . snd) (timesheetWindowStateQueryParamsWithFilters (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId) <> [("rosterCalendarRevision", tshow calendarRevision)]
     -- Retain DELETE's query-based calendar context; Cancel's GET form submits
     -- hidden fields. Neither request duplicates scalars across URL and form.
     deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) requestParams
@@ -127,12 +128,7 @@ renderTimesheetDeleteConfirmation timesheetEntry calendarRevision selectedStaffF
             requestParams
         }
 
-timesheetDeleteRequestParams :: TimesheetEntry -> Int -> Maybe UUID -> [(Text, Text)]
-timesheetDeleteRequestParams timesheetEntry calendarRevision selectedStaffFilterId =
-    surfaceFieldsText $
-        appShellActionFields @OpenTimesheetDeleteConfirmationDialog
-            (surfaceField @AnchorDateField (tshow (timesheetEntryOperationalDate timesheetEntry) :: Text))
-            ( surfaceField @RosterCalendarRevisionField (tshow calendarRevision)
-                &: surfaceOptionalField @StaffFilterIdField (tshow <$> selectedStaffFilterId)
-                &: noSurfaceFields
-            )
+timesheetDeleteRequestParams :: TimesheetEntry -> Int -> TimesheetViewFilters -> [(Text, Text)]
+timesheetDeleteRequestParams timesheetEntry calendarRevision filters =
+    filter (not . null . snd) (timesheetWindowStateQueryParamsWithFilters (timesheetEntryOperationalDate timesheetEntry) filters)
+        <> [("rosterCalendarRevision", tshow calendarRevision)]

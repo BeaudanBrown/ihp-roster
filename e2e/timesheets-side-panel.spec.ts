@@ -12,7 +12,7 @@ import { defaultE2ERosterGroupId } from './support/roster';
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './support/runtime';
 import { loginAs } from './support/session';
-import { openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
+import { openTimesheetFilterSection, openTimesheetSettings, resetTimesheetDisplayPreferences } from './support/timesheets';
 import { runSql } from './support/database';
 
 const secondRosterGroupId = 'a1000000-0000-0000-0000-000000000213';
@@ -70,10 +70,10 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(page.locator(`#${dialogOverlayMountDomId}`).getByRole('dialog')).toHaveCount(0);
 
         await openTimesheetSettings(page);
-        const filter = page.locator('#timesheet-staff-filter');
-        const selectedValue = await filter.locator('option:not([value=""])').first().getAttribute('value');
-        await filter.selectOption(selectedValue ?? '');
-        await expect(page).toHaveURL(/staffFilterId=/, { timeout: E2E_TIMEOUT.navigation });
+        const section = await openTimesheetFilterSection(page, 'Staff');
+        await section.getByRole('checkbox').first().check();
+        await page.getByRole('button', { name: 'Apply', exact: true }).click();
+        await expect(page).toHaveURL(/staffFilterIds=/, { timeout: E2E_TIMEOUT.navigation });
         await expect(panel.locator(`[${timesheetsTimesheetStaffHighlightSourceDomAttr}]`)).toHaveCount(initialRowCount);
         await expect(panel.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
 
@@ -89,28 +89,29 @@ test.describe('Timesheets shared SidePanel', () => {
 
         await expect(page.locator('.timesheet-entry-card')).not.toHaveCount(0);
         await openTimesheetSettings(page);
-        const rosterGroupFilter = page.locator('#timesheet-roster-group-filter');
-        await expect(rosterGroupFilter.locator(`option[value="${defaultE2ERosterGroupId}"]`)).toHaveText('Main');
-
-        await rosterGroupFilter.selectOption(secondRosterGroupId);
-        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${secondRosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
+        const section = await openTimesheetFilterSection(page, 'Roster groups');
+        await expect(section.getByRole('checkbox', { name: 'Main', exact: true })).toHaveValue(defaultE2ERosterGroupId);
+        await section.getByRole('checkbox', { name: 'Second group', exact: true }).check();
+        await page.getByRole('button', { name: 'Apply', exact: true }).click();
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterIds=${secondRosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('.timesheet-entry-card')).toHaveCount(0);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
 
         await page.getByRole('link', { name: '>' }).click();
-        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${secondRosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('#timesheet-roster-group-filter')).toHaveValue(secondRosterGroupId);
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterIds=${secondRosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
+        const reopened = await openTimesheetFilterSection(page, 'Roster groups');
+        await expect(reopened.getByRole('checkbox', { name: 'Second group', exact: true })).toBeChecked();
     });
 
     test('hides roster-group filtering when the manager has only one active group', async ({ page }) => {
         runSql(`UPDATE roster_groups SET is_active = FALSE, updated_at = NOW() WHERE id = '${secondRosterGroupId}';`);
         await page.setViewportSize({ width: 1440, height: 900 });
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, `/Timesheets?rosterGroupFilterId=${defaultE2ERosterGroupId}`, '#timesheet-week-shell');
+        await gotoWhenReady(page, `/Timesheets?rosterGroupFilterIds=${defaultE2ERosterGroupId}`, '#timesheet-week-shell');
         await expect(page).toHaveURL(/\/ShowTimesheetWindow\?anchorDate=\d{4}-\d{2}-\d{2}$/);
-        await openTimesheetSettings(page);
-        await expect(page.locator('#timesheet-roster-group-filter')).toHaveCount(0);
+        await page.locator('#timesheet-filters-button').click();
+        await expect(page.locator(`#${dialogOverlayMountDomId} summary`, { hasText: 'Roster groups' })).toHaveCount(0);
     });
 
     test('renders a Settings-only tools shelf for ordinary staff', async ({ page }) => {
@@ -127,7 +128,9 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(panel.getByRole('heading', { name: 'Settings' })).toBeVisible();
         await expect(panel.getByRole('tab')).toHaveCount(0);
         await expect(panel.locator(`[${timesheetsTimesheetStaffHighlightSourceDomAttr}]`)).toHaveCount(0);
-        await expect(page.locator('#timesheet-roster-group-filter')).toHaveCount(0);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelToggleDomAttr}]`)).toBeHidden();
+        await page.getByRole('button', { name: 'Close Timesheet tools', exact: true }).click();
+        await page.locator('#timesheet-filters-button').click();
+        await expect(page.locator(`#${dialogOverlayMountDomId} summary`, { hasText: 'Roster groups' })).toHaveCount(0);
     });
 });

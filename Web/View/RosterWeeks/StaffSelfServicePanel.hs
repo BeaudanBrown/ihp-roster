@@ -21,6 +21,7 @@ import Web.RosterWeeks.Dom (rosterSelfServiceQuickToolsPaneId,
                             rosterSelfServiceSettingsPaneId,
                             rosterSelfServiceSettingsTabId)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
+import Web.Timesheets.Filters (emptyTimesheetViewFilters)
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsDaySurfaceImpl)
@@ -110,8 +111,7 @@ timesheetDayModel panel =
         , dayEditWindowDays = panel.quickToolsTimesheetEditWindowDays
         , dayWeekStartDate = panel.quickToolsTimesheetWeekStartDate
         , dayCalendarRevision = panel.quickToolsCalendarRevision
-        , dayStaffFilterId = Nothing
-        , dayRosterGroupFilterId = Nothing
+        , dayViewFilters = emptyTimesheetViewFilters
         , dayWageEstimates = Nothing
         , dayOffset = operationalDayOffset
         }
@@ -125,9 +125,7 @@ timesheetSurface panel =
             , timesheetCalendarRevision = panel.quickToolsCalendarRevision
             }
         mountState = TimesheetsMountStateValue
-            { timesheetsMountStaffFilterId = Nothing
-            , timesheetsMountRosterGroupFilterId = Nothing
-            }
+            { timesheetsMountFilters = emptyTimesheetViewFilters }
      in timesheetsDaySurfaceImpl scope mountState (quickToolsTimesheetDayOffset panel)
 
 quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int

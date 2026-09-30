@@ -74,6 +74,7 @@ data ProfilesController
 data TimesheetsController
     = TimesheetsAction
     | ShowTimesheetWindowAction { anchorDate :: !Text }
+    | ShowTimesheetFiltersAction { anchorDate :: !Text }
     | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Text }

@@ -6,7 +6,8 @@ import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.VenueTime.Model (timesheetEntryOperationalDate)
-import Web.Timesheets.Paths (timesheetWindowUrl)
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
+import Web.Timesheets.Paths (timesheetWindowUrlWithFilters)
 import Web.View.Prelude
 
 data RosterPrefillTimesheetRenderModel = RosterPrefillTimesheetRenderModel
@@ -23,7 +24,7 @@ instance View RosterPrefillNewView where
         renderTimesheetEntryModal
             GuardNewTimesheet
             ("Rostered " <> timesheetModalTitle operationalDate)
-            (timesheetWindowUrl operationalDate inputs.selectedStaffFilterId)
+            (timesheetWindowUrlWithFilters operationalDate inputs.viewFilters)
             rosterPrefillTimesheetFormId
             (renderRosterPrefillTimesheetForm PageOverlayForm rosterPrefillTimesheetRenderModel)
       where
@@ -62,4 +63,4 @@ renderRosterPrefillTimesheetForm formMode RosterPrefillTimesheetRenderModel { ro
     actionUrl = pathTo CreateTimesheetEntryFromRosterShiftAction { rosterSlotId }
     surfaceAction =
         TimesheetsAction.createTimesheetEntryFromRosterShiftAction
-            (TimesheetsAction.createTimesheetEntryFromRosterShiftActionFields timesheetFormInputs.timesheetEntry.operationalDate timesheetFormInputs.calendarRevision timesheetFormInputs.selectedStaffFilterId)
+            (TimesheetsAction.createTimesheetEntryFromRosterShiftActionFields timesheetFormInputs.timesheetEntry.operationalDate timesheetFormInputs.calendarRevision (Just timesheetFormInputs.viewFilters.filterStaffIds) (Just timesheetFormInputs.viewFilters.filterRosterGroupIds) (Just timesheetFormInputs.viewFilters.filterShiftTypeIds))
