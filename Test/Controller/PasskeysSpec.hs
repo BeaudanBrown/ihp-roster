@@ -516,6 +516,44 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
                 response `responseBodyShouldContain` "/PasskeyStepUp"
 
+        it "lets an unverified founder manage copied passkeys when strong authentication is disabled" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Founder Optional Passkey Venue"
+                founder <- createUserRecordWithPlatformRole "optional-passkey-founder@example.com" "staff" (Just SuperAdmin) True
+                passkey <- createTestPasskeyRecord founder "Copied production passkey"
+
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue founder venue.id do
+                        registration <- callAction BeginPasskeyRegistrationAction
+                        registration `responseStatusShouldBe` status200
+                        response <- callAction SendNewDevicePasskeySetupEmailAction
+                        response `responseStatusShouldBe` status302
+                        token <- query @PasskeySetupToken |> fetchOne
+                        token.userId `shouldBe` unpackId founder.id
+                        token.requestedByUserId `shouldBe` Just (unpackId founder.id)
+                        deletion <- callAction (DeletePasskeyAction passkey.id)
+                        deletion `responseStatusShouldBe` status302
+                        query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists `shouldReturn` False
+                        getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+                        getSession @Text passkeyVerifiedAtSessionKey `shouldReturn` Nothing
+
+        it "keeps ordinary passkey management protected when strong authentication is disabled" $ withContext do
+            forM_ [Worker, VenueAdmin, VenueOwner] \role -> withCleanDb do
+                venue <- createVenueWithConfig "Ordinary Optional Passkey Venue"
+                user <- createUserRecord "optional-passkey-user@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user role
+                passkey <- createTestPasskeyRecord user "Existing passkey"
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue user venue.id do
+                        response <- callAction SendNewDevicePasskeySetupEmailAction
+                        response `responseStatusShouldBe` status302
+                        query @PasskeySetupToken |> fetchCount `shouldReturn` 0
+                        deletion <- callAction (DeletePasskeyAction passkey.id)
+                        deletion `responseStatusShouldBe` status302
+                        lookup HTTP.hLocation (responseHeaders deletion) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                        query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists `shouldReturn` True
+
         it "requires fresh passkey verification before sending a new-device setup link" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Unverified New Device Setup Venue"
@@ -798,6 +836,29 @@ tests = aroundAll withDatabaseTestContext do
                     lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
                 query @PasskeySetupToken |> fetchCount `shouldReturn` 0
                 query @PasswordResetToken |> fetchCount `shouldReturn` 0
+
+        it "waives staff credential-link verification only for founders when strong authentication is disabled" $ withContext do
+            forM_ [False, True] \isFounder -> withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Optional Credential Verification Venue"
+                actor <- createUserRecordWithPlatformRole "optional-credential-actor@example.com" "staff" (if isFounder then Just SuperAdmin else Nothing) True
+                unless isFounder do
+                    _ <- createVenueMembershipRecord venue actor VenueOwner
+                    pure ()
+                target <- createUserRecord "optional-credential-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue target Worker
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+                withPrivilegedStrongAuthentication False do
+                    withUserAndCurrentVenue actor venue.id do
+                        forM_ [SendStaffPasskeySetupEmailAction targetStaff.id, SendStaffPasskeyRecoveryEmailAction targetStaff.id, SendStaffPasswordResetEmailAction targetStaff.id] \action -> do
+                            response <- callAction action
+                            response `responseStatusShouldBe` status302
+                        getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+                query @PasskeySetupToken |> fetchCount `shouldReturn` (if isFounder then 2 else 0)
+                query @PasswordResetToken |> fetchCount `shouldReturn` (if isFounder then 1 else 0)
 
         it "lets a super admin send a password reset for active linked staff in an arbitrary selected venue" $ withContext do
             withCleanDb do

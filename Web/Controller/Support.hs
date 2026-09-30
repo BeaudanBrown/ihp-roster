@@ -374,8 +374,9 @@ supportCanAddPasskey :: (?context :: ControllerContext) => [Passkey] -> IO Bool
 supportCanAddPasskey passkeys
     | currentUserIsImpersonating = pure False
     | otherwise = do
+        maySkip <- currentUserMaySkipPasskeyVerification
         recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
-        pure (null passkeys || recoveryVerified)
+        pure (maySkip || null passkeys || recoveryVerified)
 
 respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ResponseReceived
 respondToAwardRatesRefresh =

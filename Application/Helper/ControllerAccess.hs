@@ -178,6 +178,15 @@ privilegedStrongAuthenticationRequired = do
     maybeValue <- Environment.lookupEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
     pure (maybe True strongAuthenticationEnabledValue maybeValue)
 
+-- This deployment exception belongs to the real authenticated platform actor,
+-- never to a venue role or the effective user selected during impersonation.
+-- It waives enforcement only; it does not manufacture a verified session.
+currentUserMaySkipPasskeyVerification :: (?context :: ControllerContext) => IO Bool
+currentUserMaySkipPasskeyVerification =
+    if authenticatedCurrentUser.platformRole == Just SuperAdmin
+        then not <$> privilegedStrongAuthenticationRequired
+        else pure False
+
 strongAuthenticationEnabledValue :: String -> Bool
 strongAuthenticationEnabledValue value =
     value `notElem` ["0", "false", "FALSE", "no", "NO", "off", "OFF"]
@@ -264,21 +273,24 @@ ensureFreshPasskeyReady =
 
 ensureFreshPasskeyReadyFor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ()
 ensureFreshPasskeyReadyFor redirectPath = do
-    hasPasskey <- currentUserHasPasskey
-    if not hasPasskey
-        then withRequestContext do
-            setSession passkeyStepUpRedirectSessionKey (safePasskeyReturnPathOrRoster redirectPath)
-            if isHtmxRequest
-                then do
-                    setHeader ("HX-Redirect", cs (pathTo PasskeySetupAction))
-                    earlyReturn (renderPlain "")
-                else earlyReturn (redirectTo PasskeySetupAction)
-        else ensureFreshPasskeyVerifiedFor redirectPath
+    maySkip <- currentUserMaySkipPasskeyVerification
+    unless maySkip do
+        hasPasskey <- currentUserHasPasskey
+        if not hasPasskey
+            then withRequestContext do
+                setSession passkeyStepUpRedirectSessionKey (safePasskeyReturnPathOrRoster redirectPath)
+                if isHtmxRequest
+                    then do
+                        setHeader ("HX-Redirect", cs (pathTo PasskeySetupAction))
+                        earlyReturn (renderPlain "")
+                    else earlyReturn (redirectTo PasskeySetupAction)
+            else ensureFreshPasskeyVerifiedFor redirectPath
 
 ensureFreshPasskeyVerifiedFor :: (?context :: ControllerContext, ?respond :: Respond) => Text -> IO ()
 ensureFreshPasskeyVerifiedFor redirectPath = do
+    maySkip <- currentUserMaySkipPasskeyVerification
     verified <- isCurrentUserPasskeyVerified
-    unless verified do
+    unless (maySkip || verified) do
         withRequestContext do
             setSession passkeyStepUpRedirectSessionKey (safePasskeyReturnPathOrRoster redirectPath)
             if isHtmxRequest
