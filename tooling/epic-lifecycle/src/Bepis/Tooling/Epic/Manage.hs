@@ -9,11 +9,11 @@ import Bepis.Tooling.Workspace.State
 import Control.Exception (IOException, catch, throwIO)
 import Control.Monad (forM, unless, void, when)
 import Data.Aeson (FromJSON (parseJSON), Value, eitherDecodeStrict', encode, object, withObject, (.:), (.=))
-import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LazyByteString
 import Data.List (find, intercalate, isPrefixOf, isSuffixOf, nub)
 import Data.Maybe (catMaybes)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory)
 import System.Environment (getEnvironment, lookupEnv)
 import System.Exit (ExitCode (..))
@@ -284,7 +284,7 @@ cleanupAction options contextValue = do
     unless (currentRoot contextValue == target) (failure 65 "cleanup must run from the recorded target checkout")
     repository <- gh ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]
     parentResponse <- gh ["api", "repos/" <> repository <> "/issues/" <> show (epicNumber options)]
-    parentState <- case eitherDecodeStrict' (ByteString.pack parentResponse) of
+    parentState <- case eitherDecodeStrict' (TextEncoding.encodeUtf8 (Text.pack parentResponse)) of
         Right (IssueState value) -> pure value
         Left _ -> failure 65 "GitHub returned malformed parent issue state"
     unless (parentState == "closed") (failure 65 ("refusing cleanup while parent epic #" <> show (epicNumber options) <> " is not closed"))

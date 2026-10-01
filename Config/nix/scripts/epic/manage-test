@@ -60,7 +60,8 @@ set -euo pipefail
 if [ "$1" = repo ] && [ "$2" = view ]; then
     echo 'BeaudanBrown/ihp-roster'
 elif [ "$1" = api ]; then
-    echo '{"state":"closed"}'
+    # Raw Unicode in ignored fields must not corrupt the JSON state envelope.
+    echo '{"state":"closed","body":"Staff → café — 日本語 🧪"}'
 else
     exit 64
 fi
