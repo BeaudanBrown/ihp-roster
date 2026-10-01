@@ -31,8 +31,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
 import IHP.Hspec
+import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -1159,6 +1159,9 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff.firstName `shouldBe` "Alpha"
                 resource <- either (fail . cs) pure (encodeDurableResource (staffPreferencesResource (unpackId staff.id)))
                 query @LiveResourceVersion |> filterWhere (#resourceKey, Id resource.durableResourceKey) |> fetchExists >>= (`shouldBe` True)
+                profileResource <- either (fail . cs) pure (encodeDurableResource (staffProfileResource (unpackId staff.id)))
+                query @LiveInvalidationEventResource |> filterWhere (#resourceKey, resource.durableResourceKey) |> fetchCount >>= (`shouldBe` 1)
+                query @LiveInvalidationEventResource |> filterWhere (#resourceKey, profileResource.durableResourceKey) |> fetchCount >>= (`shouldBe` 0)
 
         it "rejects malformed roster group ids and shift preference keys without throwing" $ withContext do
             withCleanDb do

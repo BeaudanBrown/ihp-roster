@@ -6,8 +6,6 @@ import Application.Helper.FrontendContract.Surface.Profile.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as RosterResource
 import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
-                                                   encodeDurableResource)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey,
@@ -391,6 +389,9 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff.firstName `shouldBe` "Taylor"
                 resource <- either (fail . cs) pure (encodeDurableResource (staffPreferencesResource (unpackId staff.id)))
                 query @LiveResourceVersion |> filterWhere (#resourceKey, Id resource.durableResourceKey) |> fetchExists >>= (`shouldBe` True)
+                profileResource <- either (fail . cs) pure (encodeDurableResource (staffProfileResource (unpackId staff.id)))
+                query @LiveInvalidationEventResource |> filterWhere (#resourceKey, resource.durableResourceKey) |> fetchCount >>= (`shouldBe` 1)
+                query @LiveInvalidationEventResource |> filterWhere (#resourceKey, profileResource.durableResourceKey) |> fetchCount >>= (`shouldBe` 0)
 
                 profileResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
